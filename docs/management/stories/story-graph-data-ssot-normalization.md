@@ -83,6 +83,29 @@ updated_at: 2026-07-18
 - 物理DELETE、監査ログの書き換え、秘密値のrepo保存
 - CI契約からVibePro decision要件を外す変更
 
+## Engineering judgment
+
+### 現状と意図
+
+センターピンは、重複IDを削除することではなく、現行参照を一つのcanonical IDへ寄せながら旧IDを監査可能なaliasとして残すことである。before監査では旧IDを指すbusiness edge、認可、RACIが存在し、BAAO project名・固有Philosophy・CIから見えるVibePro decisionが欠けていた。after監査は[機械可読な本番証跡](../evidence/graph-data-ssot-normalization-20260718.json)に固定する。
+
+### 不変条件と失敗時挙動
+
+- 物理削除、監査ログの書換え、decision payload/created_atの上書き、秘密値のrepo出力をしない。
+- apply前検証、対象限定backup、advisory lock、単一transaction、apply後assertの順で進み、途中失敗はcommit前にrollbackする。
+- commit後の復旧はbackupに列挙されたIDだけを復元する。rollback replayと障害注入をunit testし、広域DELETEがないことを検証する。
+- financeは一般org payloadから除外し、Graph entityの`role_min=ceo`と`sensitivity=finance`を同時に満たす既存DB検索契約で保護する。
+
+### 公開契約と互換性
+
+- REST/MCPのentity IDとproject codeは変更しない。旧org/person IDはaliasとしてread可能なまま残す。
+- VibePro decisionは既存payloadと`created_at=2026-04-25`を保持し、CI/MCP正本契約に必要なvisibilityだけ`gm`から`member`へ修復する。
+- CLIは`dry-run`をdefaultとし、`apply`と`rollback <backup>`だけを明示的に受け付ける。出力はID・件数・状態に限定し、秘密payloadを返さない。
+
+### レビュー境界
+
+このPRは、Story（対象と不変条件）、実行スクリプト（可逆transaction）、テスト（dry-run/backup/rollback/認可境界）、本番監査証跡の一つの復旧単位である。文書laneと実行laneを分離すると、実装だけでは正本判断を、文書だけでは再現・復旧をレビューできないため分割しない。各ファイルの責務をこの4点に限定し、BAAO制度採用などの業務decisionは含めない。
+
 ## 受け入れ基準
 
 - [x] `baao`と`unson`がcanonical orgとして取得でき、旧IDはretired aliasとしてcanonical IDを指す。
@@ -125,4 +148,5 @@ updated_at: 2026-07-18
 - VibePro decision: payload・created_atを保持し、`role_min`だけ`gm`から`member`へ修復
 - MCP: ブリッジ再起動後、exact decisionとBAAO Philosophy Contextを取得
 - REST/CI: `node scripts/vibepro-graph-ssot-check.mjs`の4 checksがすべてpassed
-- tests: 30 tests passed、DB未設定時のみskipされるGraph route tests 5件は対象外環境でskip
+- tests: rollback rehearsal、finance認可境界、Graph context routeを含むtargeted Vitest 37件が成功。DB未設定時のみskipされるGraph route tests 5件は対象外環境でskip
+- machine-readable evidence: `docs/management/evidence/graph-data-ssot-normalization-20260718.json`

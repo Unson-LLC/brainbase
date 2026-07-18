@@ -115,6 +115,39 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         });
     });
 
+    it('finance entityは呼出元のclearanceとroleをDB検索条件で同時に制約する', async () => {
+        const { service, client } = buildService();
+        const memberAccess = {
+            role: 'member',
+            projectCodes: ['unson'],
+            clearance: ['internal']
+        };
+
+        await service.listGraphEntities(memberAccess, {
+            projectCode: 'unson',
+            entityType: 'finance_account',
+            limit: 20
+        });
+
+        const graphQuery = client.query.mock.calls.find(([text]) => (
+            typeof text === 'string'
+            && text.includes('FROM graph_entities ge')
+            && text.includes('ge.sensitivity = ANY($4)')
+        ));
+        expect(graphQuery).toBeDefined();
+        expect(graphQuery[0]).toContain("CASE ge.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END");
+        expect(graphQuery[1]).toEqual([
+            'unson',
+            'finance_account',
+            ['unson'],
+            ['internal'],
+            1,
+            null,
+            null,
+            20
+        ]);
+    });
+
     it('getContext呼び出し時_includePhilosophy有効_scope別思想contextを返す', async () => {
         const { service } = buildService();
         vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, _access, { entityType }) => {

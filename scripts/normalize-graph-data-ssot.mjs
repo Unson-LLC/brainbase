@@ -281,7 +281,7 @@ function validateState(state) {
   return { entities, glossaryTerms };
 }
 
-function sanitizedPlan(state) {
+export function sanitizedPlan(state) {
   const entities = indexById(state.graphEntities);
   const vibeproDecision = entities.get(IDS.vibeproDecision);
   const legacyGrantCount = state.authGrants.filter((row) => row.person_id === IDS.legacyPerson).length;
@@ -319,7 +319,7 @@ function sanitizedPlan(state) {
   };
 }
 
-async function writeBackup(state, backupRoot = DEFAULT_BACKUP_ROOT) {
+export async function writeBackup(state, backupRoot = DEFAULT_BACKUP_ROOT) {
   await fs.mkdir(backupRoot, { recursive: true, mode: 0o700 });
   await fs.chmod(backupRoot, 0o700);
   const stamp = new Date().toISOString().replaceAll(':', '').replaceAll('.', '');
@@ -554,7 +554,7 @@ async function restoreRows(client, table, idColumn, targetIds, rows, columns) {
   }
 }
 
-async function rollback(client, backupPath) {
+export async function rollback(client, backupPath) {
   const backup = JSON.parse(await fs.readFile(backupPath, 'utf8'));
   assert(backup.version === BACKUP_VERSION, `unsupported backup version: ${backup.version}`);
   await client.query('BEGIN');

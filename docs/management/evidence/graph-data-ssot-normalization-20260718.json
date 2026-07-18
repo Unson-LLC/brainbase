@@ -1,0 +1,92 @@
+{
+  "schema_version": "graph-data-ssot-normalization-evidence.v1",
+  "story_id": "story-graph-data-ssot-normalization",
+  "observed_at": "2026-07-18T15:37:03Z",
+  "production_apply": {
+    "status": "applied",
+    "transactional": true,
+    "physical_deletes": 0,
+    "backup_file": "2026-07-18T152024997Z.json",
+    "backup_mode": "0600",
+    "changed_entity_ids": [
+      "baao",
+      "org_baao",
+      "prj_01KGCS8BC76XRHFCHRRQ8G25MY",
+      "phi_baao_trusted_ai_adoption",
+      "unson",
+      "org_unson",
+      "fin_unson_bank_account",
+      "per_01KGYC7NNS0VXADK7NP48W4VR5",
+      "per_01KGYC7NNPNVRG527BGTFH5SGH",
+      "dec_vibepro_ai_self_evaluation_metrics_japanese_ssot"
+    ],
+    "changed_edge_ids": [
+      "edg_01KTDDBM877AXAK8Q7HB3YFTTS",
+      "edg_01KTDDBM8NRRSMYR766QVASVNX",
+      "edg_01KX8VWMZCXZNP32G2HRQAHQ98",
+      "edg_75efbda69c3e6fc483c37f49",
+      "edg_alias_org_baao_to_baao",
+      "edg_alias_org_unson_to_unson"
+    ]
+  },
+  "post_apply_dry_run": {
+    "status": "ready",
+    "legacy_business_edges_to_migrate": 0,
+    "payload_records_to_repoint": 0,
+    "legacy_auth_grants_to_migrate": 0,
+    "legacy_raci_to_migrate": 0,
+    "preserved_legacy_auth_audit_logs": 14,
+    "vibepro_decision_action": "preserve_existing",
+    "physical_deletes": 0
+  },
+  "canonical_person_references": {
+    "person_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+    "auth_grants": 1,
+    "raci_assignments": 10,
+    "users": 3,
+    "legacy_current_references": 0
+  },
+  "rest_readback": {
+    "canonical_org_ids": ["baao", "unson"],
+    "retired_alias_ids": ["org_baao", "org_unson"],
+    "baao_project_name": "BAAO",
+    "baao_core_philosophy_id": "phi_baao_trusted_ai_adoption",
+    "canonical_person_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+    "retired_person_alias_id": "per_01KGYC7NNPNVRG527BGTFH5SGH",
+    "vibepro_decision_id": "dec_vibepro_ai_self_evaluation_metrics_japanese_ssot",
+    "vibepro_decision_role_min": "member",
+    "finance_entity_id": "fin_unson_bank_account",
+    "finance_role_min": "ceo",
+    "finance_sensitivity": "finance",
+    "finance_field_present_in_org_payload": false,
+    "baao_philosophy_context_present": true
+  },
+  "mcp_readback": {
+    "exact_vibepro_decision_found": true,
+    "vibepro_decision_decided_at": "2026-04-25",
+    "baao_philosophy_context_found": true,
+    "baao_philosophy_context_name": "BAAO Trusted AI Adoption"
+  },
+  "vibepro_decision_disposition": {
+    "record_existed_before_apply": true,
+    "payload_replaced": false,
+    "created_at_replaced": false,
+    "visibility_change": "gm_to_member",
+    "reason": "live record, repository history, current spec, and CI contract agreed; no intentional retirement evidence was found"
+  },
+  "verification": {
+    "targeted_vitest": {
+      "files": 7,
+      "tests": 37,
+      "passed": 37,
+      "failed": 0,
+      "includes": ["rollback_rehearsal", "rollback_failure_injection", "backup_permissions", "finance_access_boundary", "auth_person_canonicalization", "graph_context_route"]
+    },
+    "live_graph_ci_check": {
+      "checks": 4,
+      "passed": 4,
+      "failed": 0
+    }
+  },
+  "secrets_included": false
+}
