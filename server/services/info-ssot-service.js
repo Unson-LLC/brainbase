@@ -2145,8 +2145,11 @@ export class InfoSSOTService {
             const sql = `
                 SELECT p.*
                 FROM people p
-                JOIN people_slack ps ON p.id = ps.person_id
-                WHERE ps.slack_user_id = $1 AND ps.workspace_id = $2
+                JOIN auth_grants ag ON p.id = ag.person_id
+                WHERE ag.slack_user_id = $1
+                  AND ag.slack_workspace_id = $2
+                  AND ag.active = true
+                ORDER BY ag.updated_at DESC
                 LIMIT 1
             `;
             const result = await client.query(sql, [slackUserId, workspaceId]);

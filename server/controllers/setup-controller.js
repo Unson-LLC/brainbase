@@ -26,7 +26,7 @@ export class SetupController {
      * GET /api/setup/config
      * 認証済みユーザーのセットアップ設定を返す
      */
-    /** @param {Request & { access?: { slackUserId?: string, slackWorkspaceId?: string } }} req @param {Response} res */
+    /** @param {Request & { access?: { slackUserId?: string, slackWorkspaceId?: string, projectCodes?: string[] } }} req @param {Response} res */
     getSetupConfig = async (req, res) => {
         try {
             const access = req.access;
@@ -43,17 +43,15 @@ export class SetupController {
                 return res.status(404).json({ ok: false, error: 'Person not found' });
             }
 
-            // 2. プロジェクト割り当てを取得（RACI権限ベース）
-            const assignments = await this.infoSsotService.getProjectAssignments(person.id);
+            // 2. 認証時にGraph auth_grantsから検証済みのプロジェクト権限を使う。
+            // 本番サーバーの個人用config.ymlやRACI表示情報には依存させない。
+            const projectCodes = Array.from(new Set(access.projectCodes || []));
+            const assignedProjects = /** @type {SetupProject[]} */ (projectCodes.map((code) => ({
+                id: code,
+                name: code
+            })));
 
-            // 3. config.ymlのプロジェクト一覧を取得
-            const { projects: allProjects } = await this.configParser.getProjects();
-
-            // 4. 権限のあるプロジェクトのみフィルタリング
-            const projectIds = assignments.map((a) => a.project_id);
-            const assignedProjects = /** @type {SetupProject[]} */ (allProjects).filter((p) => projectIds.includes(p.id));
-
-            // 5. config.yaml を生成
+            // 3. config.yaml を生成
             const configYaml = this.generateConfigYaml(person, assignedProjects);
 
             logger.info('Setup config generated', {

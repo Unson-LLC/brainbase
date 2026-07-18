@@ -37,6 +37,23 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         vi.restoreAllMocks();
     });
 
+    it('getPersonBySlackIdは現行auth_grantsの有効なSlack権限から人物を解決する', async () => {
+        const { service, client } = buildService();
+        client.query.mockResolvedValueOnce({ rows: [{ id: 'per_1', name: 'Test User' }] });
+
+        const person = await service.getPersonBySlackId('U123', 'T123');
+
+        expect(person).toEqual({ id: 'per_1', name: 'Test User' });
+        expect(client.query).toHaveBeenCalledWith(
+            expect.stringContaining('JOIN auth_grants'),
+            ['U123', 'T123']
+        );
+        const sql = client.query.mock.calls[0][0];
+        expect(sql).toContain('ag.slack_workspace_id = $2');
+        expect(sql).toContain('ag.active = true');
+        expect(sql).not.toContain('people_slack');
+    });
+
     it('getContext呼び出し時_includePhilosophy未指定_既存レスポンスを維持する', async () => {
         const { service } = buildService();
         const fetchSpy = vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, _access, { entityType }) => {
