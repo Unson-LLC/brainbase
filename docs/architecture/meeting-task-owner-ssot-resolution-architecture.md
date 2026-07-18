@@ -53,14 +53,14 @@ stateDiagram-v2
 - Boundary: この変更の境界はMeeting Review Package ingest内のTask候補payload enrichmentに限定する。Task Store作成、people SSOT登録、既存human gateの承認状態は変更しない。
 - Compatibility impact: API入力契約とDB schemaは変更しない。追加される `selected_owner_id` / `selected_owner` / `owner_candidates` / `owner_resolution` は既存クライアントが無視できる後方互換のpayloadフィールドである。
 - Alternatives considered: AI抽出の `owner_hint` をそのまま担当者正本にする案は、表記ゆれ・話者ラベル・未登録者を誤って正本化するため却下した。Mac Companion上の手動選択だけにする案は、毎回の確認負荷が高く、SSOT alias/project contextを活用できないため却下した。
-- Rollback plan: PR revertで `WorkflowService` のowner resolver呼び出しを外す。既に保存された追加payloadは付加情報なので、既存Review Package承認フローとTask Store作成は従来通り継続できる。
+- Rollback plan: PR revertで `MeetingTaskOwnerResolver` の注入と `MeetingAutomationService` からの呼び出しを外す。既に保存された追加payloadは付加情報なので、既存Review Package承認フローとTask Store作成は従来通り継続できる。
 - Accepted followups: 本PRではingest時の候補抽出・自動選定・UI表示理由に限定する。people SSOTへの新規person登録API対応、既存workflow_outputの一括再解決、alias整備運用は別作業として扱う。
 
 ## Threat Model
 
 ```mermaid
 flowchart LR
-  ai["AI extracted owner_hint<br/>untrusted hint"] --> resolver["WorkflowService owner resolver<br/>normalizes and ranks candidates"]
+  ai["AI extracted owner_hint<br/>untrusted hint"] --> resolver["MeetingTaskOwnerResolver<br/>normalizes and ranks candidates"]
   resolver --> ssot["Brainbase Graph people SSOT<br/>canonical person master"]
   resolver --> output["workflow_outputs payload<br/>additive review metadata"]
   output --> gate["Human review gate<br/>required_before_task_create"]
@@ -80,6 +80,7 @@ flowchart LR
 | --- | --- | --- |
 | Canonical person identity | Brainbase Graph SSOT people | `InfoSSOTService.listGraphEntities` |
 | AI extracted hint | Meeting Review Package payload | `owner_hint` remains unchanged |
+| Owner candidate resolution | Meeting Automation internal service | `MeetingTaskOwnerResolver.resolveReviewTaskOwners` |
 | Task candidate storage | Workflow output payload | `MeetingAutomationService.ingestReviewPackage` |
 | Human approval | Existing Review Package human gate | `required_before_task_create` remains pending |
 | Task Store creation | Existing post-approval workflow | Not changed by this story |
@@ -92,12 +93,12 @@ flowchart LR
 
 ## Release Operations
 
-- Release path: 通常のBrainbase server deployまたは再起動で有効化する。`core-services` が `MeetingAutomationService` へ `InfoSSOTService` を注入するため、追加のoperator設定は不要。
-- Rollback path: PR revertで `resolveMeetingReviewTaskOwnersFromSSOT` の呼び出しとservice injectionを外す。payloadの追加フィールドは後方互換の付加情報であり、既存Review Packageの承認状態を変更しない。
+- Release path: 通常のBrainbase server deployまたは再起動で有効化する。`core-services` が `InfoSSOTService` を持つ `MeetingTaskOwnerResolver` を生成し、`MeetingAutomationService` へ注入するため、追加のoperator設定は不要。
+- Rollback path: PR revertで `MeetingTaskOwnerResolver` のservice injectionを外す。payloadの追加フィールドは後方互換の付加情報であり、既存Review Packageの承認状態を変更しない。
 - Observability path: operatorは `workflow_outputs` の `task_candidates` payloadで `owner_resolution.status`、`reason`、`selected_owner_id`、`owner_candidates` を確認する。人間承認が必要な状態は既存のhuman gateに残る。
 - Support path: `unresolved` / `ambiguous` / `ignored` はMac Companionの担当者選択UIで人間が補正する。Graph SSOT登録が必要な人物はpeople SSOTの登録導線で作成し、ingestは自動登録しない。
 
 ## Replay Evidence
 
-- `tests/server/services/workflow-org-agent-control.test.js` replays resolved, unresolved, and speaker-label candidates through `ingestReviewPackage` and asserts the stored `workflow_outputs.payload`.
-- `tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts` replays the broader Meeting Review Package ingest contract, including output creation, human steps, idempotency, reject behavior, and Mission Control review visibility.
+- `tests/server/services/meeting-task-owner-resolver.test.js` verifies the dedicated People SSOT resolver boundary, and `tests/server/services/workflow-org-agent-control.test.js` replays resolved, unresolved, and speaker-label candidates through `ingestReviewPackage` and asserts the stored `workflow_outputs.payload`.
+- `tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts` replays the broader Meeting Review Package ingest contract, including Graph context merge, owner selection, output creation, human steps, and idempotency.

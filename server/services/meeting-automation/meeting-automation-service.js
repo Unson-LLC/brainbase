@@ -105,6 +105,7 @@ export class MeetingAutomationService {
         assertOrgReferenceAllowed,
         assertProjectAccess,
         createLoopIntent,
+        meetingTaskOwnerResolver = null,
         resolveReviewTaskOwners = null,
         dispatchLoopIntentToEve = null
     }) {
@@ -117,7 +118,9 @@ export class MeetingAutomationService {
         this.assertProjectAccess = assertProjectAccess;
         this.createLoopIntent = createLoopIntent;
         this.dispatchLoopIntentToEve = dispatchLoopIntentToEve;
-        this.resolveReviewTaskOwners = resolveReviewTaskOwners;
+        this.resolveReviewTaskOwners = meetingTaskOwnerResolver?.resolveReviewTaskOwners
+            ? meetingTaskOwnerResolver.resolveReviewTaskOwners.bind(meetingTaskOwnerResolver)
+            : resolveReviewTaskOwners;
         this.reviewContextResolver = new MeetingReviewContextResolver({
             prepareProjectAccess,
             assertProjectSelectable,
@@ -125,7 +128,7 @@ export class MeetingAutomationService {
             assertProjectAccess,
             infoSSOTService,
             verifyReviewPackage: (input) => this.verifyReviewPackage(input),
-            resolveReviewTaskOwners
+            resolveReviewTaskOwners: this.resolveReviewTaskOwners
         });
         this.reviewLedgerService = new MeetingReviewLedgerService({ repository });
     }

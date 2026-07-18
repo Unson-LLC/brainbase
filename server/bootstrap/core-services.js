@@ -34,6 +34,7 @@ import {
 } from '../services/external-runner/eve-meeting-note-reconciler.js';
 import { createMeetingSourceMcpAdaptersFromEnv } from '../services/meeting-source/meeting-source-mcp-adapters.js';
 import { MeetingSourceMcpSyncService } from '../services/meeting-source/meeting-source-mcp-sync-service.js';
+import { MeetingTaskOwnerResolver } from '../services/meeting-automation/meeting-task-owner-resolver.js';
 import { JsonFileWorkflowRepository } from '../services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../services/workflow/workflow-runner.js';
 import {
@@ -88,13 +89,15 @@ export function createCoreServices({
         handlers: createDefaultWorkflowHandlers()
     });
     const eveSessionClient = createEveSessionClientFromEnv();
+    const meetingTaskOwnerResolver = new MeetingTaskOwnerResolver({ infoSSOTService });
     const workflowService = new WorkflowService({
         repository: workflowRepository,
         runner: workflowRunner,
         configParser,
         googleCalendarService,
         eveSessionClient,
-        infoSSOTService
+        infoSSOTService,
+        meetingTaskOwnerResolver
     });
     const eveMeetingNoteReconciler = new EveMeetingNoteReconciler({
         meetingAutomationService: workflowService.meetingAutomationService,
