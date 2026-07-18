@@ -11,6 +11,7 @@ Graph SSOT APIからプロジェクト・人物・組織・RACI等のエンテ�
 - **Graph API 専用**: Graph SSOT APIのみをデータソースとして使用
 - **JWT認証対応**: Graph SSOT APIのBearer Token認証をサポート
 - **自動トークンリフレッシュ**: Refresh Tokenを使った自動更新
+- **Control plane契約**: 認証済みproject scopeとfailure/audit evidenceを機械可読で返却
 - **エイリアス解決**: 人物名・組織名の別名からID解決
 - **RACI統合**: 立ち位置（Position-based）フォーマット対応
 
@@ -75,6 +76,71 @@ node dist/index.js
 Graph系ツール（`get_context` / `list_entities` / `get_entity` / `search`）は、デフォルトでBrainbase Philosophy Contextを先頭に付与する。これはUI表示ではなく、Graph操作前に `CLAUDE.md` 的な判断前提を注入するためのもの。
 
 無効化が必要な場合のみ `includePhilosophy: false` を渡す。scopeを指定する場合は `scope: "crm"` のように渡す。
+
+### `brainbase_projects`
+
+認証済みactorが参照できるactive project catalogを取得する。caller側のscope引数は受け付けず、JWTの`projectCodes`と`BRAINBASE_PROJECT_CODES`の積集合だけを返す。
+
+返却値は`status: ok | unavailable | error`、`scope`、`audit`を常に含む。確認済み0件は`status: ok`かつ`count: 0`であり、認証・通信・上流・schema障害を空配列へ変換しない。token自体は返さない。
+
+**例**:
+```typescript
+mcp__brainbase__brainbase_projects({})
+```
+
+### `brainbase_run_receipt_inbox`
+
+Mana、Codex Automations、GitHub Actions、SalesTailorから集約したRun Receiptの最新Inboxを、認証済みproject scope内で取得する。`project_id`、`source_type`、`run_status`、`evidence_state`、`limit`で絞り込める。
+
+これは汎用Workflowの作成・編集・公開・手動実行を提供するツールではない。`blocked`、`unconfirmed`、`no_data`はそのまま返し、認証・通信・上流・schema障害は`unavailable`または`error`として返す。確認済み0件だけが`status: ok`かつ`count: 0`になる。
+
+**例**:
+```typescript
+mcp__brainbase__brainbase_run_receipt_inbox({
+  project_id: "brainbase",
+  run_status: "blocked",
+  evidence_state: "unconfirmed",
+  limit: 25,
+})
+```
+
+### `brainbase_run_receipt_history`
+
+1つのsource identityについてRun Receiptの履歴を新しい順に取得する。`project_id`、`source_type`、`source_identity`は必須で、認証済みproject scope外の参照はAPI通信前に拒否する。
+
+**例**:
+```typescript
+mcp__brainbase__brainbase_run_receipt_history({
+  project_id: "brainbase",
+  source_type: "mana",
+  source_identity: "daily-secretary",
+  limit: 10,
+})
+```
+
+### `brainbase_run_receipt_diagnosis`
+
+1件のRun Receiptを診断し、`blocked`、`failed`、`waiting_human`、`unconfirmed`、`no_data`を`issue_codes`と`recommended_action`へ構造化する。確認できない状態を成功へ丸めず、通信不能と契約不整合も別のstatusで返す。
+
+**例**:
+```typescript
+mcp__brainbase__brainbase_run_receipt_diagnosis({
+  project_id: "brainbase",
+  run_id: "run_receipt_run_123",
+})
+```
+
+### `brainbase_automation_run_detail`
+
+1件のAutomation Runについて、Run Step、Human Approval、Output、Audit Logを認証済みproject scope内で取得する。汎用Workflow定義の作成・編集・公開・手動実行は提供しない。
+
+### `brainbase_automation_human_step_resolve`
+
+保留中のHuman Approvalを`approved`または`rejected`へ解決する。これは明示的なwrite操作であり、project scopeとactorを監査証跡へ残す。
+
+### `brainbase_meeting_automation_diagnosis`
+
+Meeting Sourceの接続状態と直近scheduled syncを診断する。`blocked`、`unconfirmed`、`no_data`、`failed`、`healthy`を区別し、issue codeと復旧actionを返す。Meeting Packの実行基盤はBrainbase Coreに残り、汎用Workflow製品には戻さない。
 
 ### `get_context`
 
@@ -213,4 +279,4 @@ Private（UNSON社内用）
 
 ---
 
-最終更新: 2026-02-07
+最終更新: 2026-07-16

@@ -14,6 +14,7 @@ import { createLearningRouter } from '../routes/learning.js';
 import { createCandidateStoreRouter } from '../routes/candidate-store.js';
 import { createCompanionRouter } from '../routes/companion.js';
 import { createExternalRunnerRouter } from '../routes/external-runner.js';
+import { createRunReceiptRouter } from '../routes/run-receipts.js';
 import { createMeetingSourceSettingsRouter } from '../routes/meeting-source-settings.js';
 import { adminNoCacheMiddleware, createAdminVisualizationRouter } from '../routes/admin-visualization.js';
 import { createSetupRouter } from '../routes/setup.js';
@@ -116,9 +117,16 @@ export function registerApiRoutes(app, {
     candidateRepository,
     wikiService,
     tokenUsageService,
-    workflowService,
+    agentControlCatalogService,
+    loopIntentService,
+    eveSessionDispatchService,
+    meetingAutomationService,
+    automationRunService,
+    runReceiptQueryService,
+    companionApprovalInboxService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
+    runReceiptIngestService,
     eveMeetingNoteReconciler = null,
     uploadMiddleware,
     appVersion,
@@ -154,7 +162,8 @@ export function registerApiRoutes(app, {
         configParser,
         projectsRoot,
         infoSSOTService,
-        wikiService
+        wikiService,
+        projectCatalogAuthGuard: requireAuth(authService)
     }));
     app.use('/api/nocodb', createNocoDBRouter(configParser));
     app.use('/api/health', createHealthRouter({
@@ -177,7 +186,7 @@ export function registerApiRoutes(app, {
             infoSSOTService,
             learningService
         }),
-        workflowService,
+        companionApprovalInboxService,
         infoSSOTService,
         decisionEventService: createDecisionEventService(runtimePaths),
         authGuard: requireAuth(authService)
@@ -210,10 +219,20 @@ export function registerApiRoutes(app, {
     app.use('/api/wiki', createWikiRouter(wikiService));
     app.use('/api/usage', createUsageRouter(tokenUsageService));
     const workflowAuthGuard = requireAuth(authService);
-    app.use('/api/workflows', workflowAuthGuard, createWorkflowRouter(workflowService, { eveMeetingNoteReconciler }));
-    app.use('/api/workflow-runs', workflowAuthGuard, createWorkflowRunRouter(workflowService));
-    app.use('/api/workflow-human-steps', workflowAuthGuard, createWorkflowHumanStepRouter(workflowService));
+    app.use('/api/workflows', workflowAuthGuard, createWorkflowRouter({
+        agentControlCatalogService,
+        loopIntentService,
+        eveSessionDispatchService,
+        eveMeetingNoteReconciler,
+        meetingAutomationService
+    }));
+    app.use('/api/workflow-runs', workflowAuthGuard, createWorkflowRunRouter(automationRunService));
+    app.use('/api/workflow-human-steps', workflowAuthGuard, createWorkflowHumanStepRouter(automationRunService));
     app.use('/api/external-runner', workflowAuthGuard, createExternalRunnerRouter(externalRunnerIngestService));
+    app.use('/api/run-receipts', workflowAuthGuard, createRunReceiptRouter({
+        ingestService: runReceiptIngestService,
+        queryService: runReceiptQueryService
+    }));
     if (meetingSourceMcpSyncService) {
         app.use('/api/settings/meeting-sources', workflowAuthGuard, createMeetingSourceSettingsRouter(meetingSourceMcpSyncService));
     }

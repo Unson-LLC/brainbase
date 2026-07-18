@@ -12,10 +12,10 @@ import { errorHandler } from '../../../server/middleware/error-handler.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
 import {
-    WorkflowService,
+    TestAutomationRuntime,
     createBrainbaseAliveWorkflow,
     createDefaultWorkflowHandlers
-} from '../../../server/services/workflow/workflow-service.js';
+} from '../../helpers/test-automation-runtime.js';
 import { meetingPackIds } from '../../../server/services/workflow/meeting-workflow-pack.js';
 
 function makeApp({
@@ -40,7 +40,7 @@ function makeApp({
             };
         }
     };
-    const service = new WorkflowService({ repository, runner, configParser, googleCalendarService, eveSessionClient });
+    const service = new TestAutomationRuntime({ repository, runner, configParser, googleCalendarService, eveSessionClient });
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
@@ -53,9 +53,14 @@ function makeApp({
         req.authSource = 'test';
         next();
     });
-    app.use('/api/workflows', createWorkflowRouter(service));
-    app.use('/api/workflow-runs', createWorkflowRunRouter(service));
-    app.use('/api/workflow-human-steps', createWorkflowHumanStepRouter(service));
+    app.use('/api/workflows', createWorkflowRouter({
+        agentControlCatalogService: service.agentControlCatalogService,
+        loopIntentService: service.loopIntentService,
+        eveSessionDispatchService: service.eveSessionDispatchService,
+        meetingAutomationService: service.meetingAutomationService
+    }));
+    app.use('/api/workflow-runs', createWorkflowRunRouter(service.automationRunService));
+    app.use('/api/workflow-human-steps', createWorkflowHumanStepRouter(service.automationRunService));
     app.use((err, req, res, next) => {
         if (err?.type === 'entity.parse.failed') {
             return errorHandler(err, req, res, next);
@@ -63,6 +68,15 @@ function makeApp({
         res.status(err.statusCode || 500).json({ error: err.message });
     });
     return { app, repository, service };
+}
+
+function runAutomationInternally(service, workflowId) {
+    return service.automationRunService.runWorkflow(workflowId, {
+        actorId: 'sato',
+        projectCodes: ['general', 'sample-project'],
+        role: 'member',
+        authSource: 'test'
+    });
 }
 
 function makeEveSessionClient({
@@ -173,51 +187,72 @@ function sampleMeetingReviewPackage({
 }
 
 describe('workflow routes', () => {
-    it('lists the built-in brainbase-alive workflow', async () => {
-        const { app } = makeApp();
+    it('Meeting Automation routeは専用serviceへ直接委譲する', async () => {
+        const calls = [];
+        const meetingAutomationService = {
+            async bootstrapPack(input, actor) {
+                calls.push(['bootstrap', input, actor]);
+                return { meeting_workflow_pack: { pack_id: 'direct-bootstrap' } };
+            },
+            async reviewPackDesign(input, actor) {
+                calls.push(['review', input, actor]);
+                return { meeting_workflow_pack_design: { pack_id: 'direct-review' } };
+            },
+            async createCalendarLoopIntents(input, actor) {
+                calls.push(['calendar', input, actor]);
+                return { meeting_calendar_inputs: { loop_intents: [] } };
+            },
+            async ingestReviewPackage(input, actor) {
+                calls.push(['review-ingest', input, actor]);
+                return { meeting_review_ingest: { package_id: 'direct-review-ingest' } };
+            },
+            async recordNoteGeneration(input, actor) {
+                calls.push(['note-generation', input, actor]);
+                return { meeting_note_generation: { output_id: 'direct-note-generation' } };
+            }
+        };
+        const app = express();
+        app.use(express.json());
+        app.use((req, _res, next) => {
+            req.access = { personId: 'route-test', projectCodes: ['sample-project'], role: 'member' };
+            next();
+        });
+        app.use('/api/workflows', createWorkflowRouter({
+            agentControlCatalogService: {},
+            loopIntentService: {},
+            eveSessionDispatchService: {},
+            meetingAutomationService
+        }));
 
-        const res = await request(app)
-            .get('/api/workflows')
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/bootstrap')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/design-review')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
             .expect(200);
-
-        expect(res.body.workflows).toEqual(expect.arrayContaining([
-            expect.objectContaining({
-                id: 'brainbase-alive',
-                project_id: 'general'
-            })
-        ]));
-    });
-
-    it('creates a project-bound workflow using the same project ids as session creation', async () => {
-        const { app, repository } = makeApp();
-
-        const res = await request(app)
-            .post('/api/workflows')
-            .send({
-                id: 'weekly-review',
-                name: 'Weekly Review',
-                project_id: 'sample-project',
-                owner_id: 'ignored-body-owner',
-                default_assignee_id: 'ignored-body-assignee',
-                default_approver_id: 'ignored-body-approver',
-                context_sources: [{
-                    source_type: 'project',
-                    source_ref: 'sample-project',
-                    required: true
-                }]
-            })
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/calendar-inputs')
+            .send({ org_id: 'sample-project', project_id: 'sample-project' })
+            .expect(201);
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/review-ingest')
+            .send({ review_package: { package_id: 'direct-review-ingest' } })
+            .expect(201);
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/note-generation')
+            .send({ run_id: 'direct-note-generation' })
             .expect(201);
 
-        expect(res.body.workflow).toMatchObject({
-            id: 'weekly-review',
-            project_id: 'sample-project',
-            owner_id: 'sato',
-            default_assignee_id: 'sato',
-            default_approver_id: 'sato'
-        });
-        expect(repository.listAuditLogs({ targetId: 'weekly-review' })).toEqual([
-            expect.objectContaining({ action: 'workflow.created', target_type: 'workflow' })
+        expect(calls.map(([operation]) => operation)).toEqual([
+            'bootstrap',
+            'review',
+            'calendar',
+            'review-ingest',
+            'note-generation'
         ]);
+        expect(calls.every(([, , actor]) => actor.person_id === 'route-test')).toBe(true);
     });
 
     it('story-mana-meeting-workflow-pack-data-v1 S-001 exposes meeting pack bootstrap under Workflow Control namespace', async () => {
@@ -559,7 +594,7 @@ describe('workflow routes', () => {
         expect(eveSessionClient.calls).toHaveLength(0);
     });
 
-    it('story-eve-runtime-session-connection-v0 S-012 rejects generic run API for Eve dispatch workflows', async () => {
+    it('story-eve-runtime-session-connection-v0 S-012 retires generic run API and rejects rerun for Eve dispatch workflows', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { app } = makeApp({ eveSessionClient });
         await request(app)
@@ -583,12 +618,7 @@ describe('workflow routes', () => {
         await request(app)
             .post(`/api/workflows/${dispatch.body.eve_session_dispatch.workflow.id}/run`)
             .send({})
-            .expect(400)
-            .expect((res) => {
-                expect(res.body).toEqual({
-                    error: 'eve-session-dispatch workflows cannot be manually run; use /api/workflows/control/loop-intents/:loopIntentId/eve-session'
-                });
-            });
+            .expect(404);
         await request(app)
             .post(`/api/workflow-runs/${dispatch.body.eve_session_dispatch.run.id}/rerun`)
             .send({})
@@ -964,30 +994,6 @@ describe('workflow routes', () => {
                 })
             })
         ]));
-
-        const workflowsRes = await request(app)
-            .get('/api/workflows?project_id=sample-project')
-            .expect(200);
-        expect(workflowsRes.body.workflows).toEqual(expect.arrayContaining([
-            expect.objectContaining({
-                id: 'wf_sample_project_sample_project_meeting_review_package_ingest',
-                implementation_key: 'meeting-review-package-ingest',
-                latest_run: expect.objectContaining({
-                    id: res.body.meeting_review_ingest.run.id,
-                    status: 'waiting_human',
-                    action_required: 'approve',
-                    human_waiting: true
-                }),
-                latest_human_steps: expect.arrayContaining([
-                    expect.objectContaining({
-                        status: 'pending',
-                        step_type: 'approval'
-                    })
-                ])
-            })
-        ]));
-        const missionControlWorkflow = workflowsRes.body.workflows.find((workflow) => workflow.id === 'wf_sample_project_sample_project_meeting_review_package_ingest');
-        expect(missionControlWorkflow.latest_human_steps).toHaveLength(5);
 
         const runRes = await request(app)
             .get(`/api/workflow-runs/${res.body.meeting_review_ingest.run.id}`)
@@ -1569,8 +1575,8 @@ describe('workflow routes', () => {
             return pkg;
         };
         const [first, second] = await Promise.all([
-            service.ingestMeetingReviewPackage({ review_package: makePkg('meeting-review-package-race-a') }, actor),
-            service.ingestMeetingReviewPackage({ review_package: makePkg('meeting-review-package-race-b') }, actor)
+            service.meetingAutomationService.ingestReviewPackage({ review_package: makePkg('meeting-review-package-race-a') }, actor),
+            service.meetingAutomationService.ingestReviewPackage({ review_package: makePkg('meeting-review-package-race-b') }, actor)
         ]);
         const results = [first.meeting_review_ingest, second.meeting_review_ingest];
         expect(results.filter((r) => r.idempotent)).toHaveLength(1);
@@ -1619,7 +1625,7 @@ describe('workflow routes', () => {
 
     it('story-meeting-review-package-ingest-v1 rejects unauthorized operator before ingest writes', async () => {
         const { app, repository, service } = makeApp({ accessProjectCodes: [] });
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'sample-project',
             project_id: 'sample-project'
         }, { sub: 'system', person_id: 'system', role: 'admin', projectCodes: ['sample-project'] });
@@ -1656,7 +1662,7 @@ describe('workflow routes', () => {
     });
 
     it('story-meeting-review-package-ingest-v1 keeps the review run visible after resolving one generated human approval', async () => {
-        const { app } = makeApp();
+        const { app, repository } = makeApp();
         await request(app)
             .post('/api/workflows/control/meeting-pack/bootstrap')
             .send({
@@ -1689,17 +1695,13 @@ describe('workflow routes', () => {
         });
         expect(resolveRes.body.resumed_run.message).not.toContain('No workflow handler registered');
 
-        const workflowsRes = await request(app)
-            .get('/api/workflows?project_id=sample-project')
-            .expect(200);
-        const workflow = workflowsRes.body.workflows.find((item) => item.id === 'wf_sample_project_sample_project_meeting_review_package_ingest');
-        expect(workflow.latest_run).toMatchObject({
+        expect(repository.getRun(runId)).toMatchObject({
             id: runId,
             status: 'waiting_human',
             action_required: 'approve',
             human_waiting: true
         });
-        expect(workflow.latest_human_steps.filter((humanStep) => humanStep.status === 'pending')).toHaveLength(4);
+        expect(repository.listHumanSteps(runId).filter((humanStep) => humanStep.status === 'pending')).toHaveLength(4);
     });
 
     it('story-meeting-review-package-ingest-v1 cancels remaining review gates after a generated human rejection', async () => {
@@ -1748,7 +1750,7 @@ describe('workflow routes', () => {
         });
     });
 
-    it('story-meeting-review-package-ingest-v1 blocks manual run and rerun for review-ingest workflow before creating extra runs', async () => {
+    it('story-meeting-review-package-ingest-v1 retires generic run API and blocks rerun before creating extra runs', async () => {
         const { app, repository } = makeApp();
         await request(app)
             .post('/api/workflows/control/meeting-pack/bootstrap')
@@ -1764,11 +1766,10 @@ describe('workflow routes', () => {
         const runId = ingestRes.body.meeting_review_ingest.run.id;
         const workflowId = ingestRes.body.meeting_review_ingest.run.workflow_id;
 
-        const runRes = await request(app)
+        await request(app)
             .post(`/api/workflows/${workflowId}/run`)
             .send({ trigger_type: 'manual' })
-            .expect(400);
-        expect(runRes.body.error).toContain('meeting-review-package-ingest workflows cannot be manually run');
+            .expect(404);
 
         const rerunRes = await request(app)
             .post(`/api/workflow-runs/${runId}/rerun`)
@@ -1782,24 +1783,18 @@ describe('workflow routes', () => {
         expect(repository.ledger.human_steps).toHaveLength(5);
     });
 
-    it('story-meeting-review-package-ingest-v1 returns project access denial before manual run guard', async () => {
+    it('story-meeting-review-package-ingest-v1 returns project access denial before rerun guard', async () => {
         const { app, repository, service } = makeApp({ accessProjectCodes: [] });
         const systemActor = { sub: 'system', person_id: 'system', role: 'admin', projectCodes: ['sample-project'] };
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'sample-project',
             project_id: 'sample-project'
         }, systemActor);
-        const ingestResult = await service.ingestMeetingReviewPackage({
+        const ingestResult = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, systemActor);
         const runId = ingestResult.meeting_review_ingest.run.id;
         const workflowId = ingestResult.meeting_review_ingest.run.workflow_id;
-
-        const runRes = await request(app)
-            .post(`/api/workflows/${workflowId}/run`)
-            .send({ trigger_type: 'manual' })
-            .expect(403);
-        expect(runRes.body.error).toContain("project 'sample-project' is not accessible");
 
         const rerunRes = await request(app)
             .post(`/api/workflow-runs/${runId}/rerun`)
@@ -1972,420 +1967,39 @@ describe('workflow routes', () => {
         expect(repository.ledger.human_steps).toHaveLength(0);
     });
 
-    it('generates a schema-bound workflow draft without persisting a workflow', async () => {
-        const { app, repository } = makeApp();
+    it('returns internally-created brainbase-alive run detail through workflow-runs API', async () => {
+        const { app, service } = makeApp();
 
-        const res = await request(app)
-            .post('/api/workflows/draft')
-            .send({
-                project_id: 'sample-project',
-                prompt: '毎朝、予定と未完了タスクをまとめるワークフローを作りたい'
-            })
-            .expect(201);
+        const runResult = await runAutomationInternally(service, 'brainbase-alive');
 
-        expect(res.body.draft).toMatchObject({
-            status: 'draft',
-            project_id: 'sample-project',
-            name: 'Morning Briefing',
-            risk_level: 'low',
-            hitl_policy: 'none',
-            implementation_key: 'manual-placeholder',
-            workflow: expect.objectContaining({
-                project_id: 'sample-project',
-                implementation_key: 'manual-placeholder'
-            }),
-            context_sources: [expect.objectContaining({
-                source_type: 'project',
-                source_ref: 'sample-project'
-            })],
-            builder_preview: expect.objectContaining({
-                nodes: expect.any(Array),
-                edges: expect.any(Array)
-            })
-        });
-        expect(res.body.draft.steps.length).toBeGreaterThan(2);
-        expect(repository.getWorkflow(res.body.draft.workflow.id)).toBeNull();
-    });
-
-    it('dry-runs a workflow draft without creating workflow_runs, outputs, or human steps', async () => {
-        const { app, repository } = makeApp();
-        const draftRes = await request(app)
-            .post('/api/workflows/draft')
-            .send({
-                project_id: 'sample-project',
-                prompt: '月末に請求前の確認をするワークフローを作りたい'
-            })
-            .expect(201);
-
-        const beforeRuns = repository.listRuns().length;
-        const beforeOutputs = repository.ledger.outputs.length;
-        const beforeHumanSteps = repository.ledger.human_steps.length;
-        const testRes = await request(app)
-            .post('/api/workflows/draft/test')
-            .send({ draft: draftRes.body.draft })
-            .expect(200);
-
-        expect(testRes.body.test_result).toMatchObject({
-            dry_run: true,
-            status: 'passed'
-        });
-        expect(repository.listRuns().length).toBe(beforeRuns);
-        expect(repository.ledger.outputs).toHaveLength(beforeOutputs);
-        expect(repository.ledger.human_steps).toHaveLength(beforeHumanSteps);
-    });
-
-    it('rejects malformed workflow drafts at the schema boundary', async () => {
-        const { app } = makeApp();
-
-        const res = await request(app)
-            .post('/api/workflows/draft/test')
-            .send({
-                draft: {
-                    workflow: {
-                        id: 'wf-bad',
-                        project_id: 'sample-project',
-                        name: 'Bad Draft',
-                        implementation_key: 'manual-placeholder',
-                        risk_level: 'extreme',
-                        hitl_policy: 'none',
-                        context_sources: []
-                    },
-                    steps: [{ id: 'start', label: 'Start' }],
-                    context_sources: [{
-                        source_type: 'project',
-                        source_ref: 'sample-project',
-                        permission: 'admin'
-                    }],
-                    builder_preview: {
-                        nodes: [{ id: 'missing-step', label: 'Missing Step' }],
-                        edges: [{ from: 'missing-step', to: 'ghost' }]
-                    }
-                }
-            })
-            .expect(200);
-
-        expect(res.body.test_result).toMatchObject({
-            dry_run: true,
-            status: 'failed'
-        });
-        expect(res.body.test_result.message).toContain('workflow.risk_level');
-        expect(res.body.test_result.message).toContain('step.type');
-        expect(res.body.test_result.message).toContain('builder_preview');
-    });
-
-    it('rejects workflow drafts when workflow context differs from draft context', async () => {
-        const { app } = makeApp();
-        const draftRes = await request(app)
-            .post('/api/workflows/draft')
-            .send({
-                project_id: 'sample-project',
-                prompt: '毎朝、予定と未完了タスクをまとめるワークフローを作りたい'
-            })
-            .expect(201);
-        const tamperedDraft = {
-            ...draftRes.body.draft,
-            workflow: {
-                ...draftRes.body.draft.workflow,
-                context_sources: [{
-                    source_type: 'project',
-                    source_ref: 'general',
-                    permission: 'read',
-                    required: true
-                }]
-            }
-        };
-
-        const res = await request(app)
-            .post('/api/workflows/draft/test')
-            .send({ draft: tamperedDraft })
-            .expect(200);
-
-        expect(res.body.test_result).toMatchObject({
-            dry_run: true,
-            status: 'failed'
-        });
-        expect(res.body.test_result.message).toContain('workflow.context_sources must match draft context_sources');
-    });
-
-    it('publishes a generated draft as a normal workflow and runs it through runWorkflow', async () => {
-        const { app, repository } = makeApp();
-        const draftRes = await request(app)
-            .post('/api/workflows/draft')
-            .send({
-                project_id: 'sample-project',
-                prompt: '毎朝、予定と未完了タスクをまとめるワークフローを作りたい'
-            })
-            .expect(201);
-
-        const publishRes = await request(app)
-            .post('/api/workflows')
-            .send(draftRes.body.draft.workflow)
-            .expect(201);
-
-        expect(publishRes.body.workflow).toMatchObject({
-            id: draftRes.body.draft.workflow.id,
-            project_id: 'sample-project',
-            implementation_key: 'manual-placeholder'
-        });
-
-        const runRes = await request(app)
-            .post(`/api/workflows/${publishRes.body.workflow.id}/run`)
-            .send({ trigger_type: 'manual' })
-            .expect(201);
-
-        expect(runRes.body.run).toMatchObject({
-            workflow_id: publishRes.body.workflow.id,
-            project_id: 'sample-project',
-            status: 'success',
-            closure_state: 'closed'
-        });
-        expect(repository.listRuns({ workflowId: publishRes.body.workflow.id })).toHaveLength(1);
-        expect(repository.listOutputs(runRes.body.run.id)).toEqual(expect.arrayContaining([
-            expect.objectContaining({
-                workflow_id: publishRes.body.workflow.id,
-                project_id: 'sample-project'
-            })
-        ]));
-    });
-
-    it('denies workflow draft generation for inaccessible projects', async () => {
-        const { app } = makeApp({ accessProjectCodes: [] });
-
-        await request(app)
-            .post('/api/workflows/draft')
-            .send({
-                project_id: 'sample-project',
-                prompt: '毎朝の確認を作りたい'
-            })
-            .expect(403);
-    });
-
-    it('rejects create when the workflow id already exists', async () => {
-        const { app } = makeApp();
-
-        const res = await request(app)
-            .post('/api/workflows')
-            .send({
-                id: 'brainbase-alive',
-                name: 'Overwrite Attempt',
-                project_id: 'general'
-            })
-            .expect(409);
-
-        expect(res.body.error).toContain("workflow 'brainbase-alive' already exists");
-    });
-
-    it('gets and patches a workflow through the public workflow API with audit evidence', async () => {
-        const { app, repository } = makeApp();
-        await request(app)
-            .post('/api/workflows')
-            .send({
-                id: 'patchable-workflow',
-                name: 'Patchable Workflow',
-                project_id: 'sample-project'
-            })
-            .expect(201);
-
-        const getRes = await request(app)
-            .get('/api/workflows/patchable-workflow')
-            .expect(200);
-        expect(getRes.body.workflow).toMatchObject({
-            id: 'patchable-workflow',
-            project_id: 'sample-project'
-        });
-
-        const patchRes = await request(app)
-            .patch('/api/workflows/patchable-workflow')
-            .send({ name: 'Patched Workflow', enabled: false })
-            .expect(200);
-
-        expect(patchRes.body.workflow).toMatchObject({
-            id: 'patchable-workflow',
-            name: 'Patched Workflow',
-            enabled: false
-        });
-        expect(repository.listAuditLogs({ targetId: 'patchable-workflow' })).toEqual(expect.arrayContaining([
-            expect.objectContaining({ action: 'workflow.created', target_type: 'workflow' }),
-            expect.objectContaining({ action: 'workflow.updated', target_type: 'workflow' })
-        ]));
-    });
-
-    it('rejects workflow creation for archived or hidden projects', async () => {
-        const { app } = makeApp();
-
-        const res = await request(app)
-            .post('/api/workflows')
-            .send({
-                id: 'bad-project',
-                name: 'Bad Project',
-                project_id: 'archived-project'
-            })
-            .expect(400);
-
-        expect(res.body.error).toContain("project 'archived-project' is not selectable");
-    });
-
-    it('rejects workflow creation without an explicit project_id', async () => {
-        const { app } = makeApp();
-
-        const res = await request(app)
-            .post('/api/workflows')
-            .send({
-                id: 'missing-project',
-                name: 'Missing Project'
-            })
-            .expect(400);
-
-        expect(res.body.error).toContain('project_id is required');
-    });
-
-    it('denies protected workflow APIs when project grants are empty', async () => {
-        const { app } = makeApp({ accessProjectCodes: [] });
-
-        const listRes = await request(app)
-            .get('/api/workflows')
-            .expect(200);
-        expect(listRes.body.workflows).toEqual([]);
-
-        await request(app)
-            .post('/api/workflows/brainbase-alive/run')
-            .send({ trigger_type: 'manual' })
-            .expect(403);
-
-        await request(app)
-            .post('/api/workflows')
-            .send({
-                id: 'denied-project',
-                name: 'Denied Project',
-                project_id: 'sample-project'
-            })
-            .expect(403);
-    });
-
-    it('accepts the same normalized project aliases used by session selection', async () => {
-        const { app } = makeApp({ accessProjectCodes: ['sample'] });
-
-        const res = await request(app)
-            .post('/api/workflows')
-            .send({
-                id: 'alias-project',
-                name: 'Alias Project',
-                project_id: 'sample-project'
-            })
-            .expect(201);
-
-        expect(res.body.workflow.project_id).toBe('sample-project');
-    });
-
-    it('does not allow arbitrary project-code prefixes for protected workflow APIs', async () => {
-        const { app } = makeApp({ accessProjectCodes: ['sam'] });
-
-        await request(app)
-            .post('/api/workflows')
-            .send({
-                id: 'short-prefix-denied',
-                name: 'Short Prefix Denied',
-                project_id: 'sample-project'
-            })
-            .expect(403);
-    });
-
-    it('runs brainbase-alive and returns the run detail through workflow-runs API', async () => {
-        const { app } = makeApp();
-
-        const runRes = await request(app)
-            .post('/api/workflows/brainbase-alive/run')
-            .send({ actor_id: 'sato' })
-            .expect(201);
-
-        expect(runRes.body.run).toMatchObject({
+        expect(runResult.run).toMatchObject({
             workflow_id: 'brainbase-alive',
             status: 'success',
             closure_state: 'closed'
         });
 
         const detailRes = await request(app)
-            .get(`/api/workflow-runs/${runRes.body.run.id}`)
+            .get(`/api/workflow-runs/${runResult.run.id}`)
             .expect(200);
 
         expect(detailRes.body.run_steps).toHaveLength(1);
         expect(detailRes.body.context_snapshots).toHaveLength(1);
         expect(detailRes.body.outputs).toHaveLength(1);
 
-        const listRes = await request(app)
-            .get('/api/workflows')
-            .expect(200);
-        expect(listRes.body.workflows.find((workflow) => workflow.id === 'brainbase-alive')).toMatchObject({
-            latest_context_snapshots: expect.arrayContaining([
-                expect.objectContaining({ source_type: 'project' })
-            ])
-        });
-
         const rerunRes = await request(app)
-            .post(`/api/workflow-runs/${runRes.body.run.id}/rerun`)
+            .post(`/api/workflow-runs/${runResult.run.id}/rerun`)
             .send({})
             .expect(201);
         expect(rerunRes.body.run).toMatchObject({
             workflow_id: 'brainbase-alive',
-            parent_run_id: runRes.body.run.id,
+            parent_run_id: runResult.run.id,
             trigger_type: 'retry',
             status: 'success'
         });
     });
 
-    it('prioritizes actionable workflows before healthy workflows in the Mission Control list', async () => {
-        const { app, repository } = makeApp({
-            handlers: {
-                ...createDefaultWorkflowHandlers(),
-                needsApproval: async () => ({
-                    status: 'waiting_human',
-                    actionRequired: 'approve',
-                    message: 'Needs approval',
-                    humanStep: { stepType: 'approval', prompt: 'Approve?' }
-                })
-            }
-        });
-        repository.upsertWorkflow({
-            ...createBrainbaseAliveWorkflow({ projectId: 'sample-project', ownerId: 'sato' }),
-            id: 'healthy-workflow',
-            project_id: 'sample-project',
-            implementation_key: 'brainbase-alive',
-            owner_id: 'sato',
-            context_sources: [{
-                source_type: 'project',
-                source_ref: 'sample-project',
-                required: true
-            }]
-        });
-        repository.upsertWorkflow({
-            ...createBrainbaseAliveWorkflow({ projectId: 'sample-project', ownerId: 'sato' }),
-            id: 'approval-first-workflow',
-            project_id: 'sample-project',
-            implementation_key: 'needsApproval',
-            owner_id: 'sato',
-            default_approver_id: 'sato',
-            context_sources: [{
-                source_type: 'project',
-                source_ref: 'sample-project',
-                required: true
-            }]
-        });
-
-        await request(app).post('/api/workflows/healthy-workflow/run').send({}).expect(201);
-        await request(app).post('/api/workflows/approval-first-workflow/run').send({}).expect(201);
-
-        const res = await request(app)
-            .get('/api/workflows?project_id=sample-project')
-            .expect(200);
-
-        expect(res.body.workflows.map((workflow) => workflow.id).slice(0, 2)).toEqual([
-            'approval-first-workflow',
-            'healthy-workflow'
-        ]);
-    });
-
     it('resolves a pending human step through the run-scoped human-step API and resumes through runWorkflow', async () => {
-        const { app, repository } = makeApp({
+        const { app, repository, service } = makeApp({
             handlers: {
                 ...createDefaultWorkflowHandlers(),
                 'manual-placeholder': async (ctx) => (
@@ -2421,14 +2035,11 @@ describe('workflow routes', () => {
             }]
         });
 
-        const runRes = await request(app)
-            .post('/api/workflows/approval-workflow/run')
-            .send({ actor_id: 'sato' })
-            .expect(201);
-        const stepId = runRes.body.humanStep.id;
+        const runResult = await runAutomationInternally(service, 'approval-workflow');
+        const stepId = runResult.humanStep.id;
 
         const resolveRes = await request(app)
-            .post(`/api/workflow-runs/${runRes.body.run.id}/human-steps/${stepId}/resolve`)
+            .post(`/api/workflow-runs/${runResult.run.id}/human-steps/${stepId}/resolve`)
             .send({ resolution: 'approved' })
             .expect(200);
 
@@ -2438,7 +2049,7 @@ describe('workflow routes', () => {
         });
         expect(resolveRes.body.resumed_run).toMatchObject({
             workflow_id: 'approval-workflow',
-            parent_run_id: runRes.body.run.id,
+            parent_run_id: runResult.run.id,
             trigger_type: 'human_resume',
             status: 'success',
             closure_state: 'closed'
@@ -2458,7 +2069,7 @@ describe('workflow routes', () => {
     });
 
     it('denies human step resolution by another project member who is not the requester or approver', async () => {
-        const { app, repository } = makeApp({
+        const { app, repository, service } = makeApp({
             handlers: {
                 ...createDefaultWorkflowHandlers(),
                 'manual-placeholder': async () => ({
@@ -2483,19 +2094,16 @@ describe('workflow routes', () => {
             }]
         });
 
-        const runRes = await request(app)
-            .post('/api/workflows/restricted-approval-workflow/run')
-            .send({ actor_id: 'sato' })
-            .expect(201);
+        const runResult = await runAutomationInternally(service, 'restricted-approval-workflow');
 
         await request(app)
-            .post(`/api/workflow-runs/${runRes.body.run.id}/human-steps/${runRes.body.humanStep.id}/resolve`)
+            .post(`/api/workflow-runs/${runResult.run.id}/human-steps/${runResult.humanStep.id}/resolve`)
             .send({ resolution: 'approved' })
             .expect(403);
     });
 
     it('does not resume a human-gated workflow when the human step is rejected', async () => {
-        const { app, repository } = makeApp({
+        const { app, repository, service } = makeApp({
             handlers: {
                 ...createDefaultWorkflowHandlers(),
                 'manual-placeholder': async (ctx) => (
@@ -2529,25 +2137,22 @@ describe('workflow routes', () => {
             }]
         });
 
-        const runRes = await request(app)
-            .post('/api/workflows/reject-approval-workflow/run')
-            .send({ actor_id: 'sato' })
-            .expect(201);
+        const runResult = await runAutomationInternally(service, 'reject-approval-workflow');
         const resolveRes = await request(app)
-            .post(`/api/workflow-runs/${runRes.body.run.id}/human-steps/${runRes.body.humanStep.id}/resolve`)
+            .post(`/api/workflow-runs/${runResult.run.id}/human-steps/${runResult.humanStep.id}/resolve`)
             .send({ resolution: 'rejected' })
             .expect(200);
 
         expect(resolveRes.body.human_step.status).toBe('rejected');
         expect(resolveRes.body.resumed_run).toMatchObject({
-            id: runRes.body.run.id,
+            id: runResult.run.id,
             status: 'cancelled',
             closure_state: 'closed'
         });
     });
 
     it('keeps the legacy human-step resolve alias behind the same approval and resume semantics', async () => {
-        const { app, repository } = makeApp({
+        const { app, repository, service } = makeApp({
             handlers: {
                 ...createDefaultWorkflowHandlers(),
                 'manual-placeholder': async (ctx) => (
@@ -2583,19 +2188,16 @@ describe('workflow routes', () => {
             }]
         });
 
-        const runRes = await request(app)
-            .post('/api/workflows/legacy-alias-approval-workflow/run')
-            .send({ actor_id: 'sato' })
-            .expect(201);
+        const runResult = await runAutomationInternally(service, 'legacy-alias-approval-workflow');
         const resolveRes = await request(app)
-            .post(`/api/workflow-human-steps/${runRes.body.humanStep.id}/resolve`)
+            .post(`/api/workflow-human-steps/${runResult.humanStep.id}/resolve`)
             .send({ resolution: 'approved' })
             .expect(200);
 
         expect(resolveRes.body.human_step.status).toBe('approved');
         expect(resolveRes.body.resumed_run).toMatchObject({
             workflow_id: 'legacy-alias-approval-workflow',
-            parent_run_id: runRes.body.run.id,
+            parent_run_id: runResult.run.id,
             trigger_type: 'human_resume',
             status: 'success',
             closure_state: 'closed'
@@ -2719,28 +2321,11 @@ describe('workflow routes', () => {
         ]);
     });
 
-    it('keeps existing workflow-id GET semantics for legacy control path names', async () => {
+    it('keeps legacy Workflow Control GET aliases without generic workflow fallback', async () => {
         const { app } = makeApp();
 
-        await request(app)
-            .post('/api/workflows')
-            .send({
-                id: 'role-agents',
-                name: 'Legacy Role Agents Workflow',
-                project_id: 'sample-project'
-            })
-            .expect(201);
-
-        const workflowRes = await request(app)
-            .get('/api/workflows/role-agents')
-            .expect(200);
-        expect(workflowRes.body.workflow).toMatchObject({
-            id: 'role-agents',
-            name: 'Legacy Role Agents Workflow'
-        });
-
         const legacyControlRes = await request(app)
-            .get('/api/workflows/role-agents?control=1&project_id=sample-project')
+            .get('/api/workflows/role-agents?project_id=sample-project')
             .expect(200);
         expect(legacyControlRes.body.role_agent_instances).toEqual([]);
 
@@ -2819,6 +2404,33 @@ describe('workflow routes', () => {
             .expect(200);
 
         expect(res.body.workflow_templates).toEqual([]);
+    });
+
+    it('retires generic workflow product read, edit, and draft endpoints', async () => {
+        const { app } = makeApp();
+
+        await request(app).get('/api/workflows').expect(404);
+        await request(app)
+            .post('/api/workflows')
+            .send({ id: 'retired-product-workflow', project_id: 'sample-project' })
+            .expect(404);
+        await request(app)
+            .post('/api/workflows/draft')
+            .send({ project_id: 'sample-project', prompt: 'retired' })
+            .expect(404);
+        await request(app)
+            .post('/api/workflows/draft/test')
+            .send({ project_id: 'sample-project' })
+            .expect(404);
+        await request(app).get('/api/workflows/brainbase-alive').expect(404);
+        await request(app)
+            .patch('/api/workflows/brainbase-alive')
+            .send({ enabled: false })
+            .expect(404);
+        await request(app)
+            .post('/api/workflows/brainbase-alive/run')
+            .send({ actor_id: 'sato' })
+            .expect(404);
     });
 
     it('documents workflow API auth mounting in register-api-routes', () => {

@@ -7,7 +7,7 @@ import { registerApiRoutes } from '../../../server/bootstrap/register-api-routes
 import { createCompanionRouter } from '../../../server/routes/companion.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
-import { WorkflowService } from '../../../server/services/workflow/workflow-service.js';
+import { TestAutomationRuntime } from '../../helpers/test-automation-runtime.js';
 
 function createAuthService({ valid = true, serviceValid = true, personId = 'per_keigo', projectCodes = ['sample-project'] } = {}) {
     return {
@@ -46,7 +46,7 @@ function makeApp({ authService = createAuthService(), infoSSOTService = null } =
             };
         }
     };
-    const workflowService = new WorkflowService({ repository, runner, configParser });
+    const workflowService = new TestAutomationRuntime({ repository, runner, configParser });
     const app = express();
     app.use(express.json());
     app.use('/api/companion', createCompanionRouter({
@@ -54,7 +54,7 @@ function makeApp({ authService = createAuthService(), infoSSOTService = null } =
             createDraft: vi.fn(),
             createContext: vi.fn()
         },
-        workflowService,
+        companionApprovalInboxService: workflowService.companionApprovalInboxService,
         infoSSOTService,
         authGuard: requireAuth(authService),
         accessGuardOptions: {
@@ -99,7 +99,14 @@ function makeBootstrapApp({
         candidateRepository: null,
         wikiService: {},
         tokenUsageService: {},
-        workflowService,
+        agentControlCatalogService: workflowService.agentControlCatalogService,
+        loopIntentService: workflowService.loopIntentService,
+        eveSessionDispatchService: workflowService.eveSessionDispatchService,
+        meetingAutomationService: workflowService.meetingAutomationService,
+        automationRunService: workflowService.automationRunService,
+        runReceiptQueryService: workflowService.runReceiptQueryService,
+        companionApprovalInboxService: workflowService.companionApprovalInboxService,
+        runReceiptIngestService: {},
         externalRunnerIngestService: {},
         uploadMiddleware: (_req, _res, next) => next(),
         appVersion: 'test',
@@ -314,13 +321,7 @@ describe('companion approval inbox route', () => {
             action_kind: 'task_candidates',
             workflow_id: 'wf_meeting',
             run_id: 'run_pending_old',
-            web_url: '/workflows?run_id=run_pending_old',
-            web_route: {
-                path: '/workflows',
-                view: 'run',
-                run_id: 'run_pending_old',
-                api_path: '/api/workflow-runs/run_pending_old'
-            },
+            api_path: '/api/workflow-runs/run_pending_old',
             project_id: 'sample-project',
             status: 'waiting_human',
             action_required: 'approve',
@@ -865,7 +866,7 @@ describe('companion approval inbox route', () => {
         expect(infoSSOTService.listGraphEntities).not.toHaveBeenCalled();
     });
 
-    it('registers approval inbox through registerApiRoutes production bootstrap with workflowService', async () => {
+    it('registers approval inbox through the production bootstrap with its dedicated service', async () => {
         const { repository } = makeApp();
         const runner = new WorkflowRunner({ repository, handlers: new Map() });
         const configParser = {
@@ -878,7 +879,7 @@ describe('companion approval inbox route', () => {
                 };
             }
         };
-        const workflowService = new WorkflowService({ repository, runner, configParser });
+        const workflowService = new TestAutomationRuntime({ repository, runner, configParser });
         const app = makeBootstrapApp({
             authService: createAuthService({ personId: 'sato_keigo' }),
             workflowService

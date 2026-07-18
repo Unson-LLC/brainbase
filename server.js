@@ -317,9 +317,16 @@ const {
     sessionActivityWsService,
     conversationLinker,
     tokenUsageService,
-    workflowService,
+    agentControlCatalogService,
+    loopIntentService,
+    eveSessionDispatchService,
+    meetingAutomationService,
+    automationRunService,
+    runReceiptQueryService,
+    companionApprovalInboxService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
+    runReceiptIngestService,
     eveMeetingNoteReconciler,
     uploadMiddleware
 } = createCoreServices({
@@ -352,12 +359,9 @@ app.use(express.json({ limit: '10mb' }));
 // Security Headers Middleware
 app.use((req, res, next) => {
     // Content Security Policy
-    const scriptSrc = req.path === '/meeting-workflow-pack.html'
-        ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com"
-        : "script-src 'self' 'unsafe-inline' https://unpkg.com";
     res.setHeader('Content-Security-Policy', [
         "default-src 'self'",
-        scriptSrc,  // unpkg.com for Lucide icons CDN; meeting workflow prototype runtime needs unsafe-eval.
+        "script-src 'self' 'unsafe-inline' https://unpkg.com",  // unpkg.com for Lucide icons CDN.
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",  // Google Fonts CSS + xterm.css
         "font-src 'self' https://fonts.gstatic.com",  // Google Fonts files
         "img-src 'self' data:",
@@ -445,9 +449,16 @@ registerApiRoutes(app, {
     candidateRepository,
     wikiService,
     tokenUsageService,
-    workflowService,
+    agentControlCatalogService,
+    loopIntentService,
+    eveSessionDispatchService,
+    meetingAutomationService,
+    automationRunService,
+    runReceiptQueryService,
+    companionApprovalInboxService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
+    runReceiptIngestService,
     eveMeetingNoteReconciler,
     uploadMiddleware,
     appVersion: APP_VERSION,

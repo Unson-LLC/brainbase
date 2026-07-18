@@ -26,6 +26,7 @@ import { PgCandidateRepository } from '../services/candidate-store/candidate-rep
 import { WikiService } from '../services/wiki-service.js';
 import { TokenUsageService } from '../services/token-usage-service.js';
 import { ExternalRunnerIngestService } from '../services/external-runner/ingest-service.js';
+import { RunReceiptIngestService } from '../services/run-receipt/ingest-service.js';
 import { createEveSessionClientFromEnv } from '../services/external-runner/eve-session-client.js';
 import {
     EveMeetingNoteReconciler,
@@ -33,13 +34,15 @@ import {
 } from '../services/external-runner/eve-meeting-note-reconciler.js';
 import { createMeetingSourceMcpAdaptersFromEnv } from '../services/meeting-source/meeting-source-mcp-adapters.js';
 import { MeetingSourceMcpSyncService } from '../services/meeting-source/meeting-source-mcp-sync-service.js';
+import { MeetingTaskOwnerResolver } from '../services/meeting-automation/meeting-task-owner-resolver.js';
+import { ProjectAccessPolicy } from '../services/project-access/project-access-policy.js';
 import { JsonFileWorkflowRepository } from '../services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../services/workflow/workflow-runner.js';
 import {
-    WorkflowService,
     createBrainbaseAliveWorkflow,
     createDefaultWorkflowHandlers
-} from '../services/workflow/workflow-service.js';
+} from '../services/automation-runtime/automation-runtime-defaults-service.js';
+import { createAutomationRuntimeServices } from '../services/automation-runtime/automation-runtime-services.js';
 
 export function createCoreServices({
     varDir,
@@ -87,22 +90,26 @@ export function createCoreServices({
         handlers: createDefaultWorkflowHandlers()
     });
     const eveSessionClient = createEveSessionClientFromEnv();
-    const workflowService = new WorkflowService({
+    const meetingTaskOwnerResolver = new MeetingTaskOwnerResolver({ infoSSOTService });
+    const projectAccessPolicy = new ProjectAccessPolicy({ configParser });
+    const automationRuntime = createAutomationRuntimeServices({
         repository: workflowRepository,
         runner: workflowRunner,
         configParser,
         googleCalendarService,
         eveSessionClient,
-        infoSSOTService
+        infoSSOTService,
+        meetingTaskOwnerResolver,
+        projectAccessPolicy
     });
     const eveMeetingNoteReconciler = new EveMeetingNoteReconciler({
-        workflowService,
+        meetingAutomationService: automationRuntime.meetingAutomationService,
         eveSessionClient,
         config: createEveMeetingNoteReconcilerConfigFromEnv()
     });
     const meetingSourceMcpSyncService = new MeetingSourceMcpSyncService({
         stateFile: path.join(varDir, 'meeting-source-mcp-state.json'),
-        workflowService,
+        meetingAutomationService: automationRuntime.meetingAutomationService,
         adapters: createMeetingSourceMcpAdaptersFromEnv(),
         syncConfig: {
             enabled: process.env.BRAINBASE_MEETING_SOURCE_SYNC_ENABLED === '1',
@@ -125,6 +132,7 @@ export function createCoreServices({
         workflowRepository,
         candidateRepository
     });
+    const runReceiptIngestService = new RunReceiptIngestService({ workflowRepository });
 
     const worktreeService = new WorktreeService(
         worktreesDir,
@@ -236,9 +244,10 @@ export function createCoreServices({
         sessionActivityWsService,
         conversationLinker,
         tokenUsageService,
-        workflowService,
+        ...automationRuntime,
         meetingSourceMcpSyncService,
         externalRunnerIngestService,
+        runReceiptIngestService,
         eveMeetingNoteReconciler,
         uploadMiddleware: upload.single('file')
     };

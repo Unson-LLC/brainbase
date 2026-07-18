@@ -55,7 +55,7 @@ flowchart TD
 
 - [ ] AC-001: `normalizeSourceArtifact` はJSONセグメント配列文字列のtranscriptを `Speaker N: content` 形式の複数行テキストへ展開し、`source_text` / `text_preview` にJSON構造・`\uXXXX` エスケープが現れない。
 - [ ] AC-002: プレーンテキストtranscriptは従来どおり無変更で通過し、`transcript_hash` / dedupe / cursorの既存挙動は変わらない。
-- [ ] AC-003: `ingestMeetingReviewPackage` 成功時、レスポンスに `note_generation_dispatch`（`status: requested | skipped`、skip時は `reason`）が含まれる。
+- [ ] AC-003: `ingestReviewPackage` 成功時、レスポンスに `note_generation_dispatch`（`status: requested | skipped`、skip時は `reason`）が含まれる。
 - [ ] AC-004: Eve client未設定の場合、ingestは成功し `note_generation_dispatch.status: skipped`、`reason: eve_not_configured` が記録される。
 - [ ] AC-005: Eve client設定済みの場合、`transcript_to_meeting_note` loop intentがEve sessionへdispatchされ、`note_generation_dispatch.status: requested` とeve session run参照が記録される。
 - [ ] AC-006: dispatch失敗（Eve API error等）でもingestは201で完了し、`note_generation_dispatch.status: skipped` と失敗理由がauditに記録される。

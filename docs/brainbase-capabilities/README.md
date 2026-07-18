@@ -39,13 +39,16 @@ troubleshooting: []
 | Capability | Why it exists |
 |---|---|
 | `runtime.launchd` | Canonical port `31013` is managed by launchd and syncs selected paths from `origin/develop` before startup. |
-| `project.catalog` | Defines the complete configured project list from `/api/config`. |
+| `project.catalog` | Defines the configured project catalog, authenticated grant scope, MCP status envelope, and audit evidence. |
 | `project.selector` | Defines which projects appear in the session creation dropdown. |
 | `auth.grants` | Defines user project access through `auth_grants.project_codes` and JWT/localStorage access payloads. |
 | `session.create` | Defines how sessions are created, including project selection, engine, worktree handling, and verification. |
 | `terminal.transport` | Defines xterm transport behavior, Enter feedback, and terminal rendering constraints. |
 | `session.hibernation` | Defines runtime inventory and read-only hibernation eligibility before process-stopping lifecycle behavior. |
-| `workflow.mission-control` | Defines Workflow Mission Control ledger, workflow APIs, HITL approval boundaries, and `/workflows` visibility. |
+| `workflow.mission-control` | Historical record of the retired generic Workflow product. Only domain-specific Control and Automation Run compatibility paths remain. |
+| `automation.run-core` | Defines project-scoped run, step, output, human approval, and audit semantics without a generic Workflow product. |
+| `run-receipt.inbox` | Defines cross-runtime receipt ingest, uncertainty-preserving projection, history, and Agent Inbox boundaries. |
+| `meeting.automation` | Defines the live meeting-source ingest, Eve dispatch/reconcile, approval, and evidence path retained during Workflow retirement. |
 | `codex.app-server` | Defines the first structured Codex App Server adapter path for threads, turns, and notifications. |
 | `graph.ssot` | Defines when Brainbase Graph is the canonical source for names, projects, terminology, and decisions. |
 | `requirements.nocodb` | Defines how `FRD-*`, `REQ-*`, and `BUG-*` references are resolved before scope or implementation changes. |

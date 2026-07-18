@@ -18,16 +18,16 @@ async function readFile(filePath: string) {
 
 async function makeApp({
   adapters = {},
-  workflowService = null
+  meetingAutomationService = null
 }: {
   adapters?: Record<string, any>;
-  workflowService?: any;
+  meetingAutomationService?: any;
 } = {}) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'meeting-source-runtime-policy-e2e-'));
   const service = new MeetingSourceMcpSyncService({
     stateFile: path.join(dir, 'state.json'),
     adapters,
-    workflowService,
+    meetingAutomationService,
     clock: () => '2026-07-02T00:00:00.000Z'
   });
   const app = express();
@@ -72,14 +72,14 @@ test.describe(storyId, () => {
       }],
       []
     ];
-    const workflowService = {
-      async ingestMeetingReviewPackage(reviewPackage: any, options: any) {
+    const meetingAutomationService = {
+      async ingestReviewPackage(reviewPackage: any, options: any) {
         workflowCalls.push({ reviewPackage, options });
         return { ok: true };
       }
     };
     const { app, service } = await makeApp({
-      workflowService,
+      meetingAutomationService,
       adapters: {
         tactiq: {
           async poll(options: any) {

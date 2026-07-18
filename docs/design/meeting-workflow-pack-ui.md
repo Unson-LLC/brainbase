@@ -38,30 +38,14 @@ The prototype separates daily operation from reference surfaces:
 - HITL Review: focused approval screen with include/exclude/edit, consequence text, high-risk confirmation, approve/reject.
 - Other Role Agents: stub view showing the same control-plane shape can be reused for Sales, Back-office, and Marketing agents later.
 
-## Implementation Guidance
+## Retired Implementation Guidance
 
-Do not paste the DC runtime directly into `public/workflows.html`.
+この節のBrainbase Web実装案は採用しない。prototypeから確定したguardrailと判断材料だけをCoreへ残し、操作面は次へ分離する。
 
-Use the prototype as a design input and implement with existing Brainbase surfaces:
-
-- Main app surface: `public/workflows.html`
-- APIs: `/api/workflows/control/...`, `/api/workflows`, `/api/workflow-runs/:runId`
-- Existing control concepts: Role Agent Instance, Workflow Template/Definition, Workflow Binding, Workflow Trigger, Loop Intent, Human Step, Workflow Output, Audit Log.
-
-Recommended app implementation order:
-
-1. Add a `Meeting Workflow Pack` projection inside the existing Agent Loop Control area.
-2. Rename or visually present Workflow Template rows as `Workflow Definition` for the meeting pack UI, while preserving existing backend field names until the data model is intentionally renamed.
-3. Add seeded or API-backed meeting definitions for:
-   - `pre-meeting-briefing`
-   - `transcript-to-meeting-note`
-   - `meeting-note-to-tasks`
-   - `meeting-note-to-decisions`
-   - `post-meeting-follow-up-message`
-4. Add trigger-lane grouping by `schedule`, `event`, and `human`.
-5. Add a Human Gate queue view that can show task, Decision, and message approval items.
-6. Add a focused review view that supports approve, reject, include/exclude, edit, and high-risk confirmation.
-7. Add Run Trace fields for `meeting_identity`, `meeting_source`, `workflow_definition_id`, `human_gate`, `write_back_target`, `write_back_status`, and `evidence_refs`.
+- Meeting Packの実行・診断: MCP + `MeetingAutomationService`
+- 要承認queueとfocused review: Mac Companion + `CompanionApprovalInboxService`
+- Run identity、output、human gate、audit: 既存ledger contract
+- Brainbase Web: 設定とログインのみ
 
 ## Guardrails
 
@@ -74,7 +58,7 @@ Recommended app implementation order:
 
 ## Visual Artifacts
 
-Use these screenshots as acceptance evidence for future UI work:
+These screenshots are historical design evidence, not acceptance criteria for a future Brainbase Web UI:
 
 - `docs/design/assets/meeting-workflow-pack/cockpit.png`
 - `docs/design/assets/meeting-workflow-pack/hitl-queue.png`
@@ -85,18 +69,11 @@ Use these screenshots as acceptance evidence for future UI work:
 - `docs/design/assets/meeting-workflow-pack/r4-dropdown.png`
 - `docs/design/assets/meeting-workflow-pack/r4-stub.png`
 
-## Next AI Handoff
+## Retirement Note
 
-The next implementation agent should treat this as design input for the real Brainbase UI, not as finished production code. Start by reading:
+このUI設計は履歴資料としてのみ保持する。Brainbase WebのWorkflow画面は廃止済みであり、再実装の入力にはしない。Meeting Packの実行・確認はMCP、要承認projectionはMac Companion、設定だけがBrainbase Webの責務である。現行実装の参照先は次のとおり。
 
-1. `docs/stories/story-mana-meeting-workflow-pack-v0.md`
-2. `docs/design/meeting-workflow-pack-ui.md`
-3. `docs/stories/story-org-agent-loop-control-v0.md`
-4. `docs/architecture/org-agent-loop-control-architecture.md`
-5. `docs/specs/story-org-agent-loop-control-v0-spec.md`
-6. `public/workflows.html`
-7. `server/routes/workflows.js`
-8. `server/services/workflow/workflow-repository.js`
-9. `server/services/workflow/workflow-service.js`
-
-The implementation should not overwrite unrelated `public/admin.*` changes from other local work.
+1. `docs/architecture/workflow-product-retirement-architecture.md`
+2. `server/services/meeting-automation/meeting-automation-service.js`
+3. `server/services/companion/approval-inbox-service.js`
+4. `server/services/workflow/workflow-repository.js`

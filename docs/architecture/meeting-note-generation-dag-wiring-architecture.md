@@ -2,22 +2,22 @@
 
 ## Decision
 
-Review Package ingest (`ingestMeetingReviewPackage`) remains the single entry point that records the `meeting_note_draft` output and human steps. This story wires two missing edges around it, without changing its approval semantics:
+Review Package ingest (`ingestReviewPackage`) remains the single entry point that records the `meeting_note_draft` output and human steps. This story wires two missing edges around it, without changing its approval semantics:
 
-1. **Generation dispatch edge**: after a successful (non-idempotent) ingest, the workflow service best-effort dispatches the `transcript_to_meeting_note` loop intent to an Eve session via the existing `dispatchLoopIntentToEve` path. Dispatch failure or an unconfigured Eve client never fails the ingest; the outcome is recorded in the ingest response (`note_generation_dispatch`) and audit log.
+1. **Generation dispatch edge**: after a successful (non-idempotent) ingest, the meeting automation service best-effort dispatches the `transcript_to_meeting_note` loop intent to an Eve session via the existing `dispatchLoopIntentToEve` path. Dispatch failure or an unconfigured Eve client never fails the ingest; the outcome is recorded in the ingest response (`note_generation_dispatch`) and audit log.
 2. **Generation write-back edge**: a new control contract `POST /api/workflows/control/meeting-pack/note-generation` lets a runner (Eve session, codex, claude_code, mana) replace the `meeting_note_draft` output payload with the generated minutes, transitioning `generation_status` from `brainbase_source_ready` to `brainbase_generated`.
 
 Upstream of both edges, the source sync worker guarantees the generation input is readable text: transcripts arriving as JSON-encoded segment arrays (Plaud `data_content` shape) are expanded to speaker-attributed plain text inside `normalizeSourceArtifact`, before hashing and deduplication.
 
 ## Boundary
 
-Workflow service owns:
+Meeting Automation service owns:
 
 - Auto-dispatch decision after ingest (configured / unconfigured / failed classification).
 - Note-generation write-back validation: run existence, output existence, `source_text_hash` match, monotonic `generation_status`.
 - Audit trail for both dispatch attempts and write-backs.
 
-Workflow service does not own:
+Meeting Automation service does not own:
 
 - The generation itself (runner responsibility, via Eve session handoff).
 - Publishing minutes (existing `approve_meeting_note_publish` human step, unchanged).
@@ -31,7 +31,7 @@ Source sync worker owns:
 
 - S-001 maps to `normalizeSourceArtifact`: JSON segment detection → speaker text expansion → hash/dedupe on normalized text.
 - S-002 maps to the ingest tail: loop intent resolution → `dispatchLoopIntentToEve` guarded by `eveSessionClient.isConfigured()` → `note_generation_dispatch` result recording.
-- S-003 maps to `recordMeetingNoteGeneration`: run/output resolution → hash validation → payload replacement → `brainbase_generated`.
+- S-003 maps to `MeetingAutomationService.recordNoteGeneration`: access validation → run/output resolution → hash validation → payload replacement → `brainbase_generated`.
 
 ## Data Flow
 
@@ -40,7 +40,7 @@ flowchart LR
   plaud["Plaud data_content JSON segments"] --> norm["transcriptSegmentsToText"]
   norm --> artifact["source_artifact.source_text (readable)"]
   artifact --> pack["Review Package (brainbase_source_ready)"]
-  pack --> ingest["ingestMeetingReviewPackage"]
+  pack --> ingest["ingestReviewPackage"]
   ingest --> output["meeting_note_draft output"]
   ingest --> autodispatch["auto dispatch (best-effort)"]
   autodispatch --> eve["Eve session run (await_eve_result)"]

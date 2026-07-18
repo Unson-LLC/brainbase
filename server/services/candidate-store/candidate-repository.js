@@ -185,10 +185,10 @@ export class InMemoryCandidateRepository {
     create(input) {
         validate(input);
         const key = duplicateKey(input);
-        if (this.dedup.has(key)) {
+        const id = input.id || nextId();
+        if (this.candidates.has(id) || this.dedup.has(key)) {
             throw new DuplicateCandidateError(key);
         }
-        const id = input.id || nextId();
         const now = new Date().toISOString();
         const record = {
             id,
@@ -333,14 +333,16 @@ export class PgCandidateRepository {
         validate(input);
         try {
             const key = duplicateKey(input);
+            const id = input.id || nextId();
             const duplicate = await this.pool.query(
                 `SELECT id
                  FROM memory_candidates
-                 WHERE source_system = $1
-                   AND owner_person_id = $2
-                   AND source_event_ids::text = $3
+                 WHERE id = $1
+                    OR (source_system = $2
+                        AND owner_person_id = $3
+                        AND source_event_ids::text = $4)
                  LIMIT 1`,
-                [input.source_system, input.owner_person_id, JSON.stringify(input.source_event_ids.slice().sort())]
+                [id, input.source_system, input.owner_person_id, JSON.stringify(input.source_event_ids.slice().sort())]
             );
             if (duplicate.rows.length > 0) {
                 throw new DuplicateCandidateError(key);
@@ -363,7 +365,7 @@ export class PgCandidateRepository {
                 )
                 RETURNING *`,
                 [
-                    input.id || nextId(),
+                    id,
                     input.cognitive_type,
                     input.owner_person_id,
                     input.actor_person_id,

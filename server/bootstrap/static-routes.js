@@ -113,7 +113,7 @@ export function registerStaticRoutes(app, { publicDir, log = console }) {
         }
     });
 
-    for (const page of ['device', 'setup', 'workflows']) {
+    for (const page of ['device', 'setup']) {
         app.get(`/${page}`, async (req, res) => {
             try {
                 const filePath = path.join(publicDir, `${page}.html`);

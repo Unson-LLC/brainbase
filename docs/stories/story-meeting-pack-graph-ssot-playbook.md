@@ -133,5 +133,5 @@ flowchart TD
 ## Verification
 
 - Unit/E2E: `BRAINBASE_E2E_REUSE_SERVER=true npm run test:e2e -- tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts`
-- Lint: `npx eslint server/services/workflow/workflow-service.js tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts`
+- Lint: `npx eslint server/services/meeting-automation/meeting-automation-service.js tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts`
 - VibePro: `vibepro spec fingerprint/write/drift`, `vibepro story diagnose --run-graphify`, `vibepro pr prepare`

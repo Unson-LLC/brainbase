@@ -3,9 +3,9 @@ import { test, expect } from '@playwright/test';
 import { InMemoryWorkflowRepository } from '../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../server/services/workflow/workflow-runner.js';
 import {
-  WorkflowService,
+  TestAutomationRuntime,
   createDefaultWorkflowHandlers
-} from '../../server/services/workflow/workflow-service.js';
+} from '../helpers/test-automation-runtime.js';
 import { meetingPackIds } from '../../server/services/workflow/meeting-workflow-pack.js';
 
 function makeService({ infoSSOTService = null } = {}) {
@@ -22,7 +22,7 @@ function makeService({ infoSSOTService = null } = {}) {
       };
     }
   };
-  const service = new WorkflowService({ repository, runner, configParser, infoSSOTService });
+  const service = new TestAutomationRuntime({ repository, runner, configParser, infoSSOTService });
   const actor = {
     sub: 'keigo',
     person_id: 'keigo',
@@ -208,11 +208,11 @@ function samplePackage({
 
 async function ingestPackage(packageInput, serviceOptions = {}) {
   const { service, actor } = makeService(serviceOptions);
-  await service.bootstrapMeetingWorkflowPack({
+  await service.meetingAutomationService.bootstrapPack({
     org_id: packageInput.meeting_identity.candidate_org_id,
     project_id: packageInput.meeting_identity.candidate_project_id
   }, actor);
-  const result = await service.ingestMeetingReviewPackage({ review_package: packageInput }, actor);
+  const result = await service.meetingAutomationService.ingestReviewPackage({ review_package: packageInput }, actor);
   return result.meeting_review_ingest;
 }
 
@@ -220,12 +220,12 @@ test('story-meeting-pack-graph-ssot-playbook AC-001 ac:1 AC-002 ac:2 AC-003 ac:3
   const infoSSOTService = makeGraphContextService();
   const packageInput = samplePackage();
   const { service, actor } = makeService({ infoSSOTService });
-  await service.bootstrapMeetingWorkflowPack({
+  await service.meetingAutomationService.bootstrapPack({
     org_id: packageInput.meeting_identity.candidate_org_id,
     project_id: packageInput.meeting_identity.candidate_project_id
   }, actor);
-  const firstResult = await service.ingestMeetingReviewPackage({ review_package: packageInput }, actor);
-  const secondResult = await service.ingestMeetingReviewPackage({ review_package: packageInput }, actor);
+  const firstResult = await service.meetingAutomationService.ingestReviewPackage({ review_package: packageInput }, actor);
+  const secondResult = await service.meetingAutomationService.ingestReviewPackage({ review_package: packageInput }, actor);
   const ingest = firstResult.meeting_review_ingest;
 
   expect(infoSSOTService.calls).toHaveLength(1);
@@ -600,7 +600,7 @@ test('story-meeting-pack-graph-ssot-playbook AC-011 ac:11 S-010 SCN-010 flow_rep
 
   let missingError = null;
   try {
-    await service.ingestMeetingReviewPackage({ review_package: missingProjectPackage }, actor);
+    await service.meetingAutomationService.ingestReviewPackage({ review_package: missingProjectPackage }, actor);
   } catch (error) {
     missingError = error;
   }
@@ -646,7 +646,7 @@ test('story-meeting-pack-graph-ssot-playbook AC-011 ac:11 S-010 SCN-010 flow_rep
 
   let multipleError = null;
   try {
-    await service.ingestMeetingReviewPackage({ review_package: multipleProjectPackage }, actor);
+    await service.meetingAutomationService.ingestReviewPackage({ review_package: multipleProjectPackage }, actor);
   } catch (error) {
     multipleError = error;
   }

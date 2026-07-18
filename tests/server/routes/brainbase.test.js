@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { createBrainbaseRouter } from '../../../server/routes/brainbase.js';
+import { requireAuth } from '../../../server/middleware/auth.js';
 import { errorHandler } from '../../../server/middleware/error-handler.js';
 import { flushCache } from '../../../server/middleware/cache.js';
 
@@ -48,6 +49,7 @@ vi.mock('../../../server/services/nocodb-service.js', () => {
 // Expressアプリのセットアップ
 let app;
 let mockConfigParser;
+let mockAuthService;
 
 beforeEach(async () => {
   // mock関数をリセット
@@ -73,6 +75,22 @@ beforeEach(async () => {
     })
   };
 
+  mockAuthService = {
+    verifyToken: vi.fn((token) => {
+      if (token === 'scoped-token') {
+        return { sub: 'person-1', role: 'member', projectCodes: ['project1'] };
+      }
+      if (token === 'all-token') {
+        return {
+          sub: 'person-1',
+          role: 'member',
+          projectCodes: ['project1', 'project2', 'project-without-nocodb'],
+        };
+      }
+      throw new Error('Invalid token');
+    }),
+  };
+
   // デフォルトのモック設定（各テストで上書き可能）
   mockGetProjectStats.mockResolvedValue({
     total: 10,
@@ -86,7 +104,10 @@ beforeEach(async () => {
   });
 
   // ルーター作成（ConfigParserを注入）
-  const router = createBrainbaseRouter({ configParser: mockConfigParser });
+  const router = createBrainbaseRouter({
+    configParser: mockConfigParser,
+    projectCatalogAuthGuard: requireAuth(mockAuthService),
+  });
   app.use('/api/brainbase', router);
   app.use(errorHandler);
 });
@@ -219,25 +240,22 @@ describe('GET /api/brainbase/mana-workflow-stats', () => {
 // ==================== 4. GET /api/brainbase/projects ====================
 
 describe('GET /api/brainbase/projects', () => {
-  it('200: 全プロジェクトリストを返す', async () => {
-    // ConfigParserから取得されるプロジェクト一覧を検証
-    // リクエスト実行
+  it('401: 認証情報がない場合はproject catalogを返さない', async () => {
     const res = await request(app).get('/api/brainbase/projects');
 
-    // 検証
+    expect(res.status).toBe(401);
+  });
+
+  it('200: 認証grantのproject scopeだけを返す', async () => {
+    const res = await request(app)
+      .get('/api/brainbase/projects')
+      .set('Authorization', 'Bearer scoped-token');
+
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(3);
+    expect(res.body).toHaveLength(1);
     expect(res.body[0]).toHaveProperty('id');
     expect(res.body[0].id).toBe('project1');
-    expect(res.body[1].id).toBe('project2');
-    expect(res.body[2]).toMatchObject({
-      id: 'project-without-nocodb',
-      hasNocodb: false,
-      healthStatus: 'unmapped',
-      healthScore: null,
-      completionRate: null,
-    });
-    expect(mockGetProjectStats).toHaveBeenCalledTimes(2);
+    expect(mockGetProjectStats).toHaveBeenCalledTimes(1);
   });
 
   it('200: 一部のNocoDB統計取得失敗時もプロジェクト自体は返す', async () => {
@@ -254,7 +272,9 @@ describe('GET /api/brainbase/projects', () => {
         averageProgress: 63,
       });
 
-    const res = await request(app).get('/api/brainbase/projects');
+    const res = await request(app)
+      .get('/api/brainbase/projects')
+      .set('Authorization', 'Bearer all-token');
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(3);
@@ -270,13 +290,20 @@ describe('GET /api/brainbase/projects', () => {
     });
   });
 
-  it('200: ConfigParser取得失敗時は空配列を返す（内部でリカバリー）', async () => {
+  it('500: ConfigParser取得失敗を確認済み0件へ変換しない', async () => {
     mockConfigParser.getAll.mockRejectedValue(new Error('Config fetch failed'));
 
-    const res = await request(app).get('/api/brainbase/projects');
+    const res = await request(app)
+      .get('/api/brainbase/projects')
+      .set('Authorization', 'Bearer all-token');
 
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.status).toBe(500);
+    expect(res.body).toMatchObject({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Internal server error',
+      },
+    });
   });
 });
 
