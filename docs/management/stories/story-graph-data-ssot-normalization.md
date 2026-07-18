@@ -179,5 +179,5 @@ PR作成前に必要なのは、current HEADの実装・否定系・型検査・
 - MCP: ブリッジ再起動後、exact decisionとBAAO Philosophy Contextを取得
 - REST/CI: `node scripts/vibepro-graph-ssot-check.mjs`の4 checksがすべてpassed
 - Playwright: committed artifactと実装・テストsourceの整合だけを検証する`artifact_replay` 1件。runtime-path証拠ではない
-- tests: rollback rehearsal、malformed/schema-invalid backup、DB auth denied、persistence failure、finance否定系、REST aliasを含むtargeted Vitest 50件が成功。MCP alias対象test 8件も成功。MCP全件実行の既知依存欠落は対象test単体実行で切り分ける
+- tests: rollback rehearsal、malformed/schema-invalid backup、DB auth denied、persistence failure、finance否定系、REST aliasを含むtargeted Vitest 51件が成功。MCP alias対象test 8件も成功。MCP全件実行の既知依存欠落は対象test単体実行で切り分ける
 - machine-readable evidence: `docs/management/evidence/graph-data-ssot-normalization-20260718.json`
