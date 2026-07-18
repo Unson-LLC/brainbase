@@ -1,0 +1,116 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-judgment-dag-adjudication-v1",
+  "story_id": "story-playwright-worktree-discovery-boundary",
+  "updated_at": "2026-07-17T14:20:02.429Z",
+  "verdicts": [
+    {
+      "item_id": "failure_mode:retry_or_async_failure",
+      "verdict": "judged_sound",
+      "reason": "Static collection-pattern change adds no retry, queue, polling, worker, or asynchronous side-effect path.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "pw_final_adjudication",
+        "session_ref": "independent-fresh-context"
+      },
+      "head_commit": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "recorded_at": "2026-07-17T14:20:02.428Z"
+    },
+    {
+      "item_id": "axis:scope_reviewability",
+      "verdict": "judged_sound",
+      "reason": "Four-line configuration change plus its contract docs and focused tests form one cohesive review decision; current-head split decision is explicit.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "pw_final_adjudication",
+        "session_ref": "independent-fresh-context"
+      },
+      "head_commit": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "recorded_at": "2026-07-17T14:19:55.703Z"
+    },
+    {
+      "item_id": "axis:public_contract",
+      "verdict": "judged_sound",
+      "reason": "Authoritative base diff proves only discovery exclusions changed and existing runtime contracts remain unchanged.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "pw_final_adjudication",
+        "session_ref": "independent-fresh-context"
+      },
+      "head_commit": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "recorded_at": "2026-07-17T14:19:49.045Z"
+    },
+    {
+      "item_id": "spine:done_evidence",
+      "verdict": "judged_sound",
+      "reason": "Genuine Vitest JSON shows 3 of 3 cases passed; behavioral E2E, 107-file collector, and unchanged-contract diff complete the evidence.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "pw_final_adjudication",
+        "session_ref": "independent-fresh-context"
+      },
+      "head_commit": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "recorded_at": "2026-07-17T14:19:42.357Z"
+    },
+    {
+      "item_id": "spine:failure_modes",
+      "verdict": "judged_sound",
+      "reason": "Documented narrowing and Git-ignore anti-patterns are avoided; retained testMatch and import-throw fixtures cover the relevant failure consequences.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "pw_final_adjudication",
+        "session_ref": "independent-fresh-context"
+      },
+      "head_commit": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "recorded_at": "2026-07-17T14:19:35.520Z"
+    },
+    {
+      "item_id": "spine:boundaries",
+      "verdict": "judged_sound",
+      "reason": "Architecture treats nested checkouts as independent workspace boundaries and implementation applies both structural exclusions.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "pw_final_adjudication",
+        "session_ref": "independent-fresh-context"
+      },
+      "head_commit": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "recorded_at": "2026-07-17T14:19:28.692Z"
+    },
+    {
+      "item_id": "spine:invariants",
+      "verdict": "judged_sound",
+      "reason": "Spec invariants match implementation, corrected Vitest contract, behavioral E2E, and exact-HEAD collector evidence.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "pw_final_adjudication",
+        "session_ref": "independent-fresh-context"
+      },
+      "head_commit": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "recorded_at": "2026-07-17T14:19:21.546Z"
+    },
+    {
+      "item_id": "spine:current_reality",
+      "verdict": "judged_sound",
+      "reason": "Controlled no-ignore baseline imports both nested-worktree fixtures, records dependency failure and No tests found, establishing the pre-change collection failure physics.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "pw_final_adjudication",
+        "session_ref": "independent-fresh-context"
+      },
+      "head_commit": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "recorded_at": "2026-07-17T14:19:12.691Z"
+    },
+    {
+      "item_id": "spine:intent",
+      "verdict": "judged_sound",
+      "reason": "Story intent, users, scenarios, and five ACs align with the single discovery-boundary implementation.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "pw_final_adjudication",
+        "session_ref": "independent-fresh-context"
+      },
+      "head_commit": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "recorded_at": "2026-07-17T14:19:05.857Z"
+    }
+  ]
+}

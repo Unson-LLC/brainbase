@@ -1,0 +1,922 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-playwright-worktree-discovery-boundary",
+  "source": "execute_merge",
+  "promoted_at": "2026-07-18T01:14:06.196Z",
+  "canonical_dir": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary",
+  "source_workspace_dir": ".vibepro",
+  "audit_index_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-index.json",
+  "decision_summary_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/decision-summary.md",
+  "artifact_policy": {
+    "scope": "compact_manifest_only",
+    "evidence_depth": "standard",
+    "compacted": true,
+    "persisted_for_main_audit": true,
+    "why_compacted": [
+      "artifact_code_ratio_exceeded"
+    ],
+    "excludes": [
+      "duplicated decision index body",
+      "duplicated cost summary body",
+      "full PR lifecycle JSON",
+      "full review lifecycle JSON",
+      "HTML reports",
+      "raw logs",
+      "dispatch scratch artifacts",
+      "temporary execution state"
+    ]
+  },
+  "evidence_depth": "standard",
+  "cost_summary_ref": {
+    "source": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-index.json",
+    "pointer": "/cost_summary"
+  },
+  "automation_value_audit_ref": {
+    "source": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-index.json",
+    "pointer": "/automation_value_audit"
+  },
+  "replay_bundle": {
+    "schema_version": "0.1.0",
+    "path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+    "compression": "gzip",
+    "media_type": "application/json",
+    "content_hash": "sha256:c4765a8936dd27ea6d892618a2134b9f5ba07f711c58f8ed27a2b7817e232849",
+    "compressed_hash": "sha256:40646f1ea053b54f8849d425e61d3ac83108d7277c284ac9f3a7258d1f2d02f4",
+    "expanded_bytes": 15232,
+    "compressed_bytes": 3240,
+    "expanded_line_count": 400,
+    "persisted_line_count": 1,
+    "included_artifact_kinds": [
+      "evidence_reuse",
+      "pr_create",
+      "pr_merge",
+      "pr_prepare",
+      "review_lifecycle",
+      "review_request",
+      "review_result",
+      "review_summary",
+      "senior_gap_judgment",
+      "traceability",
+      "verification_evidence"
+    ],
+    "replay_command": "vibepro audit replay . --story-id story-playwright-worktree-discovery-boundary",
+    "cost": {
+      "compressed_bytes": 3240,
+      "expanded_bytes": 15232,
+      "expanded_line_count": 400,
+      "persisted_line_count": 1
+    }
+  },
+  "merge": {
+    "status": "merged",
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1041",
+    "merge_commit_sha": "62dd49fbdb0abf4a03998abeb4c7bc6d58a2af5c",
+    "merged_at": "2026-07-18T01:14:04Z",
+    "current_head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2"
+  },
+  "handoff_replay_status": "blocked",
+  "handoff_replay": {
+    "status": "blocked",
+    "resolved_reference_count": 62,
+    "copied_reference_count": 50,
+    "unresolved_reference_count": 8,
+    "replay_bundle": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+    "replay_command": "vibepro audit replay . --story-id story-playwright-worktree-discovery-boundary"
+  },
+  "artifacts": [
+    {
+      "kind": "audit_index",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-index.json"
+    },
+    {
+      "kind": "decision_summary",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/decision-summary.md"
+    },
+    {
+      "kind": "compressed_replay_bundle",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "compression": "gzip",
+      "content_hash": "sha256:c4765a8936dd27ea6d892618a2134b9f5ba07f711c58f8ed27a2b7817e232849"
+    }
+  ],
+  "raw_artifact_manifest": [
+    {
+      "kind": "evidence_reuse",
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/evidence-reuse.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "digest": "sha256:4e0af5ae07a06fbc6f1d38bc3b5f4acf35db89283c68c4d7170f3bfa1e44710c",
+      "audit_digest": "sha256:4e0af5ae07a06fbc6f1d38bc3b5f4acf35db89283c68c4d7170f3bfa1e44710c",
+      "line_count": 200,
+      "raw_line_count": 200,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "pr_prepare",
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/pr-prepare.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "digest": "sha256:113373284c7d65e4a6a34df355bea7445ff3e8011b71a449798f90407950a7cf",
+      "audit_digest": "sha256:09644bd91bf3dbd52ffd76f8f5c60b0bd981c79872e641bea46f38086435b142",
+      "line_count": 3206,
+      "raw_line_count": 19060,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_prepare.diagnostics.progress_snapshots",
+        "pr_prepare.pr_context.full_gate_dag",
+        "pr_prepare.pr_context.design_ssot_full_registry_inventory",
+        "pr_prepare.pr_context.inactive_judgment_axis_details",
+        "pr_prepare.duplicated_child_artifacts",
+        "design_ssot.unregistered_docs_full_inventory",
+        "design_ssot.registered_docs_full_inventory",
+        "responsibility_authority.full_registry_entries",
+        "requirement_consistency.verbose_code_scenarios",
+        "engineering_judgment.inactive_axis_details",
+        "engineering_judgment.verbose_matched_evidence",
+        "verification.raw_command_output",
+        "senior_gap_judgment.verbose_supporting_context",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "pr_create",
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/pr-create.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "digest": "sha256:6bb2c253c13f7f92e5729d4d8e5439a8da1b73108dec412268a80207dca6c271",
+      "audit_digest": "sha256:b6f5f95e9d5cf1b133aa97c5012b5d3e45bbaf14c04935da2d4e9ec65b397e8b",
+      "line_count": 1319,
+      "raw_line_count": 2855,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "senior_gap_judgment",
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/senior-gap-judgment.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "digest": "sha256:dbe26ab7a69ef4ac15dc58cbc04ae3f365e064257a3471946101d5714994536c",
+      "audit_digest": "sha256:c58b364a5b1ba7ca6ec35185a08a662b02ac25317e95b0d4c9f4a54db213802f",
+      "line_count": 43,
+      "raw_line_count": 572,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "senior_gap_judgment.verbose_supporting_context"
+      ]
+    },
+    {
+      "kind": "pr_merge",
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/pr-merge.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "digest": "sha256:2ec3770157050879debe11555eddb5388a029fdaa24f2147f8222473609b1126",
+      "audit_digest": "sha256:bca9c9c67d62d52e0b7f628f01fab9b48eb6bbc704beb89550ef287f4bd6f763",
+      "line_count": 1344,
+      "raw_line_count": 2895,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects",
+        "pr_merge.canonical_audit",
+        "pr_merge.roi_ledger_promotion"
+      ]
+    },
+    {
+      "kind": "traceability",
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/traceability.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "digest": "sha256:554f27106bb74ba713a1376d2c8348f53ee367e0d772760943055b4c69a57c15",
+      "audit_digest": "sha256:554f27106bb74ba713a1376d2c8348f53ee367e0d772760943055b4c69a57c15",
+      "line_count": 296,
+      "raw_line_count": 296,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "verification_evidence",
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/verification-evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "digest": "sha256:12eaa39ad50304825ef90cbf4c885831ad90bc87a13f965fdc22c2d0af1c8ffc",
+      "audit_digest": "sha256:dacc2f09009f81d7d8160114b232e1fe31a0599aa26ace1d6211dc50b599158d",
+      "line_count": 76,
+      "raw_line_count": 399,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "verification.raw_command_output"
+      ]
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "digest": "sha256:e824d53c4202c28fce6406a727fc7285a72346a62ad331e50c78150d7be66de5",
+      "audit_digest": "sha256:e824d53c4202c28fce6406a727fc7285a72346a62ad331e50c78150d7be66de5",
+      "line_count": 184,
+      "raw_line_count": 184,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-request-gate_evidence.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "digest": "sha256:d00b9b803c9dbee83741757e47960f2f63a30ad72d74f48cb2dd5b8fc36d1387",
+      "audit_digest": "sha256:d00b9b803c9dbee83741757e47960f2f63a30ad72d74f48cb2dd5b8fc36d1387",
+      "line_count": 137,
+      "raw_line_count": 137,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-request-pr_split_scope.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "digest": "sha256:ad5577eb432825c2a475c01be957ff7bf8b326fe45be35db92b26ef92fc5d82b",
+      "audit_digest": "sha256:ad5577eb432825c2a475c01be957ff7bf8b326fe45be35db92b26ef92fc5d82b",
+      "line_count": 137,
+      "raw_line_count": 137,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-request-release_risk.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "digest": "sha256:840ffa1a1d7b867782d99c9c995e1fabda971ca20f065210ac56079f98f11469",
+      "audit_digest": "sha256:840ffa1a1d7b867782d99c9c995e1fabda971ca20f065210ac56079f98f11469",
+      "line_count": 137,
+      "raw_line_count": 137,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-result-gate_evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "digest": "sha256:5e64e7674508d2db52e6a76b20bfe2a483e0686594e5e4778a0fab77c79bb2be",
+      "audit_digest": "sha256:5e64e7674508d2db52e6a76b20bfe2a483e0686594e5e4778a0fab77c79bb2be",
+      "line_count": 111,
+      "raw_line_count": 111,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-result-pr_split_scope.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "digest": "sha256:372ab023d1f1d76398000ec274873fa6ada384f7b1ebcc2b8bf4759a4da708e9",
+      "audit_digest": "sha256:372ab023d1f1d76398000ec274873fa6ada384f7b1ebcc2b8bf4759a4da708e9",
+      "line_count": 110,
+      "raw_line_count": 110,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-result-release_risk.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "digest": "sha256:9ad25129ba1a9a665be71fbea1ad14eb16c3a4a1d003f9fe9bde0b30ad0233a9",
+      "audit_digest": "sha256:9ad25129ba1a9a665be71fbea1ad14eb16c3a4a1d003f9fe9bde0b30ad0233a9",
+      "line_count": 122,
+      "raw_line_count": 122,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+      "digest": "sha256:265d4859e699772f33b98b8f0f74ea9846278cc2d73d00aef38dccd37ee630d4",
+      "audit_digest": "sha256:265d4859e699772f33b98b8f0f74ea9846278cc2d73d00aef38dccd37ee630d4",
+      "line_count": 597,
+      "raw_line_count": 597,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    }
+  ],
+  "missing_artifacts": [
+    {
+      "kind": "gate_dag",
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/gate-dag.json"
+    }
+  ],
+  "resolved_references": [
+    {
+      "source": ".vibepro/adjudication/story-playwright-worktree-discovery-boundary/adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/adjudication/story-playwright-worktree-discovery-boundary/adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/adjudication/story-playwright-worktree-discovery-boundary/judgment-adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/adjudication/story-playwright-worktree-discovery-boundary/judgment-adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/judgment-axis-noise-precedents.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/judgment-axis-noise-precedents.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/ci-evidence/Require_Graphify_Impact_Review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/ci-evidence/Require_Graphify_Impact_Review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/decision-index.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/evidence-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/evidence-reuse.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/pr/evidence-reuse.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/pr-create.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/pr/pr-create.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/pr-merge.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/pr/pr-merge.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/pr-prepare.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/pr/pr-prepare.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/ref-topology.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/ref-topology.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/ref-topology.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/ref-topology.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/senior-gap-judgment.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/pr/senior-gap-judgment.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/verification-evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/pr/verification-evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/qa/playwright-worktree-boundary/collector.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/qa/playwright-worktree-boundary/collector.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/qa/playwright-worktree-boundary/e2e.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/qa/playwright-worktree-boundary/e2e.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/qa/playwright-worktree-boundary/typecheck.txt",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/qa/playwright-worktree-boundary/typecheck.txt",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/qa/playwright-worktree-boundary/unit.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/qa/playwright-worktree-boundary/unit.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-gate_evidence-2026-07-17T13-49-04.115Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-gate_evidence-2026-07-17T13-49-04.115Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-gate_evidence-2026-07-17T14-30-19.306Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-gate_evidence-2026-07-17T14-30-19.306Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-pr_split_scope-2026-07-17T13-45-59.734Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-pr_split_scope-2026-07-17T13-45-59.734Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-pr_split_scope-2026-07-17T14-30-28.289Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-pr_split_scope-2026-07-17T14-30-28.289Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-release_risk-2026-07-17T13-48-57.089Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-release_risk-2026-07-17T13-48-57.089Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-release_risk-2026-07-17T14-30-36.526Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-release_risk-2026-07-17T14-30-36.526Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-release_risk-2026-07-17T14-37-00.622Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-release_risk-2026-07-17T14-37-00.622Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-request-gate_evidence.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/reviews/gate/review-request-gate_evidence.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-request-pr_split_scope.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/reviews/gate/review-request-pr_split_scope.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-request-release_risk.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/reviews/gate/review-request-release_risk.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-result-gate_evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/reviews/gate/review-result-gate_evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-result-pr_split_scope.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/reviews/gate/review-result-pr_split_scope.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-result-release_risk.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/reviews/gate/review-result-release_risk.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/gate_evidence.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/gate_evidence.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/gate_evidence_v2.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/gate_evidence_v2.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/pr_split_scope.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/pr_split_scope.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/pr_split_scope_v2.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/pr_split_scope_v2.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/release_risk.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/release_risk.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/release_risk_v2.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/release_risk_v2.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/release_risk_v3.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/release_risk_v3.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-playwright-worktree-discovery-boundary/diagnostics/2026-07-17T135606Z/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/stories/story-playwright-worktree-discovery-boundary/diagnostics/2026-07-17T135606Z/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-playwright-worktree-discovery-boundary/diagnostics/2026-07-17T135606Z/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/stories/story-playwright-worktree-discovery-boundary/diagnostics/2026-07-17T135606Z/tasks.md",
+      "resolution": "copied_reference"
+    }
+  ],
+  "copied_references": [
+    {
+      "source": ".vibepro/adjudication/story-playwright-worktree-discovery-boundary/adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/adjudication/story-playwright-worktree-discovery-boundary/adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/adjudication/story-playwright-worktree-discovery-boundary/judgment-adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/adjudication/story-playwright-worktree-discovery-boundary/judgment-adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/diagnostics/2026-07-17T135606Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/judgment-axis-noise-precedents.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/judgment-axis-noise-precedents.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/ci-evidence/Require_Graphify_Impact_Review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/ci-evidence/Require_Graphify_Impact_Review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/decision-index.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/evidence-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/ref-topology.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/ref-topology.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/ref-topology.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/ref-topology.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/pr/story-playwright-worktree-discovery-boundary/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/qa/playwright-worktree-boundary/collector.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/qa/playwright-worktree-boundary/collector.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/qa/playwright-worktree-boundary/e2e.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/qa/playwright-worktree-boundary/e2e.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/qa/playwright-worktree-boundary/typecheck.txt",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/qa/playwright-worktree-boundary/typecheck.txt",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/qa/playwright-worktree-boundary/unit.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/qa/playwright-worktree-boundary/unit.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-gate_evidence-2026-07-17T13-49-04.115Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-gate_evidence-2026-07-17T13-49-04.115Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-gate_evidence-2026-07-17T14-30-19.306Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-gate_evidence-2026-07-17T14-30-19.306Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-pr_split_scope-2026-07-17T13-45-59.734Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-pr_split_scope-2026-07-17T13-45-59.734Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-pr_split_scope-2026-07-17T14-30-28.289Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-pr_split_scope-2026-07-17T14-30-28.289Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-release_risk-2026-07-17T13-48-57.089Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-release_risk-2026-07-17T13-48-57.089Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-release_risk-2026-07-17T14-30-36.526Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-release_risk-2026-07-17T14-30-36.526Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-release_risk-2026-07-17T14-37-00.622Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/history/review-result-release_risk-2026-07-17T14-37-00.622Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/gate_evidence.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/gate_evidence.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/gate_evidence_v2.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/gate_evidence_v2.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/pr_split_scope.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/pr_split_scope.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/pr_split_scope_v2.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/pr_split_scope_v2.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/release_risk.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/release_risk.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/release_risk_v2.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/release_risk_v2.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/release_risk_v3.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/release_risk_v3.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-playwright-worktree-discovery-boundary/diagnostics/2026-07-17T135606Z/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/stories/story-playwright-worktree-discovery-boundary/diagnostics/2026-07-17T135606Z/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-playwright-worktree-discovery-boundary/diagnostics/2026-07-17T135606Z/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/references/vibepro/stories/story-playwright-worktree-discovery-boundary/diagnostics/2026-07-17T135606Z/tasks.md",
+      "resolution": "copied_reference"
+    }
+  ],
+  "unresolved_references": [
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/evidence.json",
+      "reason": "source_too_large",
+      "size_bytes": 10262111
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-17T135606Z/static-site-check-result.md",
+      "reason": "source_too_large",
+      "size_bytes": 1486701
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/graphify/graph.json",
+      "reason": "source_too_large",
+      "size_bytes": 8827434
+    },
+    {
+      "source": ".vibepro/pr/",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-playwright-worktree-discovery-boundary/ia-flow-map.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-playwright-worktree-discovery-boundary/responsive-a11y-matrix.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/verification/",
+      "reason": "source_missing"
+    }
+  ]
+}

@@ -1,0 +1,189 @@
+{
+  "config": {
+    "configFile": "/private/tmp/playwright-boundary.config.js",
+    "rootDir": "/private/tmp/brainbase-playwright-worktree-boundary",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "json",
+        null
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/private/tmp/playwright-boundary-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/private/tmp/brainbase-playwright-worktree-boundary",
+        "testIgnore": [
+          "**/.worktrees/**",
+          "**/.codex-worktrees/**"
+        ],
+        "testMatch": [
+          "tests/e2e/**/*.spec.@(js|ts)",
+          "tests/e2e/**/*.test.@(js|ts)",
+          "e2e/**/*.spec.@(js|ts)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.57.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "tests/e2e/story-playwright-worktree-discovery-boundary-collector.spec.ts",
+      "file": "tests/e2e/story-playwright-worktree-discovery-boundary-collector.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "story-playwright-worktree-discovery-boundary",
+          "file": "tests/e2e/story-playwright-worktree-discovery-boundary-collector.spec.ts",
+          "line": 11,
+          "column": 6,
+          "specs": [
+            {
+              "title": "ac-1 keeps both canonical E2E locations discoverable",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-17T14:04:52.596Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3e6aeb0bf021e6cb3a05-dcc425b320464cfc9c1a",
+              "file": "tests/e2e/story-playwright-worktree-discovery-boundary-collector.spec.ts",
+              "line": 12,
+              "column": 5
+            },
+            {
+              "title": "ac-2 ac-3 excludes both nested worktree roots",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 894,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-17T14:04:52.616Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3e6aeb0bf021e6cb3a05-dc18bed4663bc725bc82",
+              "file": "tests/e2e/story-playwright-worktree-discovery-boundary-collector.spec.ts",
+              "line": 21,
+              "column": 5
+            },
+            {
+              "title": "ac-4 ac-5 preserves the collector runtime contract",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-17T14:04:53.523Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3e6aeb0bf021e6cb3a05-f85afc53307f512135c3",
+              "file": "tests/e2e/story-playwright-worktree-discovery-boundary-collector.spec.ts",
+              "line": 90,
+              "column": 5
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-07-17T14:04:51.819Z",
+    "duration": 1777.2389999999998,
+    "expected": 3,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-judgment-axis-noise-precedent-ledger-v1",
+  "entries": [
+    {
+      "fingerprint": "scope_reviewability|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-playwright-worktree-discovery-boundary",
+      "decision_id": "decision-1784298813427-1bbc947d",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "Story・Architecture・Spec・4行のconfig変更・境界unit/E2Eは同一契約の定義と検証で、別PRへ分けると実装と証跡の対応を弱める。review ownerはrepo test infrastructure reviewer、blast radiusはPlaywright収集だけ。",
+      "artifact": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-result-pr_split_scope.json",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "mixed_surface:repo_control_with_product_change"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-07-17T14:37:19.235Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:576|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-playwright-worktree-discovery-boundary",
+      "decision_id": "decision-1784298813427-1bbc947d",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "Story・Architecture・Spec・4行のconfig変更・境界unit/E2Eは同一契約の定義と検証で、別PRへ分けると実装と証跡の対応を弱める。review ownerはrepo test infrastructure reviewer、blast radiusはPlaywright収集だけ。",
+      "artifact": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-result-pr_split_scope.json",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:576",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-07-18T01:12:19.662Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    }
+  ]
+}
