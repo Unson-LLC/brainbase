@@ -6,9 +6,9 @@ import { GoogleCalendarService } from '../../server/services/google-calendar-ser
 import { InMemoryWorkflowRepository } from '../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../server/services/workflow/workflow-runner.js';
 import {
-    WorkflowService,
     createDefaultWorkflowHandlers
-} from '../../server/services/workflow/workflow-service.js';
+} from '../../server/services/automation-runtime/automation-runtime-defaults-service.js';
+import { createAutomationRuntimeServices } from '../../server/services/automation-runtime/automation-runtime-services.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -44,7 +44,7 @@ const configParser = {
         };
     }
 };
-const service = new WorkflowService({
+const service = createAutomationRuntimeServices({
     repository,
     runner,
     configParser,

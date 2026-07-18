@@ -8,9 +8,9 @@ import { createWorkflowRouter } from '../../server/routes/workflows.js';
 import { InMemoryWorkflowRepository } from '../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../server/services/workflow/workflow-runner.js';
 import {
-  WorkflowService,
+  TestAutomationRuntime,
   createDefaultWorkflowHandlers
-} from '../../server/services/workflow/workflow-service.js';
+} from '../helpers/test-automation-runtime.js';
 import { GoogleCalendarService } from '../../server/services/google-calendar-service.js';
 
 const storyId = 'story-meeting-workflow-calendar-input-v1';
@@ -33,7 +33,7 @@ function createWorkflowControlApp(googleCalendarService: any) {
       };
     }
   };
-  const service = new WorkflowService({ repository, runner, configParser, googleCalendarService });
+  const service = new TestAutomationRuntime({ repository, runner, configParser, googleCalendarService });
   app.use(express.json());
   app.use((req: any, _res, next) => {
     req.auth = { sub: 'keigo', role: 'admin' };
@@ -44,7 +44,10 @@ function createWorkflowControlApp(googleCalendarService: any) {
     };
     next();
   });
-  app.use('/api/workflows', createWorkflowRouter(service, {
+  app.use('/api/workflows', createWorkflowRouter({
+    agentControlCatalogService: service.agentControlCatalogService,
+    loopIntentService: service.loopIntentService,
+    eveSessionDispatchService: service.eveSessionDispatchService,
     meetingAutomationService: service.meetingAutomationService
   }));
   app.use((err: any, _req, res, _next) => {
@@ -58,7 +61,7 @@ test.describe('story-meeting-workflow-calendar-input-v1', () => {
     const story = readFile('docs/stories/story-meeting-workflow-calendar-input-v1.md');
     const spec = readFile('docs/specs/story-meeting-workflow-calendar-input-v1-spec.md');
     const architecture = readFile('docs/architecture/meeting-workflow-calendar-input-architecture.md');
-    const workflowService = readFile('server/services/workflow/workflow-service.js');
+    const workflowService = readFile('server/services/automation-runtime/automation-runtime-services.js');
     const meetingAutomationService = readFile('server/services/meeting-automation/meeting-automation-service.js');
     const meetingAutomationRuntime = workflowService + meetingAutomationService;
     const calendarService = readFile('server/services/google-calendar-service.js');

@@ -14,7 +14,8 @@ surfaces:
   code:
     - server/services/workflow/workflow-runner.js
     - server/services/workflow/workflow-repository.js
-    - server/services/workflow/workflow-service.js
+    - server/services/automation-run/automation-run-service.js
+    - server/services/automation-runtime/automation-runtime-defaults-service.js
   data:
     - var/workflow-ledger.json
     - workflow_runs

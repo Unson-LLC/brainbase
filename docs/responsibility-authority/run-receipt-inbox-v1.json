@@ -30,7 +30,6 @@
           "server/bootstrap/core-services.js",
           "server/bootstrap/register-api-routes.js",
           "server/services/workflow/workflow-repository.js",
-          "server/services/workflow/workflow-service.js",
           "server/services/workflow/workflow-runner.js",
           "server/services/external-runner/ingest-service.js",
           "server/services/external-runner/eve-meeting-note-reconciler.js",

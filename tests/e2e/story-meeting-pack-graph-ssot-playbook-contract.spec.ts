@@ -3,9 +3,9 @@ import { test, expect } from '@playwright/test';
 import { InMemoryWorkflowRepository } from '../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../server/services/workflow/workflow-runner.js';
 import {
-  WorkflowService,
+  TestAutomationRuntime,
   createDefaultWorkflowHandlers
-} from '../../server/services/workflow/workflow-service.js';
+} from '../helpers/test-automation-runtime.js';
 import { meetingPackIds } from '../../server/services/workflow/meeting-workflow-pack.js';
 
 function makeService({ infoSSOTService = null } = {}) {
@@ -22,7 +22,7 @@ function makeService({ infoSSOTService = null } = {}) {
       };
     }
   };
-  const service = new WorkflowService({ repository, runner, configParser, infoSSOTService });
+  const service = new TestAutomationRuntime({ repository, runner, configParser, infoSSOTService });
   const actor = {
     sub: 'keigo',
     person_id: 'keigo',

@@ -91,9 +91,9 @@ function normalizePerson(record) {
 }
 
 export class CompanionController {
-    constructor(replyDraftService, { workflowService = null, infoSSOTService = null, decisionEventService = null } = {}) {
+    constructor(replyDraftService, { companionApprovalInboxService = null, infoSSOTService = null, decisionEventService = null } = {}) {
         this.replyDraftService = replyDraftService;
-        this.workflowService = workflowService;
+        this.companionApprovalInboxService = companionApprovalInboxService;
         this.infoSSOTService = infoSSOTService;
         this.decisionEventService = decisionEventService;
     }
@@ -129,10 +129,10 @@ export class CompanionController {
     };
 
     listApprovalInbox = async (req, res) => {
-        if (!this.workflowService?.listCompanionApprovalInbox) {
+        if (!this.companionApprovalInboxService?.list) {
             res.status(503).json({
-                error: 'Workflow service is not configured',
-                code: 'workflow_service_unconfigured'
+                error: 'Companion approval inbox service is not configured',
+                code: 'companion_approval_inbox_service_unconfigured'
             });
             return;
         }
@@ -146,7 +146,7 @@ export class CompanionController {
         const projectId = req.query.project_id || req.query.projectId || null;
         const limit = Number.parseInt(String(req.query.limit || '100'), 10);
         try {
-            const result = await this.workflowService.listCompanionApprovalInbox({
+            const result = await this.companionApprovalInboxService.list({
                 projectId,
                 limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 500) : 100
             }, actor);

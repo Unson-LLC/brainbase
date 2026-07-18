@@ -12,10 +12,10 @@ import { errorHandler } from '../../../server/middleware/error-handler.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
 import {
-    WorkflowService,
+    TestAutomationRuntime,
     createBrainbaseAliveWorkflow,
     createDefaultWorkflowHandlers
-} from '../../../server/services/workflow/workflow-service.js';
+} from '../../helpers/test-automation-runtime.js';
 import { meetingPackIds } from '../../../server/services/workflow/meeting-workflow-pack.js';
 
 function makeApp({
@@ -40,7 +40,7 @@ function makeApp({
             };
         }
     };
-    const service = new WorkflowService({ repository, runner, configParser, googleCalendarService, eveSessionClient });
+    const service = new TestAutomationRuntime({ repository, runner, configParser, googleCalendarService, eveSessionClient });
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
@@ -53,7 +53,10 @@ function makeApp({
         req.authSource = 'test';
         next();
     });
-    app.use('/api/workflows', createWorkflowRouter(service, {
+    app.use('/api/workflows', createWorkflowRouter({
+        agentControlCatalogService: service.agentControlCatalogService,
+        loopIntentService: service.loopIntentService,
+        eveSessionDispatchService: service.eveSessionDispatchService,
         meetingAutomationService: service.meetingAutomationService
     }));
     app.use('/api/workflow-runs', createWorkflowRunRouter(service.automationRunService));
@@ -184,7 +187,7 @@ function sampleMeetingReviewPackage({
 }
 
 describe('workflow routes', () => {
-    it('Meeting Automation routeはWorkflowService adapterではなく専用serviceへ直接委譲する', async () => {
+    it('Meeting Automation routeは専用serviceへ直接委譲する', async () => {
         const calls = [];
         const meetingAutomationService = {
             async bootstrapPack(input, actor) {
@@ -214,7 +217,12 @@ describe('workflow routes', () => {
             req.access = { personId: 'route-test', projectCodes: ['sample-project'], role: 'member' };
             next();
         });
-        app.use('/api/workflows', createWorkflowRouter({}, { meetingAutomationService }));
+        app.use('/api/workflows', createWorkflowRouter({
+            agentControlCatalogService: {},
+            loopIntentService: {},
+            eveSessionDispatchService: {},
+            meetingAutomationService
+        }));
 
         await request(app)
             .post('/api/workflows/control/meeting-pack/bootstrap')

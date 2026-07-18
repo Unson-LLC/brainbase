@@ -7,9 +7,9 @@ import { InMemoryWorkflowRepository } from '../../../server/services/workflow/wo
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
 import { meetingPackIds } from '../../../server/services/workflow/meeting-workflow-pack.js';
 import {
-    WorkflowService,
+    TestAutomationRuntime,
     createDefaultWorkflowHandlers
-} from '../../../server/services/workflow/workflow-service.js';
+} from '../../helpers/test-automation-runtime.js';
 import {
     EveMeetingNoteReconciler,
     classifySessionStreamPhase,
@@ -52,7 +52,7 @@ function makeService({
             };
         }
     };
-    const service = new WorkflowService({
+    const service = new TestAutomationRuntime({
         repository,
         runner,
         configParser,
@@ -1315,7 +1315,10 @@ describe('POST /api/workflows/control/meeting-pack/eve-note-reconcile', () => {
             req.authSource = 'test';
             next();
         });
-        app.use('/api/workflows', createWorkflowRouter(service, {
+        app.use('/api/workflows', createWorkflowRouter({
+            agentControlCatalogService: service.agentControlCatalogService,
+            loopIntentService: service.loopIntentService,
+            eveSessionDispatchService: service.eveSessionDispatchService,
             eveMeetingNoteReconciler,
             meetingAutomationService: service.meetingAutomationService
         }));
@@ -1356,7 +1359,10 @@ describe('POST /api/workflows/control/meeting-pack/eve-note-reconcile', () => {
             req.authSource = 'session';
             next();
         });
-        app.use('/api/workflows', createWorkflowRouter(service, {
+        app.use('/api/workflows', createWorkflowRouter({
+            agentControlCatalogService: service.agentControlCatalogService,
+            loopIntentService: service.loopIntentService,
+            eveSessionDispatchService: service.eveSessionDispatchService,
             eveMeetingNoteReconciler: reconciler,
             meetingAutomationService: service.meetingAutomationService
         }));

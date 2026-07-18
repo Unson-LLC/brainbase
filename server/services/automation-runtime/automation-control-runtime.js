@@ -2,15 +2,10 @@
 
 import crypto from 'node:crypto';
 import { AppError } from '../../lib/errors.js';
-import { AutomationRunService } from '../automation-run/automation-run-service.js';
-import { MeetingAutomationService } from '../meeting-automation/meeting-automation-service.js';
-import { MeetingTaskOwnerResolver } from '../meeting-automation/meeting-task-owner-resolver.js';
 import { ProjectAccessPolicy } from '../project-access/project-access-policy.js';
-import { RunReceiptQueryService } from '../run-receipt/query-service.js';
 
 const DEFAULT_WORKSPACE_ID = 'default';
 const DEFAULT_OWNER_ID = 'local-user';
-const MEETING_REVIEW_PACKAGE_INGEST_IMPLEMENTATION_KEY = 'meeting-review-package-ingest';
 const ALLOWED_TRIGGER_TYPES = new Set(['human', 'event', 'schedule']);
 const ALLOWED_AUTONOMY_LEVELS = new Set(['human_only', 'draft_only', 'approval_required', 'auto_execute']);
 const EVE_SESSION_DISPATCH_IMPLEMENTATION_KEY = 'eve-session-dispatch';
@@ -27,143 +22,6 @@ const DEFAULT_EVE_STOP_CONDITIONS = [
     'privacy_scope_leak',
     'human_approval_required'
 ];
-function companionApprovalPriority({ pendingHumanSteps = [], outputs = [], run = {} } = {}) {
-    const highRiskTargets = new Set([
-        'external_message_draft',
-        'graph_ssot_decision',
-        'candidate_store',
-        'task_store'
-    ]);
-    const protectedTargets = [
-        ...pendingHumanSteps.map((step) => step?.metadata?.write_back_target || step?.write_back_target),
-        ...outputs.map((output) => output?.metadata?.write_back_target)
-    ].filter(Boolean);
-    if (run.status === 'failed' || protectedTargets.some((target) => highRiskTargets.has(target))) {
-        return 'high';
-    }
-    if (pendingHumanSteps.length > 1) return 'medium';
-    return 'low';
-}
-
-function isActionableCompanionApprovalRun(run = {}) {
-    const status = String(run.status || '').toLowerCase();
-    if (['success', 'succeeded', 'cancelled', 'canceled', 'resolved', 'skipped', 'closed'].includes(status)) return false;
-    if (run.closure_state === 'closed') return false;
-    if (run.human_waiting === true) return true;
-    if (status === 'waiting_human') return true;
-    return Boolean(run.action_required && run.action_required !== 'none');
-}
-
-function outputSummary(output) {
-    const preview = typeof output?.preview === 'string' ? output.preview.trim() : '';
-    if (preview) return preview.slice(0, 240);
-    const payload = output?.payload;
-    if (Array.isArray(payload)) return `${payload.length}件`;
-    if (payload && typeof payload === 'object') {
-        const keys = Object.keys(payload);
-        if (keys.length > 0) return keys.slice(0, 6).join(', ');
-    }
-    if (payload == null) return '';
-    return String(payload).slice(0, 240);
-}
-
-function normalizeCompanionApprovalOutput(output) {
-    return {
-        id: output.id,
-        output_type: output.type || output.output_type || null,
-        title: output.title || output.type || output.id,
-        summary: outputSummary(output),
-        preview: output.preview || null,
-        payload: output.payload ?? null,
-        metadata: output.metadata || {},
-        created_at: output.created_at || null
-    };
-}
-
-function normalizeCompanionApprovalHumanStep(step) {
-    const metadata = step.metadata || {};
-    return {
-        id: step.id,
-        prompt: step.prompt || '',
-        status: step.status || 'pending',
-        step_type: step.step_type || null,
-        requested_by: step.requested_by || null,
-        requested_to: step.requested_to || null,
-        approval_kind: metadata.approval_kind || metadata.reason || step.reason || step.step_type || 'approval',
-        write_back_target: metadata.write_back_target || step.write_back_target || null,
-        protects: Array.isArray(metadata.protects) ? metadata.protects : [],
-        loop_intent_id: metadata.loop_intent_id || null,
-        metadata,
-        created_at: step.created_at || null,
-        updated_at: step.updated_at || null
-    };
-}
-
-function normalizeCompanionApprovalContextSnapshot(snapshot) {
-    return {
-        id: snapshot.id,
-        source_type: snapshot.source_type || snapshot.type || null,
-        source_ref: snapshot.source_ref || snapshot.ref || null,
-        source_version: snapshot.source_version || null,
-        title: snapshot.title || snapshot.source_type || snapshot.id,
-        summary: snapshot.preview || snapshot.summary || '',
-        payload: snapshot.data ?? snapshot.payload ?? null,
-        metadata: snapshot.metadata || {},
-        created_at: snapshot.created_at || null
-    };
-}
-
-function normalizeCompanionApprovalEvidence(auditLog) {
-    return {
-        id: auditLog.id,
-        action: auditLog.action || null,
-        target_type: auditLog.target_type || null,
-        target_id: auditLog.target_id || null,
-        summary: auditLog.summary || auditLog.message || auditLog.action || '',
-        before: auditLog.before ?? null,
-        after: auditLog.after ?? null,
-        metadata: auditLog.metadata || {},
-        created_at: auditLog.created_at || null
-    };
-}
-
-function companionApprovalActionKind({ pendingHumanSteps = [], outputs = [], run = {} } = {}) {
-    const firstStep = pendingHumanSteps[0] || {};
-    const stepMetadata = firstStep.metadata || {};
-    return stepMetadata.action_kind
-        || stepMetadata.approval_kind
-        || outputs[0]?.type
-        || outputs[0]?.output_type
-        || stepMetadata.write_back_target
-        || outputs[0]?.metadata?.action_kind
-        || outputs[0]?.metadata?.write_back_target
-        || run.action_required
-        || 'approval';
-}
-
-function companionApprovalOwner({ run = {}, workflow = null, pendingHumanSteps = [] } = {}) {
-    const firstStep = pendingHumanSteps[0] || {};
-    return firstStep.requested_to
-        || firstStep.assignee_id
-        || firstStep.approver_id
-        || run.approver_id
-        || run.assignee_id
-        || run.owner_id
-        || workflow?.default_approver_id
-        || workflow?.default_assignee_id
-        || workflow?.owner_id
-        || run.metadata?.owner_id
-        || null;
-}
-
-function runDisplayTitle(run, workflow) {
-    return run?.metadata?.meeting_identity?.title
-        || run?.metadata?.title
-        || workflow?.name
-        || run?.workflow_id
-        || run?.id
-        || 'Workflow approval';
-}
 
 function readString(input, snakeKey, camelKey = snakeKey) {
     const value = input?.[snakeKey] ?? input?.[camelKey];
@@ -573,158 +431,21 @@ function eligibilityFrom({ binding, trigger, input }) {
     };
 }
 
-export function createBrainbaseAliveWorkflow({ projectId = 'general', ownerId = DEFAULT_OWNER_ID } = {}) {
-    return {
-        id: 'brainbase-alive',
-        workspace_id: DEFAULT_WORKSPACE_ID,
-        project_id: projectId,
-        name: 'Brainbase Alive',
-        description: 'Brainbase workflow runner and ledger smoke check',
-        enabled: true,
-        schedule: null,
-        owner_id: ownerId,
-        default_assignee_id: ownerId,
-        default_approver_id: ownerId,
-        execution_env: 'local',
-        risk_level: 'low',
-        hitl_policy: 'none',
-        timeout_ms: 30000,
-        implementation_key: 'brainbase-alive',
-        context_sources: [{
-            id: 'ctx-project',
-            source_type: 'project',
-            source_ref: projectId,
-            scope: 'project',
-            permission: 'read',
-            required: true,
-            preview: 'Project association smoke context'
-        }]
-    };
-}
-
-export function createDefaultWorkflowHandlers({ clock = () => new Date() } = {}) {
-    return {
-        'brainbase-alive': async (ctx) => ({
-            status: 'success',
-            closureState: 'closed',
-            actionRequired: 'none',
-            outputCount: 1,
-            message: `Brainbase alive. env=${ctx.env}`,
-            data: {
-                checkedAt: clock().toISOString(),
-                workspaceId: ctx.workspaceId,
-                projectId: ctx.projectId,
-                workflowId: ctx.workflowId,
-                runId: ctx.runId
-            }
-        }),
-        'manual-placeholder': async (ctx, workflow) => ({
-            status: 'success',
-            closureState: 'closed',
-            actionRequired: 'none',
-            outputCount: 1,
-            message: ctx.humanStepResolution
-                ? `${workflow.name} resumed after human step ${ctx.humanStepResolution.resolution}`
-                : `${workflow.name} recorded`,
-            data: {
-                workflowId: ctx.workflowId,
-                projectId: ctx.projectId,
-                humanStepResolution: ctx.humanStepResolution || null,
-                recordedAt: clock().toISOString()
-            }
-        }),
-        [MEETING_REVIEW_PACKAGE_INGEST_IMPLEMENTATION_KEY]: async () => {
-            throw AppError.validation('meeting-review-package-ingest must be executed through review-ingest API');
-        }
-    };
-}
-
-function isPendingHumanStepStatus(status) {
-    return String(status || '').toLowerCase() === 'pending';
-}
-
-function normalizeWorkflowInput(input, { projectId, ownerId, assigneeId, approverId } = {}) {
-    const id = input.id || `wf_${crypto.randomUUID()}`;
-    const effectiveOwnerId = ownerId || input.owner_id || DEFAULT_OWNER_ID;
-    const effectiveAssigneeId = assigneeId || input.default_assignee_id || effectiveOwnerId;
-    const effectiveApproverId = approverId || input.default_approver_id || effectiveOwnerId;
-    return {
-        id,
-        workspace_id: input.workspace_id || DEFAULT_WORKSPACE_ID,
-        project_id: input.project_id || projectId,
-        name: input.name || id,
-        description: input.description || '',
-        enabled: input.enabled !== false,
-        schedule: input.schedule || null,
-        owner_id: effectiveOwnerId,
-        default_assignee_id: effectiveAssigneeId,
-        default_approver_id: effectiveApproverId,
-        execution_env: input.execution_env || input.executionMode || 'local',
-        risk_level: input.risk_level || input.riskLevel || 'low',
-        hitl_policy: input.hitl_policy || input.hitlPolicy || 'none',
-        timeout_ms: input.timeout_ms || input.timeoutMs || 300000,
-        implementation_key: input.implementation_key || input.implementationKey || 'manual-placeholder',
-        context_sources: Array.isArray(input.context_sources)
-            ? input.context_sources
-            : (Array.isArray(input.contextSources) ? input.contextSources : [])
-    };
-}
-
-export class WorkflowService {
+/**
+ * Internal persistence engine shared by the narrow automation-control services.
+ * Production callers must use the facades in this directory instead.
+ */
+export class AutomationControlRuntime {
     constructor({
         repository,
-        runner,
         configParser,
-        googleCalendarService = null,
         eveSessionClient = null,
-        infoSSOTService = null,
-        runReceiptQueryService = null,
-        meetingAutomationService = null,
-        meetingTaskOwnerResolver = null,
-        projectAccessPolicy = null,
-        automationRunService = null
+        projectAccessPolicy = null
     }) {
         this.repository = repository;
-        this.runner = runner;
-        this.configParser = configParser;
-        this.googleCalendarService = googleCalendarService;
         this.eveSessionClient = eveSessionClient;
-        this.meetingTaskOwnerResolver = meetingTaskOwnerResolver || new MeetingTaskOwnerResolver({ infoSSOTService });
         this.projectAccessPolicy = projectAccessPolicy || new ProjectAccessPolicy({ configParser });
         this.eveSessionDispatchInFlight = new Map();
-        this.runReceiptQueryService = runReceiptQueryService || new RunReceiptQueryService({
-            repository,
-            prepareProjectAccess: () => this.projectAccessPolicy.prepare(),
-            assertProjectAccess: (projectId, actor) => this.projectAccessPolicy.assertProjectAccess(projectId, actor),
-            canAccessProject: (projectId, actor) => this.projectAccessPolicy.canAccessProject(projectId, actor)
-        });
-        this.meetingAutomationService = meetingAutomationService || new MeetingAutomationService({
-            repository,
-            googleCalendarService,
-            eveSessionClient,
-            infoSSOTService,
-            projectAccessPolicy: this.projectAccessPolicy,
-            createLoopIntent: (input, actor) => this.createLoopIntent(input, actor),
-            meetingTaskOwnerResolver: this.meetingTaskOwnerResolver,
-            dispatchLoopIntentToEve: (loopIntentId, input, actor) => this.dispatchLoopIntentToEve(loopIntentId, input, actor)
-        });
-        this.automationRunService = automationRunService || new AutomationRunService({
-            repository,
-            runner,
-            ensureDefaultWorkflows: () => this.ensureDefaultWorkflows(),
-            prepareProjectAccess: () => this.projectAccessPolicy.prepare(),
-            assertProjectSelectable: (projectId) => this.projectAccessPolicy.assertProjectSelectable(projectId),
-            assertProjectAccess: (projectId, actor) => this.projectAccessPolicy.assertProjectAccess(projectId, actor),
-            assertHumanStepAccess: (step, actor) => this._assertActorCanResolveHumanStep(step, actor)
-        });
-    }
-
-    async ensureDefaultWorkflows() {
-        await this._transaction(() => {
-            if (!this.repository.getWorkflow('brainbase-alive')) {
-                this.repository.upsertWorkflow(createBrainbaseAliveWorkflow());
-            }
-        });
     }
 
     async listRoleAgentInstances({ orgId = null, projectId = null, roleArchetypeId = null } = {}, actor = {}) {
@@ -1678,81 +1399,6 @@ export class WorkflowService {
         }
     }
 
-    async listCompanionApprovalInbox({ projectId = null, limit = 100 } = {}, actor = {}) {
-        await this.projectAccessPolicy.prepare();
-        if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
-
-        const runs = this.repository.listRuns({ projectId, limit: null })
-            .filter((run) => this.projectAccessPolicy.canAccessProject(run.project_id, actor));
-        const allItems = [];
-
-        for (const run of runs) {
-            if (!isActionableCompanionApprovalRun(run)) continue;
-
-            const pendingHumanSteps = this.repository
-                .listHumanSteps(run.id)
-                .filter((step) => isPendingHumanStepStatus(step.status));
-            if (pendingHumanSteps.length === 0) continue;
-
-            const workflow = this.repository.getWorkflow(run.workflow_id) || null;
-            const outputs = this.repository.listOutputs(run.id);
-            const auditLogs = this.repository.listAuditLogs({ targetId: run.id, limit: 20 });
-            const contextSnapshots = this.repository.listContextSnapshots(run.id);
-            const sourceUrl = run.metadata?.source_event?.permalink
-                || run.metadata?.source_url
-                || run.metadata?.meeting_identity?.source_url
-                || null;
-            const normalizedHumanSteps = pendingHumanSteps.map(normalizeCompanionApprovalHumanStep);
-            const normalizedOutputs = outputs.map(normalizeCompanionApprovalOutput);
-            const normalizedEvidence = auditLogs.map(normalizeCompanionApprovalEvidence);
-            const actionKind = companionApprovalActionKind({
-                pendingHumanSteps,
-                outputs,
-                run
-            });
-
-            allItems.push({
-                id: `approval_${run.id}`,
-                kind: 'workflow_approval',
-                title: runDisplayTitle(run, workflow),
-                summary: `${pendingHumanSteps.length}件の承認待ち、${outputs.length}件のoutput`,
-                priority: companionApprovalPriority({ pendingHumanSteps, outputs, run }),
-                owner_id: companionApprovalOwner({ run, workflow, pendingHumanSteps }),
-                action_kind: actionKind,
-                workflow_id: run.workflow_id,
-                workflow_name: workflow?.name || run.workflow_id,
-                run_id: run.id,
-                api_path: `/api/workflow-runs/${encodeURIComponent(run.id)}`,
-                project_id: run.project_id || workflow?.project_id || null,
-                org_id: run.org_id || run.metadata?.org_id || null,
-                case_scope: run.metadata?.case_scope || run.metadata?.meeting_identity?.case_scope || null,
-                status: run.status || null,
-                action_required: run.action_required || null,
-                created_at: run.created_at || run.started_at || null,
-                updated_at: run.updated_at || run.finished_at || run.started_at || run.created_at || null,
-                source_url: sourceUrl,
-                pending_human_steps: normalizedHumanSteps,
-                outputs: normalizedOutputs,
-                context: contextSnapshots.map(normalizeCompanionApprovalContextSnapshot),
-                audit_refs: auditLogs.map((log) => log.id).filter(Boolean),
-                evidence: normalizedEvidence,
-                metadata: {
-                    meeting_identity: run.metadata?.meeting_identity || null,
-                    source_event: run.metadata?.source_event || null,
-                    stop_conditions: run.metadata?.stop_conditions || []
-                }
-            });
-        }
-
-        const items = allItems.slice(0, limit);
-        return {
-            items,
-            count: items.length,
-            has_more: allItems.length > limit,
-            omitted_count: Math.max(allItems.length - items.length, 0)
-        };
-    }
-
     _actorCanManageGlobalWorkflowTemplate(actor = {}) {
         if (!actor || Object.keys(actor).length === 0) return true;
         if (actor.authSource === 'internal' || actor.sub === 'internal_api' || actor.person_id === 'internal_api') return true;
@@ -1765,15 +1411,6 @@ export class WorkflowService {
         if (template.org_id) return false;
         const projectCodes = Array.isArray(actor.projectCodes) ? actor.projectCodes : [];
         return projectCodes.length > 0;
-    }
-
-    _assertActorCanResolveHumanStep(step, actor = {}) {
-        const actorId = actor.person_id || actor.sub || null;
-        if (actor.authSource === 'internal' || actorId === 'internal_api') return;
-        if (['admin', 'ceo'].includes(String(actor.role || '').toLowerCase())) return;
-        if (!actorId || actorId !== step.requested_to) {
-            throw AppError.forbidden(`human step '${step.id}' is not assigned to this actor`);
-        }
     }
 
     _assertDispatchControlRef(type, record, recordId, loopIntent, { allowGlobalOrg = false, allowGlobalProject = false } = {}) {
@@ -1923,7 +1560,7 @@ export class WorkflowService {
 
     async _transaction(callback) {
         if (typeof this.repository?.transaction !== 'function') {
-            throw new Error('WorkflowService requires a transactional workflow repository');
+            throw new Error('Automation control requires a transactional workflow repository');
         }
         return this.repository.transaction(callback);
     }

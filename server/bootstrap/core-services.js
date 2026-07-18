@@ -39,10 +39,10 @@ import { ProjectAccessPolicy } from '../services/project-access/project-access-p
 import { JsonFileWorkflowRepository } from '../services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../services/workflow/workflow-runner.js';
 import {
-    WorkflowService,
     createBrainbaseAliveWorkflow,
     createDefaultWorkflowHandlers
-} from '../services/workflow/workflow-service.js';
+} from '../services/automation-runtime/automation-runtime-defaults-service.js';
+import { createAutomationRuntimeServices } from '../services/automation-runtime/automation-runtime-services.js';
 
 export function createCoreServices({
     varDir,
@@ -92,7 +92,7 @@ export function createCoreServices({
     const eveSessionClient = createEveSessionClientFromEnv();
     const meetingTaskOwnerResolver = new MeetingTaskOwnerResolver({ infoSSOTService });
     const projectAccessPolicy = new ProjectAccessPolicy({ configParser });
-    const workflowService = new WorkflowService({
+    const automationRuntime = createAutomationRuntimeServices({
         repository: workflowRepository,
         runner: workflowRunner,
         configParser,
@@ -103,13 +103,13 @@ export function createCoreServices({
         projectAccessPolicy
     });
     const eveMeetingNoteReconciler = new EveMeetingNoteReconciler({
-        meetingAutomationService: workflowService.meetingAutomationService,
+        meetingAutomationService: automationRuntime.meetingAutomationService,
         eveSessionClient,
         config: createEveMeetingNoteReconcilerConfigFromEnv()
     });
     const meetingSourceMcpSyncService = new MeetingSourceMcpSyncService({
         stateFile: path.join(varDir, 'meeting-source-mcp-state.json'),
-        meetingAutomationService: workflowService.meetingAutomationService,
+        meetingAutomationService: automationRuntime.meetingAutomationService,
         adapters: createMeetingSourceMcpAdaptersFromEnv(),
         syncConfig: {
             enabled: process.env.BRAINBASE_MEETING_SOURCE_SYNC_ENABLED === '1',
@@ -244,7 +244,7 @@ export function createCoreServices({
         sessionActivityWsService,
         conversationLinker,
         tokenUsageService,
-        workflowService,
+        ...automationRuntime,
         meetingSourceMcpSyncService,
         externalRunnerIngestService,
         runReceiptIngestService,

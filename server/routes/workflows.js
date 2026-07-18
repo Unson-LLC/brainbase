@@ -13,7 +13,10 @@ function actorFromRequest(req) {
     };
 }
 
-export function createWorkflowRouter(workflowService, {
+export function createWorkflowRouter({
+    agentControlCatalogService,
+    loopIntentService,
+    eveSessionDispatchService,
     eveMeetingNoteReconciler = null,
     meetingAutomationService = null
 } = {}) {
@@ -58,48 +61,48 @@ export function createWorkflowRouter(workflowService, {
     }
 
     router.get('/control/role-agents', asyncHandler(async (req, res) => {
-        res.json(await workflowService.listRoleAgentInstances(roleAgentQuery(req), actorFromRequest(req)));
+        res.json(await agentControlCatalogService.listRoleAgentInstances(roleAgentQuery(req), actorFromRequest(req)));
     }));
 
     router.post('/control/role-agents', asyncHandler(async (req, res) => {
-        res.status(201).json(await workflowService.createRoleAgentInstance(req.body || {}, actorFromRequest(req)));
+        res.status(201).json(await agentControlCatalogService.createRoleAgentInstance(req.body || {}, actorFromRequest(req)));
     }));
 
     router.get('/control/templates', asyncHandler(async (req, res) => {
-        res.json(await workflowService.listWorkflowTemplates(templateQuery(req), actorFromRequest(req)));
+        res.json(await agentControlCatalogService.listWorkflowTemplates(templateQuery(req), actorFromRequest(req)));
     }));
 
     router.post('/control/templates', asyncHandler(async (req, res) => {
-        res.status(201).json(await workflowService.createWorkflowTemplate(req.body || {}, actorFromRequest(req)));
+        res.status(201).json(await agentControlCatalogService.createWorkflowTemplate(req.body || {}, actorFromRequest(req)));
     }));
 
     router.get('/control/bindings', asyncHandler(async (req, res) => {
-        res.json(await workflowService.listWorkflowBindings(bindingQuery(req), actorFromRequest(req)));
+        res.json(await agentControlCatalogService.listWorkflowBindings(bindingQuery(req), actorFromRequest(req)));
     }));
 
     router.post('/control/bindings', asyncHandler(async (req, res) => {
-        res.status(201).json(await workflowService.createWorkflowBinding(req.body || {}, actorFromRequest(req)));
+        res.status(201).json(await agentControlCatalogService.createWorkflowBinding(req.body || {}, actorFromRequest(req)));
     }));
 
     router.get('/control/triggers', asyncHandler(async (req, res) => {
-        res.json(await workflowService.listWorkflowTriggers(triggerQuery(req), actorFromRequest(req)));
+        res.json(await agentControlCatalogService.listWorkflowTriggers(triggerQuery(req), actorFromRequest(req)));
     }));
 
     router.post('/control/triggers', asyncHandler(async (req, res) => {
-        res.status(201).json(await workflowService.createWorkflowTrigger(req.body || {}, actorFromRequest(req)));
+        res.status(201).json(await agentControlCatalogService.createWorkflowTrigger(req.body || {}, actorFromRequest(req)));
     }));
 
     router.get('/control/loop-intents', asyncHandler(async (req, res) => {
-        res.json(await workflowService.listLoopIntents(loopIntentQuery(req), actorFromRequest(req)));
+        res.json(await loopIntentService.list(loopIntentQuery(req), actorFromRequest(req)));
     }));
 
     router.post('/control/loop-intents', asyncHandler(async (req, res) => {
-        res.status(201).json(await workflowService.createLoopIntent(req.body || {}, actorFromRequest(req)));
+        res.status(201).json(await loopIntentService.create(req.body || {}, actorFromRequest(req)));
     }));
 
     router.post('/control/loop-intents/:loopIntentId/eve-session', asyncHandler(async (req, res) => {
         try {
-            const result = await workflowService.dispatchLoopIntentToEve(req.params.loopIntentId, req.body || {}, actorFromRequest(req));
+            const result = await eveSessionDispatchService.dispatch(req.params.loopIntentId, req.body || {}, actorFromRequest(req));
             res.status(result.eve_session_dispatch?.idempotent ? 200 : 201).json(result);
         } catch (error) {
             if (error?.statusCode === 400 && error?.details?.state_transition) {
@@ -192,23 +195,23 @@ export function createWorkflowRouter(workflowService, {
     }));
 
     router.get('/role-agents', asyncHandler(async (req, res) => {
-        res.json(await workflowService.listRoleAgentInstances(roleAgentQuery(req), actorFromRequest(req)));
+        res.json(await agentControlCatalogService.listRoleAgentInstances(roleAgentQuery(req), actorFromRequest(req)));
     }));
 
     router.get('/templates', asyncHandler(async (req, res) => {
-        res.json(await workflowService.listWorkflowTemplates(templateQuery(req), actorFromRequest(req)));
+        res.json(await agentControlCatalogService.listWorkflowTemplates(templateQuery(req), actorFromRequest(req)));
     }));
 
     router.get('/bindings', asyncHandler(async (req, res) => {
-        res.json(await workflowService.listWorkflowBindings(bindingQuery(req), actorFromRequest(req)));
+        res.json(await agentControlCatalogService.listWorkflowBindings(bindingQuery(req), actorFromRequest(req)));
     }));
 
     router.get('/triggers', asyncHandler(async (req, res) => {
-        res.json(await workflowService.listWorkflowTriggers(triggerQuery(req), actorFromRequest(req)));
+        res.json(await agentControlCatalogService.listWorkflowTriggers(triggerQuery(req), actorFromRequest(req)));
     }));
 
     router.get('/loop-intents', asyncHandler(async (req, res) => {
-        res.json(await workflowService.listLoopIntents(loopIntentQuery(req), actorFromRequest(req)));
+        res.json(await loopIntentService.list(loopIntentQuery(req), actorFromRequest(req)));
     }));
 
     return router;

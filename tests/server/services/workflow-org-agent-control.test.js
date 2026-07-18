@@ -7,9 +7,10 @@ import {
     meetingPackIds
 } from '../../../server/services/workflow/meeting-workflow-pack.js';
 import {
-    WorkflowService,
+    TestAutomationRuntime,
     createDefaultWorkflowHandlers
-} from '../../../server/services/workflow/workflow-service.js';
+} from '../../helpers/test-automation-runtime.js';
+import { AutomationControlRuntime } from '../../../server/services/automation-runtime/automation-control-runtime.js';
 
 function makeService({
     repository = new InMemoryWorkflowRepository(),
@@ -32,7 +33,7 @@ function makeService({
             };
         }
     };
-    const service = new WorkflowService({ repository, runner, configParser, googleCalendarService, eveSessionClient, infoSSOTService });
+    const service = new TestAutomationRuntime({ repository, runner, configParser, googleCalendarService, eveSessionClient, infoSSOTService });
     const actor = {
         sub: 'keigo',
         person_id: 'keigo',
@@ -292,31 +293,31 @@ async function createAgentStack(service, actor, {
     }, actor);
 }
 
-describe('WorkflowService org agent loop control', () => {
+describe('automation control runtime boundaries', () => {
     it('does not expose retired WorkflowService adapters', () => {
-        expect(WorkflowService.prototype.runWorkflow).toBeUndefined();
-        expect(WorkflowService.prototype.rerun).toBeUndefined();
-        expect(WorkflowService.prototype.getRun).toBeUndefined();
-        expect(WorkflowService.prototype.resolveHumanStep).toBeUndefined();
-        expect(WorkflowService.prototype.listRunReceiptInbox).toBeUndefined();
-        expect(WorkflowService.prototype.listRunReceiptHistory).toBeUndefined();
-        expect(WorkflowService.prototype.diagnoseRunReceipt).toBeUndefined();
-        expect(WorkflowService.prototype._prepareMeetingWorkflowPackRecords).toBeUndefined();
-        expect(WorkflowService.prototype.reviewMeetingWorkflowPackDesign).toBeUndefined();
-        expect(WorkflowService.prototype.bootstrapMeetingWorkflowPack).toBeUndefined();
-        expect(WorkflowService.prototype.createMeetingPackCalendarLoopIntents).toBeUndefined();
-        expect(WorkflowService.prototype._dispatchMeetingNoteGeneration).toBeUndefined();
-        expect(WorkflowService.prototype.ingestMeetingReviewPackage).toBeUndefined();
-        expect(WorkflowService.prototype.recordMeetingNoteGeneration).toBeUndefined();
-        expect(WorkflowService.prototype.recordMeetingCandidates).toBeUndefined();
-        expect(WorkflowService.prototype.resolveMeetingReviewTaskOwnersFromSSOT).toBeUndefined();
-        expect(WorkflowService.prototype.resolveMeetingReviewTaskOwnerCandidate).toBeUndefined();
-        expect(WorkflowService.prototype.lookupTaskOwnerPeopleSSOT).toBeUndefined();
-        expect(WorkflowService.prototype._loadProjectConfigCache).toBeUndefined();
-        expect(WorkflowService.prototype._assertProjectSelectable).toBeUndefined();
-        expect(WorkflowService.prototype._assertOrgReferenceAllowed).toBeUndefined();
-        expect(WorkflowService.prototype._assertActorCanAccessProject).toBeUndefined();
-        expect(WorkflowService.prototype._actorCanAccessProject).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.runWorkflow).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.rerun).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.getRun).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.resolveHumanStep).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.listRunReceiptInbox).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.listRunReceiptHistory).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.diagnoseRunReceipt).toBeUndefined();
+        expect(AutomationControlRuntime.prototype._prepareMeetingWorkflowPackRecords).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.reviewMeetingWorkflowPackDesign).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.bootstrapMeetingWorkflowPack).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.createMeetingPackCalendarLoopIntents).toBeUndefined();
+        expect(AutomationControlRuntime.prototype._dispatchMeetingNoteGeneration).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.ingestMeetingReviewPackage).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.recordMeetingNoteGeneration).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.recordMeetingCandidates).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.resolveMeetingReviewTaskOwnersFromSSOT).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.resolveMeetingReviewTaskOwnerCandidate).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.lookupTaskOwnerPeopleSSOT).toBeUndefined();
+        expect(AutomationControlRuntime.prototype._loadProjectConfigCache).toBeUndefined();
+        expect(AutomationControlRuntime.prototype._assertProjectSelectable).toBeUndefined();
+        expect(AutomationControlRuntime.prototype._assertOrgReferenceAllowed).toBeUndefined();
+        expect(AutomationControlRuntime.prototype._assertActorCanAccessProject).toBeUndefined();
+        expect(AutomationControlRuntime.prototype._actorCanAccessProject).toBeUndefined();
     });
 
     it('story-mana-meeting-workflow-pack-data-v1 S-001 bootstraps meeting pack records into Workflow Control data', async () => {

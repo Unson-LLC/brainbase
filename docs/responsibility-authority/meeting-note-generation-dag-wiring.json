@@ -18,7 +18,7 @@
             "owned_surfaces": {
                 "paths": [
                     "server/routes/workflows.js",
-                    "server/services/workflow/workflow-service.js",
+                    "server/services/automation-runtime/eve-session-dispatch-service.js",
                     "server/services/workflow/workflow-repository.js",
                     "server/services/meeting-automation/meeting-automation-service.js",
                     "server/services/meeting-automation/meeting-review-ledger-service.js",

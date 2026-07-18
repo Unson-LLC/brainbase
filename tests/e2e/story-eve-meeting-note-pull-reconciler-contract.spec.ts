@@ -6,9 +6,9 @@ import { createWorkflowRouter } from '../../server/routes/workflows.js';
 import { InMemoryWorkflowRepository } from '../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../server/services/workflow/workflow-runner.js';
 import {
-  WorkflowService,
+  TestAutomationRuntime,
   createDefaultWorkflowHandlers
-} from '../../server/services/workflow/workflow-service.js';
+} from '../helpers/test-automation-runtime.js';
 import { meetingPackIds } from '../../server/services/workflow/meeting-workflow-pack.js';
 import {
   EveMeetingNoteReconciler
@@ -48,7 +48,7 @@ function makeService({ eveSessionClient }: { eveSessionClient: any }) {
       };
     }
   };
-  const service = new WorkflowService({
+  const service = new TestAutomationRuntime({
     repository,
     runner,
     configParser,
@@ -300,7 +300,10 @@ test.describe(`${storyId} contract`, () => {
         req.authSource = 'test';
         next();
       });
-      app.use('/api/workflows', createWorkflowRouter(service, {
+      app.use('/api/workflows', createWorkflowRouter({
+        agentControlCatalogService: service.agentControlCatalogService,
+        loopIntentService: service.loopIntentService,
+        eveSessionDispatchService: service.eveSessionDispatchService,
         eveMeetingNoteReconciler: wiredReconciler,
         meetingAutomationService: service.meetingAutomationService
       }));

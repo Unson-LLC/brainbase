@@ -9,7 +9,7 @@ related_architecture:
 implementation_files:
   - server/routes/companion.js
   - server/controllers/companion-controller.js
-  - server/services/workflow/workflow-service.js
+  - server/services/companion/approval-inbox-service.js
 test_files:
   - tests/server/routes/companion-approval-inbox.test.js
 ---

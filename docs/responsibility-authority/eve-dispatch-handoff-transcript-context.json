@@ -17,15 +17,16 @@
             ],
             "owned_surfaces": {
                 "paths": [
-                    "server/services/workflow/workflow-service.js",
+                    "server/services/automation-runtime/automation-control-runtime.js",
+                    "server/services/automation-runtime/eve-session-dispatch-service.js",
                     "server/services/meeting-automation/meeting-automation-service.js",
                     "script/backfill-eve-meeting-note-dispatch.mjs"
                 ],
                 "symbols": [
                     "readMeetingNoteGenerationDispatchRef",
                     "buildMeetingNoteGenerationHandoffContext",
-                    "WorkflowService._resolveMeetingNoteGenerationHandoff",
-                    "WorkflowService.dispatchLoopIntentToEve",
+                    "AutomationControlRuntime._resolveMeetingNoteGenerationHandoff",
+                    "EveSessionDispatchService.dispatch",
                     "MeetingAutomationService.dispatchNoteGeneration",
                     "meeting_note_generation"
                 ],

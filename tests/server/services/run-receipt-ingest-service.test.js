@@ -13,7 +13,7 @@ import {
     JsonFileWorkflowRepository
 } from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
-import { WorkflowService } from '../../../server/services/workflow/workflow-service.js';
+import { TestAutomationRuntime } from '../../helpers/test-automation-runtime.js';
 
 const tempDirectories = [];
 
@@ -449,7 +449,7 @@ describe('RunReceiptIngestService', () => {
                 run: { external_run_id: `${sourceType}:run:1` }
             }));
         }
-        const workflowService = new WorkflowService({ repository, runner: {}, configParser: null });
+        const workflowService = new TestAutomationRuntime({ repository, runner: {}, configParser: null });
 
         expect(repository.listRuns({ limit: null })).toHaveLength(4);
         for (const sourceType of sourceTypes) {

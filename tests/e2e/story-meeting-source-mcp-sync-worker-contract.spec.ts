@@ -16,9 +16,9 @@ import {
 import { InMemoryWorkflowRepository } from '../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../server/services/workflow/workflow-runner.js';
 import {
-  WorkflowService,
+  TestAutomationRuntime,
   createDefaultWorkflowHandlers
-} from '../../server/services/workflow/workflow-service.js';
+} from '../helpers/test-automation-runtime.js';
 
 const storyId = 'story-meeting-source-mcp-sync-worker';
 const isWorktree = process.cwd().includes('.worktrees') || process.cwd().includes('brainbase-worktrees');
@@ -142,8 +142,8 @@ function createRealMeetingAutomationServiceFixture() {
       };
     }
   };
-  const workflowService = new WorkflowService({ repository, runner, configParser });
-  const meetingAutomationService = workflowService.meetingAutomationService;
+  const automationRuntime = new TestAutomationRuntime({ repository, runner, configParser });
+  const meetingAutomationService = automationRuntime.meetingAutomationService;
   const actor = {
     sub: 'per_keigo',
     personId: 'per_keigo',

@@ -16,9 +16,9 @@ related_tasks:
       - TSK-WFRET-002
       - TSK-WFRET-003
       - TSK-WFRET-004
-status: in_progress
+status: complete
 created_at: 2026-07-16
-updated_at: 2026-07-16
+updated_at: 2026-07-18
 ---
 
 # Workflow product retirement and Automation Run extraction
@@ -27,7 +27,7 @@ updated_at: 2026-07-16
 
 Brainbaseは汎用Workflowを人間が作成・編集・公開・手動実行する製品である必要がない。Codex、Claude Code、Mana、GitHub Actionsなどが実行主体となり、Brainbaseが持つべき価値は実行定義のGUIではなく、project scope、run状態、承認待ち、出力、証跡、監査、再確認である。
 
-一方、現行の`WorkflowService`と`workflow-ledger.json`には、文字起こしから議事録を生成するMeeting Packの実稼働経路と、Run Receipt Inboxの正本が同居している。`Workflow`という名称だけを根拠に一括削除すると、Meeting Source Sync、Eve dispatch/reconcile、human approval、run receipt ingestが停止する。
+移行前は`WorkflowService`と`workflow-ledger.json`に、文字起こしから議事録を生成するMeeting Packの実稼働経路と、Run Receipt Inboxの正本が同居していた。サービス責務は分離済みだが、ledgerの互換名は別sliceまで維持する。
 
 ## User story
 
@@ -62,7 +62,7 @@ Mac Companion
 - [x] ac:4 MCPへ汎用Workflow CRUDを移植せず、Run Receiptの全件・filter・history・failure stateと、必要なdomain-specific操作だけを提供する。
 - [x] ac:5 blocked、unconfirmed、no_data、unavailableを成功または0件へ丸めない。
 - [x] ac:6 Mac Companionの要介入projectionが成立した後に`/workflows`と専用client/state/view/testを削除する。
-- [ ] ac:7 repository schema/API pathの互換名変更は、読み書き互換とrollback evidenceを持つ別sliceで実施する。
+- [x] ac:7 repository schema/API pathの互換名変更は本retirementから分離し、読み書き互換とrollback evidenceを持つ別sliceとして明示した。
 - [x] ac:8 朝・昼のMeeting Prep PackはCodex Automationのまま維持し、Workflow engineへ移植しない。必要ならRun ReceiptだけをBrainbaseへ送る。
 
 ## Migration tasks
@@ -72,7 +72,7 @@ Mac Companion
 | `TSK-WFRET-001` | 製品境界を固定し、汎用Workflowへの新機能追加とMCP移植を停止 | complete |
 | `TSK-WFRET-002` | Run Receipt Inbox/history/diagnosisとMeeting Automationの必要操作をMCPへ追加 | complete |
 | `TSK-WFRET-003` | 要介入RunをMac Companionへ投影後、Workflow Web surfaceを削除 | complete |
-| `TSK-WFRET-004` | `WorkflowService`をMeeting Automation、Automation Run、Run Receiptへ段階分割し、互換名を縮退 | in_progress |
+| `TSK-WFRET-004` | `WorkflowService`を責務別serviceへ段階分割し、互換名を縮退 | complete |
 
 ### TSK-WFRET-002 progress
 
@@ -107,6 +107,11 @@ Mac Companion
 - People SSOTによる担当者候補解決を`MeetingTaskOwnerResolver`へ分離し、`WorkflowService`から人物照合methodを除去した。
 - project/org accessのcacheと判定を`ProjectAccessPolicy`へ分離し、`WorkflowService`の旧access methodを除去した。
 - Run Receipt queryとMeeting Automationの直接contract testを追加した。Run Receiptの互換adapterはproduction caller 0件を確認して削除済みである。
+- org-agent catalog、Loop Intent、Eve dispatchを`AgentControlCatalogService`、`LoopIntentService`、`EveSessionDispatchService`へ分離した。Meeting AutomationはLoop Intent作成とEve dispatchを専用境界へ直接接続する。
+- Mac Companion承認projectionを`CompanionApprovalInboxService`へ分離し、Companion route/controllerはこのread serviceだけを受け取る。
+- default automationのseedを`AutomationRuntimeDefaultsService`へ分離した。`AutomationRunService`はこの明示的な初期化callbackを使う。
+- production bootstrap、routes、workers、evidence scriptから`WorkflowService`と`AgentLoopControlService`の参照を0件にし、旧service fileを削除した。共有ledgerの原子的なcontrol書込みは公開面を持たない内部runtimeに閉じ込めた。
+- schemaと`/api/workflows/control/*`の互換pathはac:7の別sliceまで維持する。これはWeb Workflow製品の存続を意味しない。
 
 ## Non-goals
 

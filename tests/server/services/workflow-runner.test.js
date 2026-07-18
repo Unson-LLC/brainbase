@@ -11,7 +11,7 @@ import { WorkflowRunner } from '../../../server/services/workflow/workflow-runne
 import {
     createBrainbaseAliveWorkflow,
     createDefaultWorkflowHandlers
-} from '../../../server/services/workflow/workflow-service.js';
+} from '../../helpers/test-automation-runtime.js';
 
 function makeRunner(workflow = createBrainbaseAliveWorkflow()) {
     const repository = new InMemoryWorkflowRepository({ seedWorkflows: [workflow] });

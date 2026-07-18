@@ -24,7 +24,7 @@ flowchart LR
   operator["Operator"]
   loopIntent["Loop Intent"]
   controlRefs["Role Agent / Template / Binding / Trigger"]
-  dispatcher["WorkflowService dispatchLoopIntentToEve"]
+  dispatcher["EveSessionDispatchService dispatchLoopIntentToEve"]
   client["EveSessionClient"]
   eve["Eve API /eve/v1/session"]
   wmc["Workflow Mission Control"]
@@ -116,7 +116,7 @@ Eve dispatchで作られるWorkflowは `implementation_key=eve-session-dispatch`
 
 Bindingが既存 `workflow_id` を指す場合、そのWorkflowは既に `implementation_key=eve-session-dispatch` でなければならない。Bindingに `workflow_id` がない場合にBrainbaseが生成するfallback IDも同じ検査に通す。同じorg/project内であっても、`manual-placeholder` などの汎用WorkflowをEve dispatch用Workflowとして上書きしない。これは、既存の汎用run/rerun経路を後から壊すことを防ぐためのControl Plane境界である。
 
-`continuation_token` はBrainbase内部の再接続用metadataとして保存するが、Brainbase API caller input、Eve handoff context、Brainbase API response、context snapshot、Workflow Run detail/list API、Loop Intent list APIへは直接出さない。callerが `continuation_token` / `continuationToken` を指定した場合は、Eve APIを呼ぶ前に拒否する。さらに `EveSessionClient.createSession` 自体も `continuationToken` / `continuation_token` inputを拒否し、将来の内部callerがWorkflowServiceの所有権検証を迂回してEve resumeを行えないようにする。Eveがcontinuation tokenを返さなかった場合も `continuation_token:null` を公開面へ残さず、`continuation_token_present=false` へ正規化する。force新規sessionでは過去sessionのtokenをredactし、新しいsession idを含む一意run idでWorkflow Mission Control上の証跡を分離する。
+`continuation_token` はBrainbase内部の再接続用metadataとして保存するが、Brainbase API caller input、Eve handoff context、Brainbase API response、context snapshot、Workflow Run detail/list API、Loop Intent list APIへは直接出さない。callerが `continuation_token` / `continuationToken` を指定した場合は、Eve APIを呼ぶ前に拒否する。さらに `EveSessionClient.createSession` 自体も `continuationToken` / `continuation_token` inputを拒否し、将来の内部callerがEveSessionDispatchServiceの所有権検証を迂回してEve resumeを行えないようにする。Eveがcontinuation tokenを返さなかった場合も `continuation_token:null` を公開面へ残さず、`continuation_token_present=false` へ正規化する。force新規sessionでは過去sessionのtokenをredactし、新しいsession idを含む一意run idでWorkflow Mission Control上の証跡を分離する。
 
 Eve session作成は外部副作用なので、作成後にBrainbase側のrun/context/audit永続化が失敗した場合は完全rollbackできない。この場合は `blocked_eve_dispatch_persistence_failed` として成功扱いを止め、best-effortでrecovery用Workflow Run、audit、Loop Intent `eve_session_ref` を残す。これにより次回retryは新規Eve sessionを作らず既存session refを返し、operatorが `operator_reconcile_eve_session` として復旧できる。
 

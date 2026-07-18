@@ -12,9 +12,9 @@ surfaces:
     - GET /api/run-receipts/inbox
   code:
     - mcp/brainbase/src/tools/control-plane-tools.ts
-    - server/services/run-receipt/run-receipt-ingest-service.js
+    - server/services/run-receipt/ingest-service.js
+    - server/services/run-receipt/query-service.js
     - server/routes/run-receipts.js
-    - server/services/workflow/workflow-service.js
   data:
     - var/workflow-ledger.json
 depends_on:

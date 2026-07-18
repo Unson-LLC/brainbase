@@ -13,7 +13,7 @@ flowchart LR
   human["人間<br/>取り込み操作・承認"]
   gog["gog<br/>Google Calendar read"]
   calendarService["GoogleCalendarService<br/>予定取得・正規化"]
-  workflowService["WorkflowService<br/>Meeting Calendar Input"]
+  workflowService["MeetingAutomationService<br/>Meeting Calendar Input"]
   pack["Meeting Workflow Pack<br/>Role Agent / Template / Binding / Trigger"]
   loopIntent["Loop Intent<br/>pre-meeting-briefing"]
   ledger["Workflow Control Ledger<br/>audit / lineage"]
@@ -35,7 +35,7 @@ flowchart LR
   - `gog`を実行する唯一のCalendar adapter。
   - Calendar予定をBrainbaseで扱える予定オブジェクトへ正規化する。
   - event id、開始終了、参加者、会議URLなど、Meeting Loopに必要な入力情報を落とさない。
-- `WorkflowService`
+- `MeetingAutomationService`
   - Meeting Workflow PackのRole Agent / Template / Binding / Triggerを存在保証する。
   - Calendar予定を`pre-meeting-briefing`のschedule trigger Loop Intentへ変換する。
   - all-dayなど会議Loopにできない予定をskipとして明示する。
@@ -46,7 +46,7 @@ flowchart LR
 ## データの流れ
 
 1. 運用者がorg/project、期間、account、calendar idを指定する。
-2. `WorkflowService`がMeeting Workflow Packの定義をseedなしでupsertする。
+2. `MeetingAutomationService`がMeeting Workflow Packの定義をseedなしでupsertする。
 3. `GoogleCalendarService`が`gog calendar events`から予定を取得する。
 4. timed eventを`meeting_identity`へ変換する。
 5. `pre-meeting-briefing`のschedule triggerに紐づくLoop Intentを安定IDで作成する。

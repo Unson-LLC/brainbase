@@ -10,9 +10,9 @@ import {
 } from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
 import {
-    WorkflowService,
+    TestAutomationRuntime,
     createDefaultWorkflowHandlers
-} from '../../../server/services/workflow/workflow-service.js';
+} from '../../helpers/test-automation-runtime.js';
 
 const tempDirectories = [];
 
@@ -45,7 +45,7 @@ function makeService(repository) {
             };
         }
     };
-    const service = new WorkflowService({ repository, runner, configParser });
+    const service = new TestAutomationRuntime({ repository, runner, configParser });
     const actor = {
         sub: 'keigo',
         person_id: 'keigo',

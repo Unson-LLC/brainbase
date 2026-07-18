@@ -11,8 +11,9 @@ surfaces:
     - POST /api/workflows/control/meeting-pack/note-generation
   code:
     - server/services/meeting-source/meeting-source-mcp-sync-service.js
-    - server/services/workflow/eve-meeting-note-reconciler.js
-    - server/services/workflow/workflow-service.js
+    - server/services/external-runner/eve-meeting-note-reconciler.js
+    - server/services/meeting-automation/meeting-automation-service.js
+    - server/services/automation-runtime/eve-session-dispatch-service.js
   data:
     - var/meeting-source-mcp-state.json
     - var/workflow-ledger.json
@@ -28,7 +29,7 @@ verification:
   expected:
     - Source sync, ingest, dispatch, reconciliation, human waiting, output, and audit paths remain green without a Meeting Pack Web page.
 common_failures:
-  - Removing WorkflowService before moving Meeting Automation callers stops scheduled meeting ingestion.
+  - Bypassing MeetingAutomationService or EveSessionDispatchService breaks scope and idempotency guarantees.
   - A submitted idempotent package is mistaken for a newly-created run.
 runbooks: []
 troubleshooting: []

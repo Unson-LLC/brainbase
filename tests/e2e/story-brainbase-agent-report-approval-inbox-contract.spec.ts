@@ -4,7 +4,7 @@
 // main-branch code without the `agent_report` runner type, so a live ingest would be
 // rejected by the old contract-schema until this PR merges + the server restarts;
 // additionally ~/.brainbase/tokens.json is expired (JWT signing-key rotation).
-// This suite therefore drives the real ExternalRunnerIngestService + WorkflowService +
+// This suite therefore drives the real ExternalRunnerIngestService + dedicated runtime services +
 // InMemoryWorkflowRepository in-process (no live server, no HTTP mocks of the layer
 // under test), exactly like tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts.
 //
@@ -17,9 +17,9 @@ import { ExternalRunnerIngestService } from '../../server/services/external-runn
 import { InMemoryWorkflowRepository } from '../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../server/services/workflow/workflow-runner.js';
 import {
-  WorkflowService,
+  TestAutomationRuntime,
   createDefaultWorkflowHandlers
-} from '../../server/services/workflow/workflow-service.js';
+} from '../helpers/test-automation-runtime.js';
 import {
   appendPendingFallback,
   buildAgentReportPayload,
@@ -33,7 +33,7 @@ function makeStack() {
   const repository = new InMemoryWorkflowRepository();
   const ingestService = new ExternalRunnerIngestService({ workflowRepository: repository });
   const runner = new WorkflowRunner({ repository, handlers: createDefaultWorkflowHandlers() });
-  const workflowService = new WorkflowService({
+  const workflowService = new TestAutomationRuntime({
     repository,
     runner,
     configParser: {
@@ -159,7 +159,7 @@ test('story-brainbase-agent-report-approval-inbox INV-001 eve (external-runner:e
     resumeHandlerCalled = true;
     return { status: 'success', closureState: 'closed', actionRequired: 'none', message: `eve resume ${ctx.humanStepResolution?.resolution}`, outputCount: 1 };
   });
-  const workflowService = new WorkflowService({
+  const workflowService = new TestAutomationRuntime({
     repository, runner,
     configParser: { async getProjects() { return { projects: [{ id: 'brainbase', session_select: true }] }; } }
   });

@@ -15,7 +15,7 @@ story_id: story-companion-approval-inbox-v1
 
 - Route: `server/routes/companion.js`
 - Controller: `server/controllers/companion-controller.js`
-- Service: `server/services/workflow/workflow-service.js`
+- Service: `server/services/companion/approval-inbox-service.js`
 - Repository: `server/services/workflow/workflow-repository.js`
 - Data: `var/workflow-ledger.json`
 
@@ -23,7 +23,7 @@ story_id: story-companion-approval-inbox-v1
 
 1. Mac Companion が Brainbase bearer/service/internal credential で `/api/companion/approval-inbox` を呼ぶ。
 2. Companion access guard が native/server-to-server 境界と owner access を検証する。
-3. `WorkflowService` が `workflow_runs` 全体を走査し、pending の `workflow_human_steps` を持つ run を抽出する。
+3. `CompanionApprovalInboxService` が `workflow_runs` 全体を走査し、pending の `workflow_human_steps` を持つ run を抽出する。
 4. 各 run に対して `outputs`, `audit_logs`, `context_snapshots` を読み、Mac 表示用の Approval Item に正規化する。
 5. API は `items` と `count` を返す。Mac はこれを Focus Queue として Inbox に統合する。
 

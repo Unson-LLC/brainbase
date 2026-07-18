@@ -54,7 +54,7 @@ function createCompanionAccessGuard({
 
 export function createCompanionRouter({
     replyDraftService,
-    workflowService,
+    companionApprovalInboxService,
     infoSSOTService,
     decisionEventService,
     authGuard,
@@ -66,7 +66,7 @@ export function createCompanionRouter({
 
     const router = express.Router();
     const controller = new CompanionController(replyDraftService, {
-        workflowService,
+        companionApprovalInboxService,
         infoSSOTService,
         decisionEventService
     });

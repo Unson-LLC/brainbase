@@ -17,9 +17,9 @@ import {
 } from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
 import {
-    WorkflowService,
+    TestAutomationRuntime,
     createDefaultWorkflowHandlers
-} from '../../../server/services/workflow/workflow-service.js';
+} from '../../helpers/test-automation-runtime.js';
 
 function makePayload(overrides = {}) {
     const payload = {
@@ -1679,7 +1679,7 @@ describe('ExternalRunnerIngestService', () => {
             outputCount: 1,
             data: { humanStepResolution: ctx.humanStepResolution }
         }));
-        const workflowService = new WorkflowService({
+        const workflowService = new TestAutomationRuntime({
             repository,
             runner,
             configParser: {
@@ -1756,7 +1756,7 @@ describe('ExternalRunnerIngestService', () => {
             repository,
             handlers: createDefaultWorkflowHandlers()
         });
-        const workflowService = new WorkflowService({
+        const workflowService = new TestAutomationRuntime({
             repository,
             runner,
             configParser: {
@@ -1817,7 +1817,7 @@ describe('ExternalRunnerIngestService', () => {
     it('keeps an agent_report run open while other human steps remain pending', async () => {
         const { repository, service } = makeService();
         const runner = new WorkflowRunner({ repository, handlers: createDefaultWorkflowHandlers() });
-        const workflowService = new WorkflowService({
+        const workflowService = new TestAutomationRuntime({
             repository,
             runner,
             configParser: {
@@ -1870,7 +1870,7 @@ describe('ExternalRunnerIngestService', () => {
     it('cancels an agent_report run when the human step is rejected', async () => {
         const { repository, service } = makeService();
         const runner = new WorkflowRunner({ repository, handlers: createDefaultWorkflowHandlers() });
-        const workflowService = new WorkflowService({
+        const workflowService = new TestAutomationRuntime({
             repository,
             runner,
             configParser: {

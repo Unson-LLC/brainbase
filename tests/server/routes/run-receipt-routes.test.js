@@ -12,7 +12,7 @@ import {
 } from '../../../server/routes/workflows.js';
 import { errorHandler } from '../../../server/middleware/error-handler.js';
 import { RunReceiptIngestService } from '../../../server/services/run-receipt/ingest-service.js';
-import { WorkflowService } from '../../../server/services/workflow/workflow-service.js';
+import { TestAutomationRuntime } from '../../helpers/test-automation-runtime.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 
 function idempotencyKey(projectId, sourceType, externalRunId) {
@@ -71,7 +71,7 @@ function createApp({
         lockAcquireTimeoutMs,
         lockRetryMs: 1
     });
-    const workflowService = new WorkflowService({ repository, runner: {}, configParser: null });
+    const workflowService = new TestAutomationRuntime({ repository, runner: {}, configParser: null });
     app.use(express.json());
     app.use((req, _res, next) => {
         req.authSource = authSource;
@@ -83,7 +83,10 @@ function createApp({
         ingestService,
         queryService: workflowService.runReceiptQueryService
     }));
-    app.use('/api/workflows', createWorkflowRouter(workflowService, {
+    app.use('/api/workflows', createWorkflowRouter({
+        agentControlCatalogService: workflowService.agentControlCatalogService,
+        loopIntentService: workflowService.loopIntentService,
+        eveSessionDispatchService: workflowService.eveSessionDispatchService,
         meetingAutomationService: workflowService.meetingAutomationService
     }));
     app.use('/api/workflow-runs', createWorkflowRunRouter(workflowService.automationRunService));
@@ -143,7 +146,7 @@ describe('run receipt routes', () => {
     it('POST ingest_requireAuth経由のhuman JWTはBearerでもcookieでも拒否しservice tokenだけ受理する', async () => {
         const repository = new InMemoryWorkflowRepository();
         const ingestService = new RunReceiptIngestService({ workflowRepository: repository });
-        const workflowService = new WorkflowService({ repository, runner: {}, configParser: null });
+        const workflowService = new TestAutomationRuntime({ repository, runner: {}, configParser: null });
         const app = express();
         app.use(express.json());
         app.use(requireAuth({

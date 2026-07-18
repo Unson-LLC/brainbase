@@ -8,9 +8,9 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { InMemoryWorkflowRepository } from '../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../server/services/workflow/workflow-runner.js';
 import {
-  WorkflowService,
+  TestAutomationRuntime,
   createDefaultWorkflowHandlers
-} from '../../server/services/workflow/workflow-service.js';
+} from '../helpers/test-automation-runtime.js';
 import { meetingPackIds } from '../../server/services/workflow/meeting-workflow-pack.js';
 
 const storyId = 'story-eve-dispatch-handoff-transcript-context';
@@ -47,7 +47,7 @@ function makeService({ eveSessionClient = null }: { eveSessionClient?: any } = {
       };
     }
   };
-  const service = new WorkflowService({ repository, runner, configParser, eveSessionClient });
+  const service = new TestAutomationRuntime({ repository, runner, configParser, eveSessionClient });
   const actor = {
     sub: 'keigo',
     person_id: 'keigo',

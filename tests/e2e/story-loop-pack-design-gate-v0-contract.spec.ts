@@ -7,10 +7,10 @@ import { createWorkflowRouter } from '../../server/routes/workflows.js';
 import { InMemoryWorkflowRepository } from '../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../server/services/workflow/workflow-runner.js';
 import {
-  WorkflowService,
+  TestAutomationRuntime,
   createBrainbaseAliveWorkflow,
   createDefaultWorkflowHandlers
-} from '../../server/services/workflow/workflow-service.js';
+} from '../helpers/test-automation-runtime.js';
 
 const storyId = 'story-loop-pack-design-gate-v0';
 
@@ -32,7 +32,7 @@ function makeRuntimeApp() {
       };
     }
   };
-  const service = new WorkflowService({ repository, runner, configParser });
+  const service = new TestAutomationRuntime({ repository, runner, configParser });
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
@@ -45,7 +45,10 @@ function makeRuntimeApp() {
     req.authSource = 'test';
     next();
   });
-  app.use('/api/workflows', createWorkflowRouter(service, {
+  app.use('/api/workflows', createWorkflowRouter({
+    agentControlCatalogService: service.agentControlCatalogService,
+    loopIntentService: service.loopIntentService,
+    eveSessionDispatchService: service.eveSessionDispatchService,
     meetingAutomationService: service.meetingAutomationService
   }));
   app.use((err, _req, res, _next) => {
@@ -61,7 +64,7 @@ function readArtifacts() {
     spec: readFileSync('docs/specs/story-loop-pack-design-gate-v0-spec.md', 'utf8'),
     gate: readFileSync('server/services/workflow/loop-pack-design-gate.js', 'utf8'),
     meetingPack: readFileSync('server/services/workflow/meeting-workflow-pack.js', 'utf8'),
-    workflowService: readFileSync('server/services/workflow/workflow-service.js', 'utf8'),
+    workflowService: readFileSync('server/services/meeting-automation/meeting-automation-service.js', 'utf8'),
     meetingAutomationService: readFileSync('server/services/meeting-automation/meeting-automation-service.js', 'utf8'),
     workflowRoutes: readFileSync('server/routes/workflows.js', 'utf8'),
     gateTest: readFileSync('tests/server/services/loop-pack-design-gate.test.js', 'utf8'),
