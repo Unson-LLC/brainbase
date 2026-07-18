@@ -96,6 +96,60 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(listSpy).not.toHaveBeenCalled();
     });
 
+    it('旧org IDのtyped getはalias行ではなくcanonical orgへ解決する', async () => {
+        const { service } = buildService();
+        const byIdsSpy = vi.spyOn(service, 'fetchGraphEntitiesByIds')
+            .mockResolvedValueOnce([{ id: 'org_baao', entity_type: 'org_alias' }])
+            .mockResolvedValueOnce([{ id: 'baao', entity_type: 'org', payload: { name: 'BAAO' } }]);
+        vi.spyOn(service, 'fetchGraphAliasTargetsByIds').mockResolvedValue([
+            { alias_id: 'org_baao', canonical_entity_id: 'baao' }
+        ]);
+
+        const rows = await service.listGraphEntities(accessContext, {
+            id: 'org_baao',
+            projectCode: 'brainbase',
+            entityType: 'org'
+        });
+
+        expect(rows).toEqual([{ id: 'baao', entity_type: 'org', payload: { name: 'BAAO' } }]);
+        expect(byIdsSpy).toHaveBeenNthCalledWith(2, expect.anything(), accessContext, {
+            ids: ['baao'],
+            projectCode: 'brainbase'
+        });
+    });
+
+    it('旧person IDのtyped getはcanonical personへ解決する', async () => {
+        const { service } = buildService();
+        vi.spyOn(service, 'fetchGraphEntitiesByIds')
+            .mockResolvedValueOnce([{ id: 'per_legacy', entity_type: 'person_alias' }])
+            .mockResolvedValueOnce([{ id: 'per_canonical', entity_type: 'person', payload: { name: '佐藤 圭吾' } }]);
+        vi.spyOn(service, 'fetchGraphAliasTargetsByIds').mockResolvedValue([
+            { alias_id: 'per_legacy', canonical_entity_id: 'per_canonical' }
+        ]);
+
+        const rows = await service.listGraphEntities(accessContext, {
+            id: 'per_legacy',
+            projectCode: 'brainbase',
+            entityType: 'person'
+        });
+
+        expect(rows.map((row) => row.id)).toEqual(['per_canonical']);
+    });
+
+    it('org/personの型付き一覧はalias解決を行わずcanonical型だけを列挙する', async () => {
+        const { service } = buildService();
+        const listSpy = vi.spyOn(service, 'fetchGraphEntities').mockResolvedValue([
+            { id: 'baao', entity_type: 'org' }
+        ]);
+        const aliasSpy = vi.spyOn(service, 'fetchGraphAliasTargetsByIds');
+
+        const rows = await service.listGraphEntities(accessContext, { entityType: 'org' });
+
+        expect(rows).toEqual([{ id: 'baao', entity_type: 'org' }]);
+        expect(listSpy).toHaveBeenCalledOnce();
+        expect(aliasSpy).not.toHaveBeenCalled();
+    });
+
     it('listGraphEntities呼び出し時_queryをGraph検索へ渡す', async () => {
         const { service } = buildService();
         const listSpy = vi.spyOn(service, 'fetchGraphEntities').mockResolvedValue([]);
@@ -113,6 +167,74 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             query: '矢島様',
             limit: 20
         });
+    });
+
+    it('finance entityは呼出元のclearanceとroleをDB検索条件で同時に制約する', async () => {
+        const { service, client } = buildService();
+        const memberAccess = {
+            role: 'member',
+            projectCodes: ['unson'],
+            clearance: ['internal']
+        };
+
+        await service.listGraphEntities(memberAccess, {
+            projectCode: 'unson',
+            entityType: 'finance_account',
+            limit: 20
+        });
+
+        const graphQuery = client.query.mock.calls.find(([text]) => (
+            typeof text === 'string'
+            && text.includes('FROM graph_entities ge')
+            && text.includes('ge.sensitivity = ANY($4)')
+        ));
+        expect(graphQuery).toBeDefined();
+        expect(graphQuery[0]).toContain("CASE ge.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END");
+        expect(graphQuery[1]).toEqual([
+            'unson',
+            'finance_account',
+            ['unson'],
+            ['internal'],
+            1,
+            null,
+            null,
+            20
+        ]);
+    });
+
+    it('member/internalからfinance entityはID・型の双方で不可視、ceo/financeでは可視になる', async () => {
+        const { service, client } = buildService();
+        const financeRow = {
+            id: 'fin_unson_bank_account',
+            entity_type: 'finance_account',
+            role_min: 'ceo',
+            sensitivity: 'finance'
+        };
+        client.query.mockImplementation(async (text, params = []) => {
+            if (typeof text !== 'string' || !text.includes('FROM graph_entities ge')) return { rows: [] };
+            const canReadFinance = params.some((value) => Array.isArray(value) && value.includes('finance'))
+                && params.includes(3);
+            return { rows: canReadFinance ? [financeRow] : [] };
+        });
+        const member = { role: 'member', projectCodes: ['unson'], clearance: ['internal'] };
+        const ceo = { role: 'ceo', projectCodes: ['unson'], clearance: ['internal', 'finance'] };
+
+        const memberById = await service.listGraphEntities(member, {
+            id: financeRow.id,
+            projectCode: 'unson'
+        });
+        const memberByType = await service.listGraphEntities(member, {
+            projectCode: 'unson',
+            entityType: 'finance_account'
+        });
+        const ceoById = await service.listGraphEntities(ceo, {
+            id: financeRow.id,
+            projectCode: 'unson'
+        });
+
+        expect(memberById).toEqual([]);
+        expect(memberByType).toEqual([]);
+        expect(ceoById).toEqual([financeRow]);
     });
 
     it('getContext呼び出し時_includePhilosophy有効_scope別思想contextを返す', async () => {

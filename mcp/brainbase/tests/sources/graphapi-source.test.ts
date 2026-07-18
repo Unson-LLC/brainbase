@@ -5,7 +5,7 @@
 
 import { describe, it, mock } from 'node:test';
 import assert from 'node:assert';
-import { GraphAPISource } from '../../src/sources/graphapi-source.js';
+import { GRAPH_ALIAS_TYPES, GraphAPISource } from '../../src/sources/graphapi-source.js';
 import { TokenManager } from '../../src/auth/token-manager.js';
 import { getGraphFetchTypes } from '../../src/indexer/ontology.js';
 
@@ -57,7 +57,7 @@ describe('GraphAPISource', () => {
       await source.initialize();
 
       // Verify fetch was called with correct parameters
-      assert.strictEqual(mockFetch.mock.callCount(), getGraphFetchTypes().length);
+      assert.strictEqual(mockFetch.mock.callCount(), getGraphFetchTypes().length + GRAPH_ALIAS_TYPES.length);
       const [url, options] = mockFetch.mock.calls[0].arguments;
       assert.strictEqual(url, 'http://localhost:31013/api/info/graph/entities?type=project&limit=500');
       assert.strictEqual(options.headers['Authorization'], 'Bearer mock-token');
@@ -101,7 +101,38 @@ describe('GraphAPISource', () => {
       // Verify refresh was called
       assert.strictEqual((mockTokenManager.refresh as any).mock.callCount(), 1);
       // Verify retry succeeded for the first entity type, then continued with remaining types.
-      assert.strictEqual(mockFetch.mock.callCount(), getGraphFetchTypes().length + 1);
+      assert.strictEqual(mockFetch.mock.callCount(), getGraphFetchTypes().length + GRAPH_ALIAS_TYPES.length + 1);
+    });
+
+    it('loads legacy alias rows as canonical aliases without duplicating org/person lists', async () => {
+      const mockTokenManager = {
+        getToken: mock.fn(async () => 'mock-token'),
+        refresh: mock.fn(async () => {}),
+      } as unknown as TokenManager;
+      const mockFetch = mock.fn(async (url: string) => {
+        const type = new URL(url).searchParams.get('type');
+        const entities = type === 'org' ? [{
+          entity_id: 'baao', entity_type: 'org', payload: { org_id: 'baao', name: 'BAAO', aliases: ['ビジネスAI推進機構'] }
+        }] : type === 'person' ? [{
+          entity_id: 'per_canonical', entity_type: 'person', payload: { name: '佐藤 圭吾' }
+        }] : type === 'org_alias' ? [{
+          entity_id: 'org_baao', entity_type: 'org_alias', payload: { canonical_entity_id: 'baao' }
+        }] : type === 'person_alias' ? [{
+          entity_id: 'per_legacy', entity_type: 'person_alias', payload: { canonical_entity_id: 'per_canonical' }
+        }] : [];
+        return { ok: true, status: 200, json: async () => ({ entities }) };
+      });
+      global.fetch = mockFetch as any;
+
+      const source = new GraphAPISource('http://localhost:31013', mockTokenManager);
+      await source.initialize();
+
+      const orgs = await source.getOrganizations();
+      const people = await source.getPeople();
+      assert.strictEqual(orgs.length, 1);
+      assert.deepStrictEqual(orgs[0].aliases, ['ビジネスAI推進機構', 'org_baao']);
+      assert.strictEqual(people.length, 1);
+      assert.deepStrictEqual(people[0].aliases, ['per_legacy']);
     });
 
     it('SPEC-brainbase-mcp-core-ontology INV-3 S-2: should fetch raci from raci_assignment storage type', async () => {

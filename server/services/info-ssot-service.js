@@ -647,6 +647,24 @@ export class InfoSSOTService {
         return rows;
     }
 
+    async fetchGraphAliasTargetsByIds(client, access, { ids, entityType }) {
+        const roleRank = this.getRoleRank(access.role);
+        if (!ids?.length || !['org', 'person'].includes(entityType)) return [];
+        const { rows } = await client.query(
+            `SELECT ge.id AS alias_id,
+                    ge.payload->>'canonical_entity_id' AS canonical_entity_id
+             FROM graph_entities ge
+             WHERE ge.id = ANY($1)
+               AND ge.entity_type = $2
+               AND ge.sensitivity = ANY($3)
+               AND (CASE ge.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $4
+               AND NULLIF(ge.payload->>'canonical_entity_id', '') IS NOT NULL
+             ORDER BY ge.updated_at DESC`,
+            [ids, `${entityType}_alias`, access.clearance, roleRank]
+        );
+        return rows;
+    }
+
     async ensureProject(client, { projectCode, projectName }) {
         const { rows } = await client.query(
             'SELECT id FROM projects WHERE code = $1 LIMIT 1',
@@ -1278,7 +1296,18 @@ export class InfoSSOTService {
             ].filter(Boolean);
             if (entityIds.length) {
                 const rows = await this.fetchGraphEntitiesByIds(client, access, { ids: entityIds, projectCode });
-                return entityType ? rows.filter((row) => row.entity_type === entityType) : rows;
+                if (!entityType) return rows;
+                const canonicalRows = rows.filter((row) => row.entity_type === entityType);
+                if (!['org', 'person'].includes(entityType)) return canonicalRows;
+                const aliases = await this.fetchGraphAliasTargetsByIds(client, access, { ids: entityIds, entityType });
+                const canonicalIds = [...new Set(aliases.map((row) => row.canonical_entity_id).filter(Boolean))];
+                const resolvedRows = canonicalIds.length
+                    ? await this.fetchGraphEntitiesByIds(client, access, { ids: canonicalIds, projectCode })
+                    : [];
+                return [...new Map(
+                    [...canonicalRows, ...resolvedRows.filter((row) => row.entity_type === entityType)]
+                        .map((row) => [row.id, row])
+                ).values()];
             }
             return this.fetchGraphEntities(client, access, { projectCode, entityType, query, limit });
         });
