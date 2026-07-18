@@ -97,13 +97,15 @@ Mac Companion
 ### TSK-WFRET-004 progress
 
 - Run Receiptのlatest collapse、filter、priority、history、diagnosisを`RunReceiptQueryService`へ分離した。
-- project accessの準備・判定は既存の正本をcallback injectionし、分割中に認可ルールを複製していない。
+- project accessの準備・選択可能性・org参照・actor判定を`ProjectAccessPolicy`へ分離し、Meeting Automation、Run Receipt、Automation Run、残存する内部Agent Loopへ同じinstanceを注入した。認可ルールは複製していない。
 - Run Receipt read routeへ`RunReceiptQueryService`を直接注入し、`WorkflowService.listRunReceiptInbox`、`listRunReceiptHistory`、`diagnoseRunReceipt`を削除した。
 - Meeting Packの設計レビュー、design gate付きbootstrap、Google Calendar入力正規化を`MeetingAutomationService`へ分離した。
-- Meeting Automation routeと内部callerを`MeetingAutomationService`へ直接接続した。同期workerはbootstrapを直接呼び、Review Package ingestだけを`WorkflowService`へ委譲する。`WorkflowService`のdesign review、bootstrap、calendar input互換adapterは削除した。
-- Review Package ingestのオーケストレーションを`MeetingAutomationService.ingestReviewPackage`へ移し、HTTP routeを直接接続した。同期workerの旧入口は次の移行単位まで互換adapterとして残す。
+- Meeting Automation routeと内部callerを`MeetingAutomationService`へ直接接続した。同期workerもbootstrapとReview Package ingestを直接呼ぶ。`WorkflowService`のdesign review、bootstrap、calendar input、Review Package ingest互換adapterは削除した。
+- Review Package ingestのオーケストレーションを`MeetingAutomationService.ingestReviewPackage`へ移し、HTTP routeと同期workerを直接接続した。
 - Review Package取り込み後のEve note生成handoffとrequested/skipped監査を`MeetingAutomationService.dispatchNoteGeneration`へ分離した。Eve完了検知とwrite-back reconcileは既存の`EveMeetingNoteReconciler`を継続利用する。
 - Review Packageのoutput/human gate定義と必須loop intent、project scope整合性検証を`meeting-review-contract`と`MeetingAutomationService.verifyReviewPackage`へ分離した。既存ingest routeのerror/state transitionは維持する。
+- People SSOTによる担当者候補解決を`MeetingTaskOwnerResolver`へ分離し、`WorkflowService`から人物照合methodを除去した。
+- project/org accessのcacheと判定を`ProjectAccessPolicy`へ分離し、`WorkflowService`の旧access methodを除去した。
 - Run Receipt queryとMeeting Automationの直接contract testを追加した。Run Receiptの互換adapterはproduction caller 0件を確認して削除済みである。
 
 ## Non-goals

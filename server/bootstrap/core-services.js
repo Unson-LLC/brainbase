@@ -35,6 +35,7 @@ import {
 import { createMeetingSourceMcpAdaptersFromEnv } from '../services/meeting-source/meeting-source-mcp-adapters.js';
 import { MeetingSourceMcpSyncService } from '../services/meeting-source/meeting-source-mcp-sync-service.js';
 import { MeetingTaskOwnerResolver } from '../services/meeting-automation/meeting-task-owner-resolver.js';
+import { ProjectAccessPolicy } from '../services/project-access/project-access-policy.js';
 import { JsonFileWorkflowRepository } from '../services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../services/workflow/workflow-runner.js';
 import {
@@ -90,6 +91,7 @@ export function createCoreServices({
     });
     const eveSessionClient = createEveSessionClientFromEnv();
     const meetingTaskOwnerResolver = new MeetingTaskOwnerResolver({ infoSSOTService });
+    const projectAccessPolicy = new ProjectAccessPolicy({ configParser });
     const workflowService = new WorkflowService({
         repository: workflowRepository,
         runner: workflowRunner,
@@ -97,7 +99,8 @@ export function createCoreServices({
         googleCalendarService,
         eveSessionClient,
         infoSSOTService,
-        meetingTaskOwnerResolver
+        meetingTaskOwnerResolver,
+        projectAccessPolicy
     });
     const eveMeetingNoteReconciler = new EveMeetingNoteReconciler({
         meetingAutomationService: workflowService.meetingAutomationService,

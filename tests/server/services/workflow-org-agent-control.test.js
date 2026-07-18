@@ -312,6 +312,11 @@ describe('WorkflowService org agent loop control', () => {
         expect(WorkflowService.prototype.resolveMeetingReviewTaskOwnersFromSSOT).toBeUndefined();
         expect(WorkflowService.prototype.resolveMeetingReviewTaskOwnerCandidate).toBeUndefined();
         expect(WorkflowService.prototype.lookupTaskOwnerPeopleSSOT).toBeUndefined();
+        expect(WorkflowService.prototype._loadProjectConfigCache).toBeUndefined();
+        expect(WorkflowService.prototype._assertProjectSelectable).toBeUndefined();
+        expect(WorkflowService.prototype._assertOrgReferenceAllowed).toBeUndefined();
+        expect(WorkflowService.prototype._assertActorCanAccessProject).toBeUndefined();
+        expect(WorkflowService.prototype._actorCanAccessProject).toBeUndefined();
     });
 
     it('story-mana-meeting-workflow-pack-data-v1 S-001 bootstraps meeting pack records into Workflow Control data', async () => {

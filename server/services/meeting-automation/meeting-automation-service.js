@@ -100,6 +100,7 @@ export class MeetingAutomationService {
         googleCalendarService = null,
         eveSessionClient = null,
         infoSSOTService = null,
+        projectAccessPolicy = null,
         prepareProjectAccess,
         assertProjectSelectable,
         assertOrgReferenceAllowed,
@@ -112,20 +113,28 @@ export class MeetingAutomationService {
         this.repository = repository;
         this.googleCalendarService = googleCalendarService;
         this.eveSessionClient = eveSessionClient;
-        this.prepareProjectAccess = prepareProjectAccess;
-        this.assertProjectSelectable = assertProjectSelectable;
-        this.assertOrgReferenceAllowed = assertOrgReferenceAllowed;
-        this.assertProjectAccess = assertProjectAccess;
+        this.prepareProjectAccess = projectAccessPolicy?.prepare
+            ? projectAccessPolicy.prepare.bind(projectAccessPolicy)
+            : prepareProjectAccess;
+        this.assertProjectSelectable = projectAccessPolicy?.assertProjectSelectable
+            ? projectAccessPolicy.assertProjectSelectable.bind(projectAccessPolicy)
+            : assertProjectSelectable;
+        this.assertOrgReferenceAllowed = projectAccessPolicy?.assertOrgReferenceAllowed
+            ? projectAccessPolicy.assertOrgReferenceAllowed.bind(projectAccessPolicy)
+            : assertOrgReferenceAllowed;
+        this.assertProjectAccess = projectAccessPolicy?.assertProjectAccess
+            ? projectAccessPolicy.assertProjectAccess.bind(projectAccessPolicy)
+            : assertProjectAccess;
         this.createLoopIntent = createLoopIntent;
         this.dispatchLoopIntentToEve = dispatchLoopIntentToEve;
         this.resolveReviewTaskOwners = meetingTaskOwnerResolver?.resolveReviewTaskOwners
             ? meetingTaskOwnerResolver.resolveReviewTaskOwners.bind(meetingTaskOwnerResolver)
             : resolveReviewTaskOwners;
         this.reviewContextResolver = new MeetingReviewContextResolver({
-            prepareProjectAccess,
-            assertProjectSelectable,
-            assertOrgReferenceAllowed,
-            assertProjectAccess,
+            prepareProjectAccess: this.prepareProjectAccess,
+            assertProjectSelectable: this.assertProjectSelectable,
+            assertOrgReferenceAllowed: this.assertOrgReferenceAllowed,
+            assertProjectAccess: this.assertProjectAccess,
             infoSSOTService,
             verifyReviewPackage: (input) => this.verifyReviewPackage(input),
             resolveReviewTaskOwners: this.resolveReviewTaskOwners

@@ -5,6 +5,7 @@ import { AppError } from '../../lib/errors.js';
 import { AutomationRunService } from '../automation-run/automation-run-service.js';
 import { MeetingAutomationService } from '../meeting-automation/meeting-automation-service.js';
 import { MeetingTaskOwnerResolver } from '../meeting-automation/meeting-task-owner-resolver.js';
+import { ProjectAccessPolicy } from '../project-access/project-access-policy.js';
 import { RunReceiptQueryService } from '../run-receipt/query-service.js';
 
 const DEFAULT_WORKSPACE_ID = 'default';
@@ -26,39 +27,6 @@ const DEFAULT_EVE_STOP_CONDITIONS = [
     'privacy_scope_leak',
     'human_approval_required'
 ];
-function normalizeProjectKey(value) {
-    if (!value || typeof value !== 'string') return '';
-    return value.toLowerCase().replace(/_/g, '-');
-}
-
-function projectAccessKeys(projectId, projectConfig = null) {
-    const keys = new Set();
-    const normalizedId = normalizeProjectKey(projectId);
-    if (normalizedId) {
-        keys.add(normalizedId);
-        keys.add(normalizedId.replace(/-/g, ''));
-    }
-    const aliases = Array.isArray(projectConfig?.aliases) ? projectConfig.aliases : [];
-    for (const alias of aliases) {
-        const normalizedAlias = normalizeProjectKey(alias);
-        if (normalizedAlias) {
-            keys.add(normalizedAlias);
-            keys.add(normalizedAlias.replace(/-/g, ''));
-        }
-    }
-    const githubRepo = normalizeProjectKey(projectConfig?.github?.repo);
-    if (githubRepo) {
-        keys.add(githubRepo);
-        keys.add(githubRepo.replace(/-/g, ''));
-    }
-    if (normalizedId.endsWith('-app')) {
-        const parentId = normalizedId.slice(0, -4);
-        keys.add(parentId);
-        keys.add(parentId.replace(/-/g, ''));
-    }
-    return keys;
-}
-
 function companionApprovalPriority({ pendingHumanSteps = [], outputs = [], run = {} } = {}) {
     const highRiskTargets = new Set([
         'external_message_draft',
@@ -713,6 +681,7 @@ export class WorkflowService {
         runReceiptQueryService = null,
         meetingAutomationService = null,
         meetingTaskOwnerResolver = null,
+        projectAccessPolicy = null,
         automationRunService = null
     }) {
         this.repository = repository;
@@ -721,23 +690,20 @@ export class WorkflowService {
         this.googleCalendarService = googleCalendarService;
         this.eveSessionClient = eveSessionClient;
         this.meetingTaskOwnerResolver = meetingTaskOwnerResolver || new MeetingTaskOwnerResolver({ infoSSOTService });
-        this.projectConfigById = new Map();
+        this.projectAccessPolicy = projectAccessPolicy || new ProjectAccessPolicy({ configParser });
         this.eveSessionDispatchInFlight = new Map();
         this.runReceiptQueryService = runReceiptQueryService || new RunReceiptQueryService({
             repository,
-            prepareProjectAccess: () => this._loadProjectConfigCache(),
-            assertProjectAccess: (projectId, actor) => this._assertActorCanAccessProject(projectId, actor),
-            canAccessProject: (projectId, actor) => this._actorCanAccessProject(projectId, actor)
+            prepareProjectAccess: () => this.projectAccessPolicy.prepare(),
+            assertProjectAccess: (projectId, actor) => this.projectAccessPolicy.assertProjectAccess(projectId, actor),
+            canAccessProject: (projectId, actor) => this.projectAccessPolicy.canAccessProject(projectId, actor)
         });
         this.meetingAutomationService = meetingAutomationService || new MeetingAutomationService({
             repository,
             googleCalendarService,
             eveSessionClient,
             infoSSOTService,
-            prepareProjectAccess: () => this._loadProjectConfigCache(),
-            assertProjectSelectable: (projectId) => this._assertProjectSelectable(projectId),
-            assertOrgReferenceAllowed: (orgId) => this._assertOrgReferenceAllowed(orgId),
-            assertProjectAccess: (projectId, actor) => this._assertActorCanAccessProject(projectId, actor),
+            projectAccessPolicy: this.projectAccessPolicy,
             createLoopIntent: (input, actor) => this.createLoopIntent(input, actor),
             meetingTaskOwnerResolver: this.meetingTaskOwnerResolver,
             dispatchLoopIntentToEve: (loopIntentId, input, actor) => this.dispatchLoopIntentToEve(loopIntentId, input, actor)
@@ -746,9 +712,9 @@ export class WorkflowService {
             repository,
             runner,
             ensureDefaultWorkflows: () => this.ensureDefaultWorkflows(),
-            prepareProjectAccess: () => this._loadProjectConfigCache(),
-            assertProjectSelectable: (projectId) => this._assertProjectSelectable(projectId),
-            assertProjectAccess: (projectId, actor) => this._assertActorCanAccessProject(projectId, actor),
+            prepareProjectAccess: () => this.projectAccessPolicy.prepare(),
+            assertProjectSelectable: (projectId) => this.projectAccessPolicy.assertProjectSelectable(projectId),
+            assertProjectAccess: (projectId, actor) => this.projectAccessPolicy.assertProjectAccess(projectId, actor),
             assertHumanStepAccess: (step, actor) => this._assertActorCanResolveHumanStep(step, actor)
         });
     }
@@ -762,21 +728,21 @@ export class WorkflowService {
     }
 
     async listRoleAgentInstances({ orgId = null, projectId = null, roleArchetypeId = null } = {}, actor = {}) {
-        await this._loadProjectConfigCache();
-        if (projectId) this._assertActorCanAccessProject(projectId, actor);
+        await this.projectAccessPolicy.prepare();
+        if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         return {
             role_agent_instances: this.repository.listRoleAgentInstances({ orgId, projectId, roleArchetypeId })
-                .filter((agent) => this._actorCanAccessProject(agent.project_id, actor))
+                .filter((agent) => this.projectAccessPolicy.canAccessProject(agent.project_id, actor))
         };
     }
 
     async createRoleAgentInstance(input, actor = {}) {
-        await this._loadProjectConfigCache();
+        await this.projectAccessPolicy.prepare();
         const orgId = requireInputString(input, 'org_id', 'orgId');
         const projectId = requireInputString(input, 'project_id', 'projectId');
-        await this._assertProjectSelectable(projectId);
-        this._assertOrgReferenceAllowed(orgId);
-        this._assertActorCanAccessProject(projectId, actor);
+        await this.projectAccessPolicy.assertProjectSelectable(projectId);
+        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId);
+        this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         const roleArchetypeId = requireInputString(input, 'role_archetype_id', 'roleArchetypeId');
         const id = readOptionalString(input, 'id') || createStableId('rai', orgId, projectId, roleArchetypeId);
         const agent = await this._transaction(() => {
@@ -808,8 +774,8 @@ export class WorkflowService {
     }
 
     async listWorkflowTemplates({ orgId = null, projectId = null, workflowKind = null } = {}, actor = {}) {
-        await this._loadProjectConfigCache();
-        if (projectId) this._assertActorCanAccessProject(projectId, actor);
+        await this.projectAccessPolicy.prepare();
+        if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         return {
             workflow_templates: this.repository.listWorkflowTemplates({ orgId, projectId, workflowKind })
                 .filter((template) => this._actorCanAccessWorkflowTemplate(template, actor))
@@ -817,16 +783,16 @@ export class WorkflowService {
     }
 
     async createWorkflowTemplate(input, actor = {}) {
-        await this._loadProjectConfigCache();
+        await this.projectAccessPolicy.prepare();
         const orgId = readOptionalString(input, 'org_id', 'orgId');
         const projectId = readOptionalString(input, 'project_id', 'projectId');
         if (projectId) {
-            await this._assertProjectSelectable(projectId);
-            this._assertActorCanAccessProject(projectId, actor);
+            await this.projectAccessPolicy.assertProjectSelectable(projectId);
+            this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         } else if (!this._actorCanManageGlobalWorkflowTemplate(actor)) {
             throw AppError.forbidden('project_id is required for workflow_template creation');
         }
-        if (orgId) this._assertOrgReferenceAllowed(orgId);
+        if (orgId) this.projectAccessPolicy.assertOrgReferenceAllowed(orgId);
         const id = readOptionalString(input, 'id') || createStableId('wft', orgId, projectId, readString(input, 'name'));
         const template = await this._transaction(() => {
             const item = this.repository.upsertWorkflowTemplate({
@@ -856,21 +822,21 @@ export class WorkflowService {
     }
 
     async listWorkflowBindings({ orgId = null, projectId = null, roleAgentInstanceId = null } = {}, actor = {}) {
-        await this._loadProjectConfigCache();
-        if (projectId) this._assertActorCanAccessProject(projectId, actor);
+        await this.projectAccessPolicy.prepare();
+        if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         return {
             workflow_bindings: this.repository.listWorkflowBindings({ orgId, projectId, roleAgentInstanceId })
-                .filter((binding) => this._actorCanAccessProject(binding.project_id, actor))
+                .filter((binding) => this.projectAccessPolicy.canAccessProject(binding.project_id, actor))
         };
     }
 
     async createWorkflowBinding(input, actor = {}) {
-        await this._loadProjectConfigCache();
+        await this.projectAccessPolicy.prepare();
         const orgId = requireInputString(input, 'org_id', 'orgId');
         const projectId = requireInputString(input, 'project_id', 'projectId');
-        await this._assertProjectSelectable(projectId);
-        this._assertOrgReferenceAllowed(orgId);
-        this._assertActorCanAccessProject(projectId, actor);
+        await this.projectAccessPolicy.assertProjectSelectable(projectId);
+        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId);
+        this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         const roleAgentInstanceId = requireInputString(input, 'role_agent_instance_id', 'roleAgentInstanceId');
         const workflowTemplateId = requireInputString(input, 'workflow_template_id', 'workflowTemplateId');
         const roleAgent = this.repository.getRoleAgentInstance(roleAgentInstanceId);
@@ -881,7 +847,7 @@ export class WorkflowService {
         if (roleAgent.project_id !== projectId) {
             throw AppError.validation(`role_agent_instance '${roleAgentInstanceId}' belongs to project '${roleAgent.project_id}'`);
         }
-        this._assertActorCanAccessProject(roleAgent.project_id, actor);
+        this.projectAccessPolicy.assertProjectAccess(roleAgent.project_id, actor);
         const template = this.repository.getWorkflowTemplate(workflowTemplateId);
         if (!template) throw AppError.notFound('workflow_template', workflowTemplateId);
         if (template.org_id && template.org_id !== orgId) {
@@ -890,7 +856,7 @@ export class WorkflowService {
         if (template.project_id && template.project_id !== projectId) {
             throw AppError.validation(`workflow_template '${workflowTemplateId}' belongs to project '${template.project_id}'`);
         }
-        if (template.project_id) this._assertActorCanAccessProject(template.project_id, actor);
+        if (template.project_id) this.projectAccessPolicy.assertProjectAccess(template.project_id, actor);
         const autonomyLevel = readOptionalString(input, 'autonomy_level', 'autonomyLevel') || 'approval_required';
         ensureAllowed(autonomyLevel, ALLOWED_AUTONOMY_LEVELS, 'autonomy_level');
         const id = readOptionalString(input, 'id') || createStableId('wfb', orgId, roleAgentInstanceId, workflowTemplateId);
@@ -924,21 +890,21 @@ export class WorkflowService {
     }
 
     async listWorkflowTriggers({ orgId = null, projectId = null, workflowBindingId = null, triggerType = null } = {}, actor = {}) {
-        await this._loadProjectConfigCache();
-        if (projectId) this._assertActorCanAccessProject(projectId, actor);
+        await this.projectAccessPolicy.prepare();
+        if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         return {
             workflow_triggers: this.repository.listWorkflowTriggers({ orgId, projectId, workflowBindingId, triggerType })
-                .filter((trigger) => this._actorCanAccessProject(trigger.project_id, actor))
+                .filter((trigger) => this.projectAccessPolicy.canAccessProject(trigger.project_id, actor))
         };
     }
 
     async createWorkflowTrigger(input, actor = {}) {
-        await this._loadProjectConfigCache();
+        await this.projectAccessPolicy.prepare();
         const orgId = requireInputString(input, 'org_id', 'orgId');
         const projectId = requireInputString(input, 'project_id', 'projectId');
-        await this._assertProjectSelectable(projectId);
-        this._assertOrgReferenceAllowed(orgId);
-        this._assertActorCanAccessProject(projectId, actor);
+        await this.projectAccessPolicy.assertProjectSelectable(projectId);
+        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId);
+        this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         const workflowBindingId = requireInputString(input, 'workflow_binding_id', 'workflowBindingId');
         const binding = this.repository.getWorkflowBinding(workflowBindingId);
         if (!binding) throw AppError.notFound('workflow_binding', workflowBindingId);
@@ -948,7 +914,7 @@ export class WorkflowService {
         if (binding.project_id !== projectId) {
             throw AppError.validation(`workflow_binding '${workflowBindingId}' belongs to project '${binding.project_id}'`);
         }
-        this._assertActorCanAccessProject(binding.project_id, actor);
+        this.projectAccessPolicy.assertProjectAccess(binding.project_id, actor);
         const triggerType = readOptionalString(input, 'trigger_type', 'triggerType') || 'human';
         ensureAllowed(triggerType, ALLOWED_TRIGGER_TYPES, 'trigger_type');
         const id = readOptionalString(input, 'id') || createStableId('wftg', orgId, workflowBindingId, triggerType, readString(input, 'name'));
@@ -978,22 +944,22 @@ export class WorkflowService {
     }
 
     async listLoopIntents({ orgId = null, projectId = null, workflowBindingId = null, triggerId = null } = {}, actor = {}) {
-        await this._loadProjectConfigCache();
-        if (projectId) this._assertActorCanAccessProject(projectId, actor);
+        await this.projectAccessPolicy.prepare();
+        if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         return {
             loop_intents: this.repository.listLoopIntents({ orgId, projectId, workflowBindingId, triggerId })
-                .filter((intent) => this._actorCanAccessProject(intent.project_id, actor))
+                .filter((intent) => this.projectAccessPolicy.canAccessProject(intent.project_id, actor))
                 .map((intent) => redactLoopIntentForResponse(intent))
         };
     }
 
     async createLoopIntent(input, actor = {}) {
-        await this._loadProjectConfigCache();
+        await this.projectAccessPolicy.prepare();
         const orgId = requireInputString(input, 'org_id', 'orgId');
         const projectId = requireInputString(input, 'project_id', 'projectId');
-        await this._assertProjectSelectable(projectId);
-        this._assertOrgReferenceAllowed(orgId);
-        this._assertActorCanAccessProject(projectId, actor);
+        await this.projectAccessPolicy.assertProjectSelectable(projectId);
+        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId);
+        this.projectAccessPolicy.assertProjectAccess(projectId, actor);
         const workflowBindingId = requireInputString(input, 'workflow_binding_id', 'workflowBindingId');
         const binding = this.repository.getWorkflowBinding(workflowBindingId);
         if (!binding) throw AppError.notFound('workflow_binding', workflowBindingId);
@@ -1003,7 +969,7 @@ export class WorkflowService {
         if (binding.project_id !== projectId) {
             throw AppError.validation(`workflow_binding '${workflowBindingId}' belongs to project '${binding.project_id}'`);
         }
-        this._assertActorCanAccessProject(binding.project_id, actor);
+        this.projectAccessPolicy.assertProjectAccess(binding.project_id, actor);
         const triggerId = readOptionalString(input, 'trigger_id', 'triggerId');
         const trigger = triggerId ? this.repository.getWorkflowTrigger(triggerId) : null;
         if (triggerId && !trigger) throw AppError.notFound('workflow_trigger', triggerId);
@@ -1091,11 +1057,11 @@ export class WorkflowService {
     }
 
     async dispatchLoopIntentToEve(loopIntentId, input = {}, actor = {}) {
-        await this._loadProjectConfigCache();
+        await this.projectAccessPolicy.prepare();
         this.repository.reload?.();
         let loopIntent = this.repository.getLoopIntent(loopIntentId);
         if (!loopIntent) throw AppError.notFound('loop_intent', loopIntentId);
-        this._assertActorCanAccessProject(loopIntent.project_id, actor);
+        this.projectAccessPolicy.assertProjectAccess(loopIntent.project_id, actor);
         assertNoCallerSuppliedEveContinuationToken(input);
 
         const dispatchLockOwner = createStableId('eve_dispatch_owner', process.pid, Date.now(), crypto.randomUUID());
@@ -1713,11 +1679,11 @@ export class WorkflowService {
     }
 
     async listCompanionApprovalInbox({ projectId = null, limit = 100 } = {}, actor = {}) {
-        await this._loadProjectConfigCache();
-        if (projectId) this._assertActorCanAccessProject(projectId, actor);
+        await this.projectAccessPolicy.prepare();
+        if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
 
         const runs = this.repository.listRuns({ projectId, limit: null })
-            .filter((run) => this._actorCanAccessProject(run.project_id, actor));
+            .filter((run) => this.projectAccessPolicy.canAccessProject(run.project_id, actor));
         const allItems = [];
 
         for (const run of runs) {
@@ -1787,38 +1753,6 @@ export class WorkflowService {
         };
     }
 
-    async _assertProjectSelectable(projectId) {
-        if (!projectId) throw AppError.validation('project_id is required');
-        if (projectId === 'general') return;
-        const projectConfig = await this._loadProjectConfigCache();
-        if (!projectConfig) return;
-        const exists = (projectConfig.projects || []).some((project) => (
-            project.id === projectId
-            && project.archived !== true
-            && project.session_select !== false
-        ));
-        if (!exists) {
-            throw AppError.validation(`project '${projectId}' is not selectable`);
-        }
-    }
-
-    _actorCanAccessProject(projectId, actor = {}) {
-        if (!projectId) return true;
-        if (!actor || Object.keys(actor).length === 0) return true;
-        if (actor.authSource === 'internal' || actor.sub === 'internal_api' || actor.person_id === 'internal_api') return true;
-        if (['admin', 'ceo'].includes(String(actor.role || '').toLowerCase())) return true;
-        const projectCodes = Array.isArray(actor.projectCodes) ? actor.projectCodes : [];
-        if (projectCodes.length === 0) return false;
-        const allowedCodes = new Set(projectCodes.flatMap((code) => {
-            const normalized = normalizeProjectKey(code);
-            return normalized ? [normalized, normalized.replace(/-/g, '')] : [];
-        }));
-        if (allowedCodes.size === 0) return false;
-        const projectConfig = this._getCachedProjectConfig(projectId);
-        const keys = projectAccessKeys(projectId, projectConfig);
-        return Array.from(keys).some((key) => allowedCodes.has(key));
-    }
-
     _actorCanManageGlobalWorkflowTemplate(actor = {}) {
         if (!actor || Object.keys(actor).length === 0) return true;
         if (actor.authSource === 'internal' || actor.sub === 'internal_api' || actor.person_id === 'internal_api') return true;
@@ -1826,32 +1760,11 @@ export class WorkflowService {
     }
 
     _actorCanAccessWorkflowTemplate(template, actor = {}) {
-        if (template.project_id) return this._actorCanAccessProject(template.project_id, actor);
+        if (template.project_id) return this.projectAccessPolicy.canAccessProject(template.project_id, actor);
         if (this._actorCanManageGlobalWorkflowTemplate(actor)) return true;
         if (template.org_id) return false;
         const projectCodes = Array.isArray(actor.projectCodes) ? actor.projectCodes : [];
         return projectCodes.length > 0;
-    }
-
-    _assertActorCanAccessProject(projectId, actor = {}) {
-        if (!this._actorCanAccessProject(projectId, actor)) {
-            throw AppError.forbidden(`project '${projectId}' is not accessible`);
-        }
-    }
-
-    _assertOrgReferenceAllowed(orgId) {
-        if (!orgId) throw AppError.validation('org_id is required');
-        if (!this.projectConfigById || this.projectConfigById.size === 0) return;
-        const normalizedOrg = normalizeProjectKey(orgId);
-        const orgKeys = new Set();
-        for (const [projectId, projectConfig] of this.projectConfigById.entries()) {
-            for (const key of projectAccessKeys(projectId, projectConfig)) {
-                orgKeys.add(key);
-            }
-        }
-        if (!orgKeys.has(normalizedOrg) && !orgKeys.has(normalizedOrg.replace(/-/g, ''))) {
-            throw AppError.validation(`org '${orgId}' is not a known Graph org reference`);
-        }
     }
 
     _assertActorCanResolveHumanStep(step, actor = {}) {
@@ -2028,14 +1941,4 @@ export class WorkflowService {
         });
     }
 
-    _getCachedProjectConfig(projectId) {
-        return this.projectConfigById?.get(projectId) || null;
-    }
-
-    async _loadProjectConfigCache() {
-        if (!this.configParser?.getProjects) return null;
-        const projectConfig = await this.configParser.getProjects();
-        this.projectConfigById = new Map((projectConfig.projects || []).map((project) => [project.id, project]));
-        return projectConfig;
-    }
 }
