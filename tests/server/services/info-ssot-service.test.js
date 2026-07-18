@@ -37,7 +37,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         vi.restoreAllMocks();
     });
 
-    it('getPersonBySlackIdは現行auth_grantsの有効なSlack権限から人物を解決する', async () => {
+    it('getPersonBySlackIdは有効なgrantを確認しGraph人物へ紐づくusersのperson_idを優先する', async () => {
         const { service, client } = buildService();
         client.query.mockResolvedValueOnce({ rows: [{ id: 'per_1', name: 'Test User' }] });
 
@@ -45,10 +45,12 @@ describe('InfoSSOTService (Graph SSOT)', () => {
 
         expect(person).toEqual({ id: 'per_1', name: 'Test User' });
         expect(client.query).toHaveBeenCalledWith(
-            expect.stringContaining('JOIN auth_grants'),
+            expect.stringContaining('FROM auth_grants'),
             ['U123', 'T123']
         );
         const sql = client.query.mock.calls[0][0];
+        expect(sql).toContain('LEFT JOIN users');
+        expect(sql).toContain('COALESCE(u.person_id, ag.person_id)');
         expect(sql).toContain('ag.slack_workspace_id = $2');
         expect(sql).toContain('ag.active = true');
         expect(sql).not.toContain('people_slack');
