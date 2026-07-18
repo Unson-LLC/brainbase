@@ -2144,8 +2144,11 @@ export class InfoSSOTService {
         try {
             const sql = `
                 SELECT p.*
-                FROM people p
-                JOIN auth_grants ag ON p.id = ag.person_id
+                FROM auth_grants ag
+                LEFT JOIN users u
+                  ON u.slack_user_id = ag.slack_user_id
+                 AND u.status = 'active'
+                JOIN people p ON p.id = COALESCE(u.person_id, ag.person_id)
                 WHERE ag.slack_user_id = $1
                   AND ag.slack_workspace_id = $2
                   AND ag.active = true

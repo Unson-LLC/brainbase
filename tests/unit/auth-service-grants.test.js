@@ -1,8 +1,47 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '../../server/services/auth-service.js';
 
 describe('AuthService auth grant precedence', () => {
+    it('refresh時もgrant権限を使いながらログイン時と同じGraph人物IDを維持する', async () => {
+        const authService = new AuthService();
+        authService.verifyRefreshToken = vi.fn().mockReturnValue({
+            typ: 'refresh',
+            slackUserId: 'U_MEMBER',
+            slackWorkspaceId: 'T_EXACT'
+        });
+        authService.findGrant = vi.fn().mockResolvedValue({
+            person_id: 'per_legacy',
+            person_name: 'Legacy Person',
+            slack_user_id: 'U_MEMBER',
+            slack_workspace_id: 'T_EXACT',
+            role: 'gm',
+            project_codes: ['brainbase'],
+            clearance: ['internal']
+        });
+        authService.findUserBySlackId = vi.fn().mockResolvedValue({
+            person_id: 'per_graph',
+            name: 'Graph Person'
+        });
+        authService.ensurePerson = vi.fn(async ({ personId }) => personId);
+        authService.issueToken = vi.fn().mockReturnValue('access-token');
+        authService.issueRefreshToken = vi.fn().mockReturnValue('refresh-token');
+        authService.createAuditLog = vi.fn();
+
+        const result = await authService.refreshSession('refresh-token-before');
+
+        expect(authService.findUserBySlackId).toHaveBeenCalledWith('U_MEMBER', 'T_EXACT');
+        expect(authService.ensurePerson).toHaveBeenCalledWith({
+            personId: 'per_graph',
+            personName: 'Graph Person'
+        });
+        expect(authService.issueToken).toHaveBeenCalledWith(expect.objectContaining({
+            personId: 'per_graph',
+            projectCodes: ['brainbase']
+        }));
+        expect(result.access.personId).toBe('per_graph');
+    });
+
     it('uses auth_grants project_codes even when users.project_codes is an empty stale array', async () => {
         const queries = [
             {

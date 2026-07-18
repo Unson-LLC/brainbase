@@ -609,9 +609,13 @@ export class AuthService {
             logger.info(`[AUTH] refresh: DENY uid=${slackUserId} wid=${slackWorkspaceId}`);
             throw new Error('Access is not granted');
         }
+        // Login prefers the users row that is linked to the canonical Graph person.
+        // Keep refresh on the same identity even when a legacy grant still points to
+        // an older people row; grants remain the authorization SSOT.
+        const user = await this.findUserBySlackId(slackUserId, slackWorkspaceId);
         const personId = await this.ensurePerson({
-            personId: grant.person_id,
-            personName: grant.person_name
+            personId: user?.person_id || grant.person_id,
+            personName: user?.name || grant.person_name
         });
         const access = this.buildAccessFromGrant({ ...grant, person_id: personId });
         const token = this.issueToken({
