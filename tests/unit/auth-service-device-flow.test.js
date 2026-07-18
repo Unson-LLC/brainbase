@@ -224,6 +224,23 @@ describe('AuthService - Device Code Flow', () => {
             expect(authService.deviceCodeStore.has(response.device_code)).toBe(false);
             expect(authService.userCodeStore.has(response.user_code)).toBe(false);
         });
+
+        it('should require the approved Slack user and workspace pair when issuing tokens', async () => {
+            const response = authService.createDeviceCodeRequest('test-code-verifier');
+            authService.approveDeviceCode(response.device_code, 'U12345', 'T12345');
+            authService.findUserBySlackId = async (...args) => {
+                expect(args).toEqual(['U12345', 'T12345']);
+                return null;
+            };
+            authService.createAuditLog = async () => {};
+
+            const result = await authService.pollDeviceToken(response.device_code);
+
+            expect(result).toMatchObject({
+                error: 'access_denied',
+                error_description: 'Access is not granted'
+            });
+        });
     });
 
     describe('cleanupExpiredDeviceCodes', () => {

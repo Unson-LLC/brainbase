@@ -41,6 +41,48 @@ describe('auth middleware', () => {
         expect(res.body.access.projectCodes).toEqual(['alpha']);
     });
 
+    it('strict modeではinsecure headerを認証として扱わない', async () => {
+        const app = express();
+        const authService = {
+            verifyToken: () => ({})
+        };
+        app.use(requireAuth(authService, { allowInsecureHeaders: false }));
+        app.get('/secure', (req, res) => res.json({ ok: true }));
+
+        await request(app)
+            .get('/secure')
+            .set('x-brainbase-role', 'ceo')
+            .set('x-brainbase-projects', 'brainbase')
+            .set('x-brainbase-clearance', 'restricted')
+            .expect(401);
+    });
+
+    it('strict modeでは自己申告headerより検証済みJWT claimを使う', async () => {
+        const app = express();
+        const authService = {
+            verifyToken: () => ({
+                role: 'member',
+                projectCodes: ['brainbase'],
+                clearance: ['internal'],
+                sub: 'per_verified'
+            })
+        };
+        app.use(requireAuth(authService, { allowInsecureHeaders: false }));
+        app.get('/secure', (req, res) => res.json({ access: req.access, source: req.authSource }));
+
+        const res = await request(app)
+            .get('/secure')
+            .set('Authorization', 'Bearer verified-token')
+            .set('x-brainbase-role', 'ceo')
+            .set('x-brainbase-projects', 'all-projects')
+            .expect(200);
+
+        expect(res.body.source).toBe('bearer');
+        expect(res.body.access.role).toBe('member');
+        expect(res.body.access.projectCodes).toEqual(['brainbase']);
+        expect(res.body.access.personId).toBe('per_verified');
+    });
+
     it('session cookieがある時_cookie認証で通す', async () => {
         const app = express();
         const authService = {

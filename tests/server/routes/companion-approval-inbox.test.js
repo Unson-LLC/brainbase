@@ -895,6 +895,49 @@ describe('companion approval inbox route', () => {
         expect(res.body.items.map((item) => item.run_id)).toEqual(['run_pending_old']);
     });
 
+    it('registers /api/info with strict bearer authentication', async () => {
+        const infoSSOTService = {
+            listGraphEntities: vi.fn(async () => [])
+        };
+        const app = makeBootstrapApp({ infoSSOTService });
+
+        await request(app)
+            .get('/api/info/graph/entities?project=brainbase')
+            .set('x-brainbase-role', 'ceo')
+            .set('x-brainbase-projects', 'brainbase')
+            .set('x-brainbase-clearance', 'restricted')
+            .expect(401);
+
+        expect(infoSSOTService.listGraphEntities).not.toHaveBeenCalled();
+    });
+
+    it('passes verified bearer claims to /api/info instead of spoofed headers', async () => {
+        const infoSSOTService = {
+            listGraphEntities: vi.fn(async () => [])
+        };
+        const app = makeBootstrapApp({
+            authService: createAuthService({ personId: 'per_verified', projectCodes: ['sample-project'] }),
+            infoSSOTService
+        });
+
+        await request(app)
+            .get('/api/info/graph/entities?project=sample-project')
+            .set('Authorization', 'Bearer verified-token')
+            .set('x-brainbase-role', 'ceo')
+            .set('x-brainbase-projects', 'all-projects')
+            .set('x-brainbase-clearance', 'restricted')
+            .expect(200);
+
+        expect(infoSSOTService.listGraphEntities).toHaveBeenCalledWith(
+            expect.objectContaining({
+                role: 'gm',
+                projectCodes: ['sample-project'],
+                personId: 'per_verified'
+            }),
+            { projectCode: 'sample-project', entityType: null }
+        );
+    });
+
     it('does not write default workflows during read-only approval inbox projection', async () => {
         const { app, repository } = makeApp();
         seedWorkflow(repository);

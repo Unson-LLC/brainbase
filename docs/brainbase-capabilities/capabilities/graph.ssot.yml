@@ -31,10 +31,11 @@ visibility_rules:
   - Use resolve_entity for raw user phrases or broad compound queries before claiming Graph absence.
   - One search no-result is not sufficient evidence that Graph lacks an entity.
   - Treat resolve_entity unsupported_types as unsearched surfaces, not as Graph absence.
+  - Production API authorization comes only from the verified token; x-brainbase-* headers never grant access.
 verification:
   commands:
-    - curl -s -H "Authorization: Bearer $(cat ~/.brainbase/tokens.json | jq -r .access_token)" "https://bb.unson.jp/api/info/graph/entities?type=project&limit=500"
-    - curl -s -H "Authorization: Bearer $(cat ~/.brainbase/tokens.json | jq -r .access_token)" "https://bb.unson.jp/api/info/context?project=brainbase&types=project&includePhilosophy=true&scope=graph"
+    - TOKEN=$(jq -r .access_token ~/.brainbase/tokens.json); curl -sS -H "Authorization: Bearer $TOKEN" "https://bb.unson.jp/api/info/graph/entities?type=project&limit=500"
+    - TOKEN=$(jq -r .access_token ~/.brainbase/tokens.json); curl -sS -H "Authorization: Bearer $TOKEN" "https://bb.unson.jp/api/info/context?project=brainbase&types=project&includePhilosophy=true&scope=graph"
   expected:
     - The relevant entity exists in Graph or the absence is explicitly reported.
     - Aliases are checked when matching names from user text or secondary records.
