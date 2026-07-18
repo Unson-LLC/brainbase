@@ -36,6 +36,7 @@ export const REQUIRED_METRIC_TERMS = Object.freeze([
 ]);
 
 const BACKUP_VERSION = 'graph-data-ssot-normalization.v1';
+const BACKUP_TABLES = Object.freeze(['graph_entities', 'graph_edges', 'people', 'auth_grants', 'raci_assignments']);
 const DEFAULT_BACKUP_ROOT = '/home/ubuntu/brainbase/var/graph-data-normalization/backups';
 const NORMALIZED_AT = '2026-07-18';
 function assert(condition, message) {
@@ -48,6 +49,71 @@ function json(value) {
 
 function uniqueStrings(...groups) {
   return [...new Set(groups.flat().filter((value) => typeof value === 'string' && value.trim()))];
+}
+
+function sha256(value) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map((item) => stableJson(item)).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value ?? null);
+}
+
+export function summarizeAuditLogs(rows) {
+  const ordered = [...rows].sort((left, right) => String(left.id).localeCompare(String(right.id)));
+  const ids = ordered.map((row) => row.id);
+  const timestamps = ordered.map((row) => new Date(row.created_at).toISOString());
+  const content = ordered.map((row) => ({
+    id: row.id,
+    person_id: row.person_id,
+    slack_user_id: row.slack_user_id,
+    slack_workspace_id: row.slack_workspace_id,
+    event_type: row.event_type,
+    metadata: row.metadata ?? {},
+    created_at: new Date(row.created_at).toISOString(),
+  }));
+  return {
+    count: ordered.length,
+    id_set_sha256: sha256(ids.join('\n')),
+    timestamp_set_sha256: sha256(timestamps.join('\n')),
+    content_sha256: sha256(stableJson(content)),
+    first_created_at: timestamps.length ? [...timestamps].sort()[0] : null,
+    last_created_at: timestamps.length ? [...timestamps].sort().at(-1) : null,
+  };
+}
+
+export function validateBackup(backup) {
+  assert(backup && typeof backup === 'object' && !Array.isArray(backup), 'invalid backup schema: root must be an object');
+  assert(backup.version === BACKUP_VERSION, `unsupported backup version: ${backup.version}`);
+  assert(typeof backup.created_at === 'string' && backup.created_at.trim(), 'invalid backup schema: created_at must be a non-empty string');
+  assert(backup.target_ids && typeof backup.target_ids === 'object' && !Array.isArray(backup.target_ids), 'invalid backup schema: target_ids must be an object');
+  assert(backup.rows && typeof backup.rows === 'object' && !Array.isArray(backup.rows), 'invalid backup schema: rows must be an object');
+  for (const table of BACKUP_TABLES) {
+    const targetIds = backup.target_ids[table];
+    const rows = backup.rows[table];
+    assert(Array.isArray(targetIds), `invalid backup schema: target_ids.${table} must be an array`);
+    assert(Array.isArray(rows), `invalid backup schema: rows.${table} must be an array`);
+    assert(targetIds.every((id) => typeof id === 'string' && id.trim()), `invalid backup schema: target_ids.${table} must contain non-empty strings`);
+    assert(new Set(targetIds).size === targetIds.length, `invalid backup schema: target_ids.${table} must not contain duplicates`);
+    assert(rows.every((row) => row && typeof row === 'object' && !Array.isArray(row) && typeof row.id === 'string' && row.id.trim()), `invalid backup schema: rows.${table} must contain objects with non-empty id`);
+    assert(rows.every((row) => targetIds.includes(row.id)), `invalid backup schema: rows.${table} contains an id outside target_ids`);
+  }
+  return backup;
+}
+
+export async function readBackup(backupPath) {
+  let parsed;
+  try {
+    parsed = JSON.parse(await fs.readFile(backupPath, 'utf8'));
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new Error('invalid backup JSON: malformed JSON', { cause: error });
+    throw error;
+  }
+  return validateBackup(parsed);
 }
 
 export function deepReplaceExact(value, replacements) {
@@ -223,10 +289,10 @@ async function collectState(client) {
   const authGrants = await query(client, 'SELECT * FROM auth_grants WHERE person_id = ANY($1::text[]) ORDER BY id', [[IDS.legacyPerson, IDS.canonicalPerson]]);
   const raciAssignments = await query(client, 'SELECT * FROM raci_assignments WHERE person_id = ANY($1::text[]) ORDER BY id', [[IDS.legacyPerson, IDS.canonicalPerson]]);
   const users = await query(client, 'SELECT person_id FROM users WHERE person_id = ANY($1::text[]) ORDER BY person_id', [[IDS.legacyPerson, IDS.canonicalPerson]]);
-  const authAuditCounts = await query(client, `
-    SELECT person_id, COUNT(*)::int AS count
+  const authAuditLogs = await query(client, `
+    SELECT id, person_id, slack_user_id, slack_workspace_id, event_type, metadata, created_at
     FROM auth_audit_logs WHERE person_id = ANY($1::text[])
-    GROUP BY person_id ORDER BY person_id
+    ORDER BY id
   `, [[IDS.legacyPerson, IDS.canonicalPerson]]);
   const glossaryRows = await query(client, `
     SELECT * FROM graph_entities
@@ -241,7 +307,7 @@ async function collectState(client) {
     authGrants,
     raciAssignments,
     users,
-    authAuditCounts,
+    authAuditLogs,
     glossaryRows,
   };
 }
@@ -286,7 +352,7 @@ export function sanitizedPlan(state) {
   const vibeproDecision = entities.get(IDS.vibeproDecision);
   const legacyGrantCount = state.authGrants.filter((row) => row.person_id === IDS.legacyPerson).length;
   const legacyRaciCount = state.raciAssignments.filter((row) => row.person_id === IDS.legacyPerson).length;
-  const legacyAuditCount = state.authAuditCounts.find((row) => row.person_id === IDS.legacyPerson)?.count ?? 0;
+  const legacyAuditProof = summarizeAuditLogs(state.authAuditLogs.filter((row) => row.person_id === IDS.legacyPerson));
   return {
     mode: 'dry-run',
     status: 'ready',
@@ -309,7 +375,9 @@ export function sanitizedPlan(state) {
     payload_records_to_repoint: state.graphEntities.filter((row) => ![IDS.baaoOrgAlias, IDS.unsonOrgAlias].includes(row.id) && JSON.stringify(row.payload).match(/org_baao|org_unson/)).length,
     legacy_auth_grants_to_migrate: legacyGrantCount,
     legacy_raci_to_migrate: legacyRaciCount,
-    preserved_legacy_auth_audit_logs: legacyAuditCount,
+    preserved_legacy_auth_audit_logs: legacyAuditProof.count,
+    legacy_auth_audit_proof: legacyAuditProof,
+    auth_audit_logs_in_write_set: false,
     vibepro_decision_action: !vibeproDecision
       ? 'restore_same_id'
       : vibeproDecision.role_min === 'member'
@@ -555,11 +623,8 @@ async function restoreRows(client, table, idColumn, targetIds, rows, columns) {
 }
 
 export async function rollback(client, backupPath) {
-  const backup = JSON.parse(await fs.readFile(backupPath, 'utf8'));
-  assert(backup.version === BACKUP_VERSION, `unsupported backup version: ${backup.version}`);
-  await client.query('BEGIN');
-  try {
-    await client.query("SELECT pg_advisory_xact_lock(hashtext('graph-data-ssot-normalization'))");
+  const backup = await readBackup(backupPath);
+  return withNormalizationTransaction(client, async () => {
     await restoreRows(client, 'graph_edges', 'id', backup.target_ids.graph_edges, backup.rows.graph_edges, ['id', 'from_id', 'to_id', 'rel_type', 'project_id', 'payload', 'role_min', 'sensitivity', 'created_at', 'updated_at']);
     await restoreRows(client, 'graph_entities', 'id', backup.target_ids.graph_entities, backup.rows.graph_entities, ['id', 'entity_type', 'project_id', 'payload', 'role_min', 'sensitivity', 'created_at', 'updated_at']);
     await restoreRows(client, 'raci_assignments', 'id', backup.target_ids.raci_assignments, backup.rows.raci_assignments, ['id', 'project_id', 'person_id', 'role_code', 'authority_scope', 'sensitivity_min', 'sensitivity', 'created_at', 'updated_at']);
@@ -586,31 +651,41 @@ export async function rollback(client, backupPath) {
       json({ story_id: 'story-graph-data-ssot-normalization', backup_file: path.basename(backupPath) }),
       'scripts/normalize-graph-data-ssot.mjs',
     ]);
-    await client.query('COMMIT');
     return { mode: 'rollback', status: 'rolled_back', backup_path: backupPath, restored_targets: Object.fromEntries(Object.entries(backup.target_ids).map(([key, ids]) => [key, ids.length])) };
+  });
+}
+
+export async function withNormalizationTransaction(client, operation, { commit = true } = {}) {
+  await client.query('BEGIN');
+  try {
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('graph-data-ssot-normalization'))");
+    const result = await operation();
+    await client.query(commit ? 'COMMIT' : 'ROLLBACK');
+    return result;
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
     throw error;
   }
 }
 
-export async function run({ mode = 'dry-run', backupPath, backupRoot = process.env.GRAPH_NORMALIZATION_BACKUP_ROOT || DEFAULT_BACKUP_ROOT } = {}) {
+export async function run(
+  { mode = 'dry-run', backupPath, backupRoot = process.env.GRAPH_NORMALIZATION_BACKUP_ROOT || DEFAULT_BACKUP_ROOT } = {},
+  { createPool = (connectionString) => new Pool({ connectionString }) } = {},
+) {
   const connectionString = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL;
   assert(connectionString, 'INFO_SSOT_DATABASE_URL is required');
-  const pool = new Pool({ connectionString });
-  const client = await pool.connect();
+  const pool = createPool(connectionString);
+  let client;
   try {
+    client = await pool.connect();
     if (mode === 'rollback') {
       assert(backupPath, 'rollback requires a backup path');
       return await rollback(client, backupPath);
     }
-    await client.query('BEGIN');
-    try {
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('graph-data-ssot-normalization'))");
+    return await withNormalizationTransaction(client, async () => {
       const state = await collectState(client);
       validateState(state);
       if (mode === 'dry-run') {
-        await client.query('ROLLBACK');
         return sanitizedPlan(state);
       }
       assert(mode === 'apply', `unsupported mode '${mode}'`);
@@ -623,7 +698,6 @@ export async function run({ mode = 'dry-run', backupPath, backupRoot = process.e
         ))
         .map((row) => row.id);
       const post = await applyNormalization(client, state);
-      await client.query('COMMIT');
       return {
         mode: 'apply',
         status: 'applied',
@@ -635,15 +709,14 @@ export async function run({ mode = 'dry-run', backupPath, backupRoot = process.e
           raci_assignments: post.raciAssignments.filter((row) => row.person_id === IDS.canonicalPerson).length,
           users: post.users.filter((row) => row.person_id === IDS.canonicalPerson).length,
         },
-        preserved_legacy_auth_audit_logs: post.authAuditCounts.find((row) => row.person_id === IDS.legacyPerson)?.count ?? 0,
+        preserved_legacy_auth_audit_logs: post.authAuditLogs.filter((row) => row.person_id === IDS.legacyPerson).length,
+        legacy_auth_audit_proof: summarizeAuditLogs(post.authAuditLogs.filter((row) => row.person_id === IDS.legacyPerson)),
+        auth_audit_logs_in_write_set: false,
         physical_deletes: 0,
       };
-    } catch (error) {
-      if (!client.released) await client.query('ROLLBACK').catch(() => {});
-      throw error;
-    }
+    }, { commit: mode !== 'dry-run' });
   } finally {
-    client.release();
+    client?.release();
     await pool.end();
   }
 }

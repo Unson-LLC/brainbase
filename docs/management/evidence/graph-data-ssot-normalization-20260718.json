@@ -1,5 +1,5 @@
 {
-  "schema_version": "graph-data-ssot-normalization-evidence.v1",
+  "schema_version": "graph-data-ssot-normalization-evidence.v2",
   "story_id": "story-graph-data-ssot-normalization",
   "observed_at": "2026-07-18T15:37:03Z",
   "production_apply": {
@@ -36,6 +36,8 @@
     "legacy_auth_grants_to_migrate": 0,
     "legacy_raci_to_migrate": 0,
     "preserved_legacy_auth_audit_logs": 14,
+    "auth_audit_logs_in_write_set": false,
+    "audit_proof_scope": "count_preserved_and_no_direct_normalization_write",
     "vibepro_decision_action": "preserve_existing",
     "physical_deletes": 0
   },
@@ -74,13 +76,89 @@
     "visibility_change": "gm_to_member",
     "reason": "live record, repository history, current spec, and CI contract agreed; no intentional retirement evidence was found"
   },
+  "audit_log_evidence": {
+    "pre_apply_recorded_count": 14,
+    "post_apply_transaction_readback_count": 14,
+    "idempotent_dry_run_count": 14,
+    "before_hash_available": false,
+    "before_hash_unavailable_reason": "pre-apply evidence recorded count/min/max only; targeted backup excluded auth_audit_logs",
+    "post_apply_id_set_sha256": "9b19e1efbd0eba7949fddcfc734de628832b65c734493ca5edeb27191a2a9d0a",
+    "post_apply_timestamp_set_sha256": "b3ebc2c677e40e03767e464f64f8c875045cde26524a64631efabd42334147b1",
+    "post_apply_content_sha256": "054c889702e72c82e768ab1a46cc97e190477ef22a5b9191b025976f05b60cce",
+    "auth_audit_logs_in_write_set": false,
+    "does_not_claim": "row_content_immutability_before_vs_after"
+  },
+  "finance_boundary_negative_readback": {
+    "service_method": "InfoSSOTService.listGraphEntities",
+    "member_internal_by_id_count": 0,
+    "member_internal_by_type_count": 0,
+    "ceo_finance_positive_control_count": 1,
+    "status": "passed"
+  },
+  "alias_compatibility_contract": {
+    "typed_legacy_get_resolves_canonical": true,
+    "canonical_lists_exclude_alias_rows": true,
+    "raw_alias_types_remain_auditable": true,
+    "mcp_alias_index_includes_legacy_ids": true
+  },
+  "artifact_provenance": {
+    "hash_algorithm": "sha256",
+    "artifacts": [
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/audit-post-apply-hash-readback.json",
+        "sha256": "5553eb285a7727a3f0b9f606469eb8fd1ec41f09ea1e274f211c2a5a49e04718",
+        "source": "production transaction-scoped dry-run after apply"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/service-finance-boundary-readback.json",
+        "sha256": "62b69061f2438e0837f4c53f0739ebe55db7a2f46c7f0e39e8a5f059647cdd16",
+        "source": "production read-only InfoSSOTService calls"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+        "sha256": "dbed2a1169ede7ed375d3906786b155f24cb7dadbd616f49a20e84556eef12de",
+        "source": "composite REST MCP CI and database readback index"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/rest-readback.json",
+        "sha256": "e8f51debd8ff83a94d90c5bbd43f4fb565f8585adb32c71af520ac5165f0a7b0",
+        "source": "production REST readback"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/mcp-readback.json",
+        "sha256": "604f3e8fae312b7e1e7b6a393bfab7045eb94b7df3d4b9e5af57afe0eca02546",
+        "source": "production MCP readback after bridge refresh"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/live-post-apply-dry-run.json",
+        "sha256": "6f4fe47803ee4fc441cd34ac065b569cd0848d59a98ce352a60b25c5be7d230a",
+        "source": "production idempotency dry-run"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/vibepro-graph-ssot-check.txt",
+        "sha256": "23e213353971c771e102b4694cf4b6b38c8f53438ebc7c7f16df6adbb075529c",
+        "source": "live Graph CI contract check"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
+        "sha256": "612750407d1b1a23abf40a5d3596a2b58ca87649e258bddd76a9e1b32c5bec8f",
+        "source": "current worktree targeted Vitest JSON report"
+      }
+    ]
+  },
   "verification": {
     "targeted_vitest": {
-      "files": 7,
-      "tests": 37,
-      "passed": 37,
+      "files": 9,
+      "tests": 50,
+      "passed": 50,
       "failed": 0,
-      "includes": ["rollback_rehearsal", "rollback_failure_injection", "backup_permissions", "finance_access_boundary", "auth_person_canonicalization", "graph_context_route"]
+      "includes": ["rollback_rehearsal", "rollback_failure_injection", "malformed_backup_json", "schema_invalid_backup", "database_auth_denied", "persistence_failure", "backup_permissions", "finance_access_boundary", "finance_member_internal_denial", "legacy_alias_typed_get", "auth_person_canonicalization", "graph_context_route"]
+    },
+    "targeted_mcp_graphapi": {
+      "tests": 8,
+      "passed": 8,
+      "failed": 0,
+      "includes": ["legacy_alias_index", "canonical_list_deduplication"]
     },
     "live_graph_ci_check": {
       "checks": 4,

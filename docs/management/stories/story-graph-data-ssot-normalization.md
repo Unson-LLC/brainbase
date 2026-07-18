@@ -55,7 +55,7 @@ updated_at: 2026-07-18
 - legacy person `per_01KGYC7NNPNVRG527BGTFH5SGH`
 - legacy personを参照する`auth_grants` 1件、`raci_assignments` 8件
 - `users`とGraph person entityのcanonical ID一貫性
-- 旧IDの`auth_audit_logs` 14件は履歴として変更しない
+- 旧IDの`auth_audit_logs`は正規化のwrite-setに含めない。適用前監査で14件、適用後transaction readbackと冪等dry-runでも14件であることを確認する
 
 ### VibePro
 
@@ -95,10 +95,12 @@ updated_at: 2026-07-18
 - apply前検証、対象限定backup、advisory lock、単一transaction、apply後assertの順で進み、途中失敗はcommit前にrollbackする。
 - commit後の復旧はbackupに列挙されたIDだけを復元する。rollback replayと障害注入をunit testし、広域DELETEがないことを検証する。
 - financeは一般org payloadから除外し、Graph entityの`role_min=ceo`と`sensitivity=finance`を同時に満たす既存DB検索契約で保護する。
+- rollback backupはtransaction開始前にJSON/schema/対象ID整合性を検証する。malformed JSON、schema不正、対象外ID、DB認証拒否、transaction内永続化失敗はいずれもcommitせず失敗する。
 
 ### 公開契約と互換性
 
-- REST/MCPのentity IDとproject codeは変更しない。旧org/person IDはaliasとしてread可能なまま残す。
+- canonical entity IDとproject codeは変更しない。`type=org|person`の一覧はcanonicalだけを一度返し、旧org/person IDを指定したtyped getはcanonical entityへ解決する。`org_alias` / `person_alias`型のraw行は監査用にread可能なまま残す。
+- MCPはraw alias行をentity一覧へ混ぜず、canonical entityのalias索引へ旧IDを統合する。
 - VibePro decisionは既存payloadと`created_at=2026-04-25`を保持し、CI/MCP正本契約に必要なvisibilityだけ`gm`から`member`へ修復する。
 - CLIは`dry-run`をdefaultとし、`apply`と`rollback <backup>`だけを明示的に受け付ける。出力はID・件数・状態に限定し、秘密payloadを返さない。
 
@@ -114,7 +116,10 @@ updated_at: 2026-07-18
 - [x] BAAO Philosophy ContextがBAAO固有のactive/core Philosophyを返す。
 - [x] 雲孫のfinance情報が一般org payloadから除外され、`ceo` + `finance`境界に隔離される。
 - [x] `auth_grants`、`raci_assignments`、`users`の現行人物参照がcanonical person IDへ統一される。
-- [x] 旧personの監査ログは変更されず、旧person自体はmerged/retiredとして監査可能に残る。
+- [x] 適用前監査で旧personを参照する`auth_audit_logs`が14件と記録され、適用後transaction readbackと冪等dry-runでも14件である。正規化スクリプトの直接write-setに`auth_audit_logs`を含めず、旧person自体はmerged/retiredとして残る。適用前の行ID/hash/timestamp集合は保存されていないため、行内容の完全不変性までは主張しない。
+- [x] member/internalのservice readbackではfinance entityがID・型の双方で0件、ceo/financeのpositive controlでは1件である。
+- [x] 旧org/person IDのtyped REST/service取得とMCP alias索引がcanonicalへ解決し、型付き一覧にalias重複を出さない。
+- [x] malformed backup JSON、schema-invalid backup、対象外backup ID、DB auth denied、persistence failureの否定系テストが成功する。
 - [x] exact decision IDがライブRESTとMCPの両方で取得できる。
 - [x] `node scripts/vibepro-graph-ssot-check.mjs`がライブGraphに対して成功する。
 - [x] Graph関連の対象テストが成功する。
@@ -126,6 +131,7 @@ updated_at: 2026-07-18
 - 変更は1 transactionで実行し、受け入れ基準に反する場合はcommitせずrollbackする。
 - commit後の巻き戻しは、同じ対象IDだけをバックアップ値へupsert/updateする専用rollback処理で行う。広域DELETEやDB全体restoreは行わない。
 - 監査ログの過去person IDは履歴として保持し、現在参照と履歴参照を区別する。
+- 適用後の監査行は秘密値を出さず、ID集合・timestamp集合・内容のSHA-256だけを記録する。適用前hashは取得されていないため比較証拠として扱わない。
 - 実行結果には変更したID、変更しなかった対象、検証結果、未解決だけを残し、秘密payloadは残さない。
 
 ## 実装タスク
@@ -144,9 +150,12 @@ updated_at: 2026-07-18
 - apply: 2026-07-19 00:20 JST、単一transaction、物理削除0件
 - rollback point: `2026-07-18T152024997Z.json`（本番ホスト内、mode `0600`）
 - 冪等readback: legacy business edge 0件、legacy payload参照0件、legacy auth grant 0件、legacy RACI 0件
-- 人物参照: canonical personにauth grant 1件、RACI 10件、users 3件。旧IDのauth audit log 14件は保持
+- 人物参照: canonical personにauth grant 1件、RACI 10件、users 3件。旧IDのauth audit logは適用前14件、適用後transaction readback 14件、冪等dry-run 14件。正規化write-setには含めない
+- 監査hash: 適用後のID集合・timestamp集合・内容hashを`audit-post-apply-hash-readback.json`へ保存。適用前hashは証跡がなく、完全不変性は非主張
+- finance否定系: member/internalではID・型取得とも0件、ceo/finance positive controlは1件
+- alias互換: typed getは旧IDからcanonicalへ解決し、一覧はcanonicalのみ。MCPはalias索引へ統合
 - VibePro decision: payload・created_atを保持し、`role_min`だけ`gm`から`member`へ修復
 - MCP: ブリッジ再起動後、exact decisionとBAAO Philosophy Contextを取得
 - REST/CI: `node scripts/vibepro-graph-ssot-check.mjs`の4 checksがすべてpassed
-- tests: rollback rehearsal、finance認可境界、Graph context routeを含むtargeted Vitest 37件が成功。DB未設定時のみskipされるGraph route tests 5件は対象外環境でskip
+- tests: rollback rehearsal、malformed/schema-invalid backup、DB auth denied、persistence failure、finance否定系、REST aliasを含むtargeted Vitest 50件が成功。MCP alias対象test 8件も成功。MCP全件実行の既知依存欠落は対象test単体実行で切り分ける
 - machine-readable evidence: `docs/management/evidence/graph-data-ssot-normalization-20260718.json`
