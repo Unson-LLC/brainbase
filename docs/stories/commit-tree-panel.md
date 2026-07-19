@@ -15,7 +15,7 @@
 | AC3 | 現在のワーキングコピー位置がハイライトされる | `isWorkingCopy: true` のコミットに `.current` クラスが付与される |
 | AC4 | パネルの幅がリサイズ可能でリロード後も保持される | localStorage にパネル幅が保存・復元されることを確認 |
 | AC5 | worktreeなしセッションでは空状態が表示される | worktree未設定セッション選択時に空状態メッセージが表示される |
-| AC6 | Jujutsu / Git 両方に対応 | `repoType` フィールドで jj/git を判別し適切なコマンドを実行 |
+| AC6 | Git repositoryに対応 | `repoType: git` としてコミットログを取得 |
 
 ## Priority
 

@@ -17,7 +17,7 @@
       "isWorkingCopy": true
     }
   ],
-  "repoType": "jj",
+  "repoType": "git",
   "worktreePath": "/Users/ksato/workspace/.worktrees/session-xxx-brainbase"
 }
 ```
@@ -31,16 +31,9 @@
 
 ### WorktreeService.getCommitLog(sessionId, repoPath, limit)
 
-**Jujutsu:**
+**Git:**
 ```bash
-jj -R "<worktreePath>" log -r "::@" -T '<template>' --no-pager -n <limit>
-```
-
-Template: `commit_id ++ "\x00" ++ description.first_line() ++ "\x00" ++ committer.timestamp() ++ "\x00" ++ author.name() ++ "\x00" ++ bookmarks ++ "\x00" ++ if(self.working_copies(), "true", "false") ++ "\n"`
-
-**Git (fallback):**
-```bash
-git -C "<worktreePath>" log --format="%h%x00%s%x00%aI%x00%an%x00%D%x00" -n <limit>
+git -C "<worktreePath>" log --format="%h%x00%s%x00%aI%x00%an%x00%D%x00%p%x00" -n <limit>
 ```
 
 ## Frontend Specification
@@ -120,4 +113,4 @@ class CommitTreeView {
 | AC3 | `.commit-node.current` クラス | isWorkingCopy=true にハイライト |
 | AC4 | panel-resize.js: localStorage保存/復元 | リロード後も幅が保持される |
 | AC5 | CommitTreeView: worktreeなし時の空状態 | 空メッセージが表示される |
-| AC6 | WorktreeService: _isJujutsuRepo()分岐 | jj/git両方でコミットログ取得 |
+| AC6 | WorktreeService: `_getGitCommitLog()` | Gitコミットログ取得 |

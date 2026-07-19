@@ -58,7 +58,7 @@ check_pattern() {
     else
         # grepで検索（除外パターンを考慮）
         results=$(grep -r -n -I \
-            --exclude-dir={node_modules,.git,.jj,dist,build,coverage,test-results,.worktrees,var,data,.claude,config,migration,docs,examples,tests} \
+            --exclude-dir={node_modules,.git,dist,build,coverage,test-results,.worktrees,var,data,.claude,config,migration,docs,examples,tests} \
             --exclude=".git" \
             --exclude="state.json" \
             --exclude=".env" \

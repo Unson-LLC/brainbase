@@ -34,7 +34,7 @@ Brainbase brings tasks, schedules, inbox items, and coding sessions into one int
 
 - Node.js 20+
 - npm
-- Optional: `tmux`, `ttyd`, and `jj` for the full session-management workflow
+- Optional: `tmux` and `ttyd` for the full session-management workflow
 
 ### Setup
 

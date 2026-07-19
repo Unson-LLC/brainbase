@@ -24,7 +24,7 @@ describe('CommitTreeService', () => {
             commits: [
                 { hash: 'abc1234', description: 'test', isWorkingCopy: true, bookmarks: ['main'], timestamp: '', author: 'ksato' }
             ],
-            repoType: 'jj',
+            repoType: 'git',
             worktreePath: '/tmp/test'
         };
 
@@ -65,7 +65,7 @@ describe('CommitTreeService', () => {
     });
 
     it('カスタムlimitが指定された場合_APIに渡される', async () => {
-        httpClient.get.mockResolvedValueOnce({ commits: [], repoType: 'jj' });
+        httpClient.get.mockResolvedValueOnce({ commits: [], repoType: 'git' });
 
         await service.loadCommitLog('session-1', 20);
 
