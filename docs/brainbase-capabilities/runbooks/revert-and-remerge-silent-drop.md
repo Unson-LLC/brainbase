@@ -158,4 +158,4 @@ Silent drops can still occur via PR merges (Squash / Rebase merge can drop lines
 
 - `../capabilities/git.protected-push.yml` — the guard that blocks the most common vector.
 - `../troubleshooting/route-disappeared-after-rebase.md` — diagnosing the symptom.
-- `../capabilities/development.workflow.yml` — jj-first workflow rules.
+- `../capabilities/development.workflow.yml` — focused Git workflow rules.

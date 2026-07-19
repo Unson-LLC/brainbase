@@ -29,7 +29,7 @@ visibility_rules:
   - The selected project must appear in project.selector.
   - Worktree availability depends on hasGitRepository(selectedProject).
   - general uses the workspace root and always enables worktree by default.
-  - Session Launch Picker must only choose project, engine, and jj workspace usage before startup begins.
+  - Session Launch Picker must only choose project, engine, and Git worktree usage before startup begins.
   - The initial prompt belongs to Startup Composer and must be queued until the selected runtime is ready.
   - Worktree session creation first shows a pending session shell, then completes worktree/runtime startup in the background.
   - Pending session shells must not start terminal runtime or snapshot loading against the canonical project path.
@@ -59,7 +59,7 @@ verification:
 common_failures:
   - Project missing from dropdown due to auth grant filtering.
   - Project path resolves to fallback because config local.path is missing or stale.
-  - Existing git/jj locks block worktree creation.
+  - Existing Git locks or stale worktree registrations block worktree creation.
   - Worktree startup starts before the Startup Composer is visible, so the user waits before typing the initial prompt.
   - Startup composer text is persisted only as a draft, so startup completion has nothing queued to send.
   - Startup composer send races the ready transition and incorrectly remains in a pending-startup state.

@@ -6,8 +6,7 @@ import { logger } from '../../../server/utils/logger.js';
 // `git ls-files -u` to detect conflicts. A workspace directory that has vanished
 // mid-teardown (race with cleanup) makes git exit with "fatal: not a git
 // repository". This is a legitimate state with no conflicts to report, but it
-// must not spam the error log every poll — same treatment as the "No conflicts"
-// path in the pre-migration jj implementation.
+// must not spam the error log on every poll.
 
 describe('WorktreeService conflict inspection', () => {
   let warnSpy;
