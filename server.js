@@ -32,7 +32,7 @@ process.on('unhandledRejection', (reason) => {
     crashLogger.error('[CRASH] unhandledRejection:', reason);
 });
 
-import { resolveRuntimePaths, ensureShadowRuntimeLinks } from './lib/runtime-paths.js';
+import { resolveRuntimePaths } from './lib/runtime-paths.js';
 
 // Import services
 import { createCoreServices } from './server/bootstrap/core-services.js';
@@ -295,8 +295,6 @@ const ensureDir = async (dir) => {
 await ensureDir(BRAINBASE_ROOT);
 await ensureDir(VAR_DIR);
 await ensureDir(UPLOADS_DIR);
-await ensureShadowRuntimeLinks(RUNTIME_PATHS, console);
-
 const {
     googleCalendarService,
     scheduleParser,

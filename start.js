@@ -8,7 +8,7 @@
 import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { resolveRuntimePaths, ensureShadowRuntimeLinks } from './lib/runtime-paths.js';
+import { resolveRuntimePaths } from './lib/runtime-paths.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -46,8 +46,6 @@ function sleep(ms) {
 
 try {
     mkdirSync(varDir, { recursive: true });
-    await ensureShadowRuntimeLinks(runtimePaths, console);
-
     if (existsSync(PID_FILE)) {
         const existingPid = parseInt(readFileSync(PID_FILE, 'utf-8').trim(), 10);
         if (existingPid && !isNaN(existingPid) && existingPid !== process.pid && isProcessAlive(existingPid)) {
