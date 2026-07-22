@@ -63,6 +63,29 @@ resolved, or absent.
     may improve readability but must not change facts, counts, priority,
     ownership, or evidence state.
 
+## Operational safety invariants
+
+1. A command, deploy, restart, or write returning success proves only that
+   operation. Verify the intended runtime state separately: deployed revision,
+   effective environment, health/readback, and the authoritative downstream
+   record as applicable.
+2. Empty or zero-byte command output is `unavailable` until the command exit,
+   authentication, pagination, and response shape are validated. It is not
+   evidence of an empty result set.
+3. Do not put API tokens or secrets in shell command text, generated logs, or
+   evidence artifacts. Load them through the approved runtime environment and
+   report presence only.
+4. Webhook acknowledgement must distinguish malformed or unauthorized input
+   from a valid event whose related internal record does not yet exist. Do not
+   create retry storms by returning a retryable server error for a valid,
+   safely ignored event; preserve enough evidence to reconcile it later.
+5. Alert spikes are detection signals, not proof of incident start time or
+   impact. Establish the first affected request or record from runtime logs and
+   owning-system evidence.
+6. Development progress and deployment state must be checked in the owning
+   repository and runtime. Slack or an operations database can be a projection,
+   but neither substitutes for merged revision and deployment evidence.
+
 ## Source precedence
 
 Use the narrowest authoritative source for the claim:
