@@ -70,6 +70,15 @@ Step 1で見つかったスレッド内メンションの前後文脈が必要�
 slack_read_thread(channel_id="<channel_id>", message_ts="<parent_ts>")
 ```
 
+### チャンネルURLが渡された場合
+
+URL内のworkspaceとchannel IDを最優先の識別子として使い、表示名だけで別workspaceの同名チャンネルを推測しない。
+
+1. `https://<workspace>.slack.com/archives/<channel_id>/...` からworkspaceとchannel IDを抽出する
+2. 対応するworkspaceのSlack接続でchannel IDを直接読む
+3. URLがない場合だけチャンネル名検索へフォールバックする
+4. workspaceを解決できない、またはアクセスできない場合は「未確認」とし、0件扱いにしない
+
 ## 出力フォーマット
 
 抽出結果は以下の形式でまとめる：
@@ -91,17 +100,12 @@ slack_read_thread(channel_id="<channel_id>", message_ts="<parent_ts>")
 ### 検索APIの制限
 
 1. **`to:me` はDM優先**: チャンネル内スレッドのメンションを取りこぼす
-2. **`from:ユーザー名` は漢字で動かないことがある**: User IDで `from:U09GQSY3AUD` も機能しない場合あり
+2. **`from:ユーザー名` は表記に依存する**: `users_search` で現在のUser IDを解決し、名前検索とID検索を相互に補完する
 3. **スレッド内のメンションは検索で拾えないことがある**: 必ずチャンネル直読み → スレッド展開で確認
 
 ### 名前の表記ゆれ
 
-渡邊さんの名前は複数の表記が存在する：
-- `渡邊博昭`（Slack表示名）
-- `渡邉`（一部メッセージ内での表記）
-- `渡辺`（さらに別表記）
-
-検索時は `渡邊` `渡邉` `渡辺` の3パターンで検索するか、User ID `U09GQSY3AUD` を使う。
+人名検索は表示名、漢字・かな・ローマ字などの表記ゆれを試す。現在の `users_search` でUser IDを解決できた場合は、そのIDを優先し、個人別の固定ID台帳は持たない。
 
 ### 時刻
 
@@ -113,17 +117,17 @@ Slack APIのタイムスタンプはUNIX timestamp。JSTはUTC+9。
 ### 「直近1時間のメンションを確認して」
 
 ```
-1. #eng を limit=20 で読む → スレッドにメンションがないか確認
-2. 主要DM（堀・渡邊）を limit=5 で読む
-3. to:me 検索で補完
+1. Step 1のUser ID検索を3ワークスペースで行う
+2. 対象者が指定されていれば users_search でDM IDを解決して直接読む
+3. 必要なスレッドを展開し、取得できないworkspaceは未確認として残す
 ```
 
-### 「渡邊さんからの連絡を確認して」
+### 「特定の人からの連絡を確認して」
 
 ```
-1. DM D09GQSYG42H を直接読む
-2. #eng の最新メッセージでスレッド内に渡邊さんの発言がないか確認
-3. 検索: slack_search_public_and_private(query="渡邊 OR 渡邉", sort="timestamp")
+1. 各workspaceで users_search を行い、対象者とDM IDを解決する
+2. 解決したDMを直接読み、対象者のUser IDでも検索する
+3. 表記ゆれ検索で補完し、workspaceごとの取得結果を区別する
 ```
 
 ### 「未対応のメンションをまとめて」
