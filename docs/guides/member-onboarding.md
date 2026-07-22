@@ -144,11 +144,11 @@ node cli/index.js wiki pull
 # 差分確認
 node cli/index.js wiki status
 
-# 双方向同期
+# 移行用read-only export（legacy alias）
 node cli/index.js wiki sync
 ```
 
-wikiの内容は `wiki/` ディレクトリにMarkdownファイルとして保存される。
+legacy wikiの内容は移行判定まで `wiki/` ディレクトリにMarkdownとして保護される。新規文書の保存先には使わない。
 アクセスできるページは `auth_grants` テーブルの `project_codes` に基づいて決まる。
 
 ---

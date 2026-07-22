@@ -45,7 +45,7 @@ describe('local data server SSOT additive upsert', () => {
         fs.rmSync(tmp, { recursive: true, force: true });
     });
 
-    it('plans only local-only graph and wiki inserts, while skipping review states', () => {
+    it('plans local-only Graph inserts and preserves retired Wiki rows as unsupported', () => {
         const wikiPath = path.join(tmp, 'wiki/brainbase/page.md');
         write(wikiPath, '# Wiki Page\n');
 
@@ -75,12 +75,11 @@ describe('local data server SSOT additive upsert', () => {
             })
         ]);
 
-        expect(plan.operations).toHaveLength(2);
-        expect(plan.operations).toEqual(expect.arrayContaining([
-            expect.objectContaining({ action: 'insert', target_table: 'graph_entities', target_type: 'document' }),
-            expect.objectContaining({ action: 'insert', target_table: 'wiki_pages', target_type: 'wiki_page' })
-        ]));
+        expect(plan.operations).toEqual([
+            expect.objectContaining({ action: 'insert', target_table: 'graph_entities', target_type: 'document' })
+        ]);
         expect(plan.skips.map((skip) => skip.reason)).toEqual(expect.arrayContaining([
+            'unsupported_target:wiki_pages',
             'status:needs_extraction',
             'status:conflict',
             'status:existing_server_match',
@@ -123,7 +122,7 @@ describe('local data server SSOT additive upsert', () => {
             .not.toThrow();
     });
 
-    it('executes insert-only SQL for graph entities and wiki pages', async () => {
+    it('executes insert-only SQL for Graph while refusing retired Wiki writes', async () => {
         const wikiPath = path.join(tmp, 'wiki/brainbase/page.md');
         write(wikiPath, '# Wiki Page\n');
         const plan = buildUpsertPlan([
@@ -149,12 +148,12 @@ describe('local data server SSOT additive upsert', () => {
 
         const result = await applyUpsertPlan(plan, { execute: true, client });
 
-        expect(result.inserted).toBe(2);
-        expect(sql).toHaveLength(2);
+        expect(result.inserted).toBe(1);
+        expect(sql).toHaveLength(1);
         expect(sql.every((statement) => /^\s*INSERT\b/iu.test(statement))).toBe(true);
         expect(sql.join('\n')).not.toMatch(/\bDELETE\b/iu);
         expect(sql.join('\n')).not.toMatch(/\bUPDATE\b/iu);
         expect(sql.join('\n')).toMatch(/ON CONFLICT \(id\) DO NOTHING/u);
-        expect(sql.join('\n')).toMatch(/ON CONFLICT \(path\) DO NOTHING/u);
+        expect(sql.join('\n')).not.toMatch(/wiki_pages/u);
     });
 });

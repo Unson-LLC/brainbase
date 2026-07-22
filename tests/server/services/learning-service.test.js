@@ -308,7 +308,7 @@ describe('LearningService', () => {
         expect(fs.existsSync(path.join(repoRoot, '.claude/skills/recovery/SKILL.md'))).toBe(false);
     });
 
-    it('proposePromotions can auto-apply when explicitly requested', async () => {
+    it('keeps Wiki candidates manual while auto-applying eligible skill candidates', async () => {
         selectQueue.push([
             {
                 id: 'lep_auto',
@@ -333,8 +333,12 @@ describe('LearningService', () => {
         const result = await service.proposePromotions({ applyMode: 'auto' });
 
         expect(result).toHaveLength(2);
-        expect(result.every((candidate) => candidate.status === 'applied')).toBe(true);
-        expect(wikiService.savePage).toHaveBeenCalled();
+        expect(result.find((candidate) => candidate.pillar === 'skill')?.status).toBe('applied');
+        expect(result.find((candidate) => candidate.pillar === 'wiki')).toMatchObject({
+            status: 'evaluated',
+            apply_mode: 'manual'
+        });
+        expect(wikiService.savePage).not.toHaveBeenCalled();
         expect(fs.existsSync(path.join(repoRoot, '.claude/skills/recovery/SKILL.md'))).toBe(true);
     });
 
@@ -605,7 +609,7 @@ describe('LearningService', () => {
         expect(candidate.outcome).toBe('success');
     });
 
-    it('applyPromotion writes wiki and skill candidates through service handlers', async () => {
+    it('applyPromotion preserves Wiki candidates without writing retired storage', async () => {
         selectQueue.push([
             {
                 id: 'prm_apply',
@@ -643,8 +647,15 @@ describe('LearningService', () => {
 
         const result = await service.applyPromotion('prm_apply');
 
-        expect(result.success).toBe(true);
-        expect(wikiService.savePage).toHaveBeenCalled();
+        expect(result).toMatchObject({
+            success: false,
+            retired: true,
+            candidate: {
+                status: 'evaluated',
+                apply_mode: 'manual'
+            }
+        });
+        expect(wikiService.savePage).not.toHaveBeenCalled();
     });
 
     it('recordSkillUsage呼び出し時_skill_usage_logs に INSERT される', async () => {

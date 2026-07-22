@@ -22,10 +22,10 @@ Usage:
   brainbase auth login     Login to brainbase server
   brainbase auth status    Show authentication status
   brainbase auth logout    Clear saved credentials
-  brainbase wiki sync      Bidirectional wiki sync
-  brainbase wiki pull      Download wiki from server
-  brainbase wiki push      Upload local wiki to server
-  brainbase wiki status    Show sync diff (no changes)
+  brainbase wiki sync      Read-only export (legacy alias)
+  brainbase wiki pull      Export wiki from server
+  brainbase wiki push      Refused: Wiki writes are retired
+  brainbase wiki status    Show retirement/export diff
   brainbase learn add      Record explicit learn and propose candidates
   brainbase learn ingest-reviews  Import verify-first review artifacts
   brainbase learn daily    Run daily review backfill + inbox summary

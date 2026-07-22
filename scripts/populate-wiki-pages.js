@@ -28,6 +28,11 @@ const __dirname = path.dirname(__filename);
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
+if (!DRY_RUN) {
+    console.error('ERROR: wiki_pages population is retired. Only --dry-run inventory is allowed.');
+    process.exit(1);
+}
+
 const WIKI_ROOT = process.argv.find((_, i, a) => a[i - 1] === '--wiki-root')
     || process.env.BRAINBASE_WIKI_ROOT
     || path.resolve(__dirname, '..', '..', 'wiki');

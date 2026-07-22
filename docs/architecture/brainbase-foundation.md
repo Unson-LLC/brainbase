@@ -51,9 +51,9 @@ Brainbase で「何が正本で、どこに書き戻され、何を同期する�
 | docs | repo の `docs/**/*.md` | Git で更新 | 設計・仕様・説明の正本 |
 | セッション状態 | server memory + `state.json` | server | UI は投影 |
 
-## wiki と skills の違い
+## legacy wiki と skills の違い
 
-### wiki
+### legacy wiki（書き込み廃止）
 
 - 置くもの:
   - 定義
@@ -63,11 +63,16 @@ Brainbase で「何が正本で、どこに書き戻され、何を同期する�
   - ストーリー
   - 決定
 - 正本:
-  - サーバ DB
-- 更新方法:
-  - `/api/wiki/page`
-  - `brainbase wiki push`
-  - learning の wiki 昇格
+  - なし。既存ページは移行判定まで保護するread-only corpus
+- 移行先:
+  - 組織の事実はGraph
+  - 技術文書・共通方針・runbookは所有repo
+  - 事業文書・共同編集ファイル・binaryは所有team Drive
+  - 個人情報はworkspace home
+- 許可される操作:
+  - `/api/wiki/sync/manifest`
+  - `brainbase wiki pull`
+  - `brainbase wiki status`
 
 ### skills
 
@@ -85,7 +90,7 @@ Brainbase で「何が正本で、どこに書き戻され、何を同期する�
 
 ### 判断ルール
 
-- Why / policy / definition は `wiki`
+- Why / policy / definition は所有するGit repo（組織の事実ならGraph）
 - When / how / checklist / recovery は `skills`
 
 ## sync の意味
@@ -97,13 +102,13 @@ Brainbase で「何が正本で、どこに書き戻され、何を同期する�
 
 ### `brainbase wiki push`
 
-- ローカルで編集した wiki markdown をサーバ DB へ反映する
-- 反映先の正本はサーバ DB のまま
+- 廃止済み。ローカル内容を新しいWiki正本としてアップロードしない
+- 内容を分類し、Graph・所有repo・Drive・workspace homeのいずれかへ移す
 
 ### `brainbase wiki sync`
 
-- pull と push を差分付きで双方向に行う
-- どちらを正本にするかを切り替えるコマンドではない
+- 移行互換のread-only export alias
+- serverからのpullだけを行い、local-only/newer contentは保護して移行対象として表示する
 
 ## フィードバックループ
 
@@ -112,9 +117,9 @@ Brainbase の学習ループは二本柱で戻す。
 概念モデルは [Brainbase フィードバックループ](./feedback-loop.md) を正本とする。
 
 1. `review` / `explicit_learn` から episode を作る
-2. reusable な知識を `wiki candidate` と `skill candidate` に分ける
+2. reusable な知識を legacy `wiki candidate` と `skill candidate` に分ける
 3. candidate はいったん manual inbox に上がる
-4. wiki は canonical path に昇格する
+4. legacy wiki candidate は自動適用せず、Graph・所有repo・Drive・workspace homeへ分類する
 5. skills は既存 skill patch か新規 skill に昇格する
 
 運用入口:
