@@ -81,6 +81,7 @@ Use these entrypoints instead of keeping detailed rules in this file:
 | Brainbase capabilities | `brainbase-capability-map` |
 | NocoDB | `nocodb-guide`, `nocodb-4table-guide` |
 | Daily ops | `/ohayo`, `/oyasumi`, `daily-reflection`, `slack-mentions` |
+| Evidence-safe reports and automation | `docs/policies/evidence-safe-automation.md` |
 | Frontend UI quality | `design-taste-frontend`, `redesign-existing-projects`, `ui-design-resources` |
 | Worktree dev server | `worktree-dev-server`, `dev-server-worktree` |
 
