@@ -16,11 +16,11 @@ Slack検索APIは DM のスレッドやチャンネル内スレッドを取り�
 佐藤圭吾（Keigo Sato）のSlack確認は、1ワークスペースだけで完了扱いにしない。
 少なくとも以下3ワークスペースを横断する。
 
-| workspace | MCP namespace | 佐藤圭吾 User ID | DM Channel ID |
-|---|---|---|---|
-| salestailor | `mcp__slack_salestailor__` | `U08FB9S7HUL` | 主要DMは下表 |
-| unson | `mcp__slack_unson__` | `U07LNUP582X` | `D07L8FG6L4F` |
-| techknight | `mcp__slack_techknight__` | `U07B19N048G` | `D07ACCJUXK5` |
+| workspace | MCP namespace | 佐藤圭吾 User ID |
+|---|---|---|
+| salestailor | `mcp__slack_salestailor__` | `U08FB9S7HUL` |
+| unson | `mcp__slack_unson__` | `U07LNUP582X` |
+| techknight | `mcp__slack_techknight__` | `U07B19N048G` |
 
 ## 起動前チェック
 
@@ -34,24 +34,6 @@ scripts/check-slack-mcp-health.sh
 - `ok: salestailor` / `ok: unson` / `ok: techknight` が揃った場合だけ取得に進む
 - `blocked` / `SLACK_MCP_UNAVAILABLE` の場合は Slack 未確認として報告し、未対応0件とは書かない
 - 失敗理由は workspace 名と前提名だけを残し、token や secret 値は表示しない
-
-## 主要チャンネル・DM相手（salestailor）
-
-| 名前 | User ID | チャンネル種別 | Channel/DM ID |
-|------|---------|--------------|---------------|
-| 堀 汐里 / Shiori Hori | `U08EUJKRHN3` | DM | `D08FB9SB97W` |
-| 渡邊博昭 | `U09GQSY3AUD` | DM | `D09GQSYG42H` |
-| 藤井志穂 / Shiho Fujii | `U09JV6DUEG7` | - | - |
-| 谷口達彦 / Tatsuhiko Taniguchi | `U08FLSLMRAM` | - | - |
-| 八雲まな / Mana Yakumo (BOT) | `U0A1T6NTSJW` | DM | `D0A264FGG65` |
-| 山下大輝 / Hiroki Yamashita | `U08UZF58F0C` | - | - |
-| 舘岡麻美 | `U09PJMXF70W` | - | - |
-| #eng | - | Channel | `C08SX913NER` |
-| #cxo | - | Channel | `C08U2EX2NEA` |
-| #bo | - | Channel | `C08GBHJ3THV` |
-| #cs | - | Channel | `C08G07NKHUN` |
-| #salestailor-all | - | Channel | `C08EUJL4CPR` |
-| #eng-notify | - | Channel | `C0A1620L4TS` |
 
 ## 抽出手順
 
@@ -73,17 +55,11 @@ techknight: slack_search_public_and_private(query="<@U07B19N048G>", sort="timest
 ### Step 2: DM履歴の補完（検索に出ないDMメッセージ用）
 
 DMは`@`メンションなしで送られることがあるため、主要DMは直接読む。
-salestailorは下記の主要DMを優先する。unson / techknight は `users_search` でDM IDを確認し、直接読めない場合は `filter_users_with=<workspace user id>` で補完し、取得制限を evidence に残す。
+DM IDはworkspace固有の派生識別子なので固定台帳にしない。対象者を各workspaceの`users_search`で解決し、その実行で得たDM IDを使う。直接読めない場合は `filter_users_with=<workspace user id>` で補完し、取得制限を evidence に残す。
 
 ```
-# 堀さんDM
-slack_read_channel(channel_id="D08FB9SB97W", limit=10)
-
-# 渡邊さんDM
-slack_read_channel(channel_id="D09GQSYG42H", limit=10)
-
-# mana DM
-slack_read_channel(channel_id="D0A264FGG65", limit=5)
+users_search(query="<target name or email>")
+slack_read_channel(channel_id="<resolved_dm_channel_id>", limit=10)
 ```
 
 ### Step 3: スレッド展開（必要な場合のみ）
