@@ -1469,18 +1469,30 @@ export class InfoSSOTService {
     }
 
     async fetchGlobalPhilosophyEntities(client, access) {
+        const originalProjectCodes = Array.isArray(access.projectCodes) ? access.projectCodes : [];
         const globalAccess = {
             ...access,
             projectCodes: Array.from(new Set([
-                ...(Array.isArray(access.projectCodes) ? access.projectCodes : []),
+                ...originalProjectCodes,
                 PHILOSOPHY_GLOBAL_PROJECT_CODE
             ]))
         };
-        return this.fetchGraphEntities(client, globalAccess, {
-            projectCode: PHILOSOPHY_GLOBAL_PROJECT_CODE,
-            entityType: 'philosophy',
-            limit: 500
-        });
+        await client.query(
+            'SELECT set_config($1, $2, true)',
+            ['app.project_codes', globalAccess.projectCodes.join(',')]
+        );
+        try {
+            return await this.fetchGraphEntities(client, globalAccess, {
+                projectCode: PHILOSOPHY_GLOBAL_PROJECT_CODE,
+                entityType: 'philosophy',
+                limit: 500
+            });
+        } finally {
+            await client.query(
+                'SELECT set_config($1, $2, true)',
+                ['app.project_codes', originalProjectCodes.join(',')]
+            );
+        }
     }
 
     _normalizePhilosophyScope(scope) {

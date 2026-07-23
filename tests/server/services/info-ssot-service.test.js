@@ -387,7 +387,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
     });
 
     it('固有思想がない事業projectでもBrainbase共通core思想を返す', async () => {
-        const { service } = buildService();
+        const { service, client } = buildService();
         vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, _access, { projectCode, entityType }) => {
             if (entityType === 'philosophy' && projectCode === 'brainbase') {
                 return [{
@@ -420,6 +420,14 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             scope: 'graph'
         });
         expect(result.philosophy_context.core.map(item => item.philosophy_id)).toContain('phi_graph_ssot_first');
+        expect(client.query).toHaveBeenCalledWith(
+            'SELECT set_config($1, $2, true)',
+            ['app.project_codes', 'zeims,brainbase']
+        );
+        expect(client.query).toHaveBeenCalledWith(
+            'SELECT set_config($1, $2, true)',
+            ['app.project_codes', 'zeims']
+        );
     });
 
     it('getContext呼び出し時_includePhilosophy有効でcore思想がない場合_失敗する', async () => {
