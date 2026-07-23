@@ -4,10 +4,118 @@
  * システムヘルスチェックのHTTPリクエスト処理
  */
 import { logger } from '../utils/logger.js';
+import { readFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 /** @typedef {any} Request */
 /** @typedef {any} Response */
 /** @typedef {{ status: string, message: string, [key: string]: any }} HealthCheck */
+
+const MEMORY_DEGRADED_PERCENT = 90;
+
+function readPositiveByteLimit(filePath) {
+    try {
+        const value = readFileSync(filePath, 'utf8').trim();
+        if (!value || value === 'max') return null;
+        const bytes = Number(value);
+        return Number.isFinite(bytes) && bytes > 0 ? bytes : null;
+    } catch {
+        return null;
+    }
+}
+
+function selectLowestBoundary(boundaries, fallback) {
+    const finite = boundaries.filter(boundary =>
+        boundary.bytes !== null && boundary.bytes <= fallback.bytes);
+    return finite.length > 0
+        ? finite.reduce((lowest, boundary) =>
+            boundary.bytes < lowest.bytes ? boundary : lowest)
+        : fallback;
+}
+
+export function resolveRuntimeMemory() {
+    const hostBytes = os.totalmem();
+    const host = {
+        usedBytes: Math.max(0, hostBytes - os.freemem()),
+        boundaryBytes: hostBytes,
+        source: 'host'
+    };
+
+    try {
+        const cgroupLines = readFileSync('/proc/self/cgroup', 'utf8').split('\n');
+        const v2Line = cgroupLines.find(line => line.startsWith('0::'));
+        if (v2Line) {
+            const relativePath = v2Line.slice(3).replace(/^\/+/, '');
+            const roots = [
+                path.join('/sys/fs/cgroup', relativePath),
+                '/sys/fs/cgroup'
+            ];
+            for (const root of roots) {
+                const usedBytes = readPositiveByteLimit(path.join(root, 'memory.current'));
+                if (usedBytes === null) continue;
+                const boundary = selectLowestBoundary([
+                    { bytes: readPositiveByteLimit(path.join(root, 'memory.high')), source: 'cgroup.v2.memory.high' },
+                    { bytes: readPositiveByteLimit(path.join(root, 'memory.max')), source: 'cgroup.v2.memory.max' }
+                ], { bytes: hostBytes, source: 'host.totalmem' });
+                return { usedBytes, boundaryBytes: boundary.bytes, source: boundary.source };
+            }
+        }
+
+        const v1Line = cgroupLines.find(line =>
+            line.split(':')[1]?.split(',').includes('memory'));
+        if (v1Line) {
+            const relativePath = v1Line.split(':')[2]?.replace(/^\/+/, '') || '';
+            const roots = [
+                path.join('/sys/fs/cgroup/memory', relativePath),
+                path.join('/sys/fs/cgroup', relativePath)
+            ];
+            for (const root of roots) {
+                const usedBytes = readPositiveByteLimit(path.join(root, 'memory.usage_in_bytes'));
+                if (usedBytes === null) continue;
+                const boundary = selectLowestBoundary([
+                    { bytes: readPositiveByteLimit(path.join(root, 'memory.soft_limit_in_bytes')), source: 'cgroup.v1.memory.soft_limit' },
+                    { bytes: readPositiveByteLimit(path.join(root, 'memory.limit_in_bytes')), source: 'cgroup.v1.memory.limit' }
+                ], { bytes: hostBytes, source: 'host.totalmem' });
+                return { usedBytes, boundaryBytes: boundary.bytes, source: boundary.source };
+            }
+        }
+    } catch {
+        return host;
+    }
+
+    return host;
+}
+
+export function buildMemoryHealth(memoryUsage, runtimeMemory) {
+    const toMB = bytes => Math.round(bytes / 1024 / 1024);
+    const heapUsedMB = toMB(memoryUsage.heapUsed);
+    const heapTotalMB = toMB(memoryUsage.heapTotal);
+    const rssMB = toMB(memoryUsage.rss);
+    const usedMB = toMB(runtimeMemory.usedBytes);
+    const boundaryMB = toMB(runtimeMemory.boundaryBytes);
+    const runtimeUsagePercent = Math.round(
+        (runtimeMemory.usedBytes / runtimeMemory.boundaryBytes) * 100);
+    const heapUsagePercent = Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100);
+
+    return {
+        status: runtimeUsagePercent > MEMORY_DEGRADED_PERCENT ? 'degraded' : 'healthy',
+        message: `Runtime memory: ${usedMB}MB / ${boundaryMB}MB (${runtimeUsagePercent}%)`,
+        details: {
+            used: usedMB,
+            boundary: boundaryMB,
+            boundarySource: runtimeMemory.source,
+            runtimeUsagePercent,
+            rss: rssMB,
+            heapUsed: heapUsedMB,
+            heapTotal: heapTotalMB,
+            heapUsagePercent,
+            external: toMB(memoryUsage.external),
+            arrayBuffers: toMB(memoryUsage.arrayBuffers)
+        }
+    };
+}
+
 export class HealthController {
     /**
      * @param {{ readiness?: any, configParser?: any, terminalRuntimeReconciler?: any }} deps
@@ -130,20 +238,7 @@ export class HealthController {
         }
 
         // 4. Memory usage check
-        const memoryUsage = process.memoryUsage();
-        const heapUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
-        const heapTotalMB = Math.round(memoryUsage.heapTotal / 1024 / 1024);
-        const heapUsagePercent = Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100);
-
-        checks.memory = {
-            status: heapUsagePercent > 90 ? 'degraded' : 'healthy',
-            message: `Heap usage: ${heapUsedMB}MB / ${heapTotalMB}MB (${heapUsagePercent}%)`,
-            details: {
-                heapUsed: heapUsedMB,
-                heapTotal: heapTotalMB,
-                heapUsagePercent
-            }
-        };
+        checks.memory = buildMemoryHealth(process.memoryUsage(), resolveRuntimeMemory());
 
         return checks;
     }
