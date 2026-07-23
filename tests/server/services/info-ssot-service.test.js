@@ -325,6 +325,103 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(result.philosophy_context.anti_patterns).toContain('NocoDBを顧客正本にする');
     });
 
+    it('事業projectのcontextへBrainbase共通思想とproject固有思想を合成する', async () => {
+        const { service } = buildService();
+        const fetchSpy = vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, access, { projectCode, entityType }) => {
+            if (entityType === 'project' && projectCode === 'baao') {
+                return [{
+                    id: 'prj_baao',
+                    entity_type: 'project',
+                    payload: { code: 'baao', name: 'BAAO' }
+                }];
+            }
+            if (entityType !== 'philosophy') return [];
+            if (projectCode === 'brainbase') {
+                expect(access.projectCodes).toContain('brainbase');
+                return [{
+                    id: 'phi_graph_ssot_first',
+                    entity_type: 'philosophy',
+                    payload: {
+                        philosophy_id: 'phi_graph_ssot_first',
+                        display_name: 'Graph SSOTを一次情報にする',
+                        statement: 'Graphを一次情報として扱う。',
+                        priority: 'core'
+                    }
+                }];
+            }
+            if (projectCode === 'baao') {
+                return [{
+                    id: 'phi_baao_trusted_ai_adoption',
+                    entity_type: 'philosophy',
+                    payload: {
+                        philosophy_id: 'phi_baao_trusted_ai_adoption',
+                        display_name: 'BAAO Trusted AI Adoption',
+                        statement: '信頼できるAI活用を普及する。',
+                        priority: 'core'
+                    }
+                }];
+            }
+            return [];
+        });
+
+        const result = await service.getContext({
+            role: 'member',
+            projectCodes: ['baao'],
+            clearance: ['internal']
+        }, {
+            projectCode: 'baao',
+            entityTypes: 'project',
+            includePhilosophy: true,
+            scope: 'graph'
+        });
+
+        expect(result.philosophy_context.project_code).toBe('baao');
+        expect(result.philosophy_context.core.map(item => item.philosophy_id)).toEqual(
+            expect.arrayContaining(['phi_graph_ssot_first', 'phi_baao_trusted_ai_adoption'])
+        );
+        expect(fetchSpy).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ projectCodes: ['baao'] }),
+            expect.objectContaining({ projectCode: 'baao', entityType: 'philosophy' })
+        );
+    });
+
+    it('固有思想がない事業projectでもBrainbase共通core思想を返す', async () => {
+        const { service } = buildService();
+        vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, _access, { projectCode, entityType }) => {
+            if (entityType === 'philosophy' && projectCode === 'brainbase') {
+                return [{
+                    id: 'phi_graph_ssot_first',
+                    entity_type: 'philosophy',
+                    payload: {
+                        philosophy_id: 'phi_graph_ssot_first',
+                        display_name: 'Graph SSOTを一次情報にする',
+                        statement: 'Graphを一次情報として扱う。',
+                        priority: 'core'
+                    }
+                }];
+            }
+            return [];
+        });
+
+        const result = await service.getContext({
+            role: 'member',
+            projectCodes: ['zeims'],
+            clearance: ['internal']
+        }, {
+            projectCode: 'zeims',
+            entityTypes: 'project',
+            includePhilosophy: true,
+            scope: 'graph'
+        });
+
+        expect(result.philosophy_context).toMatchObject({
+            project_code: 'zeims',
+            scope: 'graph'
+        });
+        expect(result.philosophy_context.core.map(item => item.philosophy_id)).toContain('phi_graph_ssot_first');
+    });
+
     it('getContext呼び出し時_includePhilosophy有効でcore思想がない場合_失敗する', async () => {
         const { service } = buildService();
         vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, _access, { entityType }) => {
