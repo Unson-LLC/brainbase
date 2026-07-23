@@ -234,9 +234,9 @@ done
 
 ### 突合ルール
 - **完全一致**（name or alias）→ 既存流用
-- **表記ゆれ**（例: AI転写名 vs Graph正本名）→ 既存に alias 追加（既存 Wiki ページを取得・編集 → POST /api/wiki/page）
-- **未登録**（Wiki にある person なのに Graph にない）→ Wiki ページ新規 POST
-- **完全新規** → Wiki ページ新規 POST
+- **表記ゆれ**（例: AI転写名 vs Graph正本名）→ 公式根拠を確認し、既存Graph entityへ alias 追加
+- **未登録**（旧Wikiにだけ存在しGraphにない）→ 旧Wikiを根拠ではなく移行候補として保護し、公式根拠を確認してGraph writer経由で登録
+- **完全新規** → 公式根拠を確認してGraph writer経由で登録
 
 ### 表記ゆれの典型
 | 議事録表記 | 正本 |
@@ -614,7 +614,7 @@ Zeims は schema の valid options のみ受理。フルネーム不可。事前
 Markdown 本文を curl --data で直接渡すと改行でエラー。必ず `jq -Rs` でエスケープ → 一時ファイル → `--data-binary @file`。
 
 ### G10: org/customer/partner を議事録だけで登録しない
-外部組織のWiki登録はWeb/公式情報確認が必須。議事録は案件文脈の根拠にはなるが、法人・ブランドの正本確認には不足する。公式About/会社概要/親会社公式情報などを確認し、出典URLを本文に残す。
+外部組織のGraph登録はWeb/公式情報確認が必須。議事録は案件文脈の根拠にはなるが、法人・ブランドの正本確認には不足する。公式About/会社概要/親会社公式情報などを確認し、出典URLをprovenanceとして残す。
 
 ### G10: 表記ゆれ
 - Graph正本名 ⇔ AI転写名（AI転写の誤記）

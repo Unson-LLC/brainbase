@@ -21,13 +21,6 @@ const MEMORY_REDACTION_STATUSES = new Set(['none', 'redacted', 'needs_redaction'
 const MEMORY_DRAFT_STATUSES = ['candidate', 'gate_classified', 'pending_approval', 'auto_promoted', 'approved', 'rejected', 'expired'];
 const MEMORY_APPROVED_FOR_GRAPH_STATUSES = new Set(['approved', 'auto_promoted']);
 const MEMORY_GRAPH_ENTITY_TYPES = new Set(['person', 'project', 'org', 'customer', 'decision', 'raci_assignment', 'philosophy', 'glossary_term']);
-const SYSTEM_WIKI_ACCESS = {
-    role: 'ceo',
-    clearance: ['internal', 'restricted', 'finance', 'hr', 'contract'],
-    projectCodes: []
-};
-const PROJECT_ID_PATTERN = /^prj_[a-z0-9]+$/i;
-
 const WIKI_ROUTE_RULES = [
     { docType: 'decisions', keywords: ['decision', 'adr', '採択', '採用', '判断', '方針決定', 'guardrail'] },
     { docType: 'stories', keywords: ['story', '受け入れ', 'acceptance', 'ユーザー', '導線', 'behavior', 'ふるまい'] },
@@ -1238,8 +1231,8 @@ export class LearningService {
         }
 
         if (candidate.pillar === 'wiki') {
-            const applied = await this._applyWikiCandidate(candidate, episode);
-            return { success: true, candidate: applied };
+            const preserved = await this._applyWikiCandidate(candidate);
+            return { success: false, retired: true, candidate: preserved };
         }
 
         if (candidate.pillar === 'skill') {
@@ -1762,41 +1755,16 @@ export class LearningService {
         return candidate;
     }
 
-    async _applyWikiCandidate(candidate, episode) {
-        if (!this.wikiService) {
-            await this._updateCandidate(candidate.id, {
-                apply_mode: 'manual',
-                apply_error: 'wikiService not configured'
-            });
-            return { ...candidate, apply_mode: 'manual', apply_error: 'wikiService not configured' };
-        }
-
-        const access = {
-            ...SYSTEM_WIKI_ACCESS,
-            projectCodes: episode.project_id ? [episode.project_id] : []
-        };
-
-        await this.wikiService.savePage(access, candidate.target_ref, candidate.proposed_content);
-        if (episode.project_id && PROJECT_ID_PATTERN.test(episode.project_id)) {
-            await this.wikiService.setPageAccess(candidate.target_ref, { projectId: episode.project_id });
-        } else if (episode.project_id) {
-            logger.warn('Skipping wiki page access binding because learning episode project_id is not a DB project id', {
-                candidateId: candidate.id,
-                projectId: episode.project_id
-            });
-        }
-
+    async _applyWikiCandidate(candidate) {
+        const applyError = 'Wiki storage is retired; classify this candidate into Graph, an owning Git repository, Drive, or workspace home';
         await this._updateCandidate(candidate.id, {
-            status: 'applied',
-            materialized_ref: candidate.target_ref,
-            apply_error: null
+            apply_mode: 'manual',
+            apply_error: applyError
         });
-
         return {
             ...candidate,
-            status: 'applied',
-            materialized_ref: candidate.target_ref,
-            apply_error: null
+            apply_mode: 'manual',
+            apply_error: applyError
         };
     }
 
@@ -1845,7 +1813,7 @@ export class LearningService {
                     wikiCandidate = await this._createWikiCandidate(episode, resolvedApplyMode);
                     created.push(
                         wikiCandidate.apply_mode === 'auto'
-                            ? await this._applyWikiCandidate(wikiCandidate, episode)
+                            ? await this._applyWikiCandidate(wikiCandidate)
                             : wikiCandidate
                     );
                 }
