@@ -5,6 +5,9 @@ hero:
   name: Brainbase
   text: 自分の仕事文脈をAIに渡すためのMCPマニュアル
   tagline: Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeがその文脈を参照しながら作業できるようにするPersonal Onboarding Kitです。
+  image:
+    src: /assets/brainbase-hero.webp
+    alt: 仕事の文脈をBrainbaseに整理し、AIエージェントへ渡す流れ
   actions:
     - theme: brand
       text: 導入の流れを見る
