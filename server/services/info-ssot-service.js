@@ -12,6 +12,7 @@ const ROLE_RANK = {
 const ROLE_VALUES = Object.keys(ROLE_RANK);
 const SENSITIVITY_VALUES = ['internal', 'restricted', 'finance', 'hr', 'contract'];
 const HIGH_SENSITIVITY_VALUES = ['finance', 'hr', 'contract'];
+const PHILOSOPHY_GLOBAL_PROJECT_CODE = 'brainbase';
 const PHILOSOPHY_SCOPE_IDS = {
     graph: [
         'phi_graph_ssot_first',
@@ -1427,11 +1428,15 @@ export class InfoSSOTService {
     async resolvePhilosophyContext(client, access, { projectCode, scope, objectType, operation, maxRecommended }) {
         const requestedScope = this._normalizePhilosophyScope(scope);
         const safeMaxRecommended = Math.min(Math.max(Number(maxRecommended) || 8, 0), 20);
-        const records = await this.fetchGraphEntities(client, access, {
-            projectCode,
-            entityType: 'philosophy',
-            limit: 500
-        });
+        const globalRecords = await this.fetchGlobalPhilosophyEntities(client, access);
+        const projectRecords = projectCode === PHILOSOPHY_GLOBAL_PROJECT_CODE
+            ? []
+            : await this.fetchGraphEntities(client, access, {
+                projectCode,
+                entityType: 'philosophy',
+                limit: 500
+            });
+        const records = [...globalRecords, ...projectRecords];
         const philosophies = records.map(record => this._normalizePhilosophyRecord(record));
         const core = philosophies.filter(item => item.priority === 'core');
         if (!core.length) {
@@ -1461,6 +1466,21 @@ export class InfoSSOTService {
             decision_tests: this._uniqueFlatMap(selected, 'decision_tests'),
             anti_patterns: this._uniqueFlatMap(selected, 'anti_patterns')
         };
+    }
+
+    async fetchGlobalPhilosophyEntities(client, access) {
+        const globalAccess = {
+            ...access,
+            projectCodes: Array.from(new Set([
+                ...(Array.isArray(access.projectCodes) ? access.projectCodes : []),
+                PHILOSOPHY_GLOBAL_PROJECT_CODE
+            ]))
+        };
+        return this.fetchGraphEntities(client, globalAccess, {
+            projectCode: PHILOSOPHY_GLOBAL_PROJECT_CODE,
+            entityType: 'philosophy',
+            limit: 500
+        });
     }
 
     _normalizePhilosophyScope(scope) {
