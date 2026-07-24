@@ -2,9 +2,6 @@ import { gracefulCleanup } from '../lib/graceful-cleanup.js';
 
 export function registerGracefulShutdown({
     server,
-    stateStore,
-    conversationLinker,
-    sessionServices,
     meetingSourceMcpSyncService = null,
     eveMeetingNoteReconciler = null,
     getMeshService = () => null,
@@ -23,10 +20,6 @@ export function registerGracefulShutdown({
                     });
                     setTimeout(resolve, 5000);
                 })
-            },
-            {
-                name: 'stop-conversation-linker',
-                fn: () => { conversationLinker.stopPeriodicLink(); }
             },
             {
                 name: 'stop-meeting-source-mcp-sync',

@@ -18,38 +18,24 @@ vi.mock('child_process', () => ({
 
 describe('POST /api/open-file', () => {
     let app;
-    let fileInSession;
-    let normalizedFileInSession;
-    let sessionSymlinkPath;
+    let fileInWorkspace;
+    let normalizedFileInWorkspace;
+    let workspaceSymlinkPath;
 
     beforeAll(() => {
         const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'open-file-'));
         const workspaceRoot = path.join(tempRoot, 'workspace', 'brainbase');
         const projectsRoot = path.join(tempRoot, 'workspace', 'projects');
         const brainbaseRoot = path.join(tempRoot, 'workspace');
-        const volumeRoot = path.join(tempRoot, 'Volumes', 'UNSON-DRIVE', 'brainbase-worktrees');
-        const sessionWorkspacePath = path.join(volumeRoot, 'session-123-brainbase');
-        sessionSymlinkPath = path.join(tempRoot, 'links', 'session-123-brainbase');
-        fileInSession = path.join(sessionWorkspacePath, 'docs', 'note.md');
+        workspaceSymlinkPath = path.join(tempRoot, 'links', 'workspace');
+        fileInWorkspace = path.join(workspaceRoot, 'docs', 'note.md');
 
-        fs.mkdirSync(path.dirname(fileInSession), { recursive: true });
+        fs.mkdirSync(path.dirname(fileInWorkspace), { recursive: true });
         fs.mkdirSync(projectsRoot, { recursive: true });
-        fs.mkdirSync(path.dirname(sessionSymlinkPath), { recursive: true });
-        fs.writeFileSync(fileInSession, '# note\n');
-        fs.symlinkSync(sessionWorkspacePath, sessionSymlinkPath);
-        normalizedFileInSession = fs.realpathSync.native(fileInSession);
-
-        const session = {
-            id: 'session-123',
-            path: sessionWorkspacePath,
-            worktree: { path: sessionSymlinkPath }
-        };
-        const sessionQuery = {
-            getSession: vi.fn((sessionId) => sessionId === 'session-123' ? session : null),
-        };
-        const workspace = {
-            resolveSessionWorkspacePath: vi.fn(async (sessionId) => sessionId === 'session-123' ? sessionWorkspacePath : null)
-        };
+        fs.mkdirSync(path.dirname(workspaceSymlinkPath), { recursive: true });
+        fs.writeFileSync(fileInWorkspace, '# note\n');
+        fs.symlinkSync(workspaceRoot, workspaceSymlinkPath);
+        normalizedFileInWorkspace = fs.realpathSync.native(fileInWorkspace);
 
         const controller = new MiscController(
             '1.0.0',
@@ -57,13 +43,12 @@ describe('POST /api/open-file', () => {
             workspaceRoot,
             path.join(tempRoot, 'uploads'),
             null,
-            { brainbaseRoot, projectsRoot, sessionQuery, workspace }
+            { brainbaseRoot, projectsRoot }
         );
 
         app = express();
         app.use(express.json());
         app.post('/api/open-file', controller.openFile);
-        app.post('/api/client-diagnostics/session-menu', controller.recordSessionMenuDiagnostic);
     });
 
     beforeEach(() => {
@@ -73,31 +58,31 @@ describe('POST /api/open-file', () => {
         });
     });
 
-    it('セッション配下の /Volumes absolute path を許可する', async () => {
+    it('workspace配下のabsolute pathを許可する', async () => {
         const response = await request(app)
             .post('/api/open-file')
-            .send({ path: fileInSession, mode: 'file', sessionId: 'session-123' });
+            .send({ path: fileInWorkspace, mode: 'file' });
 
         expect(response.status).toBe(200);
-        expect(mockExecFile).toHaveBeenCalledWith('open', [normalizedFileInSession], expect.any(Function));
+        expect(mockExecFile).toHaveBeenCalledWith('open', [normalizedFileInWorkspace], expect.any(Function));
     });
 
-    it('sessionId + relative path を session workspace 基準で解決する', async () => {
+    it('cwd + relative pathをworkspace基準で解決する', async () => {
         const response = await request(app)
             .post('/api/open-file')
-            .send({ path: 'docs/note.md', mode: 'file', sessionId: 'session-123' });
+            .send({ path: 'docs/note.md', mode: 'file', cwd: workspaceSymlinkPath });
 
         expect(response.status).toBe(200);
-        expect(mockExecFile).toHaveBeenCalledWith('open', [normalizedFileInSession], expect.any(Function));
+        expect(mockExecFile).toHaveBeenCalledWith('open', [normalizedFileInWorkspace], expect.any(Function));
     });
 
     it('symlink 経由の cwd でも realpath 比較で許可する', async () => {
         const response = await request(app)
             .post('/api/open-file')
-            .send({ path: 'docs/note.md', mode: 'cursor', sessionId: 'session-123', cwd: sessionSymlinkPath });
+            .send({ path: 'docs/note.md', mode: 'cursor', cwd: workspaceSymlinkPath });
 
         expect(response.status).toBe(200);
-        expect(mockExecFile).toHaveBeenCalledWith('cursor', [normalizedFileInSession], expect.any(Function));
+        expect(mockExecFile).toHaveBeenCalledWith('cursor', [normalizedFileInWorkspace], expect.any(Function));
     });
 
     it('managed roots 外の absolute path を拒否する', async () => {
@@ -123,25 +108,11 @@ describe('POST /api/open-file', () => {
     it('null byte を含む path を拒否する', async () => {
         const response = await request(app)
             .post('/api/open-file')
-            .send({ path: `${fileInSession}\0.txt`, mode: 'file', sessionId: 'session-123' });
+            .send({ path: `${fileInWorkspace}\0.txt`, mode: 'file' });
 
         expect(response.status).toBe(400);
         expect(response.body.success).toBe(false);
         expect(response.body.error).toContain('contains null byte');
     });
 
-    it('session menu diagnostic log を受け付ける', async () => {
-        const response = await request(app)
-            .post('/api/client-diagnostics/session-menu')
-            .send({
-                seq: 1,
-                phase: 'toggle-click-opened-sync',
-                sessionId: 'session-123',
-                dropdownMenu: { hidden: false },
-                overlay: { hidden: false }
-            });
-
-        expect(response.status).toBe(200);
-        expect(response.body).toEqual({ ok: true });
-    });
 });

@@ -1,16 +1,14 @@
 import express from 'express';
 import request from 'supertest';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { createHealthRouter } from '../../../server/routes/health.js';
 import { buildMemoryHealth } from '../../../server/controllers/health-controller.js';
 
-function createApp({ terminalRuntimeReconciler } = {}) {
+function createApp() {
     const app = express();
     app.use('/api/health', createHealthRouter({
-        readiness: { isReady: () => true },
-        configParser: null,
-        terminalRuntimeReconciler
+        configParser: null
     }));
     return app;
 }
@@ -59,38 +57,16 @@ describe('health routes', () => {
         expect(check.details.runtimeUsagePercent).toBe(91);
     });
 
-    it('GET /api/health/terminal returns terminal reconciler health', async () => {
-        const terminalRuntimeReconciler = {
-            getHealth: vi.fn(async () => ({
-                status: 'healthy',
-                issues: [],
-                sessions: { duplicateTtyd: 0 }
-            }))
-        };
-        const app = createApp({ terminalRuntimeReconciler });
+    it('GET /api/health/terminal reports the retired development runtime', async () => {
+        const app = createApp();
 
         const res = await request(app)
             .get('/api/health/terminal')
-            .expect(200);
+            .expect(410);
 
         expect(res.body).toMatchObject({
-            status: 'healthy',
-            issues: [],
-            sessions: { duplicateTtyd: 0 }
-        });
-        expect(terminalRuntimeReconciler.getHealth).toHaveBeenCalledTimes(1);
-    });
-
-    it('GET /api/health/terminal returns 503 when terminal reconciler is unavailable', async () => {
-        const app = createApp({ terminalRuntimeReconciler: null });
-
-        const res = await request(app)
-            .get('/api/health/terminal')
-            .expect(503);
-
-        expect(res.body).toMatchObject({
-            status: 'unhealthy',
-            error: 'terminal runtime reconciler is not available'
+            error: 'capability_retired',
+            capability: 'brainbase.terminal-runtime'
         });
     });
 });

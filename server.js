@@ -36,7 +36,6 @@ import { resolveRuntimePaths } from './lib/runtime-paths.js';
 
 // Import services
 import { createCoreServices } from './server/bootstrap/core-services.js';
-import { initializeSessionRuntime } from './server/bootstrap/session-runtime-startup.js';
 import { registerGracefulShutdown } from './server/bootstrap/graceful-shutdown.js';
 import { registerApiRoutes } from './server/bootstrap/register-api-routes.js';
 import { registerStaticRoutes } from './server/bootstrap/static-routes.js';
@@ -276,8 +275,6 @@ async function writePortFiles(port) {
 }
 
 // Configuration
-const STATE_FILE = RUNTIME_PATHS.stateFile;
-const WORKTREES_DIR = process.env.BRAINBASE_WORKTREES_DIR || path.join(BRAINBASE_ROOT, '.worktrees');
 const CODEX_PATH = path.join(__dirname, 'examples', 'codex');
 const CONFIG_PATH = existsSync(path.join(BRAINBASE_ROOT, 'config.yml'))
     ? path.join(BRAINBASE_ROOT, 'config.yml')
@@ -297,7 +294,6 @@ await ensureDir(UPLOADS_DIR);
 const {
     googleCalendarService,
     scheduleParser,
-    stateStore,
     configParser,
     configService,
     infoSSOTService,
@@ -306,13 +302,6 @@ const {
     learningService,
     learningHealthService,
     candidateRepository,
-    worktreeService,
-    archiveFinalizer,
-    sessionServices,
-    tmuxCaptureCache,
-    terminalTransportService,
-    sessionActivityWsService,
-    conversationLinker,
     tokenUsageService,
     agentControlCatalogService,
     loopIntentService,
@@ -328,17 +317,12 @@ const {
     uploadMiddleware
 } = createCoreServices({
     varDir: VAR_DIR,
-    stateFile: STATE_FILE,
     brainbaseRoot: BRAINBASE_ROOT,
     projectsRoot: PROJECTS_ROOT,
-    worktreesDir: WORKTREES_DIR,
     codexPath: CODEX_PATH,
     configPath: CONFIG_PATH,
     uploadsDir: UPLOADS_DIR,
-    serverDir: __dirname,
-    execPromise,
-    port: PORT,
-    testMode: TEST_MODE
+    serverDir: __dirname
 });
 
 // Middleware
@@ -394,12 +378,6 @@ registerStaticRoutes(app, {
     log: console
 });
 
-void initializeSessionRuntime({
-    stateStore,
-    sessionServices,
-    log: console
-});
-
 app.use('/console', (_req, res) => {
     res.status(410).json({
         error: 'capability_retired',
@@ -419,23 +397,16 @@ app.use('/console', (_req, res) => {
 const workspaceRoot = __dirname;
 
 app.get('/health/ready', (req, res) => {
-    const ready = sessionServices.runtime.registry.isReady();
-    res.status(ready ? 200 : 503).json({ ready });
+    res.status(200).json({ ready: true });
 });
 
 registerApiRoutes(app, {
-    stateStore,
-    sessionServices,
-    testMode: TEST_MODE,
     configParser,
     configService,
     runtimePaths: RUNTIME_PATHS,
     scheduleParser,
     googleCalendarService,
-    worktreeService,
-    conversationLinker,
     projectsRoot: PROJECTS_ROOT,
-    tmuxCaptureCache,
     authService,
     infoSSOTService,
     learningService,
@@ -591,9 +562,6 @@ const server = app.listen(PORT, async () => {
 
 registerGracefulShutdown({
     server,
-    stateStore,
-    conversationLinker,
-    sessionServices,
     meetingSourceMcpSyncService,
     eveMeetingNoteReconciler,
     getMeshService: () => meshService,

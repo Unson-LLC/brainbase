@@ -41,7 +41,7 @@ describe('terminal runtime recovery API surfaces', () => {
     }));
   });
 
-  it('CON-7 /api/health/terminal exposes stale_ttyd_process as degraded health', async () => {
+  it('CON-7 /api/health/terminal reports the retired terminal runtime', async () => {
     const healthController = new HealthController({
       terminalRuntimeReconciler: {
         getHealth: vi.fn(async () => ({
@@ -60,14 +60,12 @@ describe('terminal runtime recovery API surfaces', () => {
 
     const response = await request(app)
       .get('/api/health/terminal')
-      .expect(200);
+      .expect(410);
 
-    expect(response.body.status).toBe('degraded');
-    expect(response.body.issues).toContainEqual(expect.objectContaining({
-      sessionId: 'session-1',
-      type: 'stale_ttyd_process',
-      severity: 'critical'
-    }));
+    expect(response.body).toMatchObject({
+      error: 'capability_retired',
+      capability: 'brainbase.terminal-runtime'
+    });
   });
 
   it('story-brainbase-session-resume-integrity-guard CON-5 getRuntime strips unsafe proxyPath for ttyd_port_conflict', async () => {

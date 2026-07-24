@@ -118,12 +118,10 @@ export function buildMemoryHealth(memoryUsage, runtimeMemory) {
 
 export class HealthController {
     /**
-     * @param {{ readiness?: any, configParser?: any, terminalRuntimeReconciler?: any }} deps
+     * @param {{ configParser?: any }} deps
      */
-    constructor({ readiness, configParser, terminalRuntimeReconciler = null }) {
-        this.readiness = readiness;
+    constructor({ configParser }) {
         this.configParser = configParser;
-        this.terminalRuntimeReconciler = terminalRuntimeReconciler;
         this.startTime = Date.now();
     }
 
@@ -160,23 +158,12 @@ export class HealthController {
     };
 
     getTerminalHealth = async (req, res) => {
-        if (!this.terminalRuntimeReconciler?.getHealth) {
-            return res.status(503).json({
-                status: 'unhealthy',
-                error: 'terminal runtime reconciler is not available'
-            });
-        }
-
-        try {
-            const health = await this.terminalRuntimeReconciler.getHealth();
-            res.status(health.status === 'unhealthy' ? 503 : 200).json(health);
-        } catch (error) {
-            logger.error('Terminal health check failed:', error);
-            res.status(503).json({
-                status: 'unhealthy',
-                error: error instanceof Error ? error.message : 'Terminal health check failed'
-            });
-        }
+        res.status(410).json({
+            error: 'capability_retired',
+            capability: 'brainbase.terminal-runtime',
+            owner: 'Codex app and CLI',
+            replacement: 'Use the terminal attached to the Codex task'
+        });
     };
 
     /**
@@ -194,21 +181,7 @@ export class HealthController {
             message: 'Server is running'
         };
 
-        // 2. Session Manager ready check
-        try {
-            const ready = this.readiness ? this.readiness.isReady() : true;
-            checks.sessionManager = {
-                status: ready ? 'healthy' : 'starting',
-                message: ready ? 'Session manager is ready' : 'Session manager is initializing'
-            };
-        } catch (error) {
-            checks.sessionManager = {
-                status: 'unhealthy',
-                message: error instanceof Error ? error.message : 'Session manager check failed'
-            };
-        }
-
-        // 3. Config integrity check
+        // 2. Config integrity check
         try {
             if (this.configParser) {
                 const integrity = await this.configParser.checkIntegrity();
@@ -247,7 +220,7 @@ export class HealthController {
             };
         }
 
-        // 4. Memory usage check
+        // 3. Memory usage check
         checks.memory = buildMemoryHealth(process.memoryUsage(), resolveRuntimeMemory());
 
         return checks;

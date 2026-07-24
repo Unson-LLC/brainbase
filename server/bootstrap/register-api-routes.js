@@ -96,18 +96,12 @@ function createSnsAccountProvider() {
 }
 
 export function registerApiRoutes(app, {
-    stateStore,
-    sessionServices,
-    testMode,
     configParser,
     configService,
     runtimePaths,
     scheduleParser,
     googleCalendarService,
-    worktreeService,
-    conversationLinker,
     projectsRoot,
-    tmuxCaptureCache,
     authService,
     infoSSOTService,
     learningService,
@@ -148,7 +142,6 @@ export function registerApiRoutes(app, {
         replacement: 'Use Codex tasks, worktrees, and terminals directly'
     }));
     app.use('/api/brainbase', createBrainbaseRouter({
-        worktreeService,
         configParser,
         projectsRoot,
         infoSSOTService,
@@ -156,11 +149,7 @@ export function registerApiRoutes(app, {
         projectCatalogAuthGuard: requireAuth(authService)
     }));
     app.use('/api/nocodb', createNocoDBRouter(configParser));
-    app.use('/api/health', createHealthRouter({
-        readiness: sessionServices.runtime.registry,
-        configParser,
-        terminalRuntimeReconciler: sessionServices.runtime.reconciler
-    }));
+    app.use('/api/health', createHealthRouter({ configParser }));
     app.use('/api/terminal', createRetiredCapabilityRouter({
         capability: 'brainbase.terminal-runtime',
         owner: 'Codex app and CLI',
@@ -231,8 +220,6 @@ export function registerApiRoutes(app, {
     app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
     app.use('/api', createMiscRouter(appVersion, uploadMiddleware, workspaceRoot, uploadsDir, runtimeInfo, {
         brainbaseRoot,
-        projectsRoot,
-        sessionQuery: sessionServices.runtime.query,
-        workspace: sessionServices.workspace
+        projectsRoot
     }));
 }
