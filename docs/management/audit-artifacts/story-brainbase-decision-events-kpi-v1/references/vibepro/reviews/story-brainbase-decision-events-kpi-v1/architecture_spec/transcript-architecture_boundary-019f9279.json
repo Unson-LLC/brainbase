@@ -1,0 +1,54 @@
+{
+  "status": "needs_changes",
+  "summary": "新規ledgerの月跨ぎ冪等性はpass。ただし既存重複ledger、性能、partition境界、QA証跡に問題があります。",
+  "inspection_summary": "指定HEAD、review request、service、route/controller、unit/integration/E2E、Story、architecture、spec、QAを読み取り専用で検査。unit 23、route 8、KPI 5、E2E 8、typecheckはpass。認証境界・既存API回帰は確認できませんでした。",
+  "inspection_evidence": [
+    "HEAD: 5982edf8a73e7f9be7ac4ce08bec56100f438618",
+    "server/services/companion/decision-event-service.js:204-230",
+    "docs/stories/story-brainbase-decision-events-kpi-v1.md:18-48",
+    "docs/architecture/decision-events-kpi-architecture.md:34-98",
+    ".vibepro/spec/story-brainbase-decision-events-kpi-v1/spec.json and .vibepro/qa/decision-events-current-head-verification.json",
+    "既存重複ledger再現でGETが2件を返し、再送は最初のrecordを返すだけで重複recordを除去しない"
+  ],
+  "judgment_delta": [
+    "初期判断: 全月走査と月跨ぎunit/E2E追加により新規ケースは満たす。",
+    "最終判断: 既存ledgerの重複修復、全履歴同期走査の性能境界、不正月partition、QA integration証跡が未解決のためneeds_changes。"
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "id": "global-dedupe-does-not-reconcile-existing-ledgers",
+      "path": "server/services/companion/decision-event-service.js",
+      "line": "217-220,247-259",
+      "reason": "既存の複数月重複を読取時に除外せず、GET/KPIが二重計上する。"
+    },
+    {
+      "severity": "medium",
+      "id": "global-id-scan-unbounded-write-cost",
+      "path": "server/services/companion/decision-event-service.js",
+      "line": "204-230",
+      "reason": "各POSTで全月ファイルを同期read/JSON.parseするため、履歴量に比例して書込APIコストが増える。"
+    },
+    {
+      "severity": "medium",
+      "id": "month-partition-filter-accepts-invalid-months",
+      "path": "server/services/companion/decision-event-service.js",
+      "line": "225-230",
+      "reason": "partition名の正規表現がYYYY-00やYYYY-13も受け入れる。"
+    },
+    {
+      "severity": "high",
+      "id": "qa-integration-evidence-command-invalid",
+      "path": ".vibepro/qa/decision-events-current-head-verification.json",
+      "line": "14-19",
+      "reason": "レビュー時に記録されたintegrationコマンドと実在テストパスの一致確認が必要。"
+    },
+    {
+      "severity": "low",
+      "id": "architecture-doc-surface-mismatch",
+      "path": "docs/architecture/decision-events-kpi-architecture.md",
+      "line": "34-98",
+      "reason": "レビュー依頼で指定した別名パスと実際の正本パスが一致していない。"
+    }
+  ]
+}

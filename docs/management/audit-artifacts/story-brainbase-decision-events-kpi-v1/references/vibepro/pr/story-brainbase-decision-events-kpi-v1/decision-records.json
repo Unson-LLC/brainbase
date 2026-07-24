@@ -1,0 +1,325 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-decision-records-v1",
+  "story_id": "story-brainbase-decision-events-kpi-v1",
+  "updated_at": "2026-07-24T06:19:45.056Z",
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "decision record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+      "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+      "expected_root": null,
+      "expected_head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+      "current_head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+      "managed_worktree": null
+    }
+  ],
+  "decisions": [
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784873985056-b8dcac1e",
+      "story_id": "story-brainbase-decision-events-kpi-v1",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:split_resolution",
+      "source_status": "needs_review",
+      "summary": "No split: preserve the decision-event ingestion and KPI path as one atomic change set",
+      "reason": "Splitting ledger semantics, authenticated routes, and KPI consumer/tests would make intermediate revisions operationally incomplete.",
+      "reviewer": "codex",
+      "artifact": "docs/architecture/decision-events-kpi-architecture.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+          "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+          "expected_root": null,
+          "expected_head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+          "current_head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+        "current_branch": "codex/decision-event-global-dedupe",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-24T06:19:45.054Z"
+      },
+      "recorded_at": "2026-07-24T06:19:45.056Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784873984494-0a17e9bc",
+      "story_id": "story-brainbase-decision-events-kpi-v1",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:pr_scope_judgment",
+      "source_status": "needs_split",
+      "summary": "Bundled scope accepted: service, controller, routes, KPI script, story, architecture, spec, and tests form one reviewable production contract",
+      "reason": "The API contract depends on ledger authority and the weekly reporter; separate PRs would weaken end-to-end invariants and create partial deploy states.",
+      "reviewer": "codex",
+      "artifact": "docs/architecture/decision-events-kpi-architecture.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+          "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+          "expected_root": null,
+          "expected_head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+          "current_head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+        "current_branch": "codex/decision-event-global-dedupe",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-24T06:19:44.490Z"
+      },
+      "recorded_at": "2026-07-24T06:19:44.495Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784873983850-5fee69b3",
+      "story_id": "story-brainbase-decision-events-kpi-v1",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "scope_reviewed: one reviewer can evaluate the authenticated decision-event ledger, derived index, API, KPI script, and tests as one atomic server contract",
+      "reason": "The files implement one write/read/report contract; splitting persistence, API, and KPI verification would permit an invalid partial deployment.",
+      "reviewer": "codex",
+      "artifact": "docs/architecture/decision-events-kpi-architecture.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+          "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+          "expected_root": null,
+          "expected_head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+          "current_head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+        "current_branch": "codex/decision-event-global-dedupe",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-24T06:19:43.848Z"
+      },
+      "recorded_at": "2026-07-24T06:19:43.850Z"
+    }
+  ],
+  "summary": {
+    "total": 3,
+    "open": 0,
+    "by_type": {
+      "needs_review": 3
+    },
+    "by_status": {
+      "accepted": 3
+    },
+    "warnings": [
+      {
+        "id": "managed_worktree_locality",
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "decision record",
+        "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+        "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+        "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+        "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+        "expected_root": null,
+        "expected_head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+        "current_head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+        "managed_worktree": null
+      }
+    ],
+    "latest": {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784873985056-b8dcac1e",
+      "story_id": "story-brainbase-decision-events-kpi-v1",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:split_resolution",
+      "source_status": "needs_review",
+      "summary": "No split: preserve the decision-event ingestion and KPI path as one atomic change set",
+      "reason": "Splitting ledger semantics, authenticated routes, and KPI consumer/tests would make intermediate revisions operationally incomplete.",
+      "reviewer": "codex",
+      "artifact": "docs/architecture/decision-events-kpi-architecture.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/decision-events-current-head-verification.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+          "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+          "expected_root": null,
+          "expected_head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+          "current_head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "c814c80bf8c118595386073f904dc6e845f5c735",
+        "current_branch": "codex/decision-event-global-dedupe",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-24T06:19:45.054Z"
+      },
+      "recorded_at": "2026-07-24T06:19:45.056Z"
+    }
+  },
+  "artifact": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/decision-records.json"
+}

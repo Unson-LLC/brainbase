@@ -1,0 +1,206 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-decision-events-kpi-v1",
+  "stage": "architecture_spec",
+  "role": "architecture_boundary",
+  "status": "pass",
+  "summary": "Pending derived-index recovery cannot promote index-only data into the authoritative monthly ledger; all five prior findings are resolved at current HEAD.",
+  "findings": [],
+  "finding_dispositions": [
+    {
+      "finding_id": "corrupt-ledger-recovery-can-be-silent-or-overwritten",
+      "disposition": "accepted",
+      "resolved_by": [
+        "server/services/companion/decision-event-service.js:266-309"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    },
+    {
+      "finding_id": "derived-index-can-override-ledger-authority",
+      "disposition": "accepted",
+      "resolved_by": [
+        "server/services/companion/decision-event-service.js:410-426,568-578"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    },
+    {
+      "finding_id": "get-path-full-index-rescan-per-request",
+      "disposition": "accepted",
+      "resolved_by": [
+        "server/services/companion/decision-event-service.js:741-753,790-811"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    },
+    {
+      "finding_id": "lock-bootstrap-window-can-reclaim-live-lock",
+      "disposition": "accepted",
+      "resolved_by": [
+        "server/services/companion/decision-event-service.js:437-513"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    },
+    {
+      "finding_id": "same-host-lock-scope-not-explicit",
+      "disposition": "accepted",
+      "resolved_by": [
+        "docs/architecture/decision-events-kpi-architecture.md:39-48"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    }
+  ],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Inspected current service, routes, focused tests, E2E contract, architecture, story/spec, review request, prior review, and current-head QA evidence; unit 38, integration 15, E2E 9, typecheck, and targeted lint pass at this HEAD.",
+    "evidence": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92b9.json",
+    "inputs": [
+      "server/services/companion/decision-event-service.js",
+      "server/controllers/companion-controller.js",
+      "tests/server/services/companion/decision-event-service.test.js",
+      "tests/server/routes/companion-decision-events.test.js",
+      "tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts",
+      "docs/architecture/decision-events-kpi-architecture.md",
+      "docs/stories/story-brainbase-decision-events-kpi-v1.md",
+      ".vibepro/spec/story-brainbase-decision-events-kpi-v1/spec.json",
+      ".vibepro/qa/decision-events-current-head-verification.json"
+    ]
+  },
+  "judgment_delta": [
+    "Prior review at 0ef037175774 left derived-index-can-override-ledger-authority open; current b53247cc reads the authoritative month ledger before committing pending recovery and quarantines index-only entries, while the other four findings retain explicit current source/test/doc evidence.",
+    "Initial judgment: one high finding remained open at 0ef037175774. Final judgment: all five findings resolved at b53247cc because pending recovery now requires authoritative ledger presence and all changed paths have current evidence."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+    "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+    "expected_root": null,
+    "expected_head_sha": "b53247cc44eff6c7fcc87601ed672c9afa7afb3c",
+    "current_head_sha": "b53247cc44eff6c7fcc87601ed672c9afa7afb3c",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+      "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+      "expected_root": null,
+      "expected_head_sha": "b53247cc44eff6c7fcc87601ed672c9afa7afb3c",
+      "current_head_sha": "b53247cc44eff6c7fcc87601ed672c9afa7afb3c",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-24T06:11:55.220Z",
+  "git_context": {
+    "head_sha": "b53247cc44eff6c7fcc87601ed672c9afa7afb3c",
+    "current_branch": "codex/decision-event-global-dedupe",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-24T06:11:55.198Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "Preserve current-HEAD freshness: review evidence is bound to b53247cc44eff6c7fcc87601ed672c9afa7afb3c."
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "b53247cc44eff6c7fcc87601ed672c9afa7afb3c",
+    "surface_files": [
+      {
+        "path": "docs/architecture/decision-events-kpi-architecture.md",
+        "sha256": "23c95f8649bbf8aa73ccbb49c5ae89514994e1306d3d08213f765559e209c474",
+        "size": 11040
+      },
+      {
+        "path": "docs/stories/story-brainbase-decision-events-kpi-v1.md",
+        "sha256": "06d99a897689ecb1ac5fb272be4bebdd2e56437d2aa3bb71a05c0786aab57c4f",
+        "size": 6810
+      },
+      {
+        "path": "server/controllers/companion-controller.js",
+        "sha256": "2091e397d2db4291a7338fb9af3a8a1813d3bea6f17a5cac877ca79fdaf0f69e",
+        "size": 12937
+      },
+      {
+        "path": "server/services/companion/decision-event-service.js",
+        "sha256": "4012a4fd700142dc020fc11c3a0d8085700ea84f8016ba06e1855c0f5f4da562",
+        "size": 32105
+      },
+      {
+        "path": "tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts",
+        "sha256": "321acf790a6b00f5b8bb517757969a4802fa295eeeba0971225ae8f1afb1c0e2",
+        "size": 16159
+      },
+      {
+        "path": "tests/server/routes/companion-decision-events.test.js",
+        "sha256": "d168d7f1f3d1477da39f26668c23a057e172143a97133ae35ab1826a7db192ee",
+        "size": 7534
+      },
+      {
+        "path": "tests/server/services/companion/decision-event-service.test.js",
+        "sha256": "9d1ef93703819bafb842e83c5dda99d47d9c58805f6ff06f856ebdf897bc233d",
+        "size": 22373
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "3de85c1d4e38d17bca6bfca9b2bc91bec748b7feb6a96899001226d8d3b946c6"
+  },
+  "source_fingerprint": "1210b33956df5e68c406659faace2d47bbb106e3ba69227c186e913163086844",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f92b9-c69f-7f81-8cd7-7acac1d24387",
+    "agent_role": null,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "cost_tier": "low",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92b9.json",
+    "request_artifact": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/review-request-architecture_boundary.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92b9.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": null,
+      "implementation_session_id": null,
+      "source": "cli_flag"
+    }
+  },
+  "agent_usage": null
+}

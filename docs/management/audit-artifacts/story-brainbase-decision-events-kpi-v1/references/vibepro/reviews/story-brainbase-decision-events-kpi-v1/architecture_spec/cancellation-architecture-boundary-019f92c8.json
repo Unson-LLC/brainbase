@@ -1,0 +1,6 @@
+{
+  "agent_id": "019f92c8-baa3-7901-a5a0-d7ba856b4b3b",
+  "status": "shutdown",
+  "reason": "Candidate HEAD changed from c814c80bf8c118595386073f904dc6e845f5c735 to 741e14afe95f323a06e4a0fb3797797d4b182bed while the review was running.",
+  "replacement_required": true
+}

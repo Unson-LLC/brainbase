@@ -1,0 +1,1113 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-decision-events-kpi-v1",
+  "source": "execute_merge",
+  "promoted_at": "2026-07-24T08:20:12.543Z",
+  "canonical_dir": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1",
+  "source_workspace_dir": ".vibepro",
+  "audit_index_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-index.json",
+  "decision_summary_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/decision-summary.md",
+  "artifact_policy": {
+    "scope": "compact_manifest_only",
+    "evidence_depth": "standard",
+    "compacted": true,
+    "persisted_for_main_audit": true,
+    "why_compacted": [],
+    "excludes": [
+      "duplicated decision index body",
+      "duplicated cost summary body",
+      "full PR lifecycle JSON",
+      "full review lifecycle JSON",
+      "HTML reports",
+      "raw logs",
+      "dispatch scratch artifacts",
+      "temporary execution state"
+    ]
+  },
+  "evidence_depth": "standard",
+  "cost_summary_ref": {
+    "source": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-index.json",
+    "pointer": "/cost_summary"
+  },
+  "automation_value_audit_ref": {
+    "source": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-index.json",
+    "pointer": "/automation_value_audit"
+  },
+  "replay_bundle": {
+    "schema_version": "0.1.0",
+    "path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+    "compression": "gzip",
+    "media_type": "application/json",
+    "content_hash": "sha256:c5f546c1284fb6b8c3d3cb71665398da6162b31521faba090ae2a2833a999cf5",
+    "compressed_hash": "sha256:a427e22f2b464784a78901fc85cc64dc6dc545180781e2e440b4fd5757e5b101",
+    "expanded_bytes": 18947,
+    "compressed_bytes": 3920,
+    "expanded_line_count": 497,
+    "persisted_line_count": 1,
+    "included_artifact_kinds": [
+      "decision_index",
+      "evidence_plan",
+      "evidence_reuse",
+      "pr_create",
+      "pr_merge",
+      "pr_prepare",
+      "review_lifecycle",
+      "review_request",
+      "review_result",
+      "review_summary",
+      "senior_gap_judgment",
+      "traceability",
+      "verification_evidence"
+    ],
+    "replay_command": "vibepro audit replay . --story-id story-brainbase-decision-events-kpi-v1",
+    "cost": {
+      "compressed_bytes": 3920,
+      "expanded_bytes": 18947,
+      "expanded_line_count": 497,
+      "persisted_line_count": 1
+    }
+  },
+  "merge": {
+    "status": "merged_externally",
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1065",
+    "merge_commit_sha": "a5eaff23d8e0c44909bc623219f18c1cbba8687c",
+    "merged_at": "2026-07-24T08:19:02Z",
+    "current_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55"
+  },
+  "handoff_replay_status": "blocked",
+  "handoff_replay": {
+    "status": "blocked",
+    "resolved_reference_count": 75,
+    "copied_reference_count": 61,
+    "unresolved_reference_count": 9,
+    "replay_bundle": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+    "replay_command": "vibepro audit replay . --story-id story-brainbase-decision-events-kpi-v1"
+  },
+  "artifacts": [
+    {
+      "kind": "audit_index",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-index.json"
+    },
+    {
+      "kind": "decision_summary",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/decision-summary.md"
+    },
+    {
+      "kind": "compressed_replay_bundle",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "compression": "gzip",
+      "content_hash": "sha256:c5f546c1284fb6b8c3d3cb71665398da6162b31521faba090ae2a2833a999cf5"
+    }
+  ],
+  "raw_artifact_manifest": [
+    {
+      "kind": "evidence_reuse",
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/evidence-reuse.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:92a4e2d2f156f7a199370ec0fabd6ded287aa5e2945fe4f9ed29ed841e728321",
+      "audit_digest": "sha256:92a4e2d2f156f7a199370ec0fabd6ded287aa5e2945fe4f9ed29ed841e728321",
+      "line_count": 203,
+      "raw_line_count": 203,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "pr_prepare",
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-prepare.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:c9907b4791e951269908858ac64f7538ff4a6e22b398aab74f5e881df1e8a908",
+      "audit_digest": "sha256:0e7c3117b229efa0887a0a17c4bf831cedae65f727af60ab58d42c9df776ca8d",
+      "line_count": 6717,
+      "raw_line_count": 25142,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_prepare.diagnostics.progress_snapshots",
+        "pr_prepare.pr_context.full_gate_dag",
+        "pr_prepare.pr_context.design_ssot_full_registry_inventory",
+        "pr_prepare.pr_context.inactive_judgment_axis_details",
+        "pr_prepare.duplicated_child_artifacts",
+        "design_ssot.unregistered_docs_full_inventory",
+        "design_ssot.registered_docs_full_inventory",
+        "responsibility_authority.full_registry_entries",
+        "requirement_consistency.verbose_code_scenarios",
+        "engineering_judgment.inactive_axis_details",
+        "engineering_judgment.verbose_matched_evidence",
+        "verification.raw_command_output",
+        "senior_gap_judgment.verbose_supporting_context",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "pr_create",
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-create.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:85e6598872e1287381cdfb5c9c4bcf35191cfb948fc1025a2008bb2f9b33866b",
+      "audit_digest": "sha256:538c7014503a1d5465a1f0f06515af985a6c9988f8bfea56bb21de8e30a2deca",
+      "line_count": 1725,
+      "raw_line_count": 3966,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "senior_gap_judgment",
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/senior-gap-judgment.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:19c9cb3c7f9ea95b1de8de413cb4a70234109f06f72257832348392c9fda7405",
+      "audit_digest": "sha256:e129b0bb23310393c450617498ea1389f9a71ad6a112b625e3ed91762f327e88",
+      "line_count": 21,
+      "raw_line_count": 546,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "senior_gap_judgment.verbose_supporting_context"
+      ]
+    },
+    {
+      "kind": "pr_merge",
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-merge.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:8f4f3d00e3791802788869c723b3be35f5d4ee1d182420f513825dfae7eb1df7",
+      "audit_digest": "sha256:d9c02574f2b390b50637dd881340179b6b0a6264b58ed60ee8a3b53421937120",
+      "line_count": 1739,
+      "raw_line_count": 4009,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects",
+        "pr_merge.canonical_audit",
+        "pr_merge.roi_ledger_promotion"
+      ]
+    },
+    {
+      "kind": "traceability",
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/traceability.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:1aaa52b9278d92b6b2e3748b6c39a56a796be2f7ac4240d3b6a949c822e47c76",
+      "audit_digest": "sha256:1aaa52b9278d92b6b2e3748b6c39a56a796be2f7ac4240d3b6a949c822e47c76",
+      "line_count": 460,
+      "raw_line_count": 460,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "verification_evidence",
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/verification-evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:e69fc13578f2df07a3b2709dd6cd1f338ec02f01d44f0ff15d7c8ae291ec4f75",
+      "audit_digest": "sha256:9d5bd9cd571a0ef88ff17736be7495ea808523f0b95514682bf79acf1aa823af",
+      "line_count": 61,
+      "raw_line_count": 423,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "verification.raw_command_output"
+      ]
+    },
+    {
+      "kind": "evidence_plan",
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/evidence-plan.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:12c9029d480893bfeb9066ab4243109b3fa33cab60426fce7d0bbfbddd64c2b8",
+      "audit_digest": "sha256:12c9029d480893bfeb9066ab4243109b3fa33cab60426fce7d0bbfbddd64c2b8",
+      "line_count": 269,
+      "raw_line_count": 269,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "decision_index",
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/decision-index.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:5bc90a9389ed15b3b8f9f93e66ad5e34b58a0c4df37e82e914d56393a770b179",
+      "audit_digest": "sha256:5bc90a9389ed15b3b8f9f93e66ad5e34b58a0c4df37e82e914d56393a770b179",
+      "line_count": 279,
+      "raw_line_count": 279,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:a2ce78066ac318968ecdc0a03b3fbe08648ce24127561fe5cc9bdf7b69e80dd1",
+      "audit_digest": "sha256:a2ce78066ac318968ecdc0a03b3fbe08648ce24127561fe5cc9bdf7b69e80dd1",
+      "line_count": 1762,
+      "raw_line_count": 1762,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/review-request-architecture_boundary.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:599c75964223cd7a533a8668a861a54365c456880ba6392beb34b2d3261775fa",
+      "audit_digest": "sha256:599c75964223cd7a533a8668a861a54365c456880ba6392beb34b2d3261775fa",
+      "line_count": 139,
+      "raw_line_count": 139,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/review-result-architecture_boundary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:4de5cd8a65ededc4c540eea91980487bcada2e8ea84bf20df84298cbf9d998c1",
+      "audit_digest": "sha256:4de5cd8a65ededc4c540eea91980487bcada2e8ea84bf20df84298cbf9d998c1",
+      "line_count": 122,
+      "raw_line_count": 122,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:25018dbaa8263cccb009714ba9c63cf80a25b65f1f70a4e52f559dd520acf458",
+      "audit_digest": "sha256:25018dbaa8263cccb009714ba9c63cf80a25b65f1f70a4e52f559dd520acf458",
+      "line_count": 2134,
+      "raw_line_count": 2134,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:b9f3ae972231168838bb9836d453a889cb3251861d14828109b6821b47ace3c5",
+      "audit_digest": "sha256:b9f3ae972231168838bb9836d453a889cb3251861d14828109b6821b47ace3c5",
+      "line_count": 398,
+      "raw_line_count": 398,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/review-request-gate_evidence.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:6f005c9e7ba9a9c6cf247a07110e73cd6b869ddda49811862da667cc749589c6",
+      "audit_digest": "sha256:6f005c9e7ba9a9c6cf247a07110e73cd6b869ddda49811862da667cc749589c6",
+      "line_count": 133,
+      "raw_line_count": 133,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/review-result-gate_evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:840d25c906d58de3732aba3eb2bca946cab66e7db55a77072a0d4aa126210acc",
+      "audit_digest": "sha256:840d25c906d58de3732aba3eb2bca946cab66e7db55a77072a0d4aa126210acc",
+      "line_count": 190,
+      "raw_line_count": 190,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:82e583cc453ce2a9ce89468457f5f807b9f4b32ec5a554d5c4b5aaf59dba262e",
+      "audit_digest": "sha256:82e583cc453ce2a9ce89468457f5f807b9f4b32ec5a554d5c4b5aaf59dba262e",
+      "line_count": 782,
+      "raw_line_count": 782,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:3dfdd3601c4e007f332dd66783b961b14cf59cdbd203f648cd6021f5a386aaad",
+      "audit_digest": "sha256:3dfdd3601c4e007f332dd66783b961b14cf59cdbd203f648cd6021f5a386aaad",
+      "line_count": 203,
+      "raw_line_count": 203,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/review-request-runtime_contract.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:f330f5c9dcd72495a24eb69dc6f4484d6b4adbde6350389575434f2a41c6be24",
+      "audit_digest": "sha256:f330f5c9dcd72495a24eb69dc6f4484d6b4adbde6350389575434f2a41c6be24",
+      "line_count": 139,
+      "raw_line_count": 139,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/review-result-runtime_contract.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:817747cc6cbf75a0653ecb75c369c346d6a4d0a5eb830adb643dd12cba9e0037",
+      "audit_digest": "sha256:817747cc6cbf75a0653ecb75c369c346d6a4d0a5eb830adb643dd12cba9e0037",
+      "line_count": 122,
+      "raw_line_count": 122,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz",
+      "digest": "sha256:e03333b725d40050201fd55fe025d68a7ce026b425ad5581d437686f2499be42",
+      "audit_digest": "sha256:e03333b725d40050201fd55fe025d68a7ce026b425ad5581d437686f2499be42",
+      "line_count": 543,
+      "raw_line_count": 543,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    }
+  ],
+  "missing_artifacts": [],
+  "resolved_references": [
+    {
+      "source": ".vibepro/adjudication/story-brainbase-decision-events-kpi-v1/adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/adjudication/story-brainbase-decision-events-kpi-v1/adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/config.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/config.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/judgment-axis-noise-precedents.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/judgment-axis-noise-precedents.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/pr/decision-index.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/pr/evidence-plan.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/evidence-reuse.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/pr/evidence-reuse.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-create.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/pr/pr-create.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-merge.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/pr/pr-merge.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-prepare.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/pr/pr-prepare.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/ref-topology.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/ref-topology.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/ref-topology.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/ref-topology.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/senior-gap-judgment.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/pr/senior-gap-judgment.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/verification-evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/pr/verification-evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/qa/decision-events-current-head-verification-20260724T073257Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/qa/decision-events-current-head-verification-20260724T073257Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/qa/decision-events-current-head-verification.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/qa/decision-events-current-head-verification.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/cancellation-architecture-boundary-019f92c8.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/cancellation-architecture-boundary-019f92c8.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-02-08.148Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-02-08.148Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-18-32.068Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-18-32.068Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-42-23.815Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-42-23.815Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-59-44.116Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-59-44.116Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T06-11-55.220Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T06-11-55.220Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T06-35-57.775Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T06-35-57.775Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T06-54-34.672Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T06-54-34.672Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T07-04-10.021Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T07-04-10.021Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T07-04-35.693Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T07-04-35.693Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T07-22-22.908Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T07-22-22.908Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/review-request-architecture_boundary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/reviews/architecture_spec/review-request-architecture_boundary.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/review-result-architecture_boundary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/reviews/architecture_spec/review-result-architecture_boundary.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f929c.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f929c.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92af.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92af.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92b9.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92b9.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92d1.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92d1.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92de.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92de.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92eb.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92eb.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture_boundary-019f9279.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture_boundary-019f9279.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture_boundary-019f9286.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture_boundary-019f9286.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/history/review-result-gate_evidence-2026-07-24T07-31-39.192Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/history/review-result-gate_evidence-2026-07-24T07-31-39.192Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/history/review-result-gate_evidence-2026-07-24T07-47-29.727Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/history/review-result-gate_evidence-2026-07-24T07-47-29.727Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/review-request-gate_evidence.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/reviews/gate/review-request-gate_evidence.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/review-result-gate_evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/reviews/gate/review-result-gate_evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/transcript-gate-evidence-019f9311.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/transcript-gate-evidence-019f9311.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/history/review-result-runtime_contract-2026-07-24T07-15-05.863Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/history/review-result-runtime_contract-2026-07-24T07-15-05.863Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/history/review-result-runtime_contract-2026-07-24T08-17-53.783Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/history/review-result-runtime_contract-2026-07-24T08-17-53.783Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/review-request-runtime_contract.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/reviews/implementation/review-request-runtime_contract.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/review-result-runtime_contract.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/reviews/implementation/review-result-runtime_contract.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/transcript-runtime-contract-019f92f3.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/transcript-runtime-contract-019f92f3.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/spec/story-brainbase-decision-events-kpi-v1/spec.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/spec/story-brainbase-decision-events-kpi-v1/spec.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-brainbase-decision-events-kpi-v1/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/stories/story-brainbase-decision-events-kpi-v1/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-brainbase-decision-events-kpi-v1/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/stories/story-brainbase-decision-events-kpi-v1/tasks/tasks.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/validation-sequencing/story-brainbase-decision-events-kpi-v1/state.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/validation-sequencing/story-brainbase-decision-events-kpi-v1/state.json",
+      "resolution": "copied_reference"
+    }
+  ],
+  "copied_references": [
+    {
+      "source": ".vibepro/adjudication/story-brainbase-decision-events-kpi-v1/adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/adjudication/story-brainbase-decision-events-kpi-v1/adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/config.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/config.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/diagnostics/2026-07-24T045039Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/judgment-axis-noise-precedents.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/judgment-axis-noise-precedents.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/ref-topology.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/ref-topology.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/ref-topology.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/ref-topology.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/pr/story-brainbase-decision-events-kpi-v1/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/qa/decision-events-current-head-verification-20260724T073257Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/qa/decision-events-current-head-verification-20260724T073257Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/qa/decision-events-current-head-verification.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/qa/decision-events-current-head-verification.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/cancellation-architecture-boundary-019f92c8.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/cancellation-architecture-boundary-019f92c8.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-02-08.148Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-02-08.148Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-18-32.068Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-18-32.068Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-42-23.815Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-42-23.815Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-59-44.116Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T05-59-44.116Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T06-11-55.220Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T06-11-55.220Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T06-35-57.775Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T06-35-57.775Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T06-54-34.672Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T06-54-34.672Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T07-04-10.021Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T07-04-10.021Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T07-04-35.693Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T07-04-35.693Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T07-22-22.908Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/history/review-result-architecture_boundary-2026-07-24T07-22-22.908Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f929c.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f929c.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92af.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92af.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92b9.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92b9.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92d1.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92d1.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92de.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92de.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92eb.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92eb.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture_boundary-019f9279.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture_boundary-019f9279.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture_boundary-019f9286.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture_boundary-019f9286.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/history/review-result-gate_evidence-2026-07-24T07-31-39.192Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/history/review-result-gate_evidence-2026-07-24T07-31-39.192Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/history/review-result-gate_evidence-2026-07-24T07-47-29.727Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/history/review-result-gate_evidence-2026-07-24T07-47-29.727Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/transcript-gate-evidence-019f9311.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/transcript-gate-evidence-019f9311.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/history/review-result-runtime_contract-2026-07-24T07-15-05.863Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/history/review-result-runtime_contract-2026-07-24T07-15-05.863Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/history/review-result-runtime_contract-2026-07-24T08-17-53.783Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/history/review-result-runtime_contract-2026-07-24T08-17-53.783Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/transcript-runtime-contract-019f92f3.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/transcript-runtime-contract-019f92f3.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/spec/story-brainbase-decision-events-kpi-v1/spec.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/spec/story-brainbase-decision-events-kpi-v1/spec.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-brainbase-decision-events-kpi-v1/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/stories/story-brainbase-decision-events-kpi-v1/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-brainbase-decision-events-kpi-v1/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/stories/story-brainbase-decision-events-kpi-v1/tasks/tasks.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/validation-sequencing/story-brainbase-decision-events-kpi-v1/state.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/references/vibepro/validation-sequencing/story-brainbase-decision-events-kpi-v1/state.json",
+      "resolution": "copied_reference"
+    }
+  ],
+  "unresolved_references": [
+    {
+      "source": ".vibepro/adjudication/story-brainbase-decision-events-kpi-v1/judgment-adjudication.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/evidence.json",
+      "reason": "source_too_large",
+      "size_bytes": 9877775
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-24T045039Z/static-site-check-result.md",
+      "reason": "source_too_large",
+      "size_bytes": 1481728
+    },
+    {
+      "source": ".vibepro/graphify/graph.json",
+      "reason": "source_too_large",
+      "size_bytes": 8465816
+    },
+    {
+      "source": ".vibepro/pr/",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/spec/story-brainbase-human-decision-queue-attention-edge-v0/",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-brainbase-decision-events-kpi-v1/ia-flow-map.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-brainbase-decision-events-kpi-v1/responsive-a11y-matrix.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/verification/",
+      "reason": "source_missing"
+    }
+  ]
+}

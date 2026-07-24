@@ -1,0 +1,41 @@
+{
+  "status": "pass",
+  "outcome": "pass",
+  "head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+  "test_fingerprint": "decision-events-authority-generation-lock-slack-v7",
+  "evidence_source": "local freeze-after E2E execution",
+  "executed_at": "2026-07-24T16:06:55+09:00",
+  "checks": [
+    {
+      "kind": "unit",
+      "command": "npx vitest run tests/server/services/companion/decision-event-service.test.js",
+      "status": "pass",
+      "passed": 42,
+      "failed": 0
+    },
+    {
+      "kind": "integration",
+      "command": "npx vitest run tests/server/routes/companion-decision-events.test.js tests/server/scripts/send-decision-kpi-to-slack.test.js",
+      "status": "pass",
+      "passed": 17,
+      "failed": 0
+    },
+    {
+      "kind": "e2e",
+      "command": "BRAINBASE_E2E_PORT=31123 npx playwright test tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts --reporter=line",
+      "status": "pass",
+      "passed": 9,
+      "failed": 0
+    },
+    {
+      "kind": "typecheck",
+      "command": "npm run typecheck",
+      "status": "pass"
+    },
+    {
+      "kind": "lint",
+      "command": "npx eslint server/services/companion/decision-event-service.js server/controllers/companion-controller.js tests/server/services/companion/decision-event-service.test.js tests/server/routes/companion-decision-events.test.js tests/server/scripts/send-decision-kpi-to-slack.test.js",
+      "status": "pass"
+    }
+  ]
+}
