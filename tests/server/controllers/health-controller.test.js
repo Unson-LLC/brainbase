@@ -109,6 +109,27 @@ describe('HealthController', () => {
       );
     });
 
+    it('Project Catalog無効runtimeはnot_applicableとしてhealthyを維持する', async () => {
+      mockConfigParser.checkIntegrity.mockResolvedValue({
+        applicability: 'not_applicable',
+        source: { status: 'not_applicable', mode: 'disabled' },
+        summary: { errors: 0, warnings: 0 },
+        stats: { projects: 0 }
+      });
+
+      await controller.getHealth(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        checks: expect.objectContaining({
+          config: expect.objectContaining({
+            status: 'not_applicable',
+            message: 'Project catalog is disabled for this runtime'
+          })
+        })
+      }));
+    });
+
     it('SessionManagerがnull_OSS版対応でhealthyが返される', async () => {
       const ossController = new HealthController({
         readiness: null,

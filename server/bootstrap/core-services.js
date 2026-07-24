@@ -68,7 +68,16 @@ export function createCoreServices({
         ? JsonStateStore
         : StateStore;
     const stateStore = new StateStoreClass(stateFile, brainbaseRoot);
-    const configParser = new ConfigParser(codexPath, configPath, brainbaseRoot, projectsRoot);
+    const catalogMode = process.env.BRAINBASE_PROJECT_CATALOG_MODE === 'disabled'
+        ? 'disabled'
+        : 'required';
+    const configParser = new ConfigParser(
+        codexPath,
+        configPath,
+        brainbaseRoot,
+        projectsRoot,
+        { catalogMode }
+    );
     const configService = new ConfigService(configPath, projectsRoot, configParser);
     const infoSSOTService = new InfoSSOTService();
     const authService = new AuthService();

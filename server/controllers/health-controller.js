@@ -212,18 +212,28 @@ export class HealthController {
         try {
             if (this.configParser) {
                 const integrity = await this.configParser.checkIntegrity();
-                const hasErrors = integrity.summary?.errors > 0;
-                const hasWarnings = integrity.summary?.warnings > 0;
+                if (integrity.applicability === 'not_applicable') {
+                    checks.config = {
+                        status: 'not_applicable',
+                        message: 'Project catalog is disabled for this runtime',
+                        source: integrity.source,
+                        stats: integrity.stats
+                    };
+                } else {
+                    const hasErrors = integrity.summary?.errors > 0;
+                    const hasWarnings = integrity.summary?.warnings > 0;
 
-                checks.config = {
-                    status: hasErrors ? 'unhealthy' : hasWarnings ? 'degraded' : 'healthy',
-                    message: hasErrors
-                        ? `${integrity.summary.errors} config errors found`
-                        : hasWarnings
-                            ? `${integrity.summary.warnings} config warnings found`
-                            : 'Configuration is valid',
-                    stats: integrity.stats
-                };
+                    checks.config = {
+                        status: hasErrors ? 'unhealthy' : hasWarnings ? 'degraded' : 'healthy',
+                        message: hasErrors
+                            ? `${integrity.summary.errors} config errors found`
+                            : hasWarnings
+                                ? `${integrity.summary.warnings} config warnings found`
+                                : 'Configuration is valid',
+                        source: integrity.source,
+                        stats: integrity.stats
+                    };
+                }
             } else {
                 checks.config = {
                     status: 'healthy',

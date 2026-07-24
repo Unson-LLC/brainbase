@@ -1,4 +1,5 @@
 import { execSync } from 'child_process';
+import { existsSync } from 'fs';
 import { TERMINAL_RUNTIME_STATE } from './terminal-runtime-registry.js';
 import { PS_INVENTORY_MAX_BUFFER } from './session-runtime/ps-inventory-config.js';
 
@@ -99,6 +100,7 @@ export class TerminalRuntimeReconciler {
         serverGeneration = null,
         execSyncFn = execSync,
         killFn = process.kill,
+        pathExistsFn = existsSync,
         terminalTransport = process.env.BRAINBASE_TERMINAL_TRANSPORT ?? null,
         logger = console
     } = {}) {
@@ -110,6 +112,7 @@ export class TerminalRuntimeReconciler {
         this.serverGeneration = serverGeneration;
         this.execSync = execSyncFn;
         this.kill = killFn;
+        this.pathExists = pathExistsFn;
         this.terminalTransport = terminalTransport;
         this.logger = logger;
     }
@@ -120,6 +123,14 @@ export class TerminalRuntimeReconciler {
     // and must not drive ttyd reconnect (which would churn every watchdog cycle).
     _isXtermTransport() {
         return this.terminalTransport === 'xterm';
+    }
+
+    _workspacePath(session) {
+        return session?.worktree?.path
+            || session?.path
+            || session?.cwd
+            || session?.workingDirectory
+            || null;
     }
 
     observe() {
@@ -243,14 +254,39 @@ export class TerminalRuntimeReconciler {
                         dryRun
                     }));
                 } else {
-                    actions.push({
+                    const workspacePath = this._workspacePath(entry.session);
+                    if (workspacePath && !this.pathExists(workspacePath)) {
+                        actions.push({
+                            sessionId: entry.sessionId,
+                            type: 'ensure_runtime',
+                            reason: 'workspace_missing',
+                            workspacePath,
+                            dryRun,
+                            skipped: true,
+                            success: false
+                        });
+                        continue;
+                    }
+
+                    const action = {
                         sessionId: entry.sessionId,
                         type: 'ensure_runtime',
                         reason: 'explicit_recover',
-                        dryRun
-                    });
+                        dryRun,
+                        success: dryRun ? undefined : true
+                    };
+                    actions.push(action);
                     if (!dryRun && typeof this.runtimeLifecycle?.ensureSessionRuntime === 'function') {
-                        await this.runtimeLifecycle.ensureSessionRuntime({ sessionId: entry.sessionId });
+                        try {
+                            await this.runtimeLifecycle.ensureSessionRuntime({ sessionId: entry.sessionId });
+                        } catch (error) {
+                            action.success = false;
+                            action.error = error instanceof Error ? error.message : String(error);
+                            this.logger.warn?.('[TerminalRuntimeReconciler] Session recovery failed', {
+                                sessionId: entry.sessionId,
+                                error: action.error
+                            });
+                        }
                     }
                 }
             }

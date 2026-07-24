@@ -24,7 +24,8 @@ describe('TerminalRuntimeReconciler', () => {
     ensureSessionRuntime = vi.fn(),
     stopTtyd = vi.fn(),
     startTtyd = vi.fn(),
-    restartTtydForExistingTmux = undefined
+    restartTtydForExistingTmux = undefined,
+    pathExistsFn = vi.fn(() => true)
   } = {}) {
     const registry = {
       getAll: vi.fn(() => ({ sessions: {} })),
@@ -47,6 +48,7 @@ describe('TerminalRuntimeReconciler', () => {
       runtimeRegistry: registry,
       execSyncFn: vi.fn((command) => String(command).startsWith('tmux capture-pane') ? paneOutput : dryProcesses),
       killFn,
+      pathExistsFn,
       // These tests assert ttyd-transport recovery behavior; pin the transport so
       // they are deterministic regardless of the runner's BRAINBASE_TERMINAL_TRANSPORT.
       terminalTransport: 'ttyd'
@@ -312,6 +314,57 @@ describe('TerminalRuntimeReconciler', () => {
     await reconciler.reconcile({ dryRun: false, recover: true });
 
     expect(ensureSessionRuntime).toHaveBeenCalledWith({ sessionId: 'session-1' });
+  });
+
+  it('recover trueでworkspace欠損sessionは再起動せず退役候補として記録する', async () => {
+    const { reconciler, ensureSessionRuntime } = buildReconciler({
+      tmuxRunning: false,
+      sessions: [{
+        id: 'session-missing',
+        intendedState: 'active',
+        worktree: { path: '/missing/worktree' }
+      }],
+      pathExistsFn: vi.fn(() => false)
+    });
+
+    const result = await reconciler.reconcile({ dryRun: false, recover: true });
+
+    expect(ensureSessionRuntime).not.toHaveBeenCalled();
+    expect(result.actions).toContainEqual(expect.objectContaining({
+      sessionId: 'session-missing',
+      type: 'ensure_runtime',
+      reason: 'workspace_missing',
+      workspacePath: '/missing/worktree',
+      skipped: true,
+      success: false
+    }));
+  });
+
+  it('1件のruntime復旧失敗後も後続sessionをreconcileする', async () => {
+    const ensureSessionRuntime = vi.fn()
+      .mockRejectedValueOnce(new Error('workspace unavailable'))
+      .mockResolvedValueOnce(undefined);
+    const { reconciler } = buildReconciler({
+      tmuxRunning: false,
+      sessions: [
+        { id: 'session-failed', intendedState: 'active' },
+        { id: 'session-recovered', intendedState: 'active' }
+      ],
+      ensureSessionRuntime
+    });
+
+    const result = await reconciler.reconcile({ dryRun: false, recover: true });
+
+    expect(ensureSessionRuntime).toHaveBeenCalledTimes(2);
+    expect(result.actions).toContainEqual(expect.objectContaining({
+      sessionId: 'session-failed',
+      success: false,
+      error: 'workspace unavailable'
+    }));
+    expect(result.actions).toContainEqual(expect.objectContaining({
+      sessionId: 'session-recovered',
+      success: true
+    }));
   });
 
   it('INV-1 active tmuxかつpersisted ttydProcessがあるが実ttydなしの場合_degradedになる', async () => {

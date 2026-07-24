@@ -593,12 +593,14 @@ export const runtimeMaintenanceMethods = {
                 if (typeof this.runtimeReconciler?.reconcile === 'function') {
                     const reconcileResult = await this.runtimeReconciler.reconcile({ dryRun: false, recover: true });
                     const isRecoveryAction = (action) =>
-                        action.type === 'restart_terminal_runtime' || action.type === 'reconnect_ttyd';
+                        action.type === 'restart_terminal_runtime'
+                        || action.type === 'reconnect_ttyd'
+                        || action.type === 'ensure_runtime';
                     const recoveryActions = (reconcileResult.actions || []).filter((action) =>
                         isRecoveryAction(action) && action.success === true
                     );
                     const failedRecoveryActions = (reconcileResult.actions || []).filter((action) =>
-                        isRecoveryAction(action) && action.success === false
+                        isRecoveryAction(action) && action.success === false && action.skipped !== true
                     );
                     if (recoveryActions.length > 0) {
                         logger.warn(`[PTY Watchdog] Runtime reconciliation recovered ${recoveryActions.length} issue(s)`);
