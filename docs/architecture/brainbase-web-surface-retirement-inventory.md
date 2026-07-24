@@ -12,7 +12,7 @@ Brainbase Webを画面名だけで一括廃止せず、各surfaceが持つ能力
 
 ## Evidence boundary
 
-- `server/bootstrap/static-routes.js`は`/admin`、`/`、`/device`、`/setup`を配信する。`/workflows`と`/workflows.html`は404で固定した。
+- `server/bootstrap/static-routes.js`は`/admin`、Graph API landingの`/`、`/device`、`/setup`を配信する。旧operations command centerの`/app.js`は410、`/workflows`と旧ttyd assetsは404で固定した。
 - `mcp/brainbase/src/server.ts`のBrainbase MCPはGraph、Wiki、Personal KG検索に加え、認証済みproject catalog、Run Receipt Inbox/history/diagnosis、Automation Run detail/human-step resolve、Meeting Automation diagnosisを提供する。
 - Session、SNS Growth、Admin visualization、setup、device authorizationのREST APIには、まだBrainbase MCPに同等toolがない能力が残る。
 - `docs/brainbase-capabilities/capabilities/codex.app-server.yml`はClaude CodeとApp Server metadataのないCodex sessionについてxterm fallbackを維持すると定義する。
@@ -29,9 +29,9 @@ Brainbase Webを画面名だけで一括廃止せず、各surfaceが持つ能力
 | `public/device.html` | device code検証、Slack OAuth開始、approve/deny。sessionStorageとlocalStorageでcallbackを連結 | 最小Web | ブラウザ本人確認/OAuthのためWebが正規 | `keep_minimal_web` | verify、login、approve、deny以外の表示・依存を持たないこと |
 | `public/sns-growth.html` | review pack、post一覧/更新、publish、feedback、account default/health。index shellにもoverlay導線あり | automation + MCP、承認・失敗・feedbackはCompanion | REST APIのみ。MCP/Companion parityなし | `move_then_delete` | read/update/publish-dry-run/feedback tools、外部送信確認、Companion projectionを検証 |
 | `public/workflows.html` | 廃止済み。Workflow CRUD、draft/test/publish、manual runとRun/Meeting運用が混在していた | Automation Run Core + MCP + Companion | Run Receipt、Run detail/resolve、Meeting診断、Companion要介入projectionへ分離済み | `deleted` | `TSK-WEBRET-006`完了。page、route、overlay、browser modules、旧UI tests、deep-linkを削除し、Core/API testsを維持 |
-| `public/index.html` | Project/session作成・復旧、terminal、Codex App Server transcript、Tasks、Wiki、Live Feed、Inbox、Workflow/SNS overlay等の統合shell | Codex/Claude Code + MCP。auth/bootstrap/recoveryだけ最小Web | Session/worktree/terminal/Codex App ServerはADR-019で退役し、server writerとtransportを停止済み | `delete_last` | 残るCore機能を分解してMCP/Companion/Webへ移管し、最小Web entrypointを独立させること |
-| `public/ttyd/custom_ttyd_index.html` | ttyd/xtermの実行時index。session runtimeが`--index`へ渡し、terminal bridge/testが直接依存 | native Codex/Claude Code。限定的runtime fallback | 未完。Claude Codeと旧Codex sessionはfallback依存 | `keep_transition` | Claude Codeを含むsession操作・復旧の代替とbreak-glass経路を実証 |
-| `public/ttyd/ttyd_index.html` | ttyd upstream bundleの保管artifact。runtimeはcustom版を優先 | build/vendor artifactまたは削除 | runtime primaryではないがfallback関係を要確認 | `review_vendor_artifact` | custom版生成元・fallback・再生成手順を確認して保管要否を決定 |
+| `public/index.html` | 廃止済み。Project/session、terminal、Codex transcript等を束ねた旧operations command center | Codex/Claude Code + MCP | Session/worktree/terminal runtimeの物理削除後、`/`をGraph API landingへ置換 | `deleted` | `TSK-WEBRET-009`完了。pageとentrypoint、専用testを削除し、`/app.js`を410で固定 |
+| `public/ttyd/custom_ttyd_index.html` | 廃止済み。旧browser terminal shell | native Codex/Claude Code | session/terminal runtimeとfallback scriptを先に物理削除済み | `deleted` | `TSK-WEBRET-009`完了。runtime参照0件、static 404 |
+| `public/ttyd/ttyd_index.html` | 廃止済み。旧ttyd upstream vendor artifact | native Codex/Claude Code | runtime consumerなし | `deleted` | `TSK-WEBRET-009`完了。static 404 |
 
 ## Capability gaps before deletion
 
@@ -70,6 +70,6 @@ Brainbase MCPに次のcontrol-plane tool群が必要である。REST endpointを
 | `TSK-WEBRET-006` | Workflow Mission Control Webと汎用Workflow製品面を廃止 | 完了。`/workflows`と専用UI/state/client/test/導線/deep-linkを削除し、Meeting AutomationとRun Core testsを維持 |
 | `TSK-WEBRET-007` | Admin/SNS/setupの残能力をMCPへ移管 | 各surfaceのretirement gateをcurrent HEADで満たす |
 | `TSK-WEBRET-008` | 最小Web auth/pairing/recovery surfaceを抽出 | browser必須能力だけがWebに残り、日常一覧・設定UIがない |
-| `TSK-WEBRET-009` | index shellとttyd fallbackを廃止 | Codex/Claude Code sessionの作成・復旧・診断代替とrollback evidence |
+| `TSK-WEBRET-009` | index shellとttyd fallbackを廃止 | 完了。rootをGraph API landingへ縮退し、旧entrypointは410、ttyd assetsは404。Codex task/terminalがowner |
 
-`TSK-WEBRET-001`から`TSK-WEBRET-006`まで完了した。Workflow Webは後継MCPとCompanion projectionを先に出荷したうえで削除済みであり、Meeting AutomationとRun台帳はCoreとして残る。次はAdmin、SNS、setup、session shellを同じevidence単位で縮退する。
+`TSK-WEBRET-001`から`006`、`009`まで完了した。Workflow Webと旧session shellは後継ownerを確定したうえで削除済みであり、Meeting AutomationとRun台帳はCoreとして残る。次はAdmin、SNS、setupを同じevidence単位で縮退する。

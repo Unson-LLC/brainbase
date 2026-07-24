@@ -57,7 +57,11 @@ describe('Brainbase development runtime boundary', () => {
             'scripts/codex-pty-shim.py',
             'scripts/codex-wrapper.sh',
             'scripts/ensure_session_runtime.sh',
-            'scripts/login_script.sh'
+            'scripts/login_script.sh',
+            'public/index.html',
+            'public/app.js',
+            'public/ttyd/custom_ttyd_index.html',
+            'public/ttyd/ttyd_index.html'
         ]) {
             expect(existsSync(path.join(process.cwd(), retiredPath))).toBe(false);
         }

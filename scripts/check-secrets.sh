@@ -71,7 +71,6 @@ check_pattern() {
             --exclude="auto-cleanup-cron.sh" \
             --exclude="SECURITY.md" \
             --exclude="LICENSE" \
-            --exclude="ttyd_index.html" \
             --exclude="dev.sh" \
             --exclude="SCREENSHOT_REQUEST.md" \
             --exclude="SCREENSHOT_REQUEST_SLACK.md" \
