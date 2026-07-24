@@ -24,11 +24,24 @@ node_bin="$(
     'source "$HOME/.nvm/nvm.sh"; dirname "$(command -v node)"'
 )"
 real_claude="$node_bin/claude"
-real_ryoko="$node_bin/ryoko"
+openryoko_root="$HOME_DIR/src/OpenRyoko"
+openryoko_cli="$openryoko_root/packages/jimmy/dist/bin/jimmy.js"
+real_ryoko="$HOME_DIR/bin/ryoko"
 rendered_file="$(mktemp)"
 trap 'rm -f "$rendered_file"' EXIT
 
 install -d -o "$RYOKO_USER" -g "$RYOKO_USER" -m 750 "$HOME_DIR/bin"
+if [[ ! -f "$openryoko_cli" ]]; then
+  echo "Missing pinned OpenRyoko build: $openryoko_cli" >&2
+  exit 1
+fi
+cat >"$rendered_file" <<EOF
+#!/usr/bin/env bash
+exec "$node_bin/node" "$openryoko_cli" "\$@"
+EOF
+install -o "$RYOKO_USER" -g "$RYOKO_USER" -m 750 \
+  "$rendered_file" "$real_ryoko"
+
 sed \
   -e "s|@ENVIRONMENT_FILE@|$ENVIRONMENT_FILE|g" \
   -e "s|@CLAUDE_BINARY@|$real_claude|g" \
@@ -41,17 +54,32 @@ sudo -u "$RYOKO_USER" -H bash -lc "
   source \"\$HOME/.nvm/nvm.sh\"
   [[ -f \"\$HOME/.ryoko/config.yaml\" ]] || ryoko setup
   ryoko config interactive on
-  tmp=\$(mktemp)
-  yq -y --arg uid '$SLACK_ALLOW_USER_ID' '
-    .gateway.host = \"127.0.0.1\" |
-    .connectors.slack.allowFrom = [\$uid] |
-    .connectors.slack.respondTo.im = \"never\" |
-    .connectors.slack.respondTo.mpim = \"never\" |
-    .connectors.slack.respondTo.channel = \"mention\" |
-    .connectors.slack.respondTo.engagedThreads = true
-  ' \"\$HOME/.ryoko/config.yaml\" > \"\$tmp\"
-  install -m 600 \"\$tmp\" \"\$HOME/.ryoko/config.yaml\"
-  rm -f \"\$tmp\"
+  cd \"$openryoko_root/packages/jimmy\"
+  SLACK_ALLOW_USER_ID='$SLACK_ALLOW_USER_ID' node --input-type=module <<'NODE'
+import fs from \"node:fs\";
+import yaml from \"js-yaml\";
+
+const configPath = process.env.HOME + \"/.ryoko/config.yaml\";
+const config = yaml.load(fs.readFileSync(configPath, \"utf8\"));
+config.gateway ??= {};
+config.gateway.host = \"127.0.0.1\";
+config.connectors ??= {};
+config.connectors.slack ??= {};
+config.connectors.slack.allowFrom = [process.env.SLACK_ALLOW_USER_ID];
+config.connectors.slack.respondTo = {
+  im: \"never\",
+  mpim: \"never\",
+  channel: \"mention\",
+  engagedThreads: true,
+};
+config.engines ??= {};
+config.engines.claude ??= {};
+config.engines.claude.interactive = true;
+config.engines.claude.interactivePermissionMode = \"plan\";
+const tmp = configPath + \".tmp\";
+fs.writeFileSync(tmp, yaml.dump(config, { lineWidth: 120 }), { mode: 0o600 });
+fs.renameSync(tmp, configPath);
+NODE
 "
 
 sed \
@@ -76,6 +104,15 @@ install -o root -g root -m 644 "$rendered_file" \
 systemctl daemon-reload
 systemctl enable --now openryoko.service
 systemctl restart openryoko.service
-curl --fail --silent --show-error http://127.0.0.1:7777/ >/dev/null
+for attempt in $(seq 1 20); do
+  if curl --fail --silent http://127.0.0.1:7777/ >/dev/null; then
+    break
+  fi
+  if [[ "$attempt" -eq 20 ]]; then
+    systemctl status openryoko.service --no-pager --lines=30 >&2
+    exit 1
+  fi
+  sleep 1
+done
 
 echo "OpenRyoko is active on 127.0.0.1:7777."

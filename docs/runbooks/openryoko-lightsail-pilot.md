@@ -1,9 +1,8 @@
 # OpenRyoko Lightsail pilot
 
-> Current state: technical spike. Slack, PTY, Graph/Noco read access, systemd,
-> and cron have been exercised, but the Phase 1 `draft_only` capability gate
-> and Brainbase receipt connector are not yet proven. Do not widen access while
-> Claude is launched with unrestricted bypass permissions.
+> Current state: constrained pilot. Slack, PTY, Graph/Noco read access, systemd,
+> cron, and the Phase 1 `draft_only` negative test have been exercised. The
+> Brainbase receipt connector is not yet proven, so do not widen access.
 
 ## Scope and current deployment
 
@@ -29,6 +28,16 @@ OAuth tokens, or Slack tokens here.
 1. Create a fresh Lightsail Ubuntu 24.04 instance with the 4 GB plan, attach a
    static IP, and allow inbound TCP 22 only.
 2. Run `sudo scripts/openryoko/bootstrap-instance.sh`.
+
+   The script builds the public `Unson-LLC/OpenRyoko` fork at its recorded full
+   commit SHA. It does not install a moving npm release. To advance the runtime,
+   review the fork change first, then update `OPENRYOKO_REF` in the script. A
+   one-off rebuild may override it explicitly:
+
+   ```bash
+   sudo OPENRYOKO_REF=<reviewed-full-commit-sha> \
+     scripts/openryoko/bootstrap-instance.sh
+   ```
 3. In Infisical project `OpenRyoko`, production environment, provision a
    protected file containing:
 
@@ -45,9 +54,8 @@ OAuth tokens, or Slack tokens here.
      'source "$HOME/.nvm/nvm.sh"; set -a; source "$HOME/.config/openryoko/environment"; set +a; claude --dangerously-skip-permissions'
    ```
 
-   Select the theme, then accept bypass-permissions mode only for the existing
-   technical spike. This is not the Phase 1 `draft_only` configuration and
-   must be removed before widening access or credentials.
+   This invocation is only for Claude Code's local first-run screens. The
+   gateway runtime is configured separately and must remain in `plan` mode.
 5. Apply runtime configuration:
 
    ```bash
@@ -58,7 +66,18 @@ OAuth tokens, or Slack tokens here.
 The wrapper installed by `configure-runtime.sh` is required for OpenRyoko
 2026.7.10: its Interactive PTY strips every `CLAUDE_CODE_*` variable before
 spawning Claude. The wrapper reloads the mode-600 Infisical projection without
-embedding or logging the token.
+embedding or logging the token. The same script enforces:
+
+- `gateway.host = 127.0.0.1`
+- one explicit Slack `allowFrom` user
+- mention-only channel handling, with IM and MPIM disabled
+- Interactive PTY enabled
+- `engines.claude.interactivePermissionMode = plan`
+
+After each runtime change, create a disposable web session that asks Claude to
+write a unique sentinel file. The session may complete with a plan, but the
+sentinel must remain absent. Record the session ID and result without storing
+the prompt or transcript.
 
 ## Slack pilot
 
@@ -146,3 +165,30 @@ Weekly calculations:
 
 Run the pilot for two to four weeks. Missing or unavailable evidence is
 `未確認`, never zero or success.
+
+## Canonical run receipts
+
+After the Brainbase release containing `source.type=openryoko` is live, project
+a separate mode-600 file at
+`/home/ryoko/.config/openryoko/run-receipt.env` with:
+
+```text
+BRAINBASE_PROJECT_ID=brainbase
+BRAINBASE_RUN_RECEIPT_INGEST_URL=<server-to-server ingest URL>
+BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN=<Infisical-injected value>
+```
+
+Do not reuse the Claude OAuth token or expose this file to OpenRyoko sessions.
+Install the one-minute collector only after all three values exist:
+
+```bash
+sudo scripts/openryoko/install-run-receipt.sh
+systemctl status openryoko-run-receipt.timer
+journalctl -u openryoko-run-receipt.service --since today
+```
+
+The first poll establishes a baseline and emits no historical receipts.
+Subsequent terminal transitions enqueue metadata-only `run_receipt.v1`
+records. Delivery failure retains the receipt in a local outbox; bounded
+failures move it to dead-letter rather than reporting success. Prompts,
+messages, raw logs, and transcripts are never copied.

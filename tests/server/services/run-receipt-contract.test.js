@@ -85,7 +85,7 @@ describe('normalizeRunReceipt', () => {
         expect(normalized.payload_digest).toMatch(/^[a-f0-9]{64}$/);
     });
 
-    it.each(['mana', 'codex_automations', 'github_actions', 'salestailor'])(
+    it.each(['mana', 'codex_automations', 'github_actions', 'salestailor', 'openryoko'])(
         'source.type=%s_共通契約で正規化する',
         (sourceType) => {
             const externalRunId = `${sourceType}:run:1`;
