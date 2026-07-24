@@ -37,6 +37,7 @@ node_bin="$(
 
 install -d -o "$RYOKO_USER" -g "$RYOKO_USER" -m 750 \
   "$INSTALL_DIR" \
+  "$HOME_DIR/.local/state/openryoko-run-receipt" \
   "$HOME_DIR/.local/state/openryoko-run-receipt/outbox" \
   "$HOME_DIR/.local/state/openryoko-run-receipt/dead-letter"
 install -o "$RYOKO_USER" -g "$RYOKO_USER" -m 640 \
