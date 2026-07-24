@@ -49,7 +49,15 @@ describe('Brainbase development runtime boundary', () => {
             'server/services/session-runtime/runtime-lifecycle-methods.js',
             'server/services/terminal-transport-service.js',
             'server/services/terminal-runtime-reconciler.js',
-            'server/services/worktree-service.js'
+            'server/services/worktree-service.js',
+            'server/services/codex-app-server-activity-bridge.js',
+            'server/scripts/pause-orphan-tmux-missing-sessions.js',
+            'scripts/codex-hooks-activity.sh',
+            'scripts/codex-notify.sh',
+            'scripts/codex-pty-shim.py',
+            'scripts/codex-wrapper.sh',
+            'scripts/ensure_session_runtime.sh',
+            'scripts/login_script.sh'
         ]) {
             expect(existsSync(path.join(process.cwd(), retiredPath))).toBe(false);
         }

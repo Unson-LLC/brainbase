@@ -39,7 +39,7 @@ Brainbase
 
 1. [完了] session/worktree/terminalのwriterと自動reconcileを停止し、旧endpointを`410 Gone`にする。
 2. [完了] 過去レコードをread-only evidenceとして凍結する。
-3. [進行中] active composition rootから旧runtimeを除去し、未参照のserver controller/service/routeと専用testを物理削除した。旧UIとcapability文書は依存順に削除する。
+3. [進行中] active composition rootから旧runtimeを除去し、未参照のserver controller/service/route、tmux/PTY起動script、session activity hookと専用testを物理削除した。旧UIとcapability文書は依存順に削除する。
 4. [完了] Coreの起動、health、open-file、shutdownからsession/worktree/terminal依存を除去した。legacy stateはactive runtimeでload/saveせず、移行証跡として物理ファイルだけを保護する。
 
 ## Verification
@@ -50,3 +50,4 @@ Brainbase
 - shutdown時にBrainbaseがsession runtime processを停止しない。
 - shutdown時にlegacy state storeを保存せず、既存session/archiveデータを削除・書換しない。
 - `server.js`とbootstrap composition rootがsession/worktree/terminal lifecycle serviceをimport・生成しない。
+- Claude/Codex hookがBrainbaseへsession activity heartbeatを送信しない。

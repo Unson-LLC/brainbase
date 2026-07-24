@@ -8,22 +8,6 @@
             "type": "command",
             "command": "bash scripts/codex-hooks/inject-memory-preamble.sh",
             "statusMessage": "brainbase memory preamble"
-          },
-          {
-            "type": "command",
-            "command": "bash scripts/codex-hooks-activity.sh",
-            "statusMessage": "brainbase activity"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash scripts/codex-hooks-activity.sh",
-            "statusMessage": "brainbase activity"
           }
         ]
       }
@@ -36,34 +20,6 @@
             "type": "command",
             "command": "bash scripts/codex-hooks-pre-tool-use-protected-push.sh",
             "statusMessage": "brainbase protected-push guard"
-          },
-          {
-            "type": "command",
-            "command": "bash scripts/codex-hooks-activity.sh",
-            "statusMessage": "brainbase activity"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash scripts/codex-hooks-activity.sh",
-            "statusMessage": "brainbase activity"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash scripts/codex-hooks-activity.sh",
-            "statusMessage": "brainbase activity"
           }
         ]
       }
