@@ -7,21 +7,6 @@
 - `/ohayo`
 - ユーザーが「おはよう」「今日の整理」「朝の確認」と言及
 
-## Archive Blocked Check
-
-毎朝必ず archive finalizer の blocked 件数を確認する。
-
-```bash
-cd /Users/ksato/workspace/code/brainbase
-node scripts/archive-blocked-report.mjs --limit 5
-```
-
-扱い:
-
-- blocked が 0 件: 件数だけ報告
-- blocked が 1 件以上: 件数、上位5件、最古経過時間、主な理由を朝のブリーフィングに載せる
-- `/ohayo` では原則として解消作業は始めず、今日のフォーカス候補に入れる
-
 ## Calendar Check
 
 毎朝必ず `gog` で今日のカレンダーを確認する。`gog` は `--account` を付けないとデフォルトアカウントの primary calendar だけを見るため、最初に認証済みアカウントを列挙し、Calendar権限が有効な全アカウントを横断する。
@@ -225,7 +210,7 @@ npm run sns:import-review-pack -- --date "$TODAY"
 
 ## HTML Report
 
-Calendar / Mail / Slack / Archive Blocked / 今日の優先タスクを整理したら、日付別HTMLレポートを必ず生成する。
+Calendar / Mail / Slack / 今日の優先タスクを整理したら、日付別HTMLレポートを必ず生成する。
 
 ```bash
 TODAY=$(date +%F)
@@ -242,6 +227,6 @@ HTML内のボタンはAIに渡す構造化指示だけを生成する。Slack投
 
 | コマンド | 役割 |
 |---|---|
-| `/ohayo` | 検知: カレンダー、メール、Slack未対応連絡、blocked 件数、SNS当日briefとPosting Ledger取り込みを朝に必ず見える化 |
+| `/ohayo` | 検知: カレンダー、メール、Slack未対応連絡、業務上のblocked、SNS当日briefとPosting Ledger取り込みを朝に必ず見える化 |
 | `/oyasumi` | 日次整理: 当日分を fix/retry/task 化し、SNS反応を学習に戻す |
-| `/retro` | 週次棚卸し: 残った blocked とSNS勝ち筋を Learn/Block としてエスカレーション |
+| `/retro` | 週次棚卸し: 残った業務上のblockedとSNS勝ち筋をLearn/Blockとしてエスカレーション |

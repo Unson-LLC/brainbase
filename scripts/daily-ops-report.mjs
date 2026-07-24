@@ -15,7 +15,6 @@ const MODE_CONFIG = {
             ['calendar', 'Calendar'],
             ['mail', 'Mail'],
             ['slack', 'Slack'],
-            ['archiveBlocked', 'Archive Blocked'],
             ['priorityTasks', '今日の優先タスク']
         ],
         actions: [
