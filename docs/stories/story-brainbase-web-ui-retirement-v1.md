@@ -61,7 +61,7 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 | `public/sns-growth.html` | 廃止済みのSNS運用cockpit | automation + Core API/ledger | `deleted_ui` | `TSK-WEBRET-010`完了。専用Web面は不要と判断し、Core API/ledgerを残してUIのみ削除 |
 | `public/admin.html` | 廃止済みの管理・可視化混合面 | `brainbase_admin_read` + Core REST | `deleted` | `TSK-WEBRET-007`完了。7 read view、scope、audit、失敗状態のMCP contractを固定し、Web専用資産を削除 |
 | `public/setup.html` | 廃止済みのconfig download面 | `brainbase_bootstrap_config` + `~/workspace/config.yml` | `deleted` | `TSK-WEBRET-007A`完了。config正本とREST backendを維持し、Web専用資産を削除 |
-| `public/device.html` | device接続・pairing | Web候補 | `keep_web_review` | pairing/本人確認に必要な最小面へ縮小 |
+| `public/device.html` | device接続・pairing | 最小Web | `keep_minimal_web` | `TSK-WEBRET-008`完了。verify、OAuth、consent、approve/deny、結果だけに限定 |
 | `public/test-infrastructure.html` | 廃止済みの開発・検証用UI | CLI/test artifact | `deleted` | `TSK-WEBRET-001`で参照0件とstatic 404を確認済み |
 | `public/ttyd/custom_ttyd_index.html` | 廃止済みのbrowser terminal shell | Codex/Claude Code native surface | `deleted` | `TSK-WEBRET-009`完了。session/terminal runtime参照0件 |
 | `public/ttyd/ttyd_index.html` | 廃止済みのvendor artifact | Codex/Claude Code native surface | `deleted` | `TSK-WEBRET-009`完了。runtime consumerなし |
@@ -74,7 +74,7 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 - [ ] ac:2 各surfaceの全能力が`move_to_mcp`、`move_to_companion`、`automate`、`keep_web`、`delete`へ機能単位で分類されている。
 - [ ] ac:3 `move_to_mcp`は正常系、認証・project scope、不正入力、依存先 unavailable、監査証跡までcurrent HEADで検証されている。
 - [ ] ac:4 `move_to_companion`は要介入項目と根拠を表示し、blocked/unconfirmed/no_data/取得不能を0件や成功へ丸めない。
-- [ ] ac:5 `keep_web`はブラウザ必須理由を持ち、login、consent、pairing、break-glass recoveryの範囲を超えない。bootstrap configはMCP/CLIが所有する。
+- [x] ac:5 `keep_web`はブラウザ必須理由を持ち、login、consent、pairing、break-glass recoveryの範囲を超えない。bootstrap configはMCP/CLIが所有する。
 - [ ] ac:6 廃止対象画面への新規導線と新機能追加を禁止し、後継面でのみ新規能力を提供する。
 - [ ] ac:7 画面削除は専用client/state/view/test/route/assetsの影響を確認し、画面単位の小さな変更として実施する。
 - [ ] ac:8 各削除PRは後継面のevidence、削除対象、残存互換性、rollback方法を記録する。
@@ -111,6 +111,6 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 6. `TSK-WEBRET-010`（完了）: SNS Growth専用Web UI、旧shell接続、専用CSS、UI/E2E testsを削除し、Core API/ledger/automationを維持した。
 7. `TSK-WEBRET-007`: Admin/setupの残能力を後継面へ移管する。
 7. `TSK-WEBRET-009`（完了）: operations command centerとttyd fallbackを削除し、rootをGraph API landingへ縮退した。
-7. `TSK-WEBRET-008`から`009`: 最小Webを抽出してからmain shellとttyd fallbackを廃止する。
+7. `TSK-WEBRET-008`（完了）: deviceを最小Webへ固定し、承認者identityを認証済みtokenへbindした。
 
-`TSK-WEBRET-001`から`TSK-WEBRET-006`まで完了。次はAdmin、SNS、setup、session shellを、後継能力のcurrent HEAD evidenceを揃えたsurfaceから廃止する。
+`TSK-WEBRET-001`から`TSK-WEBRET-010`まで完了。production Web UIはブラウザ必須のdevice本人確認/OAuth/consent/pairingだけで、日常運用・設定・一覧はAgent-first surfaceが所有する。
