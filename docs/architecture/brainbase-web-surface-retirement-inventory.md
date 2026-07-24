@@ -38,12 +38,12 @@ Brainbase Webを画面名だけで一括廃止せず、各surfaceが持つ能力
 Brainbase MCPに次のcontrol-plane tool群が必要である。REST endpointを直接呼べることだけではAgent-first parityとしない。
 
 1. `project` / `auth scope`（`TSK-WEBRET-003`完了）: `brainbase_projects`が署名検証済みgrantとMCP設定の積集合だけを返し、ok/unavailable/error、actor、role、scope、request_id、sourceを保持する。
-2. `session` / `runtime`: create、list、state、resume、stop、diagnose。途中状態を成功へ丸めない。
+2. `session` / `runtime`: Brainbase Webへの移植対象外。旧browser session/worktree/terminal runtimeは物理削除済みで、Codex app/CLIが所有する。
 3. `automation run`: run detail、許可されたretry/cancel、human-step resolve、audit参照。汎用Workflow create/update/draft/test/publish/manual runは移植しない。
 4. `run receipt inbox`: project filter、latest collapse、history、diagnosis、blocked/unconfirmed/no_data/unavailableの保持は実装済み。
 5. `meeting automation`: source sync状態、ingest/reconcile診断、明示的に許可された再実行。汎用Workflow実行へfallbackしない。
 6. `admin read`（`TSK-WEBRET-007`完了）: `brainbase_admin_read`がoverview、Graph entities、candidate、Personal KG、context preview、data flow、healthをactor/project scope付きで参照する。
-7. `sns growth`: review、schedule、publish dry-run、feedback、account health。実投稿は明示確認を維持。
+7. `sns growth`: 専用MCP/Web製品面を追加しない。automationとCore API/ledgerを維持し、実投稿は明示確認を保つ。
 8. `bootstrap/config`: `brainbase_bootstrap_config`でsetup configを安全に生成・取得する。secret値は返さない。ブラウザdownloadは廃止済み。
 
 ## Retirement order
@@ -75,3 +75,5 @@ Brainbase MCPに次のcontrol-plane tool群が必要である。REST endpointを
 | `TSK-WEBRET-010` | SNS Growth専用Web UIを廃止 | 完了。Core API/ledger/automationを維持し、page、view、旧shell接続、共有旧CSS、UI/E2E testsを削除。static 404を固定 |
 
 `TSK-WEBRET-001`から`010`まで完了した。Workflow Web、旧session shell、SNS専用Web UI、Admin Web、Setup Webは削除済みであり、Meeting Automation、Run台帳、SNS Core API/ledger、admin/setup REST backend、config正本はCoreとして残る。唯一のproduction Web UIである`device`は本人確認、OAuth、consent、pairingだけに限定し、承認者identityは認証済みtokenからサーバー側で確定する。
+
+旧session/transcript UI island、`public/dist` bundle、起動時build hook、専用E2Eも削除した。回帰テストは`public/`直下のHTML entrypointを`device.html`だけに制限し、旧bundle pipelineの再導入を失敗させる。

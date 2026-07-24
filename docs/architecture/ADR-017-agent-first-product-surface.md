@@ -37,7 +37,7 @@ BrainbaseをGUI-firstなWebアプリとして提供する方針を終了し、Ag
 - CodexおよびClaude CodeからMCPで安全に実行できる操作には、専用Web UIを作らない。
 - 完全自動化できる処理には、人間向けUIを作らない。
 - 人間の注意、即時確認、承認、修正が必要な項目はMac Companionへ投影する。
-- Webはログイン、OAuth/接続同意、初期設定、権限付与、端末ペアリング、MCP停止時の最小復旧など、ブラウザまたは対話的本人確認が不可欠な面だけを持つ。
+- Webはログイン、OAuth/接続同意、権限付与、端末ペアリング、MCP停止時の最小復旧など、ブラウザまたは対話的本人確認が不可欠な面だけを持つ。bootstrap configはMCP/CLIが所有する。
 - 「設定」という名称だけではWeb残置の理由にならない。Codex/Claude CodeからMCPで安全に変更・検証できる設定はWebから廃止する。
 - `Workflow`を人間が作成・編集・公開する汎用製品として提供する方針を終了する。汎用Workflow CRUD、draft/test/publish、manual runをMCPへ移植しない。
 - Meeting Packの実行経路とRun/Run Receipt/Human Approval/Auditは`Meeting Automation`と`Automation Run Core`へ分離して維持する。移行中の内部class、route、ledger fieldに残る`workflow`名は互換実装であり、製品面の継続を意味しない。
@@ -57,7 +57,7 @@ Mac Companion
   = notify / focus / approve / correct / give feedback
 
 Brainbase Web
-  = login / interactive consent / bootstrap / pairing / break-glass recovery
+  = login / interactive consent / pairing / break-glass recovery
 ```
 
 ## Retirement rule
