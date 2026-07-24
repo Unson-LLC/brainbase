@@ -69,7 +69,6 @@ check_pattern() {
             --exclude=".git" \
             --exclude="check-secrets.sh" \
             --exclude="auto-cleanup-cron.sh" \
-            --exclude="run-cleanup-phase2.js" \
             --exclude="SECURITY.md" \
             --exclude="LICENSE" \
             --exclude="ttyd_index.html" \

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -35,6 +35,23 @@ describe('Brainbase development runtime boundary', () => {
         expect(server).toContain("res.status(410)");
         for (const route of ['/api/state', '/api/sessions', '/api/terminal']) {
             expect(routes).toContain(`app.use('${route}', createRetiredCapabilityRouter`);
+        }
+    });
+
+    it('does not retain Brainbase-owned development runtime implementations', () => {
+        for (const retiredPath of [
+            'server/controllers/session-controller.js',
+            'server/controllers/session/runtime-handlers.js',
+            'server/routes/sessions.js',
+            'server/routes/terminal.js',
+            'server/services/create-session-services.js',
+            'server/services/session-core/activity-service-methods.js',
+            'server/services/session-runtime/runtime-lifecycle-methods.js',
+            'server/services/terminal-transport-service.js',
+            'server/services/terminal-runtime-reconciler.js',
+            'server/services/worktree-service.js'
+        ]) {
+            expect(existsSync(path.join(process.cwd(), retiredPath))).toBe(false);
         }
     });
 });
