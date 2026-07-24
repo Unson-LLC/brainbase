@@ -21,7 +21,6 @@ describe('vibepro-graphify-impact-gate', () => {
       'scripts/codex-pty-shim.py',
     ])).toEqual([
       'public/modules/session-ui-state.js',
-      'scripts/codex-pty-shim.py',
     ]);
   });
 

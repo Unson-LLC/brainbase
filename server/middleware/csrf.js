@@ -128,15 +128,6 @@ export function csrfMiddleware() {
             return next();
         }
 
-        // Skip session activity telemetry. It is posted by trusted LOCAL hooks/CLI (the
-        // activity-bridge hooks, scripts/lib/brainbase-common.sh, codex-pty-shim.py, …) via
-        // curl/fetch with no browser CSRF token. CSRF guards against cross-site browser forgery,
-        // which does not apply to a localhost hook -> localhost server, non-mutating activity report.
-        // Without this, prod 403s every hook-driven report (stale indicators) and dev warns every interval.
-        if (req.path === '/api/sessions/report_activity') {
-            return next();
-        }
-
         // External runner ingest is a server-to-server API guarded by workflow auth
         // (bearer/service/internal key). It cannot rely on browser session CSRF tokens.
         if (req.path?.startsWith('/api/external-runner/')) {

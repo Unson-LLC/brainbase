@@ -11,8 +11,6 @@ export const GRAPHIFY_REQUIRED_PATTERNS = [
   /^public\/modules\/core\/store\.js$/,
   /^public\/modules\/core\/event-bus\.js$/,
   /^public\/modules\/terminal\//,
-  /^scripts\/codex-pty-shim\.py$/,
-  /^scripts\/codex-hooks-activity\.sh$/,
   /^\.claude\/scripts\/hooks\//,
 ];
 

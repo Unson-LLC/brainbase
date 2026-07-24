@@ -12,18 +12,15 @@
 │   │   ├── serena-enforcement-wrapper.ts
 │   │   └── edit-comprehensive-validator.ts
 │   ├── post-tool-use/
-│   │   ├── activity-bridge.ts
 │   │   ├── edit-validator.ts
 │   │   ├── git-notification-wrapper.ts
 │   │   ├── requirement-checker-wrapper.ts
 │   │   ├── verification-tracker-wrapper.ts
 │   │   └── interrupt-detector.ts
 │   ├── user-prompt-submit/
-│   │   ├── activity-bridge.ts
 │   │   ├── context-loader-wrapper.ts
 │   │   └── test-enforcer.ts
 │   ├── stop/
-│   │   ├── activity-bridge.ts
 │   │   └── completion-notifier-wrapper.ts
 │   └── data/           # フックデータ保存
 │       └── auto-context-loader/
@@ -42,7 +39,6 @@
 │   ├── testing/        # テスト管理
 │   │   └── auto-executor.ts
 │   └── monitoring/     # 監視・追跡
-│       ├── brainbase-activity-bridge.ts
 │       ├── interrupt-detector.ts
 │       └── verification-tracker.ts
 ├── lib/                # 再利用可能ユーティリティ
@@ -60,7 +56,6 @@
 ├── test/               # フック自動テストスクリプト
 │   ├── test-pre-tool-use-hooks.ts
 │   ├── test-post-tool-use-hooks.ts
-│   └── test-activity-bridge-hooks.ts
 └── cli/                # スタンドアローンスクリプト
     ├── generate-verification-report.ts
     └── requirement-completion-check.ts
@@ -130,7 +125,6 @@
 
 | Hook                              | 機能                 | ログ | 実装 |
 | --------------------------------- | -------------------- | ---- | ---- |
-| `activity-bridge.ts`              | brainbase working heartbeat送信 | ✅   | ✅   |
 | `verification-tracker-wrapper.ts` | 検証結果の追跡・記録 | ✅   | ✅   |
 | `interrupt-detector.ts`           | ツール使用中断の検出 | ✅   | ✅   |
 
@@ -140,7 +134,6 @@
 
 | Hook                        | 対象パターン                     | 機能                                | ログ                 | 実装 |
 | --------------------------- | -------------------------------- | ----------------------------------- | -------------------- | ---- | --- |
-| `activity-bridge.ts`        | 全プロンプト                     | brainbase turn開始通知              | ✅                   | ✅   |
 | `context-loader-wrapper.ts` | 全プロンプト（セッション開始時） | CLAUDE.md参照ファイルの自動読み込み | ✅                   | ✅   |
 | `graph-ssot-reminder.ts`    | 全プロンプト                     | Graph SSOT確認とPhilosophy Context前提化 | ✅              | ✅   |
 | `test-enforcer.ts`          | テスト言及時（`._test._          | ._テスト._`）                       | テスト実行の強制検証 | ✅   | ✅  |
@@ -149,7 +142,6 @@
 
 | Hook                             | 機能                                     | ログ | 実装 |
 | -------------------------------- | ---------------------------------------- | ---- | ---- |
-| `activity-bridge.ts`             | brainbase turn完了/入力待ち通知          | ✅   | ✅   |
 | `completion-notifier-wrapper.ts` | 作業完了・ユーザーアクション待ち状態通知 | ✅   | ✅   |
 
 ## 🧪 自動テストシステム

@@ -740,14 +740,12 @@ test('story-external-runner-adapter-contract-v0 S-006 auth_denied external runne
   expect(server).toMatch(/registerApiRoutes\(app,[\s\S]*externalRunnerIngestService,/);
 });
 
-test('story-external-runner-adapter-contract-v0 S-007 compatibility guard keeps report_activity CSRF exemption separate from external runner ingest auth', async () => {
+test('story-external-runner-adapter-contract-v0 S-007 external runner ingest keeps its dedicated server-to-server CSRF boundary', async () => {
   const csrf = readFileSync('server/middleware/csrf.js', 'utf8');
   const externalRunnerRoute = readFileSync('server/routes/external-runner.js', 'utf8');
-  const csrfUnit = readFileSync('tests/unit/csrf-report-activity-exempt.test.js', 'utf8');
 
-  expect(csrf).toContain("req.path === '/api/sessions/report_activity'");
+  expect(csrf).not.toContain("req.path === '/api/sessions/report_activity'");
   expect(csrf).toContain("req.path?.startsWith('/api/external-runner/')");
   expect(externalRunnerRoute).toContain('server_to_server_auth_required');
   expect(externalRunnerRoute).toContain('external runner ingest requires bearer, service token, or internal API key authentication');
-  expect(csrfUnit).toContain('S-007');
 });
