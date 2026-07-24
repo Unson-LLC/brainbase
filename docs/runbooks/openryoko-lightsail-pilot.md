@@ -1,8 +1,9 @@
 # OpenRyoko Lightsail pilot
 
 > Current state: constrained pilot. Slack, PTY, Graph/Noco read access, systemd,
-> cron, and the Phase 1 `draft_only` negative test have been exercised. The
-> Brainbase receipt connector is not yet proven, so do not widen access.
+> cron, the Phase 1 `draft_only` negative test, and Brainbase Run Receipt
+> delivery have been exercised. Do not widen access until the two-to-four-week
+> evaluation has enough evidence.
 
 ## Scope and current deployment
 
@@ -109,13 +110,26 @@ Health and recovery checks:
 
 ```bash
 sudo systemctl status openryoko.service
+sudo systemctl status openryoko-run-receipt.timer
+sudo systemctl status openryoko-pilot-health.timer
 sudo journalctl -u openryoko.service --since today
+sudo journalctl -u openryoko-run-receipt.service --since today
+sudo journalctl -u openryoko-pilot-health.service --since today
 curl --fail http://127.0.0.1:7777/
+sudo -u ryoko -H /home/ryoko/bin/openryoko-pilot-health
 sudo reboot
 # reconnect, then:
 systemctl is-enabled openryoko.service
 systemctl is-active openryoko.service
 ```
+
+The health check emits one metadata-only JSON object. It fails when the gateway
+or receipt timer is inactive, the local gateway is unreachable, a dead-letter
+exists, or the oldest outbox item has remained undelivered for more than five
+minutes. It also records disk use and available memory. It never reads receipt
+payloads, prompts, transcripts, or secrets. A systemd timer runs it every five
+minutes; a failed unit or journal entry is an incident signal, not proof that a
+Slack notification was delivered.
 
 ## MCP
 
@@ -140,13 +154,26 @@ editing, and inspect both journal completion and the session output. The first
 pilot smoke test returned exactly `OPENRYOKO_CRON_OK`. Leave channel delivery
 disabled until Slack installation is complete.
 
+## Pilot task catalog
+
+Start with only the three read/draft-only task types defined in
+[`docs/internal/openryoko-pilot-task-catalog.md`](../internal/openryoko-pilot-task-catalog.md):
+
+1. Graph-backed internal research
+2. decision-preparation memo
+3. meeting or Slack follow-up structuring
+
+Do not add external sends, Graph writes, deployments, purchases, or Mana M-job
+migration to the first task set.
+
 ## Evaluation ledger
 
-The target authority is Brainbase `run_receipt.v1` plus Decision Events, as
-specified in `docs/specs/story-ai-employee-node-phase1-spec.md`. Until that
-connector is deployed, use a dedicated NocoDB table named
-`OpenRyoko Pilot Runs` as a temporary observation worksheet, not a second
-canonical ledger. Record one row per task or scheduled run:
+The authority is Brainbase `run_receipt.v1` plus Decision Events, as specified
+in `docs/specs/story-ai-employee-node-phase1-spec.md`. Run Receipt delivery from
+the pilot instance to project `unson` was proven on 2026-07-25 JST. Do not
+create a second canonical ledger in NocoDB. Until Slack disposition events are
+wired, record adoption, editing, and human-intervention observations as
+explicitly temporary pilot annotations linked to the canonical run:
 
 - started_at, completed_at, source (`mention` or `cron`)
 - session_id, task_type, completed
@@ -168,12 +195,12 @@ Run the pilot for two to four weeks. Missing or unavailable evidence is
 
 ## Canonical run receipts
 
-After the Brainbase release containing `source.type=openryoko` is live, project
-a separate mode-600 file at
+The Brainbase release containing `source.type=openryoko` is live. Project a
+separate mode-600 file at
 `/home/ryoko/.config/openryoko/run-receipt.env` with:
 
 ```text
-BRAINBASE_PROJECT_ID=brainbase
+BRAINBASE_PROJECT_ID=unson
 BRAINBASE_RUN_RECEIPT_INGEST_URL=<server-to-server ingest URL>
 BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN=<Infisical-injected value>
 ```
@@ -192,3 +219,65 @@ Subsequent terminal transitions enqueue metadata-only `run_receipt.v1`
 records. Delivery failure retains the receipt in a local outbox; bounded
 failures move it to dead-letter rather than reporting success. Prompts,
 messages, raw logs, and transcripts are never copied.
+
+### Dead-letter handling
+
+Treat every dead-letter as an incident. Do not blindly replay or delete it.
+
+1. List filenames and safe metadata without printing the receipt body:
+
+   ```bash
+   sudo -u ryoko -H find \
+     /home/ryoko/.local/state/openryoko-run-receipt/dead-letter \
+     -maxdepth 1 -type f -name '*.json' -printf '%f\n'
+   ```
+
+2. Determine the cause from the collector journal and Brainbase health. Common
+   causes are an inaccessible `project_id`, expired service token, rejected
+   contract, or prolonged network failure.
+3. Correct the cause first. For a retryable receipt, move the exact reviewed
+   file back to `outbox`; never use a wildcard:
+
+   ```bash
+   sudo -u ryoko -H mv \
+     /home/ryoko/.local/state/openryoko-run-receipt/dead-letter/<exact-file>.json \
+     /home/ryoko/.local/state/openryoko-run-receipt/outbox/<exact-file>.json
+   sudo systemctl start openryoko-run-receipt.service
+   ```
+
+4. If the receipt is permanently invalid, move the exact file to `resolved/`
+   after recording the reason and canonical run reference in the incident
+   record. `resolved/` is retained for audit and is not retried:
+
+   ```bash
+   sudo -u ryoko -H mv \
+     /home/ryoko/.local/state/openryoko-run-receipt/dead-letter/<exact-file>.json \
+     /home/ryoko/.local/state/openryoko-run-receipt/resolved/<exact-file>.json
+   ```
+
+5. Confirm the outbox and dead-letter counts are zero and run:
+
+   ```bash
+   sudo -u ryoko -H /home/ryoko/bin/openryoko-pilot-health
+   ```
+
+The first pilot dead-letter used the obsolete `brainbase` project while the
+service token was scoped to `unson`; it is permanently invalid and must be
+resolved rather than replayed.
+
+## Incident order
+
+Use this order to avoid changing state before the failure is understood:
+
+1. Run `openryoko-pilot-health` and capture its metadata-only output.
+2. Check `openryoko.service`, then the local gateway.
+3. Check the receipt timer, outbox count, and dead-letter count.
+4. Check Claude authentication and Max rate-limit messages without printing
+   credentials.
+5. Check public Brainbase health and the canonical inbox.
+6. Restart only the failed unit. Do not reboot the instance as the first step.
+7. Re-run one disposable read-only canary and confirm its Run Receipt.
+
+Until an authenticated pilot-channel alert sender is implemented, systemd and
+journal are the confirmed alert surface. External alert delivery is
+`未実装`, not successful.

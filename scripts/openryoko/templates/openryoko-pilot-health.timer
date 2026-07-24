@@ -1,0 +1,11 @@
+[Unit]
+Description=Check OpenRyoko pilot health every five minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+Persistent=true
+Unit=openryoko-pilot-health.service
+
+[Install]
+WantedBy=timers.target
