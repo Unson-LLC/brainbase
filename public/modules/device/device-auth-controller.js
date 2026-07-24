@@ -6,15 +6,7 @@ export class DeviceAuthController {
     constructor() {
         this.deviceCode = null;
         this.userCode = null;
-        this.slackUserId = null;
-        this.slackWorkspaceId = null;
-
-        // DOM elements
-        this.stepInput = null;
-        this.stepSlack = null;
-        this.stepApprove = null;
-        this.stepSuccess = null;
-        this.stepError = null;
+        this.authToken = null;
 
         this.userCodeInput = null;
         this.verifyBtn = null;
@@ -36,12 +28,6 @@ export class DeviceAuthController {
     }
 
     cacheElements() {
-        this.stepInput = document.getElementById('step-input');
-        this.stepSlack = document.getElementById('step-slack');
-        this.stepApprove = document.getElementById('step-approve');
-        this.stepSuccess = document.getElementById('step-success');
-        this.stepError = document.getElementById('step-error');
-
         this.userCodeInput = document.getElementById('user-code-input');
         this.verifyBtn = document.getElementById('verify-btn');
         this.verifyError = document.getElementById('verify-error');
@@ -104,25 +90,12 @@ export class DeviceAuthController {
             const deviceCode = sessionStorage.getItem('brainbase_device_code');
             const userCode = sessionStorage.getItem('brainbase_user_code');
 
-            // Slack認証後、localStorageからaccess情報を取得
-            let slackUserId = null;
-            let slackWorkspaceId = null;
-            try {
-                const accessJson = localStorage.getItem('brainbase.auth.access');
-                if (accessJson) {
-                    const access = JSON.parse(accessJson);
-                    slackUserId = access.slackUserId;
-                    slackWorkspaceId = access.workspaceId;
-                }
-            } catch (e) {
-                console.error('Failed to parse access from localStorage', e);
-            }
+            const authToken = localStorage.getItem('brainbase.auth.token');
 
-            if (deviceCode && userCode && slackUserId && slackWorkspaceId) {
+            if (deviceCode && userCode && authToken) {
                 this.deviceCode = deviceCode;
                 this.userCode = userCode;
-                this.slackUserId = slackUserId;
-                this.slackWorkspaceId = slackWorkspaceId;
+                this.authToken = authToken;
 
                 this.userCodeDisplay.textContent = userCode;
                 this.userCodeDisplayApprove.textContent = userCode;
@@ -206,7 +179,7 @@ export class DeviceAuthController {
     }
 
     async approveDevice() {
-        if (!this.deviceCode || !this.slackUserId || !this.slackWorkspaceId) {
+        if (!this.deviceCode || !this.authToken) {
             this.showGlobalError('認証情報が見つかりません');
             return;
         }
@@ -217,12 +190,11 @@ export class DeviceAuthController {
         try {
             const response = await fetch('/api/auth/device/approve', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    device_code: this.deviceCode,
-                    slack_user_id: this.slackUserId,
-                    slack_workspace_id: this.slackWorkspaceId
-                })
+                headers: {
+                    'Authorization': `Bearer ${this.authToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ device_code: this.deviceCode })
             });
 
             const data = await response.json();
@@ -234,8 +206,6 @@ export class DeviceAuthController {
             // Clear sessionStorage
             sessionStorage.removeItem('brainbase_device_code');
             sessionStorage.removeItem('brainbase_user_code');
-            sessionStorage.removeItem('brainbase_slack_user_id');
-            sessionStorage.removeItem('brainbase_slack_workspace_id');
 
             this.showStep('success');
         } catch (error) {
@@ -271,8 +241,6 @@ export class DeviceAuthController {
             // Clear sessionStorage
             sessionStorage.removeItem('brainbase_device_code');
             sessionStorage.removeItem('brainbase_user_code');
-            sessionStorage.removeItem('brainbase_slack_user_id');
-            sessionStorage.removeItem('brainbase_slack_workspace_id');
 
             this.errorDesc.textContent = '認証を拒否しました';
             this.showStep('error');
@@ -307,30 +275,3 @@ export class DeviceAuthController {
         this.showStep('error');
     }
 }
-
-// Handle Slack OAuth callback (postMessage from auth callback page)
-window.addEventListener('message', (event) => {
-    // Verify origin
-    const allowedOrigins = ['http://localhost:31013', 'https://bb.unson.jp'];
-    if (!allowedOrigins.includes(event.origin)) {
-        return;
-    }
-
-    if (event.data.type === 'brainbase-auth') {
-        const { token, access } = event.data;
-
-        if (token && access) {
-            // Extract Slack user info from access payload
-            const slackUserId = access.slackUserId;
-            const slackWorkspaceId = access.workspaceId;
-
-            if (slackUserId && slackWorkspaceId) {
-                sessionStorage.setItem('brainbase_slack_user_id', slackUserId);
-                sessionStorage.setItem('brainbase_slack_workspace_id', slackWorkspaceId);
-
-                // Redirect to approve step
-                window.location.href = '/device?slack_callback=true';
-            }
-        }
-    }
-});
