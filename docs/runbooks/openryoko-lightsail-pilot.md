@@ -1,5 +1,10 @@
 # OpenRyoko Lightsail pilot
 
+> Current state: technical spike. Slack, PTY, Graph/Noco read access, systemd,
+> and cron have been exercised, but the Phase 1 `draft_only` capability gate
+> and Brainbase receipt connector are not yet proven. Do not widen access while
+> Claude is launched with unrestricted bypass permissions.
+
 ## Scope and current deployment
 
 - Dedicated AWS Lightsail instance only. Do not install anything on the
@@ -10,6 +15,10 @@
   modified by this pilot.
 - Graph SSOT remains the canonical source of organizational facts. Ryoko memory
   is working context, not a second SSOT.
+- Gateway source is the thin
+  [`Unson-LLC/OpenRyoko`](https://github.com/Unson-LLC/OpenRyoko) fork with
+  `rsensui2/OpenRyoko` retained as upstream. Pin a reviewed fork commit before
+  applying fork-specific behavior; do not install an unrecorded moving head.
 
 The first pilot instance was created as `openryoko-pilot-20260724`.
 Its connection material is held in Infisical; do not commit IPs, private keys,
@@ -36,8 +45,9 @@ OAuth tokens, or Slack tokens here.
      'source "$HOME/.nvm/nvm.sh"; set -a; source "$HOME/.config/openryoko/environment"; set +a; claude --dangerously-skip-permissions'
    ```
 
-   Select the theme, then accept bypass-permissions mode. This is acceptable
-   only on this dedicated pilot VM.
+   Select the theme, then accept bypass-permissions mode only for the existing
+   technical spike. This is not the Phase 1 `draft_only` configuration and
+   must be removed before widening access or credentials.
 5. Apply runtime configuration:
 
    ```bash
@@ -113,8 +123,11 @@ disabled until Slack installation is complete.
 
 ## Evaluation ledger
 
-Use a dedicated NocoDB table named `OpenRyoko Pilot Runs`; this is operational
-measurement data, not Graph facts. Record one row per task or scheduled run:
+The target authority is Brainbase `run_receipt.v1` plus Decision Events, as
+specified in `docs/specs/story-ai-employee-node-phase1-spec.md`. Until that
+connector is deployed, use a dedicated NocoDB table named
+`OpenRyoko Pilot Runs` as a temporary observation worksheet, not a second
+canonical ledger. Record one row per task or scheduled run:
 
 - started_at, completed_at, source (`mention` or `cron`)
 - session_id, task_type, completed
