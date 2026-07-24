@@ -42,14 +42,14 @@ troubleshooting: []
 | `project.catalog` | Defines the configured project catalog, authenticated grant scope, MCP status envelope, and audit evidence. |
 | `project.selector` | Defines which projects appear in the session creation dropdown. |
 | `auth.grants` | Defines user project access through `auth_grants.project_codes` and JWT/localStorage access payloads. |
-| `session.create` | Defines how sessions are created, including project selection, engine, worktree handling, and verification. |
-| `terminal.transport` | Defines xterm transport behavior, Enter feedback, and terminal rendering constraints. |
-| `session.hibernation` | Defines runtime inventory and read-only hibernation eligibility before process-stopping lifecycle behavior. |
+| `session.create` | Historical record of retired Brainbase session/worktree creation. Codex owns this lifecycle. |
+| `terminal.transport` | Historical record of retired Brainbase xterm/tmux/ttyd transport. |
+| `session.hibernation` | Historical record of retired Brainbase process lifecycle management. |
 | `workflow.mission-control` | Historical record of the retired generic Workflow product. Only domain-specific Control and Automation Run compatibility paths remain. |
 | `automation.run-core` | Defines project-scoped run, step, output, human approval, and audit semantics without a generic Workflow product. |
 | `run-receipt.inbox` | Defines cross-runtime receipt ingest, uncertainty-preserving projection, history, and Agent Inbox boundaries. |
 | `meeting.automation` | Defines the live meeting-source ingest, Eve dispatch/reconcile, approval, and evidence path retained during Workflow retirement. |
-| `codex.app-server` | Defines the first structured Codex App Server adapter path for threads, turns, and notifications. |
+| `codex.app-server` | Historical record of the retired Brainbase Codex-like UI adapter. |
 | `graph.ssot` | Defines when Brainbase Graph is the canonical source for names, projects, terminology, and decisions. |
 | `requirements.nocodb` | Defines how `FRD-*`, `REQ-*`, and `BUG-*` references are resolved before scope or implementation changes. |
 | `code.reading` | Defines how agents should inspect code without loading broad files unnecessarily. |

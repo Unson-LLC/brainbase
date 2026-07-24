@@ -10,7 +10,6 @@ export function createBrainbaseOverviewRouter(options = {}) {
         systemService,
         storageService,
         nocodbService,
-        worktreeService,
         configParser,
         projectCatalogAuthGuard = (_req, res) => res.status(503).json({
             error: 'Project catalog authentication is not configured'
@@ -22,13 +21,12 @@ export function createBrainbaseOverviewRouter(options = {}) {
      * すべての監視情報を一括取得
      */
     router.get('/', asyncHandler(async (req, res) => {
-        const [github, system, worktrees, projects] = await Promise.all([
+        const [github, system, projects] = await Promise.all([
             getGitHubInfo(),
             systemService.getSystemStatus(),
-            getWorktreesInfo(),
             getProjectsWithHealth()
         ]);
-        res.json({ github, system, worktrees, projects, timestamp: new Date().toISOString() });
+        res.json({ github, system, projects, timestamp: new Date().toISOString() });
     }));
 
     router.get('/github/runners', asyncHandler(async (req, res) => {
@@ -51,9 +49,14 @@ export function createBrainbaseOverviewRouter(options = {}) {
         res.json(await storageService.getStorageSummary());
     }));
 
-    router.get('/worktrees', asyncHandler(async (req, res) => {
-        res.json(await getWorktreesInfo());
-    }));
+    router.get('/worktrees', (req, res) => {
+        res.status(410).json({
+            error: 'capability_retired',
+            capability: 'brainbase.worktree-status',
+            owner: 'Codex app and CLI',
+            replacement: 'Use Codex task and worktree status directly'
+        });
+    });
 
     router.get('/projects', projectCatalogAuthGuard, asyncHandler(async (req, res) => {
         const projectCodes = Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [];
@@ -186,35 +189,6 @@ export function createBrainbaseOverviewRouter(options = {}) {
             runners,
             workflows
         };
-    }
-
-    async function getWorktreesInfo() {
-        if (!worktreeService) {
-            return { error: 'WorktreeService not initialized' };
-        }
-
-        try {
-            const worktrees = await worktreeService.listWorktrees();
-            const active = worktrees.filter((w) => w.branch !== 'main' && w.branch !== 'master');
-
-            const uncommitted = [];
-            for (const wt of active) {
-                void wt;
-            }
-
-            return {
-                total: worktrees.length,
-                active: active.length,
-                uncommitted: uncommitted.length,
-                list: active.slice(0, 5).map((wt) => ({
-                    branch: wt.branch,
-                    path: wt.path
-                }))
-            };
-        } catch (error) {
-            logger.error('Error getting worktrees', { error });
-            return { error: 'Failed to get worktrees' };
-        }
     }
 
     async function getProjectsWithHealth(allowedProjectCodes = null) {

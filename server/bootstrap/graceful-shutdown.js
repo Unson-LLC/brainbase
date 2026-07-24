@@ -25,12 +25,6 @@ export function registerGracefulShutdown({
                 })
             },
             {
-                name: 'cleanup-state-store',
-                fn: async () => {
-                    if (stateStore.cleanup) await stateStore.cleanup();
-                }
-            },
-            {
                 name: 'stop-conversation-linker',
                 fn: () => { conversationLinker.stopPeriodicLink(); }
             },
@@ -41,14 +35,6 @@ export function registerGracefulShutdown({
             {
                 name: 'stop-eve-note-reconciler',
                 fn: () => { eveMeetingNoteReconciler?.stopScheduledReconcile?.(); }
-            },
-            {
-                name: 'cleanup-session-runtime',
-                fn: async () => {
-                    if (sessionServices.runtime.lifecycle.cleanup) {
-                        await sessionServices.runtime.lifecycle.cleanup();
-                    }
-                }
             },
             {
                 name: 'stop-mesh-service',

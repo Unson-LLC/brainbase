@@ -1,6 +1,7 @@
 id: session.create
 name: Session creation
-purpose: Create a new AI session by choosing immutable launch settings, then composing the initial prompt while startup runs.
+lifecycle: retired
+purpose: Historical record of Brainbase-owned session creation. Codex app/CLI now owns task and worktree creation.
 surfaces:
   ui:
     - "#session-launch-picker"
@@ -26,6 +27,8 @@ depends_on:
   - auth.grants
   - runtime.launchd
 visibility_rules:
+  - Do not restore this capability. ADR-019 assigns task and worktree lifecycle to Codex app/CLI.
+  - Brainbase session endpoints return 410 Gone.
   - The selected project must appear in project.selector.
   - Worktree availability depends on hasGitRepository(selectedProject).
   - general uses the workspace root and always enables worktree by default.

@@ -1,13 +1,11 @@
 import path from 'path';
 import { Pool } from 'pg';
-import { createStateRouter } from '../routes/state.js';
 import { createConfigRouter } from '../routes/config.js';
 import { createScheduleRouter } from '../routes/schedule.js';
-import { createSessionRouter } from '../routes/sessions.js';
 import { createBrainbaseRouter } from '../routes/brainbase.js';
 import { createNocoDBRouter } from '../routes/nocodb.js';
 import { createHealthRouter } from '../routes/health.js';
-import { createTerminalRouter } from '../routes/terminal.js';
+import { createRetiredCapabilityRouter } from '../routes/retired-capability.js';
 import { createAuthRouter } from '../routes/auth.js';
 import { createInfoSSOTRouter } from '../routes/info-ssot.js';
 import { createLearningRouter } from '../routes/learning.js';
@@ -135,28 +133,20 @@ export function registerApiRoutes(app, {
     runtimeInfo,
     brainbaseRoot
 }) {
-    app.use('/api/state', createStateRouter(
-        stateStore,
-        sessionServices.runtime.registry,
-        sessionServices.runtime.query,
-        testMode
-    ));
+    app.use('/api/state', createRetiredCapabilityRouter({
+        capability: 'brainbase.session-state',
+        owner: 'Codex app and CLI',
+        replacement: 'Use Codex task state directly; historical Brainbase records are frozen'
+    }));
     app.use('/api/config', createConfigRouter(configParser, configService, runtimePaths, {
         authGuard: requireAuth(authService)
     }));
     app.use('/api/schedule', createScheduleRouter(scheduleParser, googleCalendarService));
-    app.use('/api/sessions', createSessionRouter(
-        sessionServices,
-        worktreeService,
-        stateStore,
-        testMode,
-        conversationLinker,
-        {
-            projectsRoot,
-            codeProjectsRoot: path.join(path.dirname(projectsRoot), 'code'),
-            captureCache: tmuxCaptureCache
-        }
-    ));
+    app.use('/api/sessions', createRetiredCapabilityRouter({
+        capability: 'brainbase.session-runtime',
+        owner: 'Codex app and CLI',
+        replacement: 'Use Codex tasks, worktrees, and terminals directly'
+    }));
     app.use('/api/brainbase', createBrainbaseRouter({
         worktreeService,
         configParser,
@@ -171,8 +161,10 @@ export function registerApiRoutes(app, {
         configParser,
         terminalRuntimeReconciler: sessionServices.runtime.reconciler
     }));
-    app.use('/api/terminal', createTerminalRouter({
-        terminalRuntimeReconciler: sessionServices.runtime.reconciler
+    app.use('/api/terminal', createRetiredCapabilityRouter({
+        capability: 'brainbase.terminal-runtime',
+        owner: 'Codex app and CLI',
+        replacement: 'Use the terminal attached to the Codex task'
     }));
     app.use('/api/auth', createAuthRouter(authService));
     app.use(

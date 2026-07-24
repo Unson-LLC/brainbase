@@ -37,7 +37,6 @@ import { resolveRuntimePaths } from './lib/runtime-paths.js';
 // Import services
 import { createCoreServices } from './server/bootstrap/core-services.js';
 import { initializeSessionRuntime } from './server/bootstrap/session-runtime-startup.js';
-import { createConsoleProxy } from './server/bootstrap/console-proxy.js';
 import { registerGracefulShutdown } from './server/bootstrap/graceful-shutdown.js';
 import { registerApiRoutes } from './server/bootstrap/register-api-routes.js';
 import { registerStaticRoutes } from './server/bootstrap/static-routes.js';
@@ -45,7 +44,7 @@ import { assertAllowedServerEntrypoint } from './server/bootstrap/direct-launch-
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
-import { requireAuth, resolveAuthContext } from './server/middleware/auth.js';
+import { requireAuth } from './server/middleware/auth.js';
 import { errorHandler } from './server/middleware/error-handler.js';
 import { adminNoCacheMiddleware } from './server/routes/admin-visualization.js';
 
@@ -398,20 +397,17 @@ registerStaticRoutes(app, {
 void initializeSessionRuntime({
     stateStore,
     sessionServices,
-    archiveFinalizer,
-    conversationLinker,
-    testMode: TEST_MODE,
     log: console
 });
 
-const isWindows = process.platform === 'win32';
-const { enforceTerminalOwnership, ttydProxy, handleConsoleUpgrade } = createConsoleProxy({
-    sessionServices,
-    isWindows,
-    logger: console
+app.use('/console', (_req, res) => {
+    res.status(410).json({
+        error: 'capability_retired',
+        capability: 'brainbase.console-proxy',
+        owner: 'Codex app and CLI',
+        replacement: 'Use the terminal attached to the Codex task'
+    });
 });
-
-app.use('/console', enforceTerminalOwnership, ttydProxy);
 
 // ========================================
 // MVC Router Registration (Phase 3)
@@ -591,40 +587,6 @@ const server = app.listen(PORT, async () => {
         console.log(`[eve-note-reconciler] scheduler not started: ${eveNoteReconcile.reason}`);
     }
 
-    // Non-blocking: cleanup zombie worktrees (forget済みだが物理ディレクトリが残ったもの)
-    worktreeService.cleanupZombieWorktrees(PROJECTS_ROOT).then((removed) => {
-        if (removed.length) {
-            console.log(`[startup] Cleaned up ${removed.length} zombie worktree(s): ${removed.join(', ')}`);
-        }
-    }).catch((err) => {
-        console.error(`[startup] Zombie worktree cleanup failed: ${err.message}`);
-    });
-});
-
-// Handle WebSocket Upgrades
-server.on('upgrade', (request, socket, head) => {
-    const authResult = resolveAuthContext(request, authService);
-    if (!authResult?.ok) {
-        // Cloudflare Tunnel経由はZero Trustで認証済みなのでバイパス
-        // localhost接続も開発環境でバイパス
-        request.auth = null;
-        request.access = { role: 'ceo', projectCodes: [], clearance: [], level: 3 };
-        request.authSource = 'ws-bypass';
-    } else {
-        request.auth = authResult.auth || null;
-        request.access = authResult.access || null;
-        request.authSource = authResult.authSource || null;
-    }
-
-    if (sessionActivityWsService?.isActivityWsRequest(request)) {
-        sessionActivityWsService.handleUpgrade(request, socket, head);
-        return;
-    }
-    if (terminalTransportService.isTerminalTransportRequest(request)) {
-        terminalTransportService.handleUpgrade(request, socket, head);
-        return;
-    }
-    handleConsoleUpgrade(request, socket, head);
 });
 
 registerGracefulShutdown({

@@ -1,6 +1,7 @@
 id: codex.app-server
 name: Codex App Server adapter
-purpose: Provide a structured JSON-RPC integration path for Codex threads, turns, and notifications without relying on terminal snapshots.
+lifecycle: retired
+purpose: Historical record of the Brainbase Codex-like UI adapter. Codex app owns threads, turns, and notifications.
 surfaces:
   ui:
     - session display-route state for Codex App Server thread sessions
@@ -80,6 +81,8 @@ depends_on:
   - session.create
   - terminal.transport
 visibility_rules:
+  - Do not restore this capability. ADR-019 assigns Codex thread and turn lifecycle to Codex app/CLI.
+  - Brainbase must consume durable Run Receipts when execution evidence is needed, not mirror Codex session state.
   - This first slice is a backend adapter only; it must not replace xterm/tmux terminal transport.
   - Use stdio transport first; WebSocket transport is experimental and out of scope for this capability slice.
   - Initialize with Brainbase client metadata before sending thread or turn requests.
