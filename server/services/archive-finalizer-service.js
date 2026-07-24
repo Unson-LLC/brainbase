@@ -46,16 +46,33 @@ export class ArchiveFinalizerService {
      *   execPromise?: Function,
      *   repoRoot?: string,
      *   recordPublisher?: Function,
-     *   now?: () => Date
+     *   now?: () => Date,
+     *   pathExistsFn?: (workspacePath: string) => Promise<boolean>
      * }} options
      */
-    constructor({ stateStore, worktreeService, execPromise, repoRoot = process.cwd(), recordPublisher = null, now = () => new Date() }) {
+    constructor({
+        stateStore,
+        worktreeService,
+        execPromise,
+        repoRoot = process.cwd(),
+        recordPublisher = null,
+        now = () => new Date(),
+        pathExistsFn = async (workspacePath) => {
+            try {
+                await fs.access(workspacePath);
+                return true;
+            } catch {
+                return false;
+            }
+        }
+    }) {
         this.stateStore = stateStore;
         this.worktreeService = worktreeService;
         this.execPromise = execPromise;
         this.repoRoot = repoRoot;
         this.recordPublisher = recordPublisher || this._publishMarkdownRecord.bind(this);
         this.now = now;
+        this.pathExistsFn = pathExistsFn;
         this._running = new Set();
         this._draining = false;
         this._timer = null;
@@ -179,6 +196,15 @@ export class ArchiveFinalizerService {
             if (!latest.worktree?.repo) {
                 await this._markCleaned(sessionId, {});
                 return { success: true, status: ARCHIVE_STATUS.CLEANED, record };
+            }
+
+            const workspacePath = latest.worktree?.path || latest.path || latest.cwd || null;
+            if (workspacePath && !await this.pathExistsFn(workspacePath)) {
+                return await this._block(
+                    sessionId,
+                    `workspace path is missing; integration status is unverified: ${workspacePath}`,
+                    { workspaceMissing: true }
+                );
             }
 
             const status = await this.worktreeService.getStatus(

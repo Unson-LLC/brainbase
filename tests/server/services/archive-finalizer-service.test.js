@@ -28,6 +28,7 @@ describe('ArchiveFinalizerService', () => {
     let stateStore;
     let worktreeService;
     let recordPublisher;
+    let pathExistsFn;
     let service;
 
     beforeEach(() => {
@@ -40,6 +41,7 @@ describe('ArchiveFinalizerService', () => {
             recordPath: 'docs/session-archives/2026/04/session-1.md',
             recordPrUrl: 'https://github.com/Unson-LLC/brainbase/pull/100'
         }));
+        pathExistsFn = vi.fn(async () => true);
     });
 
     function buildService(sessions) {
@@ -48,6 +50,7 @@ describe('ArchiveFinalizerService', () => {
             stateStore,
             worktreeService,
             recordPublisher,
+            pathExistsFn,
             now: () => new Date('2026-04-25T00:00:00.000Z')
         });
         return service;
@@ -93,6 +96,33 @@ describe('ArchiveFinalizerService', () => {
         expect(stateStore.get().sessions[0].worktree).toBeTruthy();
     });
 
+    it('worktree pathが消失している場合は統合状態を推測せずblockedにする', async () => {
+        buildService([
+            {
+                id: 'session-1',
+                name: 'Missing workspace',
+                intendedState: 'archived',
+                archive: { status: 'queued' },
+                path: '/missing/worktree',
+                worktree: { repo: '/repo', path: '/missing/worktree', startCommit: 'abc123' }
+            }
+        ]);
+        pathExistsFn.mockResolvedValue(false);
+
+        const result = await service.finalize('session-1');
+
+        expect(result).toMatchObject({
+            success: false,
+            status: 'blocked',
+            workspaceMissing: true
+        });
+        expect(worktreeService.getStatus).not.toHaveBeenCalled();
+        expect(worktreeService.merge).not.toHaveBeenCalled();
+        expect(worktreeService.remove).not.toHaveBeenCalled();
+        expect(stateStore.get().sessions[0].archive.blockerReason).toContain('integration status is unverified');
+        expect(stateStore.get().sessions[0].worktree).toBeTruthy();
+    });
+
     it('未マージcommitがあるclean sessionはmerge後cleanedにする', async () => {
         buildService([
             {
@@ -117,7 +147,16 @@ describe('ArchiveFinalizerService', () => {
         const result = await service.finalize('session-1');
 
         expect(result.success).toBe(true);
-        expect(worktreeService.merge).toHaveBeenCalledWith('session-1', '/repo', 'Needs merge');
+        expect(worktreeService.merge).toHaveBeenCalledWith(
+            'session-1',
+            '/repo',
+            'Needs merge',
+            expect.objectContaining({
+                workspaceId: 'session-1',
+                workspacePath: '/worktree',
+                rotateAfterMerge: false
+            })
+        );
         const session = stateStore.get().sessions[0];
         expect(session.archive.status).toBe('cleaned');
         expect(session.merged).toBe(true);
