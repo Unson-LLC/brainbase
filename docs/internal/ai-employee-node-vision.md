@@ -113,6 +113,35 @@ OpenRyoko（泉水亮介氏 / TEKION。「Slackに住むAI同僚」= Triage・Ca
   （external_message_draft / graph_ssot_decision 等）は昇格対象外に固定
 - → 「AI社員の裁量権限を人事評価のように定量管理する」。世のOSS実装（OpenClaw/Jinn等）はどれも持っていない
 
+### 3.6 Mac Companionとの整合
+
+SlackとCompanionは競合しない。**情報の流れる方向が逆**であり、ADR-017の分業にそのまま載る。
+
+| | Slack（@mana） | Mac Companion |
+|---|---|---|
+| 方向 | 人間 → AI（話しかける・依頼・会話） | 統制面 → 人間（承認・修正が必要な項目のみpush投影） |
+| 性質 | 対話チャネル（入り口） | 割り込み面（注意のインボックス） |
+| 対象者 | 全員 | 佐藤（管理者）のみ |
+| ADR-017責務 | —（チャネル層） | notify / focus / approve / correct / feedback |
+
+「入り口は1つ」原則（§3.3）は**対話の入り口**の話であり、Companionは入り口ではなく投影面なので抵触しない。
+非対称設計（§5）の「佐藤側にだけ増える承認面」の実体がCompanionである。
+
+**守るべき整合条件3つ**:
+
+1. **承認の正本は1つ（human_step）**: CompanionのApproval InboxもSlack承認リアクションも、
+   同じstep IDを冪等にresolveする「別入力面」として実装する
+   （`/api/workflow-runs/:runId/human-steps/:stepId/resolve`）。OpenRyoko側に独自の承認状態を持たせない
+2. **通知の重複制御**: 同じ承認依頼をSlackとCompanionの両方に鳴らさない。
+   優先度で配送先を分ける（high-riskターゲット保護対象=Companion、通常ドラフト承認=Slackスレッド）
+3. **Slack経路でもDecision Eventsを発行**: 判断委任KPIは現状Companion経由で計測される設計のため、
+   Slackリアクション承認が主経路になるとKPIが過小計測される。OpenRyoko gatewayからも
+   `draft_accepted` / `draft_edited` / `escalated` 等を同じDecision Events APIへ送る配線を
+   Phase 1の接続要件に含める
+
+長期（Phase 3）では佐藤の個人ノードとの対話がCompanionの一部機能を吸収しうるが、
+OSレベルの割り込み・break-glass・強い認証での高リスク承認はCompanion固有の価値として残る。
+
 ---
 
 ## 4. 段階進化ロードマップ
