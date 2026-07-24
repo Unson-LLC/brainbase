@@ -23,6 +23,7 @@ related_tasks:
       - TSK-WEBRET-007
       - TSK-WEBRET-008
       - TSK-WEBRET-009
+      - TSK-WEBRET-010
 status: in_progress
 created_at: 2026-07-16
 updated_at: 2026-07-24
@@ -57,7 +58,7 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 | `public/index.html` | 廃止済みのWorkspace、Project、Session統合shell | Codex/Claude Code + MCP。`/`はGraph API landing | `deleted` | `TSK-WEBRET-009`完了。旧entrypointは410 |
 | `public/workflows.html` | 廃止済みのWorkflow Mission Control、Run Detail、Agent Run Inbox | Core + MCP + Mac Companion | `deleted` | `TSK-WEBRET-006`完了。route/page/overlay/browser module/旧UI test/deep-linkを削除 |
 | `public/meeting-workflow-pack.html` | 廃止済みの固定データprototype | Workflow Core + MCP + Mac Companion | `deleted_prototype` | `TSK-WEBRET-002`で専用runtimeとdeep-linkを削除。Core/APIは維持 |
-| `public/sns-growth.html` | SNS運用cockpit | MCP/automation + Mac Companion approval | `temporarily_keep` | 生成・計測・投稿準備のMCP/automation化と承認境界を検証 |
+| `public/sns-growth.html` | 廃止済みのSNS運用cockpit | automation + Core API/ledger | `deleted_ui` | `TSK-WEBRET-010`完了。専用Web面は不要と判断し、Core API/ledgerを残してUIのみ削除 |
 | `public/admin.html` | 管理・可視化の混合面 | browser必須設定だけWebへ分離し、残りはMCP | `temporarily_keep` | admin能力を機能別分類し、auth/consent/recovery以外を移管 |
 | `public/setup.html` | 初期設定 | Web候補 | `keep_web_review` | 各設定についてブラウザ必須理由を確認し、不要項目をMCPへ移管 |
 | `public/device.html` | device接続・pairing | Web候補 | `keep_web_review` | pairing/本人確認に必要な最小面へ縮小 |
@@ -107,7 +108,8 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 3. `TSK-WEBRET-003`（完了）: 認証済みproject catalogを最初のMCP control-plane toolとして出荷し、project grant、failure state、audit evidenceの共通契約を固定した。
 4. `TSK-WEBRET-004`（完了）: 汎用WorkflowをMCPへ移植せず、Automation Run/Run Receipt Inboxの全件・履歴・診断面を出荷した。
 5. `TSK-WEBRET-005`から`006`（完了）: Companion projectionを出荷し、Workflow Mission Control Webを廃止した。
-6. `TSK-WEBRET-007`: Admin/SNS/setupの残能力を後継面へ移管する。
+6. `TSK-WEBRET-010`（完了）: SNS Growth専用Web UI、旧shell接続、専用CSS、UI/E2E testsを削除し、Core API/ledger/automationを維持した。
+7. `TSK-WEBRET-007`: Admin/setupの残能力を後継面へ移管する。
 7. `TSK-WEBRET-009`（完了）: operations command centerとttyd fallbackを削除し、rootをGraph API landingへ縮退した。
 7. `TSK-WEBRET-008`から`009`: 最小Webを抽出してからmain shellとttyd fallbackを廃止する。
 

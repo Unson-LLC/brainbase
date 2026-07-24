@@ -90,7 +90,7 @@ describe('static routes', () => {
         });
     });
 
-    it('does not serve retired workflow or terminal browser surfaces', async () => {
+    it('does not serve retired workflow, SNS, or terminal browser surfaces', async () => {
         const app = express();
         registerStaticRoutes(app, {
             publicDir: path.join(repoRoot, 'public'),
@@ -99,6 +99,9 @@ describe('static routes', () => {
 
         await request(app).get('/workflows').expect(404);
         await request(app).get('/workflows.html').expect(404);
+        await request(app).get('/sns-growth').expect(404);
+        await request(app).get('/sns-growth.html').expect(404);
+        await request(app).get('/style.css').expect(404);
         await request(app).get('/ttyd/custom_ttyd_index.html').expect(404);
         await request(app).get('/ttyd/ttyd_index.html').expect(404);
     });
