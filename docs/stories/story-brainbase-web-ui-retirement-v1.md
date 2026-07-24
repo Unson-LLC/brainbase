@@ -25,7 +25,7 @@ related_tasks:
       - TSK-WEBRET-009
 status: in_progress
 created_at: 2026-07-16
-updated_at: 2026-07-16
+updated_at: 2026-07-24
 ---
 
 # Brainbase Web UI retirement and Agent-first surface migration
@@ -54,7 +54,7 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 
 | Current artifact | Current role | Target | Initial state | Retirement condition |
 |---|---|---|---|---|
-| `public/index.html` | Workspace、Project、Session等の主要shell | MCPへ移管。login/bootstrapだけ分離してWebに残す | `temporarily_keep` | shell内能力のMCP parity確認とauth/bootstrap分離 |
+| `public/index.html` | 廃止済みのWorkspace、Project、Session統合shell | Codex/Claude Code + MCP。`/`はGraph API landing | `deleted` | `TSK-WEBRET-009`完了。旧entrypointは410 |
 | `public/workflows.html` | 廃止済みのWorkflow Mission Control、Run Detail、Agent Run Inbox | Core + MCP + Mac Companion | `deleted` | `TSK-WEBRET-006`完了。route/page/overlay/browser module/旧UI test/deep-linkを削除 |
 | `public/meeting-workflow-pack.html` | 廃止済みの固定データprototype | Workflow Core + MCP + Mac Companion | `deleted_prototype` | `TSK-WEBRET-002`で専用runtimeとdeep-linkを削除。Core/APIは維持 |
 | `public/sns-growth.html` | SNS運用cockpit | MCP/automation + Mac Companion approval | `temporarily_keep` | 生成・計測・投稿準備のMCP/automation化と承認境界を検証 |
@@ -62,8 +62,8 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 | `public/setup.html` | 初期設定 | Web候補 | `keep_web_review` | 各設定についてブラウザ必須理由を確認し、不要項目をMCPへ移管 |
 | `public/device.html` | device接続・pairing | Web候補 | `keep_web_review` | pairing/本人確認に必要な最小面へ縮小 |
 | `public/test-infrastructure.html` | 廃止済みの開発・検証用UI | CLI/test artifact | `deleted` | `TSK-WEBRET-001`で参照0件とstatic 404を確認済み |
-| `public/ttyd/custom_ttyd_index.html` | browser terminal shell | Codex/Claude Code native surface | `temporarily_keep` | session/runtime復旧用途を監査し、代替経路を確認 |
-| `public/ttyd/ttyd_index.html` | browser terminal shell | Codex/Claude Code native surface | `temporarily_keep` | session/runtime復旧用途を監査し、代替経路を確認 |
+| `public/ttyd/custom_ttyd_index.html` | 廃止済みのbrowser terminal shell | Codex/Claude Code native surface | `deleted` | `TSK-WEBRET-009`完了。session/terminal runtime参照0件 |
+| `public/ttyd/ttyd_index.html` | 廃止済みのvendor artifact | Codex/Claude Code native surface | `deleted` | `TSK-WEBRET-009`完了。runtime consumerなし |
 
 この一覧は削除許可の正本であり、ソースにproduction surfaceが追加・発見された場合は削除作業より先に追記する。
 
@@ -108,6 +108,7 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 4. `TSK-WEBRET-004`（完了）: 汎用WorkflowをMCPへ移植せず、Automation Run/Run Receipt Inboxの全件・履歴・診断面を出荷した。
 5. `TSK-WEBRET-005`から`006`（完了）: Companion projectionを出荷し、Workflow Mission Control Webを廃止した。
 6. `TSK-WEBRET-007`: Admin/SNS/setupの残能力を後継面へ移管する。
+7. `TSK-WEBRET-009`（完了）: operations command centerとttyd fallbackを削除し、rootをGraph API landingへ縮退した。
 7. `TSK-WEBRET-008`から`009`: 最小Webを抽出してからmain shellとttyd fallbackを廃止する。
 
 `TSK-WEBRET-001`から`TSK-WEBRET-006`まで完了。次はAdmin、SNS、setup、session shellを、後継能力のcurrent HEAD evidenceを揃えたsurfaceから廃止する。

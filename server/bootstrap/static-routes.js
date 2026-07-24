@@ -89,28 +89,18 @@ export function registerStaticRoutes(app, { publicDir, log = console }) {
         }
     });
 
-    app.get('/', async (req, res) => {
-        try {
-            const filePath = path.join(publicDir, 'index.html');
-            const content = await fs.readFile(filePath, 'utf-8');
-            setNoCacheHeaders(res, 'text/html; charset=utf-8');
-            res.send(content);
-        } catch (error) {
-            log.error('Error loading index.html:', error);
-            res.set('Content-Type', 'text/html; charset=utf-8');
-            res.send(renderApiFallbackPage());
-        }
+    app.get('/', (req, res) => {
+        setNoCacheHeaders(res, 'text/html; charset=utf-8');
+        res.send(renderApiFallbackPage());
     });
 
-    app.get('/app.js', async (req, res) => {
-        try {
-            const filePath = path.join(publicDir, 'app.js');
-            const content = await fs.readFile(filePath, 'utf-8');
-            setNoCacheHeaders(res, 'application/javascript; charset=utf-8');
-            res.send(content);
-        } catch {
-            res.status(500).send('Error loading app.js');
-        }
+    app.get('/app.js', (req, res) => {
+        res.status(410).json({
+            error: 'capability_retired',
+            capability: 'brainbase.operations-command-center',
+            owner: 'Codex app and CLI',
+            replacement: 'Use Codex tasks and Brainbase MCP'
+        });
     });
 
     for (const page of ['device', 'setup']) {
