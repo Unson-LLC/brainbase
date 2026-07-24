@@ -438,10 +438,10 @@ describe('RunReceiptIngestService', () => {
         ]));
     });
 
-    it('4 sourceすべてをingest永続化しInbox source filterでround-tripする', async () => {
+    it('5 sourceすべてをingest永続化しInbox source filterでround-tripする', async () => {
         const repository = new InMemoryWorkflowRepository();
         const receiptService = new RunReceiptIngestService({ workflowRepository: repository });
-        const sourceTypes = ['mana', 'codex_automations', 'github_actions', 'salestailor'];
+        const sourceTypes = ['mana', 'codex_automations', 'github_actions', 'salestailor', 'openryoko'];
 
         for (const sourceType of sourceTypes) {
             await receiptService.ingest(makeReceipt({
@@ -451,7 +451,7 @@ describe('RunReceiptIngestService', () => {
         }
         const workflowService = new TestAutomationRuntime({ repository, runner: {}, configParser: null });
 
-        expect(repository.listRuns({ limit: null })).toHaveLength(4);
+        expect(repository.listRuns({ limit: null })).toHaveLength(5);
         for (const sourceType of sourceTypes) {
             const inbox = await workflowService.runReceiptQueryService.listInbox({ sourceType }, {});
             expect(inbox.items).toHaveLength(1);

@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 
 const CONTRACT_VERSION = 'run_receipt.v1';
-const SOURCE_TYPES = new Set(['mana', 'codex_automations', 'github_actions', 'salestailor']);
+const SOURCE_TYPES = new Set(['mana', 'codex_automations', 'github_actions', 'salestailor', 'openryoko']);
 const RUN_STATUSES = new Set(['success', 'failed', 'blocked', 'waiting_human', 'cancelled']);
 const EVIDENCE_STATES = new Set(['confirmed', 'unconfirmed', 'no_data']);
 const OBSERVATION_KINDS = new Set(['source_run', 'connector_observation']);
