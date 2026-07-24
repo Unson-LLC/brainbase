@@ -1,6 +1,9 @@
 import { logger } from '../utils/logger.js';
 import { ReplyDraftServiceError } from '../services/companion/reply-draft-service.js';
-import { DecisionEventValidationError } from '../services/companion/decision-event-service.js';
+import {
+    DecisionEventStorageError,
+    DecisionEventValidationError
+} from '../services/companion/decision-event-service.js';
 
 function serializeError(error) {
     if (error instanceof ReplyDraftServiceError) {
@@ -272,7 +275,7 @@ export class CompanionController {
             const { event, duplicate } = this.decisionEventService.insertEvent(req.body || {});
             res.status(duplicate ? 200 : 201).json({ ok: true, duplicate, event });
         } catch (error) {
-            if (error instanceof DecisionEventValidationError) {
+            if (error instanceof DecisionEventValidationError || error instanceof DecisionEventStorageError) {
                 res.status(error.status).json({
                     error: error.message,
                     code: error.code,
@@ -302,7 +305,7 @@ export class CompanionController {
             const events = this.decisionEventService.listEvents({ from, to });
             res.json({ count: events.length, events });
         } catch (error) {
-            if (error instanceof DecisionEventValidationError) {
+            if (error instanceof DecisionEventValidationError || error instanceof DecisionEventStorageError) {
                 res.status(error.status).json({
                     error: error.message,
                     code: error.code,
