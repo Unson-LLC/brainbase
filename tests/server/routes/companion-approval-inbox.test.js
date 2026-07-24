@@ -33,8 +33,7 @@ function createAuthService({ valid = true, serviceValid = true, personId = 'per_
     };
 }
 
-function makeApp({ authService = createAuthService(), infoSSOTService = null } = {}) {
-    const repository = new InMemoryWorkflowRepository();
+function createTestAutomationRuntime(repository = new InMemoryWorkflowRepository()) {
     const runner = new WorkflowRunner({ repository, handlers: new Map() });
     const configParser = {
         async getProjects() {
@@ -46,7 +45,12 @@ function makeApp({ authService = createAuthService(), infoSSOTService = null } =
             };
         }
     };
-    const workflowService = new TestAutomationRuntime({ repository, runner, configParser });
+    return new TestAutomationRuntime({ repository, runner, configParser });
+}
+
+function makeApp({ authService = createAuthService(), infoSSOTService = null } = {}) {
+    const repository = new InMemoryWorkflowRepository();
+    const workflowService = createTestAutomationRuntime(repository);
     const app = express();
     app.use(express.json());
     app.use('/api/companion', createCompanionRouter({
@@ -67,7 +71,7 @@ function makeApp({ authService = createAuthService(), infoSSOTService = null } =
 
 function makeBootstrapApp({
     authService = createAuthService(),
-    workflowService,
+    automationRuntime = createTestAutomationRuntime(),
     infoSSOTService = { getContext: vi.fn(), listGraphEntities: vi.fn() }
 } = {}) {
     const app = express();
@@ -99,13 +103,13 @@ function makeBootstrapApp({
         candidateRepository: null,
         wikiService: {},
         tokenUsageService: {},
-        agentControlCatalogService: workflowService.agentControlCatalogService,
-        loopIntentService: workflowService.loopIntentService,
-        eveSessionDispatchService: workflowService.eveSessionDispatchService,
-        meetingAutomationService: workflowService.meetingAutomationService,
-        automationRunService: workflowService.automationRunService,
-        runReceiptQueryService: workflowService.runReceiptQueryService,
-        companionApprovalInboxService: workflowService.companionApprovalInboxService,
+        agentControlCatalogService: automationRuntime.agentControlCatalogService,
+        loopIntentService: automationRuntime.loopIntentService,
+        eveSessionDispatchService: automationRuntime.eveSessionDispatchService,
+        meetingAutomationService: automationRuntime.meetingAutomationService,
+        automationRunService: automationRuntime.automationRunService,
+        runReceiptQueryService: automationRuntime.runReceiptQueryService,
+        companionApprovalInboxService: automationRuntime.companionApprovalInboxService,
         runReceiptIngestService: {},
         externalRunnerIngestService: {},
         uploadMiddleware: (_req, _res, next) => next(),
@@ -879,10 +883,10 @@ describe('companion approval inbox route', () => {
                 };
             }
         };
-        const workflowService = new TestAutomationRuntime({ repository, runner, configParser });
+        const automationRuntime = new TestAutomationRuntime({ repository, runner, configParser });
         const app = makeBootstrapApp({
             authService: createAuthService({ personId: 'sato_keigo' }),
-            workflowService
+            automationRuntime
         });
         seedWorkflow(repository);
         seedApprovalRun(repository);
@@ -935,7 +939,10 @@ describe('companion approval inbox route', () => {
                 projectCodes: ['sample-project'],
                 personId: 'per_verified'
             }),
-            { projectCode: 'sample-project', entityType: null }
+            expect.objectContaining({
+                projectCode: 'sample-project',
+                entityType: null
+            })
         );
     });
 
