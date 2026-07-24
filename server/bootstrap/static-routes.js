@@ -77,18 +77,6 @@ function setNoCacheHeaders(res, contentType) {
 }
 
 export function registerStaticRoutes(app, { publicDir, log = console }) {
-    app.get(['/admin', '/admin.html'], async (req, res) => {
-        try {
-            const filePath = path.join(publicDir, 'admin.html');
-            const content = await fs.readFile(filePath, 'utf-8');
-            setNoCacheHeaders(res, 'text/html; charset=utf-8');
-            res.send(content);
-        } catch (error) {
-            log.error('Error loading admin.html:', error);
-            res.status(500).send(`Error loading admin page: ${error.message}`);
-        }
-    });
-
     app.get('/', (req, res) => {
         setNoCacheHeaders(res, 'text/html; charset=utf-8');
         res.send(renderApiFallbackPage());
@@ -103,7 +91,7 @@ export function registerStaticRoutes(app, { publicDir, log = console }) {
         });
     });
 
-    for (const page of ['device', 'setup']) {
+    for (const page of ['device']) {
         app.get(`/${page}`, async (req, res) => {
             try {
                 const filePath = path.join(publicDir, `${page}.html`);

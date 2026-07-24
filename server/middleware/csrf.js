@@ -146,6 +146,19 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Admin context preview is read-only but uses POST for its structured query.
+        // Agent/native clients authenticate with a bearer token and do not have a
+        // browser CSRF session. Authentication and project scope are still enforced
+        // by the route's requireAuth middleware and AdminVisualizationService.
+        if (
+            req.method === 'POST'
+            && req.path === '/api/admin/context-preview'
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
+            return next();
+        }
+
         const tokenHeader = req.headers?.['x-csrf-token'];
         const sessionHeader = req.headers?.['x-session-id'];
         const token = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;

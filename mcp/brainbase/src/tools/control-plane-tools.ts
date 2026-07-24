@@ -51,6 +51,17 @@ interface MeetingAutomationDiagnosis {
   [key: string]: unknown;
 }
 
+interface BootstrapConfig {
+  user: {
+    id: string;
+    name: string;
+    slackUserId: string;
+    workspaceId: string;
+  };
+  projects: ProjectCatalogItem[];
+  config_yaml: string;
+}
+
 interface ControlPlaneData {
   projects?: ProjectCatalogItem[];
   items?: RunReceiptInboxItem[];
@@ -66,6 +77,8 @@ interface ControlPlaneData {
   human_step?: Record<string, unknown>;
   resumed_run?: AutomationRunDetail | null;
   meeting_automation?: MeetingAutomationDiagnosis;
+  bootstrap_config?: BootstrapConfig;
+  admin_result?: Record<string, unknown>;
   count?: number;
   has_more?: boolean;
   omitted_count?: number;
@@ -104,6 +117,45 @@ export const controlPlaneTools: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'brainbase_bootstrap_config',
+    description:
+      'Generate the authenticated Brainbase bootstrap config for the current actor. Returns config.yml content without browser download or secret values, together with scope and audit evidence.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'brainbase_admin_read',
+    description:
+      'Read a scoped Brainbase diagnostic view: overview, Graph entities, candidates, Personal KG, AI context preview, data flow, or health. This replaces the retired Admin Web visualization and preserves source-level unavailable or partial states.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        view: {
+          type: 'string',
+          enum: ['overview', 'graph_entities', 'candidates', 'personal_kg', 'context_preview', 'data_flow', 'health'],
+        },
+        project: { type: 'string', description: 'Optional project within the authenticated scope.' },
+        type: { type: 'string' },
+        id: { type: 'string' },
+        q: { type: 'string' },
+        status: { type: 'string' },
+        redaction: { type: 'string' },
+        owner: { type: 'string' },
+        layer: { type: 'string' },
+        entity: { type: 'string' },
+        candidate: { type: 'string' },
+        limit: { type: 'integer', minimum: 1, maximum: 500 },
+        entity_types: { type: 'array', items: { type: 'string' } },
+        include_edges: { type: 'boolean' },
+        include_memory: { type: 'boolean' },
+        include_philosophy: { type: 'boolean' },
+      },
+      required: ['view'],
     },
   },
   {
@@ -237,6 +289,15 @@ const RUN_RECEIPT_SOURCE_TYPES = new Set(['mana', 'codex_automations', 'github_a
 const RUN_RECEIPT_STATUSES = new Set(['success', 'failed', 'blocked', 'waiting_human', 'cancelled']);
 const RUN_RECEIPT_EVIDENCE_STATES = new Set(['confirmed', 'unconfirmed', 'no_data']);
 const HUMAN_STEP_RESOLUTIONS = new Set(['approved', 'rejected']);
+const ADMIN_READ_VIEWS = new Set([
+  'overview',
+  'graph_entities',
+  'candidates',
+  'personal_kg',
+  'context_preview',
+  'data_flow',
+  'health',
+]);
 
 function normalizeProjectCode(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -451,6 +512,77 @@ function meetingAutomationDiagnosisRequest(
   return { source: url.toString(), projectId, init: { method: 'GET' }, operation: 'read' };
 }
 
+function adminReadRequest(
+  apiUrl: string,
+  args: Record<string, unknown>,
+): ControlPlaneRequest {
+  const view = optionalEnumArgument(args, 'view', ADMIN_READ_VIEWS);
+  if (!view) throw new Error('view is required');
+  const requestedProject = optionalStringArgument(args, 'project');
+  const projectId = requestedProject ? normalizeProjectCode(requestedProject) : null;
+  if (requestedProject && !projectId) throw new Error('project is invalid');
+
+  const routeByView: Record<string, string> = {
+    overview: '/api/admin/overview',
+    graph_entities: '/api/admin/graph/entities',
+    candidates: '/api/admin/candidates',
+    personal_kg: '/api/admin/personal-kg',
+    context_preview: '/api/admin/context-preview',
+    data_flow: '/api/admin/data-flow',
+    health: '/api/admin/health',
+  };
+  const url = new URL(routeByView[view], `${apiUrl.replace(/\/+$/, '')}/`);
+
+  if (view === 'context_preview') {
+    const rawEntityTypes = args.entity_types;
+    if (
+      rawEntityTypes !== undefined
+      && (!Array.isArray(rawEntityTypes) || rawEntityTypes.some((item) => typeof item !== 'string' || !item.trim()))
+    ) {
+      throw new Error('entity_types must be an array of non-empty strings');
+    }
+    const body = {
+      ...(projectId ? { project: projectId } : {}),
+      ...(rawEntityTypes ? { entityTypes: rawEntityTypes } : {}),
+      ...(typeof args.include_edges === 'boolean' ? { includeEdges: args.include_edges } : {}),
+      ...(typeof args.include_memory === 'boolean' ? { includeMemory: args.include_memory } : {}),
+      ...(typeof args.include_philosophy === 'boolean' ? { includePhilosophy: args.include_philosophy } : {}),
+    };
+    return {
+      source: url.toString(),
+      projectId,
+      init: {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      operation: 'read',
+    };
+  }
+
+  const allowedQueryKeysByView: Record<string, string[]> = {
+    overview: [],
+    graph_entities: ['project', 'type', 'id', 'q', 'limit'],
+    candidates: ['project', 'status', 'type', 'id', 'redaction', 'limit'],
+    personal_kg: ['owner', 'layer', 'status', 'type', 'redaction', 'limit'],
+    data_flow: ['project', 'entity', 'candidate'],
+    health: [],
+  };
+  for (const key of allowedQueryKeysByView[view]) {
+    const value = key === 'project' ? projectId : args[key];
+    if (value === undefined || value === null || value === '') continue;
+    if (key === 'limit') {
+      if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1 || value > 500) {
+        throw new Error('limit must be an integer between 1 and 500');
+      }
+    } else if (typeof value !== 'string' || !value.trim()) {
+      throw new Error(`${key} must be a non-empty string`);
+    }
+    url.searchParams.set(key, String(value));
+  }
+  return { source: url.toString(), projectId, init: { method: 'GET' }, operation: 'read' };
+}
+
 function parseRunReceiptInbox(payload: unknown, scope: string[]): ControlPlaneData {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     throw new Error('Expected a Run Receipt Inbox object');
@@ -639,6 +771,61 @@ function parseMeetingAutomationDiagnosis(payload: unknown, scope: string[]): Con
   return { meeting_automation: record as unknown as MeetingAutomationDiagnosis };
 }
 
+function parseBootstrapConfig(payload: unknown, scope: string[]): ControlPlaneData {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('Expected a bootstrap config object');
+  }
+  const record = payload as Record<string, unknown>;
+  const user = record.user;
+  if (!user || typeof user !== 'object' || Array.isArray(user)) {
+    throw new Error('Bootstrap config user is invalid');
+  }
+  const userRecord = user as Record<string, unknown>;
+  for (const key of ['id', 'name', 'slackUserId', 'workspaceId']) {
+    if (typeof userRecord[key] !== 'string') {
+      throw new Error(`Bootstrap config user.${key} is invalid`);
+    }
+  }
+  if (!Array.isArray(record.projects)) {
+    throw new Error('Bootstrap config projects must be an array');
+  }
+  const projects = record.projects.filter((project): project is ProjectCatalogItem => (
+    Boolean(project)
+      && typeof project === 'object'
+      && !Array.isArray(project)
+      && typeof (project as Record<string, unknown>).id === 'string'
+  ));
+  if (projects.length !== record.projects.length) {
+    throw new Error('Bootstrap config contains invalid projects');
+  }
+  const allowed = new Set(scope);
+  if (projects.some((project) => {
+    const normalized = projectId(project);
+    return !normalized || !allowed.has(normalized);
+  })) {
+    throw new Error('Bootstrap config contains a project outside the authenticated scope');
+  }
+  if (typeof record.configYaml !== 'string') {
+    throw new Error('Bootstrap config YAML is invalid');
+  }
+
+  return {
+    bootstrap_config: {
+      user: userRecord as unknown as BootstrapConfig['user'],
+      projects,
+      config_yaml: record.configYaml,
+    },
+    count: projects.length,
+  };
+}
+
+function parseAdminResult(payload: unknown): ControlPlaneData {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('Expected an Admin diagnostic object');
+  }
+  return { admin_result: payload as Record<string, unknown> };
+}
+
 function createAudit(
   tool: string,
   source: string,
@@ -686,6 +873,8 @@ export async function handleControlPlaneToolCall(
 ): Promise<ControlPlaneResult | null> {
   const supportedTools = [
     'brainbase_projects',
+    'brainbase_bootstrap_config',
+    'brainbase_admin_read',
     'brainbase_run_receipt_inbox',
     'brainbase_run_receipt_history',
     'brainbase_run_receipt_diagnosis',
@@ -700,6 +889,10 @@ export async function handleControlPlaneToolCall(
   let requestInit: RequestInit = { method: 'GET' };
   let source = name === 'brainbase_projects'
     ? `${baseUrl}/api/brainbase/projects`
+    : name === 'brainbase_bootstrap_config'
+      ? `${baseUrl}/api/setup/config`
+      : name === 'brainbase_admin_read'
+        ? `${baseUrl}/api/admin/overview`
     : name === 'brainbase_run_receipt_history'
       ? `${baseUrl}/api/run-receipts/history`
       : name === 'brainbase_run_receipt_diagnosis'
@@ -743,9 +936,11 @@ export async function handleControlPlaneToolCall(
 
   const scope = effectiveProjectCodes(claims.projectCodes, dependencies.configuredProjectCodes);
   let requestedProject: string | null = null;
-  if (name !== 'brainbase_projects') {
+  if (name !== 'brainbase_projects' && name !== 'brainbase_bootstrap_config') {
     try {
-      const request: ControlPlaneRequest = name === 'brainbase_run_receipt_history'
+      const request: ControlPlaneRequest = name === 'brainbase_admin_read'
+        ? adminReadRequest(dependencies.apiUrl, args)
+        : name === 'brainbase_run_receipt_history'
         ? { ...runReceiptHistorySource(dependencies.apiUrl, args), init: { method: 'GET' }, operation: 'read' }
         : name === 'brainbase_run_receipt_diagnosis'
           ? { ...runReceiptDiagnosisSource(dependencies.apiUrl, args), init: { method: 'GET' }, operation: 'read' }
@@ -919,6 +1114,36 @@ export async function handleControlPlaneToolCall(
   if (name === 'brainbase_meeting_automation_diagnosis') {
     try {
       const data = parseMeetingAutomationDiagnosis(await response.json(), scope);
+      return { status: 'ok', scope: { project_codes: scope }, audit, data };
+    } catch (error) {
+      return failure(
+        'error',
+        'brainbase_contract_error',
+        error instanceof Error ? error.message : String(error),
+        scope,
+        audit,
+      );
+    }
+  }
+
+  if (name === 'brainbase_bootstrap_config') {
+    try {
+      const data = parseBootstrapConfig(await response.json(), scope);
+      return { status: 'ok', scope: { project_codes: scope }, audit, data };
+    } catch (error) {
+      return failure(
+        'error',
+        'brainbase_contract_error',
+        error instanceof Error ? error.message : String(error),
+        scope,
+        audit,
+      );
+    }
+  }
+
+  if (name === 'brainbase_admin_read') {
+    try {
+      const data = parseAdminResult(await response.json());
       return { status: 'ok', scope: { project_codes: scope }, audit, data };
     } catch (error) {
       return failure(

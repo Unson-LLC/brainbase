@@ -46,7 +46,7 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 - Brainbase CoreはUIに依存しないAPI/MCP/Automation Run/Run Receipt/ledger/auditを正本とする。
 - Codex/Claude Codeは検索、更新、実行、診断、管理の標準操作面となる。
 - Mac Companionは通知、承認、修正、feedbackに限定する。
-- Brainbase Webはlogin、interactive consent、bootstrap、pairing、break-glass recoveryだけを提供する。
+- Brainbase Webはlogin、interactive consent、pairing、break-glass recoveryだけを提供する。bootstrap configはMCP/CLIが所有する。
 - Codex/Claude Codeでできる操作と日常一覧画面はWebから廃止する。
 
 ## Initial Web inventory
@@ -59,8 +59,8 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 | `public/workflows.html` | 廃止済みのWorkflow Mission Control、Run Detail、Agent Run Inbox | Core + MCP + Mac Companion | `deleted` | `TSK-WEBRET-006`完了。route/page/overlay/browser module/旧UI test/deep-linkを削除 |
 | `public/meeting-workflow-pack.html` | 廃止済みの固定データprototype | Workflow Core + MCP + Mac Companion | `deleted_prototype` | `TSK-WEBRET-002`で専用runtimeとdeep-linkを削除。Core/APIは維持 |
 | `public/sns-growth.html` | 廃止済みのSNS運用cockpit | automation + Core API/ledger | `deleted_ui` | `TSK-WEBRET-010`完了。専用Web面は不要と判断し、Core API/ledgerを残してUIのみ削除 |
-| `public/admin.html` | 管理・可視化の混合面 | browser必須設定だけWebへ分離し、残りはMCP | `temporarily_keep` | admin能力を機能別分類し、auth/consent/recovery以外を移管 |
-| `public/setup.html` | 初期設定 | Web候補 | `keep_web_review` | 各設定についてブラウザ必須理由を確認し、不要項目をMCPへ移管 |
+| `public/admin.html` | 廃止済みの管理・可視化混合面 | `brainbase_admin_read` + Core REST | `deleted` | `TSK-WEBRET-007`完了。7 read view、scope、audit、失敗状態のMCP contractを固定し、Web専用資産を削除 |
+| `public/setup.html` | 廃止済みのconfig download面 | `brainbase_bootstrap_config` + `~/workspace/config.yml` | `deleted` | `TSK-WEBRET-007A`完了。config正本とREST backendを維持し、Web専用資産を削除 |
 | `public/device.html` | device接続・pairing | Web候補 | `keep_web_review` | pairing/本人確認に必要な最小面へ縮小 |
 | `public/test-infrastructure.html` | 廃止済みの開発・検証用UI | CLI/test artifact | `deleted` | `TSK-WEBRET-001`で参照0件とstatic 404を確認済み |
 | `public/ttyd/custom_ttyd_index.html` | 廃止済みのbrowser terminal shell | Codex/Claude Code native surface | `deleted` | `TSK-WEBRET-009`完了。session/terminal runtime参照0件 |
@@ -74,7 +74,7 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 - [ ] ac:2 各surfaceの全能力が`move_to_mcp`、`move_to_companion`、`automate`、`keep_web`、`delete`へ機能単位で分類されている。
 - [ ] ac:3 `move_to_mcp`は正常系、認証・project scope、不正入力、依存先 unavailable、監査証跡までcurrent HEADで検証されている。
 - [ ] ac:4 `move_to_companion`は要介入項目と根拠を表示し、blocked/unconfirmed/no_data/取得不能を0件や成功へ丸めない。
-- [ ] ac:5 `keep_web`はブラウザ必須理由を持ち、login、consent、bootstrap、pairing、break-glass recoveryの範囲を超えない。
+- [ ] ac:5 `keep_web`はブラウザ必須理由を持ち、login、consent、pairing、break-glass recoveryの範囲を超えない。bootstrap configはMCP/CLIが所有する。
 - [ ] ac:6 廃止対象画面への新規導線と新機能追加を禁止し、後継面でのみ新規能力を提供する。
 - [ ] ac:7 画面削除は専用client/state/view/test/route/assetsの影響を確認し、画面単位の小さな変更として実施する。
 - [ ] ac:8 各削除PRは後継面のevidence、削除対象、残存互換性、rollback方法を記録する。
@@ -87,7 +87,7 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 2. **Inventory**: route、page、client、state、API、test、auth、deep-linkを能力単位で棚卸しする。
 3. **MCP parity**: 日常操作と管理操作をMCPへ揃える。
 4. **Companion focus**: 承認・要介入projectionをMac Companionへ揃える。
-5. **Web core extraction**: login/consent/bootstrap/pairing/recoveryを独立した最小surfaceへ分離する。
+5. **Web core extraction**: login/consent/pairing/recoveryを独立した最小surfaceへ分離し、bootstrap configはMCP/CLIへ移す。
 6. **Retire by surface**: evidenceを満たした画面から導線、page、専用コード、専用testを削除する。
 7. **Cost removal**: 廃止UI専用のVisual/E2E gate、assets、互換routeを削減する。
 

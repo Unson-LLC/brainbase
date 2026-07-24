@@ -187,7 +187,7 @@ async function setupConfig(token, apiUrl) {
         return true;
     } catch (error) {
         log(`\n❌ config.yml の生成に失敗しました: ${error.message}`, colors.red);
-        log(`   Web UI から手動でダウンロードできます: ${apiUrl}/setup`, colors.yellow);
+        log('   認証状態を確認して再実行するか、Brainbase MCPの brainbase_bootstrap_config を利用してください。', colors.yellow);
         return false;
     }
 }

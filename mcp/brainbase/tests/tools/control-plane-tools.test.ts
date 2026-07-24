@@ -113,6 +113,144 @@ describe('Brainbase MCP control-plane tools', () => {
     assert.equal('data' in (result || {}), false);
   });
 
+  it('TSK-WEBRET-007 AC-1: bootstrap config is available without a browser download', async () => {
+    const calls: string[] = [];
+    const result = await handleControlPlaneToolCall('brainbase_bootstrap_config', {}, dependencies({
+      fetch: async (url: string | URL | Request) => {
+        calls.push(String(url));
+        return new Response(JSON.stringify({
+          ok: true,
+          user: {
+            id: 'per_keigo',
+            name: '佐藤圭吾',
+            slackUserId: 'U123',
+            workspaceId: 'T123',
+          },
+          projects: [{ id: 'brainbase', name: 'Brainbase' }],
+          configYaml: 'workspace_root: ${HOME}/workspace\nprojects:\n  - id: brainbase\n',
+        }), { status: 200 });
+      },
+    }));
+
+    assert.ok(controlPlaneTools.some((candidate) => candidate.name === 'brainbase_bootstrap_config'));
+    assert.ok(serverTesting.tools.some((candidate) => candidate.name === 'brainbase_bootstrap_config'));
+    assert.equal(result?.status, 'ok');
+    assert.equal(result?.data?.bootstrap_config?.user.id, 'per_keigo');
+    assert.deepEqual(result?.data?.bootstrap_config?.projects.map((project) => project.id), ['brainbase']);
+    assert.match(result?.data?.bootstrap_config?.config_yaml || '', /workspace_root/);
+    assert.equal(result?.data?.count, 1);
+    assert.deepEqual(calls, ['http://brainbase.test/api/setup/config']);
+    assert.equal(result?.audit.source, calls[0]);
+  });
+
+  it('TSK-WEBRET-007 AC-2: bootstrap config rejects projects outside authenticated scope', async () => {
+    const result = await handleControlPlaneToolCall('brainbase_bootstrap_config', {}, dependencies({
+      fetch: async () => new Response(JSON.stringify({
+        ok: true,
+        user: {
+          id: 'per_keigo',
+          name: '佐藤圭吾',
+          slackUserId: 'U123',
+          workspaceId: 'T123',
+        },
+        projects: [{ id: 'salestailor', name: 'SalesTailor' }],
+        configYaml: 'projects:\n  - id: salestailor\n',
+      }), { status: 200 }),
+    }));
+
+    assert.equal(result?.status, 'error');
+    assert.equal(result?.error?.code, 'brainbase_contract_error');
+    assert.match(result?.error?.message || '', /outside the authenticated scope/);
+  });
+
+  it('TSK-WEBRET-007 AC-3: Admin diagnostics are discoverable through one read-only tool', () => {
+    const tool = controlPlaneTools.find((candidate) => candidate.name === 'brainbase_admin_read');
+
+    assert.ok(tool);
+    assert.ok(serverTesting.tools.some((candidate) => candidate.name === 'brainbase_admin_read'));
+    assert.deepEqual(tool.inputSchema.required, ['view']);
+    assert.deepEqual(tool.inputSchema.properties?.view.enum, [
+      'overview',
+      'graph_entities',
+      'candidates',
+      'personal_kg',
+      'context_preview',
+      'data_flow',
+      'health',
+    ]);
+  });
+
+  it('TSK-WEBRET-007 AC-4: Admin Graph reads forward filters and reject scope expansion', async () => {
+    const calls: string[] = [];
+    const result = await handleControlPlaneToolCall('brainbase_admin_read', {
+      view: 'graph_entities',
+      project: 'brainbase',
+      type: 'decision',
+      limit: 25,
+    }, dependencies({
+      fetch: async (url: string | URL | Request) => {
+        calls.push(String(url));
+        return new Response(JSON.stringify({
+          source_class: 'graph_ssot',
+          status: 'available',
+          records: [],
+        }), { status: 200 });
+      },
+    }));
+    const rejected = await handleControlPlaneToolCall('brainbase_admin_read', {
+      view: 'graph_entities',
+      project: 'salestailor',
+    }, dependencies({
+      fetch: async () => {
+        throw new Error('must not fetch');
+      },
+    }));
+
+    assert.equal(result?.status, 'ok');
+    assert.equal(result?.data?.admin_result?.source_class, 'graph_ssot');
+    assert.deepEqual(calls, [
+      'http://brainbase.test/api/admin/graph/entities?project=brainbase&type=decision&limit=25',
+    ]);
+    assert.equal(result?.audit.operation, 'read');
+    assert.equal(rejected?.status, 'error');
+    assert.equal(rejected?.error?.code, 'brainbase_project_not_accessible');
+  });
+
+  it('TSK-WEBRET-007 AC-5: context preview remains a scoped read even though its REST transport is POST', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const result = await handleControlPlaneToolCall('brainbase_admin_read', {
+      view: 'context_preview',
+      project: 'brainbase',
+      entity_types: ['project', 'decision'],
+      include_edges: true,
+      include_memory: false,
+      include_philosophy: true,
+    }, dependencies({
+      fetch: async (url: string | URL | Request, init?: RequestInit) => {
+        calls.push({ url: String(url), init });
+        return new Response(JSON.stringify({
+          source_class: 'ai_context',
+          status: 'partial',
+          warnings: ['memory omitted'],
+          preview: { project_code: 'brainbase' },
+        }), { status: 200 });
+      },
+    }));
+
+    assert.equal(result?.status, 'ok');
+    assert.equal(result?.data?.admin_result?.status, 'partial');
+    assert.equal(calls[0].url, 'http://brainbase.test/api/admin/context-preview');
+    assert.equal(calls[0].init?.method, 'POST');
+    assert.deepEqual(JSON.parse(String(calls[0].init?.body)), {
+      project: 'brainbase',
+      entityTypes: ['project', 'decision'],
+      includeEdges: true,
+      includeMemory: false,
+      includePhilosophy: true,
+    });
+    assert.equal(result?.audit.operation, 'read');
+  });
+
   it('TSK-WFRET-002 AC-1: Run Receipt Inbox is discoverable without exposing generic Workflow CRUD', () => {
     const tool = controlPlaneTools.find((candidate) => candidate.name === 'brainbase_run_receipt_inbox');
 
