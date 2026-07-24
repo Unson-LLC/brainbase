@@ -103,23 +103,6 @@ node scripts/generate-memory-preamble.mjs
 - 注入経路は claude=`.claude/scripts/hooks/session-start/inject-memory-preamble.ts`、codex=`.codex/hooks.json` SessionStart → `scripts/codex-hooks/inject-memory-preamble.sh`。どちらも file を読むだけで DB/tunnel を持ち込まない
 - 利用率は `.claude/scripts/audit/graph-ssot-audit.ts` の `preamble` セクション（`injected_rate` / `query_rate_when_injected` vs `query_rate_when_not_injected`）で日次計測する
 
-## Archive Blocked Triage
-
-`/oyasumi` は archive blocked の日次整理トリガーでもある。Phase 7 の前に必ず実行する。
-
-```bash
-cd /Users/ksato/workspace/code/brainbase
-node scripts/archive-blocked-report.mjs --limit 20
-```
-
-blocked がある場合、各項目に対して以下のいずれかを決める。
-
-- **fix + retry**: worktree を確認し、commit/merge/不要変更の明示処理後に retry する
-- **task 化**: 当日解けないものは NocoDB/Inbox に「Archive blocked 解消」タスクとして残す
-- **例外化**: 外部事情で待つものは理由と次回確認日を残す
-
-重要: `/oyasumi` では `blocked` を単に報告して終わらない。少なくとも「解消済み / task 化 / 例外化」のどれかに分類する。
-
 ## SNS Feedback Triage
 
 SNS運用の夜処理も `/oyasumi` に寄せる。今日投稿したものを「反応の報告」ではなく、翌朝の候補選定と個人KGの学習素材へ戻す。
@@ -189,7 +172,7 @@ npm run sns:feedback-learning -- --date YYYY-MM-DD
 | コマンド | 用途 |
 |---|---|
 | `/ohayo` | 朝: インプット整理（カレンダー確認・メール仕分け・今日のフォーカス提案） |
-| `/oyasumi` | 夜: アウトプット整理（今日の会議結果を SSOT に反映し、archive blocked とSNS反応を日次整理して寝る） |
+| `/oyasumi` | 夜: アウトプット整理（今日の会議結果をSSOTに反映し、業務上のblockedとSNS反応を日次整理して寝る） |
 | `/retro` | 週次: Ship/Learn/Block とSNS勝ち筋を集計 |
 
 ## 出力先
