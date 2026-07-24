@@ -39,15 +39,23 @@ install -d -o "$RYOKO_USER" -g "$RYOKO_USER" -m 750 \
   "$INSTALL_DIR" \
   "$HOME_DIR/.local/state/openryoko-run-receipt" \
   "$HOME_DIR/.local/state/openryoko-run-receipt/outbox" \
-  "$HOME_DIR/.local/state/openryoko-run-receipt/dead-letter"
+  "$HOME_DIR/.local/state/openryoko-run-receipt/dead-letter" \
+  "$HOME_DIR/.local/state/openryoko-run-receipt/resolved"
 install -o "$RYOKO_USER" -g "$RYOKO_USER" -m 640 \
   "$REPOSITORY_ROOT/scripts/run-receipt/reporter-core.mjs" \
   "$REPOSITORY_ROOT/scripts/run-receipt/openryoko-reporter.mjs" \
   "$INSTALL_DIR/"
+install -o "$RYOKO_USER" -g "$RYOKO_USER" -m 750 \
+  "$REPOSITORY_ROOT/scripts/openryoko/check-pilot-health.sh" \
+  "$HOME_DIR/bin/openryoko-pilot-health"
 
 rendered_file="$(mktemp)"
 trap 'rm -f "$rendered_file"' EXIT
-for unit in openryoko-run-receipt.service openryoko-run-receipt.timer; do
+for unit in \
+  openryoko-run-receipt.service \
+  openryoko-run-receipt.timer \
+  openryoko-pilot-health.service \
+  openryoko-pilot-health.timer; do
   sed \
     -e "s|@RYOKO_USER@|$RYOKO_USER|g" \
     -e "s|@HOME_DIR@|$HOME_DIR|g" \
@@ -61,5 +69,6 @@ systemctl daemon-reload
 systemctl enable --now openryoko-run-receipt.timer
 systemctl start openryoko-run-receipt.service
 systemctl is-active --quiet openryoko-run-receipt.timer
+systemctl enable --now openryoko-pilot-health.timer
 
-echo "OpenRyoko run receipt collector is active."
+echo "OpenRyoko run receipt collector and pilot health timer are active."
