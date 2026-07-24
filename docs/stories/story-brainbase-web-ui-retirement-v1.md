@@ -24,7 +24,7 @@ related_tasks:
       - TSK-WEBRET-008
       - TSK-WEBRET-009
       - TSK-WEBRET-010
-status: in_progress
+status: completed
 created_at: 2026-07-16
 updated_at: 2026-07-24
 ---
@@ -70,16 +70,16 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 
 ## Acceptance criteria
 
-- [ ] ac:1 全production Web surfaceと主要導線がinventoryに登録されている。
-- [ ] ac:2 各surfaceの全能力が`move_to_mcp`、`move_to_companion`、`automate`、`keep_web`、`delete`へ機能単位で分類されている。
-- [ ] ac:3 `move_to_mcp`は正常系、認証・project scope、不正入力、依存先 unavailable、監査証跡までcurrent HEADで検証されている。
-- [ ] ac:4 `move_to_companion`は要介入項目と根拠を表示し、blocked/unconfirmed/no_data/取得不能を0件や成功へ丸めない。
+- [x] ac:1 全production Web surfaceと主要導線がinventoryに登録されている。
+- [x] ac:2 各surfaceの全能力が`move_to_mcp`、`move_to_companion`、`automate`、`keep_web`、`delete`へ機能単位で分類されている。
+- [x] ac:3 `move_to_mcp`は正常系、認証・project scope、不正入力、依存先 unavailable、監査証跡までcurrent HEADで検証されている。
+- [x] ac:4 `move_to_companion`は要介入項目と根拠を表示し、blocked/unconfirmed/no_data/取得不能を0件や成功へ丸めない。
 - [x] ac:5 `keep_web`はブラウザ必須理由を持ち、login、consent、pairing、break-glass recoveryの範囲を超えない。bootstrap configはMCP/CLIが所有する。
-- [ ] ac:6 廃止対象画面への新規導線と新機能追加を禁止し、後継面でのみ新規能力を提供する。
-- [ ] ac:7 画面削除は専用client/state/view/test/route/assetsの影響を確認し、画面単位の小さな変更として実施する。
-- [ ] ac:8 各削除PRは後継面のevidence、削除対象、残存互換性、rollback方法を記録する。
-- [ ] ac:9 Web UIを完成条件にしている既存Story/ADRがAgent-first境界へ更新されている。
-- [ ] ac:10 Web削除後もCore API/MCP、台帳、audit、connectorは維持され、UI削除をドメイン削除に拡大しない。
+- [x] ac:6 廃止対象画面への新規導線と新機能追加を禁止し、後継面でのみ新規能力を提供する。
+- [x] ac:7 画面削除は専用client/state/view/test/route/assetsの影響を確認し、画面単位の小さな変更として実施する。
+- [x] ac:8 各削除PRは後継面のevidence、削除対象、残存互換性、rollback方法を記録する。
+- [x] ac:9 Web UIを完成条件にしている既存Story/ADRがAgent-first境界へ更新されている。
+- [x] ac:10 Web削除後もCore API/MCP、台帳、audit、connectorは維持され、UI削除をドメイン削除に拡大しない。
 
 ## Migration slices
 
@@ -109,8 +109,9 @@ Brainbase operatorとして、CodexまたはClaude CodeからBrainbaseの能力�
 4. `TSK-WEBRET-004`（完了）: 汎用WorkflowをMCPへ移植せず、Automation Run/Run Receipt Inboxの全件・履歴・診断面を出荷した。
 5. `TSK-WEBRET-005`から`006`（完了）: Companion projectionを出荷し、Workflow Mission Control Webを廃止した。
 6. `TSK-WEBRET-010`（完了）: SNS Growth専用Web UI、旧shell接続、専用CSS、UI/E2E testsを削除し、Core API/ledger/automationを維持した。
-7. `TSK-WEBRET-007`: Admin/setupの残能力を後継面へ移管する。
-7. `TSK-WEBRET-009`（完了）: operations command centerとttyd fallbackを削除し、rootをGraph API landingへ縮退した。
-7. `TSK-WEBRET-008`（完了）: deviceを最小Webへ固定し、承認者identityを認証済みtokenへbindした。
+7. `TSK-WEBRET-007`（完了）: Admin/setupの残能力を後継面へ移管した。
+8. `TSK-WEBRET-009`（完了）: operations command centerとttyd fallbackを削除し、rootをGraph API landingへ縮退した。
+9. `TSK-WEBRET-008`（完了）: deviceを最小Webへ固定し、承認者identityを認証済みtokenへbindした。
+10. Cost removal（完了）: 旧session/transcript UI island、起動時bundle生成、専用E2Eを削除し、`device.html`だけをproduction HTML allowlistとして固定した。
 
 `TSK-WEBRET-001`から`TSK-WEBRET-010`まで完了。production Web UIはブラウザ必須のdevice本人確認/OAuth/consent/pairingだけで、日常運用・設定・一覧はAgent-first surfaceが所有する。
