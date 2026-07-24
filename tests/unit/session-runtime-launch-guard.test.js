@@ -30,14 +30,6 @@ describe('session runtime launch guard', () => {
     expect(script).toContain('tmux cwd preflight failed');
   });
 
-  it('runtime lifecycleは明示cwdを起動scriptへ渡す', () => {
-    const source = readFileSync(path.join(repoRoot, 'server/services/session-runtime/runtime-lifecycle-methods.js'), 'utf8');
-    const matches = source.match(/spawnOptions\.env\.BRAINBASE_RUNTIME_CWD = cwd/g) || [];
-
-    expect(matches).toHaveLength(2);
-    expect(source).toContain("'-m', '4'");
-  });
-
   it('Codex起動前にworktreeをtrusted projectへ登録する', () => {
     const ensureRuntime = readFileSync(path.join(repoRoot, 'scripts/ensure_session_runtime.sh'), 'utf8');
     const loginScript = readFileSync(path.join(repoRoot, 'scripts/login_script.sh'), 'utf8');

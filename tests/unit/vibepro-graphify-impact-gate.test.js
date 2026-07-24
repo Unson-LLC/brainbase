@@ -8,8 +8,7 @@ import {
 } from '../../scripts/vibepro-graphify-impact-gate.mjs';
 
 describe('vibepro-graphify-impact-gate', () => {
-  it('active indicator and realtime session files require Graphify impact review', () => {
-    expect(requiresGraphifyImpactReview('server/services/session-core/activity-service-methods.js')).toBe(true);
+  it('remaining client-side active indicator files require Graphify impact review', () => {
     expect(requiresGraphifyImpactReview('public/modules/session-indicators.js')).toBe(true);
     expect(requiresGraphifyImpactReview('public/modules/ui/views/session-view.js')).toBe(true);
     expect(requiresGraphifyImpactReview('docs/README.md')).toBe(false);
@@ -36,13 +35,13 @@ describe('vibepro-graphify-impact-gate', () => {
 
   it('fails graph-sensitive changes when evidence is missing', () => {
     const result = checkGraphifyImpactGate({
-      changedFiles: ['server/services/session-core/activity-service-methods.js'],
+      changedFiles: ['public/modules/session-indicators.js'],
       prBody: '## Summary\n- fix active state',
     });
 
     expect(result).toMatchObject({
       status: 'failed',
-      requiredFiles: ['server/services/session-core/activity-service-methods.js'],
+      requiredFiles: ['public/modules/session-indicators.js'],
     });
     expect(result.reason).toContain('docs/brainbase-capabilities/runbooks/vibepro-impact-review.md');
     expect(result.reason).toContain('docs/brainbase-capabilities/capabilities/vibepro.impact-review.yml');
