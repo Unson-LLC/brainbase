@@ -3,6 +3,8 @@ Description=OpenRyoko AI Gateway (Slack/Discord/Web)
 Documentation=https://github.com/rsensui2/OpenRyoko
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -15,8 +17,6 @@ Environment=IS_SANDBOX=1
 ExecStart=@RYOKO_BINARY@ start
 Restart=on-failure
 RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=5
 KillMode=mixed
 TimeoutStopSec=10
 StandardOutput=journal
