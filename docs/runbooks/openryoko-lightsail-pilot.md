@@ -39,20 +39,30 @@ OAuth tokens, or Slack tokens here.
    sudo OPENRYOKO_REF=<reviewed-full-commit-sha> \
      scripts/openryoko/bootstrap-instance.sh
    ```
-3. In Infisical project `OpenRyoko`, production environment, provision a
-   protected file containing:
+3. In Infisical project `OpenRyoko`, production environment, provision two
+   protected files. The Claude-only file contains:
 
    ```text
    CLAUDE_CODE_OAUTH_TOKEN=<Infisical-injected value>
    ```
 
-   Install it as `/home/ryoko/.config/openryoko/environment`, owned by
-   `ryoko:ryoko`, mode `600`. Never print or copy the value into a command log.
+   Install it as `/home/ryoko/.config/openryoko/claude-environment`. The
+   gateway-only file contains:
+
+   ```text
+   OPENRYOKO_SLACK_APP_TOKEN=<Infisical-injected value>
+   OPENRYOKO_SLACK_BOT_TOKEN=<Infisical-injected value>
+   ```
+
+   Install it as `/home/ryoko/.config/openryoko/gateway-environment`. Both
+   files must be owned by `ryoko:ryoko`, mode `600`. Never print or copy a
+   value into a command log. Keeping the files separate prevents Claude child
+   processes from inheriting Slack credentials.
 4. Complete Claude Code's one-time interactive screens as `ryoko`:
 
    ```bash
    sudo -u ryoko -H bash -lc \
-     'source "$HOME/.nvm/nvm.sh"; set -a; source "$HOME/.config/openryoko/environment"; set +a; claude --dangerously-skip-permissions'
+     'source "$HOME/.nvm/nvm.sh"; set -a; source "$HOME/.config/openryoko/claude-environment"; set +a; claude --dangerously-skip-permissions'
    ```
 
    This invocation is only for Claude Code's local first-run screens. The
@@ -66,8 +76,10 @@ OAuth tokens, or Slack tokens here.
 
 The wrapper installed by `configure-runtime.sh` is required for OpenRyoko
 2026.7.10: its Interactive PTY strips every `CLAUDE_CODE_*` variable before
-spawning Claude. The wrapper reloads the mode-600 Infisical projection without
-embedding or logging the token. The same script enforces:
+spawning Claude. The wrapper reloads only the Claude OAuth projection without
+embedding or logging the token. Slack credentials remain gateway-only, are
+resolved from `OPENRYOKO_SLACK_*`, and are removed from `config.yaml`. The same
+script enforces:
 
 - `gateway.host = 127.0.0.1`
 - one explicit Slack `allowFrom` user
