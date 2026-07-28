@@ -56,14 +56,16 @@ export async function setCanonicalTaskReadiness({
         }
 
         const config = createCanonicalTaskStoreConfig();
-        const backendIdentityHash = canonicalTaskBackendIdentityHash(config, resolveCanonicalTaskBackend());
+        const backend = resolveCanonicalTaskBackend();
+        const backendIdentityHash = canonicalTaskBackendIdentityHash(config, backend);
         const resolvedSourceHead = sourceHead
             || execFileSync('git', ['rev-parse', 'HEAD'], { cwd: rootDir, encoding: 'utf8' }).trim();
         const verified = await verifyBeforeEnableEvidenceFile({
             rootDir,
             evidencePath: args.evidencePath,
             sourceHead: resolvedSourceHead,
-            manifestPath: config.manifestPath
+            manifestPath: config.manifestPath,
+            backend
         });
         const evidenceBytes = verified.bytes;
         const evidence = verified.evidence;
