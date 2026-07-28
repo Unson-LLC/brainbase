@@ -355,18 +355,17 @@ test('story-canonical-task-postgres-ssot ac:2 VibePro traceability surfaces are 
 test('story-canonical-task-postgres-ssot flow_replay production_path_matrix scenario_clause_e2e coverage marker AC-1 ac:1 AC-2 ac:2 AC-3 ac:3 S-001 S-002 S-003 S-004 S-005 S-006 S-007 schema_failure provider_failure persistence_failure state_transition', () => {
   const surfaces = {
     story: read('docs/stories/story-canonical-task-postgres-ssot.md'),
-    schema: read('server/sql/canonical-task-store-schema.sql'),
     e2e: read('tests/e2e/story-canonical-task-postgres-ssot-contract.spec.ts'),
     liveHttp: read('tests/server/routes/companion-canonical-task-live-http.test.js')
   };
   const productionPathMatrix: Array<[string, keyof typeof surfaces, RegExp, RegExp]> = [
-    ['AC-1/ac:1/S-001 static idempotent DDL contract', 'schema', /CREATE TABLE IF NOT EXISTS canonical_tasks/, /CREATE INDEX IF NOT EXISTS/],
+    ['AC-1/ac:1/S-001 idempotent Task creation', 'e2e', /const repeated = await repository\.create/, /expect\(repeated\.id\)\.toBe\(created\.id\)/],
     ['S-002 repository behavior', 'e2e', /S-001 S-002 S-004 S-005 repository behavior/, /expect\(page\)\.toMatchObject/],
     ['S-003 write-free migration dry-run', 'e2e', /S-003 migration dry-run is redacted and write-free/, /startsWith\('INSERT INTO canonical_tasks'\)\)\)\.toBe\(false\)/],
     ['S-004 selected PostgreSQL failure is public and never falls back', 'liveHttp', /exposes a selected PostgreSQL store failure as HTTP 503 without fallback over TCP/, /expect\(body\)\.not\.toHaveProperty\('items'\)/],
-    ['S-005 opaque identifier rejection', 'e2e', /repository behavior/, /decodeId\('not-an-opaque-id'\)/],
+    ['S-005 opaque identifier rejection', 'e2e', /decodeId\('not-an-opaque-id'\)/, /code: 'task_not_found',\s+status: 404/],
     ['S-006 migration conflict rejection', 'e2e', /S-006 migration rejects cross-key conflict before apply/, /rejects\.toThrow\('Canonical Task migration conflict/],
-    ['S-007/state_transition explicit backend selection', 'e2e', /S-007 state_transition preserves the existing backend until explicit cutover/, /resolveCanonicalTaskBackend\('unexpected'\)/],
+    ['S-007/state_transition explicit backend selection', 'e2e', /expect\(resolveCanonicalTaskBackend\(undefined\)\)\.toBe\('nocodb'\)/, /toThrow\(\s+'CANONICAL_TASK_BACKEND must be nocodb or postgres'/],
     ['schema_failure', 'e2e', /schema_failure rejects an incomplete target schema/, /schema has missing columns/],
     ['provider_failure', 'e2e', /provider_failure stops before target persistence/, /startsWith\('INSERT INTO canonical_tasks'\)\)\)\.toBe\(false\)/],
     ['persistence_failure', 'e2e', /persistence_failure rolls back a failed transaction/, /not\.toContain\('COMMIT'\)/],
