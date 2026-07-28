@@ -5,7 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { Pool } from 'pg';
 
 import { verifyBeforeEnableEvidenceFile } from './preflight-canonical-task-cutover.js';
-import { createCanonicalTaskStoreConfig } from '../server/services/companion/canonical-task-store-config.js';
+import {
+    canonicalTaskBackendIdentityHash,
+    createCanonicalTaskStoreConfig,
+    resolveCanonicalTaskBackend
+} from '../server/services/companion/canonical-task-store-config.js';
 
 function sha256(value) {
     return crypto.createHash('sha256').update(value).digest('hex');
@@ -52,6 +56,7 @@ export async function setCanonicalTaskReadiness({
         }
 
         const config = createCanonicalTaskStoreConfig();
+        const backendIdentityHash = canonicalTaskBackendIdentityHash(config, resolveCanonicalTaskBackend());
         const resolvedSourceHead = sourceHead
             || execFileSync('git', ['rev-parse', 'HEAD'], { cwd: rootDir, encoding: 'utf8' }).trim();
         const verified = await verifyBeforeEnableEvidenceFile({
@@ -62,7 +67,7 @@ export async function setCanonicalTaskReadiness({
         });
         const evidenceBytes = verified.bytes;
         const evidence = verified.evidence;
-        if (evidence.manifest_hash !== config.identityHash) throw new Error('Evidence manifest_hash does not match the canonical store');
+        if (evidence.manifest_hash !== backendIdentityHash) throw new Error('Evidence manifest_hash does not match the canonical store');
         if (evidence.schema_version !== config.schemaVersion) throw new Error('Evidence schema_version does not match the canonical store');
         const writer = await client.query(
             `SELECT writer_token, source_head FROM canonical_task_writer
@@ -89,7 +94,7 @@ export async function setCanonicalTaskReadiness({
                 evidence_path = EXCLUDED.evidence_path,
                 reason = NULL,
                 updated_at = NOW()`,
-            [evidence.writer_token, config.identityHash, config.schemaVersion, resolvedSourceHead, evidenceHash, args.evidencePath]
+            [evidence.writer_token, backendIdentityHash, config.schemaVersion, resolvedSourceHead, evidenceHash, args.evidencePath]
         );
         await client.query('COMMIT');
         return { ready: true, evidence_hash: evidenceHash, source_head: resolvedSourceHead };

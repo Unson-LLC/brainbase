@@ -5,6 +5,7 @@ status: accepted
 date: 2026-07-14
 related_stories:
   - story-companion-canonical-task-provider
+  - story-canonical-task-postgres-ssot
 related_docs:
   - docs/stories/story-companion-canonical-task-provider.md
   - docs/architecture/story-companion-canonical-task-provider.md
@@ -38,7 +39,8 @@ current HEADの必須回帰証跡、manifest hash、schema versionを再検証�
 
 ## Boundaries
 
-- Task本文の正本はNocoDB Task表のままで、Postgresはwriter権限と回復checkpointだけを持つ。
+- Task本文の正本は当初NocoDB Task表とした。`story-canonical-task-postgres-ssot`の明示切替後は
+  PostgreSQL `canonical_tasks`へ移り、本ADRのsingle-writerと回復checkpoint契約はそのまま維持する。
 - createの最終一意性はNocoDB Task表の冪等キーDB一意制約が担う。
 - actorは認証済み権威IDから`{ type, id }`へ正規化し、固定key順canonical JSONのbase64urlをnamespaceにする。同一personは認証方式を跨いで収束し、type/ID境界や区切り文字で衝突させない。
 - 外部APIとWorkflowの保存冪等keyはそれぞれ`api:<actorNamespace>:`と`workflow:<output>:`へserver側で分離する。

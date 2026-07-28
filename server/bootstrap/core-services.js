@@ -4,8 +4,13 @@ import multer from 'multer';
 import { ScheduleParser } from '../../lib/schedule-parser.js';
 import { ConfigParser } from '../../lib/config-parser.js';
 import { InfoSSOTService } from '../services/info-ssot-service.js';
-import { createCanonicalTaskStoreConfig } from '../services/companion/canonical-task-store-config.js';
+import {
+    canonicalTaskBackendIdentityHash,
+    createCanonicalTaskStoreConfig,
+    resolveCanonicalTaskBackend
+} from '../services/companion/canonical-task-store-config.js';
 import { CanonicalTaskNocoDBRepository } from '../services/companion/canonical-task-nocodb-repository.js';
+import { CanonicalTaskPostgresRepository } from '../services/companion/canonical-task-postgres-repository.js';
 import { CanonicalTaskOperationRepository } from '../services/companion/canonical-task-operation-repository.js';
 import { CanonicalTaskReadiness } from '../services/companion/canonical-task-readiness.js';
 import { CanonicalTaskService } from '../services/companion/canonical-task-service.js';
@@ -36,6 +41,17 @@ import {
 } from '../services/automation-runtime/automation-runtime-defaults-service.js';
 import { createAutomationRuntimeServices } from '../services/automation-runtime/automation-runtime-services.js';
 
+export function createCanonicalTaskRepository({
+    backend = resolveCanonicalTaskBackend(),
+    pool,
+    storeConfig
+} = {}) {
+    const resolvedBackend = resolveCanonicalTaskBackend(backend);
+    return resolvedBackend === 'postgres'
+        ? new CanonicalTaskPostgresRepository({ pool, storeConfig })
+        : new CanonicalTaskNocoDBRepository({ storeConfig });
+}
+
 export function createCoreServices({
     varDir,
     brainbaseRoot,
@@ -64,6 +80,7 @@ export function createCoreServices({
     const configService = new ConfigService(configPath, projectsRoot, configParser);
     const infoSSOTService = new InfoSSOTService();
     const canonicalTaskStoreConfig = createCanonicalTaskStoreConfig();
+    const canonicalTaskBackend = resolveCanonicalTaskBackend();
     const canonicalTaskOperationRepository = new CanonicalTaskOperationRepository({
         pool: infoSSOTService.pool,
         writerToken: process.env.BRAINBASE_SERVER_GENERATION || null,
@@ -76,7 +93,7 @@ export function createCoreServices({
     });
     const canonicalTaskReadiness = new CanonicalTaskReadiness({
         operationRepository: canonicalTaskOperationRepository,
-        manifestHash: canonicalTaskStoreConfig.identityHash,
+        manifestHash: canonicalTaskBackendIdentityHash(canonicalTaskStoreConfig, canonicalTaskBackend),
         schemaVersion: canonicalTaskStoreConfig.schemaVersion,
         sourceHead
     });
@@ -84,7 +101,11 @@ export function createCoreServices({
         filePath: path.join(varDir, 'workflow-ledger.json'),
         seedWorkflows: [createBrainbaseAliveWorkflow()]
     });
-    const canonicalTaskRepository = new CanonicalTaskNocoDBRepository({ storeConfig: canonicalTaskStoreConfig });
+    const canonicalTaskRepository = createCanonicalTaskRepository({
+        backend: canonicalTaskBackend,
+        pool: infoSSOTService.pool,
+        storeConfig: canonicalTaskStoreConfig
+    });
     const canonicalTaskService = new CanonicalTaskService({
         repository: canonicalTaskRepository,
         infoSSOTService,
