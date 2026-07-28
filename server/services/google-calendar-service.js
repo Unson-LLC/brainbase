@@ -97,6 +97,28 @@ function getNextDate(date) {
     return next.toLocaleDateString('sv-SE', { timeZone: DEFAULT_TIME_ZONE });
 }
 
+function dateInTimeZone(value, timeZone) {
+    if (!value) return null;
+    if (isDateOnly(value)) return value;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return new Intl.DateTimeFormat('sv-SE', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        timeZone
+    }).format(parsed);
+}
+
+function eventOccursOnDate(event, date, timeZone) {
+    if (event.allDay) {
+        const startDate = event.startDate;
+        const endDate = event.endDate;
+        return Boolean(startDate && endDate && startDate <= date && date < endDate);
+    }
+    return dateInTimeZone(event.startDateTime, timeZone) === date;
+}
+
 export class GoogleCalendarService {
     constructor({
         command = 'gog',
@@ -182,7 +204,15 @@ export class GoogleCalendarService {
 
     async listEventsForDate(date) {
         const endDate = getNextDate(date);
-        return this.listEvents({ from: date, to: endDate });
+        const result = await this.listEventsWithDiagnostics({ from: date, to: endDate });
+        if (result.skippedCalendars.length > 0) {
+            const details = result.skippedCalendars
+                .map(({ calendar_id: calendarId, reason, message }) =>
+                    `${calendarId}: ${message || reason || 'calendar unavailable'}`)
+                .join('; ');
+            throw new Error(`Google Calendar fetch incomplete: ${details}`);
+        }
+        return result.events.filter(event => eventOccursOnDate(event, date, this.timeZone));
     }
 
     async listEvents({ from, to, account = null, calendarIds = null, max = 200, failOnCalendarError = false } = {}) {
