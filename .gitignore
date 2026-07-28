@@ -285,7 +285,6 @@ migration/
 .antigravityignore
 
 # VibePro local/runtime artifacts
-.vibepro/
 graphify-out/
 apps/vibepro-panel/.next/
 .vibepro/raw/
@@ -293,3 +292,5 @@ apps/vibepro-panel/.next/
 .vibepro/**/secrets*
 .vibepro/**/*.log
 .worktrees/vibepro/
+.vibepro/*
+!.vibepro/config.json
