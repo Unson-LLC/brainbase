@@ -80,6 +80,9 @@ legacy IDと冪等キーが別Taskを指す場合はapplyを中止し、Task本�
 `CANONICAL_TASK_BACKEND`未指定または`nocodb`では既存NocoDB repositoryを選び、`postgres`指定時だけ
 PostgreSQL repositoryを選ぶ。不正値は起動時にfail closedとし、暗黙fallbackしない。
 
+- **C-003 inherited_behavior**: backend未指定時のNocoDB選択、既存service/route契約、opaque IDの
+  fail-closed挙動を維持し、`postgres`の明示指定だけを新しい選択肢として追加する。
+
 ## Workflow State Transitions
 
 - **pre-cutover**: backend未指定ではNocoDBが正本であり、本PRのmergeだけでは本番状態を変えない。

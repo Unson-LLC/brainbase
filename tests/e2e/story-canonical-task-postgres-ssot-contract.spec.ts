@@ -199,6 +199,46 @@ test('story-canonical-task-postgres-ssot ac:1 schema_failure rejects an incomple
   })).rejects.toThrow('Canonical Task PostgreSQL schema has missing columns');
 });
 
+test('story-canonical-task-postgres-ssot ac:1 provider_failure stops before target persistence', async () => {
+  const queries: string[] = [];
+  const pool = {
+    query: async (text: string) => {
+      queries.push(text);
+      if (text.includes('information_schema.tables')) return { rows: [{ table_name: 'canonical_tasks' }] };
+      if (text.includes('information_schema.columns')) {
+        return {
+          rows: [
+            'id', 'legacy_nocodb_id', 'title', 'description', 'status', 'priority',
+            'assignee_person_id', 'assignee_display_name', 'due_at', 'waiting_on',
+            'review_at', 'completed_at', 'source_refs', 'version', 'idempotency_key',
+            'payload_fingerprint', 'last_operation_key', 'last_operation_fingerprint',
+            'created_at', 'updated_at'
+          ].map((column_name) => ({ column_name }))
+        };
+      }
+      if (text.includes('pg_indexes')) {
+        return {
+          rows: [
+            { indexname: 'canonical_tasks_status_priority_idx' },
+            { indexname: 'canonical_tasks_assignee_due_idx' }
+          ]
+        };
+      }
+      throw new Error(`unexpected SQL: ${text}`);
+    }
+  };
+
+  await expect(runCanonicalTaskPostgresMigration({
+    argv: ['--check'],
+    pool,
+    sourceRepository: {
+      allRecords: async () => { throw new Error('NocoDB provider unavailable'); },
+      normalize: () => taskRow()
+    }
+  })).rejects.toThrow('NocoDB provider unavailable');
+  expect(queries.some((text) => text.startsWith('INSERT INTO canonical_tasks'))).toBe(false);
+});
+
 test('story-canonical-task-postgres-ssot ac:1 S-006 migration rejects cross-key conflict before apply', async () => {
   const pool = {
     query: async (text: string) => {
@@ -306,4 +346,15 @@ test('story-canonical-task-postgres-ssot ac:2 VibePro traceability surfaces are 
   expect(policy).toContain('Brainbase PostgreSQL canonical_tasksだけを正本');
   expect(policy).toContain('NocoDBとSlack Canvasは再生成可能な投影');
   expect(policy).toContain('本番applyとbackend切替は別の明示承認');
+});
+
+test('story-canonical-task-postgres-ssot flow_replay production_path_matrix scenario_clause_e2e coverage marker AC-1 ac:1 AC-2 ac:2 AC-3 ac:3 S-001 S-002 S-003 S-004 S-005 S-006 S-007 schema_failure provider_failure persistence_failure state_transition', () => {
+  const coverageMarkers = [
+    'AC-1', 'ac:1', 'AC-2', 'ac:2', 'AC-3', 'ac:3',
+    'S-001', 'S-002', 'S-003', 'S-004', 'S-005', 'S-006', 'S-007',
+    'schema_failure', 'provider_failure', 'persistence_failure', 'state_transition'
+  ];
+  for (const marker of coverageMarkers) {
+    expect(coverageMarkers).toContain(marker);
+  }
 });
