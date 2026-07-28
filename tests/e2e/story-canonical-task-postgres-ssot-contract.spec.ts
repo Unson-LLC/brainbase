@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { CanonicalTaskPostgresRepository } from '../../server/services/companion/canonical-task-postgres-repository.js';
+import { resolveCanonicalTaskBackend } from '../../server/services/companion/canonical-task-store-config.js';
 import { runCanonicalTaskPostgresMigration } from '../../scripts/migrate-canonical-task-postgres-store.js';
 
 const rootDir = process.cwd();
@@ -35,7 +36,7 @@ function taskRow(overrides = {}) {
   };
 }
 
-test('story-canonical-task-postgres-ssot ac:2 ac:3 documentation contract', () => {
+test('story-canonical-task-postgres-ssot ac:1 ac:2 ac:3 documentation contract', () => {
   const story = read('docs/stories/story-canonical-task-postgres-ssot.md');
   const spec = read('docs/specs/story-canonical-task-postgres-ssot-spec.md');
   const bootstrap = read('server/bootstrap/core-services.js');
@@ -43,7 +44,7 @@ test('story-canonical-task-postgres-ssot ac:2 ac:3 documentation contract', () =
   const repository = read('server/services/companion/canonical-task-postgres-repository.js');
   const migration = read('scripts/migrate-canonical-task-postgres-store.js');
 
-  for (const marker of ['AC-1', 'AC-2', 'AC-3', 'S-001', 'S-002', 'S-003', 'S-004', 'S-005', 'S-006']) {
+  for (const marker of ['AC-1', 'AC-2', 'AC-3', 'S-001', 'S-002', 'S-003', 'S-004', 'S-005', 'S-006', 'S-007']) {
     expect(story, `${marker} is explicit in the Story`).toContain(marker);
   }
 
@@ -231,7 +232,7 @@ test('story-canonical-task-postgres-ssot ac:1 S-006 migration rejects cross-key 
   })).rejects.toThrow('Canonical Task migration conflict: legacy=0, idempotency=0, database=1');
 });
 
-test('story-canonical-task-postgres-ssot ac:1 migration rolls back a failed transaction', async () => {
+test('story-canonical-task-postgres-ssot ac:1 persistence_failure rolls back a failed transaction', async () => {
   const transaction: string[] = [];
   const sourceRepository = {
     allRecords: async () => [{
@@ -285,6 +286,15 @@ test('story-canonical-task-postgres-ssot ac:1 migration rolls back a failed tran
   })).rejects.toThrow('insert failed');
   expect(transaction).toEqual(expect.arrayContaining(['BEGIN', 'ROLLBACK', 'RELEASE']));
   expect(transaction).not.toContain('COMMIT');
+});
+
+test('story-canonical-task-postgres-ssot ac:1 S-007 state_transition preserves the existing backend until explicit cutover', () => {
+  expect(resolveCanonicalTaskBackend(undefined)).toBe('nocodb');
+  expect(resolveCanonicalTaskBackend('nocodb')).toBe('nocodb');
+  expect(resolveCanonicalTaskBackend('postgres')).toBe('postgres');
+  expect(() => resolveCanonicalTaskBackend('unexpected')).toThrow(
+    'CANONICAL_TASK_BACKEND must be nocodb or postgres'
+  );
 });
 
 test('story-canonical-task-postgres-ssot ac:2 VibePro traceability surfaces are declared', () => {

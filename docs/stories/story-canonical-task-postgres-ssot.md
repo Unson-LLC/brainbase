@@ -49,6 +49,7 @@ API契約を利用するmana-runtime側の後続Storyで実装する。
 - S-004: PostgreSQL障害を隠さない。
 - S-005: 不正または存在しないIDを開示しない。
 - S-006: IDまたは冪等キー競合で閉じる。
+- S-007: backend選択を明示し、未指定時の既存挙動を維持する。
 
 ### S-001: 冪等にTaskを作成する
 
@@ -68,11 +69,16 @@ operatorはdry-run/checkでsource、既存一致、未移行、競合の件数�
 
 ### S-005: 不正または存在しないIDを開示しない
 
-不正opaque ID、別store ID、存在しないTask IDはTaskの存在を開示せず404として扱う。
+`ct1` prefixや署名が欠けた不正opaque ID、別store ID、存在しないTask IDはTaskの存在を開示せず404として扱う。
 
 ### S-006: IDまたは冪等キー競合で閉じる
 
 legacy IDと冪等キーが別Taskを指す場合はapplyを中止し、Task本文を出さず競合件数だけを報告する。
+
+### S-007: backend選択を明示し、未指定時の既存挙動を維持する
+
+`CANONICAL_TASK_BACKEND`未指定または`nocodb`では既存NocoDB repositoryを選び、`postgres`指定時だけ
+PostgreSQL repositoryを選ぶ。不正値は起動時にfail closedとし、暗黙fallbackしない。
 
 ## Workflow State Transitions
 
