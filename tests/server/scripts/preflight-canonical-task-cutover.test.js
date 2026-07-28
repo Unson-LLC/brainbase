@@ -250,6 +250,29 @@ async function createEvidenceFixture(overrides = {}) {
 }
 
 describe('canonical task evidence registry and runner parsing', () => {
+  it('keeps the operator runbook aligned with the PostgreSQL migration and readiness backend context', async () => {
+    const runbook = await readFile(
+      path.join(process.cwd(), 'docs/runbooks/canonical-task-cutover.md'),
+      'utf8',
+    );
+
+    const dryRun = runbook.indexOf('npm run migrate:canonical-task-postgres -- --dry-run');
+    const initialCheck = runbook.indexOf('npm run migrate:canonical-task-postgres -- --check', dryRun);
+    const apply = runbook.indexOf('npm run migrate:canonical-task-postgres -- --apply', initialCheck);
+    const finalCheck = runbook.indexOf('npm run migrate:canonical-task-postgres -- --check', apply);
+
+    expect(dryRun).toBeGreaterThan(-1);
+    expect(initialCheck).toBeGreaterThan(dryRun);
+    expect(apply).toBeGreaterThan(initialCheck);
+    expect(finalCheck).toBeGreaterThan(apply);
+    expect(runbook).toContain('pending_count: 0');
+    expect(runbook).toContain('conflict_count: 0');
+    expect(runbook).toContain(
+      'CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence',
+    );
+    expect(runbook).toContain('backend mismatch');
+  });
+
   it('requires a complete registry with unique IDs, artifact paths, and one registered adapter', () => {
     expect(validateEvidenceRegistry(registryFixture())).toHaveLength(1);
     const duplicate = registryFixture();
