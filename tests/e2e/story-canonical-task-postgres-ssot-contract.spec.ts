@@ -44,6 +44,10 @@ test('story-canonical-task-postgres-ssot ac:1 ac:2 ac:3 documentation contract',
   const repository = read('server/services/companion/canonical-task-postgres-repository.js');
   const migration = read('scripts/migrate-canonical-task-postgres-store.js');
 
+  expect(
+    story,
+    'ac:1 requires every contract in the Story-linked Spec to be implemented and verified'
+  ).toContain('**AC-1**: `docs/specs/story-canonical-task-postgres-ssot-spec.md` の全契約を実装・検証する。');
   for (const marker of ['AC-1', 'AC-2', 'AC-3', 'S-001', 'S-002', 'S-003', 'S-004', 'S-005', 'S-006', 'S-007']) {
     expect(story, `${marker} is explicit in the Story`).toContain(marker);
   }
@@ -349,12 +353,32 @@ test('story-canonical-task-postgres-ssot ac:2 VibePro traceability surfaces are 
 });
 
 test('story-canonical-task-postgres-ssot flow_replay production_path_matrix scenario_clause_e2e coverage marker AC-1 ac:1 AC-2 ac:2 AC-3 ac:3 S-001 S-002 S-003 S-004 S-005 S-006 S-007 schema_failure provider_failure persistence_failure state_transition', () => {
-  const coverageMarkers = [
-    'AC-1', 'ac:1', 'AC-2', 'ac:2', 'AC-3', 'ac:3',
-    'S-001', 'S-002', 'S-003', 'S-004', 'S-005', 'S-006', 'S-007',
-    'schema_failure', 'provider_failure', 'persistence_failure', 'state_transition'
+  const surfaces = {
+    story: read('docs/stories/story-canonical-task-postgres-ssot.md'),
+    spec: read('docs/specs/story-canonical-task-postgres-ssot-spec.md'),
+    schema: read('server/sql/canonical-task-store-schema.sql'),
+    repository: read('server/services/companion/canonical-task-postgres-repository.js'),
+    bootstrap: read('server/bootstrap/core-services.js'),
+    storeConfig: read('server/services/companion/canonical-task-store-config.js'),
+    migration: read('scripts/migrate-canonical-task-postgres-store.js'),
+    preflight: read('scripts/preflight-canonical-task-cutover.js')
+  };
+  const productionPathMatrix: Array<[string, keyof typeof surfaces, RegExp]> = [
+    ['AC-1/ac:1/S-001', 'schema', /CREATE TABLE IF NOT EXISTS canonical_tasks/],
+    ['S-002', 'repository', /class CanonicalTaskPostgresRepository/],
+    ['S-003', 'migration', /runCanonicalTaskPostgresMigration/],
+    ['S-004', 'repository', /idempotency_key/],
+    ['S-005', 'repository', /prefix !== 'ct1' \|\| !signature/],
+    ['S-006', 'storeConfig', /CANONICAL_TASK_BACKEND/],
+    ['S-007/state_transition', 'preflight', /before-enable evidence/],
+    ['schema_failure', 'migration', /schema (?:is|has) missing/],
+    ['provider_failure', 'migration', /repository\.allRecords/],
+    ['persistence_failure', 'repository', /task_store_unavailable/],
+    ['AC-2/ac:2', 'story', /Graphify、Architecture、Spec、Task、Gate、PR/],
+    ['AC-3/ac:3', 'story', /本番DBへのapply/]
   ];
-  for (const marker of coverageMarkers) {
-    expect(coverageMarkers).toContain(marker);
+
+  for (const [marker, surface, contract] of productionPathMatrix) {
+    expect(surfaces[surface], `${marker} must be observable on ${surface}`).toMatch(contract);
   }
 });

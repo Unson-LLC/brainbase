@@ -102,4 +102,31 @@ describe('Companion canonical Task live HTTP contract', () => {
             (source) => source.type === 'workflow_output' && source.id === harness.approvalFixture.outputID
         ))).toHaveLength(1);
     });
+
+    it('exposes a selected PostgreSQL store failure as HTTP 503 without fallback over TCP', async () => {
+        const unavailableRepository = {
+            async list() {
+                throw Object.assign(new Error('postgres connection refused'), { code: 'ECONNREFUSED' });
+            }
+        };
+        const failingHarness = await startCanonicalTaskLiveApiHarness({
+            repository: unavailableRepository
+        });
+
+        try {
+            const response = await fetch(`${failingHarness.baseURL}/api/companion/tasks?limit=50`, {
+                headers: { Authorization: 'Bearer canonical-task-e2e' }
+            });
+            const body = await response.json();
+
+            expect(response.status).toBe(503);
+            expect(body).toMatchObject({
+                code: 'task_store_unavailable',
+                message: 'Canonical Task store is unavailable'
+            });
+            expect(body).not.toHaveProperty('items');
+        } finally {
+            await failingHarness.close();
+        }
+    });
 });
