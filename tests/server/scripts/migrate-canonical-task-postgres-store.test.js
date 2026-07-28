@@ -39,7 +39,7 @@ function sourceRepository(records) {
     };
 }
 
-function checkingPool({ conflicts = 0, targetCount = 0 } = {}) {
+function checkingPool({ existingRows = [], targetCount = 0 } = {}) {
     return {
         query: vi.fn(async (sql) => {
             if (sql.includes('information_schema.tables')) return { rows: [{ table_name: 'canonical_tasks' }] };
@@ -50,7 +50,7 @@ function checkingPool({ conflicts = 0, targetCount = 0 } = {}) {
                     { indexname: 'canonical_tasks_assignee_due_idx' }
                 ] };
             }
-            if (sql.includes('legacy_nocodb_id = ANY')) return { rows: [{ count: conflicts }] };
+            if (sql.includes('legacy_nocodb_id = ANY')) return { rows: existingRows };
             if (sql.includes('SELECT COUNT(*)::integer AS count FROM canonical_tasks')) {
                 return { rows: [{ count: targetCount }] };
             }
@@ -86,6 +86,8 @@ describe('Canonical Task PostgreSQL migration', () => {
             mode: 'dry-run',
             source_count: 1,
             target_count: 0,
+            matched_count: 0,
+            pending_count: 1,
             inserted_count: 0,
             conflict_count: 0
         });
@@ -93,11 +95,33 @@ describe('Canonical Task PostgreSQL migration', () => {
     });
 
     it('stops before apply when legacy IDs or idempotency keys conflict', async () => {
-        const pool = checkingPool({ conflicts: 1 });
+        const pool = checkingPool({
+            existingRows: [{ legacy_nocodb_id: '42', idempotency_key: 'different-key' }]
+        });
         await expect(runCanonicalTaskPostgresMigration({
             argv: ['--check'],
             pool,
             sourceRepository: sourceRepository([{ Id: 42, 'タイトル': 'Task', '冪等キー': 'key-42' }])
         })).rejects.toThrow('Canonical Task migration conflict');
+    });
+
+    it('treats an existing legacy/idempotency pair as an idempotent match', async () => {
+        const pool = checkingPool({
+            existingRows: [{ legacy_nocodb_id: '42', idempotency_key: 'key-42' }],
+            targetCount: 1
+        });
+        const result = await runCanonicalTaskPostgresMigration({
+            argv: ['--check'],
+            pool,
+            sourceRepository: sourceRepository([{ Id: 42, 'タイトル': 'Task', '冪等キー': 'key-42' }])
+        });
+        expect(result).toMatchObject({
+            source_count: 1,
+            target_count: 1,
+            matched_count: 1,
+            pending_count: 0,
+            inserted_count: 0,
+            conflict_count: 0
+        });
     });
 });

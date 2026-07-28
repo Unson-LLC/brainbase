@@ -106,18 +106,41 @@ async function inspectConflicts(pool, rows) {
     const duplicateLegacyIds = duplicateValues(rows, 'legacy_nocodb_id');
     const duplicateIdempotencyKeys = duplicateValues(rows, 'idempotency_key');
     if (!rows.length) {
-        return { duplicateLegacyIds, duplicateIdempotencyKeys, databaseConflicts: 0 };
+        return { duplicateLegacyIds, duplicateIdempotencyKeys, databaseConflicts: 0, matchedRows: 0, pendingRows: [] };
     }
     const result = await pool.query(
-        `SELECT COUNT(*)::integer AS count
+        `SELECT legacy_nocodb_id, idempotency_key
          FROM canonical_tasks
          WHERE legacy_nocodb_id = ANY($1::text[]) OR idempotency_key = ANY($2::text[])`,
         [rows.map((row) => row.legacy_nocodb_id), rows.map((row) => row.idempotency_key)]
     );
+    const existingByLegacy = new Map(result.rows.map((row) => [row.legacy_nocodb_id, row]));
+    const existingByIdempotency = new Map(result.rows.map((row) => [row.idempotency_key, row]));
+    let databaseConflicts = 0;
+    let matchedRows = 0;
+    const pendingRows = [];
+    for (const row of rows) {
+        const legacyMatch = existingByLegacy.get(row.legacy_nocodb_id);
+        const idempotencyMatch = existingByIdempotency.get(row.idempotency_key);
+        if (!legacyMatch && !idempotencyMatch) {
+            pendingRows.push(row);
+        } else if (
+            legacyMatch?.legacy_nocodb_id === row.legacy_nocodb_id
+            && legacyMatch?.idempotency_key === row.idempotency_key
+            && idempotencyMatch?.legacy_nocodb_id === row.legacy_nocodb_id
+            && idempotencyMatch?.idempotency_key === row.idempotency_key
+        ) {
+            matchedRows += 1;
+        } else {
+            databaseConflicts += 1;
+        }
+    }
     return {
         duplicateLegacyIds,
         duplicateIdempotencyKeys,
-        databaseConflicts: Number(result.rows[0]?.count || 0)
+        databaseConflicts,
+        matchedRows,
+        pendingRows
     };
 }
 
@@ -180,14 +203,16 @@ export async function runCanonicalTaskPostgresMigration({
                 + `idempotency=${conflicts.duplicateIdempotencyKeys}, database=${conflicts.databaseConflicts}`
             );
         }
-        if (mode === 'apply') await insertRows(activePool, rows);
+        if (mode === 'apply') await insertRows(activePool, conflicts.pendingRows);
         const targetResult = await activePool.query('SELECT COUNT(*)::integer AS count FROM canonical_tasks');
         return {
             ok: true,
             mode,
             source_count: rows.length,
             target_count: Number(targetResult.rows[0]?.count || 0),
-            inserted_count: mode === 'apply' ? rows.length : 0,
+            matched_count: conflicts.matchedRows,
+            pending_count: conflicts.pendingRows.length,
+            inserted_count: mode === 'apply' ? conflicts.pendingRows.length : 0,
             conflict_count: 0
         };
     } finally {

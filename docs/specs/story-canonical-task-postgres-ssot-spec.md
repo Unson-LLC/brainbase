@@ -45,7 +45,35 @@ test_files:
 - schema migrationは冪等で、`--apply`と`--check`を分離する。
 - NocoDB移行はdry-run/check/applyを分離し、Task本文・secretを標準出力しない。
 - legacy IDまたは冪等キー競合時はapplyを中止する。
+- sourceと同じlegacy ID・冪等キーの既存行は移行済みとして扱い、applyを安全に再実行できる。
 - 本番applyとbackend切替は別の運用承認・readiness証跡を必要とする。
+
+## Diagrams
+
+### ER
+
+```mermaid
+flowchart LR
+  P["Graph Person authority"] -->|owner / assignee validation| API["Canonical Task API"]
+  PRJ["Graph Project authority"] -->|project validation| API
+  API --> CT["PostgreSQL canonical_tasks"]
+  CT --> OP["canonical_task_operations"]
+  CT -->|projection| NC["NocoDB mirror"]
+  CT -->|projection| CV["Slack Canvas"]
+```
+
+### Threat Model
+
+```mermaid
+flowchart LR
+  U["Authorized mana-runtime caller"] -->|signed principal| API["Canonical Task API"]
+  X["Untrusted Slack or Canvas input"] -->|must not write directly| API
+  API -->|People and project validation| G["Graph authority"]
+  API -->|single writer and readiness| DB["PostgreSQL SSOT"]
+  M["Migration operator"] -->|dry-run / check / approved apply| DB
+  DB -->|redacted counts only| L["Operational logs"]
+  DB -->|one-way projection| C["Slack Canvas"]
+```
 
 ## Verification
 
