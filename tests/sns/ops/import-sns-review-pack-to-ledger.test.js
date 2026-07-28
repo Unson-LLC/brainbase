@@ -79,20 +79,21 @@ describe('import-sns-review-pack-to-ledger', () => {
     it('maps ohayo reviewPack posts into ledger drafts', () => {
         const payload = reviewPackToLedgerPayload({
             reviewPack: {
-                date: '2026-05-13',
+                date: '2026-07-28',
                 posts: [{
-                    slot: 'peer_quote_1',
-                    time: '18:00',
-                    scheduled_at: '2026-05-13T09:00:00.000Z',
-                    lane: 'peer_circle',
-                    topic: 'Claude Code',
-                    body: 'これ、Claude Codeを会社で使う時も同じだと思ってる',
-                    source_url: 'https://x.com/near/status/1',
-                    persona_brain: { target_person: 'AI導入を任されたPM' },
-                    algorithm_fit: { candidate_source: 'peer_circle_quote' },
-                    generation_context_evidence: { policy_ref: 'generation_policy', recommended_lanes: ['peer_circle'] },
-                    graph_check: { decision: 'checked_for_review' },
-                    quality_gate: { decision: 'pass', persona_affect: { likely_reader_feeling: '現場に接続できる' } }
+                    slot: 'lifelog_1',
+                    lane: 'work_log',
+                    format: 'first_person_lifelog',
+                    body: '今日はXの方針を全部見直した。自分の記録を残す形にした。',
+                    generation_context_evidence: { policy_ref: 'generation_policy' },
+                    graph_check: { scope: 'personal_experience', decision: 'source_attached' },
+                    quality_gate: { decision: 'pass', check_type: 'lifelog_integrity' },
+                    lifelog_check: {
+                        source_id: 'lifelog_work_1',
+                        source_system: 'personal_kg',
+                        first_person_evidence: true,
+                        evidence_ids: [{ uri: 'brainbase:test:lifelog_work_1' }]
+                    }
                 }]
             }
         });
@@ -100,18 +101,17 @@ describe('import-sns-review-pack-to-ledger', () => {
         expect(payload.account_handle).toBe('@AIBizNavigator');
         expect(payload.drafts).toHaveLength(1);
         expect(payload.drafts[0]).toMatchObject({
-            id: 'ohayo_2026-05-13_peer_quote_1',
-            date: '2026-05-13',
+            id: 'ohayo_2026-07-28_lifelog_1',
+            date: '2026-07-28',
             slot_index: 1,
-            time: '18:00',
-            scheduled_at: '2026-05-13T09:00:00.000Z',
-            lane: 'peer_circle',
-            format: 'quote_repost_commentary',
-            source_type: 'Peer Circle',
-            source_url: 'https://x.com/near/status/1'
+            lane: 'work_log',
+            format: 'first_person_lifelog',
+            source_type: 'Personal KG',
+            source_url: null
         });
         expect(payload.drafts[0].quality_gate.decision).toBe('pass');
-        expect(payload.drafts[0].algorithm_fit.candidate_source).toBe('peer_circle_quote');
+        expect(payload.drafts[0].lifelog_check.source_id).toBe('lifelog_work_1');
+        expect(payload.drafts[0].derived_from).toEqual(['lifelog_work_1']);
         expect(payload.drafts[0].generation_context_evidence.policy_ref).toBe('generation_policy');
     });
 

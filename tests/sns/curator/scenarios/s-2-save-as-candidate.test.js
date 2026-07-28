@@ -7,7 +7,8 @@ describe('sns-curator S-2: saveDraftsToCandidateStore creates candidate', () => 
         const { curator, candidateService } = makeCurator({ entities: [sourceInsight()] });
         const drafts = await curator.generateDrafts(viewer());
         const saved = await curator.saveDraftsToCandidateStore(drafts, viewer());
-        expect(saved[0].candidate.cognitive_type).toBe('claim');
+        expect(saved[0].candidate.cognitive_type).toBe('observation');
+        expect(saved[0].candidate.permission_snapshot.sns.mode).toBe('public_lifelog');
         expect(saved[0].scoreBreakdown).toBeTruthy();
         expect(typeof saved[0].score).toBe('number');
         expect(candidateService.listCandidates({}, null)).toHaveLength(1);
