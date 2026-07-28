@@ -183,6 +183,21 @@ test('story-canonical-task-postgres-ssot ac:1 S-003 migration dry-run is redacte
   expect(queries.some((text) => text.startsWith('INSERT INTO canonical_tasks'))).toBe(false);
 });
 
+test('story-canonical-task-postgres-ssot ac:1 schema_failure rejects an incomplete target schema', async () => {
+  const pool = {
+    query: async (text: string) => {
+      if (text.includes('information_schema.tables')) return { rows: [{ table_name: 'canonical_tasks' }] };
+      if (text.includes('information_schema.columns')) return { rows: [{ column_name: 'id' }] };
+      throw new Error(`unexpected SQL: ${text}`);
+    }
+  };
+  await expect(runCanonicalTaskPostgresMigration({
+    argv: ['--check'],
+    pool,
+    sourceRepository: { allRecords: async () => [], normalize: () => null }
+  })).rejects.toThrow('Canonical Task PostgreSQL schema has missing columns');
+});
+
 test('story-canonical-task-postgres-ssot ac:1 S-006 migration rejects cross-key conflict before apply', async () => {
   const pool = {
     query: async (text: string) => {

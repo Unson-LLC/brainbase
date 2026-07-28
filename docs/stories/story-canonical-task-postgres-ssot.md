@@ -74,6 +74,16 @@ operatorはdry-run/checkでsource、既存一致、未移行、競合の件数�
 
 legacy IDと冪等キーが別Taskを指す場合はapplyを中止し、Task本文を出さず競合件数だけを報告する。
 
+## Workflow State Transitions
+
+- **pre-cutover**: backend未指定ではNocoDBが正本であり、本PRのmergeだけでは本番状態を変えない。
+- **cutover-ready**: schema検査、dry-run、check、実動契約が成功しても、自動では切り替えない。
+- **cutover**: 別の明示承認で`CANONICAL_TASK_BACKEND=postgres`を設定した時だけPostgreSQLを正本にする。
+- **rollback**: 切替後の障害時は、別の運用判断と整合性確認を経てbackend設定を戻す。本Storyでは実行しない。
+
+各遷移は設定変更を唯一のトリガーとし、PostgreSQL接続・schema・queryの失敗をNocoDB成功へ自動fallback
+させない。本Storyのリリース確認はpre-cutoverとcutover-readyまでで、production cutoverは後続作業である。
+
 ## Delivery Evidence
 
 - **Current reality**: Canonical Task APIとsingle-writer/readiness契約は稼働済みだが、本文の永続化はNocoDB repositoryが既定。
