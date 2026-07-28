@@ -37,6 +37,49 @@ WorkflowServiceからAutomationRunServiceへの移行後、承認済み候補を
 - 今回はその設計を変更せず、AutomationRunServiceへの移行で欠落した実装を復元するため、新しいADRは不要である。
 - KPIは「registry証跡の全件成功」「preflight成功」「owner認証済みの作成・更新成功」の3点とする。Periodは今回の本番cutover完了までとする。
 
+## 状態遷移図
+
+```mermaid
+flowchart LR
+  Pending["Human step: pending"] -->|"approve + prepare checkpoint"| Prepared["Materialization: prepared"]
+  Prepared -->|"CanonicalTaskService creates or replays"| Projected["Task IDs projected"]
+  Projected -->|"complete checkpoint + audit upsert"| Approved["Human step: approved"]
+  Prepared -->|"process restart / response loss"| Reconcile["Durable checkpoint reconciliation"]
+  Projected -->|"process restart / response loss"| Reconcile
+  Reconcile --> Prepared
+  Reconcile --> Projected
+  Reconcile --> Approved
+  Pending -->|"reject"| Rejected["Human step: rejected"]
+```
+
+## 脅威モデル
+
+```mermaid
+flowchart LR
+  Owner["Authenticated owner"] --> Auth["Existing human-step authority"]
+  Auth --> Run["AutomationRunService"]
+  Run --> Ready["Canonical mutation readiness"]
+  Run --> Ledger["Postgres operation checkpoint"]
+  Run --> Service["CanonicalTaskService"]
+  Service --> TaskSSOT["Fixed NocoDB Task SSOT"]
+  Spoof["Forged actor or candidate"] --> Auth
+  Replay["Duplicate or conflicting decision"] --> Run
+  Crash["Process crash after external write"] --> Ledger
+  Closed["Unverified deployment"] --> Ready
+  Auth -->|"reject unauthorized actor"| ControlA["Authority control"]
+  Run -->|"stable IDs + fingerprint conflict"| ControlB["Idempotency control"]
+  Ledger -->|"prepare/project/complete replay"| ControlC["Recovery control"]
+  Ready -->|"fail closed until current-HEAD evidence"| ControlD["Cutover control"]
+```
+
+## 責任と権限
+
+- `AutomationRunService`はhuman-stepの決定検証、Canonical Task materializationの順序、永続checkpointからの再開を所有する。
+- `CanonicalTaskService`はTask正本への書き込み、owner/People境界、冪等性、readinessを所有する。Automation側はこれらを迂回しない。
+- `CanonicalTaskOperationRepository`はTask本文ではなく、operation key、fingerprint、Task ID、目標状態、監査phaseの調停証跡だけを所有する。
+- Mac CompanionはUI・収集・下書きだけを所有し、Task正本や承認権限をローカルへ複製しない。
+- 独立レビュー、current-HEAD検証、本番runtime証跡が揃わない場合はmutationを閉じたままにする。
+
 ## 検証証跡
 
 - focused Canonical Task tests

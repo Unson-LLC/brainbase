@@ -35,6 +35,8 @@
           "server/routes/companion.js",
           "server/services/workflow/workflow-service.js",
           "server/services/workflow/workflow-repository.js",
+          "server/services/automation-run/automation-run-service.js",
+          "server/services/automation-runtime/automation-runtime-services.js",
           "server/routes/workflows.js",
           "server/routes/nocodb.js",
           "server/controllers/nocodb-controller.js",
@@ -118,6 +120,8 @@
           "CanonicalTaskPrincipal",
           "CanonicalTaskReadiness",
           "WorkflowService.resolveHumanStep"
+          ,
+          "AutomationRunService.resolveHumanStep"
         ],
         "risk_surfaces": [
           "server_api",
