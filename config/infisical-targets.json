@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "domain": "https://infisical.unson.jp",
+  "orgAuthFiles": {
+    "unson": [
+      "~/.brainbase/runtime-env/infisical.unson.universal-auth.env",
+      "~/.brainbase/runtime-env/slack-mcp.universal-auth.env"
+    ],
+    "techknight": [
+      "~/.brainbase/runtime-env/infisical.techknight.universal-auth.env"
+    ],
+    "salestailor": [
+      "~/.brainbase/runtime-env/infisical.salestailor.universal-auth.env"
+    ]
+  },
+  "targets": {
+    "brainbase-mcp": {
+      "description": "Brainbase MCP runtime env",
+      "org": "unson",
+      "projectId": "ce20541c-02b9-4523-bbe0-49d50b2fcc19",
+      "env": "prod",
+      "path": "/",
+      "authFiles": [
+        "~/.brainbase/runtime-env/brainbase-mcp.universal-auth.env",
+        "@org:unson"
+      ],
+      "requiredKeys": [
+        "BRAINBASE_API_URL"
+      ]
+    },
+    "nocodb-mcp": {
+      "description": "NocoDB MCP runtime env",
+      "org": "unson",
+      "projectId": "ce20541c-02b9-4523-bbe0-49d50b2fcc19",
+      "env": "prod",
+      "path": "/mcp/nocodb",
+      "authFiles": [
+        "~/.brainbase/runtime-env/nocodb-mcp.universal-auth.env",
+        "@org:unson"
+      ],
+      "requiredKeys": [
+        "NOCODB_URL",
+        "NOCODB_TOKEN"
+      ]
+    },
+    "slack-salestailor": {
+      "description": "Slack MCP tokens for the SalesTailor workspace",
+      "org": "unson",
+      "projectId": "ce20541c-02b9-4523-bbe0-49d50b2fcc19",
+      "env": "prod",
+      "path": "/",
+      "authFiles": [
+        "~/.brainbase/runtime-env/slack-mcp.universal-auth.env",
+        "@org:unson"
+      ],
+      "tokenFile": "~/.brainbase/runtime-env/slack-mcp.infisical-token",
+      "requiredKeys": [
+        "SLACK_MCP_XOXC_SALESTAILOR",
+        "SLACK_MCP_XOXD_SALESTAILOR"
+      ]
+    },
+    "slack-unson": {
+      "description": "Slack MCP tokens for the Unson workspace",
+      "org": "unson",
+      "projectId": "ce20541c-02b9-4523-bbe0-49d50b2fcc19",
+      "env": "prod",
+      "path": "/",
+      "authFiles": [
+        "~/.brainbase/runtime-env/slack-mcp.universal-auth.env",
+        "@org:unson"
+      ],
+      "tokenFile": "~/.brainbase/runtime-env/slack-mcp.infisical-token",
+      "requiredKeys": [
+        "SLACK_MCP_XOXC_UNSON",
+        "SLACK_MCP_XOXD_UNSON"
+      ]
+    },
+    "slack-techknight": {
+      "description": "Slack MCP tokens for the TechKnight workspace",
+      "org": "unson",
+      "projectId": "ce20541c-02b9-4523-bbe0-49d50b2fcc19",
+      "env": "prod",
+      "path": "/",
+      "authFiles": [
+        "~/.brainbase/runtime-env/slack-mcp.universal-auth.env",
+        "@org:unson"
+      ],
+      "tokenFile": "~/.brainbase/runtime-env/slack-mcp.infisical-token",
+      "requiredKeys": [
+        "SLACK_MCP_XOXC_TECHKNIGHT",
+        "SLACK_MCP_XOXD_TECHKNIGHT"
+      ]
+    }
+  }
+}
