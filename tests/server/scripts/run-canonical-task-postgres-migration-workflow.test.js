@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+    hasExplicitApplyApproval,
     runCanonicalTaskPostgresMigrationWorkflow
 } from '../../../scripts/run-canonical-task-postgres-migration-workflow.js';
 
@@ -30,9 +31,18 @@ function successfulMigration() {
 }
 
 describe('Canonical Task PostgreSQL migration workflow', () => {
+    it('accepts only the explicit apply approval CLI argument', () => {
+        expect(hasExplicitApplyApproval(['--approve-apply'])).toBe(true);
+        expect(hasExplicitApplyApproval([])).toBe(false);
+        expect(hasExplicitApplyApproval(['--approve-apply', '--unexpected'])).toBe(false);
+    });
+
     it('enforces dry-run, check, apply, then final check', async () => {
         const runMigration = successfulMigration();
-        const output = await runCanonicalTaskPostgresMigrationWorkflow({ runMigration });
+        const output = await runCanonicalTaskPostgresMigrationWorkflow({
+            runMigration,
+            applyAuthorized: true
+        });
 
         expect(runMigration.mock.calls.map(([input]) => ({
             argv: input.argv,
@@ -52,6 +62,15 @@ describe('Canonical Task PostgreSQL migration workflow', () => {
         expect(JSON.stringify(output)).not.toContain('description');
     });
 
+    it('rejects the entire workflow without explicit operator approval', async () => {
+        const runMigration = successfulMigration();
+
+        await expect(
+            runCanonicalTaskPostgresMigrationWorkflow({ runMigration })
+        ).rejects.toThrow('explicit operator approval');
+        expect(runMigration).not.toHaveBeenCalled();
+    });
+
     it.each([
         ['dry-run', 0],
         ['check', 1],
@@ -64,7 +83,10 @@ describe('Canonical Task PostgreSQL migration workflow', () => {
         runMigration.mockRejectedValueOnce(new Error('phase failed'));
 
         await expect(
-            runCanonicalTaskPostgresMigrationWorkflow({ runMigration })
+            runCanonicalTaskPostgresMigrationWorkflow({
+                runMigration,
+                applyAuthorized: true
+            })
         ).rejects.toThrow('phase failed');
         expect(runMigration).toHaveBeenCalledTimes(failureIndex + 1);
     });
@@ -77,7 +99,10 @@ describe('Canonical Task PostgreSQL migration workflow', () => {
             .mockResolvedValueOnce(result({ target_count: 1, pending_count: 1 }));
 
         await expect(
-            runCanonicalTaskPostgresMigrationWorkflow({ runMigration })
+            runCanonicalTaskPostgresMigrationWorkflow({
+                runMigration,
+                applyAuthorized: true
+            })
         ).rejects.toThrow('final check failed');
     });
 });

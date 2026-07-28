@@ -371,7 +371,8 @@ test('story-canonical-task-postgres-ssot ac:1 S-008 workflow enforces ordered ph
   };
 
   await expect(runCanonicalTaskPostgresMigrationWorkflow({
-    runMigration
+    runMigration,
+    applyAuthorized: true
   })).rejects.toThrow('check failed');
   expect(calls).toEqual(['--dry-run', '--check']);
 });

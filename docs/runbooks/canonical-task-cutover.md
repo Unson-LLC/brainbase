@@ -9,7 +9,7 @@
 - 実行: `npm run preflight:canonical-task-cutover -- --phase <phase>`
 - 実環境証跡収集: `npm run capture:canonical-task-cutover -- --base-url <Brainbase URL> --mac-result <Mac read-only result> --out-dir <directory>`
 - 実Postgres並行検査: `npm run canonical-task:check-postgres-concurrency`
-- Task移行: `npm run migrate:canonical-task-postgres-workflow`
+- Task移行（承認後のみ）: `npm run migrate:canonical-task-postgres-workflow -- --approve-apply`
 - readiness操作: `scripts/set-canonical-task-readiness.js`
 - Postgres向けenable: `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence <artifact>`
 - disable: `npm run canonical-task:readiness -- --disable --reason <reason>`
@@ -25,10 +25,10 @@
 ## before-enable
 
 1. Postgres調停schemaとNocoDB Task列・冪等key unique migrationをapplyする。続けてTask移行を次の順で実行する。
-   1. `npm run migrate:canonical-task-postgres-workflow`を実行する。このコマンドだけが`dry-run -> check -> apply -> final-check`を順番に実行でき、途中失敗時は後続phaseへ進まない。
+   1. 本番applyの明示承認を作業記録へ残したoperatorだけが、`npm run migrate:canonical-task-postgres-workflow -- --approve-apply`を実行する。`--approve-apply`がなければ全phaseを開始せず拒否する。このコマンドだけが`dry-run -> check -> apply -> final-check`を順番に実行でき、途中失敗時は後続phaseへ進まない。
    2. 各phaseの出力には本文やsecretを含めず、`source_count`、`target_count`、`matched_count`、`pending_count`、`inserted_count`、`conflict_count`だけを残す。
    3. `final_check_passed: true`、`pending_count: 0`、`conflict_count: 0`、`source_count`と`target_count`の一致を確認する。一致しなければreadinessをenableしない。
-   4. `npm run migrate:canonical-task-postgres -- --apply`の直接実行は拒否される。途中失敗時はtransactionがrollbackされるため、原因を解消してworkflow全体を先頭からやり直す。
+   4. `npm run migrate:canonical-task-postgres -- --apply`の直接実行は拒否される。apply phase内の失敗はtransactionがrollbackされる。applyのCOMMIT後にfinal-checkが失敗した場合、挿入済みrowは削除せずreadinessをclosedのまま維持し、原因を解消して冪等なworkflow全体を先頭から再実行する。
    active writerが存在しない排水済み状態で`npm run canonical-task:check-postgres-concurrency`を実行し、実operation repositoryへの同時2要求が1回だけ処理され、同一結果を返し、検査行と一時writerが削除されたことを確認する。既存writerが現れた場合は検査を中止する。
 2. guardを含む新BrainbaseとMCPを起動する。process-local mutation gateがclosedで、mutationが503 `canonical_task_mutation_not_ready`になることを確認する。
 3. 下記「必須証跡」の全回帰をcurrent HEADで実行する。Macはこの時点ではTask一覧の実HTTP読み取りと認証拒否だけを確認し、mutationは実行しない。

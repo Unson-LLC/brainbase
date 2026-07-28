@@ -87,7 +87,7 @@ PostgreSQL repositoryを選ぶ。不正値は起動時にfail closedとし、暗
 ### S-008: 移行workflowのstate transitionを固定する
 
 移行workflowは`pre-cutover -> cutover-ready -> cutover`のstate transitionを持つ。
-専用workflow runnerが`dry-run -> check -> apply -> final-check`の順序を強制し、直接`--apply`は拒否する。
+専用workflow runnerはoperatorの明示的な`--approve-apply`入力を必須にして`dry-run -> check -> apply -> final-check`の順序を強制し、承認なしと直接`--apply`は拒否する。
 いずれかのphaseが失敗した場合は後続phaseと切替を行わず、apply途中の失敗はtransactionをrollbackする。
 
 ## Workflow State Transitions

@@ -26,18 +26,29 @@ function phaseSummary(name, result) {
     };
 }
 
+export function hasExplicitApplyApproval(argv = []) {
+    return argv.length === 1 && argv[0] === '--approve-apply';
+}
+
 export async function runCanonicalTaskPostgresMigrationWorkflow({
     runMigration = runCanonicalTaskPostgresMigration,
     pool = null,
-    sourceRepository = null
+    sourceRepository = null,
+    applyAuthorized = false
 } = {}) {
+    if (!applyAuthorized) {
+        throw new Error(
+            'Canonical Task migration apply requires explicit operator approval: pass --approve-apply'
+        );
+    }
+
     const phases = [];
     for (const phase of PHASES) {
         const result = await runMigration({
             argv: phase.argv,
             pool,
             sourceRepository,
-            workflowAuthorized: phase.name === 'apply'
+            workflowAuthorized: applyAuthorized && phase.name === 'apply'
         });
         phases.push(phaseSummary(phase.name, result));
     }
@@ -58,7 +69,8 @@ export async function runCanonicalTaskPostgresMigrationWorkflow({
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    runCanonicalTaskPostgresMigrationWorkflow()
+    const applyAuthorized = hasExplicitApplyApproval(process.argv.slice(2));
+    runCanonicalTaskPostgresMigrationWorkflow({ applyAuthorized })
         .then((result) => process.stdout.write(`${JSON.stringify(result)}\n`))
         .catch((error) => {
             process.stderr.write(`${error.message}\n`);
