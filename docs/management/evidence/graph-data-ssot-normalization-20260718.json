@@ -1,0 +1,200 @@
+{
+  "schema_version": "graph-data-ssot-normalization-evidence.v2",
+  "story_id": "story-graph-data-ssot-normalization",
+  "observed_at": "2026-07-18T17:00:17Z",
+  "production_apply": {
+    "status": "applied",
+    "transactional": true,
+    "physical_deletes": 0,
+    "backup_file": "2026-07-18T152024997Z.json",
+    "backup_mode": "0600",
+    "changed_entity_ids": [
+      "baao",
+      "org_baao",
+      "prj_01KGCS8BC76XRHFCHRRQ8G25MY",
+      "phi_baao_trusted_ai_adoption",
+      "unson",
+      "org_unson",
+      "fin_unson_bank_account",
+      "per_01KGYC7NNS0VXADK7NP48W4VR5",
+      "per_01KGYC7NNPNVRG527BGTFH5SGH",
+      "dec_vibepro_ai_self_evaluation_metrics_japanese_ssot"
+    ],
+    "changed_edge_ids": [
+      "edg_01KTDDBM877AXAK8Q7HB3YFTTS",
+      "edg_01KTDDBM8NRRSMYR766QVASVNX",
+      "edg_01KX8VWMZCXZNP32G2HRQAHQ98",
+      "edg_75efbda69c3e6fc483c37f49",
+      "edg_alias_org_baao_to_baao",
+      "edg_alias_org_unson_to_unson"
+    ]
+  },
+  "post_apply_dry_run": {
+    "status": "ready",
+    "legacy_business_edges_to_migrate": 0,
+    "payload_records_to_repoint": 0,
+    "legacy_auth_grants_to_migrate": 0,
+    "legacy_raci_to_migrate": 0,
+    "preserved_legacy_auth_audit_logs": 14,
+    "auth_audit_logs_in_write_set": false,
+    "audit_proof_scope": "count_preserved_and_no_direct_normalization_write",
+    "vibepro_decision_action": "preserve_existing",
+    "physical_deletes": 0
+  },
+  "canonical_person_references": {
+    "person_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+    "auth_grants": 1,
+    "raci_assignments": 10,
+    "users": 3,
+    "legacy_current_references": 0
+  },
+  "rest_readback": {
+    "canonical_org_ids": ["baao", "unson"],
+    "retired_alias_ids": ["org_baao", "org_unson"],
+    "baao_project_name": "BAAO",
+    "baao_core_philosophy_id": "phi_baao_trusted_ai_adoption",
+    "canonical_person_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+    "retired_person_alias_id": "per_01KGYC7NNPNVRG527BGTFH5SGH",
+    "vibepro_decision_id": "dec_vibepro_ai_self_evaluation_metrics_japanese_ssot",
+    "vibepro_decision_role_min": "member",
+    "finance_entity_id": "fin_unson_bank_account",
+    "finance_role_min": "ceo",
+    "finance_sensitivity": "finance",
+    "finance_field_present_in_org_payload": false,
+    "baao_philosophy_context_present": true
+  },
+  "mcp_readback": {
+    "exact_vibepro_decision_found": true,
+    "vibepro_decision_decided_at": "2026-04-25",
+    "baao_philosophy_context_found": true,
+    "baao_philosophy_context_name": "BAAO Trusted AI Adoption"
+  },
+  "vibepro_decision_disposition": {
+    "record_existed_before_apply": true,
+    "payload_replaced": false,
+    "created_at_replaced": false,
+    "visibility_change": "gm_to_member",
+    "reason": "live record, repository history, current spec, and CI contract agreed; no intentional retirement evidence was found"
+  },
+  "audit_log_evidence": {
+    "pre_apply_recorded_count": 14,
+    "post_apply_transaction_readback_count": 14,
+    "idempotent_dry_run_count": 14,
+    "before_hash_available": false,
+    "before_hash_unavailable_reason": "pre-apply evidence recorded count/min/max only; targeted backup excluded auth_audit_logs",
+    "post_apply_id_set_sha256": "9b19e1efbd0eba7949fddcfc734de628832b65c734493ca5edeb27191a2a9d0a",
+    "post_apply_timestamp_set_sha256": "b3ebc2c677e40e03767e464f64f8c875045cde26524a64631efabd42334147b1",
+    "post_apply_content_sha256": "054c889702e72c82e768ab1a46cc97e190477ef22a5b9191b025976f05b60cce",
+    "auth_audit_logs_in_write_set": false,
+    "does_not_claim": "row_content_immutability_before_vs_after"
+  },
+  "finance_boundary_negative_readback": {
+    "service_method": "InfoSSOTService.listGraphEntities",
+    "member_internal_by_id_count": 0,
+    "member_internal_by_type_count": 0,
+    "ceo_finance_positive_control_count": 1,
+    "status": "passed"
+  },
+  "alias_compatibility_contract": {
+    "current_head_typed_legacy_get_contract_tests_passed": true,
+    "canonical_lists_exclude_alias_rows": true,
+    "raw_alias_types_remain_auditable": true,
+    "mcp_alias_index_includes_legacy_ids": true,
+    "production_premerge_exact_single_canonical": false,
+    "production_premerge_observation": "the deployed endpoint returned the authorized type list and did not apply the id filter",
+    "post_merge_readback_required": true
+  },
+  "playwright_contract": {
+    "classification": "artifact_replay",
+    "runtime_path_proof": false,
+    "scenario_clause_e2e": false,
+    "purpose": "verify committed evidence and executable contract sources remain mutually consistent"
+  },
+  "delivery_sequence": {
+    "pr_creation_requires": "current-head implementation, failure-mode, typecheck, artifact-replay, and existing production data evidence",
+    "pr_merge_then_requires": "CI green and merge",
+    "post_merge_closure_requires": "production deploy SHA plus legacy typed REST, REST/MCP, idempotent dry-run, physical delete zero, and VibePro decision preservation readbacks",
+    "prevents_pr_done_evidence_cycle": true
+  },
+  "artifact_provenance": {
+    "hash_algorithm": "sha256",
+    "artifacts": [
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/audit-post-apply-hash-readback.json",
+        "sha256": "5553eb285a7727a3f0b9f606469eb8fd1ec41f09ea1e274f211c2a5a49e04718",
+        "source": "production transaction-scoped dry-run after apply"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/service-finance-boundary-readback.json",
+        "sha256": "62b69061f2438e0837f4c53f0739ebe55db7a2f46c7f0e39e8a5f059647cdd16",
+        "source": "production read-only InfoSSOTService calls"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+        "sha256": "50e8563293ff0c85e2ee8cdaded9e48aa8998f9a4203b42b41914aaf02f17697",
+        "source": "composite REST MCP CI and database readback index"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/production-legacy-typed-rest-premerge.json",
+        "sha256": "8f588ff382903d0a6ee73c91e8fca09a2591df655db958f5d14db258c7f993db",
+        "source": "production read-only legacy typed REST pre-merge observation"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/rest-readback.json",
+        "sha256": "e8f51debd8ff83a94d90c5bbd43f4fb565f8585adb32c71af520ac5165f0a7b0",
+        "source": "production REST readback"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/mcp-readback.json",
+        "sha256": "604f3e8fae312b7e1e7b6a393bfab7045eb94b7df3d4b9e5af57afe0eca02546",
+        "source": "production MCP readback after bridge refresh"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/live-post-apply-dry-run.json",
+        "sha256": "6f4fe47803ee4fc441cd34ac065b569cd0848d59a98ce352a60b25c5be7d230a",
+        "source": "production idempotency dry-run"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/vibepro-graph-ssot-check.txt",
+        "sha256": "23e213353971c771e102b4694cf4b6b38c8f53438ebc7c7f16df6adbb075529c",
+        "source": "live Graph CI contract check"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
+        "sha256": "4a15e2ab8471992850d47300ccaeb161e91dc20b624b2b57186fd12d0fe8c63d",
+        "source": "current worktree targeted Vitest JSON report (51 tests)"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/mcp-graphapi-tests.tap",
+        "sha256": "27f7186d0f9f352fa8598fcdf08e03e77846a69a754723dd4df1da3c4065ac26",
+        "source": "current worktree MCP GraphAPISource TAP report (8 tests)"
+      },
+      {
+        "path": ".vibepro/evidence/story-graph-data-ssot-normalization/playwright-e2e.json",
+        "sha256": "aa3d30e189f3b2c05883816300b89964402c02c301a9560710c6ce3fea4b1ca7",
+        "source": "current worktree Playwright artifact-replay contract report (1 test; not runtime-path evidence)"
+      }
+    ]
+  },
+  "verification": {
+    "targeted_vitest": {
+      "files": 9,
+      "tests": 51,
+      "passed": 51,
+      "failed": 0,
+      "includes": ["rollback_rehearsal", "rollback_failure_injection", "malformed_backup_json", "schema_invalid_backup", "required_restore_columns", "database_auth_denied", "persistence_failure", "backup_permissions", "finance_access_boundary", "finance_member_internal_denial", "legacy_alias_typed_get", "auth_person_canonicalization", "graph_context_route"]
+    },
+    "targeted_mcp_graphapi": {
+      "tests": 8,
+      "passed": 8,
+      "failed": 0,
+      "includes": ["legacy_alias_index", "canonical_list_deduplication"]
+    },
+    "live_graph_ci_check": {
+      "checks": 4,
+      "passed": 4,
+      "failed": 0
+    }
+  },
+  "secrets_included": false
+}

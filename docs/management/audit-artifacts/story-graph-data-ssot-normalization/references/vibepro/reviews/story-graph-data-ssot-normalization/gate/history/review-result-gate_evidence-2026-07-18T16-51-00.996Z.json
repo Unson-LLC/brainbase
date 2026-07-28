@@ -1,0 +1,110 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-data-ssot-normalization",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "current HEAD 8178fcd4のGate証拠は合格。全検証はstrict HEAD boundで、AC-7限定主張、finance境界、alias互換、否定系、VibePro decision保持を確認した。",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "最新review request、pr-prepare、verification、production readbackとprovenanceを照合し、unit 51件、MCP 8件、typecheckを独立再実行した。",
+    "evidence": ".vibepro/pr/story-graph-data-ssot-normalization/verification-evidence.json",
+    "inputs": [
+      ".vibepro/reviews/story-graph-data-ssot-normalization/gate/review-request-gate_evidence.md",
+      ".vibepro/evidence/story-graph-data-ssot-normalization/unit-current-head-composite.json",
+      ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json"
+    ]
+  },
+  "judgment_delta": [
+    "stale reviewからcurrent strict HEAD reviewへ更新し、blocking gapなしと判断した。"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+    "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+    "expected_root": null,
+    "expected_head_sha": "8178fcd4bed3ea2aa717aac8256f1232b0bedfa4",
+    "current_head_sha": "8178fcd4bed3ea2aa717aac8256f1232b0bedfa4",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+      "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+      "expected_root": null,
+      "expected_head_sha": "8178fcd4bed3ea2aa717aac8256f1232b0bedfa4",
+      "current_head_sha": "8178fcd4bed3ea2aa717aac8256f1232b0bedfa4",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-18T16:51:00.996Z",
+  "git_context": {
+    "head_sha": "8178fcd4bed3ea2aa717aac8256f1232b0bedfa4",
+    "current_branch": "codex/graph-data-ssot-normalization",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-18T16:51:00.995Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "8178fcd4bed3ea2aa717aac8256f1232b0bedfa4",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "0581f824c1745d182232e6cf91c110f4e7d54c4f82a8f13acb124693582b41af",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/gate_evidence_current_head",
+    "agent_role": null,
+    "model": "gpt-5",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-graph-data-ssot-normalization/gate/gate-evidence-final-head-result.json",
+    "request_artifact": ".vibepro/reviews/story-graph-data-ssot-normalization/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-graph-data-ssot-normalization/gate/gate-evidence-final-head-result.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": null,
+      "implementation_session_id": null,
+      "source": "cli_flag"
+    }
+  },
+  "agent_usage": null
+}

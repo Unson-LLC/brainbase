@@ -59,7 +59,7 @@ This file is the thin, always-loaded entrypoint for brainbase agents. Keep it un
 - **Graph SSOT first**: For people, orgs, customers, partners, projects, terms, decisions, and CRM facts, check brainbase Graph (`https://bb.unson.jp`) before writing or deciding. Use `brainbase-graph-philosophy-context`.
 - **Capability map first**: For Brainbase capability, project/session creation, auth grant, port `31013`, launchd runtime, terminal/xterm transport, or "not visible/not working" issues, use `brainbase-capability-map`.
 - **Skills first**: Load only the smallest relevant Skill. Do not bulk-load Skill folders.
-- **Local vs Lightsail matters**: For `/oyasumi` Decision/Wiki writes, POST through local `http://localhost:31013`; DB access must be the Lightsail tunnel, not an accidental local database.
+- **Local vs Lightsail matters**: For `/oyasumi` Graph/candidate writes, use the canonical local control-plane path backed by the Lightsail tunnel, not an accidental local database. Wiki writes are retired.
 - **Multi-account ops**: `/ohayo` must check all configured Gmail/Calendar accounts and Slack workspaces per command/Skill guidance.
 - **VibePro**: For VibePro work, use Story -> Architecture -> Spec -> Task -> Code -> Gate -> PR. Do not bypass VibePro PR/Gate flows with raw `gh pr create`.
 - **UI/runtime claims require evidence**: When saying something works, cite the file, API, process, log, test, or screenshot used to verify it.
@@ -81,6 +81,7 @@ Use these entrypoints instead of keeping detailed rules in this file:
 | Brainbase capabilities | `brainbase-capability-map` |
 | NocoDB | `nocodb-guide`, `nocodb-4table-guide` |
 | Daily ops | `/ohayo`, `/oyasumi`, `daily-reflection`, `slack-mentions` |
+| Evidence-safe reports and automation | `docs/policies/evidence-safe-automation.md` |
 | Frontend UI quality | `design-taste-frontend`, `redesign-existing-projects`, `ui-design-resources` |
 | Worktree dev server | `worktree-dev-server`, `dev-server-worktree` |
 

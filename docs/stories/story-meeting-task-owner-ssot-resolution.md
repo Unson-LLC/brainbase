@@ -75,7 +75,7 @@ Meeting Review Package ingest時にBrainbase Graph SSOTのpersonを検索し、�
 ## Release / Rollback / Observability
 
 - Release note: Meeting Review Package ingestでTask候補の担当者ヒントをBrainbase Graph people SSOTに照合し、候補一覧と解決理由をpayloadへ追加する。一意完全一致またはproject context付き高信頼候補だけ `selected_owner_id` / `selected_owner` を付与する。
-- Operator action: DB migrationや手動データ修正は不要。サーバー再起動または通常デプロイで `WorkflowService` への `InfoSSOTService` 注入が有効になる。
+- Operator action: DB migrationや手動データ修正は不要。サーバー再起動または通常デプロイで `MeetingAutomationService` への People SSOT resolver 注入が有効になる。
 - Rollback instruction: このPRをrevertすると、Task候補は従来の `owner_hint` のみの状態に戻る。追加済みの `selected_owner_id` はpayload上の付加情報なので、Mac Companion側は未対応でも無視できる。
 - Observability evidence: `workflow_outputs.type=task_candidates` のpayloadで `owner_hint` / `selected_owner_id` / `selected_owner` / `owner_candidates` / `owner_resolution.status` / `owner_resolution.reason` を確認する。
 - Support path: `owner_resolution.status=unresolved|ambiguous|ignored` の場合はMac Companionでpeople SSOT候補を検索し、必要に応じてpeople SSOTを更新してから手動選択する。ingestは未登録者を自動作成しない。
@@ -88,7 +88,7 @@ Meeting Review Package ingest時にBrainbase Graph SSOTのpersonを検索し、�
 ## Verification
 
 - Unit: `npm run test:run -- tests/server/services/info-ssot-service.test.js tests/server/services/workflow-org-agent-control.test.js`
-- Lint: `npx eslint public/workflows.html server/services/workflow/workflow-service.js server/services/info-ssot-service.js server/bootstrap/core-services.js tests/server/services/info-ssot-service.test.js tests/server/services/workflow-org-agent-control.test.js tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts`
+- Lint: `npx eslint server/services/meeting-automation/meeting-automation-service.js server/services/meeting-automation/meeting-task-owner-resolver.js server/services/info-ssot-service.js server/bootstrap/core-services.js tests/server/services/info-ssot-service.test.js tests/server/services/workflow-org-agent-control.test.js tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts`
 - Doc trace: `npm run vibepro:doc-trace -- --base origin/develop`
 - Story E2E: `BRAINBASE_E2E_PORT=31015 npm run test:e2e -- tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts`
 - E2E: `BRAINBASE_E2E_REUSE_SERVER=true npm run test:e2e -- tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts`

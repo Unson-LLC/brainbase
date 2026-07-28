@@ -1,155 +1,99 @@
 # retro
 
-週次振り返り（Ship/Learn/Block）を実行し、結果を Wiki SSOT に保存するコマンド。
+週次振り返り（Ship / Learn / Block）をCodex Automation内で完結させるコマンド。
 
 ## トリガー
 
 - `/retro`
 - ユーザーが「振り返りして」「今週のレトロ」と言及
 
+## 実行原則
+
+- `/ohayo`、`/oyasumi`とは別の週次ワークフローとして実行する。
+- 対象期間は前回retro automation実行以降を優先し、前回実行がなければ直近7日間とする。
+- 回答とレポートは日本語で作成する。
+- 取得不能な入力を0件とみなさず、`未確認`または`pending`として残す。
+- 外部送信、公開投稿、削除、不可逆な変更、Learn候補のapply/rejectは明示確認なしに実行しない。
+- レポートの正規出力はCodex Automationのタスク本文とautomation memoryとする。Brainbase Wiki、Companion approval inbox、ファイルInboxへ複製しない。
+
 ## 実行フロー
 
-1. **今週のShipを収集**
-   - NocoDB ストーリーテーブルから `ステータス=completed` かつ直近7日を抽出
-   - git log から直近7日のマージコミットを抽出
+### 1. Shipを収集
 
-2. **今週のWorkを集計**
-   - NocoDB ストーリーテーブルから `ステータス=active` の進捗率変化を確認
-   - ブロッカー欄が埋まっているタスクを抽出
-   - archive finalizer の blocked を抽出
+- NocoDBのcompleted項目、gitのmerge/commit、関連するCodexタスクを対象期間で確認する。
+- Shipは「外部または利用者へ価値が到達した」と確認できるものだけを数える。
+- local edit、commit、merge、CI、deploy、runtime、外部到達を区別する。
 
-   ```bash
-   cd /Users/ksato/workspace/code/brainbase
-   node scripts/archive-blocked-report.mjs --limit 50
-   ```
+### 2. WorkとBlockを収集
 
-   archive blocked は週次レトロの Block に必ず含める。残件は owner / next action / due を付け、無期限の持ち越しを禁止する。
+- NocoDBのactive項目、関連するCodexタスク、未完了の実行証跡を確認する。
+- Brainbaseの旧session archive、archive finalizer、worktree状態をBlockの入力にしない。
+- Blockには現在も結果を妨げているものだけを含め、各項目へ次を付ける。
+  - owner
+  - next action
+  - due
+- 入力ソース自体が失敗した場合は、その失敗をBlockまたは未確認sourceとして残す。
 
-3. **学習候補の一括レビュー** ⭐ 週次決裁ポイント
+### 3. Learn候補をレビュー
 
-   ohayo は件数だけ報告し、apply/reject 判断はここに集約する設計。
+```bash
+cd /Users/ksato/workspace/code/brainbase
+node cli/index.js learn inbox
+```
 
-   ```bash
-   cd /Users/ksato/workspace/code/brainbase
-   node cli/index.js learn inbox
-   ```
+pending候補を一覧し、既存のGraph、owning repository、team Drive、workspace home、skillとの重複を確認する。候補ごとに次を推奨する。
 
-   全 pending 候補を一覧表示し、各候補について以下を判断:
-   - **apply**: wiki/skill に昇格させる価値あり
-     - `node cli/index.js learn apply <id>`
-   - **reject**: ノイズ・既出・粒度不適切
-     - `node cli/index.js learn reject <id>`
-   - **保留**: 判断がつかない → そのまま次週に持ち越し
+- `graph`: 組織の事実・関係としてGraphへ反映
+- `owning_repo`: コード、技術設計、共有ポリシー、runbook、skillとして所有repoへ反映
+- `team_drive`: 事業文書、共同編集資料、バイナリとして担当team Driveへ反映
+- `workspace_home`: 個人・private情報としてworkspace homeへ反映
+- `reject`: ノイズ、既出、粒度不適切
+- `hold`: 根拠、所有者、保存先が未確定
 
-   レビュー結果を Learn 枠に集計（apply N件 / reject M件 / hold K件）。
+現行のLearn CLIが保存先を安全に表現できない場合はapplyせず、推奨と理由だけを残す。
 
-4. **SNS週次学習**
+### 4. SNS週次学習
 
-   `/ohayo` の daily brief と `/oyasumi` の feedback を7日分集計し、SNS運用の勝ち筋とズレを確認する。
+対象期間のdaily brief、feedback、content calendar、確認可能な反応証拠を集計する。
 
-   入力:
+- 一過性の反応を勝ち筋として正本化しない。
+- 再現性があるものだけ、owning repoのskill・style guide、Graph、team Driveへの更新候補にする。
+- 認証やmetrics取得に失敗した場合は0件扱いせず、未確認sourceに残す。
 
-   - `/Users/ksato/workspace/sns/x/ops/daily-briefs/YYYY-MM-DD.md`
-   - `/Users/ksato/workspace/sns/x/ops/feedback/YYYY-MM-DD.md`
-   - `/Users/ksato/workspace/sns/content_pillars.md`
-   - `/Users/ksato/workspace/sns/x/ops/weekly_content_calendar_*.md`
+### 5. 週次レポートを生成
 
-   集計するもの:
+```markdown
+# Weekly Retro: YYYY-MM-DD
 
-   - Peer interaction / 引用・リプ: 7〜9本
-   - Claude Code / AI PM / AI経営の理解: 5〜7本
-   - Own Proof: 4〜6本
-   - AI駆動経営の断定・哲学: 3〜4本
-   - Learn in public: 1〜2本
-   - CTA: 1〜2本
+## 🚀 Ship
+- [項目]: [到達した価値と証拠]
 
-   判断:
+## 📚 Learn
+- [候補]: [推奨分類 / 理由 / 重複確認]
+- SNS: [再現性のある勝ち筋 / 弱い型 / 次週の変更]
 
-   - Peer本人に拾われた投稿はPeer Circle候補を昇格
-   - 読者に保存/プロフィール遷移された投稿は本文型を保留候補
-   - Persona Affectが外れた投稿は数字が良くても勝ち型にしない
-   - 一過性のバズは正本化しない
-   - 再現性があるものだけ `style_guide.md` / `content_pillars.md` / skill / Graph更新候補にする
+## 🔴 Block
+- [項目]: [状況 / owner / next action / due]
 
-5. **振り返りレポート生成**
-   ```markdown
-   # Weekly Retro: YYYY-MM-DD
+## ❓ 未確認source
+- [source]: [失敗理由 / 影響範囲]
 
-   ## 🚀 Ship（出荷）
-   - [項目]: [概要]
+## 📊 メトリクス
+- Ship数: X件
+- Learn推奨: graph X / owning_repo X / team_drive X / workspace_home X / reject X / hold X
+- Block数: X件
+```
 
-   ## 📚 Learn（学習）
-   - [項目]: [学び]
-   - SNS: [勝ち筋 / 弱い型 / 次週の変更]
+### 6. Codex Automationへ結果を残す
 
-   ## 🔴 Block（ブロッカー）
-   - [項目]: [状況と対応方針]
-   - Archive blocked: [件数]件
-     - [session-id]: [reason] → [owner / next action / due]
-
-   ## 📊 メトリクス
-   - Ship数: X件
-   - Work→Ship率: X%
-   - ブロッカー数: X件
-   ```
-
-6. **詳細レポートを Wiki SSOT に保存（永続）**
-   ```bash
-   # /tmp/retro は中間成果物（揮発OK）
-   mkdir -p /tmp/retro
-   # まず /tmp に書き出してから Wiki に POST する
-   ```
-
-   Wiki 投入:
-   ```bash
-   TOKEN=$(cat ~/.brainbase/tokens.json | jq -r .access_token)
-   jq -Rs --arg p "_common/retros/YYYY-MM-DD" '{path:$p, content:.}' \
-     < /tmp/retro/weekly_report_YYYY-MM-DD.md > /tmp/wiki-retro.json
-   curl -s -X POST "http://localhost:31013/api/wiki/page" \
-     -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-     --data-binary "@/tmp/wiki-retro.json"
-   ```
-
-7. **bb-report-submit でCompanion approval inboxに通知**
-
-   Wiki永続化とは別に、佐藤が承認/既読できるようレポート全文を `bb-report-submit` に渡す。
-   `POST /api/external-runner/ingest` 経由でCompanion approval inboxに
-   `kind: workflow_approval` として出現する（送信失敗時のみ `_inbox/pending.md` にフォールバック追記）。
-
-   ```bash
-   scripts/bin/bb-report-submit.mjs \
-     --sender agent/retro \
-     --title "週次振り返り完了: Ship X件, Learn X件, Block X件" \
-     --period {YYYY-MM-DD} \
-     --file /tmp/retro/weekly_report_{YYYY-MM-DD}.md
-   ```
-
-## 出力先
-
-| 出力 | パス | 永続化 |
-|------|------|------|
-| **詳細レポート（正本）** | Wiki `_common/retros/YYYY-MM-DD` (`localhost:31013/api/wiki/page`) | ✅ Wiki SSOT |
-| Companion approval inbox | `bb-report-submit.mjs` 経由で `POST /api/external-runner/ingest` | ✅ DBに永続化 |
-| フォールバック（送信失敗時のみ） | `_inbox/pending.md` に追記 | 保険のみ |
-| 中間成果物 | `/tmp/retro/weekly_report_{YYYY-MM-DD}.md` | ❌ 揮発（再起動で消える） |
-
-正本は Wiki SSOT。`/tmp` は中間成果物として一時的に置くだけ。
-
-## 注意
-
-- Ship = 「外部に価値が到達した」もののみ（ドラフト生成 ≠ Ship）
-- Learn は wiki/skill に **apply 済み** のもののみカウント（pending は count しない）
-- Block は現在進行中のブロッカーのみ
-- Archive blocked は `/ohayo` で検知、`/oyasumi` で日次整理、`/retro` で週次エスカレーションする
-- SNSは `/ohayo` で候補収集、`/oyasumi` で反応学習、`/retro` で勝ち筋だけ正本化する
-
-## 学習候補の補給ルート
-
-学習候補は2系統で自動投入される:
-
-| ソース | トリガー | 投入経路 |
-|---|---|---|
-| explicit | ユーザーが `/learn` を呼んだ時 | `brainbase learn add` |
-| auto-extract | /commit 完了 + launchd `com.brainbase.learn-extractor`（2h毎） | codex exec で transcript 分析 → `brainbase learn add` |
-
-`/retro` 実行時、`learn inbox` には両系統の pending が混ざって表示される。
+- 完成した週次レポートをCodex Automationのタスク本文として返す。
+- automation memoryへ次を記録する。
+  - 実行時刻
+  - 対象期間
+  - Ship / Learn / Block件数
+  - 重要なBlock
+  - Learn分類別件数
+  - SNSの検証済み仮説
+  - 未確認source
+- 判断が必要な項目は、選択肢、推奨、影響をそのCodexタスク内に記載する。
+- Brainbase WikiへのPOST、`bb-report-submit`、`_inbox/pending.md`への追記は行わない。

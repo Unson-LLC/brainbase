@@ -1,0 +1,7 @@
+{
+  "status": "passed",
+  "head_sha": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+  "command": "npm run typecheck",
+  "typescript_project": "public/jsconfig.json",
+  "exit_code": 0
+}

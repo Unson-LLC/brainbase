@@ -94,7 +94,7 @@ function createCanonicalTaskAccessGuard({
 
 export function createCompanionRouter({
     replyDraftService,
-    workflowService,
+    companionApprovalInboxService,
     infoSSOTService,
     decisionEventService,
     canonicalTaskService,
@@ -107,7 +107,7 @@ export function createCompanionRouter({
 
     const router = express.Router();
     const controller = new CompanionController(replyDraftService, {
-        workflowService,
+        companionApprovalInboxService,
         infoSSOTService,
         decisionEventService,
         canonicalTaskService

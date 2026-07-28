@@ -1,0 +1,65 @@
+{
+  "status": "needs_changes",
+  "summary": "Prior five findings are resolved, but process-local idempotency, permissive timestamp validation, silent corruption recovery, and incomplete regression evidence remain.",
+  "inspection_summary": "Inspected the requested artifacts, full diff against origin/develop, service, routes, bootstrap/auth boundaries, KPI script, tests, and pre-fix implementation. Focused unit/integration tests passed 38/38, Playwright contract tests passed 9/9, and QA evidence is current at the requested HEAD.",
+  "judgment_delta": "The prior duplicate, partition-filter, evidence-path, and architecture-document concerns now have concrete implementation and artifact evidence. Authorization reuse and single-process bootstrap are present, but global idempotency is not safe for concurrent processes, timestamp validation violates the stated contract, corruption failure paths are silent, and no tests directly prove cache no-rescan or legacy-duplicate KPI aggregation.",
+  "findings": [
+    {
+      "severity": "medium",
+      "id": "process-local-idempotency-not-single-writer-safe",
+      "detail": "eventById is only process-local. Two server processes sharing varDir can both miss the same event_id and write it to different month files; atomic rename does not make the check-and-write globally atomic. start.js provides a best-effort PID guard, but its failure path continues and direct server.js execution bypasses it.",
+      "file": "/private/tmp/brainbase-decision-event-global-dedupe/server/services/companion/decision-event-service.js",
+      "line": 208
+    },
+    {
+      "severity": "medium",
+      "id": "iso8601-contract-is-too-permissive",
+      "detail": "new Date(value) accepts non-ISO values such as 'July 1, 2026' and normalizes invalid calendar dates such as 2026-02-30. These values can be persisted and assigned to an unintended month, violating the occurred_at ISO8601 timestamp boundary.",
+      "file": "/private/tmp/brainbase-decision-event-global-dedupe/server/services/companion/decision-event-service.js",
+      "line": 39
+    },
+    {
+      "severity": "medium",
+      "id": "corrupt-ledger-recovery-can-be-silent-or-overwritten",
+      "detail": "Quarantine rename failures are swallowed. The returned recovery metadata is discarded by cache/listing, so GET/KPI can silently undercount; a later insert can overwrite the still-corrupt ledger path without preserving the original.",
+      "file": "/private/tmp/brainbase-decision-event-global-dedupe/server/services/companion/decision-event-service.js",
+      "line": 175
+    },
+    {
+      "severity": "medium",
+      "id": "lazy-cache-no-rescan-regression-not-proven",
+      "detail": "The implementation returns from _ensureEventCache after initialization, but no test spies on month enumeration/read calls across successive POSTs. The added cross-month tests would fail on pre-fix code, but a rescanning implementation could still pass them, leaving the performance contract unguarded.",
+      "file": "/private/tmp/brainbase-decision-event-global-dedupe/tests/server/services/companion/decision-event-service.test.js",
+      "line": 116
+    },
+    {
+      "severity": "low",
+      "id": "legacy-duplicate-kpi-path-not-directly-covered",
+      "detail": "Legacy cross-month duplicates are verified through GET, while the KPI test uses newly posted unique events. The HTTP KPI path is structurally correct, but no fixture proves that legacy duplicates remain excluded from the actual KPI input/report.",
+      "file": "/private/tmp/brainbase-decision-event-global-dedupe/tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts",
+      "line": 266
+    }
+  ],
+  "resolved_prior_findings": [
+    {
+      "id": "global-dedupe-does-not-reconcile-existing-ledgers",
+      "evidence": "server/services/companion/decision-event-service.js:228-249; tests/server/services/companion/decision-event-service.test.js:137-164; E2E legacy duplicate case:149-194"
+    },
+    {
+      "id": "global-id-scan-unbounded-write-cost",
+      "evidence": "server/services/companion/decision-event-service.js:228-231,273; docs/architecture/decision-events-kpi-architecture.md:38-40"
+    },
+    {
+      "id": "month-partition-filter-accepts-invalid-months",
+      "evidence": "server/services/companion/decision-event-service.js:251-256; tests/server/services/companion/decision-event-service.test.js:166-174"
+    },
+    {
+      "id": "qa-integration-evidence-command-invalid",
+      "evidence": ".vibepro/qa/decision-events-current-head-verification.json:12-21; all referenced test paths exist and passed"
+    },
+    {
+      "id": "architecture-doc-surface-mismatch",
+      "evidence": "docs/architecture/decision-events-kpi-architecture.md; docs/stories/story-brainbase-decision-events-kpi-v1.md:44-49; .vibepro/spec/story-brainbase-decision-events-kpi-v1/spec.json:23-24"
+    }
+  ]
+}

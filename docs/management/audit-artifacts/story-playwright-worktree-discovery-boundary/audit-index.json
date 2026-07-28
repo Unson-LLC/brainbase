@@ -1,0 +1,401 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-playwright-worktree-discovery-boundary",
+  "source": "execute_merge",
+  "generated_at": "2026-07-18T01:14:06.196Z",
+  "evidence_depth": "standard",
+  "budget_status": "exceeded",
+  "cost_summary": {
+    "schema_version": "0.1.0",
+    "evidence_depth": "standard",
+    "risk_profile": "high",
+    "trigger_signals": [
+      "missing_artifact",
+      "gate:gate:managed_worktree:needs_review"
+    ],
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+    "diff_stats_refs": {
+      "base_ref": "origin/develop",
+      "head_ref": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "base_sha": "94f9853d9d30c49aff119a7438a90f07978b0f59",
+      "head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "merge_commit_sha": "62dd49fbdb0abf4a03998abeb4c7bc6d58a2af5c"
+    },
+    "diff_stats_collected_at": "2026-07-18T01:14:03.079Z",
+    "diff_stats_reason": null,
+    "artifact_lines": 1350,
+    "changed_lines": {
+      "status": "available",
+      "total_changed_lines": 316,
+      "unknown_file_count": 0,
+      "buckets": {
+        "src": {
+          "files": 0,
+          "changed_lines": 0,
+          "unknown_files": 0,
+          "paths": []
+        },
+        "test": {
+          "files": 2,
+          "changed_lines": 133,
+          "unknown_files": 0,
+          "paths": [
+            "tests/e2e/story-playwright-worktree-discovery-boundary-collector.spec.ts",
+            "tests/unit/playwright-config-boundary.test.js"
+          ]
+        },
+        "story_spec_architecture_docs": {
+          "files": 2,
+          "changed_lines": 101,
+          "unknown_files": 0,
+          "paths": [
+            "docs/architecture/playwright-worktree-discovery-boundary.md",
+            "docs/specs/story-playwright-worktree-discovery-boundary.md"
+          ]
+        },
+        "audit_artifacts": {
+          "files": 0,
+          "changed_lines": 0,
+          "unknown_files": 0,
+          "paths": []
+        },
+        "other": {
+          "files": 2,
+          "changed_lines": 82,
+          "unknown_files": 0,
+          "paths": [
+            "docs/stories/story-playwright-worktree-discovery-boundary.md",
+            "playwright.config.js"
+          ]
+        }
+      },
+      "source": "git diff --numstat origin/develop...336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "refs": {
+        "base_ref": "origin/develop",
+        "head_ref": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+        "base_sha": "94f9853d9d30c49aff119a7438a90f07978b0f59",
+        "head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+        "merge_commit_sha": "62dd49fbdb0abf4a03998abeb4c7bc6d58a2af5c"
+      },
+      "collected_at": "2026-07-18T01:14:03.079Z",
+      "reason": null
+    },
+    "product_changed_lines": 316,
+    "product_changed_lines_status": "available",
+    "product_changed_lines_reason": null,
+    "artifact_code_ratio": 4.272,
+    "artifact_code_ratio_reason": null,
+    "budget": {
+      "profile": "high",
+      "canonical_artifact_lines": 1500,
+      "effective_canonical_artifact_lines": 1500,
+      "artifact_code_ratio": 3
+    },
+    "budget_status": "exceeded",
+    "budget_exceeded_reasons": [
+      "artifact_code_ratio_exceeded"
+    ],
+    "token_accounting": {
+      "status": "unavailable",
+      "total_tokens": null,
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "source": null,
+      "window": null,
+      "reason": "session token logs were not provided to canonical audit promotion"
+    },
+    "elapsed_time_accounting": {
+      "status": "unavailable",
+      "elapsed_ms": null,
+      "started_at": null,
+      "finished_at": null,
+      "source": null,
+      "window": null,
+      "reason": "elapsed-time logs were not provided to canonical audit promotion"
+    },
+    "replay_bundle": {
+      "compressed_bytes": 3240,
+      "expanded_bytes": 15232,
+      "expanded_line_count": 400,
+      "persisted_line_count": 1
+    },
+    "raw_source_artifact_lines": 8019,
+    "raw_source_artifact_code_ratio": 25.377,
+    "artifact_lines_source": "persisted_canonical_compact"
+  },
+  "pr_prepare": {
+    "present": true,
+    "created_at": "2026-07-18T01:13:36.868Z",
+    "gate_status": {
+      "ready_for_pr_create": true,
+      "overall_status": "ready_for_review",
+      "fast_lane": false,
+      "critical_unresolved_gate_count": 0
+    }
+  },
+  "evidence_reuse": {
+    "present": true,
+    "created_at": "2026-07-18T01:13:36.868Z",
+    "status": "hit",
+    "evidence_key": "evk_3220d28bb2144aea418508e03ee94b44",
+    "verification_summary_fingerprint": "sha256:3238fee5d44582579aa43ca079b81e2d1fc8dba0e6eb17eb1b7babf000ba4476",
+    "verification_evidence_updated_at": "2026-07-18T01:11:27.633Z",
+    "verification_command_timestamps": [
+      {
+        "kind": "integration",
+        "executed_at": "2026-07-18T01:11:27.633Z",
+        "git_recorded_at": "2026-07-18T01:11:27.632Z"
+      },
+      {
+        "kind": "unit",
+        "executed_at": "2026-07-17T14:13:34.704Z",
+        "git_recorded_at": "2026-07-17T14:13:34.702Z"
+      },
+      {
+        "kind": "typecheck",
+        "executed_at": "2026-07-17T14:07:01.078Z",
+        "git_recorded_at": "2026-07-17T14:07:01.077Z"
+      },
+      {
+        "kind": "e2e",
+        "executed_at": "2026-07-17T14:06:20.660Z",
+        "git_recorded_at": "2026-07-17T14:06:20.655Z"
+      }
+    ],
+    "stale_reason_count": 0,
+    "full_evidence_status": "reused",
+    "full_evidence_generation_count": 1,
+    "full_evidence_generation_count_scope": "same_evidence_key",
+    "full_evidence_same_key_generation_count": 1,
+    "full_evidence_cumulative_generation_count": 14
+  },
+  "pr_create": {
+    "present": true,
+    "created_at": "2026-07-18T01:13:36.887Z",
+    "status": "updated_existing_pr",
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1041",
+    "gate_override_allowed": false
+  },
+  "pr_merge": {
+    "present": true,
+    "summary": {
+      "status": "merged",
+      "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1041",
+      "merge_commit_sha": "62dd49fbdb0abf4a03998abeb4c7bc6d58a2af5c",
+      "merged_at": "2026-07-18T01:14:04Z",
+      "current_head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "diff_stats_status": "available",
+      "diff_stats_source": "git diff --numstat origin/develop...336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2"
+    }
+  },
+  "gate_dag": {
+    "present": false,
+    "overall_status": null,
+    "node_count": 0,
+    "blocking_count": 0
+  },
+  "senior_gap_judgment": {
+    "present": true,
+    "status": null,
+    "gap_count": 2,
+    "blocking_gap_count": 0,
+    "residual_risk_count": 0,
+    "followup_count": 0
+  },
+  "traceability": {
+    "present": true,
+    "lifecycle": "merged",
+    "coverage_summary": {
+      "clause_count": 5,
+      "acceptance_criteria_count": 5,
+      "scenario_clause_count": 0,
+      "mapped_count": 5,
+      "weakly_mapped_count": 0,
+      "unmapped_count": 0,
+      "examples": []
+    }
+  },
+  "verification": {
+    "present": true,
+    "command_count": 4,
+    "pass_count": 4,
+    "fail_count": 0
+  },
+  "review": {
+    "summary_count": 1,
+    "result_count": 3,
+    "pass_count": 3,
+    "block_count": 0,
+    "stale_count": 0
+  },
+  "handoff_replay_status": "blocked",
+  "handoff_replay_unresolved_reference_count": 8,
+  "missing_artifacts": [
+    {
+      "kind": "gate_dag",
+      "source": ".vibepro/pr/story-playwright-worktree-discovery-boundary/gate-dag.json"
+    }
+  ],
+  "raw_artifact_count": 15,
+  "automation_value_audit": {
+    "schema_version": "0.1.0",
+    "artifact_kind": "vibepro_automation_value_audit",
+    "story_id": "story-playwright-worktree-discovery-boundary",
+    "generated_at": "2026-07-18T01:14:06.196Z",
+    "status": "needs_evidence",
+    "purpose": "daily_automation_input",
+    "sources": {
+      "canonical_audit": true,
+      "cost_summary": true,
+      "pr_lifecycle": true,
+      "verification": true,
+      "review": true,
+      "senior_gap_judgment": true
+    },
+    "merge_context": {
+      "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1041",
+      "merge_status": "merged",
+      "merge_commit_sha": "62dd49fbdb0abf4a03998abeb4c7bc6d58a2af5c",
+      "merged_at": "2026-07-18T01:14:04Z"
+    },
+    "allocation": {
+      "changed_lines_status": "available",
+      "total_changed_lines": 316,
+      "implementation_changed_lines": 0,
+      "verification_and_docs_changed_lines": 234,
+      "audit_evidence_changed_lines": 234,
+      "buckets": {
+        "src": 0,
+        "test": 133,
+        "story_spec_architecture_docs": 101,
+        "audit_artifacts": 0,
+        "other": 82
+      }
+    },
+    "ratios": {
+      "test_to_src": null,
+      "story_spec_architecture_to_src": null,
+      "audit_artifacts_to_src": null,
+      "automation_evidence_to_src": null,
+      "artifact_lines_to_product_changed_lines": 4.272
+    },
+    "session_cost": {
+      "token_status": "unavailable",
+      "total_tokens": null,
+      "token_source": null,
+      "token_window": null,
+      "elapsed_status": "unavailable",
+      "elapsed_ms": null,
+      "elapsed_source": null,
+      "elapsed_window": null
+    },
+    "value_signal_inputs": {
+      "budget_status": "exceeded",
+      "budget_exceeded_reasons": [
+        "artifact_code_ratio_exceeded"
+      ],
+      "evidence_depth": "standard",
+      "verification_pass_count": 4,
+      "verification_fail_count": 0,
+      "review_result_count": 3,
+      "review_pass_count": 3,
+      "review_block_count": 0,
+      "senior_gap_status": null,
+      "senior_gap_residual_risk_count": 0,
+      "evidence_reuse_status": "hit",
+      "evidence_reuse_stale_reason_count": 0,
+      "traceability_lifecycle": "merged",
+      "handoff_replay_status": "blocked",
+      "handoff_replay_unresolved_reference_count": 8,
+      "missing_artifact_count": 1
+    },
+    "cost_controls": {
+      "status": "action_required",
+      "budget_status": "exceeded",
+      "artifact_code_ratio": 4.272,
+      "automation_evidence_to_src": null,
+      "budget_exceeded_reasons": [
+        "artifact_code_ratio_exceeded"
+      ],
+      "canonical_artifact_lines": 1350,
+      "product_changed_lines": 316,
+      "evidence_depth": "standard",
+      "recommended_evidence_depth": "summary",
+      "recommendations": [
+        {
+          "id": "prefer_summary_canonical_artifacts",
+          "action": "persist summary/index/replay references instead of full raw audit copies for routine value audits",
+          "reason": "canonical audit evidence exceeded the configured line or artifact/code ratio budget"
+        },
+        {
+          "id": "collect_runtime_cost_before_merge",
+          "action": "run execute merge with --session-id <id>|auto and --automation-memory <path>, or set VIBEPRO_SESSION_ID/CODEX_SESSION_ID and VIBEPRO_AUTOMATION_MEMORY",
+          "reason": "daily automation cannot judge time/token efficiency without measured session cost"
+        }
+      ]
+    },
+    "findings": [
+      {
+        "id": "session_cost_unavailable",
+        "severity": "needs_context",
+        "reason": "token or elapsed-time accounting is not available in canonical audit summary",
+        "token_status": "unavailable",
+        "elapsed_status": "unavailable"
+      },
+      {
+        "id": "artifact_budget_exceeded",
+        "severity": "cost_risk",
+        "reason": "canonical audit evidence exceeded the configured artifact budget",
+        "budget_exceeded_reasons": [
+          "artifact_code_ratio_exceeded"
+        ],
+        "artifact_code_ratio": 4.272
+      },
+      {
+        "id": "canonical_handoff_replay_blocked",
+        "severity": "review_needed",
+        "reason": "canonical audit references cannot be fully replayed by another engineer or agent",
+        "unresolved_reference_count": 8
+      },
+      {
+        "id": "no_src_changed_lines",
+        "severity": "review_needed",
+        "reason": "automation evidence changed without src/ implementation changes"
+      }
+    ]
+  },
+  "replay_bundle": {
+    "schema_version": "0.1.0",
+    "path": "docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz",
+    "compression": "gzip",
+    "media_type": "application/json",
+    "content_hash": "sha256:c4765a8936dd27ea6d892618a2134b9f5ba07f711c58f8ed27a2b7817e232849",
+    "compressed_hash": "sha256:40646f1ea053b54f8849d425e61d3ac83108d7277c284ac9f3a7258d1f2d02f4",
+    "expanded_bytes": 15232,
+    "compressed_bytes": 3240,
+    "expanded_line_count": 400,
+    "persisted_line_count": 1,
+    "included_artifact_kinds": [
+      "evidence_reuse",
+      "pr_create",
+      "pr_merge",
+      "pr_prepare",
+      "review_lifecycle",
+      "review_request",
+      "review_result",
+      "review_summary",
+      "senior_gap_judgment",
+      "traceability",
+      "verification_evidence"
+    ],
+    "replay_command": "vibepro audit replay . --story-id story-playwright-worktree-discovery-boundary",
+    "cost": {
+      "compressed_bytes": 3240,
+      "expanded_bytes": 15232,
+      "expanded_line_count": 400,
+      "persisted_line_count": 1
+    }
+  }
+}

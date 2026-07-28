@@ -1,0 +1,19 @@
+{
+  "status": "block",
+  "summary": "HEADは一致し正しいVitest suiteは29件成功したが、Gateに記録されたunit commandは実際にはfile subtestしか実行せず、REST/MCP両面と本番正規化・rollback経路も未証明。",
+  "inspection_summary": "origin/develop...HEADの3ファイル、Story、正規化・rollback実装、追加テスト、VibePro artifactsを独立確認した。",
+  "inspection_evidence": ".vibepro/pr/story-graph-data-ssot-normalization/verification-evidence.json",
+  "inspection_inputs": [
+    "git diff origin/develop...HEAD",
+    "docs/management/stories/story-graph-data-ssot-normalization.md",
+    "scripts/normalize-graph-data-ssot.mjs",
+    "tests/unit/normalize-graph-data-ssot.test.js",
+    ".vibepro/pr/story-graph-data-ssot-normalization/verification-evidence.json"
+  ],
+  "judgment_delta": "当初needs_changes候補から、記録commandの不正確さとcritical path coverage不足が判明したためblockへ変更",
+  "findings": [
+    "critical:gate-evidence-command-reliability:存在しないtest pathを含むNode commandが29 tests passedとして記録されている",
+    "high:gate-evidence-rest-mcp-surface-gap:AC-8のRESTとMCP両面を示すmachine-readable artifactがない",
+    "high:gate-evidence-critical-migration-paths-uncovered:transaction、rollback、finance境界、人物参照、監査保持の直接証跡が不足"
+  ]
+}

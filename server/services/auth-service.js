@@ -82,7 +82,10 @@ export class AuthService {
         this.deviceCodePollingInterval = 5; // 5 seconds
 
         // Device Code cleanup interval (every 1 minute)
-        setInterval(() => this.cleanupExpiredDeviceCodes(), 60 * 1000);
+        this.deviceCodeCleanupTimer = setInterval(() => this.cleanupExpiredDeviceCodes(), 60 * 1000);
+        // A one-off AuthService consumer must be allowed to exit after its work
+        // finishes instead of becoming an orphan solely because of this timer.
+        this.deviceCodeCleanupTimer.unref?.();
     }
 
     assertReady() {
@@ -352,9 +355,10 @@ export class AuthService {
     /**
      * Find user by Slack user ID (Permission System Phase 1)
      * @param {string} slackUserId - Slack user ID (e.g., 'U07LNUP582X')
+     * @param {string|null} slackWorkspaceId - Exact Slack workspace required during authentication
      * @returns {Promise<Object|null>} - User object or null if not found
      */
-    async findUserBySlackId(slackUserId) {
+    async findUserBySlackId(slackUserId, slackWorkspaceId = null) {
         logger.info(`[AUTH] findUserBySlackId called with: "${slackUserId}"`);
         if (!this.pool) {
             logger.error('[AUTH] findUserBySlackId: no pool!');
@@ -375,16 +379,24 @@ export class AuthService {
             logger.info(`[AUTH] findUserBySlackId: users table rows=${rows.length}`);
 
             // Always check auth_grants for role, project_codes, clearance
+            const requireExactWorkspace = typeof slackWorkspaceId === 'string' && slackWorkspaceId.length > 0;
             const { rows: grantRows } = await client.query(
                 `SELECT person_id, person_name as name, slack_user_id, slack_workspace_id as workspace_id,
                         role, project_codes, clearance, active as status
                  FROM auth_grants
                  WHERE slack_user_id = $1
+                   ${requireExactWorkspace ? 'AND slack_workspace_id = $2' : ''}
                    AND active = true
                  LIMIT 1`,
-                [slackUserId]
+                requireExactWorkspace ? [slackUserId, slackWorkspaceId] : [slackUserId]
             );
             logger.info(`[AUTH] findUserBySlackId: auth_grants rows=${grantRows.length}`);
+
+            // Login and refresh must use the same authorization SSOT. A legacy users
+            // row alone must never mint a token that the exact workspace grant cannot refresh.
+            if (requireExactWorkspace && !grantRows[0]) {
+                return null;
+            }
 
             if (rows[0]) {
                 const user = rows[0];
@@ -600,9 +612,13 @@ export class AuthService {
             logger.info(`[AUTH] refresh: DENY uid=${slackUserId} wid=${slackWorkspaceId}`);
             throw new Error('Access is not granted');
         }
+        // Login prefers the users row that is linked to the canonical Graph person.
+        // Keep refresh on the same identity even when a legacy grant still points to
+        // an older people row; grants remain the authorization SSOT.
+        const user = await this.findUserBySlackId(slackUserId, slackWorkspaceId);
         const personId = await this.ensurePerson({
-            personId: grant.person_id,
-            personName: grant.person_name
+            personId: user?.person_id || grant.person_id,
+            personName: user?.name || grant.person_name
         });
         const access = this.buildAccessFromGrant({ ...grant, person_id: personId });
         const token = this.issueToken({
@@ -757,7 +773,11 @@ export class AuthService {
         const now = Date.now();
         const expiresIn = Math.floor(this.deviceCodeTtlMs / 1000); // seconds
 
-        const publicUrl = process.env.BRAINBASE_PUBLIC_URL || 'http://localhost:31013';
+        const configuredPublicUrl = String(process.env.BRAINBASE_PUBLIC_URL || '').trim();
+        if (process.env.NODE_ENV === 'production' && !configuredPublicUrl) {
+            throw new Error('BRAINBASE_PUBLIC_URL is required in production');
+        }
+        const publicUrl = configuredPublicUrl || 'http://localhost:31013';
         const verificationUri = `${publicUrl}/device`;
         const verificationUriComplete = `${verificationUri}?user_code=${encodeURIComponent(userCode)}`;
 
@@ -888,7 +908,7 @@ export class AuthService {
             const { slackUserId, slackWorkspaceId } = record;
 
             // Fetch user from database
-            const user = await this.findUserBySlackId(slackUserId);
+            const user = await this.findUserBySlackId(slackUserId, slackWorkspaceId);
             if (!user) {
                 await this.createAuditLog({
                     slackUserId,

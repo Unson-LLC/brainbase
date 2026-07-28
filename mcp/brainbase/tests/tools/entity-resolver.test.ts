@@ -168,7 +168,7 @@ describe('Graph entity resolver', () => {
     assert.match(output, /若松 冬美/);
   });
 
-  it('story-graph-entity-resolver: keeps search fallback output when philosophy context fetch fails', async () => {
+  it('story-graph-entity-resolver: rejects search when required philosophy context fetch fails', async () => {
     __testing.setEntityIndex(seedResolverIndex());
     __testing.setGraphSource({
       async getPhilosophyContext() {
@@ -177,14 +177,13 @@ describe('Graph entity resolver', () => {
     } as unknown as GraphAPISource);
 
     try {
-      const output = await __testing.handleToolCall('search', {
-        query: '若松 リカルド',
-        project: 'brainbase',
-      });
-
-      assert.match(output, /No exact text-search results found/);
-      assert.match(output, /per_wakamatsu_fuyumi/);
-      assert.match(output, /若松 冬美/);
+      await assert.rejects(
+        __testing.handleToolCall('search', {
+          query: '若松 リカルド',
+          project: 'brainbase',
+        }),
+        /context unavailable/
+      );
     } finally {
       __testing.setGraphSource(null);
     }
@@ -207,22 +206,9 @@ describe('Graph entity resolver', () => {
 
   it('story-graph-entity-resolver: keeps default resolve_entity output parseable JSON', async () => {
     __testing.setEntityIndex(seedResolverIndex());
-
-    const output = await __testing.handleToolCall('resolve_entity', {
-      query: '若松さん',
-      types: ['person'],
-    });
-    const parsed = JSON.parse(output);
-
-    assert.strictEqual(parsed.candidates[0].entity_id, 'per_wakamatsu_fuyumi');
-    assert.ok(Object.prototype.hasOwnProperty.call(parsed, 'philosophy_context'));
-  });
-
-  it('story-graph-entity-resolver: keeps default resolve_entity JSON when philosophy context fetch fails', async () => {
-    __testing.setEntityIndex(seedResolverIndex());
     __testing.setGraphSource({
       async getPhilosophyContext() {
-        throw new Error('fetch failed');
+        return { prompt_block: 'Philosophy Context' };
       },
     } as unknown as GraphAPISource);
 
@@ -233,11 +219,51 @@ describe('Graph entity resolver', () => {
       });
       const parsed = JSON.parse(output);
 
-      assert.strictEqual(parsed.philosophy_context, null);
       assert.strictEqual(parsed.candidates[0].entity_id, 'per_wakamatsu_fuyumi');
-      assert.ok(parsed.searched_terms.includes('若松'));
+      assert.strictEqual(parsed.philosophy_context, 'Philosophy Context');
     } finally {
       __testing.setGraphSource(null);
     }
+  });
+
+  it('story-graph-entity-resolver: rejects resolve_entity when required philosophy context fetch fails', async () => {
+    __testing.setEntityIndex(seedResolverIndex());
+    __testing.setGraphSource({
+      async getPhilosophyContext() {
+        throw new Error('fetch failed');
+      },
+    } as unknown as GraphAPISource);
+
+    try {
+      await assert.rejects(
+        __testing.handleToolCall('resolve_entity', {
+          query: '若松さん',
+          types: ['person'],
+        }),
+        /fetch failed/
+      );
+    } finally {
+      __testing.setGraphSource(null);
+    }
+  });
+
+  it('story-graph-entity-resolver: rejects missing Graph source unless philosophy is explicitly disabled', async () => {
+    __testing.setEntityIndex(seedResolverIndex());
+    __testing.setGraphSource(null);
+
+    await assert.rejects(
+      __testing.handleToolCall('resolve_entity', {
+        query: '若松さん',
+        types: ['person'],
+      }),
+      /Graph source is unavailable/
+    );
+
+    const output = await __testing.handleToolCall('resolve_entity', {
+      query: '若松さん',
+      types: ['person'],
+      includePhilosophy: false,
+    });
+    assert.strictEqual(JSON.parse(output).candidates[0].entity_id, 'per_wakamatsu_fuyumi');
   });
 });

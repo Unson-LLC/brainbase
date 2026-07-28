@@ -19,12 +19,12 @@ story-eve-dispatch-handoff-transcript-context（PR #1022/#1023）でtranscript�
 
 1. **reconciler worker**: brainbase server内の定期worker（`EveMeetingNoteReconciler`）が、dispatch済みで未完了のEve run（`env=eve` / `status=running` / `metadata.meeting_note_generation` あり）を列挙する。
 2. **stream pull**: 既存の `EveSessionClient.readSessionStream()`（Basic認証 + Vercel bypass対応済み）でセッションstreamを取得し、`record_meeting_note_generation` tool-call inputから議事録を抽出する。
-3. **突合と書き戻し**: dispatch時に永続化した `run.metadata.meeting_note_generation`（run_id / source_text_hash、PR #1022）と突合し、一致した場合のみローカルの `workflowService.recordMeetingNoteGeneration`（source_text_hash一致検証あり）を呼ぶ。
+3. **突合と書き戻し**: dispatch時に永続化した `run.metadata.meeting_note_generation`（run_id / source_text_hash、PR #1022）と突合し、一致した場合のみローカルの `meetingAutomationService.recordNoteGeneration`（source_text_hash一致検証あり）を呼ぶ。
 4. **run閉包**: 書き戻し成功でdispatch runを `success` で閉じる。セッションが議事録なしで終端（parked/completed/failed）した場合は `blocked` にして運用者へ可視化する。
 
 ## Invariants
 
-- INV-reconciler-001: 書き戻しは既存のnote-generation契約（`recordMeetingNoteGeneration`、`source_text_hash` 完全一致・`meeting_note_draft` output必須）のみを通す。契約に無い書き込み経路を新設しない。
+- INV-reconciler-001: 書き戻しはMeeting Automationのnote-generation契約（`MeetingAutomationService.recordNoteGeneration`、`source_text_hash` 完全一致・`meeting_note_draft` output必須）のみを通す。契約に無い書き込み経路を新設しない。
 - INV-reconciler-002: streamから抽出した議事録は、dispatch時に永続化した `run.metadata.meeting_note_generation.source_text_hash` / `run_id` と一致した場合のみ採用する。hash不一致のtool-callは書き戻さない。
 - INV-reconciler-003: 対象ingest runの `meeting_note_draft` が既に `brainbase_generated` の場合はnoteを再書き込みしない。通常はdispatch runの閉包のみ行うが、同一sessionが進行中かつ候補outputがawaiting-Eveの場合は、noteを変更せず候補tool-callの到着またはsession終端までstreamのpollを継続する（冪等）。
 - INV-reconciler-004: セッションが議事録なしで境界（parked / completed / failed）に達したdispatch runは `blocked` + `action_required: operator_review_eve_session` にし、無限ポーリングしない。生成途中（mid-turn）のセッションは変更せず次tickで再確認する。
@@ -43,7 +43,7 @@ flowchart TD
   list --> stream["readSessionStream()"]
   stream --> extract["extractMeetingNoteToolCalls\n(actions.requested tool-call input)"]
   extract --> verify["hash/run_id突合\n(run.metadata.meeting_note_generation)"]
-  verify --> writeback["recordMeetingNoteGeneration (local)\nbrainbase_source_ready → brainbase_generated"]
+  verify --> writeback["recordNoteGeneration (local)\nbrainbase_source_ready → brainbase_generated"]
   writeback --> close["dispatch run success + audit reconciled"]
   verify -.no note & session terminal.-> blocked["dispatch run blocked + audit reconcile_blocked"]
   writeback --> approval["approve_meeting_note_publish (human)"]
@@ -51,7 +51,7 @@ flowchart TD
 
 ## Acceptance Criteria
 
-- [ ] AC-001: reconcilerは対象Eve dispatch run（`env=eve` / `status=running` / `metadata.meeting_note_generation.run_id` / `metadata.runner.session_id`）のみを列挙し、セッションstreamの `record_meeting_note_generation` tool-call inputから議事録を抽出して、ローカル `recordMeetingNoteGeneration` で `generation_status: brainbase_source_ready → brainbase_generated` へ遷移させる。
+- [ ] AC-001: reconcilerは対象Eve dispatch run（`env=eve` / `status=running` / `metadata.meeting_note_generation.run_id` / `metadata.runner.session_id`）のみを列挙し、セッションstreamの `record_meeting_note_generation` tool-call inputから議事録を抽出して、ローカル `recordNoteGeneration` で `generation_status: brainbase_source_ready → brainbase_generated` へ遷移させる。
 - [ ] AC-002: 書き戻し成功時、dispatch runは `success` / `closure_state: closed` で閉じ、audit `workflow.meeting_pack.note_generation.reconciled`（dispatch run）と `workflow.meeting_pack.note_generation.recorded`（ingest run）が記録される。
 - [ ] AC-003: `source_text_hash` が突合値と一致しないtool-callは書き戻されず、セッション終端時はdispatch runが `blocked` になる。
 - [ ] AC-004: 生成途中（stream終端が境界イベントでない）のセッションはpendingのまま残り、次回実行で書き戻される。
@@ -71,11 +71,11 @@ flowchart TD
 
 ## Architecture Decision
 
-ADR-unnecessary: 既存部品（`EveSessionClient.readSessionStream`・`recordMeetingNoteGeneration`・`meeting-source` sync workerのスケジューラ型）を組み合わせた追加的workerで、公開契約の変更はない。
+ADR-unnecessary: 既存部品（`EveSessionClient.readSessionStream`・`recordNoteGeneration`・`meeting-source` sync workerのスケジューラ型）を組み合わせた追加的workerで、公開契約の変更はない。
 
 代替案の比較: (1) Eve→Lightsail bb.unson.jp経由の中継書き戻しは、meeting-pack台帳がMacローカルにしかなく台帳二重化を招くため却下。(2) Cloudflare Tunnel等でローカルAPIをEveへ公開する案は、書き込みAPIの外部公開となり認証レルム・セキュリティ境界を壊すため却下。(3) 採用案（Mac側からのpull）は既存の認証済みread経路（session stream）のみを使い、書き込みはローカル内で完結する。
 
-境界と影響範囲: 変更は `server/services/external-runner/`（新規worker）とbootstrap/routes配線に閉じる。dispatch経路・ingest経路・note-generation契約は不変。書き戻しの検証（hash一致・output存在・scope検証）は既存 `recordMeetingNoteGeneration` が正本。
+境界と影響範囲: pull workerは `server/services/external-runner/`、書き戻し契約は `server/services/meeting-automation/` が所有する。dispatch経路・ingest経路・note-generationの外部HTTP契約は不変で、hash一致・output存在・scope検証は `MeetingAutomationService.recordNoteGeneration` が正本。
 
 ロールバック: workerとroute追加はadditiveで、`BRAINBASE_EVE_NOTE_RECONCILER_ENABLED=0` で無効化可能。git revertで安全に戻せる（永続変更はdispatch runのstatus/metadata更新とauditのみ）。
 

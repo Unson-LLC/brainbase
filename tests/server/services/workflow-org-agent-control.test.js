@@ -7,21 +7,17 @@ import {
     meetingPackIds
 } from '../../../server/services/workflow/meeting-workflow-pack.js';
 import {
-    WorkflowService,
+    TestAutomationRuntime,
     createDefaultWorkflowHandlers
-} from '../../../server/services/workflow/workflow-service.js';
+} from '../../helpers/test-automation-runtime.js';
+import { AutomationControlRuntime } from '../../../server/services/automation-runtime/automation-control-runtime.js';
 
 function makeService({
     repository = new InMemoryWorkflowRepository(),
     handlers = createDefaultWorkflowHandlers(),
     googleCalendarService = null,
     eveSessionClient = null,
-    infoSSOTService = null,
-    canonicalTaskService = {
-        async materializeWorkflowApproval() {
-            return { status: 'completed', task_ids: [], excluded_candidates: [], warnings: [], replayed: false };
-        }
-    }
+    infoSSOTService = null
 } = {}) {
     const runner = new WorkflowRunner({ repository, handlers });
     const configParser = {
@@ -37,15 +33,7 @@ function makeService({
             };
         }
     };
-    const service = new WorkflowService({
-        repository,
-        runner,
-        configParser,
-        googleCalendarService,
-        eveSessionClient,
-        infoSSOTService,
-        canonicalTaskService
-    });
+    const service = new TestAutomationRuntime({ repository, runner, configParser, googleCalendarService, eveSessionClient, infoSSOTService });
     const actor = {
         sub: 'keigo',
         person_id: 'keigo',
@@ -305,11 +293,37 @@ async function createAgentStack(service, actor, {
     }, actor);
 }
 
-describe('WorkflowService org agent loop control', () => {
+describe('automation control runtime boundaries', () => {
+    it('does not expose retired WorkflowService adapters', () => {
+        expect(AutomationControlRuntime.prototype.runWorkflow).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.rerun).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.getRun).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.resolveHumanStep).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.listRunReceiptInbox).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.listRunReceiptHistory).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.diagnoseRunReceipt).toBeUndefined();
+        expect(AutomationControlRuntime.prototype._prepareMeetingWorkflowPackRecords).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.reviewMeetingWorkflowPackDesign).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.bootstrapMeetingWorkflowPack).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.createMeetingPackCalendarLoopIntents).toBeUndefined();
+        expect(AutomationControlRuntime.prototype._dispatchMeetingNoteGeneration).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.ingestMeetingReviewPackage).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.recordMeetingNoteGeneration).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.recordMeetingCandidates).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.resolveMeetingReviewTaskOwnersFromSSOT).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.resolveMeetingReviewTaskOwnerCandidate).toBeUndefined();
+        expect(AutomationControlRuntime.prototype.lookupTaskOwnerPeopleSSOT).toBeUndefined();
+        expect(AutomationControlRuntime.prototype._loadProjectConfigCache).toBeUndefined();
+        expect(AutomationControlRuntime.prototype._assertProjectSelectable).toBeUndefined();
+        expect(AutomationControlRuntime.prototype._assertOrgReferenceAllowed).toBeUndefined();
+        expect(AutomationControlRuntime.prototype._assertActorCanAccessProject).toBeUndefined();
+        expect(AutomationControlRuntime.prototype._actorCanAccessProject).toBeUndefined();
+    });
+
     it('story-mana-meeting-workflow-pack-data-v1 S-001 bootstraps meeting pack records into Workflow Control data', async () => {
         const { repository, service, actor } = makeService();
 
-        const result = await service.bootstrapMeetingWorkflowPack({
+        const result = await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
@@ -417,7 +431,7 @@ describe('WorkflowService org agent loop control', () => {
     it('story-mana-meeting-workflow-pack-data-v1 INV-001 INV-003 INV-004 INV-005 INV-006 INV-007 executable coverage marker', async () => {
         const { repository, service, actor } = makeService();
 
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
 
         expect(repository.listRoleAgentInstances({ orgId: 'salestailor', projectId: 'salestailor' })).toEqual([
             expect.objectContaining({ role_archetype_id: 'meeting-ops', name: 'Meeting Ops Agent' })
@@ -451,8 +465,8 @@ describe('WorkflowService org agent loop control', () => {
     it('story-mana-meeting-workflow-pack-data-v1 S-009 INV-002 keeps meeting pack bootstrap idempotent', async () => {
         const { repository, service, actor } = makeService();
 
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
 
         expect(repository.listRoleAgentInstances({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(1);
         expect(repository.listWorkflowTemplates({ orgId: 'salestailor', projectId: 'salestailor', workflowKind: 'meeting' })).toHaveLength(5);
@@ -464,9 +478,9 @@ describe('WorkflowService org agent loop control', () => {
     it('story-eve-dispatch-handoff-transcript-context AC-004 S-002 rejects a referenced dispatch whose run belongs to another org/project', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'unson', project_id: 'unson' }, actor);
-        const ingest = await service.ingestMeetingReviewPackage({
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'unson', project_id: 'unson' }, actor);
+        const ingest = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor);
         const salestailorRunId = ingest.meeting_review_ingest.run.id;
@@ -492,7 +506,7 @@ describe('WorkflowService org agent loop control', () => {
     it('story-eve-runtime-session-connection-v0 S-001 dispatches a Loop Intent to an Eve session and records Brainbase control-plane evidence', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const loopIntent = repository
             .listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })
             .find((intent) => intent.input_payload.workflow_definition_id === 'pre-meeting-briefing');
@@ -584,7 +598,7 @@ describe('WorkflowService org agent loop control', () => {
         expect(repository.ledger.outputs).toHaveLength(0);
         expect(repository.ledger.human_steps).toHaveLength(0);
 
-        const runDetail = await service.getRun(result.eve_session_dispatch.run.id, actor);
+        const runDetail = await service.automationRunService.getRun(result.eve_session_dispatch.run.id, actor);
         expect(runDetail.run.metadata.runner).toMatchObject({
             type: 'eve',
             session_id: 'eve-session-service-001',
@@ -614,7 +628,7 @@ describe('WorkflowService org agent loop control', () => {
             ]
         });
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const loopIntent = repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })[0];
 
         const first = await service.dispatchLoopIntentToEve(loopIntent.id, {}, actor);
@@ -642,7 +656,7 @@ describe('WorkflowService org agent loop control', () => {
             continuation_token: 'cont-service-002',
             workflow_run_id: forced.eve_session_dispatch.run.id
         });
-        const forcedRun = await service.getRun(forced.eve_session_dispatch.run.id, actor);
+        const forcedRun = await service.automationRunService.getRun(forced.eve_session_dispatch.run.id, actor);
         const loopIntentSnapshot = forcedRun.context_snapshots.find((snapshot) => snapshot.source_type === 'loop_intent');
         expect(loopIntentSnapshot).toMatchObject({
             redaction_status: 'redacted',
@@ -656,15 +670,6 @@ describe('WorkflowService org agent loop control', () => {
             }
         });
         expect(loopIntentSnapshot.data.metadata.eve_session_ref.continuation_token).toBeUndefined();
-        repository.updateRun(forced.eve_session_dispatch.run.id, {
-            started_at: '2999-01-01T00:00:00.000Z'
-        });
-        const workflows = await service.listWorkflows({ projectId: 'salestailor' }, actor);
-        const workflowListSnapshot = workflows.workflows
-            .flatMap((workflow) => workflow.latest_context_snapshots || [])
-            .find((snapshot) => snapshot.workflow_run_id === forced.eve_session_dispatch.run.id && snapshot.source_type === 'loop_intent');
-        expect(workflowListSnapshot).toBeDefined();
-        expect(workflowListSnapshot.data.metadata.eve_session_ref.continuation_token).toBeUndefined();
         const listedLoopIntent = (await service.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' }, actor))
             .loop_intents
             .find((item) => item.id === loopIntent.id);
@@ -691,7 +696,7 @@ describe('WorkflowService org agent loop control', () => {
             continuationToken: null
         });
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const loopIntent = repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })[0];
 
         const result = await service.dispatchLoopIntentToEve(loopIntent.id, {}, actor);
@@ -722,7 +727,7 @@ describe('WorkflowService org agent loop control', () => {
     it('story-eve-runtime-session-connection-v0 S-001 supplies default Eve stop conditions for custom bindings', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const ids = meetingPackIds({
             orgId: 'salestailor',
             projectId: 'salestailor',
@@ -747,7 +752,7 @@ describe('WorkflowService org agent loop control', () => {
     it('story-eve-runtime-session-connection-v0 S-001 rejects non-string Eve stop conditions before handoff', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const ids = meetingPackIds({
             orgId: 'salestailor',
             projectId: 'salestailor',
@@ -812,7 +817,7 @@ describe('WorkflowService org agent loop control', () => {
         for (const [, mutate] of cases) {
             const eveSessionClient = makeEveSessionClient();
             const { repository, service, actor } = makeService({ eveSessionClient });
-            await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+            await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
             const ids = meetingPackIds({
                 orgId: 'salestailor',
                 projectId: 'salestailor',
@@ -832,7 +837,7 @@ describe('WorkflowService org agent loop control', () => {
     it('story-eve-runtime-session-connection-v0 S-001 rejects public Workflow Binding stop conditions that are not non-empty strings', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const roleAgent = repository.listRoleAgentInstances({ orgId: 'salestailor', projectId: 'salestailor' })[0];
         const template = repository.listWorkflowTemplates({ orgId: 'salestailor', projectId: 'salestailor' })[0];
 
@@ -851,7 +856,7 @@ describe('WorkflowService org agent loop control', () => {
     it('story-eve-runtime-session-connection-v0 S-004 blocks disabled or explicitly blocked Loop Intent before Eve dispatch', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const loopIntent = repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })[0];
         repository.upsertLoopIntent({
             ...loopIntent,
@@ -871,10 +876,10 @@ describe('WorkflowService org agent loop control', () => {
         expect(repository.ledger.runs).toHaveLength(0);
     });
 
-    it('story-eve-runtime-session-connection-v0 S-004 blocks generic workflow run path for Eve dispatch workflow', async () => {
+    it('story-eve-runtime-session-connection-v0 S-004 blocks Automation Run core for Eve dispatch workflow', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const first = await service.dispatchLoopIntentToEve(
             meetingPackIds({
                 orgId: 'salestailor',
@@ -886,7 +891,7 @@ describe('WorkflowService org agent loop control', () => {
             actor
         );
 
-        await expect(service.runWorkflow(first.eve_session_dispatch.workflow.id, {
+        await expect(service.automationRunService.runWorkflow(first.eve_session_dispatch.workflow.id, {
             actorId: actor.person_id,
             projectCodes: actor.projectCodes,
             role: actor.role,
@@ -894,7 +899,7 @@ describe('WorkflowService org agent loop control', () => {
         })).rejects.toMatchObject({
             message: 'eve-session-dispatch workflows cannot be manually run; use /api/workflows/control/loop-intents/:loopIntentId/eve-session'
         });
-        await expect(service.rerun(first.eve_session_dispatch.run.id, {
+        await expect(service.automationRunService.rerun(first.eve_session_dispatch.run.id, {
             actorId: actor.person_id
         }, actor)).rejects.toMatchObject({
             message: 'eve-session-dispatch workflows cannot be manually run; use /api/workflows/control/loop-intents/:loopIntentId/eve-session'
@@ -903,7 +908,7 @@ describe('WorkflowService org agent loop control', () => {
 
     it('story-eve-runtime-session-connection-v0 FM-001 fails loud before writes when Eve client is not configured', async () => {
         const { repository, service, actor } = makeService();
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const loopIntent = repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })[0];
 
         await expect(service.dispatchLoopIntentToEve(loopIntent.id, {}, actor)).rejects.toMatchObject({
@@ -927,7 +932,7 @@ describe('WorkflowService org agent loop control', () => {
     it('story-eve-runtime-session-connection-v0 gate blocks empty Eve dispatch messages before network calls', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const loopIntent = repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })[0];
 
         await expect(service.dispatchLoopIntentToEve(loopIntent.id, { message: '   ' }, actor)).rejects.toMatchObject({
@@ -951,7 +956,7 @@ describe('WorkflowService org agent loop control', () => {
         ]) {
             const eveSessionClient = makeEveSessionClient();
             const { repository, service, actor } = makeService({ eveSessionClient });
-            await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+            await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
             const loopIntent = repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })[0];
 
             await expect(service.dispatchLoopIntentToEve(loopIntent.id, input, actor)).rejects.toMatchObject({
@@ -975,7 +980,7 @@ describe('WorkflowService org agent loop control', () => {
         eveError.status = 502;
         const eveSessionClient = makeEveSessionClient({ reject: eveError });
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const loopIntent = repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })[0];
 
         await expect(service.dispatchLoopIntentToEve(loopIntent.id, {}, actor)).rejects.toMatchObject({
@@ -1003,7 +1008,7 @@ describe('WorkflowService org agent loop control', () => {
         eveError.code = 'eve_session_timeout';
         const eveSessionClient = makeEveSessionClient({ reject: eveError });
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const loopIntent = repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })[0];
 
         await expect(service.dispatchLoopIntentToEve(loopIntent.id, {}, actor)).rejects.toMatchObject({
@@ -1068,7 +1073,7 @@ describe('WorkflowService org agent loop control', () => {
     it('story-eve-runtime-session-connection-v0 S-016 blocks Eve dispatch when another process holds the Loop Intent dispatch lock', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const loopIntent = repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })[0];
         repository.acquireWorkflowLock({
             workspace_id: loopIntent.workspace_id || 'default',
@@ -1092,7 +1097,7 @@ describe('WorkflowService org agent loop control', () => {
     it('story-eve-runtime-session-connection-v0 FM-003 boundary_condition blocks missing Eve session id before Brainbase writes', async () => {
         const eveSessionClient = makeEveSessionClient({ sessionId: null, continuationToken: 'cont-without-session' });
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const loopIntent = repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })[0];
 
         await expect(service.dispatchLoopIntentToEve(loopIntent.id, {}, actor)).rejects.toMatchObject({
@@ -1119,7 +1124,7 @@ describe('WorkflowService org agent loop control', () => {
             continuationToken: 'cont-service-recovery'
         });
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const loopIntent = repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })[0];
         const originalCreateContextSnapshot = repository.createContextSnapshot.bind(repository);
         repository.createContextSnapshot = (snapshot) => {
@@ -1186,7 +1191,7 @@ describe('WorkflowService org agent loop control', () => {
     it('story-eve-runtime-session-connection-v0 S-004 blocks inconsistent Loop Control lineage before Eve dispatch', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const preMeetingIds = meetingPackIds({
             orgId: 'salestailor',
             projectId: 'salestailor',
@@ -1224,7 +1229,7 @@ describe('WorkflowService org agent loop control', () => {
     it('story-eve-runtime-session-connection-v0 S-004 blocks binding workflow_id reuse across org/project before Eve dispatch', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const preMeetingIds = meetingPackIds({
             orgId: 'salestailor',
             projectId: 'salestailor',
@@ -1272,7 +1277,7 @@ describe('WorkflowService org agent loop control', () => {
     it('story-eve-runtime-session-connection-v0 S-004 blocks same-scope generic workflow_id reuse before Eve dispatch', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const preMeetingIds = meetingPackIds({
             orgId: 'salestailor',
             projectId: 'salestailor',
@@ -1318,7 +1323,7 @@ describe('WorkflowService org agent loop control', () => {
     it('story-eve-runtime-session-connection-v0 S-014 blocks generated fallback workflow id collisions before Eve dispatch', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const preMeetingIds = meetingPackIds({
             orgId: 'salestailor',
             projectId: 'salestailor',
@@ -1364,7 +1369,7 @@ describe('WorkflowService org agent loop control', () => {
     it('story-eve-runtime-session-connection-v0 S-003 S-004 validates Loop Control lineage before idempotent Eve session replay', async () => {
         const eveSessionClient = makeEveSessionClient();
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const preMeetingIds = meetingPackIds({
             orgId: 'salestailor',
             projectId: 'salestailor',
@@ -1412,8 +1417,8 @@ describe('WorkflowService org agent loop control', () => {
             continuationToken: 'cont-unson-001'
         });
         const { repository, service, actor } = makeService({ eveSessionClient });
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'unson', project_id: 'unson' }, actor);
-        await service.bootstrapMeetingWorkflowPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'unson', project_id: 'unson' }, actor);
+        await service.meetingAutomationService.bootstrapPack({ org_id: 'salestailor', project_id: 'salestailor' }, actor);
         const unsonIds = meetingPackIds({
             orgId: 'unson',
             projectId: 'unson',
@@ -1456,7 +1461,7 @@ describe('WorkflowService org agent loop control', () => {
 
     it('story-loop-pack-design-gate-v0 S-003 blocks meeting pack bootstrap before writes when design review needs revision', async () => {
         const { repository, service, actor } = makeService();
-        service._prepareMeetingWorkflowPackRecords = async () => ({
+        service.meetingAutomationService._preparePackRecords = async () => ({
             orgId: 'salestailor',
             projectId: 'salestailor',
             actorId: 'keigo',
@@ -1488,7 +1493,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         });
 
-        await expect(service.bootstrapMeetingWorkflowPack({
+        await expect(service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor)).rejects.toThrow('loop pack design gate did not pass');
@@ -1505,7 +1510,7 @@ describe('WorkflowService org agent loop control', () => {
         const repository = new TriggerPersistenceFailureRepository();
         const { service, actor } = makeService({ repository });
 
-        await expect(service.bootstrapMeetingWorkflowPack({
+        await expect(service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor)).rejects.toThrow('persistence_failure');
@@ -1532,7 +1537,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         });
 
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
@@ -1575,7 +1580,7 @@ describe('WorkflowService org agent loop control', () => {
         };
         const { repository, service, actor } = makeService({ googleCalendarService });
 
-        const result = await service.createMeetingPackCalendarLoopIntents({
+        const result = await service.meetingAutomationService.createCalendarLoopIntents({
             org_id: 'salestailor',
             project_id: 'salestailor',
             from: '2026-06-22T00:00:00+09:00',
@@ -1668,7 +1673,7 @@ describe('WorkflowService org agent loop control', () => {
         };
         const { repository, service, actor } = makeService({ googleCalendarService });
 
-        const result = await service.createMeetingPackCalendarLoopIntents({
+        const result = await service.meetingAutomationService.createCalendarLoopIntents({
             org_id: 'salestailor',
             project_id: 'salestailor',
             from: '2026-06-22T00:00:00+09:00',
@@ -1723,7 +1728,7 @@ describe('WorkflowService org agent loop control', () => {
         };
         const { repository, service, actor } = makeService({ googleCalendarService });
 
-        const result = await service.createMeetingPackCalendarLoopIntents({
+        const result = await service.meetingAutomationService.createCalendarLoopIntents({
             org_id: 'salestailor',
             project_id: 'salestailor',
             from: '2026-06-22T00:00:00+09:00',
@@ -1782,8 +1787,8 @@ describe('WorkflowService org agent loop control', () => {
             calendar_ids: ['primary']
         };
 
-        const first = await service.createMeetingPackCalendarLoopIntents(input, actor);
-        const second = await service.createMeetingPackCalendarLoopIntents(input, actor);
+        const first = await service.meetingAutomationService.createCalendarLoopIntents(input, actor);
+        const second = await service.meetingAutomationService.createCalendarLoopIntents(input, actor);
 
         expect(first.meeting_calendar_inputs.loop_intents[0].id).toBe(second.meeting_calendar_inputs.loop_intents[0].id);
         expect(repository.listLoopIntents({ orgId: 'salestailor', projectId: 'salestailor' })).toHaveLength(1);
@@ -1800,7 +1805,7 @@ describe('WorkflowService org agent loop control', () => {
         };
         const { repository, service, actor } = makeService({ googleCalendarService });
 
-        await expect(service.createMeetingPackCalendarLoopIntents({
+        await expect(service.meetingAutomationService.createCalendarLoopIntents({
             org_id: 'salestailor',
             project_id: 'salestailor',
             from: '2026-06-22T00:00:00+09:00',
@@ -1848,7 +1853,7 @@ describe('WorkflowService org agent loop control', () => {
         };
         const { repository, service, actor } = makeService({ googleCalendarService });
 
-        await expect(service.createMeetingPackCalendarLoopIntents({
+        await expect(service.meetingAutomationService.createCalendarLoopIntents({
             org_id: 'salestailor',
             project_id: 'salestailor',
             from: '2026-06-22T00:00:00+09:00',
@@ -1907,7 +1912,7 @@ describe('WorkflowService org agent loop control', () => {
         };
         const { service, actor } = makeService({ repository, googleCalendarService });
 
-        await expect(service.createMeetingPackCalendarLoopIntents({
+        await expect(service.meetingAutomationService.createCalendarLoopIntents({
             org_id: 'salestailor',
             project_id: 'salestailor',
             from: '2026-06-22T00:00:00+09:00',
@@ -1925,12 +1930,12 @@ describe('WorkflowService org agent loop control', () => {
 
     it('story-meeting-review-package-ingest-v1 S-008 resolves org and project scope from meeting_identity candidates', async () => {
         const { repository, service, actor } = makeService();
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor);
 
@@ -1974,7 +1979,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ]);
         const { repository, service, actor } = makeService({ infoSSOTService });
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
@@ -1994,7 +1999,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ];
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor);
 
@@ -2068,7 +2073,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ]);
         const { service, actor } = makeService({ infoSSOTService });
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
@@ -2081,7 +2086,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ];
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor);
 
@@ -2117,7 +2122,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ]);
         const { service, actor } = makeService({ infoSSOTService });
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
@@ -2130,7 +2135,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ];
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor);
 
@@ -2181,7 +2186,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ]);
         const { service, actor } = makeService({ infoSSOTService });
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
@@ -2202,7 +2207,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ];
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor);
 
@@ -2281,7 +2286,7 @@ describe('WorkflowService org agent loop control', () => {
         ]);
         const { service, actor } = makeService({ infoSSOTService });
         actor.projectCodes = ['tech-knight'];
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'tech-knight',
             project_id: 'tech-knight'
         }, actor);
@@ -2297,7 +2302,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ];
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor);
 
@@ -2344,7 +2349,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ]);
         const { service, actor } = makeService({ infoSSOTService });
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
@@ -2357,7 +2362,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ];
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor);
 
@@ -2398,7 +2403,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ]);
         const { service, actor } = makeService({ infoSSOTService });
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
@@ -2429,7 +2434,7 @@ describe('WorkflowService org agent loop control', () => {
             }
         ];
 
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor);
 
@@ -2478,16 +2483,16 @@ describe('WorkflowService org agent loop control', () => {
 
     it('story-meeting-review-package-ingest-v1 keeps long review package ids idempotent without changing shared id semantics', async () => {
         const { repository, service, actor } = makeService();
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
         const longPackageId = `meeting-review-package-united-hotel-dx-${'decision-evidence-context-'.repeat(5)}`;
 
-        const first = await service.ingestMeetingReviewPackage({
+        const first = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage({ packageId: longPackageId })
         }, actor);
-        const second = await service.ingestMeetingReviewPackage({
+        const second = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage({ packageId: longPackageId })
         }, actor);
         const runId = first.meeting_review_ingest.run.id;
@@ -2510,11 +2515,11 @@ describe('WorkflowService org agent loop control', () => {
 
     it('story-meeting-review-package-ingest-v1 S-007 rejects loop intent project mismatch before writes', async () => {
         const { repository, service, actor } = makeService();
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'unson',
             project_id: 'unson'
         }, actor);
@@ -2525,7 +2530,7 @@ describe('WorkflowService org agent loop control', () => {
             definitionId: 'meeting-note-to-tasks'
         }).loopIntentId;
 
-        await expect(service.ingestMeetingReviewPackage({
+        await expect(service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor)).rejects.toThrow("loop_intent 'loop_unson_unson_meeting_note_to_tasks_bootstrap' belongs to 'unson/unson'");
 
@@ -2537,14 +2542,14 @@ describe('WorkflowService org agent loop control', () => {
 
     it('story-meeting-review-package-ingest-v1 rejects missing required loop intent key before writes', async () => {
         const { repository, service, actor } = makeService();
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
         const reviewPackage = sampleMeetingReviewPackage();
         delete reviewPackage.loop_intent_ids.meeting_note_to_tasks;
 
-        await expect(service.ingestMeetingReviewPackage({
+        await expect(service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor)).rejects.toThrow('review_package.loop_intent_ids is missing required meeting review key(s)');
 
@@ -2556,14 +2561,14 @@ describe('WorkflowService org agent loop control', () => {
 
     it('story-meeting-review-package-ingest-v1 rejects missing required output payload before writes', async () => {
         const { repository, service, actor } = makeService();
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
         const reviewPackage = sampleMeetingReviewPackage();
         delete reviewPackage.decision_candidates;
 
-        await expect(service.ingestMeetingReviewPackage({
+        await expect(service.meetingAutomationService.ingestReviewPackage({
             review_package: reviewPackage
         }, actor)).rejects.toThrow('review_package is missing required output payload key(s)');
 
@@ -2575,16 +2580,16 @@ describe('WorkflowService org agent loop control', () => {
 
     it('story-meeting-review-package-ingest-v1 resolves one approval step while keeping remaining approvals visible', async () => {
         const { repository, service, actor } = makeService();
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor);
         const step = result.meeting_review_ingest.human_steps[0];
 
-        const resolved = await service.resolveHumanStep(step.id, {
+        const resolved = await service.automationRunService.resolveHumanStep(step.id, {
             run_id: result.meeting_review_ingest.run.id,
             resolution: 'approved'
         }, actor);
@@ -2616,17 +2621,17 @@ describe('WorkflowService org agent loop control', () => {
 
     it('story-meeting-review-package-ingest-v1 closes the review run only after all generated approvals are resolved', async () => {
         const { repository, service, actor } = makeService();
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor);
 
         let latestResolution = null;
         for (const step of result.meeting_review_ingest.human_steps) {
-            latestResolution = await service.resolveHumanStep(step.id, {
+            latestResolution = await service.automationRunService.resolveHumanStep(step.id, {
                 run_id: result.meeting_review_ingest.run.id,
                 resolution: 'approved'
             }, actor);
@@ -2654,16 +2659,16 @@ describe('WorkflowService org agent loop control', () => {
 
     it('story-meeting-review-package-ingest-v1 cancels remaining review gates after one generated human rejection', async () => {
         const { repository, service, actor } = makeService();
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor);
         const [rejectedStep, staleApproveStep] = result.meeting_review_ingest.human_steps;
 
-        const rejected = await service.resolveHumanStep(rejectedStep.id, {
+        const rejected = await service.automationRunService.resolveHumanStep(rejectedStep.id, {
             run_id: result.meeting_review_ingest.run.id,
             resolution: 'rejected'
         }, actor);
@@ -2682,7 +2687,7 @@ describe('WorkflowService org agent loop control', () => {
         expect(repository.listHumanSteps(result.meeting_review_ingest.run.id).filter((humanStep) => humanStep.status === 'pending')).toHaveLength(0);
         expect(repository.listHumanSteps(result.meeting_review_ingest.run.id).filter((humanStep) => humanStep.status === 'cancelled')).toHaveLength(4);
 
-        await expect(service.resolveHumanStep(staleApproveStep.id, {
+        await expect(service.automationRunService.resolveHumanStep(staleApproveStep.id, {
             run_id: result.meeting_review_ingest.run.id,
             resolution: 'approved'
         }, actor)).rejects.toThrow(`human step '${staleApproveStep.id}' is already cancelled`);
@@ -2703,26 +2708,26 @@ describe('WorkflowService org agent loop control', () => {
         ]));
     });
 
-    it('story-meeting-review-package-ingest-v1 blocks manual run and rerun for review-ingest workflow before extra run writes', async () => {
+    it('story-meeting-review-package-ingest-v1 blocks Automation Run core and rerun before extra run writes', async () => {
         const { repository, service, actor } = makeService();
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor);
         const workflowId = result.meeting_review_ingest.run.workflow_id;
         const runId = result.meeting_review_ingest.run.id;
 
-        await expect(service.runWorkflow(workflowId, {
+        await expect(service.automationRunService.runWorkflow(workflowId, {
             actorId: actor.person_id,
             projectCodes: actor.projectCodes,
             role: actor.role,
             triggerType: 'manual'
         })).rejects.toThrow('meeting-review-package-ingest workflows cannot be manually run');
 
-        await expect(service.rerun(runId, {}, actor)).rejects.toThrow('meeting-review-package-ingest workflows cannot be manually run');
+        await expect(service.automationRunService.rerun(runId, {}, actor)).rejects.toThrow('meeting-review-package-ingest workflows cannot be manually run');
 
         expect(repository.listRuns({ workflowId })).toHaveLength(1);
         expect(repository.ledger.runs).toHaveLength(1);
@@ -2730,13 +2735,13 @@ describe('WorkflowService org agent loop control', () => {
         expect(repository.ledger.human_steps).toHaveLength(5);
     });
 
-    it('story-meeting-review-package-ingest-v1 preserves project access denial before manual run guard', async () => {
+    it('story-meeting-review-package-ingest-v1 preserves project access denial before Automation Run guard', async () => {
         const { repository, service, actor } = makeService();
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
-        const result = await service.ingestMeetingReviewPackage({
+        const result = await service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor);
         const workflowId = result.meeting_review_ingest.run.workflow_id;
@@ -2747,7 +2752,7 @@ describe('WorkflowService org agent loop control', () => {
             projectCodes: []
         };
 
-        await expect(service.runWorkflow(workflowId, {
+        await expect(service.automationRunService.runWorkflow(workflowId, {
             actorId: noAccessActor.person_id,
             projectCodes: noAccessActor.projectCodes,
             role: noAccessActor.role,
@@ -2757,7 +2762,7 @@ describe('WorkflowService org agent loop control', () => {
             message: "project 'salestailor' is not accessible"
         });
 
-        await expect(service.rerun(runId, {}, noAccessActor)).rejects.toMatchObject({
+        await expect(service.automationRunService.rerun(runId, {}, noAccessActor)).rejects.toMatchObject({
             statusCode: 403,
             message: "project 'salestailor' is not accessible"
         });
@@ -2771,14 +2776,14 @@ describe('WorkflowService org agent loop control', () => {
     it('story-meeting-review-package-ingest-v1 rolls back partial ingest writes when persistence fails mid-transaction', async () => {
         const repository = new MeetingReviewOutputFailureRepository();
         const { service, actor } = makeService({ repository });
-        await service.bootstrapMeetingWorkflowPack({
+        await service.meetingAutomationService.bootstrapPack({
             org_id: 'salestailor',
             project_id: 'salestailor'
         }, actor);
         const beforeWorkflowCount = repository.ledger.workflows.length;
         const beforeAuditCount = repository.ledger.audit_logs.length;
 
-        await expect(service.ingestMeetingReviewPackage({
+        await expect(service.meetingAutomationService.ingestReviewPackage({
             review_package: sampleMeetingReviewPackage()
         }, actor)).rejects.toThrow('persistence_failure: workflow_outputs write failed');
 

@@ -1,0 +1,30 @@
+{
+  "status": "pre_merge_pass_with_deployment_gap",
+  "observed_at": "2026-07-18T15:42:07Z",
+  "rest_readback": "passed",
+  "legacy_typed_rest_premerge": "deployment_gap_observed",
+  "legacy_typed_rest_post_merge_required": true,
+  "mcp_decision_readback": "passed",
+  "mcp_baao_philosophy_context": "passed",
+  "post_apply_dry_run": "passed",
+  "live_graph_ci_checks": 4,
+  "legacy_business_references": 0,
+  "legacy_current_person_references": 0,
+  "preserved_legacy_auth_audit_logs": 14,
+  "audit_proof_scope": "count_preserved_and_no_direct_normalization_write",
+  "finance_member_internal_denied": true,
+  "finance_ceo_positive_control": true,
+  "physical_deletes": 0,
+  "pr_creation_gate": "current_head_implementation_verified",
+  "story_closure_gate": "post_merge_production_readback_pending",
+  "source_artifacts": [
+    ".vibepro/evidence/story-graph-data-ssot-normalization/rest-readback.json",
+    ".vibepro/evidence/story-graph-data-ssot-normalization/mcp-readback.json",
+    ".vibepro/evidence/story-graph-data-ssot-normalization/live-post-apply-dry-run.json",
+    ".vibepro/evidence/story-graph-data-ssot-normalization/audit-post-apply-hash-readback.json",
+    ".vibepro/evidence/story-graph-data-ssot-normalization/service-finance-boundary-readback.json",
+    ".vibepro/evidence/story-graph-data-ssot-normalization/vibepro-graph-ssot-check.txt",
+    ".vibepro/evidence/story-graph-data-ssot-normalization/production-legacy-typed-rest-premerge.json"
+  ],
+  "secrets_included": false
+}

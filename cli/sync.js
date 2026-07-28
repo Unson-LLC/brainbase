@@ -18,7 +18,7 @@ export async function wikiStatus() {
     const wikiDir = config.wiki_dir;
     const headers = getHeaders(auth);
 
-    console.log(`Wiki status`);
+    console.log(`Wiki retirement/export status (read-only server)`);
     console.log(`  Server: ${serverUrl}`);
     console.log(`  Local:  ${wikiDir}`);
 
@@ -150,7 +150,7 @@ export async function sync() {
     const wikiDir = config.wiki_dir;
     const headers = getHeaders(auth);
 
-    console.log(`Syncing wiki...`);
+    console.log(`Exporting wiki changes from the retired read-only server...`);
     console.log(`  Server: ${serverUrl}`);
     console.log(`  Local:  ${wikiDir}`);
 
@@ -232,33 +232,10 @@ export async function sync() {
         }
     }
 
-    // Step 5: Push
+    // Step 5: Preserve local-only/newer content without creating another server copy.
     if (toPush.length > 0) {
-        console.log(`Pushing ${toPush.length} pages...`);
-        const pages = toPush.map(item => {
-            const p = typeof item === 'string' ? item : item.path;
-            const filePath = path.join(wikiDir, `${p}.md`);
-            return {
-                path: p,
-                content: fs.readFileSync(filePath, 'utf-8'),
-                if_unmodified_since: item.if_unmodified_since || null
-            };
-        });
-        const res = await fetch(`${serverUrl}/api/wiki/sync/push`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ pages })
-        });
-        const results = await res.json();
-        for (const result of results) {
-            if (result.success) {
-                console.log(`  ↑ ${result.path}`);
-            } else if (result.error === 'conflict') {
-                console.log(`  ⚡ CONFLICT: ${result.path} (server modified at ${result.server_updated_at})`);
-            } else if (result.error === 'forbidden') {
-                console.log(`  🚫 ${result.path} (no permission)`);
-            }
-        }
+        console.warn(`Preserved ${toPush.length} local-only/newer pages; Wiki writes are retired.`);
+        console.warn('Classify them into Graph, the owning Git repository, Drive, or the workspace home.');
     }
 
     // Save sync state
@@ -268,7 +245,7 @@ export async function sync() {
         files_synced: serverManifest.length
     });
 
-    console.log('\nSync complete.');
+    console.log('\nRead-only export complete.');
 }
 
 /**
@@ -327,52 +304,7 @@ export async function pull() {
  * Push only (local → server)
  */
 export async function push() {
-    const config = getConfig();
-    const auth = getAuth();
-    if (!auth) {
-        console.error('Not logged in. Run: brainbase auth login');
-        process.exit(1);
-    }
-
-    const serverUrl = auth.server_url || config.server_url;
-    const wikiDir = config.wiki_dir;
-    const headers = getHeaders(auth);
-
-    console.log('Pushing local wiki pages...');
-
-    const localFiles = collectLocalFiles(wikiDir);
-    if (localFiles.length === 0) {
-        console.log('No local wiki files found.');
-        return;
-    }
-
-    const pages = localFiles.map(f => ({
-        path: f.path,
-        content: fs.readFileSync(f.fullPath, 'utf-8')
-    }));
-
-    const res = await fetch(`${serverUrl}/api/wiki/sync/push`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ pages })
-    });
-    const results = await res.json();
-
-    let pushed = 0;
-    let conflicts = 0;
-    let forbidden = 0;
-    for (const result of results) {
-        if (result.success) {
-            console.log(`  ↑ ${result.path}`);
-            pushed++;
-        } else if (result.error === 'conflict') {
-            console.log(`  ⚡ CONFLICT: ${result.path}`);
-            conflicts++;
-        } else if (result.error === 'forbidden') {
-            console.log(`  🚫 ${result.path}`);
-            forbidden++;
-        }
-    }
-
-    console.log(`\nPushed: ${pushed}, Conflicts: ${conflicts}, Forbidden: ${forbidden}`);
+    throw new Error(
+        'Wiki writes are retired. Classify content into Graph, the owning Git repository, Drive, or the workspace home.'
+    );
 }

@@ -57,7 +57,7 @@ agent_report run は実行可能な workflow 実体（登録ランナーハン�
 従来 `resolveHumanStep` はこれを `runWorkflow(step.workflow_id)` の generic フォールバックへ流し、
 ハンドラ未登録のため **孤児 needs_action run** を残していた。
 
-対応（`server/services/workflow/workflow-service.js`）:
+対応（`server/services/automation-run/automation-run-service.js`）:
 
 - `isAgentReportWorkflow`（`implementation_key === 'external-runner:agent_report'`）と
   共通述語 `isApprovalOnlyIngestWorkflow`（meeting_review_package と共有）を追加。

@@ -1,0 +1,35 @@
+id: meeting.automation
+name: Meeting Automation
+purpose: Turn connected meeting-source artifacts into review packages, Eve note generation, candidate outputs, human approval, and audited run evidence.
+surfaces:
+  ui: []
+  mcp: []
+  api:
+    - POST /api/workflows/control/meeting-pack/bootstrap
+    - POST /api/workflows/control/meeting-pack/calendar-inputs
+    - POST /api/workflows/control/meeting-pack/review-ingest
+    - POST /api/workflows/control/meeting-pack/note-generation
+  code:
+    - server/services/meeting-source/meeting-source-mcp-sync-service.js
+    - server/services/external-runner/eve-meeting-note-reconciler.js
+    - server/services/meeting-automation/meeting-automation-service.js
+    - server/services/automation-runtime/eve-session-dispatch-service.js
+  data:
+    - var/meeting-source-mcp-state.json
+    - var/workflow-ledger.json
+depends_on:
+  - automation.run-core
+visibility_rules:
+  - Meeting Source Sync and Eve reconciliation remain live while the generic Workflow product retires.
+  - Current workflow-prefixed routes are compatibility paths and move only through a tested adapter migration.
+  - Morning and noon Meeting Prep Packs remain Codex Automations and are not moved into this server runtime.
+verification:
+  commands:
+    - npm run test:run -- tests/server/meeting-source-mcp-sync-worker.test.js tests/server/services/eve-meeting-note-reconciler.test.js tests/server/routes/workflows.test.js
+  expected:
+    - Source sync, ingest, dispatch, reconciliation, human waiting, output, and audit paths remain green without a Meeting Pack Web page.
+common_failures:
+  - Bypassing MeetingAutomationService or EveSessionDispatchService breaks scope and idempotency guarantees.
+  - A submitted idempotent package is mistaken for a newly-created run.
+runbooks: []
+troubleshooting: []

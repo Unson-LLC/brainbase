@@ -37,6 +37,25 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         vi.restoreAllMocks();
     });
 
+    it('getPersonBySlackIdは有効なgrantを確認しGraph人物へ紐づくusersのperson_idを優先する', async () => {
+        const { service, client } = buildService();
+        client.query.mockResolvedValueOnce({ rows: [{ id: 'per_1', name: 'Test User' }] });
+
+        const person = await service.getPersonBySlackId('U123', 'T123');
+
+        expect(person).toEqual({ id: 'per_1', name: 'Test User' });
+        expect(client.query).toHaveBeenCalledWith(
+            expect.stringContaining('FROM auth_grants'),
+            ['U123', 'T123']
+        );
+        const sql = client.query.mock.calls[0][0];
+        expect(sql).toContain('LEFT JOIN users');
+        expect(sql).toContain('COALESCE(u.person_id, ag.person_id)');
+        expect(sql).toContain('ag.slack_workspace_id = $2');
+        expect(sql).toContain('ag.active = true');
+        expect(sql).not.toContain('people_slack');
+    });
+
     it('getContext呼び出し時_includePhilosophy未指定_既存レスポンスを維持する', async () => {
         const { service } = buildService();
         const fetchSpy = vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, _access, { entityType }) => {
@@ -77,6 +96,60 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(listSpy).not.toHaveBeenCalled();
     });
 
+    it('旧org IDのtyped getはalias行ではなくcanonical orgへ解決する', async () => {
+        const { service } = buildService();
+        const byIdsSpy = vi.spyOn(service, 'fetchGraphEntitiesByIds')
+            .mockResolvedValueOnce([{ id: 'org_baao', entity_type: 'org_alias' }])
+            .mockResolvedValueOnce([{ id: 'baao', entity_type: 'org', payload: { name: 'BAAO' } }]);
+        vi.spyOn(service, 'fetchGraphAliasTargetsByIds').mockResolvedValue([
+            { alias_id: 'org_baao', canonical_entity_id: 'baao' }
+        ]);
+
+        const rows = await service.listGraphEntities(accessContext, {
+            id: 'org_baao',
+            projectCode: 'brainbase',
+            entityType: 'org'
+        });
+
+        expect(rows).toEqual([{ id: 'baao', entity_type: 'org', payload: { name: 'BAAO' } }]);
+        expect(byIdsSpy).toHaveBeenNthCalledWith(2, expect.anything(), accessContext, {
+            ids: ['baao'],
+            projectCode: 'brainbase'
+        });
+    });
+
+    it('旧person IDのtyped getはcanonical personへ解決する', async () => {
+        const { service } = buildService();
+        vi.spyOn(service, 'fetchGraphEntitiesByIds')
+            .mockResolvedValueOnce([{ id: 'per_legacy', entity_type: 'person_alias' }])
+            .mockResolvedValueOnce([{ id: 'per_canonical', entity_type: 'person', payload: { name: '佐藤 圭吾' } }]);
+        vi.spyOn(service, 'fetchGraphAliasTargetsByIds').mockResolvedValue([
+            { alias_id: 'per_legacy', canonical_entity_id: 'per_canonical' }
+        ]);
+
+        const rows = await service.listGraphEntities(accessContext, {
+            id: 'per_legacy',
+            projectCode: 'brainbase',
+            entityType: 'person'
+        });
+
+        expect(rows.map((row) => row.id)).toEqual(['per_canonical']);
+    });
+
+    it('org/personの型付き一覧はalias解決を行わずcanonical型だけを列挙する', async () => {
+        const { service } = buildService();
+        const listSpy = vi.spyOn(service, 'fetchGraphEntities').mockResolvedValue([
+            { id: 'baao', entity_type: 'org' }
+        ]);
+        const aliasSpy = vi.spyOn(service, 'fetchGraphAliasTargetsByIds');
+
+        const rows = await service.listGraphEntities(accessContext, { entityType: 'org' });
+
+        expect(rows).toEqual([{ id: 'baao', entity_type: 'org' }]);
+        expect(listSpy).toHaveBeenCalledOnce();
+        expect(aliasSpy).not.toHaveBeenCalled();
+    });
+
     it('listGraphEntities呼び出し時_queryをGraph検索へ渡す', async () => {
         const { service } = buildService();
         const listSpy = vi.spyOn(service, 'fetchGraphEntities').mockResolvedValue([]);
@@ -94,6 +167,74 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             query: '矢島様',
             limit: 20
         });
+    });
+
+    it('finance entityは呼出元のclearanceとroleをDB検索条件で同時に制約する', async () => {
+        const { service, client } = buildService();
+        const memberAccess = {
+            role: 'member',
+            projectCodes: ['unson'],
+            clearance: ['internal']
+        };
+
+        await service.listGraphEntities(memberAccess, {
+            projectCode: 'unson',
+            entityType: 'finance_account',
+            limit: 20
+        });
+
+        const graphQuery = client.query.mock.calls.find(([text]) => (
+            typeof text === 'string'
+            && text.includes('FROM graph_entities ge')
+            && text.includes('ge.sensitivity = ANY($4)')
+        ));
+        expect(graphQuery).toBeDefined();
+        expect(graphQuery[0]).toContain("CASE ge.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END");
+        expect(graphQuery[1]).toEqual([
+            'unson',
+            'finance_account',
+            ['unson'],
+            ['internal'],
+            1,
+            null,
+            null,
+            20
+        ]);
+    });
+
+    it('member/internalからfinance entityはID・型の双方で不可視、ceo/financeでは可視になる', async () => {
+        const { service, client } = buildService();
+        const financeRow = {
+            id: 'fin_unson_bank_account',
+            entity_type: 'finance_account',
+            role_min: 'ceo',
+            sensitivity: 'finance'
+        };
+        client.query.mockImplementation(async (text, params = []) => {
+            if (typeof text !== 'string' || !text.includes('FROM graph_entities ge')) return { rows: [] };
+            const canReadFinance = params.some((value) => Array.isArray(value) && value.includes('finance'))
+                && params.includes(3);
+            return { rows: canReadFinance ? [financeRow] : [] };
+        });
+        const member = { role: 'member', projectCodes: ['unson'], clearance: ['internal'] };
+        const ceo = { role: 'ceo', projectCodes: ['unson'], clearance: ['internal', 'finance'] };
+
+        const memberById = await service.listGraphEntities(member, {
+            id: financeRow.id,
+            projectCode: 'unson'
+        });
+        const memberByType = await service.listGraphEntities(member, {
+            projectCode: 'unson',
+            entityType: 'finance_account'
+        });
+        const ceoById = await service.listGraphEntities(ceo, {
+            id: financeRow.id,
+            projectCode: 'unson'
+        });
+
+        expect(memberById).toEqual([]);
+        expect(memberByType).toEqual([]);
+        expect(ceoById).toEqual([financeRow]);
     });
 
     it('getContext呼び出し時_includePhilosophy有効_scope別思想contextを返す', async () => {
@@ -182,6 +323,111 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(result.philosophy_context.prompt_block).toContain('CRMの中心は推進案件');
         expect(result.philosophy_context.decision_tests).toContain('正本と投影を分けているか');
         expect(result.philosophy_context.anti_patterns).toContain('NocoDBを顧客正本にする');
+    });
+
+    it('事業projectのcontextへBrainbase共通思想とproject固有思想を合成する', async () => {
+        const { service } = buildService();
+        const fetchSpy = vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, access, { projectCode, entityType }) => {
+            if (entityType === 'project' && projectCode === 'baao') {
+                return [{
+                    id: 'prj_baao',
+                    entity_type: 'project',
+                    payload: { code: 'baao', name: 'BAAO' }
+                }];
+            }
+            if (entityType !== 'philosophy') return [];
+            if (projectCode === 'brainbase') {
+                expect(access.projectCodes).toContain('brainbase');
+                return [{
+                    id: 'phi_graph_ssot_first',
+                    entity_type: 'philosophy',
+                    payload: {
+                        philosophy_id: 'phi_graph_ssot_first',
+                        display_name: 'Graph SSOTを一次情報にする',
+                        statement: 'Graphを一次情報として扱う。',
+                        priority: 'core'
+                    }
+                }];
+            }
+            if (projectCode === 'baao') {
+                return [{
+                    id: 'phi_baao_trusted_ai_adoption',
+                    entity_type: 'philosophy',
+                    payload: {
+                        philosophy_id: 'phi_baao_trusted_ai_adoption',
+                        display_name: 'BAAO Trusted AI Adoption',
+                        statement: '信頼できるAI活用を普及する。',
+                        priority: 'core'
+                    }
+                }];
+            }
+            return [];
+        });
+
+        const result = await service.getContext({
+            role: 'member',
+            projectCodes: ['baao'],
+            clearance: ['internal']
+        }, {
+            projectCode: 'baao',
+            entityTypes: 'project',
+            includePhilosophy: true,
+            scope: 'graph'
+        });
+
+        expect(result.philosophy_context.project_code).toBe('baao');
+        expect(result.philosophy_context.core.map(item => item.philosophy_id)).toEqual(
+            expect.arrayContaining(['phi_graph_ssot_first', 'phi_baao_trusted_ai_adoption'])
+        );
+        expect(fetchSpy).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ projectCodes: ['baao'] }),
+            expect.objectContaining({ projectCode: 'baao', entityType: 'philosophy' })
+        );
+    });
+
+    it('固有思想がない事業projectでもBrainbase共通core思想を返す', async () => {
+        const { service, client } = buildService();
+        vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, _access, { projectCode, entityType }) => {
+            if (entityType === 'philosophy' && projectCode === 'brainbase') {
+                return [{
+                    id: 'phi_graph_ssot_first',
+                    entity_type: 'philosophy',
+                    payload: {
+                        philosophy_id: 'phi_graph_ssot_first',
+                        display_name: 'Graph SSOTを一次情報にする',
+                        statement: 'Graphを一次情報として扱う。',
+                        priority: 'core'
+                    }
+                }];
+            }
+            return [];
+        });
+
+        const result = await service.getContext({
+            role: 'member',
+            projectCodes: ['zeims'],
+            clearance: ['internal']
+        }, {
+            projectCode: 'zeims',
+            entityTypes: 'project',
+            includePhilosophy: true,
+            scope: 'graph'
+        });
+
+        expect(result.philosophy_context).toMatchObject({
+            project_code: 'zeims',
+            scope: 'graph'
+        });
+        expect(result.philosophy_context.core.map(item => item.philosophy_id)).toContain('phi_graph_ssot_first');
+        expect(client.query).toHaveBeenCalledWith(
+            'SELECT set_config($1, $2, true)',
+            ['app.project_codes', 'zeims,brainbase']
+        );
+        expect(client.query).toHaveBeenCalledWith(
+            'SELECT set_config($1, $2, true)',
+            ['app.project_codes', 'zeims']
+        );
     });
 
     it('getContext呼び出し時_includePhilosophy有効でcore思想がない場合_失敗する', async () => {

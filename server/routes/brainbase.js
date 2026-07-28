@@ -26,13 +26,13 @@ export function createBrainbaseRouter(options = {}) {
         systemService = new SystemService(),
         storageService = new StorageService(),
         nocodbService = new NocoDBService(),
-        worktreeService,
         configParser,
         projectsRoot,
         infoSSOTService,
         wikiService,
         canonicalTaskService,
-        authGuard
+        authGuard,
+        projectCatalogAuthGuard
     } = options;
     const resolvedProjectsRoot = projectsRoot || process.env.PROJECTS_ROOT || null;
     const manaRepoPath = process.env.MANA_REPO_PATH
@@ -47,8 +47,8 @@ export function createBrainbaseRouter(options = {}) {
         systemService,
         storageService,
         nocodbService,
-        worktreeService,
-        configParser
+        configParser,
+        projectCatalogAuthGuard
     }));
 
     router.use(createBrainbaseTrendsRouter({

@@ -1,0 +1,129 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-decision-events-kpi-v1",
+  "stage": "architecture_spec",
+  "role": "architecture_boundary",
+  "status": "needs_changes",
+  "summary": "Content-preserving ledger tampering can remain hidden behind the in-memory cache",
+  "findings": [
+    {
+      "severity": "medium",
+      "id": "cache-masks-corruption",
+      "detail": "Same-size same-inode mutation with restored mtime bypasses authoritative revalidation"
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [
+    ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92de.json"
+  ],
+  "inspection": {
+    "summary": "Reviewed ledger authority, cache synchronization, index recovery, API auth, and KPI Slack boundaries; reproduced one cache integrity bypass",
+    "evidence": "tests/server/services/companion/decision-event-service.test.js",
+    "inputs": [
+      "server/services/companion/decision-event-service.js"
+    ]
+  },
+  "judgment_delta": [
+    "Prior fixes closed three integrity gaps, but adversarial same-metadata mutation demonstrates one remaining fail-closed gap"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+    "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+    "expected_root": null,
+    "expected_head_sha": "b18e44d66b8dc1b99dd6e237cc91cd6f3f585dc7",
+    "current_head_sha": "b18e44d66b8dc1b99dd6e237cc91cd6f3f585dc7",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+      "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+      "expected_root": null,
+      "expected_head_sha": "b18e44d66b8dc1b99dd6e237cc91cd6f3f585dc7",
+      "current_head_sha": "b18e44d66b8dc1b99dd6e237cc91cd6f3f585dc7",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-24T06:54:34.672Z",
+  "git_context": {
+    "head_sha": "b18e44d66b8dc1b99dd6e237cc91cd6f3f585dc7",
+    "current_branch": "codex/decision-event-global-dedupe",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-24T06:54:34.652Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "Bind the reproduced cache integrity finding to exact HEAD b18e44d"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "b18e44d66b8dc1b99dd6e237cc91cd6f3f585dc7",
+    "surface_files": [
+      {
+        "path": "server/services/companion/decision-event-service.js",
+        "sha256": "901075067b68090226e9d8936e76f9466a4e7d0d988dde064848cf11726176f7",
+        "size": 35614
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "968a7497112792cd2ceec3913d60fe3c2fca3d2ca338021ce6665c95eb49c794"
+  },
+  "source_fingerprint": "18b36277a68748a294f008739dc98bba8fa818d58af36486096e670d63a27110",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f92de-2bbc-77d0-bc03-de95429a3321",
+    "agent_role": null,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "cost_tier": "low",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92de.json",
+    "request_artifact": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/review-request-architecture_boundary.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92de.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": null,
+      "implementation_session_id": null,
+      "source": "cli_flag"
+    }
+  },
+  "agent_usage": null
+}

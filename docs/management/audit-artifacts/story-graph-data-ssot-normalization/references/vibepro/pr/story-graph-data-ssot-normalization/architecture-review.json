@@ -1,0 +1,53 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-data-ssot-normalization",
+  "created_at": "2026-07-18T17:33:36.135Z",
+  "status": "satisfied",
+  "required": true,
+  "architecture_decision": "ADR不要: 既存Graph entity/edge・role_min/sensitivity・InfoSSOTService・Graph API・MCP・transaction/backup契約の範囲内で完結し、新規runtime境界・schema・外部APIを導入しないため",
+  "source_artifacts": {
+    "story": "docs/management/stories/story-graph-data-ssot-normalization.md",
+    "review_cockpit": null,
+    "gate_dag": null
+  },
+  "gates": {
+    "architecture": {
+      "status": "satisfied",
+      "reason": "ADR不要: 既存Graph entity/edge・role_min/sensitivity・InfoSSOTService・Graph API・MCP・transaction/backup契約の範囲内で完結し、新規runtime境界・schema・外部APIを導入しないため"
+    },
+    "spec": {
+      "status": "inferred",
+      "reason": "12 clauses inferred from Story+Code+Test"
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-07-18T17:33:34.174Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.1.0-beta.0",
+      "root": "/Users/ksato/.codex/worktrees/d3d9/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/bin/vibepro",
+      "runtime_module": "/Users/ksato/.codex/worktrees/d3d9/vibepro/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "88dd9d39aee5be1cc2dcc359c5310f7a0faeb717",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "389ea320519c54ebe9acfd5de0504899e35b9c58",
+      "origin_main_relation": "behind",
+      "dirty": false,
+      "dirty_summary": []
+    }
+  },
+  "review_record": {
+    "approved": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

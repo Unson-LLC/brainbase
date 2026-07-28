@@ -1,6 +1,9 @@
 import { logger } from '../utils/logger.js';
 import { ReplyDraftServiceError } from '../services/companion/reply-draft-service.js';
-import { DecisionEventValidationError } from '../services/companion/decision-event-service.js';
+import {
+    DecisionEventStorageError,
+    DecisionEventValidationError
+} from '../services/companion/decision-event-service.js';
 import { createCanonicalTaskPrincipal } from '../services/companion/canonical-task-principal.js';
 
 function serializeError(error) {
@@ -92,9 +95,14 @@ function normalizePerson(record) {
 }
 
 export class CompanionController {
-    constructor(replyDraftService, { workflowService = null, infoSSOTService = null, decisionEventService = null, canonicalTaskService = null } = {}) {
+    constructor(replyDraftService, {
+        companionApprovalInboxService = null,
+        infoSSOTService = null,
+        decisionEventService = null,
+        canonicalTaskService = null
+    } = {}) {
         this.replyDraftService = replyDraftService;
-        this.workflowService = workflowService;
+        this.companionApprovalInboxService = companionApprovalInboxService;
         this.infoSSOTService = infoSSOTService;
         this.decisionEventService = decisionEventService;
         this.canonicalTaskService = canonicalTaskService;
@@ -208,10 +216,10 @@ export class CompanionController {
     };
 
     listApprovalInbox = async (req, res) => {
-        if (!this.workflowService?.listCompanionApprovalInbox) {
+        if (!this.companionApprovalInboxService?.list) {
             res.status(503).json({
-                error: 'Workflow service is not configured',
-                code: 'workflow_service_unconfigured'
+                error: 'Companion approval inbox service is not configured',
+                code: 'companion_approval_inbox_service_unconfigured'
             });
             return;
         }
@@ -225,7 +233,7 @@ export class CompanionController {
         const projectId = req.query.project_id || req.query.projectId || null;
         const limit = Number.parseInt(String(req.query.limit || '100'), 10);
         try {
-            const result = await this.workflowService.listCompanionApprovalInbox({
+            const result = await this.companionApprovalInboxService.list({
                 projectId,
                 limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 500) : 100
             }, actor);
@@ -351,7 +359,7 @@ export class CompanionController {
             const { event, duplicate } = this.decisionEventService.insertEvent(req.body || {});
             res.status(duplicate ? 200 : 201).json({ ok: true, duplicate, event });
         } catch (error) {
-            if (error instanceof DecisionEventValidationError) {
+            if (error instanceof DecisionEventValidationError || error instanceof DecisionEventStorageError) {
                 res.status(error.status).json({
                     error: error.message,
                     code: error.code,
@@ -381,7 +389,7 @@ export class CompanionController {
             const events = this.decisionEventService.listEvents({ from, to });
             res.json({ count: events.length, events });
         } catch (error) {
-            if (error instanceof DecisionEventValidationError) {
+            if (error instanceof DecisionEventValidationError || error instanceof DecisionEventStorageError) {
                 res.status(error.status).json({
                     error: error.message,
                     code: error.code,

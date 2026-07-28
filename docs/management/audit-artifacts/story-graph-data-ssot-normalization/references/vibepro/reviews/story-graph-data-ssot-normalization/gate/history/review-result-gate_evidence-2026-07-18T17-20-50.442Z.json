@@ -1,0 +1,112 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-data-ssot-normalization",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "Responsibility Authority consumes People SSOT 118/118, Story and artifacts agree on targeted 51/51, and all verification is strict-head bound to 3755029d.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [
+    ".vibepro/reviews/story-graph-data-ssot-normalization/gate/gate-evidence-3755029-result.json"
+  ],
+  "inspection": {
+    "summary": "Independently compared current review request, pr-prepare, verification, Story, tracked evidence, RA, production negative evidence, hashes, and 12-file/11-commit diff.",
+    "evidence": ".vibepro/pr/story-graph-data-ssot-normalization/verification-evidence.json",
+    "inputs": [
+      ".vibepro/reviews/story-graph-data-ssot-normalization/gate/review-request-gate_evidence.md",
+      "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "docs/management/evidence/graph-data-ssot-normalization-20260718.json"
+    ]
+  },
+  "judgment_delta": [
+    "Previous RA/composite and 50-vs-51 gaps are resolved; Playwright remains artifact_replay and production typed-ID negative remains postmerge closure."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+    "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+    "expected_root": null,
+    "expected_head_sha": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+    "current_head_sha": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+      "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+      "expected_root": null,
+      "expected_head_sha": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "current_head_sha": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-18T17:20:50.442Z",
+  "git_context": {
+    "head_sha": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+    "current_branch": "codex/graph-data-ssot-normalization",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-18T17:20:50.441Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "43396c1bd1038d5b50f3d5c349bacf4f27692419867cae6819db5ea630692160",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/gate_evidence_current_head",
+    "agent_role": null,
+    "model": "gpt-5",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-graph-data-ssot-normalization/gate/gate-evidence-3755029-result.json",
+    "request_artifact": ".vibepro/reviews/story-graph-data-ssot-normalization/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-graph-data-ssot-normalization/gate/gate-evidence-3755029-result.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": null,
+      "implementation_session_id": null,
+      "source": "cli_flag"
+    }
+  },
+  "agent_usage": null
+}

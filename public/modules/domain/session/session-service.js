@@ -834,7 +834,7 @@ export class SessionService {
 
     /**
      * セッションを統合（pushしてマージ）
-     * Jujutsu: bookmarkをpushしてPR作成→マージ
+     * Git: セッションbranchをpushしてPR作成→マージ
      * @param {string} sessionId - 統合するセッションのID
      * @returns {Promise<{success?: boolean, error?: string, prUrl?: string}>}
      */

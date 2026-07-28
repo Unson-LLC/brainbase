@@ -1,0 +1,38 @@
+{
+  "agent_id": "019f92d1-b699-7041-8473-e2ccf29527ee",
+  "agent_model": "gpt-5.6-luna",
+  "agent_reasoning_effort": "high",
+  "head_sha": "741e14afe95f323a06e4a0fb3797797d4b182bed",
+  "status": "fail",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "server/services/companion/decision-event-service.js",
+      "line": "281-286,620-648",
+      "summary": "Malformed ledger records are not fail-closed",
+      "detail": "Ledger parsing validates only that events is an array. Individual records and schema_version are not validated."
+    },
+    {
+      "severity": "high",
+      "file": "server/services/companion/decision-event-service.js",
+      "line": "288-308,650-651,719-730",
+      "summary": "Quarantine recovery fails when prior index generations exist",
+      "detail": "Generation changes can keep referencing a quarantined month and block the next request with an index inconsistency."
+    },
+    {
+      "severity": "medium",
+      "file": "server/services/companion/decision-event-service.js",
+      "line": "611-614,741-753,800-801",
+      "summary": "Initialized cache can mask later ledger corruption",
+      "detail": "A ledger corrupted without a generation change can be served from cache instead of failing closed."
+    },
+    {
+      "severity": "medium",
+      "file": "scripts/send-decision-kpi-to-slack.js",
+      "line": "29-40,92-110",
+      "summary": "Malformed API responses are reported as empty weeks",
+      "detail": "Missing or non-array events are converted to an empty week instead of failing without posting."
+    }
+  ],
+  "summary": "Authentication and lock boundaries are sound, but ledger validation, quarantine recovery, cache authority, and malformed KPI API response handling require changes."
+}

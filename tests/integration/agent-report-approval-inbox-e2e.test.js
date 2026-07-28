@@ -4,7 +4,7 @@
 // runs main-branch code without the `agent_report` runner type, so a live ingest
 // would be rejected by the old contract-schema until this PR merges + the server
 // restarts. This suite instead exercises the real ExternalRunnerIngestService +
-// WorkflowService + repository wiring in-process (no HTTP mocks), covering the
+// Dedicated runtime services + repository wiring in-process (no HTTP mocks), covering the
 // full user-visible flow:
 //
 //   bb-report-submit payload → ingest → run persisted (waiting_human) →
@@ -20,9 +20,9 @@ import { ExternalRunnerIngestService } from '../../server/services/external-runn
 import { InMemoryWorkflowRepository } from '../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../server/services/workflow/workflow-runner.js';
 import {
-    WorkflowService,
+    TestAutomationRuntime,
     createDefaultWorkflowHandlers
-} from '../../server/services/workflow/workflow-service.js';
+} from '../helpers/test-automation-runtime.js';
 import { buildAgentReportPayload } from '../../scripts/bin/bb-report-submit.mjs';
 
 function makeStack() {
@@ -32,7 +32,7 @@ function makeStack() {
     // agent_report runs are approval-only and must be closed by resolveHumanStep,
     // not executed by a runner handler.
     const runner = new WorkflowRunner({ repository, handlers: createDefaultWorkflowHandlers() });
-    const workflowService = new WorkflowService({
+    const workflowService = new TestAutomationRuntime({
         repository,
         runner,
         configParser: {
@@ -78,7 +78,7 @@ describe('C2 in-process E2E: agent report → approval inbox → approve → clo
             .listHumanSteps(runId)
             .find((step) => step.status === 'pending');
         expect(pendingStep).toBeTruthy();
-        const resolved = await workflowService.resolveHumanStep(
+        const resolved = await workflowService.automationRunService.resolveHumanStep(
             pendingStep.id,
             { resolution: 'approved' },
             ACTOR
@@ -130,7 +130,7 @@ describe('C2 in-process E2E: agent report → approval inbox → approve → clo
         expect(inboxBefore.items.find((item) => item.run_id === runId)).toBeTruthy();
 
         const pendingStep = repository.listHumanSteps(runId).find((step) => step.status === 'pending');
-        const resolved = await workflowService.resolveHumanStep(
+        const resolved = await workflowService.automationRunService.resolveHumanStep(
             pendingStep.id,
             { resolution: 'rejected' },
             ACTOR

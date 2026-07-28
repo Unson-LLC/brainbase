@@ -37,7 +37,7 @@ common_failures:
   - Codex `sandbox_mode = "danger-full-access"` plus `approval_policy = "never"` allows shell commands without confirmation; the guard is the only enforcement layer.
   - Editing scripts/lib/protected-push-guard.js without updating tests/security/ leaves regex regression undetected.
   - A new shell wrapper that calls git via an alias or different binary name (e.g., `/usr/local/bin/git`) bypasses the regex if the command string starts with the alias rather than `git`. The regex anchors on `\bgit\b`, so aliasing `g` would slip through.
-  - The wrapper script `scripts/bin/jj` only catches `jj` invocations; raw `git` commands rely on this PreToolUse guard.
+  - Git aliases or alternate binary names can bypass string-based matching unless they are explicitly covered by the guard.
 runbooks:
   - ../runbooks/revert-and-remerge-silent-drop.md
 troubleshooting:

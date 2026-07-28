@@ -1,0 +1,325 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-decision-events-kpi-v1",
+  "generated_by": {
+    "caller": "unknown",
+    "stage": "ai_synthesis"
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "POST /api/companion/decision-events accepts the fixed Mac Companion decision-event contract and returns a non-404 response.",
+      "rationale": "Story AC1 and the in-process API contract E2E define the public route and payload contract.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/decision-events-kpi-architecture.md",
+            "section": "System Context"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/routes/companion.js",
+            "anchor": "router.post('/decision-events'"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts",
+            "case": "POST /api/companion/decision-events accepts the fixed mac-companion contract"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-07-24T04:51:00.749Z",
+      "last_revised_at": "2026-07-24T05:06:59.607Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "Decision-event POST and GET routes reuse the existing companion access guards and reject unauthenticated or non-owner callers.",
+      "rationale": "Story AC2 requires the established server-to-server and owner authorization boundary without a new authorization path.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/decision-events-kpi-architecture.md",
+            "section": "Security Boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/routes/companion.js",
+            "anchor": "...guards"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/routes/companion-decision-events.test.js",
+            "case": "authorization guards"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-07-24T04:51:00.749Z",
+      "last_revised_at": "2026-07-24T05:06:59.607Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "Given an unsupported event_type or an occurred_at value that is not a strict ISO8601 timestamp with a real calendar date, POST rejects the input with 400 before any event ledger write.",
+      "rationale": "Story AC3 defines the enum and strict ISO8601 calendar validation as a pre-persistence invariant.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/decision-events-kpi-architecture.md",
+            "section": "Validation"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/companion/decision-event-service.js",
+            "anchor": "VALID_EVENT_TYPES"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/companion/decision-event-service.test.js",
+            "case": "validateDecisionEvent"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-07-24T04:51:00.749Z",
+      "last_revised_at": "2026-07-24T05:06:59.607Z"
+    },
+    {
+      "id": "S-004",
+      "type": "scenario",
+      "statement": "Given concurrent or repeated event_id values across month partitions or service instances on the same host sharing one local-filesystem data directory, POST serializes through the global write lock, returns the first stored record with duplicate true, and creates no second record; legacy duplicate ledgers expose only the first stored record to GET and weekly KPI input. Cross-host uniqueness is outside this contract.",
+      "rationale": "Story AC4 and the service/API tests define same-host process-shared event_id uniqueness for new writes and read-time convergence for pre-existing cross-month duplicates.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/decision-events-kpi-architecture.md",
+            "section": "Idempotency Boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/companion/decision-event-service.js",
+            "anchor": "_ensureEventCache"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/companion/decision-event-service.test.js",
+            "case": "is idempotent for repeated event_id across month partitions"
+          },
+          {
+            "file": "tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts",
+            "case": "returns an existing cross-month duplicate once and keeps retries idempotent"
+          },
+          {
+            "file": "tests/server/services/companion/decision-event-service.test.js",
+            "case": "is idempotent across initialized service instances sharing a data directory"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-07-24T05:06:59.607Z",
+      "last_revised_at": "2026-07-24T05:06:59.607Z"
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "DecisionEventService keeps monthly JSON ledgers as authority, atomically replaces them with fsync and rename, serializes same-host writers through an atomically published process-shared lock, and maintains a rebuildable per-event index with pending recovery and generation changes. Derived index entries are verified against the ledger; corrupt, invalid-schema, or inaccessible ledgers fail closed with 503, and steady-state GET reads only unseen generation changes.",
+      "rationale": "Story AC5 defines the authoritative ledger, derived index, same-host process-shared write boundary, fail-closed storage behavior, and bounded all-partition scan.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/decision-events-kpi-architecture.md",
+            "section": "Persistence"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/companion/decision-event-service.js",
+            "anchor": "renameSync"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/companion/decision-event-service.test.js",
+            "case": "quarantines a corrupt ledger and reports storage failure before retry"
+          },
+          {
+            "file": "tests/server/services/companion/decision-event-service.test.js",
+            "case": "does not let a committed derived index invent an authoritative event"
+          },
+          {
+            "file": "tests/server/services/companion/decision-event-service.test.js",
+            "case": "syncs only unseen index changes from another initialized service instance"
+          },
+          {
+            "file": "tests/server/routes/companion-decision-events.test.js",
+            "case": "returns 503 and quarantines a corrupt decision event ledger"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-07-24T05:06:59.607Z",
+      "last_revised_at": "2026-07-24T05:06:59.607Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "GET /api/companion/decision-events accepts optional from and to timestamps and returns the authorized events in that range.",
+      "rationale": "Story AC6 defines the operational read API used for aggregation and debugging.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 5
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/decision-events-kpi-architecture.md",
+            "section": "Observability"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/routes/companion.js",
+            "anchor": "router.get('/decision-events'"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/routes/companion-decision-events.test.js",
+            "case": "lists events"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-07-24T04:51:00.749Z",
+      "last_revised_at": "2026-07-24T05:06:59.607Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "The weekly decision KPI computes delegation rate, edit-back rate, escalation count, and rule-created count from the latest seven-day event window.",
+      "rationale": "Story AC7 defines the KPI formulas and delivery payload.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 6
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/decision-events-kpi-architecture.md",
+            "section": "Weekly KPI"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/send-decision-kpi-to-slack.js",
+            "anchor": "delegationDenominator"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/send-decision-kpi-to-slack.test.js",
+            "case": "KPI calculation"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-07-24T04:51:00.749Z",
+      "last_revised_at": "2026-07-24T05:06:59.607Z"
+    },
+    {
+      "id": "S-003",
+      "type": "scenario",
+      "statement": "Given no measurable completion events, the weekly report displays measurement unavailable, and given zero received events it also displays event not received instead of a fake zero percent.",
+      "rationale": "Story AC8 explicitly forbids presenting unavailable input as zero.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 7
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/decision-events-kpi-architecture.md",
+            "section": "No Fake Zero"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/send-decision-kpi-to-slack.js",
+            "anchor": "イベント未受信"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/send-decision-kpi-to-slack.test.js",
+            "case": "計測不能"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-07-24T04:51:00.749Z",
+      "last_revised_at": "2026-07-24T05:06:59.607Z"
+    }
+  ],
+  "diagrams": [
+    {
+      "kind": "flow",
+      "mermaid": "flowchart LR\n  Mac[Mac Companion] -->|POST stable event_id| Guard[Existing companion access guards]\n  Guard --> Validate[Validate strict fixed contract]\n  Validate --> Lock[Acquire process-shared write lock]\n  Lock --> Dedupe[Read rebuildable event index]\n  Dedupe -->|existing| First[Return first stored record]\n  Dedupe -->|new| Pending[Reserve pending index entry]\n  Pending --> Month[Atomically append authoritative month ledger]\n  Month --> Commit[Commit index entry]\n  Cron[Weekly KPI job] -->|GET from/to| Guard\n  Guard --> Events[List unique authorized events]\n  Events --> KPI[Compute seven-day KPIs]\n  KPI --> Slack[Post Slack report without fake zero]",
+      "rationale": "The production path covers authenticated ingestion, strict validation, process-shared idempotency, crash-recoverable monthly persistence, authorized reads, and weekly reporting."
+    },
+    {
+      "kind": "threat_model",
+      "mermaid": "flowchart LR\n  Mac[Mac Companion] --> Guard[Companion access guard]\n  Cron[Weekly KPI job] --> Guard\n  Guard --> Validate[Strict schema and time-range validation]\n  Validate --> Ledger[Authoritative monthly ledger]\n  Ledger --> Index[Rebuildable derived index]\n  Ledger --> KPI[Aggregate minimum KPI fields]\n  KPI --> Slack[Slack API]\n  Secret[Runtime secrets] --> Guard\n  Secret --> Slack\n  Attacker[Unauthorized or malformed caller] -. denied .-> Guard",
+      "rationale": "The boundary rejects unauthorized or malformed writes before persistence, treats the monthly ledger as authoritative over derived indexes, limits KPI output to aggregate fields, and keeps companion and Slack secrets at runtime boundaries."
+    }
+  ],
+  "open_questions": [],
+  "generated_at": "2026-07-24T05:06:59.599Z",
+  "previous_spec_id": "2026-07-24T04:51:00.747Z"
+}

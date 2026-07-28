@@ -1,0 +1,780 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-decision-records-v1",
+  "story_id": "story-graph-data-ssot-normalization",
+  "updated_at": "2026-07-18T16:24:14.527Z",
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "decision record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+      "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+      "expected_root": null,
+      "expected_head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+      "current_head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+      "managed_worktree": null
+    }
+  ],
+  "decisions": [
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784391854526-efd7a477",
+      "story_id": "story-graph-data-ssot-normalization",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "architecture",
+      "source_status": "needs_review",
+      "summary": "新ADRは不要と判断する",
+      "reason": "既存Graph entity/edge・role_min/sensitivity・InfoSSOTService・Graph API・MCP・transaction/backup契約の範囲内で、runtime境界・schema・外部APIを新設しないため",
+      "reviewer": "Codex",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-graph-data-ssot-normalization/verification-evidence.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/playwright-e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+          "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+          "expected_root": null,
+          "expected_head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+          "current_head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+        "current_branch": "codex/graph-data-ssot-normalization",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-18T16:24:14.525Z"
+      },
+      "recorded_at": "2026-07-18T16:24:14.527Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784391840355-99c30049",
+      "story_id": "story-graph-data-ssot-normalization",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "architecture",
+      "source_status": "needs_review",
+      "summary": "ADR差分なし。既存Graph SSOT・InfoSSOTService・Graph API・MCP境界内の可逆的データ正規化と互換性修復として扱う",
+      "reason": "新規アーキテクチャ境界を導入せず、既存認可・API・MCP境界を維持するためADRは不要",
+      "reviewer": "Codex",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-graph-data-ssot-normalization/verification-evidence.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/playwright-e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+          "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+          "expected_root": null,
+          "expected_head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+          "current_head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+        "current_branch": "codex/graph-data-ssot-normalization",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-18T16:24:00.354Z"
+      },
+      "recorded_at": "2026-07-18T16:24:00.356Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784390086400-9d400535",
+      "story_id": "story-graph-data-ssot-normalization",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "failed",
+      "summary": "単一migration/recovery unitとしてscope承認",
+      "reason": "5ファイル4コミットはStory、script、tests、committed evidenceの一つのtransaction/rollback監査単位で、全コミットがStory専用。分割は正本判断と実行・復旧証跡の対応を切るため一体レビューを承認する。",
+      "reviewer": "Codex",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "verification_evidence_summary": {
+        "count": 2,
+        "entries": [
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+          "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+          "expected_root": null,
+          "expected_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "current_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+        "current_branch": "codex/graph-data-ssot-normalization",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-18T15:54:46.398Z"
+      },
+      "recorded_at": "2026-07-18T15:54:46.401Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784390085579-b65c7dff",
+      "story_id": "story-graph-data-ssot-normalization",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:judgment_axis_public_contract",
+      "source_status": "failed",
+      "summary": "旧ID alias契約の限定承認",
+      "reason": "旧IDは物理削除せずread可能なaliasとして保持し、canonical_entity_idとalias_of edgeを提供する。entity_typeがalias型へ変わる点は意図した正規化契約で、現行参照は0件、REST/MCP readbackとservice互換testがpass。未知の旧type filter consumerの残余リスクを明示して受け入れる。",
+      "reviewer": "Codex",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "verification_evidence_summary": {
+        "count": 2,
+        "entries": [
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+          "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+          "expected_root": null,
+          "expected_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "current_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+        "current_branch": "codex/graph-data-ssot-normalization",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-18T15:54:45.578Z"
+      },
+      "recorded_at": "2026-07-18T15:54:45.579Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784390084745-75e16c4f",
+      "story_id": "story-graph-data-ssot-normalization",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:common_judgment_spine",
+      "source_status": "failed",
+      "summary": "現状・失敗モード・完了証拠の限定承認",
+      "reason": "committed evidence、live REST/MCP、production dry-run、CI 4/4、37 testsで現状とdoneを確認した。raw pre-state hashと実DB rollback試験の欠落は明示済みであり、0600 backupをrollback pointとして保持する条件で受け入れる。",
+      "reviewer": "Codex",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "verification_evidence_summary": {
+        "count": 2,
+        "entries": [
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+          "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+          "expected_root": null,
+          "expected_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "current_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+        "current_branch": "codex/graph-data-ssot-normalization",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-18T15:54:44.743Z"
+      },
+      "recorded_at": "2026-07-18T15:54:44.745Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784390083754-6bdf631d",
+      "story_id": "story-graph-data-ssot-normalization",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:judgment_dag_adjudication",
+      "source_status": "failed",
+      "summary": "Judgment DAGの残余リスクを限定承認",
+      "reason": "[REDACTED:8b8205e74608] lifecycleの強化余地は認める。今回のproduction writeは完了済みで、対象限定0600 backup、単一transaction、rollback障害注入、37 tests、REST/MCP readback、dry-run差分0、物理削除0を確認したため、追加の実DB破壊試験や真正低権限credential試験は本変更のmerge blockerにせずfollow-up対象とする。",
+      "reviewer": "Codex",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "verification_evidence_summary": {
+        "count": 2,
+        "entries": [
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": true,
+        "hit_count": 1
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+          "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+          "expected_root": null,
+          "expected_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "current_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+        "current_branch": "codex/graph-data-ssot-normalization",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-18T15:54:43.750Z"
+      },
+      "recorded_at": "2026-07-18T15:54:43.756Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784390082721-ca87c02d",
+      "story_id": "story-graph-data-ssot-normalization",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:evidence_adjudication",
+      "source_status": "failed",
+      "summary": "AC-7の履歴不変性に関する限定waiver",
+      "reason": "正規化scriptのwrite setにauth_audit_logsは含まれず、適用後も旧personの14件が残存し、物理削除0件を確認した。ただし適用前の14件全row hashは保存されておらず、過去内容のbyte単位不変性は遡及実証できない。この証拠限界を明示して、現存・非更新設計・非削除の範囲で受け入れる。",
+      "reviewer": "Codex",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "verification_evidence_summary": {
+        "count": 2,
+        "entries": [
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+          "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+          "expected_root": null,
+          "expected_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "current_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+        "current_branch": "codex/graph-data-ssot-normalization",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-18T15:54:42.720Z"
+      },
+      "recorded_at": "2026-07-18T15:54:42.721Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784390063103-5d2c218e",
+      "story_id": "story-graph-data-ssot-normalization",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "architecture",
+      "source_status": "needs_review",
+      "summary": "既存Graphアーキテクチャ内のデータ正規化としてADR不要を承認",
+      "reason": "architecture readinessはready、architecture checkはpass。新規schema/service/API境界はなく、[REDACTED:3863939e3016]の既存契約内で完結する。設計差分はStoryのEngineering judgmentを正本とする。",
+      "reviewer": "Codex",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "verification_evidence_summary": {
+        "count": 2,
+        "entries": [
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": true,
+        "hit_count": 1
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+          "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+          "expected_root": null,
+          "expected_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "current_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+        "current_branch": "codex/graph-data-ssot-normalization",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-18T15:54:23.101Z"
+      },
+      "recorded_at": "2026-07-18T15:54:23.103Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784389623422-02548802",
+      "story_id": "story-graph-data-ssot-normalization",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "architecture",
+      "source_status": "needs_review",
+      "summary": "新ADRは不要と判断する",
+      "reason": "Graphの既存entity/edge、role_min/sensitivity、event log、transaction/backup契約の範囲内でデータ正規化を行う。新しいruntime境界・service・schema・外部APIは導入せず、設計判断はStoryの正本境界・不変条件・失敗モードに固定済み。",
+      "reviewer": "Codex",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "verification_evidence_summary": {
+        "count": 2,
+        "entries": [
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+          "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+          "expected_root": null,
+          "expected_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "current_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+        "current_branch": "codex/graph-data-ssot-normalization",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-18T15:47:03.420Z"
+      },
+      "recorded_at": "2026-07-18T15:47:03.422Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784389621763-b99c8c3f",
+      "story_id": "story-graph-data-ssot-normalization",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:split_resolution",
+      "source_status": "needs_review",
+      "summary": "Graph正規化の実装と監査証跡を分割しない",
+      "reason": "変更は[REDACTED:0595f6b811d1]を単一transactionで正規化し、同一backupとreadbackで監査する。破壊的削除なし・変更対象ID固定・37テスト済みで、分割より一体の方がblast radiusとrollbackを検証しやすい。",
+      "reviewer": "Codex",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "verification_evidence_summary": {
+        "count": 2,
+        "entries": [
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": true,
+        "hit_count": 1
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+          "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+          "expected_root": null,
+          "expected_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "current_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+        "current_branch": "codex/graph-data-ssot-normalization",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-18T15:47:01.732Z"
+      },
+      "recorded_at": "2026-07-18T15:47:01.763Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784389620273-5105b088",
+      "story_id": "story-graph-data-ssot-normalization",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:pr_scope_judgment",
+      "source_status": "needs_review",
+      "summary": "4コミットを単一の可逆Graph正規化Storyとして扱う",
+      "reason": "Story、正規化script、回帰test、監査evidenceは同一transactionとrollback境界を構成する。5ファイルのみで全コミットが同Story専用であり、分割すると適用結果と復旧証跡の対応が切れるため一体レビューを採用する。",
+      "reviewer": "Codex",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "verification_evidence_summary": {
+        "count": 2,
+        "entries": [
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+          "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+          "expected_root": null,
+          "expected_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "current_head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "35e10a756bf34a8a45437a30a47011faba0909d9",
+        "current_branch": "codex/graph-data-ssot-normalization",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-18T15:47:00.270Z"
+      },
+      "recorded_at": "2026-07-18T15:47:00.273Z"
+    }
+  ],
+  "summary": {
+    "total": 11,
+    "open": 0,
+    "by_type": {
+      "waiver": 9,
+      "needs_review": 2
+    },
+    "by_status": {
+      "accepted": 11
+    },
+    "warnings": [
+      {
+        "id": "managed_worktree_locality",
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "decision record",
+        "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+        "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+        "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+        "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+        "expected_root": null,
+        "expected_head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+        "current_head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+        "managed_worktree": null
+      }
+    ],
+    "latest": {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784391854526-efd7a477",
+      "story_id": "story-graph-data-ssot-normalization",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "architecture",
+      "source_status": "needs_review",
+      "summary": "新ADRは不要と判断する",
+      "reason": "既存Graph entity/edge・role_min/sensitivity・InfoSSOTService・Graph API・MCP・transaction/backup契約の範囲内で、runtime境界・schema・外部APIを新設しないため",
+      "reviewer": "Codex",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-graph-data-ssot-normalization/verification-evidence.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/evidence/story-graph-data-ssot-normalization/playwright-e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+          "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+          "expected_root": null,
+          "expected_head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+          "current_head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+        "current_branch": "codex/graph-data-ssot-normalization",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-18T16:24:14.525Z"
+      },
+      "recorded_at": "2026-07-18T16:24:14.527Z"
+    }
+  },
+  "artifact": ".vibepro/pr/story-graph-data-ssot-normalization/decision-records.json"
+}

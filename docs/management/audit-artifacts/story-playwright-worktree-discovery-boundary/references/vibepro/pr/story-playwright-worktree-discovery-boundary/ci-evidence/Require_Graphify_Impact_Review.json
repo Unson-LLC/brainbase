@@ -1,0 +1,19 @@
+{
+  "schema_version": "0.1.0",
+  "status": "pass",
+  "exit_code": 0,
+  "head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+  "observed": {
+    "check": "Require Graphify Impact Review",
+    "conclusion": "SUCCESS",
+    "run_url": "https://github.com/Unson-LLC/brainbase-unson/actions/runs/29624227426/job/88025913566",
+    "head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2"
+  },
+  "ci_check": {
+    "name": "Require Graphify Impact Review",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflow_name": "VibePro Graphify Impact Gate",
+    "details_url": "https://github.com/Unson-LLC/brainbase-unson/actions/runs/29624227426/job/88025913566"
+  }
+}

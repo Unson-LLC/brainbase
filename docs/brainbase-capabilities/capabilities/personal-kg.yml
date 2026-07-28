@@ -11,7 +11,7 @@ surfaces:
     - /oyasumi command (coordinator that fan-outs to specialist agents)
     - /ohayo command (consumes personal-kg via SNS generation context for morning brief)
   api:
-    - POST http://localhost:31013/api/wiki/page (decisions / wiki write-back path used by /oyasumi)
+    - Canonical Graph/candidate writers through the local control plane backed by the Lightsail tunnel (Wiki write-back is retired)
     - Direct DB write via `INFO_SSOT_DATABASE_URL` to `memory_candidates`
       (no public REST yet; story `oyasumi-meeting-personal-kg` defines the schema)
   code:
@@ -50,7 +50,7 @@ verification:
     - 出力 JSON の `project_link_summary` で `linked / unchanged / unresolved` 件数が分かる
     - `unson-board` / `yakumokai` 等の SalesTailor 外 repo も Graph project `unson` に紐づく
 common_failures:
-  - /oyasumi が Graph/Wiki/NocoDB には反映するが memory_candidates に書き込まれていない (本 capability 不在で SNS 生成 context が空)
+  - /oyasumi が Graph/NocoDB には反映するが memory_candidates に書き込まれていない (本 capability 不在で SNS 生成 context が空)
   - Lightsail SSH tunnel 落ちで INFO_SSOT_DATABASE_URL 接続不可 → write が silent fail
   - agency_level=none で保存され SNS curator から見えない (sensitivity_reviewer 設計問題)
   - personal_kg_entity_links が未更新で SNS 投稿 context が project 単位で組めない

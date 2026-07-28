@@ -1,19 +1,18 @@
 import path from 'path';
 import { Pool } from 'pg';
-import { createStateRouter } from '../routes/state.js';
 import { createConfigRouter } from '../routes/config.js';
 import { createScheduleRouter } from '../routes/schedule.js';
-import { createSessionRouter } from '../routes/sessions.js';
 import { createBrainbaseRouter } from '../routes/brainbase.js';
 import { createNocoDBRouter } from '../routes/nocodb.js';
 import { createHealthRouter } from '../routes/health.js';
-import { createTerminalRouter } from '../routes/terminal.js';
+import { createRetiredCapabilityRouter } from '../routes/retired-capability.js';
 import { createAuthRouter } from '../routes/auth.js';
 import { createInfoSSOTRouter } from '../routes/info-ssot.js';
 import { createLearningRouter } from '../routes/learning.js';
 import { createCandidateStoreRouter } from '../routes/candidate-store.js';
 import { createCompanionRouter } from '../routes/companion.js';
 import { createExternalRunnerRouter } from '../routes/external-runner.js';
+import { createRunReceiptRouter } from '../routes/run-receipts.js';
 import { createMeetingSourceSettingsRouter } from '../routes/meeting-source-settings.js';
 import { adminNoCacheMiddleware, createAdminVisualizationRouter } from '../routes/admin-visualization.js';
 import { createSetupRouter } from '../routes/setup.js';
@@ -97,18 +96,12 @@ function createSnsAccountProvider() {
 }
 
 export function registerApiRoutes(app, {
-    stateStore,
-    sessionServices,
-    testMode,
     configParser,
     configService,
     runtimePaths,
     scheduleParser,
     googleCalendarService,
-    worktreeService,
-    conversationLinker,
     projectsRoot,
-    tmuxCaptureCache,
     authService,
     infoSSOTService,
     canonicalTaskStoreConfig,
@@ -118,9 +111,16 @@ export function registerApiRoutes(app, {
     candidateRepository,
     wikiService,
     tokenUsageService,
-    workflowService,
+    agentControlCatalogService,
+    loopIntentService,
+    eveSessionDispatchService,
+    meetingAutomationService,
+    automationRunService,
+    runReceiptQueryService,
+    companionApprovalInboxService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
+    runReceiptIngestService,
     eveMeetingNoteReconciler = null,
     uploadMiddleware,
     appVersion,
@@ -129,55 +129,49 @@ export function registerApiRoutes(app, {
     runtimeInfo,
     brainbaseRoot
 }) {
-    app.use('/api/state', createStateRouter(
-        stateStore,
-        sessionServices.runtime.registry,
-        sessionServices.runtime.query,
-        testMode
-    ));
+    app.use('/api/state', createRetiredCapabilityRouter({
+        capability: 'brainbase.session-state',
+        owner: 'Codex app and CLI',
+        replacement: 'Use Codex task state directly; historical Brainbase records are frozen'
+    }));
     app.use('/api/config', createConfigRouter(configParser, configService, runtimePaths, {
         authGuard: requireAuth(authService)
     }));
     app.use('/api/schedule', createScheduleRouter(scheduleParser, googleCalendarService));
-    app.use('/api/sessions', createSessionRouter(
-        sessionServices,
-        worktreeService,
-        stateStore,
-        testMode,
-        conversationLinker,
-        {
-            projectsRoot,
-            codeProjectsRoot: path.join(path.dirname(projectsRoot), 'code'),
-            captureCache: tmuxCaptureCache
-        }
-    ));
+    app.use('/api/sessions', createRetiredCapabilityRouter({
+        capability: 'brainbase.session-runtime',
+        owner: 'Codex app and CLI',
+        replacement: 'Use Codex tasks, worktrees, and terminals directly'
+    }));
     app.use('/api/brainbase', createBrainbaseRouter({
-        worktreeService,
         configParser,
         projectsRoot,
         infoSSOTService,
         wikiService,
         canonicalTaskService,
-        authGuard: requireAuth(authService)
+        authGuard: requireAuth(authService),
+        projectCatalogAuthGuard: requireAuth(authService)
     }));
     app.use('/api/nocodb', createNocoDBRouter(configParser, { canonicalTaskStoreConfig }));
-    app.use('/api/health', createHealthRouter({
-        readiness: sessionServices.runtime.registry,
-        configParser,
-        terminalRuntimeReconciler: sessionServices.runtime.reconciler
-    }));
-    app.use('/api/terminal', createTerminalRouter({
-        terminalRuntimeReconciler: sessionServices.runtime.reconciler
+    app.use('/api/health', createHealthRouter({ configParser }));
+    app.use('/api/terminal', createRetiredCapabilityRouter({
+        capability: 'brainbase.terminal-runtime',
+        owner: 'Codex app and CLI',
+        replacement: 'Use the terminal attached to the Codex task'
     }));
     app.use('/api/auth', createAuthRouter(authService));
-    app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
+    app.use(
+        '/api/info',
+        requireAuth(authService, { allowInsecureHeaders: false }),
+        createInfoSSOTRouter(infoSSOTService)
+    );
     app.use('/api/learning', createLearningRouter(learningService, learningHealthService));
     app.use('/api/companion', createCompanionRouter({
         replyDraftService: new ReplyDraftService({
             infoSSOTService,
             learningService
         }),
-        workflowService,
+        companionApprovalInboxService,
         infoSSOTService,
         decisionEventService: createDecisionEventService(runtimePaths),
         canonicalTaskService,
@@ -215,18 +209,26 @@ export function registerApiRoutes(app, {
     app.use('/api/wiki', createWikiRouter(wikiService));
     app.use('/api/usage', createUsageRouter(tokenUsageService));
     const workflowAuthGuard = requireAuth(authService);
-    app.use('/api/workflows', workflowAuthGuard, createWorkflowRouter(workflowService, { eveMeetingNoteReconciler }));
-    app.use('/api/workflow-runs', workflowAuthGuard, createWorkflowRunRouter(workflowService));
-    app.use('/api/workflow-human-steps', workflowAuthGuard, createWorkflowHumanStepRouter(workflowService));
+    app.use('/api/workflows', workflowAuthGuard, createWorkflowRouter({
+        agentControlCatalogService,
+        loopIntentService,
+        eveSessionDispatchService,
+        eveMeetingNoteReconciler,
+        meetingAutomationService
+    }));
+    app.use('/api/workflow-runs', workflowAuthGuard, createWorkflowRunRouter(automationRunService));
+    app.use('/api/workflow-human-steps', workflowAuthGuard, createWorkflowHumanStepRouter(automationRunService));
     app.use('/api/external-runner', workflowAuthGuard, createExternalRunnerRouter(externalRunnerIngestService));
+    app.use('/api/run-receipts', workflowAuthGuard, createRunReceiptRouter({
+        ingestService: runReceiptIngestService,
+        queryService: runReceiptQueryService
+    }));
     if (meetingSourceMcpSyncService) {
         app.use('/api/settings/meeting-sources', workflowAuthGuard, createMeetingSourceSettingsRouter(meetingSourceMcpSyncService));
     }
     app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
     app.use('/api', createMiscRouter(appVersion, uploadMiddleware, workspaceRoot, uploadsDir, runtimeInfo, {
         brainbaseRoot,
-        projectsRoot,
-        sessionQuery: sessionServices.runtime.query,
-        workspace: sessionServices.workspace
+        projectsRoot
     }));
 }

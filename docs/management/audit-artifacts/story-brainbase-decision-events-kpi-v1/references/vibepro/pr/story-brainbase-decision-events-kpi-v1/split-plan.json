@@ -1,0 +1,254 @@
+{
+  "schema_version": "0.1.0",
+  "model": "story-pr-split-plan-v1",
+  "story_id": "story-brainbase-decision-events-kpi-v1",
+  "status": "split_recommended",
+  "recommended_strategy": "split_by_lane_then_prepare",
+  "rationale": [
+    "baseからのcommitが 9 件あり、Story外の変更混入を確認する必要がある",
+    "2 lanes に分けると、要求正本・実装・検証基盤・repo制御を別々にレビューできる",
+    "Graphifyで 7 changed files が一致し、11 related files を影響調査候補にした"
+  ],
+  "graph_context": {
+    "available": true,
+    "graph_path": ".vibepro/graphify/graph.json",
+    "edge_source_key": "links",
+    "node_count": 6231,
+    "edge_count": 12996,
+    "matched_file_count": 7,
+    "related_file_count": 11,
+    "investigation_files": [
+      "cli/sync.js",
+      "public/modules/core/di-container.js",
+      "public/modules/core/session-data-cache.js",
+      "public/modules/pages/admin-visualization-page.js",
+      "relay/server.js",
+      "scripts/normalize-graph-data-ssot.mjs",
+      "scripts/populate-auth-grants.mjs",
+      "server/middleware/auth.js",
+      "server/routes/companion.js",
+      "server/services/meeting-automation/meeting-automation-service.js",
+      "server/services/meeting-source/meeting-source-mcp-adapters.js"
+    ],
+    "impact_by_file": [
+      {
+        "file": "scripts/send-decision-kpi-to-slack.js",
+        "matched_nodes": [
+          "scripts_send_decision_kpi_to_slack_js",
+          "scripts_send_decision_kpi_to_slack_fetchdecisionevents",
+          "scripts_send_decision_kpi_to_slack_countbytype",
+          "scripts_send_decision_kpi_to_slack_formatpercent",
+          "scripts_send_decision_kpi_to_slack_calculatekpi",
+          "scripts_send_decision_kpi_to_slack_formatrate",
+          "scripts_send_decision_kpi_to_slack_buildslackblocks",
+          "scripts_send_decision_kpi_to_slack_sendtoslack"
+        ],
+        "related_files": [
+          "public/modules/core/session-data-cache.js",
+          "public/modules/pages/admin-visualization-page.js",
+          "relay/server.js",
+          "scripts/normalize-graph-data-ssot.mjs"
+        ]
+      },
+      {
+        "file": "server/controllers/companion-controller.js",
+        "matched_nodes": [
+          "server_controllers_companion_controller_js",
+          "controllers_companion_controller_serializeerror",
+          "controllers_companion_controller_actoraccess",
+          "controllers_companion_controller_firststring",
+          "controllers_companion_controller_stringlist",
+          "controllers_companion_controller_isspeakerlabel",
+          "controllers_companion_controller_normalizesearchtext",
+          "controllers_companion_controller_matchespersonquery"
+        ],
+        "related_files": [
+          "server/services/meeting-source/meeting-source-mcp-adapters.js"
+        ]
+      },
+      {
+        "file": "server/services/companion/decision-event-service.js",
+        "matched_nodes": [
+          "server_services_companion_decision_event_service_js",
+          "companion_decision_event_service_decisioneventvalidationerror",
+          "companion_decision_event_service_decisioneventvalidationerror_constructor",
+          "companion_decision_event_service_nowiso",
+          "companion_decision_event_service_isnonemptystring",
+          "companion_decision_event_service_isvalidisodate",
+          "companion_decision_event_service_monthkeyfromiso",
+          "companion_decision_event_service_normalizeeditdistance"
+        ],
+        "related_files": [
+          "cli/sync.js",
+          "public/modules/core/di-container.js",
+          "scripts/populate-auth-grants.mjs",
+          "server/services/meeting-automation/meeting-automation-service.js"
+        ]
+      },
+      {
+        "file": "tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts",
+        "matched_nodes": [
+          "tests_e2e_story_brainbase_decision_events_kpi_v1_decision_events_api_contract_spec_ts",
+          "e2e_story_brainbase_decision_events_kpi_v1_decision_events_api_contract_spec_basepayload",
+          "e2e_story_brainbase_decision_events_kpi_v1_decision_events_api_contract_spec_createinprocessapp"
+        ],
+        "related_files": [
+          "scripts/normalize-graph-data-ssot.mjs",
+          "server/middleware/auth.js",
+          "server/routes/companion.js"
+        ]
+      },
+      {
+        "file": "tests/server/routes/companion-decision-events.test.js",
+        "matched_nodes": [
+          "tests_server_routes_companion_decision_events_test_js",
+          "routes_companion_decision_events_test_basepayload",
+          "routes_companion_decision_events_test_createauthservice",
+          "routes_companion_decision_events_test_createapp"
+        ],
+        "related_files": [
+          "scripts/normalize-graph-data-ssot.mjs",
+          "server/middleware/auth.js",
+          "server/routes/companion.js"
+        ]
+      },
+      {
+        "file": "tests/server/scripts/send-decision-kpi-to-slack.test.js",
+        "matched_nodes": [
+          "tests_server_scripts_send_decision_kpi_to_slack_test_js",
+          "scripts_send_decision_kpi_to_slack_test_makeevent"
+        ],
+        "related_files": []
+      },
+      {
+        "file": "tests/server/services/companion/decision-event-service.test.js",
+        "matched_nodes": [
+          "tests_server_services_companion_decision_event_service_test_js",
+          "companion_decision_event_service_test_baseevent"
+        ],
+        "related_files": []
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "requirements-ssot",
+      "order": 10,
+      "title": "Story / Spec / Architecture / Policy SSOT",
+      "category": "requirements",
+      "recommendation": "separate_pr",
+      "files": [
+        "docs/stories/story-brainbase-decision-events-kpi-v1.md",
+        "docs/architecture/decision-events-kpi-architecture.md"
+      ],
+      "required_gates": [
+        "Requirement Gate"
+      ],
+      "review_focus": [
+        "Story / Spec / Architecture / Policy の正本が互いに矛盾していないか",
+        "実装差分が要求の範囲を超えていないか",
+        "Storyに明示されたREADME/helpなどの利用者向け出力面が受け入れ基準と対応しているか"
+      ],
+      "file_count": 2,
+      "graph_investigation_files": [],
+      "suggested_branch": "feat/brainbase-decision-events-kpi-v1-requirements-ssot"
+    },
+    {
+      "id": "runtime-behavior",
+      "order": 20,
+      "title": "Runtime behavior and unit coverage",
+      "category": "implementation",
+      "recommendation": "primary_pr",
+      "files": [
+        "scripts/send-decision-kpi-to-slack.js",
+        "server/controllers/companion-controller.js",
+        "server/services/companion/decision-event-service.js",
+        "tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts",
+        "tests/server/routes/companion-decision-events.test.js",
+        "tests/server/scripts/send-decision-kpi-to-slack.test.js",
+        "tests/server/services/companion/decision-event-service.test.js"
+      ],
+      "required_gates": [
+        "Requirement Gate",
+        "Unit Gate",
+        "Integration Gate",
+        "E2E Gate"
+      ],
+      "review_focus": [
+        "受け入れ基準と実装分岐が対応しているか",
+        "Graphifyで隣接するファイルまで影響確認されているか"
+      ],
+      "file_count": 7,
+      "graph_investigation_files": [
+        "cli/sync.js",
+        "public/modules/core/di-container.js",
+        "public/modules/core/session-data-cache.js",
+        "public/modules/pages/admin-visualization-page.js",
+        "relay/server.js",
+        "scripts/normalize-graph-data-ssot.mjs",
+        "scripts/populate-auth-grants.mjs",
+        "server/middleware/auth.js",
+        "server/routes/companion.js",
+        "server/services/meeting-automation/meeting-automation-service.js",
+        "server/services/meeting-source/meeting-source-mcp-adapters.js"
+      ],
+      "suggested_branch": "feat/brainbase-decision-events-kpi-v1-runtime-behavior"
+    }
+  ],
+  "merge_order": [
+    "requirements-ssot",
+    "runtime-behavior"
+  ],
+  "stacked_gate_plan": {
+    "schema_version": "0.1.0",
+    "model": "stacked-pr-gate-plan-v1",
+    "summary": {
+      "lane_count": 2,
+      "cumulative_gate_count": 0,
+      "requires_cumulative_e2e": false
+    },
+    "lane_plans": [
+      {
+        "lane_id": "requirements-ssot",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "Requirement Gate / document consistency review"
+        ],
+        "cumulative_checks": [],
+        "review_note": "requirements-ssot は単体PRとしてレビュー可能。"
+      },
+      {
+        "lane_id": "runtime-behavior",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "npm exec vitest run tests/server/services/companion/decision-event-service.test.js",
+          "npm exec vitest run tests/server/routes/companion-decision-events.test.js tests/server/scripts/send-decision-kpi-to-slack.test.js"
+        ],
+        "cumulative_checks": [],
+        "review_note": "runtime差分はUnit/Integrationを単体PRで確認する。E2E Gateが不要な変更では、後続E2Eまたは累積validationを要求しない。"
+      }
+    ],
+    "final_validation": {
+      "required": false,
+      "trigger": "各PRのisolated checksで十分",
+      "commands": [
+        "npm exec vitest run tests/server/services/companion/decision-event-service.test.js",
+        "npm exec vitest run tests/server/routes/companion-decision-events.test.js tests/server/scripts/send-decision-kpi-to-slack.test.js"
+      ]
+    }
+  },
+  "next_actions": [
+    {
+      "lane_id": "requirements-ssot",
+      "action": "Create feat/brainbase-decision-events-kpi-v1-requirements-ssot with 2 files",
+      "command": "git switch -c feat/brainbase-decision-events-kpi-v1-requirements-ssot <base> && git add docs/stories/story-brainbase-decision-events-kpi-v1.md docs/architecture/decision-events-kpi-architecture.md"
+    },
+    {
+      "lane_id": "runtime-behavior",
+      "action": "Create feat/brainbase-decision-events-kpi-v1-runtime-behavior with 7 files",
+      "command": "git switch -c feat/brainbase-decision-events-kpi-v1-runtime-behavior <base> && git add scripts/send-decision-kpi-to-slack.js server/controllers/companion-controller.js server/services/companion/decision-event-service.js tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts tests/server/routes/companion-decision-events.test.js tests/server/scripts/send-decision-kpi-to-slack.test.js tests/server/services/companion/decision-event-service.test.js"
+    }
+  ]
+}

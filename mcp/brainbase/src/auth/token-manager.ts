@@ -4,6 +4,7 @@
  */
 
 import { readFile, writeFile, chmod } from 'fs/promises';
+import { randomUUID } from 'crypto';
 import { homedir } from 'os';
 import { join } from 'path';
 
@@ -22,6 +23,7 @@ export class TokenManager {
   private tokenFilePath: string;
   private tokenData: TokenData | null = null;
   private apiUrl: string;
+  private refreshPromise: Promise<void> | null = null;
 
   constructor(apiUrl?: string, tokenFilePath?: string) {
     this.tokenFilePath = tokenFilePath || join(homedir(), '.brainbase', 'tokens.json');
@@ -72,13 +74,13 @@ export class TokenManager {
    * Check if token is expired
    */
   private isTokenExpired(token: TokenData): boolean {
-    if (!token.expires_in || !token.issued_at) {
-      // No expiration data, assume valid
-      return false;
-    }
+    const jwtTiming = this.decodeJwtTiming(token.access_token);
+    const issuedAt = token.issued_at ?? jwtTiming?.issuedAt;
+    const expiresIn = token.expires_in ?? jwtTiming?.expiresIn;
+    if (!expiresIn || !issuedAt) return false;
 
     const now = Math.floor(Date.now() / 1000);
-    const expiresAt = token.issued_at + token.expires_in;
+    const expiresAt = issuedAt + expiresIn;
     const bufferSeconds = 5 * 60; // 5 minutes
 
     return now >= (expiresAt - bufferSeconds);
@@ -88,16 +90,45 @@ export class TokenManager {
    * Refresh the access token using refresh_token
    */
   async refresh(): Promise<void> {
+    if (!this.refreshPromise) {
+      this.refreshPromise = this.performRefresh().finally(() => {
+        this.refreshPromise = null;
+      });
+    }
+
+    return this.refreshPromise;
+  }
+
+  private async performRefresh(): Promise<void> {
     if (!this.tokenData?.refresh_token) {
       throw new Error('No refresh token available. Please re-authenticate.');
     }
 
     console.error('[TokenManager] Refreshing token...');
 
-    const response = await fetch(`${this.apiUrl}/auth/refresh`, {
+    const sessionId = `brainbase-mcp-${randomUUID()}`;
+    const csrfResponse = await fetch(`${this.apiUrl}/api/csrf-token`, {
+      headers: {
+        'X-Session-Id': sessionId,
+      },
+    });
+
+    if (!csrfResponse.ok) {
+      throw new Error(`CSRF token request failed: ${csrfResponse.status} ${csrfResponse.statusText}`);
+    }
+
+    const csrfData = await csrfResponse.json() as Record<string, unknown>;
+    const csrfToken = typeof csrfData.token === 'string' ? csrfData.token.trim() : '';
+    if (!csrfToken) {
+      throw new Error('CSRF token response did not include a token');
+    }
+
+    const response = await fetch(`${this.apiUrl}/api/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken,
+        'X-Session-Id': sessionId,
       },
       body: JSON.stringify({
         refresh_token: this.tokenData.refresh_token,
@@ -105,32 +136,78 @@ export class TokenManager {
     });
 
     if (!response.ok) {
-      throw new Error(`Token refresh failed: ${response.status} ${response.statusText}`);
+      const errorCode = await this.readServerErrorCode(response);
+      const detail = errorCode ? ` (${errorCode})` : '';
+      throw new Error(`Token refresh failed: ${response.status} ${response.statusText}${detail}`);
     }
 
-    const newTokenData = await response.json();
+    const responseData = await response.json() as Record<string, unknown>;
+    const accessTokenCandidate = responseData.token ?? responseData.access_token;
+    const accessToken = typeof accessTokenCandidate === 'string' ? accessTokenCandidate.trim() : '';
+    if (!accessToken) {
+      throw new Error('Token refresh response did not include an access token');
+    }
 
-    // Update token data
-    this.tokenData = {
-      access_token: newTokenData.access_token,
-      refresh_token: newTokenData.refresh_token || this.tokenData.refresh_token,
-      expires_in: newTokenData.expires_in,
-      issued_at: Math.floor(Date.now() / 1000),
+    const jwtTiming = this.decodeJwtTiming(accessToken);
+    const responseExpiresIn = typeof responseData.expires_in === 'number' && responseData.expires_in > 0
+      ? responseData.expires_in
+      : undefined;
+    const expiresIn = responseExpiresIn ?? jwtTiming?.expiresIn;
+    if (!expiresIn) {
+      throw new Error('Token refresh response did not include usable expiry metadata');
+    }
+
+    const refreshTokenCandidate = responseData.refresh_token;
+    const refreshToken = typeof refreshTokenCandidate === 'string' && refreshTokenCandidate.trim()
+      ? refreshTokenCandidate
+      : this.tokenData.refresh_token;
+
+    const nextTokenData: TokenData = {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expires_in: expiresIn,
+      issued_at: jwtTiming?.issuedAt ?? Math.floor(Date.now() / 1000),
     };
 
-    // Save to file
-    await this.saveTokens();
+    // Persist validated data before replacing the in-memory token.
+    await this.saveTokens(nextTokenData);
+    this.tokenData = nextTokenData;
 
     console.error('[TokenManager] Token refreshed successfully');
+  }
+
+  private decodeJwtTiming(token: string): { issuedAt: number; expiresIn: number } | null {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+
+    try {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8')) as Record<string, unknown>;
+      const issuedAt = typeof payload.iat === 'number' ? payload.iat : NaN;
+      const expiresAt = typeof payload.exp === 'number' ? payload.exp : NaN;
+      if (!Number.isFinite(issuedAt) || !Number.isFinite(expiresAt) || expiresAt <= issuedAt) {
+        return null;
+      }
+      return { issuedAt, expiresIn: expiresAt - issuedAt };
+    } catch {
+      return null;
+    }
+  }
+
+  private async readServerErrorCode(response: Response): Promise<string> {
+    try {
+      const data = await response.json() as Record<string, unknown>;
+      const candidate = data.error ?? data.error_description;
+      return typeof candidate === 'string' ? candidate.trim().slice(0, 200) : '';
+    } catch {
+      return '';
+    }
   }
 
   /**
    * Save tokens to file (with permission 600)
    */
-  private async saveTokens(): Promise<void> {
-    if (!this.tokenData) return;
-
-    const content = JSON.stringify(this.tokenData, null, 2);
+  private async saveTokens(tokenData: TokenData): Promise<void> {
+    const content = JSON.stringify(tokenData, null, 2);
     await writeFile(this.tokenFilePath, content, 'utf-8');
     await chmod(this.tokenFilePath, 0o600);
   }

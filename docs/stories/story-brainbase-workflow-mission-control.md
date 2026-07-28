@@ -6,15 +6,17 @@ source_requirement:
   description: Brainbase はセッションと個別コマンドを扱えるが、仕事や定期業務を小規模チームで運用として閉じるための workflow / run / owner / context / approval / closure の正本を持っていない。
 architecture_docs:
   - path: docs/architecture/brainbase-workflow-mission-control-architecture.md
-    status: proposed
+    status: superseded
   - path: docs/architecture/ADR-015-workflow-mission-control-project-first-ui.md
+    status: superseded
+  - path: docs/architecture/ADR-017-agent-first-product-surface.md
     status: accepted
 spec_docs:
   - path: docs/specs/story-brainbase-workflow-mission-control-spec.md
-    status: proposed
+    status: superseded
 design_docs:
   - path: docs/design/brainbase-workflow-project-first-ux.md
-    status: proposed
+    status: superseded
 related_stories:
   - story-workflow-mission-control-foundation
   - story-workflow-project-context-binding
@@ -22,13 +24,14 @@ related_stories:
   - story-workflow-dashboard-v0
   - story-workflow-human-in-the-loop
   - story-workflow-routine-integration
-  - story-workflow-ai-draft-builder
-status: draft
+status: superseded
 created_at: 2026-06-01
-updated_at: 2026-06-01
+updated_at: 2026-07-16
 ---
 
 # Brainbase Workflow Mission Control
+
+> Superseded as a product story by `story-workflow-product-retirement-v1` on 2026-07-16. Run、human approval、output、auditの要件はAutomation Run Coreへ継承する。Workflow Definition、汎用作成・編集・公開・manual run、Mission Control Webを製品として完成させる要件は廃止する。
 
 ## 背景
 
@@ -75,21 +78,23 @@ Workspace
 
 既存の Claude/Codex/ChatGPT/cron/local CLI は runner になり得る。しかし Brainbase の価値は runner を増やすことではなく、どの runner が動いても `runWorkflow()` を通して同じ ledger、同じ dashboard、同じ audit に戻すことにある。
 
-## UI/UX 方針
+## 提供面の移行方針
 
-Workflow は global list からだけ扱うものではない。添付UIイメージの方向性に合わせ、Brainbase の workflow 体験は Project-first にする。
+WorkflowのProject帰属、Run Trace、context、human step、auditはBrainbase Coreのドメイン能力として維持する。一方、Web UIを標準操作面とするProject-first方針はADR-017で廃止する。
 
 ```text
-Workspace
-  -> Project
-    -> Workflow
-      -> Builder / Canvas
-      -> Runs / Trace
+Codex / Claude Code via MCP
+  -> Workflow / Runの検索・実行・診断・管理
+
+Mac Companion
+  -> human waiting / action required / failed / blockedの即応
+
+Brainbase Web
+  -> 移管完了までは互換面
+  -> 最終的にはlogin / consent / bootstrap / pairing / recoveryのみ
 ```
 
-Workspace では Project が並び、Project detail では Documents と Workflows が同じ文脈で見える。Workflow detail では context sources、latest run、human step、outputs、audit が見え、将来的には canvas / node graph で処理の流れを編集できる。
-
-`/workflows` は cross-project の Mission Control として残す。役割は workflow 作成の主入口ではなく、human waiting、action required、failed、stale、recently active を横断的に見る operational inbox である。
+`/workflows`は移行中の互換面であり、恒久的な完成形ではない。MCPで全件・履歴・診断・管理を扱い、Mac Companionへ要介入projectionを移した後、Web routeを廃止する。
 
 ## スコープ
 
@@ -98,25 +103,26 @@ Workspace では Project が並び、Project detail では Documents と Workflo
 - Workflow に owner、execution environment、risk、human-in-the-loop policy、context sources を持たせる。
 - Workflow Run をログではなく作業単位として扱う。
 - Run 実行時に、予定 context と実際に解決された context snapshot を残す。
-- Dashboard は workflow 一覧ではなく、今見るべき action required / human waiting / failed を優先表示する。
+- 要介入projectionはMac Companionでaction required / human waiting / failed / blocked / unconfirmedを優先表示する。
 - local / cloud / hybrid runner は共通の `runWorkflow()` 入口に接続する。
 - `/ohayo`、`/oyasumi`、`/retro` は最終的に Routine subtype として Workflow Run に接続する。
 
 ## 受け入れ条件
 
 - [ ] Workflow Mission Control の全体 Story / Architecture / Spec が存在する。
-- [ ] Project-first UX の design doc が存在し、Workspace / Project / Workflow / Run detail の画面責務が明記されている。
+- [ ] 既存Project-first UXのdesign docは移行資料として識別され、Core / MCP / Companion / minimal Webの責務分担が正本化されている。
 - [ ] Workflow は `workspace_id` と `project_id` を必須にする方針が明記されている。
 - [ ] `project_id` は Session 作成時の既存 Project と同じ概念を使う方針が明記されている。
 - [ ] Workflow の protected API は、Session selector と同じ Project identity / alias を使うが、空の `projectCodes` を unrestricted として扱わない方針が明記されている。
 - [ ] Workflow は `owner_id` を必須にし、最初は個人運用でも成立する方針が明記されている。
-- [ ] Workflow は `context_sources` を持ち、UI で何の context を使うか見える方針が明記されている。
+- [ ] Workflowは`context_sources`を持ち、MCPまたは要介入projectionで利用contextを確認できる方針が明記されている。
 - [ ] Run は `resolved_context_snapshot` を残す方針が明記されている。
 - [ ] `action_required` が first-class concept として定義されている。
 - [ ] Human-in-the-loop は policy/gate/step として扱う方針が明記されている。
 - [ ] local / cloud / hybrid runner は二重実装せず、共通 runner entrypoint に接続する方針が明記されている。
 - [ ] 最初の MVP は `brainbase-alive` と `/ohayo` run ledger の順に進める方針が明記されている。
-- [ ] `/workflows` は global operational inbox、Project detail は workflow browsing / creation の自然な入口として分離されている。
+- [ ] Workflow/RunのMCP操作面と、Mac Companionの要介入projectionがWeb UIへ依存せず成立する。
+- [ ] `/workflows`は移行中の互換面として分類され、後継面のevidenceを満たした後に廃止できる。
 
 ## Workflow State Scenarios
 
@@ -176,7 +182,6 @@ Then scheduler は直接 business logic を呼ばず、`runWorkflow()` に接続
 1. `story-workflow-mission-control-foundation`: domain boundary、MVP vocabulary、完成条件を固定する。
 2. `story-workflow-project-context-binding`: Session 作成と同じ Project に workflow を所属させ、予定 context と実 context snapshot を定義する。
 3. `story-workflow-run-ledger-core-runner`: `runWorkflow()` を唯一の入口にし、success / failure / action_required / audit を記録する。
-4. `story-workflow-dashboard-v0`: `/workflows` で health、failed、human waiting、action required、latest runs、context visibility を表示する。
+4. `story-workflow-dashboard-v0`: 既存`/workflows`の互換性を維持する移行Story。新規投資先にはせず、MCP/Companion移管後にretireする。
 5. `story-workflow-human-in-the-loop`: approval / review / input request を workflow step として扱う。
 6. `story-workflow-routine-integration`: `brainbase-alive` と `/ohayo` を最初の routine workflow として ledger に接続する。
-7. `story-workflow-ai-draft-builder`: チャット入力から workflow draft を生成し、Builder preview、dry-run test、publish の作成ループを接続する。

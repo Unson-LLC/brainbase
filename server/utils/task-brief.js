@@ -9,7 +9,7 @@ const TASK_BRIEF_MIN_LENGTH = 8;
 const CJK_PATTERN = /[\u3040-\u30ff\u3400-\u9fff]/;
 const NATURAL_LANGUAGE_HINT_PATTERN = /\b(please|fix|make|update|improve|investigate|check|review|implement|show|change|add|remove|explain|summarize|help|need|want|should|could)\b/i;
 const SHELL_COMMAND_PREFIXES = new Set([
-    'git', 'jj', 'npm', 'pnpm', 'yarn', 'bun', 'node', 'npx', 'ls', 'cd', 'cat', 'sed', 'rg',
+    'git', 'npm', 'pnpm', 'yarn', 'bun', 'node', 'npx', 'ls', 'cd', 'cat', 'sed', 'rg',
     'find', 'mkdir', 'rm', 'cp', 'mv', 'touch', 'bash', 'zsh', 'sh', 'python', 'python3', 'uv',
     'docker', 'tmux', 'claude', 'codex', 'curl'
 ]);

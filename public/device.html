@@ -226,12 +226,6 @@
             text-align: center;
         }
 
-        .loading-text {
-            text-align: center;
-            color: #94a3b8;
-            font-size: 14px;
-            margin-top: 16px;
-        }
     </style>
 </head>
 <body>
@@ -268,10 +262,7 @@
                 <div class="label">認証コード</div>
                 <p class="code" id="user-code-display">XXXX-XXXX</p>
             </div>
-            <button class="btn" id="slack-login-btn">
-                <span class="spinner" style="display: none;"></span>
-                Slackでログイン
-            </button>
+            <button class="btn" id="slack-login-btn">Slackでログイン</button>
             <button class="btn btn-secondary" id="back-to-input-btn">戻る</button>
         </div>
 
@@ -305,7 +296,7 @@
     </div>
 
     <script type="module">
-        import { DeviceAuthController } from '/modules/device/device-auth-controller.js?v=5';
+        import { DeviceAuthController } from '/modules/device/device-auth-controller.js?v=6';
 
         const controller = new DeviceAuthController();
         controller.init();

@@ -1,0 +1,142 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-data-ssot-normalization",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "block",
+  "summary": "記録commandの不正確さとREST/MCP・critical migration path証跡不足のためblock",
+  "findings": [
+    {
+      "severity": "critical",
+      "id": "gate-evidence-command-reliability",
+      "detail": "存在しないtest pathを含むNode commandが29 tests passedとして記録されている"
+    },
+    {
+      "severity": "high",
+      "id": "gate-evidence-rest-mcp-surface-gap",
+      "detail": "RESTとMCP両面のmachine-readable artifactがない"
+    },
+    {
+      "severity": "high",
+      "id": "gate-evidence-critical-migration-paths-uncovered",
+      "detail": "transaction rollback finance人物監査保持の直接証跡が不足"
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Story、diff、正規化/rollback実装、test、VibePro artifactを独立監査",
+    "evidence": ".vibepro/pr/story-graph-data-ssot-normalization/verification-evidence.json",
+    "inputs": [
+      "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "scripts/normalize-graph-data-ssot.mjs",
+      "tests/unit/normalize-graph-data-ssot.test.js"
+    ]
+  },
+  "judgment_delta": [
+    "needs_changes候補 -> command reliabilityとcritical path gapを確認したためblock"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+    "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+    "expected_root": null,
+    "expected_head_sha": "0da05321808304875891712d5aa093b0bc538324",
+    "current_head_sha": "0da05321808304875891712d5aa093b0bc538324",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+      "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+      "expected_root": null,
+      "expected_head_sha": "0da05321808304875891712d5aa093b0bc538324",
+      "current_head_sha": "0da05321808304875891712d5aa093b0bc538324",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-18T15:33:54.496Z",
+  "git_context": {
+    "head_sha": "0da05321808304875891712d5aa093b0bc538324",
+    "current_branch": "codex/graph-data-ssot-normalization",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-18T15:33:54.485Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 3 file(s)",
+    "recorded_head_sha": "0da05321808304875891712d5aa093b0bc538324",
+    "surface_files": [
+      {
+        "path": "docs/management/stories/story-graph-data-ssot-normalization.md",
+        "sha256": "862dba0e47110610a82776b43fba32d4976a7358babec919caf31ea19af74017",
+        "size": 8080
+      },
+      {
+        "path": "scripts/normalize-graph-data-ssot.mjs",
+        "sha256": "d20e44b418081f6895d5c51ebaf3c1bd04b8d14c2105e4c801cdfa00a0cbd5a1",
+        "size": 30823
+      },
+      {
+        "path": "tests/unit/normalize-graph-data-ssot.test.js",
+        "sha256": "34fed056673a191bdae9e001480a37d69586c0ba69da2cbd1df639b5e0afe0fa",
+        "size": 2251
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "220bd36065a968dc5bd1aee0c82996eb57e7af6765fa5fc47e226db1149613a9"
+  },
+  "source_fingerprint": "30ade6578af776356cb7c7a2895c67817c55638a735df0055325bf0cd620a490",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/gate_evidence_review",
+    "agent_role": null,
+    "model": "gpt-5",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-graph-data-ssot-normalization/gate/gate-evidence-review-result.json",
+    "request_artifact": ".vibepro/reviews/story-graph-data-ssot-normalization/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "unknown",
+      "reviewer_session_id": null,
+      "implementation_session_id": null,
+      "source": "undeclared"
+    }
+  },
+  "agent_usage": null
+}

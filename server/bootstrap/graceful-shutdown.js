@@ -2,9 +2,6 @@ import { gracefulCleanup } from '../lib/graceful-cleanup.js';
 
 export function registerGracefulShutdown({
     server,
-    stateStore,
-    conversationLinker,
-    sessionServices,
     meetingSourceMcpSyncService = null,
     eveMeetingNoteReconciler = null,
     canonicalTaskOperationRepository = null,
@@ -26,20 +23,10 @@ export function registerGracefulShutdown({
                 })
             },
             {
-                name: 'cleanup-state-store',
-                fn: async () => {
-                    if (stateStore.cleanup) await stateStore.cleanup();
-                }
-            },
-            {
                 name: 'release-canonical-task-writer',
                 fn: async () => {
                     await canonicalTaskOperationRepository?.releaseWriter?.();
                 }
-            },
-            {
-                name: 'stop-conversation-linker',
-                fn: () => { conversationLinker.stopPeriodicLink(); }
             },
             {
                 name: 'stop-meeting-source-mcp-sync',
@@ -48,14 +35,6 @@ export function registerGracefulShutdown({
             {
                 name: 'stop-eve-note-reconciler',
                 fn: () => { eveMeetingNoteReconciler?.stopScheduledReconcile?.(); }
-            },
-            {
-                name: 'cleanup-session-runtime',
-                fn: async () => {
-                    if (sessionServices.runtime.lifecycle.cleanup) {
-                        await sessionServices.runtime.lifecycle.cleanup();
-                    }
-                }
             },
             {
                 name: 'stop-mesh-service',

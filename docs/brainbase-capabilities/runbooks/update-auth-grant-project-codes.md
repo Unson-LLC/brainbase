@@ -7,6 +7,21 @@ Use this when a user needs access to additional projects.
 - Confirm the target projects exist in `/api/config`.
 - Confirm the target user has exactly one active grant row unless intentionally managing multiple grants.
 - Do not print database secrets in logs or chat.
+- Load the effective local Brainbase connection from
+  `~/.brainbase/runtime-env/brainbase-production.env` or the active launchd
+  environment. A repository `.env` is not proof of the running process's
+  connection.
+- Before mutation, read back the database identity and expected tables. Do not
+  confuse the Lightsail Brainbase SSOT database with a separate Docker
+  PostgreSQL used by NocoDB.
+
+## Project-code migration boundary
+
+Changing a project or app code is not an entity-only rename. Reconcile the
+Graph entity, `auth_grants.project_codes`, token/JWT refresh, `/api/config`,
+session-selectable projects, and any owning capability or Skill reference.
+Compatibility aliases require an explicit owner and removal condition; do not
+silently preserve an old ID indefinitely.
 
 ## Example Update
 

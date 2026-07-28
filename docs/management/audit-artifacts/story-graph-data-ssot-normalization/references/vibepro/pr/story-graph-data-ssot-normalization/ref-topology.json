@@ -1,0 +1,6105 @@
+{
+  "schema_version": "0.1.0",
+  "fetch_performed": false,
+  "remotes": [
+    {
+      "name": "origin",
+      "url": "https://github.com/Unson-LLC/brainbase-unson.git"
+    },
+    {
+      "name": "upstream",
+      "url": "https://github.com/Unson-LLC/brainbase.git"
+    }
+  ],
+  "refs": {
+    "base_ref": "origin/develop",
+    "head_ref": "HEAD",
+    "current_branch": "codex/graph-data-ssot-normalization",
+    "base_sha": "7a517793a45e996012593717c50fc26475d38aae",
+    "head_sha": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+    "merge_base_sha": "7a517793a45e996012593717c50fc26475d38aae"
+  },
+  "base_selection": {
+    "ref": "origin/develop",
+    "explicit": true,
+    "rule": "cli_option"
+  },
+  "branches": [
+    {
+      "branch": "add-workflow-dispatch-to-develop",
+      "local_sha": null,
+      "remotes": {
+        "origin": "113fdd738ac7aa51ce64adf8d6f79e3747e22d01",
+        "upstream": "113fdd738ac7aa51ce64adf8d6f79e3747e22d01"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "arch/ADR-001-wiki-project-filter",
+      "local_sha": null,
+      "remotes": {
+        "origin": "177d222d1d65d61f539c0dd771e60d22b532a77d",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1770688166374-1777114485484",
+      "local_sha": null,
+      "remotes": {
+        "origin": "2f02462293e0da0fb7957cab883a0700bba57341",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1770692525172-1777114506186",
+      "local_sha": null,
+      "remotes": {
+        "origin": "3015b148ed6eca5608ed0721049e521fc3a0c4e5",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1770715440702-1777114584190",
+      "local_sha": null,
+      "remotes": {
+        "origin": "aba22e1985feba57fa6e9f70a938de937f8024bd",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1770769711691-1777114608623",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ad8b2c157aff2b06ac11717303edfb1b2921ac55",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1770778440455-1777114630544",
+      "local_sha": null,
+      "remotes": {
+        "origin": "fe2018b240d0c63d85f99c095b7b5130f72f3d60",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1770781383647-1777114639884",
+      "local_sha": null,
+      "remotes": {
+        "origin": "44bf6cc5fde461f437af5cb73d982046a801f4b4",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1770875624986-1777114770144",
+      "local_sha": null,
+      "remotes": {
+        "origin": "8c0763369d41c69a9d0f2e2454fd11d35239c474",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1770880833742-1777114799137",
+      "local_sha": null,
+      "remotes": {
+        "origin": "46558a99ff2c3f8ba0f9f8b674419b78604c8fb3",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771228828137-1777115049761",
+      "local_sha": null,
+      "remotes": {
+        "origin": "3c75b323afd55e3c02822cff08bb987cccd31d50",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771395970086-1777114987975",
+      "local_sha": null,
+      "remotes": {
+        "origin": "5ea93d8e07d87955de78cd5b2caaa23b076849eb",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771395997999-1777115008433",
+      "local_sha": null,
+      "remotes": {
+        "origin": "0cd1bfbbdd2a5adda0930b1712f51948de25e079",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771407198532-1777115046661",
+      "local_sha": null,
+      "remotes": {
+        "origin": "36fe2b1bfade6e1d9673d60c15d1f966a42eca76",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771426334713-1777115064782",
+      "local_sha": null,
+      "remotes": {
+        "origin": "f951a979a32d6ec4b6cf5cf534bc7e3504a952ae",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771458877109-1777115068529",
+      "local_sha": null,
+      "remotes": {
+        "origin": "8e89f46e3685dc51bef50f9d82ab16703540784c",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771461056513-1777115075542",
+      "local_sha": null,
+      "remotes": {
+        "origin": "5a5ad75ed0d4a4841e3b1322a2da81dd617df56a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771463694612-1777115088049",
+      "local_sha": null,
+      "remotes": {
+        "origin": "a56849b931a65b21484bff7f88e97b52749ad701",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771547850275-1777115114478",
+      "local_sha": null,
+      "remotes": {
+        "origin": "57c7396297aec858bcae4fb788d129112fd2cd79",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771566601217-1777115120173",
+      "local_sha": null,
+      "remotes": {
+        "origin": "8ae92ae9bc91fc0a546be632e0fb98080630387a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771572364263-1777115122896",
+      "local_sha": null,
+      "remotes": {
+        "origin": "26577ea3b7a497d1c8e61ba9e1de57f286b3984c",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771657510651-1777115201580",
+      "local_sha": null,
+      "remotes": {
+        "origin": "6fec76b5003950d1ad295ba55a01bb73002dff9a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771690510648-1777115209873",
+      "local_sha": null,
+      "remotes": {
+        "origin": "859254d8abd25eb42fae06d5f2386196a14841af",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771691164158-1777115209940",
+      "local_sha": null,
+      "remotes": {
+        "origin": "1b1a133d1a286e8b774d9c658f1abedf79a87a5c",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771842896381-1777115212156",
+      "local_sha": null,
+      "remotes": {
+        "origin": "e9264f6e9c69bb38e96eeec7a7f2fc61a501f2ba",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771856088494-1777115226223",
+      "local_sha": null,
+      "remotes": {
+        "origin": "117103d75dfd23d316294514b43482b108aa3e03",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771858233006-1777115226662",
+      "local_sha": null,
+      "remotes": {
+        "origin": "63c37bae53ca64992e2e38c6d1664f0219025d72",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771858233006-1777115369213",
+      "local_sha": null,
+      "remotes": {
+        "origin": "5885d2ef7f3a920f71e6151aa494b518212d7367",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1771858233006-1777115382824",
+      "local_sha": null,
+      "remotes": {
+        "origin": "dd3e2f1ca5312ce2ab90c2595b37421db038e500",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1772517354748-1777115499058",
+      "local_sha": null,
+      "remotes": {
+        "origin": "4ae7c18598b4777f807fd7d49e52b77a7e027147",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1772616913368-1777115502558",
+      "local_sha": null,
+      "remotes": {
+        "origin": "0544059aac248df7c635414a043cf71b018d27b3",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1774399292871-1777117414162",
+      "local_sha": null,
+      "remotes": {
+        "origin": "e90df4c90e14ba8415576cd8f6e7cf17eed075b4",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1774961393064-1777130503576",
+      "local_sha": null,
+      "remotes": {
+        "origin": "8cab36423c1dddbe37af2bea203179fbba37137d",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-record/session-1775011570366-1777130530624",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d9fb2baff2b9ebbce0f5583dacf2a3306ae6c6a4",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "archive-records",
+      "local_sha": null,
+      "remotes": {
+        "origin": "c4aec8dfedf027ff8d7accf25d3c4443a3270bec",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "chore/consolidate-home-claude-org-assets",
+      "local_sha": "9bf57e0eb27273f4f0415d843d034edab0e08a61",
+      "remotes": {
+        "origin": "caf0f5840d31bbe203f5f4e31d3b6fadda28cd7d",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": true,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "chore/drop-codex-refs",
+      "local_sha": "54cbc9f164027923135e31d1489d3f6ffeb4409f",
+      "remotes": {
+        "origin": "85e7b06d23ae4538576dff84fbca0bcc0b3e5c25",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": true,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "chore/git-first-development-workflow",
+      "local_sha": "239969da41dd30671c228af0630ea17a8be96177",
+      "remotes": {
+        "origin": "239969da41dd30671c228af0630ea17a8be96177",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "chore/oyasumi-local-write-path",
+      "local_sha": "672d3a16b92e585b36de428372a1765aa5c67cb0",
+      "remotes": {
+        "origin": "672d3a16b92e585b36de428372a1765aa5c67cb0",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "chore/plugin-cleanup-and-yakumo-notes",
+      "local_sha": null,
+      "remotes": {
+        "origin": "bacaad5021cbc5f794486b20d765dbcbcd58d1ff",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "chore/relocate-org-docs",
+      "local_sha": "324cc12b9fdcced67e3fce2d6e8f4cc9a38ca94b",
+      "remotes": {
+        "origin": "324cc12b9fdcced67e3fce2d6e8f4cc9a38ca94b",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "chore/remove-jj-shim",
+      "local_sha": "ea0010d780444e5dc04504cd083f993952ce6fe3",
+      "remotes": {
+        "origin": "ea0010d780444e5dc04504cd083f993952ce6fe3",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "chore/sanitize-absolute-paths",
+      "local_sha": "350003b2ce7cc30530d17c7ec2e575ebfe300afe",
+      "remotes": {
+        "origin": "350003b2ce7cc30530d17c7ec2e575ebfe300afe",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "chore/session-start-hook-slim-2026-05-06",
+      "local_sha": null,
+      "remotes": {
+        "origin": "67fdeff7cf64224d2237104dbd5b0d3d62976982",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "chore/sync-nocodb-mapping-vibepro",
+      "local_sha": "79ced7c87916561d2c43c5e0c5c0a8a948de35de",
+      "remotes": {
+        "origin": "79ced7c87916561d2c43c5e0c5c0a8a948de35de",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "claude/eve-clientcontext-fix",
+      "local_sha": "fff848243eaa3ea54aed604d0cf8e0086f133b83",
+      "remotes": {
+        "origin": "fff848243eaa3ea54aed604d0cf8e0086f133b83",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "claude/eve-dispatch-handoff-context",
+      "local_sha": "cb9d0143c45a978e0514be19f726af6091f5bd86",
+      "remotes": {
+        "origin": "cb9d0143c45a978e0514be19f726af6091f5bd86",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "claude/eve-meeting-note-reconciler",
+      "local_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+      "remotes": {
+        "origin": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "claude/eve-stream-replay-reader",
+      "local_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+      "remotes": {
+        "origin": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "claude/meeting-note-generation-dag-wiring",
+      "local_sha": "b36e2fedf80d5eab3921c346f26a004f6143cf13",
+      "remotes": {
+        "origin": "b36e2fedf80d5eab3921c346f26a004f6143cf13",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "claude/remove-file-tasks-schedule",
+      "local_sha": "3911170481646648f93f05b1d9f330d797c27501",
+      "remotes": {
+        "origin": "3911170481646648f93f05b1d9f330d797c27501",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/admin-light-design-import-v2",
+      "local_sha": "4913586c376cb33980c7f1c8313b3a7abdb825ac",
+      "remotes": {
+        "origin": "4913586c376cb33980c7f1c8313b3a7abdb825ac",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/admin-personal-kg-visualization",
+      "local_sha": "f94965234f5ac5b1252f1cdec12c3b545ef81d65",
+      "remotes": {
+        "origin": "f94965234f5ac5b1252f1cdec12c3b545ef81d65",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/brainbase-meeting-source-brainbase-note-generation",
+      "local_sha": "dc5871077c9324e462755df70d65700c78868699",
+      "remotes": {
+        "origin": "dc5871077c9324e462755df70d65700c78868699",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/brainbase-vitepress-manual",
+      "local_sha": "83e587ad6cb5599717d9ca6c6800b1e167fc663a",
+      "remotes": {
+        "origin": "83e587ad6cb5599717d9ca6c6800b1e167fc663a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/companion-people-create-api",
+      "local_sha": null,
+      "remotes": {
+        "origin": "b0e7ce005f12d7c280eacc74126b96f3af4e0146",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/companion-reply-draft",
+      "local_sha": "87f222a2202ee5707ae636bdd806cf770cb997fb",
+      "remotes": {
+        "origin": "87f222a2202ee5707ae636bdd806cf770cb997fb",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/device-verification-uri-guard",
+      "local_sha": "060df06201d270ceb4e76c6979ea44d0a0560362",
+      "remotes": {
+        "origin": "060df06201d270ceb4e76c6979ea44d0a0560362",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/distribution-model-guard",
+      "local_sha": "395861ce84705a24598db8f1554b9ec25417eeef",
+      "remotes": {
+        "origin": "395861ce84705a24598db8f1554b9ec25417eeef",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/eve-dispatch-auth",
+      "local_sha": "f0124c005e34da427c2d804fb5eb60b4c4e4b2a5",
+      "remotes": {
+        "origin": "f114aeb82e240e8edfd78a10e4fece0c2c4a3e93",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": true,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/fix-auth-person-identity",
+      "local_sha": "22c0ea39bee5638d530d864ce0f5d3f471cc7d4a",
+      "remotes": {
+        "origin": "22c0ea39bee5638d530d864ce0f5d3f471cc7d4a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/fix-meeting-review-generated-outputs",
+      "local_sha": "6d0c65d840326714fe43c6e63c670063478d8740",
+      "remotes": {
+        "origin": "6d0c65d840326714fe43c6e63c670063478d8740",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/fix-personal-kg-token-refresh",
+      "local_sha": "5cb45dc50f2be34ea56e345d13300b4ebdf4f688",
+      "remotes": {
+        "origin": "5cb45dc50f2be34ea56e345d13300b4ebdf4f688",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/fix-salestailor-canonical-path",
+      "local_sha": "4bd6f2bda094ddf2fe0e8d7a4d334daca848a576",
+      "remotes": {
+        "origin": "4bd6f2bda094ddf2fe0e8d7a4d334daca848a576",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/fix-setup-config-auth",
+      "local_sha": "08d84f7c9355870ac97cc179122d3b2175c10c82",
+      "remotes": {
+        "origin": "97aa8feb058a0341c9371f878d7d5165e6137886",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": true,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/fix-setup-config-schema",
+      "local_sha": null,
+      "remotes": {
+        "origin": "70dfad1bbe37878f894331a99fcc17addb461a48",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/graph-data-ssot-normalization",
+      "local_sha": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "remotes": {
+        "origin": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/graph-entity-resolver-impl",
+      "local_sha": "115413c25e9b46c3b9bbc9b169d6f85bc4154112",
+      "remotes": {
+        "origin": "115413c25e9b46c3b9bbc9b169d6f85bc4154112",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/graph-mcp-infra-fix",
+      "local_sha": "e169781f3840534efc13e5e7f25d9f6d78cf2a94",
+      "remotes": {
+        "origin": "e169781f3840534efc13e5e7f25d9f6d78cf2a94",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/infisical-target-switching",
+      "local_sha": "d58dd0e0ef745c84277cbce5689a823abc02d326",
+      "remotes": {
+        "origin": "d58dd0e0ef745c84277cbce5689a823abc02d326",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/integration-catalog-provider",
+      "local_sha": "0b14c3f287c61eb5eb46be45a8a13d82a7bde406",
+      "remotes": {
+        "origin": "0b14c3f287c61eb5eb46be45a8a13d82a7bde406",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/internal-api-csrf-exemption",
+      "local_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+      "remotes": {
+        "origin": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/local-data-server-ssot-migration",
+      "local_sha": null,
+      "remotes": {
+        "origin": "c510571b79a8889ad0fe33dcff2dbfa537574e5e",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/manual-project-data-structure",
+      "local_sha": "302f6ed71a93bc2d31c1efe4cb1c953febf6c5dc",
+      "remotes": {
+        "origin": "302f6ed71a93bc2d31c1efe4cb1c953febf6c5dc",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/meeting-owner-ssot-candidates",
+      "local_sha": "98971a7c8b7e0ab4a3ca9063a2f250df11565dbd",
+      "remotes": {
+        "origin": "98971a7c8b7e0ab4a3ca9063a2f250df11565dbd",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/meeting-pack-eve-candidates",
+      "local_sha": "1a1e1907802688826308a83c81d4b0f860799e9f",
+      "remotes": {
+        "origin": "d647d66668c3252e9e5264649d47de6db43a2270",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": true,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/meeting-pack-eve-candidates-vibepro",
+      "local_sha": "d647d66668c3252e9e5264649d47de6db43a2270",
+      "remotes": {
+        "origin": "d647d66668c3252e9e5264649d47de6db43a2270",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/meeting-pack-graph-ssot-playbook",
+      "local_sha": "e7cc6ad5d933a5e4fefe67187afd0dcbbdff913f",
+      "remotes": {
+        "origin": "e7cc6ad5d933a5e4fefe67187afd0dcbbdff913f",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/meeting-pack-owner-access-variants",
+      "local_sha": null,
+      "remotes": {
+        "origin": "02e8607c48b8237269f07d7deeaafed7ed45159b",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/meeting-pack-owner-context-candidates",
+      "local_sha": "f87481f0513b12496326b2b2b6e6b61705bdb305",
+      "remotes": {
+        "origin": "f87481f0513b12496326b2b2b6e6b61705bdb305",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/meeting-source-runtime-sync-policy",
+      "local_sha": "0fb022b3e94dc87ec271a8e6bdb9384a730cab01",
+      "remotes": {
+        "origin": "0fb022b3e94dc87ec271a8e6bdb9384a730cab01",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/meeting-source-sync-story",
+      "local_sha": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+      "remotes": {
+        "origin": "7b436dbfda0a3bb97e746beb93dfacaabb7f9720",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/meeting-task-owner-ssot",
+      "local_sha": "a0d3b3a8a1cdb19a19ce9d592013376f0877fee3",
+      "remotes": {
+        "origin": "a0d3b3a8a1cdb19a19ce9d592013376f0877fee3",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/nocodb-tableid-records",
+      "local_sha": "f42280b69f99019d258572fcf3509add78eae735",
+      "remotes": {
+        "origin": "f42280b69f99019d258572fcf3509add78eae735",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/onboarding-import-extract",
+      "local_sha": null,
+      "remotes": {
+        "origin": "6cf1adff96dcb7081d91d9178ea7c15527916104",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/otahara-mcp-external-readiness",
+      "local_sha": "7b8100dbbd7214946fdb0244c7e2c62ab388940f",
+      "remotes": {
+        "origin": "7b8100dbbd7214946fdb0244c7e2c62ab388940f",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/personal-kg-api-ingestion",
+      "local_sha": "5561493aec688da262d8cff46697c8f7d0001cb4",
+      "remotes": {
+        "origin": "5561493aec688da262d8cff46697c8f7d0001cb4",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/personal-kg-tokenized-search",
+      "local_sha": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+      "remotes": {
+        "origin": "fa29056333fe807aff4a86f4866957ec38cb5d2f",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/record-salestailor-env-restore-20260705",
+      "local_sha": "00deae5cf441406e03fc301e3a790aa8c921e021",
+      "remotes": {
+        "origin": "00deae5cf441406e03fc301e3a790aa8c921e021",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/run-receipt-inbox-v1",
+      "local_sha": null,
+      "remotes": {
+        "origin": "b3f70411cb581fd7bb8f7c17e8d5404817ee7d0b",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/search-resolver-fallback",
+      "local_sha": "4ac135e6029a53e23040af6eedfe59c3cfffc1ac",
+      "remotes": {
+        "origin": "4ac135e6029a53e23040af6eedfe59c3cfffc1ac",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/simplify-graph-auth",
+      "local_sha": "5b274177ec97b97c84b8e728ec95bb4cd2824dc1",
+      "remotes": {
+        "origin": "5b274177ec97b97c84b8e728ec95bb4cd2824dc1",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/value-first-onboarding",
+      "local_sha": "cd86ab18324335100b7a50a5ec831e99697eb63a",
+      "remotes": {
+        "origin": "cd86ab18324335100b7a50a5ec831e99697eb63a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/workspace-staging-boundary",
+      "local_sha": "cedeb307e704f67655ced3a080b015374ddc7460",
+      "remotes": {
+        "origin": "cedeb307e704f67655ced3a080b015374ddc7460",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "develop",
+      "local_sha": "caf0f5840d31bbe203f5f4e31d3b6fadda28cd7d",
+      "remotes": {
+        "origin": "7a517793a45e996012593717c50fc26475d38aae",
+        "upstream": "2e2b1fc55f50ff458b8c2cbd5abaeb39b06b9437"
+      },
+      "divergence": {
+        "local_vs_remote": true,
+        "remote_disagreement": true
+      }
+    },
+    {
+      "branch": "docs/capability-map-protected-push",
+      "local_sha": null,
+      "remotes": {
+        "origin": "6180511dce0f72b44ab12f5d4994a8375bc57040",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "docs/context-layer-readme",
+      "local_sha": null,
+      "remotes": {
+        "origin": "87b7ea16b33ad00fe6d8aa5c59b91083b388e7ed",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "docs/vibepro-active-indicator-merge-evidence",
+      "local_sha": null,
+      "remotes": {
+        "origin": "7e9f404fcfdca8c72085f09c3cee45d16f4262a4",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "docs/weekly-learning-promotions-20260516",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ee4fa9bb103a1907fbb6adba8b2c40a52303328c",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/ai-session-adapter-p0-envelope-builder-20260515",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ee045d388daae15e1b4bcc65b430a78120512171",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/archive-records-direct-push",
+      "local_sha": "2ef36f73d9e2f3ba98b89b835ab2f194c5d74e78",
+      "remotes": {
+        "origin": "2ef36f73d9e2f3ba98b89b835ab2f194c5d74e78",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/assistant-ui-chat-surface",
+      "local_sha": "88e3cacc77483a070dfdc63cbe51d0ade98a5615",
+      "remotes": {
+        "origin": "88e3cacc77483a070dfdc63cbe51d0ade98a5615",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/brainbase-workflow-mission-control",
+      "local_sha": null,
+      "remotes": {
+        "origin": "dbb0af8de2c7c0a18f789be4e53bc007a23fb9fa",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/codex-app-server-adapter-clean",
+      "local_sha": "099d53e20c841133fd8f19a550a9de4b8de5710d",
+      "remotes": {
+        "origin": "099d53e20c841133fd8f19a550a9de4b8de5710d",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/codex-appserver-island-cache-bust",
+      "local_sha": "5aa6d810e54a783e26ea906d1cee38a56912196b",
+      "remotes": {
+        "origin": "5aa6d810e54a783e26ea906d1cee38a56912196b",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/codex-appserver-live-chat-smoke",
+      "local_sha": "58b1f300d9b790f539f82acf6c5a3d0f0ebc65af",
+      "remotes": {
+        "origin": "58b1f300d9b790f539f82acf6c5a3d0f0ebc65af",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/codex-appserver-transcript-dedupe",
+      "local_sha": "82d87b29999a23b12b2f949bed5e7404a88920e2",
+      "remotes": {
+        "origin": "82d87b29999a23b12b2f949bed5e7404a88920e2",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/file-viewer-mermaid-japanese",
+      "local_sha": null,
+      "remotes": {
+        "origin": "29ce1eab6564b62d497cd250673b7e95b6985f50",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/file-viewer-panel-v2",
+      "local_sha": "caedb94000fcd915c6f8912036060b79f7c822bb",
+      "remotes": {
+        "origin": "caedb94000fcd915c6f8912036060b79f7c822bb",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/green-indicator-priority",
+      "local_sha": null,
+      "remotes": {
+        "origin": "6fd875ebb1858c2fdac2ba45764cefb950a03ee0",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/honcho-memory-system",
+      "local_sha": null,
+      "remotes": {
+        "origin": "8dc785fca0b63c4ad8ae7c9d11ade67c945a1e33",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/m1-acl-foundation",
+      "local_sha": null,
+      "remotes": {
+        "origin": "5930e8abedc161bb52afcb88ae3d7342e4395ea6",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/m2-candidate-store",
+      "local_sha": null,
+      "remotes": {
+        "origin": "3fc3adafe9afb0517293a2b817ac570c64a9d65e",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/m3-account-curator-settings",
+      "local_sha": null,
+      "remotes": {
+        "origin": "6eab4c3361fd53ff9ae85d6d239ac744862d263d",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/m4-sns-posting",
+      "local_sha": null,
+      "remotes": {
+        "origin": "7bc7b217b8fe183e9fe0877b3ced17a53199bbc7",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/mobile-input-mode-toggle",
+      "local_sha": null,
+      "remotes": {
+        "origin": "e11adb67d52b185e00bda0ba2cfed67e38eb2a3c",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/ops-department-auto-refactoring",
+      "local_sha": null,
+      "remotes": {
+        "origin": "adb5053fb1add89572583699d70efbe1fb27ab6d",
+        "upstream": "adb5053fb1add89572583699d70efbe1fb27ab6d"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/ops-department-pr-improvement",
+      "local_sha": null,
+      "remotes": {
+        "origin": "acdbbd9583f704a1bab63869e44ae348c184ee0c",
+        "upstream": "acdbbd9583f704a1bab63869e44ae348c184ee0c"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/ops-department-refactor-strategy-main",
+      "local_sha": null,
+      "remotes": {
+        "origin": "8cf2d040baa8d0a6edd63ab401c2f2eb63a7e55b",
+        "upstream": "8cf2d040baa8d0a6edd63ab401c2f2eb63a7e55b"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/ops-file-deletion-safety",
+      "local_sha": null,
+      "remotes": {
+        "origin": "86feece8f7d4c45e1493bd9f8faab0b5386bb2fd",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/ops-refactor-file-deletion-safety",
+      "local_sha": "8b66ce21024cb02d034c8b71db43f7f9c626e04a",
+      "remotes": {
+        "origin": "8b66ce21024cb02d034c8b71db43f7f9c626e04a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/oyasumi-conversation-personal-kg",
+      "local_sha": "df4d9f0dc92024d7be7d4ea3eedb7e5aeb963009",
+      "remotes": {
+        "origin": "df4d9f0dc92024d7be7d4ea3eedb7e5aeb963009",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/oyasumi-meeting-personal-kg",
+      "local_sha": null,
+      "remotes": {
+        "origin": "af5b02927a38b510dc8275ca26d9c98dd84aa684",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/oyasumi-personal-kg-agent-fanout",
+      "local_sha": null,
+      "remotes": {
+        "origin": "c12a9cb9a8cb017724334b60a2139a5f4931531b",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/people-graph-ssot-detail-entities",
+      "local_sha": null,
+      "remotes": {
+        "origin": "abdc7373bab9c6df9a2bc358859680adfd4873a5",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/personal-kg-graph-promotion-final",
+      "local_sha": "5051059eaf8189b9d004db3f90b3a94f1790c3bb",
+      "remotes": {
+        "origin": "5051059eaf8189b9d004db3f90b3a94f1790c3bb",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/session-hibernation-phase1-5-eligibility",
+      "local_sha": null,
+      "remotes": {
+        "origin": "f483d3ec7ee5a606c0f4b0724b93d6d8fca8b8c6",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sessionstart-hook-setup",
+      "local_sha": "2a5706347a01707511345a3e84434f9f87a3f94a",
+      "remotes": {
+        "origin": "2a5706347a01707511345a3e84434f9f87a3f94a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/settings-permission-filtering",
+      "local_sha": null,
+      "remotes": {
+        "origin": "9d060ccf65e27139b722516e1c0bc626825e2464",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/skill-vibepro-project-rename",
+      "local_sha": null,
+      "remotes": {
+        "origin": "1c62d2b308774e87c27773864a19610d2ae0a376",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-account-management-ui",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ebe1ee5e9e1db51b71826d38c6a2ec3bbf91c88e",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-approve-schedules-posts",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d2b892f0bd6864655ed48f3f137f5c2bc0ef7ab2",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-auth-unify",
+      "local_sha": null,
+      "remotes": {
+        "origin": "0bde14e83cd172603331de040894d4ac2d1b3e1b",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-context-personal-kg-seeds",
+      "local_sha": null,
+      "remotes": {
+        "origin": "cc2210ac2eb62efcd4802da0596662fa09affc5c",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-feedback-metrics-poller",
+      "local_sha": null,
+      "remotes": {
+        "origin": "bb25cb8ec81636277ce54a1a09f9620230e28993",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-growth-live-backend",
+      "local_sha": null,
+      "remotes": {
+        "origin": "f3071e3cd8cdd5bb7d95bb48792e8afc07f9aff2",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-learning-informed-generation",
+      "local_sha": null,
+      "remotes": {
+        "origin": "f305b07e067fd18ccf3d202cf869dba3a7762946",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-ledger-learning-loop",
+      "local_sha": null,
+      "remotes": {
+        "origin": "f69e2766803b07e19549d7fb1910718e042ee6e0",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-ledger-manual-refresh",
+      "local_sha": null,
+      "remotes": {
+        "origin": "6d2ef8cccbdd2dfcef1857be9ab70c157d589d22",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-ledger-pg-runtime",
+      "local_sha": null,
+      "remotes": {
+        "origin": "993a1525befc84b878e880c120c7a0e345d2159d",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-mobile-review-flow",
+      "local_sha": null,
+      "remotes": {
+        "origin": "13d7140c907596e89e0ed2076040be6fa114d63b",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-mobile-review-terminal-guard",
+      "local_sha": null,
+      "remotes": {
+        "origin": "775be18631264b5877cf3726f6d2c75f8718cf52",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-ohayo-human-noise-kg",
+      "local_sha": "448aedfb1182e9dce96b0b0a89bdbfa9f35f4aa8",
+      "remotes": {
+        "origin": "448aedfb1182e9dce96b0b0a89bdbfa9f35f4aa8",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-posted-content-dedupe",
+      "local_sha": null,
+      "remotes": {
+        "origin": "67fa7f771df05d2930beb5d9c00943b2cdffcb8e",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-publish-bridge",
+      "local_sha": null,
+      "remotes": {
+        "origin": "70ea9e0f589abfbb88fe7aa3f98c6f8258ee303b",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-publish-bridge-v2",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ea870661d63046d6804bf18dca91674bfb8d20c8",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-schedule-jst-fix",
+      "local_sha": null,
+      "remotes": {
+        "origin": "c171acd4a41c6ab8fac41f211407122f659e8d7d",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-scheduled-publisher-runner",
+      "local_sha": null,
+      "remotes": {
+        "origin": "3e916f0ff324f6e20c88da4c457d1734660f9cd4",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-scheduled-publisher-story",
+      "local_sha": "18221d2370e993bef82c915ac4d001792bc3cfe7",
+      "remotes": {
+        "origin": "3698c47a7a9ebdd2a0b8d054b8cd92d9185da973",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": true,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-scheduled-publisher-story-clean",
+      "local_sha": null,
+      "remotes": {
+        "origin": "34efb6175f59a89f86a0cf32344b31e8cde148cd",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/sns-story-catalog-sync",
+      "local_sha": null,
+      "remotes": {
+        "origin": "3af08927fc0604aa27ebc802ebb73ba031f4f7f8",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/workflow-ai-draft-docs",
+      "local_sha": null,
+      "remotes": {
+        "origin": "282c6458ee908f5f4180fd2d465a6b4dd31681fe",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feat/workflow-mission-control-project-ui",
+      "local_sha": "cac4ba2393ead862ff95506bb3de1b6358861579",
+      "remotes": {
+        "origin": "cac4ba2393ead862ff95506bb3de1b6358861579",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feature/archive-investigation-button",
+      "local_sha": null,
+      "remotes": {
+        "origin": "76248c2644cc9c4a73777423819cd45fd6c55a74",
+        "upstream": "76248c2644cc9c4a73777423819cd45fd6c55a74"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feature/commit-tree-panel",
+      "local_sha": null,
+      "remotes": {
+        "origin": "0d6a4366401483cf3bd69f29229f4f3e55568b18",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feature/conversation-linker",
+      "local_sha": null,
+      "remotes": {
+        "origin": "bff45229bae9b8a5508faccb83714fc2b3beace0",
+        "upstream": "194c71fb9637d1cd8dc4ca9c4078eb7653a0124d"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": true
+      }
+    },
+    {
+      "branch": "feature/task-add-and-completed-view",
+      "local_sha": null,
+      "remotes": {
+        "origin": "b30cd27d5b9cac7dad3904fb3c6375a8873334a7",
+        "upstream": "b30cd27d5b9cac7dad3904fb3c6375a8873334a7"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "feature/windows-support-and-cleanup",
+      "local_sha": null,
+      "remotes": {
+        "origin": "79681e0618b1edadbdbc13658048ae6f3d1a7bd4",
+        "upstream": "79681e0618b1edadbdbc13658048ae6f3d1a7bd4"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/active-indicator-stale-turn-done",
+      "local_sha": "756d28de74edcf907b54a773cd5cb3af76382998",
+      "remotes": {
+        "origin": "756d28de74edcf907b54a773cd5cb3af76382998",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/add-eslint-dependencies",
+      "local_sha": null,
+      "remotes": {
+        "origin": "e3599e687b6a0a2c99eff551263d44f9d5f4e455",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/archive-self-heal-20260311",
+      "local_sha": null,
+      "remotes": {
+        "origin": "9dedf70c3f005c9bba687514464739bd4ab40bc5",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/audit-classify-v6-reviewer-coverage",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d6cba44b55dd56922c17a4df3f32d0d2c843303b",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/audit-script-classification-precision",
+      "local_sha": null,
+      "remotes": {
+        "origin": "dde0e9deb44a51ad185c183120871b12c6616ebf",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/capability-personal-kg",
+      "local_sha": null,
+      "remotes": {
+        "origin": "81b78c40dfa4598805aed238aa63a20c3ad7d043",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/codex-appserver-display-xterm-fallback",
+      "local_sha": null,
+      "remotes": {
+        "origin": "4fa0992a622f1cac3c2fdf15f6229fc4def767fb",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/codex-appserver-indicator-stability",
+      "local_sha": null,
+      "remotes": {
+        "origin": "c0ed6a0e917561353684dc83298350294d422cc4",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/codex-appserver-metadata-timeout",
+      "local_sha": "a7e812fd608babfc16b473d7a28647ca953af8d1",
+      "remotes": {
+        "origin": "a7e812fd608babfc16b473d7a28647ca953af8d1",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/codex-appserver-repl-activity-bridge",
+      "local_sha": null,
+      "remotes": {
+        "origin": "1199eb65525d5ad2eb81ae8e18afc696571879fc",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/codex-wrapper-path",
+      "local_sha": null,
+      "remotes": {
+        "origin": "9b30a7667953f1eb3ed64f41b451b59f22b897f0",
+        "upstream": "9b30a7667953f1eb3ed64f41b451b59f22b897f0"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/control-mode-stdout-oncost",
+      "local_sha": null,
+      "remotes": {
+        "origin": "700a87bdae27c9fd8100a696ad93c657a24e9693",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/crypto-randomuuid-fallback",
+      "local_sha": null,
+      "remotes": {
+        "origin": "2d1668b3aa2dc2db808ecaff4f61822b8cdc8822",
+        "upstream": "2d1668b3aa2dc2db808ecaff4f61822b8cdc8822"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/csrf-exempt-report-activity",
+      "local_sha": null,
+      "remotes": {
+        "origin": "0a2667fb6d91e0e138c3ecc748d92606a94c1076",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/csrf-token-request-safety",
+      "local_sha": "ac14a005df24b922be68169681071ee887a19e5c",
+      "remotes": {
+        "origin": "ac14a005df24b922be68169681071ee887a19e5c",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/csrf-upload",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d8df39cd240ce3f4698033a06a5ecf66a7388cf5",
+        "upstream": "d8df39cd240ce3f4698033a06a5ecf66a7388cf5"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/decision-api-ensureperson-payload-overwrite",
+      "local_sha": "96029aad0ab35e7f46cbf86b088cd4861ed00afc",
+      "remotes": {
+        "origin": "96029aad0ab35e7f46cbf86b088cd4861ed00afc",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/decommission-graph-brain-base-work",
+      "local_sha": null,
+      "remotes": {
+        "origin": "f877bdfbb06db218256671242d9a2e8259b5ab83",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/file-opener-allow-home-dir",
+      "local_sha": null,
+      "remotes": {
+        "origin": "544118f8057fc8bd9c7e800b77a96cce55a4f860",
+        "upstream": "544118f8057fc8bd9c7e800b77a96cce55a4f860"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/goal-seek-false-positive-robust",
+      "local_sha": null,
+      "remotes": {
+        "origin": "418f0e269e0d022c22da86532963af93ff55fcda",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/goal-seek-no-past-messages",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ff2373495efbbb0f5565d237b8d381f01e9cd7a4",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/goal-seek-session-filter",
+      "local_sha": "426735febd43549f4588e4373f418f66757f36e3",
+      "remotes": {
+        "origin": "f12399657ca91d2052795516fd3c520d1ab97021",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": true,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/goal-seek-v2-test-updates",
+      "local_sha": null,
+      "remotes": {
+        "origin": "6a45024d2f5044baeaa6b6baede56cd0b2b4e1eb",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/graph-ssot-trigger-improvements",
+      "local_sha": null,
+      "remotes": {
+        "origin": "6f3fd48ee05b7e26e219edf146a71a0666c5cebc",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/honcho-v3-api",
+      "local_sha": "cea827edb2bd8733c2676468cecdd623819061f0",
+      "remotes": {
+        "origin": "cea827edb2bd8733c2676468cecdd623819061f0",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/kernel-entity-id-citation",
+      "local_sha": null,
+      "remotes": {
+        "origin": "60f51514aef541ff3978d5e10db8bce1a880d5ef",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/live-feed-readability",
+      "local_sha": "87cc38a7094ca12ae200b40fc085f09c8a2f63a7",
+      "remotes": {
+        "origin": "87cc38a7094ca12ae200b40fc085f09c8a2f63a7",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/live-feed-session-scope",
+      "local_sha": "d68f08e4dc5a1d76b1b02067414000a4b4169592",
+      "remotes": {
+        "origin": "d68f08e4dc5a1d76b1b02067414000a4b4169592",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/live-feed-stable-history",
+      "local_sha": "e6580e9d95650aa6d6cb8ae8d438df67b32dc8f8",
+      "remotes": {
+        "origin": "e6580e9d95650aa6d6cb8ae8d438df67b32dc8f8",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/mobile-bottom-nav-visibility",
+      "local_sha": null,
+      "remotes": {
+        "origin": "3f96cfc0e0dbfa750bed35dbbf3e6b14c83bb90a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/mobile-send-no-refocus",
+      "local_sha": "0800074d6b5c88b21de67aefa2de5849bab9c203",
+      "remotes": {
+        "origin": "0800074d6b5c88b21de67aefa2de5849bab9c203",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/oss-security-check",
+      "local_sha": null,
+      "remotes": {
+        "origin": "1c8b9784ff9ccb5edf48c038e3a8bf8ff99979c9",
+        "upstream": "1c8b9784ff9ccb5edf48c038e3a8bf8ff99979c9"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/oyasumi-personal-kg-semantic-coverage-20260520",
+      "local_sha": "6c4a168b8e3ad34eafae03c0d960f5c40e9359e1",
+      "remotes": {
+        "origin": "6c4a168b8e3ad34eafae03c0d960f5c40e9359e1",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/oyasumi-personal-kg-subagent-handoff-20260520",
+      "local_sha": "2e40384559a981b99179e7aae89e5dd9a0049d1b",
+      "remotes": {
+        "origin": "2e40384559a981b99179e7aae89e5dd9a0049d1b",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/pause-orphan-script-use-state-patch",
+      "local_sha": null,
+      "remotes": {
+        "origin": "111e6cb0330dce6a26c2edd055626c5588c88e92",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/private-oyasumi-projections",
+      "local_sha": "4495932f2cdb614e718e56b73a4e32994914aa25",
+      "remotes": {
+        "origin": "4495932f2cdb614e718e56b73a4e32994914aa25",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/protected-push-guard",
+      "local_sha": null,
+      "remotes": {
+        "origin": "3eb3faa3a1cd011d18e1b3e008e536548b3334a3",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/raf-output-buffering",
+      "local_sha": null,
+      "remotes": {
+        "origin": "a990706f2ee905cc4299aeb2b4fca38bfb5c51af",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/redo-mana-memory-promotion",
+      "local_sha": null,
+      "remotes": {
+        "origin": "7f2486ae60444673e5b54df5d2c1dfd30c88d7ae",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/remove-eager-snapshot",
+      "local_sha": null,
+      "remotes": {
+        "origin": "48e4138bd77472e7ab3cf84d0a047d354ee05ad1",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/resolve-failing-tests",
+      "local_sha": null,
+      "remotes": {
+        "origin": "e4c0abf0313bb3ecdbe11db9e8c955e725db02bf",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/revert-14e7c58d-mana-pipeline",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ea73c6427fd69853cd5ecfc02d028c479d0d229d",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/semantic-diagnosis-projection-guard",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ba5670f1929750d4e6160a50b2270e577ae33bea",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/semantic-finance-projection-guard",
+      "local_sha": null,
+      "remotes": {
+        "origin": "c3d963d78e5d804a317a577869e9190ccb372063",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/semantic-onsite-security-projection-guard",
+      "local_sha": null,
+      "remotes": {
+        "origin": "5b489a3bbb019037375aafaf20f12efacd1b4da2",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/semantic-sensitive-projection-guard",
+      "local_sha": null,
+      "remotes": {
+        "origin": "312d863f16f15bcd98bb1c22b504023345a2dd95",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/session-context-window-typing",
+      "local_sha": null,
+      "remotes": {
+        "origin": "b4dd609a8ef2fa04d767d8825bd7656cfa30fc71",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/session-list-idle-recency-sort",
+      "local_sha": null,
+      "remotes": {
+        "origin": "b8badcf73b3ce70f9e7928907dd6e0c4e63a71be",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/session-sleep-feedback-ownership",
+      "local_sha": "40460092b70a16f691892fbaaccbe00dad2090cd",
+      "remotes": {
+        "origin": "40460092b70a16f691892fbaaccbe00dad2090cd",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/session-switch-auth-nonblocking",
+      "local_sha": null,
+      "remotes": {
+        "origin": "5da6758089877a07d2fc5a8adbc8a3478dc6c2f1",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/session-switch-connect-orphan",
+      "local_sha": null,
+      "remotes": {
+        "origin": "6d65dc4f6bc825a18b83075756498537997d1a22",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/session-switch-perf-probe",
+      "local_sha": "77a8424d0cd87193dfe912bbced122e90d9715cd",
+      "remotes": {
+        "origin": "77a8424d0cd87193dfe912bbced122e90d9715cd",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/sessionstart-memory-preamble",
+      "local_sha": null,
+      "remotes": {
+        "origin": "c3db576a8bf37ba3f06e76348c74fa935228fd5a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/settings-contract-alignment",
+      "local_sha": "05329d35b599a1a29bb935380007866980332d90",
+      "remotes": {
+        "origin": "05329d35b599a1a29bb935380007866980332d90",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/show-goal-seek-commands",
+      "local_sha": "7e656ad9836d45999512f7f9cff988667a67ec28",
+      "remotes": {
+        "origin": "7e656ad9836d45999512f7f9cff988667a67ec28",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/simplify-ssot-self-assessment-hook",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d03e545a2171dd975db1670067042ec223d1c3d4",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/snapshot-mode-seamless",
+      "local_sha": "313b1bf9e89d3fb4e11ab473cc1a37ddc83f8345",
+      "remotes": {
+        "origin": "313b1bf9e89d3fb4e11ab473cc1a37ddc83f8345",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/sns-account-health-rate-limit-null",
+      "local_sha": null,
+      "remotes": {
+        "origin": "26fe04c4b86413dd7c5fa9938e15e779a335e211",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/sns-growth-hide-brainbase-drawer",
+      "local_sha": null,
+      "remotes": {
+        "origin": "9c0d454f1be04b3198c82d5988e110512891c08c",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/sns-growth-hide-embedded-detail",
+      "local_sha": null,
+      "remotes": {
+        "origin": "65ffee1324fe66c87e375e3f2e3a2e51f22c154c",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/sns-growth-hide-shell-header",
+      "local_sha": null,
+      "remotes": {
+        "origin": "9547858fb7d733a1f6773815743edb2875f23809",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/sns-growth-panel-navigation",
+      "local_sha": null,
+      "remotes": {
+        "origin": "1753604ecc8b8b46c46f5ab6f8fe7fa6e523200b",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/sns-mobile-pwa-terminal",
+      "local_sha": null,
+      "remotes": {
+        "origin": "325791a0041f3edc0f2a5e63969fcd91886d4069",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/sns-ohayo-public-copy-guard",
+      "local_sha": null,
+      "remotes": {
+        "origin": "0d0fdbefbb68506edc0d3efc1dcbd0f14c29dd85",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/sns-posting-health-script-env",
+      "local_sha": null,
+      "remotes": {
+        "origin": "8a887c3b266e24212cb9fc4ac014ec2a640a0c8f",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/stuck-codex-pane-recovery",
+      "local_sha": null,
+      "remotes": {
+        "origin": "8c904f962921482b9df88da7de676800a3170675",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/task-panel-deadline-display",
+      "local_sha": null,
+      "remotes": {
+        "origin": "a5d7bf791c4f7c94cfcefb2b98809dae3c054566",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/terminal-ctrl-l",
+      "local_sha": null,
+      "remotes": {
+        "origin": "1012bcda949ded59728fd3f3bd8f1fe4cd41f2ea",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/terminal-fast-long-paste",
+      "local_sha": "23eaeb5e346c9eac5fe9ede278ba2aec2849c02f",
+      "remotes": {
+        "origin": "23eaeb5e346c9eac5fe9ede278ba2aec2849c02f",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/terminal-local-echo-dedupe",
+      "local_sha": "59f45840c3eac2d37ad1857a4b6ca1477ad9d295",
+      "remotes": {
+        "origin": "59f45840c3eac2d37ad1857a4b6ca1477ad9d295",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/terminal-output-backpressure",
+      "local_sha": null,
+      "remotes": {
+        "origin": "8bc85e6e4542d2a8e66f4ebfcb6abade12106b65",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/terminal-reconnect-scroll-pin",
+      "local_sha": null,
+      "remotes": {
+        "origin": "e046694be51668196023aa41ea1cbd514d63cdd7",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/terminal-resize-min-threshold",
+      "local_sha": null,
+      "remotes": {
+        "origin": "5c3e941f10ba28758f3e77f7c16701a959d0abbd",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/terminal-same-viewer-multitab-orphan",
+      "local_sha": null,
+      "remotes": {
+        "origin": "b0f2f3ab4d39017462a91b037550d53567af0ad2",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/terminal-scroll-lock-rootcause",
+      "local_sha": null,
+      "remotes": {
+        "origin": "5b34ff0b071d4cc8f51609f50acd7fd11d9cfeae",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/terminal-scroll-lock-viewport-drift",
+      "local_sha": null,
+      "remotes": {
+        "origin": "e3675db1794ac424216762caf9a142ba4428e84f",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/terminal-snapshot-handoff-vibepro",
+      "local_sha": null,
+      "remotes": {
+        "origin": "b19cfec50696f4d6e6fa89296dae0ba2ebeee933",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/terminal-webgl-renderer",
+      "local_sha": null,
+      "remotes": {
+        "origin": "fcbc258bb931f59ff69fc3da81a0bea318b5f28f",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/terminal-write-coalesce",
+      "local_sha": null,
+      "remotes": {
+        "origin": "10943d042c9bd5c56b7b532d351b52a4b983cd21",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/ttyd-auto-restart-prevention",
+      "local_sha": "d6a45d7c97fb707f8a5cf716309b47064815cdf4",
+      "remotes": {
+        "origin": "d6a45d7c97fb707f8a5cf716309b47064815cdf4",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/type-to-focus-duplicate-first-key",
+      "local_sha": null,
+      "remotes": {
+        "origin": "9088b16fcb42ce68a42a8568583a59eba85e498d",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/waiting-indicator-sticky-until-response",
+      "local_sha": null,
+      "remotes": {
+        "origin": "46ae4ac74911000cef3b2070343b50cbb1898986",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/workflow-inner-back",
+      "local_sha": "64d0d2cdeb1c1ea73282fdaad150ce94070a7aaf",
+      "remotes": {
+        "origin": "64d0d2cdeb1c1ea73282fdaad150ce94070a7aaf",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/workflows-overlay-chrome",
+      "local_sha": "6968f5c65bab92652bea61d86ac3bdff4a6b14e2",
+      "remotes": {
+        "origin": "6968f5c65bab92652bea61d86ac3bdff4a6b14e2",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/workflows-shell-auth-return",
+      "local_sha": "24bae2070e85b7d7dc4e770b56bd850d5c5555bf",
+      "remotes": {
+        "origin": "24bae2070e85b7d7dc4e770b56bd850d5c5555bf",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/workflows-shell-overlay",
+      "local_sha": "fd7a2c5cdac8e4c0e35b71c17d27f50fdd2410e7",
+      "remotes": {
+        "origin": "fd7a2c5cdac8e4c0e35b71c17d27f50fdd2410e7",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/worktree-git-integration",
+      "local_sha": null,
+      "remotes": {
+        "origin": "e13de86aa643bfbf6ad3803a22eb63f5a590a45f",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/xterm-focus-report-sanitize",
+      "local_sha": null,
+      "remotes": {
+        "origin": "419ac436e9d6f1be9b6b554590a3d21f0caf6df5",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/xterm-render-handoff",
+      "local_sha": null,
+      "remotes": {
+        "origin": "5aa6cf462789b2a780fb45f1587bfdfa4afb1da8",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "fix/xterm-scrollback-5000",
+      "local_sha": null,
+      "remotes": {
+        "origin": "b28ad7eb5ce39abf77db3b8428e48d63bf8f2742",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "impl/STR-001-wiki-project-filter",
+      "local_sha": null,
+      "remotes": {
+        "origin": "722b85cc1d9e132120ebbbce373893b7079e3edb",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "koma",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d886d9663666f11847516101d1e07c05d3a35d9c",
+        "upstream": "d886d9663666f11847516101d1e07c05d3a35d9c"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "main",
+      "local_sha": "fc82fcd3a6ed995875c50cd15b78e00c41eefc3b",
+      "remotes": {
+        "origin": "913407ec8b456c8c141d976b44baf093d74d3b8e",
+        "upstream": "497462ff25acba5dac049218c161f0d0a542e596"
+      },
+      "divergence": {
+        "local_vs_remote": true,
+        "remote_disagreement": true
+      }
+    },
+    {
+      "branch": "ops-department-from-main",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d576695c9a6375d3b9731eed72b4b56cf48b1291",
+        "upstream": "d576695c9a6375d3b9731eed72b4b56cf48b1291"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department-stable",
+      "local_sha": null,
+      "remotes": {
+        "origin": "890beefe14232e34edd157c298794f9933b9529a",
+        "upstream": "890beefe14232e34edd157c298794f9933b9529a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/auto-refactor-5",
+      "local_sha": null,
+      "remotes": {
+        "origin": "1863bd8740dd41d66f0a98cf1c6e398eed330254",
+        "upstream": "1863bd8740dd41d66f0a98cf1c6e398eed330254"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/auto-refactor-6",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d8a0f35bbe37a48188126f539160900fcf7dcb13",
+        "upstream": "d8a0f35bbe37a48188126f539160900fcf7dcb13"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/auto-refactor-7",
+      "local_sha": null,
+      "remotes": {
+        "origin": "856a6dfe16c3e3b55c8713ac66c945d14b598a33",
+        "upstream": "856a6dfe16c3e3b55c8713ac66c945d14b598a33"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/auto-refactor-medium-11",
+      "local_sha": null,
+      "remotes": {
+        "origin": "c083845dcb155af5786b7df24ced6c01fe1759e6",
+        "upstream": "c083845dcb155af5786b7df24ced6c01fe1759e6"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/auto-refactor-medium-12",
+      "local_sha": null,
+      "remotes": {
+        "origin": "1a267d3591304271ef7b43dfe65c752c5f8c5115",
+        "upstream": "1a267d3591304271ef7b43dfe65c752c5f8c5115"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/auto-refactor-medium-13",
+      "local_sha": null,
+      "remotes": {
+        "origin": "9062e014a79375d7694e0d841065c6c5034f52c4",
+        "upstream": "9062e014a79375d7694e0d841065c6c5034f52c4"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/auto-refactor-medium-9",
+      "local_sha": null,
+      "remotes": {
+        "origin": "5dffd415f95e9c0aa65630a53f8c9d7b21b7ff40",
+        "upstream": "5dffd415f95e9c0aa65630a53f8c9d7b21b7ff40"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/weekly-review-1",
+      "local_sha": null,
+      "remotes": {
+        "origin": "9a50f8a3851dfe3cfbce259283b1664d2c7592c3",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/weekly-review-10",
+      "local_sha": null,
+      "remotes": {
+        "origin": "29ed63a4a5ebfe6ce5540a9b3f3e3f7105a97ffc",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/weekly-review-11",
+      "local_sha": null,
+      "remotes": {
+        "origin": "da82e9f47f65fc3b35fe66ff32cd917ca485ef18",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/weekly-review-20",
+      "local_sha": null,
+      "remotes": {
+        "origin": "e05c895808075c241fdf26f191ff841c5a93015b",
+        "upstream": "e05c895808075c241fdf26f191ff841c5a93015b"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/weekly-review-21",
+      "local_sha": null,
+      "remotes": {
+        "origin": "a959db537fed9c6719edb3d33fb1fa68552d600e",
+        "upstream": "a959db537fed9c6719edb3d33fb1fa68552d600e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/weekly-review-22",
+      "local_sha": null,
+      "remotes": {
+        "origin": "96ecb3f34488c4995c836afb254e37acc7d646c0",
+        "upstream": "96ecb3f34488c4995c836afb254e37acc7d646c0"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/weekly-review-24",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d4f26d5e6ad4063c3967006c61aaeb097c288ba8",
+        "upstream": "d4f26d5e6ad4063c3967006c61aaeb097c288ba8"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/weekly-review-26",
+      "local_sha": null,
+      "remotes": {
+        "origin": "8feba123f726ddbc04e903065cb00c2964dc9c79",
+        "upstream": "8feba123f726ddbc04e903065cb00c2964dc9c79"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/weekly-review-27",
+      "local_sha": null,
+      "remotes": {
+        "origin": "bfd174c1884490a9351e967592e76b53e90144bc",
+        "upstream": "bfd174c1884490a9351e967592e76b53e90144bc"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/weekly-review-7",
+      "local_sha": null,
+      "remotes": {
+        "origin": "88122b79f23688291d12c09d3fdd23c054385505",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/weekly-review-8",
+      "local_sha": null,
+      "remotes": {
+        "origin": "0805d65e63b323c6fba73b5bdde21dde838e87a7",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "ops-department/weekly-review-9",
+      "local_sha": null,
+      "remotes": {
+        "origin": "c61b5a928c3c92993127542c472ab60e97b1ece3",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "push-npvomousynwu",
+      "local_sha": null,
+      "remotes": {
+        "origin": "251138cc349c5e12af3859515d1a35b30a698a07",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "push-qsrzrzvwnwlk",
+      "local_sha": "c85c1900174c11391ea3158aef3d078f5a95ad0c",
+      "remotes": {
+        "origin": "788a97b2e05451e488eff67002953761160c31f3",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": true,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "push-xywuowlzlnwy",
+      "local_sha": null,
+      "remotes": {
+        "origin": "4fa74ab99118df0bc55fdcc1bf32d1a17be45ee1",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "refactor/brainbase-asynchandler-remaining",
+      "local_sha": null,
+      "remotes": {
+        "origin": "dc9e80e48137c234fda261187148dad59a225822",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "refactor/jujutsu-archive-ui",
+      "local_sha": null,
+      "remotes": {
+        "origin": "feff5255a00fa13987fdb4a725ac493d215acfa2",
+        "upstream": "feff5255a00fa13987fdb4a725ac493d215acfa2"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "refactor/modal-base-class",
+      "local_sha": null,
+      "remotes": {
+        "origin": "cba178f0bea288c5a0bf2a7c1c3abb1e3d68e3bd",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "refactor/phase1-infrastructure",
+      "local_sha": null,
+      "remotes": {
+        "origin": "686c167f6a61dfc7c1d46fe892714185a2c00903",
+        "upstream": "686c167f6a61dfc7c1d46fe892714185a2c00903"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "refactor/phase2-appjs-cleanup",
+      "local_sha": "fbeef7986e3c03e60f8ddcf0b823ab871ba055cc",
+      "remotes": {
+        "origin": "fbeef7986e3c03e60f8ddcf0b823ab871ba055cc",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "refactor/phase2-brainbase-remaining",
+      "local_sha": null,
+      "remotes": {
+        "origin": "b1a0ae2dec423ba00d756e042bade1ad82b46fe4",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "refactor/phase2-brainbase-split",
+      "local_sha": null,
+      "remotes": {
+        "origin": "17472e9dd6d6c1078a6f81ca7e4659b21927a31e",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "refactor/phase2-brainbase-split-2",
+      "local_sha": "7716e3da91648db19415d0aa75f0a3c1b6f07f83",
+      "remotes": {
+        "origin": "7716e3da91648db19415d0aa75f0a3c1b6f07f83",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "refactor/phase2-console-logger",
+      "local_sha": null,
+      "remotes": {
+        "origin": "562b022c48fe7784a3a744be5876200a862e88be",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "refactor/phase2-remaining",
+      "local_sha": null,
+      "remotes": {
+        "origin": "4481a863574633b787a87c13951457fe6d5c86b6",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "refactor/phase2-test-helpers",
+      "local_sha": "f71a048771dff96b5852df21654e5c8da97b77e8",
+      "remotes": {
+        "origin": "f71a048771dff96b5852df21654e5c8da97b77e8",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "refactor/phase2-view-extraction",
+      "local_sha": null,
+      "remotes": {
+        "origin": "4ad2160698fe6f03f3ce38f94755370e74037dc6",
+        "upstream": "4ad2160698fe6f03f3ce38f94755370e74037dc6"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "restore/missing-skills-from-b6933cc",
+      "local_sha": null,
+      "remotes": {
+        "origin": "e0e63c000be27a15b2850aa6ad51d174b78706be",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session-1771375135016",
+      "local_sha": null,
+      "remotes": {
+        "origin": "a70b3fab71221d9c64983aac7067b1106ec191b4",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session-1771566601217",
+      "local_sha": null,
+      "remotes": {
+        "origin": "314764924bb9f158b007fa9c368255ab92d17037",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session-1771572364263-to-develop",
+      "local_sha": "265d2d2e37cad6364201b73b1671f13199cc6e72",
+      "remotes": {
+        "origin": "265d2d2e37cad6364201b73b1671f13199cc6e72",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session-1771931942225-brainbase",
+      "local_sha": null,
+      "remotes": {
+        "origin": "298fcc113ce1008e1d8471661001f1e3940fc754",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session-1778059644070",
+      "local_sha": null,
+      "remotes": {
+        "origin": "a3358f1b8380602eb91c51b064a6893697b95a1e",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session-env-config",
+      "local_sha": null,
+      "remotes": {
+        "origin": "6f0e17d3052b4cc3b19423f7e72428cb7a2d2190",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session-speedup-20260304",
+      "local_sha": null,
+      "remotes": {
+        "origin": "812e8e0350cd445e1294c9c778603c0691a4cb4f",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/1777080967793-philosophy-context-resolver",
+      "local_sha": "8c0686976df632c68d298d8ff9467faf7f3094eb",
+      "remotes": {
+        "origin": "8c0686976df632c68d298d8ff9467faf7f3094eb",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2025-12-29-feature-pr-commands",
+      "local_sha": null,
+      "remotes": {
+        "origin": "63e03bfebb40bfdc24f434171efe6be24e0c05f1",
+        "upstream": "63e03bfebb40bfdc24f434171efe6be24e0c05f1"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2025-12-31-chore-oss-security-automation",
+      "local_sha": null,
+      "remotes": {
+        "origin": "7e66b1f6611843fc7d74b4fe943896b35499fe70",
+        "upstream": "7e66b1f6611843fc7d74b4fe943896b35499fe70"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2025-12-31-feat-task-to-session",
+      "local_sha": null,
+      "remotes": {
+        "origin": "307d976c8271f8c67a80d0dcadd76cc489ede406",
+        "upstream": "307d976c8271f8c67a80d0dcadd76cc489ede406"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2025-12-31-feature-settings-plugin-architecture",
+      "local_sha": null,
+      "remotes": {
+        "origin": "50ddcdb139be89147349fb72ae5ec1c99b027b9a",
+        "upstream": "50ddcdb139be89147349fb72ae5ec1c99b027b9a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2025-12-31-fix-oss-blockers",
+      "local_sha": null,
+      "remotes": {
+        "origin": "54cc428996fe447dc7811d755c439470f10d41e3",
+        "upstream": "54cc428996fe447dc7811d755c439470f10d41e3"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-01-03-fix-mobile-terminal-height",
+      "local_sha": null,
+      "remotes": {
+        "origin": "68c4e3c4c26443b2dfb68fea5ac7f92162044e6c",
+        "upstream": "68c4e3c4c26443b2dfb68fea5ac7f92162044e6c"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-01-03-hotfix-mobile-scroll-selector",
+      "local_sha": null,
+      "remotes": {
+        "origin": "959828487742dcaa54f802e5a236b6e7675aadba",
+        "upstream": "959828487742dcaa54f802e5a236b6e7675aadba"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-01-17-fix-session-timeline",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d628bcfdbb562a6252330c88430f7a1f6ce9d8e4",
+        "upstream": "d628bcfdbb562a6252330c88430f7a1f6ce9d8e4"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-02-07-chore-remove-zep-integration",
+      "local_sha": null,
+      "remotes": {
+        "origin": "3552ce84c600fb336e7e234d565e2291419bf246",
+        "upstream": "3552ce84c600fb336e7e234d565e2291419bf246"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-02-12-handover",
+      "local_sha": null,
+      "remotes": {
+        "origin": "53871a467b67d68cd124412b980a888f357a34d0",
+        "upstream": "53871a467b67d68cd124412b980a888f357a34d0"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-02-12-handover-onboarding",
+      "local_sha": null,
+      "remotes": {
+        "origin": "17b72ef8ce884bf88f91c3e35cbc51a4c50c8d18",
+        "upstream": "17b72ef8ce884bf88f91c3e35cbc51a4c50c8d18"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-02-22-session-loading-perf",
+      "local_sha": null,
+      "remotes": {
+        "origin": "7fbb0e18c4f83aab83c4558c782fee68eef9bdfa",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-02-26-debug-mobile-draft-logs-v2",
+      "local_sha": "a9da2b98833eedb54e1daa85a7d81ab61d8e6b2b",
+      "remotes": {
+        "origin": "45b54c04c6f33f3042fcad7393845aa39f595322",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": true,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-02-27-feat-deploy-merged-pr",
+      "local_sha": null,
+      "remotes": {
+        "origin": "13fcadd4ecddf82d8755e2d4c45f77c5c9a86858",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-03-15-chore-playwright-skill",
+      "local_sha": null,
+      "remotes": {
+        "origin": "4e6fd20748eb2258f158ca2a1aa2c89c86f15f3a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-05-02-claude-push-gate",
+      "local_sha": null,
+      "remotes": {
+        "origin": "6fbce2d653f6c7d6e5ba040f8d25101ec6e00866",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-05-02-fix-active-indicator",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d15c905b124b376e71e3ea17d4b8e476b60f212e",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-05-02-fix-login-expiry",
+      "local_sha": null,
+      "remotes": {
+        "origin": "fc416b7a7e74a4fdc93b4ef9a8b995303092ff48",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-05-02-husky-pre-push-gate",
+      "local_sha": null,
+      "remotes": {
+        "origin": "aa78768503a1e30b8786aa284acb867c63f3d6f1",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-05-02-mobile-scroll-preserve",
+      "local_sha": null,
+      "remotes": {
+        "origin": "9cb500312bdab630fa11601c353594cbed082abe",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-05-02-mobile-send-ux",
+      "local_sha": null,
+      "remotes": {
+        "origin": "5a1960a44b2a6af4bd2ed39c8cc9353e39dce16a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-05-02-vibepro-cli-guard",
+      "local_sha": null,
+      "remotes": {
+        "origin": "2402c2de9795d15a85056bf7c390e617d0ddb3af",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-05-09-infisical-capability-map",
+      "local_sha": null,
+      "remotes": {
+        "origin": "28d11582c83ee4d6b6030b6f9d0820606f267bb0",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-05-25-fix-conversation-linker-large-log-skip",
+      "local_sha": "dfecaab21f740c8e96d41325464dd359fd3771e1",
+      "remotes": {
+        "origin": "dfecaab21f740c8e96d41325464dd359fd3771e1",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-06-01-fix-ttyd-stderr-log-level",
+      "local_sha": null,
+      "remotes": {
+        "origin": "28928078107f66bad57bc6b76e8d48b263b38fb9",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-06-02-exit-copy-mode-besteffort",
+      "local_sha": "9c2a0ef5d8eca20c2a912b906592fb01522b1492",
+      "remotes": {
+        "origin": "9c2a0ef5d8eca20c2a912b906592fb01522b1492",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-06-02-fix-ps-maxbuffer",
+      "local_sha": null,
+      "remotes": {
+        "origin": "5a47b1d75f6a19bc1e0fe83702bde7ddd09e561e",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-06-02-jj-norepo-conflict-guard",
+      "local_sha": null,
+      "remotes": {
+        "origin": "cbff4a220c5514c0b4e5e2103146635ea534d4d4",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-06-02-reconciler-xterm-transport",
+      "local_sha": null,
+      "remotes": {
+        "origin": "fb96b41a3dd1c289e86dccdf22d32032364d9e73",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-06-02-xterm-only-mode-gate",
+      "local_sha": null,
+      "remotes": {
+        "origin": "5de89d3a486ad67f2bcf40a1e526649bb29e6f0e",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-07-05-c2-agent-report-inbox",
+      "local_sha": "474d3ceed8a69514a4424c24ee2c1ee0e1902833",
+      "remotes": {
+        "origin": "474d3ceed8a69514a4424c24ee2c1ee0e1902833",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-07-05-c2b-owner-fix",
+      "local_sha": "ad5e2f429a4a2d9a90c2e51bf619037255348073",
+      "remotes": {
+        "origin": "ad5e2f429a4a2d9a90c2e51bf619037255348073",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-07-06-hard-task-protocol",
+      "local_sha": "88a122790d7d810c9a8b0a43d0e2181b5c73c13f",
+      "remotes": {
+        "origin": "88a122790d7d810c9a8b0a43d0e2181b5c73c13f",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-07-06-main-retire",
+      "local_sha": "a518dfe0087ec3876cca5e2f0cad69f47d26fecc",
+      "remotes": {
+        "origin": "a518dfe0087ec3876cca5e2f0cad69f47d26fecc",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/2026-07-06-skills-cleanup",
+      "local_sha": "5cc0bd48ad09f2ef11429e6c422c0e4c4ceaf7db",
+      "remotes": {
+        "origin": "5cc0bd48ad09f2ef11429e6c422c0e4c4ceaf7db",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/20260125-archive-main-update",
+      "local_sha": null,
+      "remotes": {
+        "origin": "1b046167153bab82a80bbcb9dd84d1a9c871745b",
+        "upstream": "1b046167153bab82a80bbcb9dd84d1a9c871745b"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/active-indicator-clear-done-broadcast",
+      "local_sha": "5cf9ba4adac787e8b9619bc5421a72fa854e5e89",
+      "remotes": {
+        "origin": "5cf9ba4adac787e8b9619bc5421a72fa854e5e89",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/brainbase-command-center-ui-20260507",
+      "local_sha": null,
+      "remotes": {
+        "origin": "633b142e527e037a51faef871129189ef8431818",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/cleanup-main-worktree",
+      "local_sha": null,
+      "remotes": {
+        "origin": "1bd6cc905aa4991bb2c3023e4bee8403c7124584",
+        "upstream": "1bd6cc905aa4991bb2c3023e4bee8403c7124584"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/engine-icons",
+      "local_sha": null,
+      "remotes": {
+        "origin": "17b72ef8ce884bf88f91c3e35cbc51a4c50c8d18",
+        "upstream": "17b72ef8ce884bf88f91c3e35cbc51a4c50c8d18"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/file-viewer-full-terminal-20260507",
+      "local_sha": "1fedbcb614bb31fc270ded1a7eec1d90fdf59174",
+      "remotes": {
+        "origin": "1fedbcb614bb31fc270ded1a7eec1d90fdf59174",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/fix-task-start-initialcommand-1767402862",
+      "local_sha": null,
+      "remotes": {
+        "origin": "031e351405fdcd1910d208e10d9a243947096c48",
+        "upstream": "031e351405fdcd1910d208e10d9a243947096c48"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/global-action-status-20260507",
+      "local_sha": "7df7277cb9cad305bd68dbf3fdef9fce35ef04e3",
+      "remotes": {
+        "origin": "7df7277cb9cad305bd68dbf3fdef9fce35ef04e3",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/graphify-impact-gate",
+      "local_sha": "9a0bac4eabfd9f538823059e2a0e14fd97859f5c",
+      "remotes": {
+        "origin": "9a0bac4eabfd9f538823059e2a0e14fd97859f5c",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/livefeed-filters-20260507",
+      "local_sha": "3e59bb4d64787cf6f9bfaec3d6b8c1fc15a3daff",
+      "remotes": {
+        "origin": "3e59bb4d64787cf6f9bfaec3d6b8c1fc15a3daff",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/next-tasks-approved-fidelity-20260507",
+      "local_sha": "cbf13574d2dac3fbe782863d65b6b06cbad3b389",
+      "remotes": {
+        "origin": "cbf13574d2dac3fbe782863d65b6b06cbad3b389",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/right-panel-approved-fidelity-20260507",
+      "local_sha": "becc1018bc0036b3fa97618cb242fdd6660ef9dd",
+      "remotes": {
+        "origin": "becc1018bc0036b3fa97618cb242fdd6660ef9dd",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/service-token-1777080967793",
+      "local_sha": null,
+      "remotes": {
+        "origin": "3efa480efbe242fa90b7a4c8e5ad13ddda6a16c0",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/service-token-develop-1777080967793",
+      "local_sha": null,
+      "remotes": {
+        "origin": "7bf9e8b02a1353fdb3721e2f0270accf832de617",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1765517377538",
+      "local_sha": null,
+      "remotes": {
+        "origin": "87a96fa683a62d537b0a32c8b66d36974fa57cf7",
+        "upstream": "87a96fa683a62d537b0a32c8b66d36974fa57cf7"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1765620631460",
+      "local_sha": null,
+      "remotes": {
+        "origin": "24634d73243507974d3ad10743f62787bb9b4c3d",
+        "upstream": "24634d73243507974d3ad10743f62787bb9b4c3d"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1765809010333",
+      "local_sha": null,
+      "remotes": {
+        "origin": "b8c3acf63ae9638c85deb25bb2bc1939af824098",
+        "upstream": "b8c3acf63ae9638c85deb25bb2bc1939af824098"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1765811696847",
+      "local_sha": null,
+      "remotes": {
+        "origin": "1379c30337595da693b21d20f6132cc3a790b9fb",
+        "upstream": "1379c30337595da693b21d20f6132cc3a790b9fb"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1765836106300",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ce3db30e34c707468d6df9dcc0cc6255653d3598",
+        "upstream": "ce3db30e34c707468d6df9dcc0cc6255653d3598"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1765839378015",
+      "local_sha": null,
+      "remotes": {
+        "origin": "614527794bcf398322c25b5ad4e9f4e3974fe15b",
+        "upstream": "614527794bcf398322c25b5ad4e9f4e3974fe15b"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1765840683055",
+      "local_sha": null,
+      "remotes": {
+        "origin": "3618bc85d4963448af47843611b24ada7adcf6fe",
+        "upstream": "3618bc85d4963448af47843611b24ada7adcf6fe"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1765845421019",
+      "local_sha": null,
+      "remotes": {
+        "origin": "71f3255db38817617ef44644d7e5e71f3b88cd77",
+        "upstream": "71f3255db38817617ef44644d7e5e71f3b88cd77"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1765855559921",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d776d37b7c9f7c34999a1b5bd9cd0fe25d4f39fe",
+        "upstream": "d776d37b7c9f7c34999a1b5bd9cd0fe25d4f39fe"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1765876261829",
+      "local_sha": null,
+      "remotes": {
+        "origin": "2248d75bf16e5d4407acfa9050cc8ad89c14990d",
+        "upstream": "2248d75bf16e5d4407acfa9050cc8ad89c14990d"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1765916343845",
+      "local_sha": null,
+      "remotes": {
+        "origin": "a3c62d2076a371cdd3f9501fe3a589e3e37151df",
+        "upstream": "a3c62d2076a371cdd3f9501fe3a589e3e37151df"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1765920027076",
+      "local_sha": null,
+      "remotes": {
+        "origin": "851c47ee5fff2eac6b9b7e74da5f9c38561f763b",
+        "upstream": "851c47ee5fff2eac6b9b7e74da5f9c38561f763b"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1766236221285",
+      "local_sha": null,
+      "remotes": {
+        "origin": "6ce4826f7df95c2e3282e9123114069b3146ae9f",
+        "upstream": "6ce4826f7df95c2e3282e9123114069b3146ae9f"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1766379628831",
+      "local_sha": null,
+      "remotes": {
+        "origin": "2ec863ab95b2dee4bb02777ad5cdea54dc3478f9",
+        "upstream": "2ec863ab95b2dee4bb02777ad5cdea54dc3478f9"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1766445872188",
+      "local_sha": null,
+      "remotes": {
+        "origin": "e9fca66dcff8d28b36f84c7ff928984137682253",
+        "upstream": "e9fca66dcff8d28b36f84c7ff928984137682253"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1766457209473",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d886edff82bee5bea5e926fec95c6c6d97d327d1",
+        "upstream": "d886edff82bee5bea5e926fec95c6c6d97d327d1"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1766458964324",
+      "local_sha": null,
+      "remotes": {
+        "origin": "17c08a02c557a1d51c64380a3c53ac11e03e64a8",
+        "upstream": "17c08a02c557a1d51c64380a3c53ac11e03e64a8"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1766484122431",
+      "local_sha": null,
+      "remotes": {
+        "origin": "010445a9f5d62f21186802ef0146520b075806f8",
+        "upstream": "010445a9f5d62f21186802ef0146520b075806f8"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1766828735411",
+      "local_sha": null,
+      "remotes": {
+        "origin": "eeb5eed97adbbeef163e782577da253ca663eb2e",
+        "upstream": "eeb5eed97adbbeef163e782577da253ca663eb2e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1766887863824",
+      "local_sha": null,
+      "remotes": {
+        "origin": "c3fcd1421dbf0617edee0cd9216151b6a8d10ec3",
+        "upstream": "c3fcd1421dbf0617edee0cd9216151b6a8d10ec3"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1766923588707",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d176dcb71384cde2aba2d8925fe04a1a6663c6c7",
+        "upstream": "d176dcb71384cde2aba2d8925fe04a1a6663c6c7"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1766963424343",
+      "local_sha": null,
+      "remotes": {
+        "origin": "41260d4862458f30d4fd6478a2950d04597a2a50",
+        "upstream": "41260d4862458f30d4fd6478a2950d04597a2a50"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767020020969",
+      "local_sha": null,
+      "remotes": {
+        "origin": "5638922ab4824dab08ca723a1de5e24868f362d4",
+        "upstream": "5638922ab4824dab08ca723a1de5e24868f362d4"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767054804294",
+      "local_sha": null,
+      "remotes": {
+        "origin": "5638922ab4824dab08ca723a1de5e24868f362d4",
+        "upstream": "5638922ab4824dab08ca723a1de5e24868f362d4"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767056357188",
+      "local_sha": null,
+      "remotes": {
+        "origin": "51fd1c4bbae37bfd7957c07930dacb83bfc6d07d",
+        "upstream": "51fd1c4bbae37bfd7957c07930dacb83bfc6d07d"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767068156317",
+      "local_sha": null,
+      "remotes": {
+        "origin": "63e03bfebb40bfdc24f434171efe6be24e0c05f1",
+        "upstream": "63e03bfebb40bfdc24f434171efe6be24e0c05f1"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767090784004",
+      "local_sha": null,
+      "remotes": {
+        "origin": "bbffb62db6809dbf300302a7c733fc29567418ea",
+        "upstream": "bbffb62db6809dbf300302a7c733fc29567418ea"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767159109285",
+      "local_sha": null,
+      "remotes": {
+        "origin": "92ff13fec41f00308947fe707bce996ddc7dfacf",
+        "upstream": "92ff13fec41f00308947fe707bce996ddc7dfacf"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767164572624",
+      "local_sha": null,
+      "remotes": {
+        "origin": "54abf37ea4ebf23f4ee32bcb48fba9a26a9b5b70",
+        "upstream": "54abf37ea4ebf23f4ee32bcb48fba9a26a9b5b70"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767166371752",
+      "local_sha": null,
+      "remotes": {
+        "origin": "50ddcdb139be89147349fb72ae5ec1c99b027b9a",
+        "upstream": "50ddcdb139be89147349fb72ae5ec1c99b027b9a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767174058138",
+      "local_sha": null,
+      "remotes": {
+        "origin": "50ddcdb139be89147349fb72ae5ec1c99b027b9a",
+        "upstream": "50ddcdb139be89147349fb72ae5ec1c99b027b9a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767181118320",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d2e9cfbaba68f66bdf5c5fb51e1dbe8ee6d2cbfc",
+        "upstream": "d2e9cfbaba68f66bdf5c5fb51e1dbe8ee6d2cbfc"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767188103944",
+      "local_sha": null,
+      "remotes": {
+        "origin": "50ddcdb139be89147349fb72ae5ec1c99b027b9a",
+        "upstream": "50ddcdb139be89147349fb72ae5ec1c99b027b9a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767188834407",
+      "local_sha": null,
+      "remotes": {
+        "origin": "50ddcdb139be89147349fb72ae5ec1c99b027b9a",
+        "upstream": "50ddcdb139be89147349fb72ae5ec1c99b027b9a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767224366193",
+      "local_sha": null,
+      "remotes": {
+        "origin": "50ddcdb139be89147349fb72ae5ec1c99b027b9a",
+        "upstream": "50ddcdb139be89147349fb72ae5ec1c99b027b9a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767225968938",
+      "local_sha": null,
+      "remotes": {
+        "origin": "50ddcdb139be89147349fb72ae5ec1c99b027b9a",
+        "upstream": "50ddcdb139be89147349fb72ae5ec1c99b027b9a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767235788936",
+      "local_sha": null,
+      "remotes": {
+        "origin": "50ddcdb139be89147349fb72ae5ec1c99b027b9a",
+        "upstream": "50ddcdb139be89147349fb72ae5ec1c99b027b9a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767236849123",
+      "local_sha": null,
+      "remotes": {
+        "origin": "50ddcdb139be89147349fb72ae5ec1c99b027b9a",
+        "upstream": "50ddcdb139be89147349fb72ae5ec1c99b027b9a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767250563671",
+      "local_sha": null,
+      "remotes": {
+        "origin": "50ddcdb139be89147349fb72ae5ec1c99b027b9a",
+        "upstream": "50ddcdb139be89147349fb72ae5ec1c99b027b9a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767277421803",
+      "local_sha": null,
+      "remotes": {
+        "origin": "86051095545065d77ac9bae409c135a6078d01ef",
+        "upstream": "86051095545065d77ac9bae409c135a6078d01ef"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767279454742",
+      "local_sha": null,
+      "remotes": {
+        "origin": "50ddcdb139be89147349fb72ae5ec1c99b027b9a",
+        "upstream": "50ddcdb139be89147349fb72ae5ec1c99b027b9a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767280448722",
+      "local_sha": null,
+      "remotes": {
+        "origin": "50ddcdb139be89147349fb72ae5ec1c99b027b9a",
+        "upstream": "50ddcdb139be89147349fb72ae5ec1c99b027b9a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767284575330",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ee196fdc5bf5cb87b9e23b44b36845ec51ce4c42",
+        "upstream": "ee196fdc5bf5cb87b9e23b44b36845ec51ce4c42"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767285215634",
+      "local_sha": null,
+      "remotes": {
+        "origin": "a1e4511d896ff9ce76749f2b514a5b454d7ada1e",
+        "upstream": "a1e4511d896ff9ce76749f2b514a5b454d7ada1e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767291293568",
+      "local_sha": null,
+      "remotes": {
+        "origin": "0aea6df7516d1a015ed7aab87422b50230a5be33",
+        "upstream": "0aea6df7516d1a015ed7aab87422b50230a5be33"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767293870961",
+      "local_sha": null,
+      "remotes": {
+        "origin": "50ddcdb139be89147349fb72ae5ec1c99b027b9a",
+        "upstream": "50ddcdb139be89147349fb72ae5ec1c99b027b9a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767295864858",
+      "local_sha": null,
+      "remotes": {
+        "origin": "50ddcdb139be89147349fb72ae5ec1c99b027b9a",
+        "upstream": "50ddcdb139be89147349fb72ae5ec1c99b027b9a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767295891663",
+      "local_sha": null,
+      "remotes": {
+        "origin": "f7dfb21afc25c532b1a801ba4e701e6edf096673",
+        "upstream": "f7dfb21afc25c532b1a801ba4e701e6edf096673"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767318588188",
+      "local_sha": null,
+      "remotes": {
+        "origin": "001432e9b747e26bc7b510e7e4ade1a36addc5a0",
+        "upstream": "001432e9b747e26bc7b510e7e4ade1a36addc5a0"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767321765989",
+      "local_sha": null,
+      "remotes": {
+        "origin": "71c26137aa8e10e90201d31ef6fc2a5897348835",
+        "upstream": "71c26137aa8e10e90201d31ef6fc2a5897348835"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767322157433",
+      "local_sha": null,
+      "remotes": {
+        "origin": "21ac78128369b84a610ddd0b96a68709735ddf2a",
+        "upstream": "21ac78128369b84a610ddd0b96a68709735ddf2a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767325364890",
+      "local_sha": null,
+      "remotes": {
+        "origin": "9503d666bd396ba6785034b59cef413f177ea0dc",
+        "upstream": "9503d666bd396ba6785034b59cef413f177ea0dc"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767325375988",
+      "local_sha": null,
+      "remotes": {
+        "origin": "9503d666bd396ba6785034b59cef413f177ea0dc",
+        "upstream": "9503d666bd396ba6785034b59cef413f177ea0dc"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767325498599",
+      "local_sha": null,
+      "remotes": {
+        "origin": "9503d666bd396ba6785034b59cef413f177ea0dc",
+        "upstream": "9503d666bd396ba6785034b59cef413f177ea0dc"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767347458401",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ba1edc4286145df17b01f86738de11d95ea3820a",
+        "upstream": "ba1edc4286145df17b01f86738de11d95ea3820a"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767348443575",
+      "local_sha": null,
+      "remotes": {
+        "origin": "9503d666bd396ba6785034b59cef413f177ea0dc",
+        "upstream": "9503d666bd396ba6785034b59cef413f177ea0dc"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767350360880",
+      "local_sha": null,
+      "remotes": {
+        "origin": "fae824f0d27c0b114499a0382bfd57adcbe68727",
+        "upstream": "fae824f0d27c0b114499a0382bfd57adcbe68727"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767352967796",
+      "local_sha": null,
+      "remotes": {
+        "origin": "903d358729884915407d2687fc71a1a7c42b548d",
+        "upstream": "903d358729884915407d2687fc71a1a7c42b548d"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767361248682",
+      "local_sha": null,
+      "remotes": {
+        "origin": "fae824f0d27c0b114499a0382bfd57adcbe68727",
+        "upstream": "fae824f0d27c0b114499a0382bfd57adcbe68727"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767361263358",
+      "local_sha": null,
+      "remotes": {
+        "origin": "fae824f0d27c0b114499a0382bfd57adcbe68727",
+        "upstream": "fae824f0d27c0b114499a0382bfd57adcbe68727"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767361316633",
+      "local_sha": null,
+      "remotes": {
+        "origin": "fae824f0d27c0b114499a0382bfd57adcbe68727",
+        "upstream": "fae824f0d27c0b114499a0382bfd57adcbe68727"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767361754399",
+      "local_sha": null,
+      "remotes": {
+        "origin": "1fe1c2bbd9798438fd9320f8df9ef8532fb7ce1c",
+        "upstream": "1fe1c2bbd9798438fd9320f8df9ef8532fb7ce1c"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767362817947",
+      "local_sha": null,
+      "remotes": {
+        "origin": "a59d114c5f74de0b9cd9216dec092086892f5410",
+        "upstream": "a59d114c5f74de0b9cd9216dec092086892f5410"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767364235353",
+      "local_sha": null,
+      "remotes": {
+        "origin": "a59d114c5f74de0b9cd9216dec092086892f5410",
+        "upstream": "a59d114c5f74de0b9cd9216dec092086892f5410"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767401369398",
+      "local_sha": null,
+      "remotes": {
+        "origin": "a59d114c5f74de0b9cd9216dec092086892f5410",
+        "upstream": "a59d114c5f74de0b9cd9216dec092086892f5410"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767401401483",
+      "local_sha": null,
+      "remotes": {
+        "origin": "a59d114c5f74de0b9cd9216dec092086892f5410",
+        "upstream": "a59d114c5f74de0b9cd9216dec092086892f5410"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767405638364",
+      "local_sha": null,
+      "remotes": {
+        "origin": "51ef7756a2ed7fb396a59c273be0a21c1908108e",
+        "upstream": "51ef7756a2ed7fb396a59c273be0a21c1908108e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767406400535",
+      "local_sha": null,
+      "remotes": {
+        "origin": "51ef7756a2ed7fb396a59c273be0a21c1908108e",
+        "upstream": "51ef7756a2ed7fb396a59c273be0a21c1908108e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767407079535",
+      "local_sha": null,
+      "remotes": {
+        "origin": "bb3a08c55cacc4337169184c8d33da45bd5e9ed7",
+        "upstream": "bb3a08c55cacc4337169184c8d33da45bd5e9ed7"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767407502399",
+      "local_sha": null,
+      "remotes": {
+        "origin": "bb3a08c55cacc4337169184c8d33da45bd5e9ed7",
+        "upstream": "bb3a08c55cacc4337169184c8d33da45bd5e9ed7"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767411101145",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ee766d6667d1211939ab36ccc61aec9928875016",
+        "upstream": "ee766d6667d1211939ab36ccc61aec9928875016"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767417359925",
+      "local_sha": null,
+      "remotes": {
+        "origin": "cf8dc0769e9ba936b705af6a730229a419d71518",
+        "upstream": "cf8dc0769e9ba936b705af6a730229a419d71518"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767421316114",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ad7ad5b71ac6de5892b6a9aba75db24343f0e19b",
+        "upstream": "ad7ad5b71ac6de5892b6a9aba75db24343f0e19b"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767438878869",
+      "local_sha": null,
+      "remotes": {
+        "origin": "0bda1b4b806b74adc7e0f15ec70d5c613b2c74e5",
+        "upstream": "0bda1b4b806b74adc7e0f15ec70d5c613b2c74e5"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767440166036",
+      "local_sha": null,
+      "remotes": {
+        "origin": "0bda1b4b806b74adc7e0f15ec70d5c613b2c74e5",
+        "upstream": "0bda1b4b806b74adc7e0f15ec70d5c613b2c74e5"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767445869693",
+      "local_sha": null,
+      "remotes": {
+        "origin": "203214b279dab4d0b80f77277dbde3557d998840",
+        "upstream": "203214b279dab4d0b80f77277dbde3557d998840"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767449901137",
+      "local_sha": null,
+      "remotes": {
+        "origin": "216c5fca3f01b877fd8bd88ea4f4d0587030ef84",
+        "upstream": "216c5fca3f01b877fd8bd88ea4f4d0587030ef84"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767477969371",
+      "local_sha": null,
+      "remotes": {
+        "origin": "028c1720f538941ab73ca3430ce2966880502d3e",
+        "upstream": "028c1720f538941ab73ca3430ce2966880502d3e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767486150954",
+      "local_sha": null,
+      "remotes": {
+        "origin": "028c1720f538941ab73ca3430ce2966880502d3e",
+        "upstream": "028c1720f538941ab73ca3430ce2966880502d3e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767488959191",
+      "local_sha": null,
+      "remotes": {
+        "origin": "028c1720f538941ab73ca3430ce2966880502d3e",
+        "upstream": "028c1720f538941ab73ca3430ce2966880502d3e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767491014924",
+      "local_sha": null,
+      "remotes": {
+        "origin": "028c1720f538941ab73ca3430ce2966880502d3e",
+        "upstream": "028c1720f538941ab73ca3430ce2966880502d3e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767492881718",
+      "local_sha": null,
+      "remotes": {
+        "origin": "028c1720f538941ab73ca3430ce2966880502d3e",
+        "upstream": "028c1720f538941ab73ca3430ce2966880502d3e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767493386387",
+      "local_sha": null,
+      "remotes": {
+        "origin": "028c1720f538941ab73ca3430ce2966880502d3e",
+        "upstream": "028c1720f538941ab73ca3430ce2966880502d3e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767516422669",
+      "local_sha": null,
+      "remotes": {
+        "origin": "028c1720f538941ab73ca3430ce2966880502d3e",
+        "upstream": "028c1720f538941ab73ca3430ce2966880502d3e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767527983483",
+      "local_sha": null,
+      "remotes": {
+        "origin": "028c1720f538941ab73ca3430ce2966880502d3e",
+        "upstream": "028c1720f538941ab73ca3430ce2966880502d3e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767571064424",
+      "local_sha": null,
+      "remotes": {
+        "origin": "028c1720f538941ab73ca3430ce2966880502d3e",
+        "upstream": "028c1720f538941ab73ca3430ce2966880502d3e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767577150096",
+      "local_sha": null,
+      "remotes": {
+        "origin": "028c1720f538941ab73ca3430ce2966880502d3e",
+        "upstream": "028c1720f538941ab73ca3430ce2966880502d3e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767577726252",
+      "local_sha": null,
+      "remotes": {
+        "origin": "028c1720f538941ab73ca3430ce2966880502d3e",
+        "upstream": "028c1720f538941ab73ca3430ce2966880502d3e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767578497762",
+      "local_sha": null,
+      "remotes": {
+        "origin": "028c1720f538941ab73ca3430ce2966880502d3e",
+        "upstream": "028c1720f538941ab73ca3430ce2966880502d3e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767586005205",
+      "local_sha": null,
+      "remotes": {
+        "origin": "028c1720f538941ab73ca3430ce2966880502d3e",
+        "upstream": "028c1720f538941ab73ca3430ce2966880502d3e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767659362365",
+      "local_sha": null,
+      "remotes": {
+        "origin": "2ea73d5c17f4e0ecbaceb543b8bc1927908140ad",
+        "upstream": "2ea73d5c17f4e0ecbaceb543b8bc1927908140ad"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767661116599",
+      "local_sha": null,
+      "remotes": {
+        "origin": "1125aff9936834ab55e25d00a27eacb47d5eb1d4",
+        "upstream": "1125aff9936834ab55e25d00a27eacb47d5eb1d4"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767840178466",
+      "local_sha": null,
+      "remotes": {
+        "origin": "f63b94878cae852f74c316a1545e41a9137bfef6",
+        "upstream": "f63b94878cae852f74c316a1545e41a9137bfef6"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767909219367",
+      "local_sha": null,
+      "remotes": {
+        "origin": "a17abeeb7e7159bb5b72685f711d1469d4cddee6",
+        "upstream": "a17abeeb7e7159bb5b72685f711d1469d4cddee6"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767935985516",
+      "local_sha": null,
+      "remotes": {
+        "origin": "dfc16a36778a8e2393d2d20e44c98efbb852189d",
+        "upstream": "dfc16a36778a8e2393d2d20e44c98efbb852189d"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1767958173492",
+      "local_sha": null,
+      "remotes": {
+        "origin": "6eea61ee65a8bff610f456910c3d7d43be8be0a7",
+        "upstream": "6eea61ee65a8bff610f456910c3d7d43be8be0a7"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768000666121",
+      "local_sha": null,
+      "remotes": {
+        "origin": "9ef3e1294a68ecdd3b97f0e5c7a1072f38733ae3",
+        "upstream": "9ef3e1294a68ecdd3b97f0e5c7a1072f38733ae3"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768001825431",
+      "local_sha": null,
+      "remotes": {
+        "origin": "f2b8b86b73be717ea7a34fe7c1c5e99e0a19bf2e",
+        "upstream": "f2b8b86b73be717ea7a34fe7c1c5e99e0a19bf2e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768125500938",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ca945b11bac7b5acbb338548de3b16859131d37c",
+        "upstream": "ca945b11bac7b5acbb338548de3b16859131d37c"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768126195438",
+      "local_sha": null,
+      "remotes": {
+        "origin": "cb7a1a85be1c5ad5a86474716e78f65aa11d2613",
+        "upstream": "cb7a1a85be1c5ad5a86474716e78f65aa11d2613"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768182811653",
+      "local_sha": null,
+      "remotes": {
+        "origin": "a6d3d24c2c6f95b3ae644fe07ea705d2c977e623",
+        "upstream": "a6d3d24c2c6f95b3ae644fe07ea705d2c977e623"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768192438951",
+      "local_sha": null,
+      "remotes": {
+        "origin": "2c26f27476a95fb2412a81d49cf2a43eb9751dc4",
+        "upstream": "2c26f27476a95fb2412a81d49cf2a43eb9751dc4"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768206158652",
+      "local_sha": null,
+      "remotes": {
+        "origin": "7334c6e3023b6acdcf5c906a2e900095eca952b5",
+        "upstream": "7334c6e3023b6acdcf5c906a2e900095eca952b5"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768343574438",
+      "local_sha": null,
+      "remotes": {
+        "origin": "8e1b9963385204f9b71862430e62e1e32b3c4925",
+        "upstream": "8e1b9963385204f9b71862430e62e1e32b3c4925"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768344799253",
+      "local_sha": null,
+      "remotes": {
+        "origin": "e699d3332a6a61c8097c17df3f1981243210b05b",
+        "upstream": "e699d3332a6a61c8097c17df3f1981243210b05b"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768366148596",
+      "local_sha": null,
+      "remotes": {
+        "origin": "627e56e514456a13e94feaf24c9548e7cfedf771",
+        "upstream": "627e56e514456a13e94feaf24c9548e7cfedf771"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768366216140",
+      "local_sha": null,
+      "remotes": {
+        "origin": "fb239a07e0de558071808363861981c6ba27f719",
+        "upstream": "fb239a07e0de558071808363861981c6ba27f719"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768519519621",
+      "local_sha": null,
+      "remotes": {
+        "origin": "94dbaf32fa9fb19d80fbe1dde30bb72e508d52b5",
+        "upstream": "94dbaf32fa9fb19d80fbe1dde30bb72e508d52b5"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768520904006",
+      "local_sha": null,
+      "remotes": {
+        "origin": "6b3789a51ce84950c2185e2390991b35d4a7a240",
+        "upstream": "6b3789a51ce84950c2185e2390991b35d4a7a240"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768527852393",
+      "local_sha": null,
+      "remotes": {
+        "origin": "576fd72361661b4be4438b5946b5f39d98fea5b9",
+        "upstream": "576fd72361661b4be4438b5946b5f39d98fea5b9"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768580038653",
+      "local_sha": null,
+      "remotes": {
+        "origin": "19f966c6785c18e122351f631f16b7d37fe7b4e1",
+        "upstream": "19f966c6785c18e122351f631f16b7d37fe7b4e1"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768585000579",
+      "local_sha": null,
+      "remotes": {
+        "origin": "182a5d6d3bd6b048854e1375ebcb53f74328c388",
+        "upstream": "182a5d6d3bd6b048854e1375ebcb53f74328c388"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768615479428",
+      "local_sha": null,
+      "remotes": {
+        "origin": "34eda53c173f5b4cca961fc98b1a6cb2b170bb7f",
+        "upstream": "34eda53c173f5b4cca961fc98b1a6cb2b170bb7f"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768640622935",
+      "local_sha": null,
+      "remotes": {
+        "origin": "1143436934090fa2644bdf2f3c90376c01e382cb",
+        "upstream": "1143436934090fa2644bdf2f3c90376c01e382cb"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768790212970",
+      "local_sha": null,
+      "remotes": {
+        "origin": "b415c3599e0a33f8c82d312016eb4e9f3b8d2eaa",
+        "upstream": "b415c3599e0a33f8c82d312016eb4e9f3b8d2eaa"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1768827236231",
+      "local_sha": null,
+      "remotes": {
+        "origin": "37abe9f572884e4b806d68e87112a0cb9d9e5e3e",
+        "upstream": "37abe9f572884e4b806d68e87112a0cb9d9e5e3e"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1771073621317",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d8df39cd240ce3f4698033a06a5ecf66a7388cf5",
+        "upstream": "d8df39cd240ce3f4698033a06a5ecf66a7388cf5"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1771209530349",
+      "local_sha": null,
+      "remotes": {
+        "origin": "119c672fbde1cf6b632d3a81cc5b5b89b7a76311",
+        "upstream": "119c672fbde1cf6b632d3a81cc5b5b89b7a76311"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1771213274329",
+      "local_sha": null,
+      "remotes": {
+        "origin": "119c672fbde1cf6b632d3a81cc5b5b89b7a76311",
+        "upstream": "119c672fbde1cf6b632d3a81cc5b5b89b7a76311"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1771214197125",
+      "local_sha": null,
+      "remotes": {
+        "origin": "079b9e17f69aec7189408a224ce617c7882c356b",
+        "upstream": "119c672fbde1cf6b632d3a81cc5b5b89b7a76311"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": true
+      }
+    },
+    {
+      "branch": "session/session-1771391291603",
+      "local_sha": null,
+      "remotes": {
+        "origin": "a1d99738af22fc90c4073f5a7410a0ae120b2775",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1773022945038",
+      "local_sha": null,
+      "remotes": {
+        "origin": "b3dbb5996635e959792c4375ca1fa467334aeffc",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1773197653127",
+      "local_sha": null,
+      "remotes": {
+        "origin": "77fcf0f7d99154b56609be70c4dbfc04c23383a8",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1773287167072",
+      "local_sha": null,
+      "remotes": {
+        "origin": "36f398b9b9b7f0b7382a179df6f7ee8e507fd1c2",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1773522214409",
+      "local_sha": null,
+      "remotes": {
+        "origin": "4530619ce398b26524abb3072c8f30e123bf17d8",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1775350771711",
+      "local_sha": null,
+      "remotes": {
+        "origin": "07692b55bc427fdeac4f3534c5f5224196e9ab43",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1775361606543",
+      "local_sha": null,
+      "remotes": {
+        "origin": "3214add7e1ef830e86731774c73926b5f1933ceb",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1776321176717",
+      "local_sha": null,
+      "remotes": {
+        "origin": "fcc9ac3709a9613ad2847688fb9dccb46447c4a3",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1776433020",
+      "local_sha": "3a07276e55242c21c73482322c6425bc1b56a497",
+      "remotes": {
+        "origin": "3a07276e55242c21c73482322c6425bc1b56a497",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1776641070059",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ea2cff828a344e3d0f9895c909c16a696e9a78b0",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1777694195008",
+      "local_sha": null,
+      "remotes": {
+        "origin": "4075ce5685cf88713e34f765fdeefbf278bc00a7",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1778113092477-g2",
+      "local_sha": "7bbeab6a64004ce070d02d958e06851d8ff1303f",
+      "remotes": {
+        "origin": "1b21f9bd907ff627e6ea4ee2ce253ae8355a910a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": true,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1778331797281",
+      "local_sha": null,
+      "remotes": {
+        "origin": "ebce6059b3c393346931bfe9924302611e8ba83a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1778334660301",
+      "local_sha": null,
+      "remotes": {
+        "origin": "4075ce5685cf88713e34f765fdeefbf278bc00a7",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/session-1778496304661",
+      "local_sha": "b0beebb36a657bfbf7848f07d5a1cbc1bad4ef48",
+      "remotes": {
+        "origin": "b0beebb36a657bfbf7848f07d5a1cbc1bad4ef48",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/sidebar-brand-lockup-20260508",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d81fcf08459f6dc5e75444317bbad0aea756c303",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/sidebar-global-actions-20260507",
+      "local_sha": "59e5fa2ab7304bfa4df94405ad86aad863a500da",
+      "remotes": {
+        "origin": "59e5fa2ab7304bfa4df94405ad86aad863a500da",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/task-panel-empty-state-20260507",
+      "local_sha": "480d89645fc2564529f285f2edf70b7f23bc4387",
+      "remotes": {
+        "origin": "480d89645fc2564529f285f2edf70b7f23bc4387",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/task-status-combobox-20260508",
+      "local_sha": null,
+      "remotes": {
+        "origin": "182178f8e4749ee5f1611793d29b2f75f3176574",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/task-status-menu-persist-20260508",
+      "local_sha": null,
+      "remotes": {
+        "origin": "bf7af67e23e8c9cda66aca761b4423008653fe33",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/task-status-select-20260508",
+      "local_sha": null,
+      "remotes": {
+        "origin": "778a666af504ef6e8d994a436ce6407d33c47f7a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/task-title-density-20260508",
+      "local_sha": null,
+      "remotes": {
+        "origin": "b911590e3448ff6e94d416319cd60086c5da1e36",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/terminal-copy-ctrlc",
+      "local_sha": null,
+      "remotes": {
+        "origin": "0fc208f82dbeeebae2b077d71c09517169e9791c",
+        "upstream": "0fc208f82dbeeebae2b077d71c09517169e9791c"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/test-session-1767180435",
+      "local_sha": null,
+      "remotes": {
+        "origin": "c93b1381fe075293b458187f18b23ce962990dce",
+        "upstream": "c93b1381fe075293b458187f18b23ce962990dce"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/vibepro-status-scope-20260508",
+      "local_sha": null,
+      "remotes": {
+        "origin": "845ff78c14c89cf92887a92a1e6393ae7c66300d",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "session/wiki-livefeed-fidelity-20260507",
+      "local_sha": "a0aa334611b01c22885530635d70db86952afa75",
+      "remotes": {
+        "origin": "a0aa334611b01c22885530635d70db86952afa75",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "story/STR-001-wiki-project-filter",
+      "local_sha": "3b2071c8b679262a403f2410f4ce025f1f0416ef",
+      "remotes": {
+        "origin": "a624f29ad9214236db2f62f7ed6cf2322d169f4e",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": true,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "story/codex-appserver-session-state-ssot",
+      "local_sha": "936a52680fd8f73c96b68e186f0767232270e98b",
+      "remotes": {
+        "origin": "936a52680fd8f73c96b68e186f0767232270e98b",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "story/codex-pane-stale-uptime-recycle",
+      "local_sha": null,
+      "remotes": {
+        "origin": "d23846b31872fce38f7db15d210bb2647cc7205c",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "story/live-feed-stable-session-history",
+      "local_sha": "7d1833d62fbd1bb936ac30655c7267c14f7b18c1",
+      "remotes": {
+        "origin": "7d1833d62fbd1bb936ac30655c7267c14f7b18c1",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "story/oyasumi-meeting-personal-kg",
+      "local_sha": null,
+      "remotes": {
+        "origin": "daf708981e7bb01b0ec7461baf0528d66429acbb",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "story/session-hibernation-mvp",
+      "local_sha": null,
+      "remotes": {
+        "origin": "8aff401d64e4a2a12ac79c8e2753d04ded6bc1e7",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "story/session-launch-picker-startup-composer",
+      "local_sha": null,
+      "remotes": {
+        "origin": "cee2f9de6cc6ec60748021bd9eeeff9b6fd0d5a3",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "story/terminal-copy-usability",
+      "local_sha": null,
+      "remotes": {
+        "origin": "44dc85bfb8d5d11d9074040902dbd80802969daf",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "story/terminal-input-render-stability-clean",
+      "local_sha": "d9d3a64a6c8b2825b5c65c1249701a3fb7be7f0b",
+      "remotes": {
+        "origin": "d9d3a64a6c8b2825b5c65c1249701a3fb7be7f0b",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "story/terminal-stale-runtime-auto-recovery",
+      "local_sha": "48073d850739c69cf46aa82cd7fdf1239b4c4229",
+      "remotes": {
+        "origin": "48073d850739c69cf46aa82cd7fdf1239b4c4229",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "story/tmux-missing-runtime-pause",
+      "local_sha": null,
+      "remotes": {
+        "origin": "982108379d2ced3368666fc3d5331f3b685b2a41",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "story/worktree-service-git-migration",
+      "local_sha": null,
+      "remotes": {
+        "origin": "b5df9d8cdb8caf76892ce05b5edbda15f1386673",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "temp-merge-checkpoint",
+      "local_sha": null,
+      "remotes": {
+        "origin": "8887f1498fe75df1562c998a7736a7301ad9996d",
+        "upstream": "8887f1498fe75df1562c998a7736a7301ad9996d"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "temp/gha-runner",
+      "local_sha": null,
+      "remotes": {
+        "origin": "8d6134b7f250d6fcb6979e1edb6633a9094fc0cc",
+        "upstream": "8d6134b7f250d6fcb6979e1edb6633a9094fc0cc"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "test/session-status-sort-contract",
+      "local_sha": null,
+      "remotes": {
+        "origin": "e32691693c7c9490fcda3dae859f1bdc17c8623e",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    }
+  ],
+  "divergence_flags": {
+    "head_contains_base": true,
+    "branch_divergence_detected": true
+  }
+}

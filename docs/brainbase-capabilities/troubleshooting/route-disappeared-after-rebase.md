@@ -56,4 +56,4 @@ Follow `../runbooks/revert-and-remerge-silent-drop.md`:
 
 - `../capabilities/git.protected-push.yml` — guard that blocks the direct-push vector since PR #668.
 - `../runbooks/revert-and-remerge-silent-drop.md` — recovery procedure.
-- `../capabilities/development.workflow.yml` — why jj-first reduces silent drop risk via mandatory commit descriptions.
+- `../capabilities/development.workflow.yml` — the focused Git staging and review rules that reduce silent-drop risk.

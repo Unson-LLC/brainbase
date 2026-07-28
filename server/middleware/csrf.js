@@ -128,24 +128,34 @@ export function csrfMiddleware() {
             return next();
         }
 
-        // Skip session activity telemetry. It is posted by trusted LOCAL hooks/CLI (the
-        // activity-bridge hooks, scripts/lib/brainbase-common.sh, codex-pty-shim.py, …) via
-        // curl/fetch with no browser CSRF token. CSRF guards against cross-site browser forgery,
-        // which does not apply to a localhost hook -> localhost server, non-mutating activity report.
-        // Without this, prod 403s every hook-driven report (stale indicators) and dev warns every interval.
-        if (req.path === '/api/sessions/report_activity') {
-            return next();
-        }
-
         // External runner ingest is a server-to-server API guarded by workflow auth
         // (bearer/service/internal key). It cannot rely on browser session CSRF tokens.
         if (req.path?.startsWith('/api/external-runner/')) {
             return next();
         }
 
+        // Run receipt ingest is the sole server-to-server endpoint in this route
+        // family. The route itself rejects cookie/session-only authentication.
+        if (req.method === 'POST' && req.path === '/api/run-receipts/ingest') {
+            return next();
+        }
+
         // Brainbase Mac Companion is a native/server client API guarded by bearer,
         // service-token, or internal header auth. It cannot rely on browser CSRF tokens.
         if (req.path?.startsWith('/api/companion/')) {
+            return next();
+        }
+
+        // Admin context preview is read-only but uses POST for its structured query.
+        // Agent/native clients authenticate with a bearer token and do not have a
+        // browser CSRF session. Authentication and project scope are still enforced
+        // by the route's requireAuth middleware and AdminVisualizationService.
+        if (
+            req.method === 'POST'
+            && req.path === '/api/admin/context-preview'
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
             return next();
         }
 

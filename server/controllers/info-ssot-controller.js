@@ -123,9 +123,11 @@ export class InfoSSOTController {
         try {
             const access = buildAccessContext(req);
             assertAccessContext(access);
+            const id = req.query.id || null;
+            const ids = typeof req.query.ids === 'string' ? parseCsv(req.query.ids) : [];
             const projectCode = req.query.project || null;
             const entityType = req.query.type || null;
-            const records = await this.infoSSOTService.listGraphEntities(access, { projectCode, entityType });
+            const records = await this.infoSSOTService.listGraphEntities(access, { id, ids, projectCode, entityType });
             res.json({ records });
         } catch (error) {
             logger.error('Failed to list graph entities', { error });

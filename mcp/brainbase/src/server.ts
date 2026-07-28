@@ -32,6 +32,10 @@ import { GraphAPISource } from './sources/graphapi-source.js';
 import { TokenManager } from './auth/token-manager.js';
 import { filterWikiPages } from './tools/wiki-search.js';
 import { meshTools, handleMeshToolCall } from './tools/mesh-tools.js';
+import {
+  controlPlaneTools,
+  handleControlPlaneToolCall,
+} from './tools/control-plane-tools.js';
 
 // Global index (built once at startup)
 let entityIndex: EntityIndex;
@@ -44,6 +48,7 @@ let wikiApiBaseUrl: string;
 let globalTokenManager: TokenManager;
 let globalGraphSource: GraphAPISource | null = null;
 let defaultProjectCode = 'brainbase';
+let configuredProjectCodes: string[] | undefined;
 
 const WIKI_RESOURCE_URI_PREFIX = 'brainbase://wiki/page/';
 const WIKI_RESOURCE_TEMPLATE = 'brainbase://wiki/page/{path}';
@@ -54,21 +59,18 @@ async function prependPhilosophyContext(
   defaults: { scope: string; objectType?: string; operation?: string }
 ): Promise<string> {
   const includePhilosophy = args.includePhilosophy !== false && args.include_philosophy !== false;
-  if (!includePhilosophy || !globalGraphSource) return body;
-
-  let context;
-  try {
-    context = await globalGraphSource.getPhilosophyContext({
-      projectCode: (args.project as string) || defaultProjectCode,
-      scope: (args.scope as string) || defaults.scope,
-      objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
-      operation: (args.operation as string) || defaults.operation,
-      maxRecommended: Number(args.maxRecommended || args.max_recommended) || undefined,
-    });
-  } catch (error) {
-    console.error('[brainbase] Failed to prepend philosophy context:', error);
-    return body;
+  if (!includePhilosophy) return body;
+  if (!globalGraphSource) {
+    throw new Error('Graph source is unavailable; Philosophy Context cannot be loaded');
   }
+
+  const context = await globalGraphSource.getPhilosophyContext({
+    projectCode: (args.project as string) || defaultProjectCode,
+    scope: (args.scope as string) || defaults.scope,
+    objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
+    operation: (args.operation as string) || defaults.operation,
+    maxRecommended: Number(args.maxRecommended || args.max_recommended) || undefined,
+  });
 
   return `${context.prompt_block}\n\n---\n\n${body}`;
 }
@@ -78,20 +80,18 @@ async function philosophyContextPrompt(
   defaults: { scope: string; objectType?: string; operation?: string }
 ): Promise<string | undefined> {
   const includePhilosophy = args.includePhilosophy !== false && args.include_philosophy !== false;
-  if (!includePhilosophy || !globalGraphSource) return undefined;
-
-  let context;
-  try {
-    context = await globalGraphSource.getPhilosophyContext({
-      projectCode: (args.project as string) || defaultProjectCode,
-      scope: (args.scope as string) || defaults.scope,
-      objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
-      operation: (args.operation as string) || defaults.operation,
-      maxRecommended: Number(args.maxRecommended || args.max_recommended) || undefined,
-    });
-  } catch {
-    return undefined;
+  if (!includePhilosophy) return undefined;
+  if (!globalGraphSource) {
+    throw new Error('Graph source is unavailable; Philosophy Context cannot be loaded');
   }
+
+  const context = await globalGraphSource.getPhilosophyContext({
+    projectCode: (args.project as string) || defaultProjectCode,
+    scope: (args.scope as string) || defaults.scope,
+    objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
+    operation: (args.operation as string) || defaults.operation,
+    maxRecommended: Number(args.maxRecommended || args.max_recommended) || undefined,
+  });
 
   return context.prompt_block;
 }
@@ -796,7 +796,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
 }
 
 export const __testing = {
-  tools,
+  tools: [...tools, ...controlPlaneTools],
   setEntityIndex(index: EntityIndex): void {
     entityIndex = index;
   },
@@ -831,6 +831,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   const source = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
   globalGraphSource = source;
   defaultProjectCode = config.projectCodes?.[0] || 'brainbase';
+  configuredProjectCodes = config.projectCodes;
   console.error('[brainbase] Using Graph API source');
 
   // Keep wiki resources/tools available even when the graph API is down.
@@ -914,16 +915,26 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: [...tools, ...meshTools] };
+    return { tools: [...tools, ...controlPlaneTools, ...meshTools] };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
     try {
-      // Try mesh tools first; they return null for unknown tool names.
-      const meshResult = await handleMeshToolCall(name, args as Record<string, unknown>, brainbaseApiUrl);
-      const result = meshResult ?? await handleToolCall(name, args as Record<string, unknown>);
+      const toolArgs = args as Record<string, unknown>;
+      const controlPlaneResult = await handleControlPlaneToolCall(name, toolArgs, {
+        apiUrl: brainbaseApiUrl,
+        configuredProjectCodes,
+        tokenManager: globalTokenManager,
+      });
+      // Each extension handler returns null for unknown tool names.
+      const meshResult = controlPlaneResult
+        ? null
+        : await handleMeshToolCall(name, toolArgs, brainbaseApiUrl);
+      const result = controlPlaneResult
+        ? JSON.stringify(controlPlaneResult, null, 2)
+        : meshResult ?? await handleToolCall(name, toolArgs);
       return {
         content: [
           {

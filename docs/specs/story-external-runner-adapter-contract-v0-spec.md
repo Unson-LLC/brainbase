@@ -60,8 +60,10 @@
 - S-004d: `workflow rollback guard` `run.workflow_id` 未指定時のfallback Workflow IDは `run.project_id` を含み、同じEve agentでもprojectをまたいで同一Workflow IDを共有しない。Story ACは `ac:7`。
 - S-004c: `workflow ownership guard` service/internal credential以外の外部runner requestは、`loop_control.owner_id`、`cost_owner_id`、`approval_owner_id` を認証主体本人以外へ委任できない。Story ACは `ac:8`。
 - S-004e: `workflow ownership guard` service/internal credential以外の外部runner requestでは、未指定の `learning_candidates[].actor_person_id` を認証主体本人に固定し、runner agentをCandidate Store上の人間actorとして暗黙保存しない。Story ACは `ac:8`。
-- S-005: `workflow rollback guard` Learning CandidateはGraph SSOTへauto promoteせず、Candidate Storeかdeferred auditへ残す。
-- S-005b: `workflow rollback guard` Candidate Store接続時にwriteが失敗した場合も、API失敗で隠さずdeferred auditとして残し、duplicate replayでも可視化する。
+- S-005: `workflow rollback guard` Learning CandidateはGraph SSOTへauto promoteせず、Candidate Storeまたは監査可能なpending/deferred/conflict状態へ残す。
+- S-005b: `workflow rollback guard` Candidate Store接続時のretryableなwrite失敗は、API失敗で隠さずdeferred auditとして残し、duplicate replayで再試行できるようにする。
+- S-005c: `workflow rollback guard` 派生済みglobal candidate idが既存Candidateと衝突した時は、既存Candidateのimmutable projectionが完全一致する場合だけstoredとして採用する。不一致またはduplicate後に取得不能なら `external_runner.candidate_conflict`、`persistence_status=pending`、`action_required=resolve_candidate_conflict` を監査へ残してrequestを明示的に失敗させる。
+- S-005d: `workflow retry matrix` Candidate Store I/O前にpending auditを共有Workflow台帳へ保存し、外部I/Oは台帳transactionの外で実行する。stored/deferred/conflictへの遷移は短い共有transactionで確定し、duplicate replayはpending Candidateのみ再開して監査行を二重生成しない。
 - S-006: `workflow auth boundary` `/api/external-runner` は `workflowAuthGuard` 配下に置かれる。
 - S-007: `compatibility guard` 既存の `/api/sessions/report_activity` CSRF例外はローカルhook/CLI telemetry用として維持し、外部runner ingestのserver-to-server認証境界とは混ぜない。
 
@@ -75,6 +77,9 @@
 - `learning_candidates[]` はCandidate Storeへ渡す前に `candidate_id`、`cognitive_type`、`body` を必須検証する。
 - `learning_candidates[].promotion_policy=auto_promote` は受け付けない。
 - 外部runnerから来た `learning_candidates[].promotion_status` と `learning_candidates[].requires_approval` は信頼せず、Brainbase側で `promotion_status=candidate` と `requires_approval=true` に固定する。
+- Candidate Store I/O前に `persistence_status=pending` のauditを保存し、外部I/O中は共有Workflow台帳transactionを保持しない。
+- retryableなCandidate Store write失敗は `persistence_status=deferred` として可視化し、duplicate replayでpending/deferred Candidateを再試行する。
+- global candidate idのduplicateは既存Candidateのimmutable projectionを照合し、完全一致だけをstoredとして採用する。不一致または取得不能は `external_runner.candidate_conflict` と `action_required=resolve_candidate_conflict` で明示的に失敗させる。
 - 同一 `run.project_id + runner.type + runner.external_run_id` はduplicateとして扱い、二重保存しない。
 - `run.workflow_run_id` がpayloadに含まれても冪等キーには使わず、Brainbase側で `run.project_id + runner.type + runner.external_run_id` からrun idを決める。
 - 別projectで同じ `runner.external_run_id` が送られてもduplicate replayせず、project-scopedな別runとして保存する。
@@ -90,7 +95,7 @@
 
 ## Known v0 Boundary
 
-- Candidate Store接続時のruntime failureに対するDB transaction / rollbackはv0の外側に置く。v0では、contract上検出できるCandidate不備をWorkflow保存前に拒否し、Candidate Store write失敗はdeferred auditへ落として可視化する。実DB transactionはPostgres-backed ingestへ拡張する時点で扱う。
+- 共通run receipt control plane導入後は、Workflow本体、run、context、output、audit、Candidate状態の台帳更新にrepository-wide transactionを使う。一方、Candidate Storeの外部I/O自体は共有台帳transactionの外に置き、pending auditとstored/deferred/conflict auditで挟む。この後方互換hardeningによりretryable failureとidentity conflictを区別するが、Candidate StoreとWorkflow台帳を単一の分散transactionへ統合することは引き続きv0の外側とする。
 
 ## Verification
 

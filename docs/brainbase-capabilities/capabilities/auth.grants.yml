@@ -6,6 +6,8 @@ surfaces:
     - Slack OAuth login
     - Session creation project selector
     - Wiki and Graph access
+  mcp:
+    - brainbase_projects
   api:
     - GET /api/auth/verify
     - POST /api/auth/refresh
@@ -14,6 +16,8 @@ surfaces:
     - server/controllers/auth-controller.js
     - server/middleware/auth.js
     - public/modules/auth/auth-manager.js
+    - mcp/brainbase/src/auth/token-manager.ts
+    - mcp/brainbase/src/tools/control-plane-tools.ts
   data:
     - INFO_SSOT_DATABASE_URL.auth_grants
     - localStorage brainbase.auth.access
@@ -22,9 +26,13 @@ depends_on:
   - auth_grants
 visibility_rules:
   - auth_grants.active must be true.
+  - Login, device flow, and refresh require an exact slack_user_id + slack_workspace_id match in auth_grants.
   - project_codes is copied into JWT access.projectCodes.
   - Browser localStorage may preserve stale access until refresh or relogin.
   - Empty projectCodes means unrestricted only in UI selector logic; protected APIs may still require explicit project codes.
+  - /api/brainbase/projects verifies the bearer or service token before reading the catalog and filters by req.access.projectCodes.
+  - brainbase_projects uses token projectCodes intersected with BRAINBASE_PROJECT_CODES and does not accept caller-supplied scope.
+  - MCP output records actor, role, effective project_codes, request_id, observed_at, and source without returning the token.
 verification:
   commands:
     - SELECT person_id, person_name, slack_user_id, role, project_codes FROM auth_grants WHERE active = true;
@@ -32,6 +40,8 @@ verification:
   expected:
     - The user's access.projectCodes contains all projects needed for the UI surface being tested.
     - After auth_grants update, a new token or refresh reflects the new project_codes.
+    - An invalid or missing token cannot read /api/brainbase/projects.
+    - MCP auth rejection is status:error; token acquisition or upstream outage is status:unavailable.
 common_failures:
   - auth_grants has techknight but config has tech-knight.
   - auth_grants was updated but JWT/localStorage still contains the old projectCodes.

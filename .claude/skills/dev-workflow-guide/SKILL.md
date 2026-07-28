@@ -43,7 +43,7 @@ description: 開発ワークフロー統合ガイド（7 Skills統合版）。Gi
 
 | Skill名 | 行数 | 統合先セクション | 主要テーマ |
 |---------|------|-----------------|-----------|
-| git-commit-rules | 142行 | § 1 | Jujutsuコミットルール、type一覧、HEREDOC形式 |
+| git-commit-rules | 142行 | § 1 | Gitコミットルール、type一覧、HEREDOC形式 |
 | github-actions-management | 53行 | § 2 | GitHub Actions管理、scheduled-jobs.md更新 |
 | cursor-design-to-code | 50行 | § 3 | Cursor Planning mode、Design-to-Code手法 |
 | claude-code-patterns | 286行 | § 4 | Hooks設定、@path記法、学習管理 |
@@ -53,7 +53,7 @@ description: 開発ワークフロー統合ガイド（7 Skills統合版）。Gi
 
 ---
 
-# § 1. Jujutsu Workflow (Commit Rules)
+# § 1. Git Workflow (Commit Rules)
 
 ## 1.1 コミットメッセージフォーマット
 
@@ -1714,7 +1714,7 @@ claude setup-token
 
 # Quick Reference: 状況別参照ガイド
 
-## Jujutsuコミット作成
+## Gitコミット作成
 → § 1.1 コミットメッセージフォーマット
 → § 1.2 type一覧
 → § 1.4 コミット実行コマンド

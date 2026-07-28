@@ -1,9 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 process.env.INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET || 'test-secret';
 process.env.SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN || 'test-token';
 
-const { calculateKpi, formatRate, buildSlackBlocks } = await import('../../../scripts/send-decision-kpi-to-slack.js');
+const {
+    fetchDecisionEvents,
+    calculateKpi,
+    formatRate,
+    buildSlackBlocks,
+    sendToSlack
+} = await import('../../../scripts/send-decision-kpi-to-slack.js');
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
 
 function makeEvent(eventType, overrides = {}) {
     return {
@@ -54,11 +64,62 @@ describe('send-decision-kpi-to-slack calculateKpi', () => {
     });
 });
 
+describe('send-decision-kpi-to-slack fetchDecisionEvents', () => {
+    it('rejects a malformed API response before any Slack delivery can occur', async () => {
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => ({ events: null })
+        });
+
+        await expect(fetchDecisionEvents({
+            from: '2026-06-24T00:00:00.000Z',
+            to: '2026-07-01T00:00:00.000Z'
+        })).rejects.toThrow('events must be an array');
+        expect(fetchMock).toHaveBeenCalledOnce();
+        expect(fetchMock.mock.calls[0][0]).toBeInstanceOf(URL);
+        expect(String(fetchMock.mock.calls[0][0])).toContain('/api/companion/decision-events');
+    });
+});
+
 describe('send-decision-kpi-to-slack buildSlackBlocks', () => {
     it('reports 未受信 when there are zero events for the period', () => {
         const kpi = calculateKpi([]);
         const blocks = buildSlackBlocks(kpi, { from: '2026-06-24T00:00:00.000Z', to: '2026-07-01T00:00:00.000Z' });
         const text = JSON.stringify(blocks);
         expect(text).toContain('イベント未受信');
+        expect(text).toContain('委任率');
+        expect(text).toContain('差戻し率');
+        expect(text.match(/計測不能/g)).toHaveLength(2);
+    });
+});
+
+describe('send-decision-kpi-to-slack sendToSlack', () => {
+    it('posts the weekly report to Slack and returns the acknowledged message', async () => {
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => ({ ok: true, channel: 'C123', ts: '123.456' })
+        });
+        const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: 'weekly report' } }];
+
+        await expect(sendToSlack(blocks, '#brainbase')).resolves.toMatchObject({
+            channel: 'C123',
+            ts: '123.456'
+        });
+        expect(fetchMock).toHaveBeenCalledOnce();
+
+        const [url, request] = fetchMock.mock.calls[0];
+        expect(url).toBe('https://slack.com/api/chat.postMessage');
+        expect(request).toMatchObject({
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: 'Bearer test-token'
+            }
+        });
+        expect(JSON.parse(request.body)).toEqual({
+            channel: '#brainbase',
+            blocks,
+            text: '判断委任KPI 週次サマリー'
+        });
     });
 });

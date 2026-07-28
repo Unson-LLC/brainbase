@@ -14,7 +14,7 @@ meeting pack の task候補・decision候補・follow-up候補は現在、ingest
 
 構造化JSON形式のtranscript会議（`msrc_4f7c995f`「07-11 New PMS/STAYE」）では、決定的splitterがJSONを文分割できず候補titleに生JSONが露出している。平文transcriptの他会議も「キーワードを含む文」を拾っているだけで実タスクとしては低品質。
 
-議事録本文は既に、`story-eve-meeting-note-pull-reconciler` で敷いた pull型reconciler（`server/services/external-runner/eve-meeting-note-reconciler.js`）が Eveセッションstreamから `record_meeting_note_generation` の tool-call input を抽出し、ローカル `recordMeetingNoteGeneration` で `meeting_note_draft` output を `brainbase_source_ready → brainbase_generated` に更新する形で稼働している。Eve の meeting-agent は既に同一セッションで task/decision/follow-up 候補を生成しているが、書き戻しtoolのスキーマが `note:{title,body}` しか持たないためLLM生成候補は捨てられている。
+議事録本文は既に、`story-eve-meeting-note-pull-reconciler` で敷いた pull型reconciler（`server/services/external-runner/eve-meeting-note-reconciler.js`）が Eveセッションstreamから `record_meeting_note_generation` の tool-call input を抽出し、ローカル `recordNoteGeneration` で `meeting_note_draft` output を `brainbase_source_ready → brainbase_generated` に更新する形で稼働している。Eve の meeting-agent は既に同一セッションで task/decision/follow-up 候補を生成しているが、書き戻しtoolのスキーマが `note:{title,body}` しか持たないためLLM生成候補は捨てられている。
 
 ## 誰が
 

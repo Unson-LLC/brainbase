@@ -1,0 +1,141 @@
+TAP version 13
+# [GraphAPISource] Fetching entities from Graph API...
+# [GraphAPISource]   project: 2
+# [GraphAPISource]   person: 2
+# [GraphAPISource]   org: 2
+# [GraphAPISource]   brand: 2
+# [GraphAPISource]   app: 2
+# [GraphAPISource]   customer: 2
+# [GraphAPISource]   partner: 2
+# [GraphAPISource]   decision: 2
+# [GraphAPISource]   raci_assignment: 2
+# [GraphAPISource]   glossary_term: 2
+# [GraphAPISource]   document: 2
+# [GraphAPISource]   frame: 2
+# [GraphAPISource]   story: 2
+# [GraphAPISource]   infrastructure_environment: 2
+# [GraphAPISource]   speaking: 2
+# [GraphAPISource]   media_appearance: 2
+# [GraphAPISource]   role_assignment: 2
+# [GraphAPISource]   product: 2
+# [GraphAPISource]   publication: 2
+# [GraphAPISource]   press_mention: 2
+# [GraphAPISource] Loaded 40 entities from Graph API
+# [GraphAPISource] Fetching entities from Graph API...
+# [GraphAPISource] Token expired, refreshing...
+# [GraphAPISource] Loaded 0 entities from Graph API
+# [GraphAPISource] Fetching entities from Graph API...
+# [GraphAPISource]   person: 1
+# [GraphAPISource]   org: 1
+# [GraphAPISource] Loaded 2 entities from Graph API
+# [GraphAPISource] Fetching entities from Graph API...
+# [GraphAPISource]   raci_assignment: 1
+# [GraphAPISource] Loaded 1 entities from Graph API
+# [GraphAPISource] Fetching entities from Graph API...
+# [GraphAPISource]   brand: 1
+# [GraphAPISource] Loaded 1 entities from Graph API
+# [GraphAPISource] Fetching entities from Graph API...
+# [GraphAPISource]   project: 3
+# [GraphAPISource] Loaded 3 entities from Graph API
+# [GraphAPISource] Fetching entities from Graph API...
+# [GraphAPISource]   decision: 1
+# [GraphAPISource] Loaded 1 entities from Graph API
+# Subtest: GraphAPISource
+    # Subtest: initialize
+        # Subtest: should fetch entities from Graph API
+        ok 1 - should fetch entities from Graph API
+          ---
+          duration_ms: 2.46575
+          type: 'test'
+          ...
+        # Subtest: should handle 401 and refresh token
+        ok 2 - should handle 401 and refresh token
+          ---
+          duration_ms: 1.050792
+          type: 'test'
+          ...
+        # Subtest: loads legacy alias rows as canonical aliases without duplicating org/person lists
+        ok 3 - loads legacy alias rows as canonical aliases without duplicating org/person lists
+          ---
+          duration_ms: 1.857666
+          type: 'test'
+          ...
+        # Subtest: SPEC-brainbase-mcp-core-ontology INV-3 S-2: should fetch raci from raci_assignment storage type
+        ok 4 - SPEC-brainbase-mcp-core-ontology INV-3 S-2: should fetch raci from raci_assignment storage type
+          ---
+          duration_ms: 0.621333
+          type: 'test'
+          ...
+        1..4
+    ok 1 - initialize
+      ---
+      duration_ms: 7.47525
+      type: 'suite'
+      ...
+    # Subtest: getBrands
+        # Subtest: SPEC-brainbase-mcp-core-ontology INV-2 S-1: should return brand core entities
+        ok 1 - SPEC-brainbase-mcp-core-ontology INV-2 S-1: should return brand core entities
+          ---
+          duration_ms: 0.774667
+          type: 'test'
+          ...
+        1..1
+    ok 2 - getBrands
+      ---
+      duration_ms: 0.861417
+      type: 'suite'
+      ...
+    # Subtest: getProjects
+        # Subtest: should return projects filtered by project codes
+        ok 1 - should return projects filtered by project codes
+          ---
+          duration_ms: 0.413
+          type: 'test'
+          ...
+        1..1
+    ok 3 - getProjects
+      ---
+      duration_ms: 0.687959
+      type: 'suite'
+      ...
+    # Subtest: getDecisions
+        # Subtest: should return decisions with correct format
+        ok 1 - should return decisions with correct format
+          ---
+          duration_ms: 0.421791
+          type: 'test'
+          ...
+        1..1
+    ok 4 - getDecisions
+      ---
+      duration_ms: 0.500209
+      type: 'suite'
+      ...
+    # Subtest: getPhilosophyContext
+        # Subtest: should fetch philosophy context from Graph context API
+        ok 1 - should fetch philosophy context from Graph context API
+          ---
+          duration_ms: 0.183916
+          type: 'test'
+          ...
+        1..1
+    ok 5 - getPhilosophyContext
+      ---
+      duration_ms: 0.210709
+      type: 'suite'
+      ...
+    1..5
+ok 1 - GraphAPISource
+  ---
+  duration_ms: 10.069792
+  type: 'suite'
+  ...
+1..1
+# tests 8
+# suites 6
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 201.672833

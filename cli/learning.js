@@ -347,16 +347,9 @@ async function rejectPromotion(candidateId, reason = '') {
 }
 
 async function applyWikiCandidate(candidate) {
-    const { serverUrl, headers } = getServerContext();
-    await apiJson(`${serverUrl}/api/wiki/page`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-            path: candidate.target_ref,
-            content: candidate.proposed_content
-        })
-    });
-    await markPromotionApplied(candidate.id);
+    throw new Error(
+        `Wiki storage is retired; candidate ${candidate.id} must be classified into Graph, an owning Git repository, Drive, or workspace home`
+    );
 }
 
 async function applySkillCandidate(candidate, repoRoot = process.cwd()) {

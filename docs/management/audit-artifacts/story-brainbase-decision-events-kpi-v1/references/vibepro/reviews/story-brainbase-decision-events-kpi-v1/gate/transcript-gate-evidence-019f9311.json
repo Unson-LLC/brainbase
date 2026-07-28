@@ -1,0 +1,31 @@
+{
+  "schema_version": "0.1.0",
+  "agent_id": "019f9311-5a73-7952-9f4a-0d82f161f167",
+  "model": "gpt-5.6-luna",
+  "reasoning_effort": "high",
+  "status": "pass",
+  "summary": "HEAD 7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55 に対する最終gate replacement reviewはpass。strict-head、freshness、実装、テスト、認証、失敗時挙動を確認し、実際の問題はなし。",
+  "findings": [],
+  "inspection_inputs": [
+    ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/review-request-gate_evidence.md",
+    ".vibepro/pr/story-brainbase-decision-events-kpi-v1/evidence-reuse.json",
+    "server/services/companion/decision-event-service.js",
+    "server/controllers/companion-controller.js",
+    "server/routes/companion.js",
+    "scripts/send-decision-kpi-to-slack.js",
+    "tests/server/services/companion/decision-event-service.test.js",
+    "tests/server/routes/companion-decision-events.test.js",
+    "tests/server/scripts/send-decision-kpi-to-slack.test.js",
+    "tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts"
+  ],
+  "inspection_evidence": [
+    "current-head verification: dirty=false, HEAD and fingerprint matched",
+    "unit/integration: 59 passed, 0 failed",
+    "E2E: 9 passed, 0 failed",
+    "typecheck: passed",
+    "evidence reuse: status=hit, stale_reasons=[], fresh_use_allowed=true",
+    "strict-head verification evidence recorded at 07:33Z"
+  ],
+  "inspection_summary": "risk_surfaces=concurrency,cross_month_dedupe,corrupt_ledger,stale_index,cache_tampering,kpi_false_delivery,api_auth,input_validation; regression_guard and path_surface_coverage passed across service, controller, route, bootstrap, KPI script, unit/integration/E2E, Story/Spec, and current-head verification artifacts.",
+  "judgment_delta": "Initial block due to dirty/freshness contradiction and an unrecorded final result changed to pass because current-head strict evidence resolves freshness and direct implementation/test inspection found no remaining defect. The replacement result itself is lifecycle sequencing and was not treated as a defect."
+}

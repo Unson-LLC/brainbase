@@ -1,0 +1,47 @@
+name: Brainbase Run Receipt Reporter
+description: Reports a terminal GitHub Actions run to Brainbase without copying logs or artifact contents.
+inputs:
+  endpoint:
+    description: Brainbase run receipt ingest URL.
+    required: true
+  service-token:
+    description: Brainbase service token. Secretless forks are reported as delivery unavailable.
+    required: false
+  project-id:
+    description: Brainbase project id.
+    required: true
+  conclusion:
+    description: Authoritative GitHub conclusion, normally passed as job.status from the final step.
+    required: true
+  repository-id:
+    description: GitHub repository id. Defaults to GITHUB_REPOSITORY_ID.
+    required: false
+  repository:
+    description: GitHub owner/repository. Defaults to GITHUB_REPOSITORY.
+    required: false
+  workflow-id:
+    description: Stable GitHub workflow id or workflow ref. Defaults to GITHUB_WORKFLOW_REF.
+    required: false
+  workflow-name:
+    description: Human-readable workflow name. Defaults to GITHUB_WORKFLOW.
+    required: false
+  run-id:
+    description: GitHub run id. Defaults to GITHUB_RUN_ID.
+    required: false
+  run-attempt:
+    description: GitHub run attempt. Defaults to GITHUB_RUN_ATTEMPT.
+    required: false
+  started-at:
+    description: Optional RFC 3339 source start timestamp.
+    required: false
+  finished-at:
+    description: Optional RFC 3339 finish timestamp. Defaults to action execution time.
+    required: false
+outputs:
+  delivery-status:
+    description: delivered, unavailable, or failed.
+  receipt-artifact-path:
+    description: Local redacted receipt path when delivery is unavailable or exhausted.
+runs:
+  using: node20
+  main: index.mjs

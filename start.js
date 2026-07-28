@@ -8,7 +8,7 @@
 import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { resolveRuntimePaths, ensureShadowRuntimeLinks } from './lib/runtime-paths.js';
+import { resolveRuntimePaths } from './lib/runtime-paths.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -46,8 +46,6 @@ function sleep(ms) {
 
 try {
     mkdirSync(varDir, { recursive: true });
-    await ensureShadowRuntimeLinks(runtimePaths, console);
-
     if (existsSync(PID_FILE)) {
         const existingPid = parseInt(readFileSync(PID_FILE, 'utf-8').trim(), 10);
         if (existingPid && !isNaN(existingPid) && existingPid !== process.pid && isProcessAlive(existingPid)) {
@@ -85,17 +83,5 @@ function removePidFile() {
 process.on('exit', removePidFile);
 // server.js owns SIGINT/SIGTERM so HTTP shutdown and persistent writer release
 // finish before the process exits. The exit hook above removes the PID file.
-
-// --- Deploy-time build of the React session-list island bundle ---
-// public/dist/session-list-island.js is no longer committed; the runtime checkout's
-// `git clean -fd` removes it on every boot, so rebuild it here before server.js serves
-// static assets. esbuild/react are devDeps already present after `npm ci`.
-try {
-    const { execFileSync } = await import('node:child_process');
-    execFileSync(process.execPath, ['scripts/build-ui-islands.mjs'], { cwd: __dirname, stdio: 'inherit' });
-} catch (err) {
-    console.error('[island-build] FAILED to build session-list island bundle:', err?.message || err);
-    console.error('[island-build] #session-list may render empty until this is resolved.');
-}
 
 await import('./server.js');
