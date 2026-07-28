@@ -41,6 +41,15 @@ API契約を利用するmana-runtime側の後続Storyで実装する。
 
 ## Scenarios
 
+## Scenario IDs
+
+- S-001: 冪等にTaskを作成する。
+- S-002: SQLで一覧を絞り込み、ページングする。
+- S-003: 移行前に安全な差分を確認する。
+- S-004: PostgreSQL障害を隠さない。
+- S-005: 不正または存在しないIDを開示しない。
+- S-006: IDまたは冪等キー競合で閉じる。
+
 ### S-001: 冪等にTaskを作成する
 
 PostgreSQL backendでTaskを作成するとUUID行が一度だけ保存され、同じ冪等キーの再取得は同じTaskを返す。

@@ -35,7 +35,7 @@ function taskRow(overrides = {}) {
   };
 }
 
-test('story-canonical-task-postgres-ssot ac:1 ac:2 ac:3 S-001 S-002 S-003 S-004 S-005 S-006 contract', () => {
+test('story-canonical-task-postgres-ssot ac:2 ac:3 documentation contract', () => {
   const story = read('docs/stories/story-canonical-task-postgres-ssot.md');
   const spec = read('docs/specs/story-canonical-task-postgres-ssot-spec.md');
   const bootstrap = read('server/bootstrap/core-services.js');
@@ -48,25 +48,31 @@ test('story-canonical-task-postgres-ssot ac:1 ac:2 ac:3 S-001 S-002 S-003 S-004 
   }
 
   expect(spec, 'ac:1 PostgreSQL is the canonical Task store contract').toContain('canonical_tasks');
-  expect(repository, 'ac:1 repository implements the canonical persistence boundary').toContain('CanonicalTaskPostgresRepository');
-  expect(bootstrap + storeConfig, 'S-001 S-002 backend selection is explicit').toContain('CANONICAL_TASK_BACKEND');
-  expect(migration, 'S-003 migration exposes dry-run').toContain("'dry-run'");
-  expect(migration, 'S-004 migration applies transactionally').toContain('BEGIN');
-  expect(migration, 'S-005 conflicts stop apply').toContain('conflict');
-  expect(repository, 'S-006 selected store failures are not silently converted to empty success').not.toContain('catch(() => [])');
+  expect(repository, 'repository implements the canonical persistence boundary').toContain('CanonicalTaskPostgresRepository');
+  expect(bootstrap + storeConfig, 'backend selection is explicit').toContain('CANONICAL_TASK_BACKEND');
+  expect(migration, 'migration exposes dry-run').toContain("'dry-run'");
   expect(story, 'ac:3 production apply and Canvas projection remain out of scope').toContain('本番DBへのapply');
   expect(story, 'ac:3 Canvas projection is a follow-up Story').toContain('後続Story');
 });
 
-test('story-canonical-task-postgres-ssot ac:1 repository executes SQL and exposes store failure', async () => {
+test('story-canonical-task-postgres-ssot ac:1 S-001 S-002 S-004 S-005 repository behavior', async () => {
   const calls: Array<{ text: string; values: unknown[] }> = [];
+  let insertAttempt = 0;
   const repository = new CanonicalTaskPostgresRepository({
     storeConfig,
     idSecret: 'e2e-secret',
     pool: {
       query: async (text: string, values: unknown[] = []) => {
         calls.push({ text, values });
-        if (text.startsWith('INSERT INTO canonical_tasks')) return { rows: [taskRow()] };
+        if (text.startsWith('INSERT INTO canonical_tasks')) {
+          insertAttempt += 1;
+          return { rows: insertAttempt === 1 ? [taskRow()] : [] };
+        }
+        if (text.startsWith('SELECT * FROM canonical_tasks WHERE idempotency_key')) {
+          return { rows: [taskRow()] };
+        }
+        if (text.startsWith('SELECT COUNT(*)')) return { rows: [{ count: 2 }] };
+        if (text.startsWith('SELECT * FROM canonical_tasks')) return { rows: [taskRow()] };
         throw Object.assign(new Error('database unavailable'), { code: 'ECONNREFUSED' });
       }
     }
@@ -81,10 +87,133 @@ test('story-canonical-task-postgres-ssot ac:1 repository executes SQL and expose
   });
   expect(created.title).toBe('実動契約テスト');
   expect(calls[0].text).toContain('INSERT INTO canonical_tasks');
-  await expect(repository.list()).rejects.toMatchObject({
+
+  const repeated = await repository.create({
+    title: '実動契約テスト',
+    status: 'pending',
+    priority: 'medium',
+    idempotency_key: 'e2e-key',
+    payload_fingerprint: 'fingerprint'
+  });
+  expect(repeated.id).toBe(created.id);
+  expect(calls.filter(({ text }) => text.startsWith('INSERT INTO canonical_tasks'))).toHaveLength(2);
+
+  const page = await repository.list({
+    statuses: ['pending'],
+    priorities: ['medium'],
+    assigneePersonId: 'person-1',
+    dueAfter: '2026-07-01T00:00:00Z',
+    dueBefore: '2026-08-01T00:00:00Z',
+    limit: 1
+  });
+  expect(page).toMatchObject({
+    totalCount: 2,
+    countStatus: 'exact',
+    readStatus: 'complete'
+  });
+  expect(page.nextCursor).toBeTruthy();
+  const listCall = calls.find(({ text }) => text.includes('ORDER BY created_at'));
+  expect(listCall?.text).toContain('status = ANY($1::text[])');
+  expect(listCall?.text).toContain('LIMIT $6 OFFSET $7');
+
+  expect(() => repository.decodeId('not-an-opaque-id')).toThrow(expect.objectContaining({
+    code: 'task_not_found',
+    status: 404
+  }));
+  const foreignId = repository.encodePayload({ v: 1, s: 'another-store', r: 'hidden' });
+  expect(() => repository.decodeId(foreignId)).toThrow(expect.objectContaining({
+    code: 'task_not_found',
+    status: 404
+  }));
+
+  const unavailableRepository = new CanonicalTaskPostgresRepository({
+    storeConfig,
+    idSecret: 'e2e-secret',
+    pool: { query: async () => { throw new Error('database unavailable'); } }
+  });
+  await expect(unavailableRepository.list()).rejects.toMatchObject({
     code: 'task_store_unavailable',
     status: 503
   });
+});
+
+test('story-canonical-task-postgres-ssot ac:1 S-003 migration dry-run is redacted and write-free', async () => {
+  const queries: string[] = [];
+  const requiredColumns = [
+    'id', 'legacy_nocodb_id', 'title', 'description', 'status', 'priority',
+    'assignee_person_id', 'assignee_display_name', 'due_at', 'waiting_on',
+    'review_at', 'completed_at', 'source_refs', 'version', 'idempotency_key',
+    'payload_fingerprint', 'last_operation_key', 'last_operation_fingerprint',
+    'created_at', 'updated_at'
+  ];
+  const pool = {
+    query: async (text: string) => {
+      queries.push(text);
+      if (text.includes('information_schema.tables')) return { rows: [{ table_name: 'canonical_tasks' }] };
+      if (text.includes('information_schema.columns')) return { rows: requiredColumns.map((column_name) => ({ column_name })) };
+      if (text.includes('pg_indexes')) return { rows: [
+        { indexname: 'canonical_tasks_status_priority_idx' },
+        { indexname: 'canonical_tasks_assignee_due_idx' }
+      ] };
+      if (text.startsWith('SELECT legacy_nocodb_id')) return { rows: [] };
+      if (text.startsWith('SELECT COUNT(*)')) return { rows: [{ count: 0 }] };
+      throw new Error(`unexpected SQL: ${text}`);
+    }
+  };
+  const sourceRepository = {
+    allRecords: async () => [{ Id: 42, idempotency_key: 'legacy-42' }],
+    normalize: () => taskRow({ title: '本文を出力しない' })
+  };
+  const result = await runCanonicalTaskPostgresMigration({
+    argv: ['--dry-run'],
+    pool,
+    sourceRepository
+  });
+  expect(result).toEqual({
+    ok: true,
+    mode: 'dry-run',
+    source_count: 1,
+    target_count: 0,
+    matched_count: 0,
+    pending_count: 1,
+    inserted_count: 0,
+    conflict_count: 0
+  });
+  expect(JSON.stringify(result)).not.toContain('本文を出力しない');
+  expect(queries.some((text) => text.startsWith('INSERT INTO canonical_tasks'))).toBe(false);
+});
+
+test('story-canonical-task-postgres-ssot ac:1 S-006 migration rejects cross-key conflict before apply', async () => {
+  const pool = {
+    query: async (text: string) => {
+      if (text.includes('information_schema.tables')) return { rows: [{ table_name: 'canonical_tasks' }] };
+      if (text.includes('information_schema.columns')) {
+        return { rows: [
+          'id', 'legacy_nocodb_id', 'title', 'description', 'status', 'priority',
+          'assignee_person_id', 'assignee_display_name', 'due_at', 'waiting_on',
+          'review_at', 'completed_at', 'source_refs', 'version', 'idempotency_key',
+          'payload_fingerprint', 'last_operation_key', 'last_operation_fingerprint',
+          'created_at', 'updated_at'
+        ].map((column_name) => ({ column_name })) };
+      }
+      if (text.includes('pg_indexes')) return { rows: [
+        { indexname: 'canonical_tasks_status_priority_idx' },
+        { indexname: 'canonical_tasks_assignee_due_idx' }
+      ] };
+      if (text.startsWith('SELECT legacy_nocodb_id')) {
+        return { rows: [{ legacy_nocodb_id: '42', idempotency_key: 'another-key' }] };
+      }
+      throw new Error(`unexpected SQL: ${text}`);
+    }
+  };
+  await expect(runCanonicalTaskPostgresMigration({
+    argv: ['--check'],
+    pool,
+    sourceRepository: {
+      allRecords: async () => [{ Id: 42, idempotency_key: 'legacy-42' }],
+      normalize: () => taskRow({ title: '競合本文' })
+    }
+  })).rejects.toThrow('Canonical Task migration conflict: legacy=0, idempotency=0, database=1');
 });
 
 test('story-canonical-task-postgres-ssot ac:1 migration rolls back a failed transaction', async () => {
