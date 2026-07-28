@@ -110,8 +110,10 @@ function createOperationRepository() {
     };
 }
 
-export async function startCanonicalTaskLiveApiHarness({ port = 0 } = {}) {
-    const repository = createRepository();
+export async function startCanonicalTaskLiveApiHarness({
+    port = 0,
+    repository = createRepository()
+} = {}) {
     const workflowRepository = new InMemoryWorkflowRepository();
     const canonicalTaskService = new CanonicalTaskService({
         repository,

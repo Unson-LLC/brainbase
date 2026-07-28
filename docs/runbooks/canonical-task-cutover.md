@@ -9,8 +9,9 @@
 - 実行: `npm run preflight:canonical-task-cutover -- --phase <phase>`
 - 実環境証跡収集: `npm run capture:canonical-task-cutover -- --base-url <Brainbase URL> --mac-result <Mac read-only result> --out-dir <directory>`
 - 実Postgres並行検査: `npm run canonical-task:check-postgres-concurrency`
+- Task移行（承認後のみ）: `npm run migrate:canonical-task-postgres-workflow -- --approve-apply`
 - readiness操作: `scripts/set-canonical-task-readiness.js`
-- enable: `npm run canonical-task:readiness -- --enable --evidence <artifact>`
+- Postgres向けenable: `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence <artifact>`
 - disable: `npm run canonical-task:readiness -- --disable --reason <reason>`
 - manifest差替え: `CANONICAL_TASK_STORE_MANIFEST`だけを許可する。base/tableの個別環境変数は禁止する。
 
@@ -23,12 +24,17 @@
 
 ## before-enable
 
-1. Postgres調停schemaとNocoDB Task列・冪等key unique migrationをapplyし、checkを通す。active writerが存在しない排水済み状態で`npm run canonical-task:check-postgres-concurrency`を実行し、実operation repositoryへの同時2要求が1回だけ処理され、同一結果を返し、検査行と一時writerが削除されたことを確認する。既存writerが現れた場合は検査を中止する。
+1. Postgres調停schemaとNocoDB Task列・冪等key unique migrationをapplyする。続けてTask移行を次の順で実行する。
+   1. 本番applyの明示承認を作業記録へ残したoperatorだけが、`npm run migrate:canonical-task-postgres-workflow -- --approve-apply`を実行する。`--approve-apply`がなければ全phaseを開始せず拒否する。このコマンドだけが`dry-run -> check -> apply -> final-check`を順番に実行でき、途中失敗時は後続phaseへ進まない。
+   2. 各phaseの出力には本文やsecretを含めず、`source_count`、`target_count`、`matched_count`、`pending_count`、`inserted_count`、`conflict_count`だけを残す。
+   3. `final_check_passed: true`、`pending_count: 0`、`conflict_count: 0`、`source_count`と`target_count`の一致を確認する。一致しなければreadinessをenableしない。
+   4. `npm run migrate:canonical-task-postgres -- --apply`の直接実行は拒否される。apply phase内の失敗はtransactionがrollbackされる。applyのCOMMIT後にfinal-checkが失敗した場合、挿入済みrowは削除せずreadinessをclosedのまま維持し、原因を解消して冪等なworkflow全体を先頭から再実行する。
+   active writerが存在しない排水済み状態で`npm run canonical-task:check-postgres-concurrency`を実行し、実operation repositoryへの同時2要求が1回だけ処理され、同一結果を返し、検査行と一時writerが削除されたことを確認する。既存writerが現れた場合は検査を中止する。
 2. guardを含む新BrainbaseとMCPを起動する。process-local mutation gateがclosedで、mutationが503 `canonical_task_mutation_not_ready`になることを確認する。
 3. 下記「必須証跡」の全回帰をcurrent HEADで実行する。Macはこの時点ではTask一覧の実HTTP読み取りと認証拒否だけを確認し、mutationは実行しない。
 4. `npm run capture:canonical-task-cutover -- --base-url http://127.0.0.1:<port> --mac-result <Mac read-only result> --out-dir .vibepro/verification/canonical-task-cutover/checks`を実行し、実Postgres、実NocoDB、実Brainbase process、Mac read-only consumerの4 artifactを生成する。
-5. `npm run preflight:canonical-task-cutover -- --phase before-enable --evidence-out .vibepro/verification/canonical-task-cutover/before-enable.json --postgres-check .vibepro/verification/canonical-task-cutover/checks/postgres.json --nocodb-check .vibepro/verification/canonical-task-cutover/checks/nocodb.json --runtime-check .vibepro/verification/canonical-task-cutover/checks/runtime.json --mac-check .vibepro/verification/canonical-task-cutover/checks/mac.json`を実行する。
-6. `npm run canonical-task:readiness -- --enable --evidence .vibepro/verification/canonical-task-cutover/before-enable.json`を実行する。artifact、manifest、schema、writerのtransaction内再検証が失敗した場合はclosed rowを変更しない。稼働中processは各mutation前に永続rowを再照合するため、enable後の再起動は不要である。
+5. `npm run preflight:canonical-task-cutover -- --phase before-enable --backend postgres --evidence-out .vibepro/verification/canonical-task-cutover/before-enable.json --postgres-check .vibepro/verification/canonical-task-cutover/checks/postgres.json --nocodb-check .vibepro/verification/canonical-task-cutover/checks/nocodb.json --runtime-check .vibepro/verification/canonical-task-cutover/checks/runtime.json --mac-check .vibepro/verification/canonical-task-cutover/checks/mac.json`を実行する。証跡はbackend名とbackend固有のmanifest hashを固定し、別backend向け証跡の流用を拒否する。
+6. `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence .vibepro/verification/canonical-task-cutover/before-enable.json`を実行する。command-scopedのbackend指定により、手順5のPostgres向けartifactを同じbackend identityで再検証する。指定を省略すると安全側の`nocodb`として検証され、backend mismatchで失敗する。artifact、manifest、schema、writerのtransaction内再検証が失敗した場合はclosed rowを変更しない。稼働中processは各mutation前に永続rowを再照合するため、enable後の再起動は不要である。
 7. mutationが解禁されることを確認する。再起動時は、新processが単一writerを取得し、保存rowのHEAD・manifest・schema・evidence hashが一致した場合だけwriter tokenをtransaction内で引き継いで開く。不一致ならclosedのままにする。
 8. `TEST_MODE=true BRAINBASE_CANONICAL_TASK_LIVE_FIXTURE=1 npm run canonical-task:seed-live-fixture -- --ledger <workflow-ledger.json>`で、Mac実契約が使用する固定Human Stepを稼働中processの起動前に作る。担当者はCanonical Task manifestの`owner_person_id`から取得し、既に消費済みなら再利用せず失敗させる。
 9. Brainbaseを起動し、APIの作成・再送・更新・競合・完了・承認materializationの実契約をMac testから確認してからMac Companionを反映する。

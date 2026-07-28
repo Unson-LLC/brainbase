@@ -53,4 +53,19 @@ export function createCanonicalTaskStoreConfig({
     });
 }
 
+export function resolveCanonicalTaskBackend(value = process.env.CANONICAL_TASK_BACKEND) {
+    const backend = value || 'nocodb';
+    if (!['nocodb', 'postgres'].includes(backend)) {
+        throw new Error('CANONICAL_TASK_BACKEND must be nocodb or postgres');
+    }
+    return backend;
+}
+
+export function canonicalTaskBackendIdentityHash(storeConfig, backend = resolveCanonicalTaskBackend()) {
+    if (backend === 'nocodb') return storeConfig.identityHash;
+    return crypto.createHash('sha256')
+        .update(`${storeConfig.identityHash}:backend:${backend}`)
+        .digest('hex');
+}
+
 export { canonicalJson as canonicalTaskStoreManifestJson };

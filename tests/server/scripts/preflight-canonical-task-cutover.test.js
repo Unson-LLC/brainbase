@@ -250,6 +250,34 @@ async function createEvidenceFixture(overrides = {}) {
 }
 
 describe('canonical task evidence registry and runner parsing', () => {
+  it('keeps the operator runbook aligned with the PostgreSQL migration and readiness backend context', async () => {
+    const runbook = await readFile(
+      path.join(process.cwd(), 'docs/runbooks/canonical-task-cutover.md'),
+      'utf8',
+    );
+    const workflow = await readFile(
+      path.join(process.cwd(), 'scripts/run-canonical-task-postgres-migration-workflow.js'),
+      'utf8',
+    );
+
+    const dryRun = workflow.indexOf("{ name: 'dry-run', argv: ['--dry-run'] }");
+    const initialCheck = workflow.indexOf("{ name: 'check', argv: ['--check'] }", dryRun);
+    const apply = workflow.indexOf("{ name: 'apply', argv: ['--apply'] }", initialCheck);
+    const finalCheck = workflow.indexOf("{ name: 'final-check', argv: ['--check'] }", apply);
+
+    expect(runbook).toContain('npm run migrate:canonical-task-postgres-workflow');
+    expect(dryRun).toBeGreaterThan(-1);
+    expect(initialCheck).toBeGreaterThan(dryRun);
+    expect(apply).toBeGreaterThan(initialCheck);
+    expect(finalCheck).toBeGreaterThan(apply);
+    expect(runbook).toContain('pending_count: 0');
+    expect(runbook).toContain('conflict_count: 0');
+    expect(runbook).toContain(
+      'CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence',
+    );
+    expect(runbook).toContain('backend mismatch');
+  });
+
   it('requires a complete registry with unique IDs, artifact paths, and one registered adapter', () => {
     expect(validateEvidenceRegistry(registryFixture())).toHaveLength(1);
     const duplicate = registryFixture();
@@ -470,6 +498,7 @@ describe('before-enable evidence preflight', () => {
       phase: 'before-enable',
       pass: true,
       source_head: 'abc123',
+      backend: 'nocodb',
       schema_version: '1.0.0',
       writer_token: 'writer-token-1',
       required_evidence_ids: ['scenario.SC-001'],
@@ -494,6 +523,7 @@ describe('before-enable evidence preflight', () => {
       phase: 'before-enable',
       pass: true,
       source_head: 'abc123',
+      backend: 'nocodb',
       schema_version: '1.0.0',
       writer_token: 'writer-token-1',
       evidence: [{ pass: true }],
@@ -511,6 +541,7 @@ describe('before-enable evidence preflight', () => {
   it('re-verifies the complete artifact before the readiness CLI opens mutations', async () => {
     const fixture = await createEvidenceFixture();
     const outputPath = path.join(fixture.rootDir, 'before-enable.json');
+    vi.stubEnv('CANONICAL_TASK_BACKEND', 'postgres');
     await buildBeforeEnableEvidence({
       rootDir: fixture.rootDir,
       registryPath: fixture.registryPath,
@@ -521,6 +552,7 @@ describe('before-enable evidence preflight', () => {
       nocodbCheckPath: fixture.nocodbCheckPath,
       runtimeCheckPath: fixture.runtimeCheckPath,
       macCheckPath: fixture.macCheckPath,
+      backend: 'postgres',
     });
     vi.stubEnv('CANONICAL_TASK_STORE_MANIFEST', fixture.manifestPath);
     const queries = [];
@@ -545,6 +577,37 @@ describe('before-enable evidence preflight', () => {
     expect(result).toMatchObject({ ready: true, source_head: 'abc123' });
     expect(queries.some(({ sql }) => sql.includes('INSERT INTO canonical_task_readiness'))).toBe(true);
     expect(queries.at(-1).sql).toBe('COMMIT');
+  });
+
+  it('rejects evidence produced for a different canonical task backend', async () => {
+    const fixture = await createEvidenceFixture();
+    const outputPath = path.join(fixture.rootDir, 'before-enable.json');
+    await buildBeforeEnableEvidence({
+      rootDir: fixture.rootDir,
+      registryPath: fixture.registryPath,
+      evidenceOut: outputPath,
+      sourceHead: 'abc123',
+      manifestPath: fixture.manifestPath,
+      postgresCheckPath: fixture.postgresCheckPath,
+      nocodbCheckPath: fixture.nocodbCheckPath,
+      runtimeCheckPath: fixture.runtimeCheckPath,
+      macCheckPath: fixture.macCheckPath,
+      backend: 'nocodb',
+    });
+    vi.stubEnv('CANONICAL_TASK_STORE_MANIFEST', fixture.manifestPath);
+    vi.stubEnv('CANONICAL_TASK_BACKEND', 'postgres');
+    const client = {
+      query: vi.fn(async () => ({ rowCount: 1, rows: [] })),
+      release: vi.fn(),
+    };
+
+    await expect(setCanonicalTaskReadiness({
+      argv: ['--enable', '--evidence', outputPath],
+      pool: { connect: vi.fn().mockResolvedValue(client) },
+      rootDir: fixture.rootDir,
+      sourceHead: 'abc123',
+    })).rejects.toThrow(/backend mismatch/);
+    expect(client.query).toHaveBeenLastCalledWith('ROLLBACK');
   });
 
   it('writes an auditable aggregate for the exact source HEAD', async () => {

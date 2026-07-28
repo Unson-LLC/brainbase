@@ -15,6 +15,10 @@ import {
   atomicWriteFile,
   sha256,
 } from './evidence-reporters/canonical-task-evidence-protocol.js';
+import {
+  canonicalTaskBackendIdentityHash,
+  resolveCanonicalTaskBackend,
+} from '../server/services/companion/canonical-task-store-config.js';
 
 const VALID_PHASES = new Set(['before-migration', 'before-enable', 'rollback']);
 const OPERATIONAL_TASK_SCRIPTS = [
@@ -420,7 +424,9 @@ async function assembleBeforeEnableEvidence({
   nocodbCheckPath,
   runtimeCheckPath,
   macCheckPath,
+  backend: requestedBackend,
 }) {
+  const backend = resolveCanonicalTaskBackend(requestedBackend);
   const registryAbsolutePath = path.isAbsolute(registryPath)
     ? registryPath
     : resolveInsideRoot(rootDir, registryPath, 'registry path');
@@ -460,6 +466,7 @@ async function assembleBeforeEnableEvidence({
     ? manifestPath
     : resolveInsideRoot(rootDir, manifestPath, 'manifest path');
   const { value: manifest } = await readJsonWithBytes(manifestAbsolutePath, 'canonical task store manifest');
+  const manifestIdentityHash = sha256(canonicalJson(manifest));
   const checkPaths = { postgresCheckPath, nocodbCheckPath, runtimeCheckPath, macCheckPath };
   const cutoverChecks = [];
   for (const [name, definition] of Object.entries(CUTOVER_CHECKS)) {
@@ -481,8 +488,9 @@ async function assembleBeforeEnableEvidence({
     source_head: sourceHead,
     registry_path: registry.source_of_truth,
     registry_hash: registryHash,
+    backend,
     manifest_path: normalizeRelative(path.relative(rootDir, manifestAbsolutePath)),
-    manifest_hash: sha256(canonicalJson(manifest)),
+    manifest_hash: canonicalTaskBackendIdentityHash({ identityHash: manifestIdentityHash }, backend),
     schema_version: manifest.schema_version,
     writer_token: postgresCheck.writer_token,
     cutover_checks: cutoverChecks,
@@ -508,7 +516,9 @@ export async function verifyBeforeEnableEvidenceFile({
   sourceHead = currentGitHead(rootDir),
   registryPath = DEFAULT_REGISTRY_PATH,
   manifestPath = process.env.CANONICAL_TASK_STORE_MANIFEST ?? 'config/canonical-task-store.json',
+  backend: requestedBackend,
 } = {}) {
+  const backend = resolveCanonicalTaskBackend(requestedBackend);
   invariant(evidencePath, 'before-enable evidence path is required');
   const absoluteEvidencePath = path.isAbsolute(evidencePath)
     ? evidencePath
@@ -518,6 +528,7 @@ export async function verifyBeforeEnableEvidenceFile({
   expectField(candidate, 'phase', 'before-enable');
   expectField(candidate, 'pass', true);
   expectField(candidate, 'source_head', sourceHead);
+  expectField(candidate, 'backend', backend);
   invariant(Array.isArray(candidate.cutover_checks), 'before-enable cutover_checks must be an array');
   invariant(candidate.cutover_checks.length === Object.keys(CUTOVER_CHECKS).length, 'before-enable cutover_checks count mismatch');
 
@@ -536,6 +547,7 @@ export async function verifyBeforeEnableEvidenceFile({
     registryPath,
     sourceHead,
     manifestPath,
+    backend,
     postgresCheckPath: checksByName.get('postgres').artifact_path,
     nocodbCheckPath: checksByName.get('nocodb').artifact_path,
     runtimeCheckPath: checksByName.get('runtime').artifact_path,
@@ -553,6 +565,7 @@ export function parseArgs(argv) {
     else if (argument === '--evidence-out') parsed.evidenceOut = argv[++index];
     else if (argument === '--registry') parsed.registryPath = argv[++index];
     else if (argument === '--manifest') parsed.manifestPath = argv[++index];
+    else if (argument === '--backend') parsed.backend = argv[++index];
     else if (argument === '--postgres-check') parsed.postgresCheckPath = argv[++index];
     else if (argument === '--nocodb-check') parsed.nocodbCheckPath = argv[++index];
     else if (argument === '--runtime-check') parsed.runtimeCheckPath = argv[++index];
