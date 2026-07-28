@@ -69,6 +69,7 @@
           "scripts/migrate-canonical-task-columns.js",
           "scripts/migrate-canonical-task-operations.js",
           "scripts/migrate-canonical-task-postgres-store.js",
+          "scripts/run-canonical-task-postgres-migration-workflow.js",
           "scripts/recover-canonical-task-writer.js",
           "scripts/preflight-canonical-task-cutover.js",
           "scripts/collect-canonical-task-evidence.js",
