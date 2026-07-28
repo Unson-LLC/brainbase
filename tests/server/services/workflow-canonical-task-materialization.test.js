@@ -1,24 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { CanonicalTaskService } from '../../../server/services/companion/canonical-task-service.js';
+import { AutomationRunService } from '../../../server/services/automation-run/automation-run-service.js';
+import { createDefaultWorkflowHandlers } from '../../../server/services/automation-runtime/automation-runtime-defaults-service.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
-import {
-    WorkflowService,
-    createDefaultWorkflowHandlers
-} from '../../../server/services/workflow/workflow-service.js';
 
-function makeHarness(materializeWorkflowApproval, { payload } = {}) {
+function makeHarness(materializeWorkflowApproval, { payload, includeCanonicalTaskService = true } = {}) {
     const repository = new InMemoryWorkflowRepository();
-    const service = new WorkflowService({
+    const service = new AutomationRunService({
         repository,
         runner: new WorkflowRunner({ repository, handlers: createDefaultWorkflowHandlers() }),
-        configParser: {
-            async getProjects() {
-                return { root: '/workspace', projects: [{ id: 'brainbase', session_select: true }] };
-            }
-        },
-        canonicalTaskService: { materializeWorkflowApproval }
+        ...(includeCanonicalTaskService
+            ? { canonicalTaskService: { materializeWorkflowApproval } }
+            : {})
     });
     repository.upsertWorkflow({
         id: 'wf-task-review',
@@ -69,7 +64,24 @@ function makeHarness(materializeWorkflowApproval, { payload } = {}) {
     };
 }
 
-describe('WorkflowService Canonical Task materialization', () => {
+describe('AutomationRunService Canonical Task materialization', () => {
+    it('fails closed and keeps the human step pending when Canonical Task service is not injected', async () => {
+        const { repository, service, actor } = makeHarness(undefined, {
+            includeCanonicalTaskService: false
+        });
+
+        await expect(service.resolveHumanStep('human-task-review', {
+            run_id: 'run-task-review',
+            resolution: 'approved'
+        }, actor)).rejects.toMatchObject({
+            code: 'task_store_unavailable',
+            statusCode: 503
+        });
+
+        expect(repository.getHumanStep('human-task-review').status).toBe('pending');
+        expect(repository.getRun('run-task-review').status).toBe('waiting_human');
+    });
+
     it('keeps the human step pending when Canonical Task materialization fails', async () => {
         const materializeWorkflowApproval = vi.fn().mockRejectedValue(Object.assign(
             new Error('Task store unavailable'),

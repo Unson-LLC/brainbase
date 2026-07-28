@@ -3,13 +3,11 @@ import { createServer } from 'node:http';
 
 import { createCompanionRouter } from '../../server/routes/companion.js';
 import { createWorkflowRunRouter } from '../../server/routes/workflows.js';
+import { AutomationRunService } from '../../server/services/automation-run/automation-run-service.js';
+import { createDefaultWorkflowHandlers } from '../../server/services/automation-runtime/automation-runtime-defaults-service.js';
 import { CanonicalTaskService } from '../../server/services/companion/canonical-task-service.js';
 import { InMemoryWorkflowRepository } from '../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../server/services/workflow/workflow-runner.js';
-import {
-    WorkflowService,
-    createDefaultWorkflowHandlers
-} from '../../server/services/workflow/workflow-service.js';
 
 function normalizeSourceReference(reference) {
     const source = reference && typeof reference === 'object' ? reference : {};
@@ -143,18 +141,15 @@ export async function startCanonicalTaskLiveApiHarness({ port = 0 } = {}) {
         };
         next();
     };
-    const workflowService = new WorkflowService({
+    const workflowService = new AutomationRunService({
         repository: workflowRepository,
         runner: new WorkflowRunner({
             repository: workflowRepository,
             handlers: createDefaultWorkflowHandlers()
         }),
-        configParser: {
-            async getProjects() {
-                return { root: '/workspace', projects: [{ id: 'brainbase', session_select: true }] };
-            }
-        },
-        canonicalTaskService
+        canonicalTaskService,
+        assertProjectAccess: () => {},
+        assertHumanStepAccess: () => {}
     });
     workflowRepository.upsertWorkflow({
         id: 'wf-live-task-review',

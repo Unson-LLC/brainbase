@@ -4,7 +4,7 @@ import { InMemoryWorkflowRepository } from '../../../server/services/workflow/wo
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
 import { createAutomationRuntimeServices } from '../../../server/services/automation-runtime/automation-runtime-services.js';
 
-function makeRuntime() {
+function makeRuntime(overrides = {}) {
     const repository = new InMemoryWorkflowRepository();
     const runner = new WorkflowRunner({ repository, handlers: new Map() });
     const projectAccessPolicy = {
@@ -14,7 +14,7 @@ function makeRuntime() {
         assertProjectAccess: () => {},
         canAccessProject: () => true
     };
-    return createAutomationRuntimeServices({ repository, runner, projectAccessPolicy });
+    return createAutomationRuntimeServices({ repository, runner, projectAccessPolicy, ...overrides });
 }
 
 describe('createAutomationRuntimeServices', () => {
@@ -36,6 +36,15 @@ describe('createAutomationRuntimeServices', () => {
         expect(runtime.companionApprovalInboxService).toBeDefined();
         expect(typeof runtime.companionApprovalInboxService.list).toBe('function');
         expect(runtime.agentControlCatalogService.listCompanionApprovalInbox).toBeUndefined();
+    });
+
+    it('生成時_Canonical Task serviceをAutomationRunへ同一instanceで注入する', () => {
+        const canonicalTaskService = {
+            materializeWorkflowApproval: async () => ({ status: 'completed' })
+        };
+        const runtime = makeRuntime({ canonicalTaskService });
+
+        expect(runtime.automationRunService.canonicalTaskService).toBe(canonicalTaskService);
     });
 
     it('生成時_RunReceipt queryをAgentLoopから分離して返す', () => {

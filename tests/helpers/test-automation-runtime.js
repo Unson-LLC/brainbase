@@ -14,7 +14,20 @@ const CATALOG_METHODS = new Set([
 
 export class TestAutomationRuntime {
     constructor(options) {
-        const runtime = createAutomationRuntimeServices(options);
+        const canonicalTaskService = options.canonicalTaskService || {
+            async materializeWorkflowApproval({ output }) {
+                return {
+                    status: 'completed',
+                    task_ids: (Array.isArray(output?.payload) ? output.payload : [])
+                        .map((candidate) => candidate.candidate_id || candidate.id)
+                        .filter(Boolean),
+                    excluded_candidates: [],
+                    warnings: [],
+                    replayed: false
+                };
+            }
+        };
+        const runtime = createAutomationRuntimeServices({ ...options, canonicalTaskService });
         return new Proxy(runtime, {
             get(target, property, receiver) {
                 if (property === 'listCompanionApprovalInbox') {
