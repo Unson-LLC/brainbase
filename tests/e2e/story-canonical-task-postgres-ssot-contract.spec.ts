@@ -355,30 +355,27 @@ test('story-canonical-task-postgres-ssot ac:2 VibePro traceability surfaces are 
 test('story-canonical-task-postgres-ssot flow_replay production_path_matrix scenario_clause_e2e coverage marker AC-1 ac:1 AC-2 ac:2 AC-3 ac:3 S-001 S-002 S-003 S-004 S-005 S-006 S-007 schema_failure provider_failure persistence_failure state_transition', () => {
   const surfaces = {
     story: read('docs/stories/story-canonical-task-postgres-ssot.md'),
-    spec: read('docs/specs/story-canonical-task-postgres-ssot-spec.md'),
     schema: read('server/sql/canonical-task-store-schema.sql'),
-    repository: read('server/services/companion/canonical-task-postgres-repository.js'),
-    bootstrap: read('server/bootstrap/core-services.js'),
-    storeConfig: read('server/services/companion/canonical-task-store-config.js'),
-    migration: read('scripts/migrate-canonical-task-postgres-store.js'),
-    preflight: read('scripts/preflight-canonical-task-cutover.js')
+    e2e: read('tests/e2e/story-canonical-task-postgres-ssot-contract.spec.ts'),
+    liveHttp: read('tests/server/routes/companion-canonical-task-live-http.test.js')
   };
-  const productionPathMatrix: Array<[string, keyof typeof surfaces, RegExp]> = [
-    ['AC-1/ac:1/S-001', 'schema', /CREATE TABLE IF NOT EXISTS canonical_tasks/],
-    ['S-002', 'repository', /class CanonicalTaskPostgresRepository/],
-    ['S-003', 'migration', /runCanonicalTaskPostgresMigration/],
-    ['S-004', 'repository', /idempotency_key/],
-    ['S-005', 'repository', /prefix !== 'ct1' \|\| !signature/],
-    ['S-006', 'storeConfig', /CANONICAL_TASK_BACKEND/],
-    ['S-007/state_transition', 'preflight', /before-enable evidence/],
-    ['schema_failure', 'migration', /schema (?:is|has) missing/],
-    ['provider_failure', 'migration', /repository\.allRecords/],
-    ['persistence_failure', 'repository', /task_store_unavailable/],
-    ['AC-2/ac:2', 'story', /Graphify、Architecture、Spec、Task、Gate、PR/],
-    ['AC-3/ac:3', 'story', /本番DBへのapply/]
+  const productionPathMatrix: Array<[string, keyof typeof surfaces, RegExp, RegExp]> = [
+    ['AC-1/ac:1/S-001 static idempotent DDL contract', 'schema', /CREATE TABLE IF NOT EXISTS canonical_tasks/, /CREATE INDEX IF NOT EXISTS/],
+    ['S-002 repository behavior', 'e2e', /S-001 S-002 S-004 S-005 repository behavior/, /expect\(page\)\.toMatchObject/],
+    ['S-003 write-free migration dry-run', 'e2e', /S-003 migration dry-run is redacted and write-free/, /startsWith\('INSERT INTO canonical_tasks'\)\)\)\.toBe\(false\)/],
+    ['S-004 selected PostgreSQL failure is public and never falls back', 'liveHttp', /exposes a selected PostgreSQL store failure as HTTP 503 without fallback over TCP/, /expect\(body\)\.not\.toHaveProperty\('items'\)/],
+    ['S-005 opaque identifier rejection', 'e2e', /repository behavior/, /decodeId\('not-an-opaque-id'\)/],
+    ['S-006 migration conflict rejection', 'e2e', /S-006 migration rejects cross-key conflict before apply/, /rejects\.toThrow\('Canonical Task migration conflict/],
+    ['S-007/state_transition explicit backend selection', 'e2e', /S-007 state_transition preserves the existing backend until explicit cutover/, /resolveCanonicalTaskBackend\('unexpected'\)/],
+    ['schema_failure', 'e2e', /schema_failure rejects an incomplete target schema/, /schema has missing columns/],
+    ['provider_failure', 'e2e', /provider_failure stops before target persistence/, /startsWith\('INSERT INTO canonical_tasks'\)\)\)\.toBe\(false\)/],
+    ['persistence_failure', 'e2e', /persistence_failure rolls back a failed transaction/, /not\.toContain\('COMMIT'\)/],
+    ['AC-2/ac:2 traceability', 'story', /Graphify、Architecture、Spec、Task、Gate、PR/, /現在HEAD/],
+    ['AC-3/ac:3 scope boundary', 'story', /本番DBへのapply/, /後続Story/]
   ];
 
-  for (const [marker, surface, contract] of productionPathMatrix) {
-    expect(surfaces[surface], `${marker} must be observable on ${surface}`).toMatch(contract);
+  for (const [marker, surface, actionOrContract, outcome] of productionPathMatrix) {
+    expect(surfaces[surface], `${marker} action or contract must exist on ${surface}`).toMatch(actionOrContract);
+    expect(surfaces[surface], `${marker} observable outcome must exist on ${surface}`).toMatch(outcome);
   }
 });
