@@ -41,29 +41,29 @@ API契約を利用するmana-runtime側の後続Storyで実装する。
 
 ## Scenarios
 
-### S-001: 既存NocoDB運用を維持したまま配備する
+### S-001: 冪等にTaskを作成する
 
-`CANONICAL_TASK_BACKEND` が未指定ならNocoDBを選び、PostgreSQLへの暗黙切替を行わない。
+PostgreSQL backendでTaskを作成するとUUID行が一度だけ保存され、同じ冪等キーの再取得は同じTaskを返す。
 
-### S-002: PostgreSQLを明示選択する
+### S-002: SQLで一覧を絞り込み、ページングする
 
-`CANONICAL_TASK_BACKEND=postgres` と有効な接続設定がある場合だけPostgreSQL repositoryを生成する。
+status、priority、assignee、due範囲、cursor、limitをSQLで適用し、exact count、complete read、next cursorを返す。
 
 ### S-003: 移行前に安全な差分を確認する
 
 operatorはdry-run/checkでsource、既存一致、未移行、競合の件数を確認でき、Task本文やsecretは出力されない。
 
-### S-004: 競合なしで移行を適用する
+### S-004: PostgreSQL障害を隠さない
 
-applyは一つのtransactionで未移行Taskだけを保存し、再実行時は既存一致として扱う。
+接続またはquery失敗は`task_store_unavailable`となり、NocoDBや空一覧、成功へfallbackしない。
 
-### S-005: IDまたは冪等キー競合で閉じる
+### S-005: 不正または存在しないIDを開示しない
+
+不正opaque ID、別store ID、存在しないTask IDはTaskの存在を開示せず404として扱う。
+
+### S-006: IDまたは冪等キー競合で閉じる
 
 legacy IDと冪等キーが別Taskを指す場合はapplyを中止し、Task本文を出さず競合件数だけを報告する。
-
-### S-006: PostgreSQL障害を隠さない
-
-選択したPostgreSQL storeの接続・query失敗は明示的な失敗となり、NocoDBや空一覧へfallbackしない。
 
 ## Delivery Evidence
 
