@@ -48,7 +48,7 @@ test('story-canonical-task-postgres-ssot ac:1 ac:2 ac:3 documentation contract',
     story,
     'ac:1 requires every contract in the Story-linked Spec to be implemented and verified'
   ).toContain('**AC-1**: `docs/specs/story-canonical-task-postgres-ssot-spec.md` の全契約を実装・検証する。');
-  for (const marker of ['AC-1', 'AC-2', 'AC-3', 'S-001', 'S-002', 'S-003', 'S-004', 'S-005', 'S-006', 'S-007']) {
+  for (const marker of ['AC-1', 'AC-2', 'AC-3', 'S-001', 'S-002', 'S-003', 'S-004', 'S-005', 'S-006', 'S-007', 'S-008']) {
     expect(story, `${marker} is explicit in the Story`).toContain(marker);
   }
 
@@ -352,7 +352,7 @@ test('story-canonical-task-postgres-ssot ac:2 VibePro traceability surfaces are 
   expect(policy).toContain('本番applyとbackend切替は別の明示承認');
 });
 
-test('story-canonical-task-postgres-ssot flow_replay production_path_matrix scenario_clause_e2e coverage marker AC-1 ac:1 AC-2 ac:2 AC-3 ac:3 S-001 S-002 S-003 S-004 S-005 S-006 S-007 schema_failure provider_failure persistence_failure state_transition', () => {
+test('story-canonical-task-postgres-ssot flow_replay production_path_matrix scenario_clause_e2e coverage marker AC-1 ac:1 AC-2 ac:2 AC-3 ac:3 S-001 S-002 S-003 S-004 S-005 S-006 S-007 S-008 schema_failure provider_failure persistence_failure workflow state_transition rollback', () => {
   const surfaces = {
     story: read('docs/stories/story-canonical-task-postgres-ssot.md'),
     e2e: read('tests/e2e/story-canonical-task-postgres-ssot-contract.spec.ts'),
@@ -366,6 +366,7 @@ test('story-canonical-task-postgres-ssot flow_replay production_path_matrix scen
     ['S-005 opaque identifier rejection', 'e2e', /decodeId\('not-an-opaque-id'\)/, /code: 'task_not_found',\s+status: 404/],
     ['S-006 migration conflict rejection', 'e2e', /S-006 migration rejects cross-key conflict before apply/, /rejects\.toThrow\('Canonical Task migration conflict/],
     ['S-007/state_transition explicit backend selection', 'e2e', /expect\(resolveCanonicalTaskBackend\(undefined\)\)\.toBe\('nocodb'\)/, /toThrow\(\s+'CANONICAL_TASK_BACKEND must be nocodb or postgres'/],
+    ['S-008 workflow state transition and rollback contract', 'story', /dry-run -> check -> apply -> final check/, /失敗時は切替を行わずrollbackする/],
     ['schema_failure', 'e2e', /schema_failure rejects an incomplete target schema/, /schema has missing columns/],
     ['provider_failure', 'e2e', /provider_failure stops before target persistence/, /startsWith\('INSERT INTO canonical_tasks'\)\)\)\.toBe\(false\)/],
     ['persistence_failure', 'e2e', /persistence_failure rolls back a failed transaction/, /not\.toContain\('COMMIT'\)/],

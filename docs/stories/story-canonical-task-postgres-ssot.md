@@ -50,6 +50,7 @@ API契約を利用するmana-runtime側の後続Storyで実装する。
 - S-005: 不正または存在しないIDを開示しない。
 - S-006: IDまたは冪等キー競合で閉じる。
 - S-007: backend選択を明示し、未指定時の既存挙動を維持する。
+- S-008: 移行workflowのstate transitionを固定する。
 
 ### S-001: 冪等にTaskを作成する
 
@@ -82,6 +83,11 @@ PostgreSQL repositoryを選ぶ。不正値は起動時にfail closedとし、暗
 
 - **C-003 inherited_behavior**: backend未指定時のNocoDB選択、既存service/route契約、opaque IDの
   fail-closed挙動を維持し、`postgres`の明示指定だけを新しい選択肢として追加する。
+
+### S-008: 移行workflowのstate transitionを固定する
+
+移行workflowは`pre-cutover -> cutover-ready -> cutover`のstate transitionを持つ。
+`dry-run -> check -> apply -> final check`の順序を守り、失敗時は切替を行わずrollbackする。
 
 ## Workflow State Transitions
 

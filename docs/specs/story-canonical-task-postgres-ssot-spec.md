@@ -52,6 +52,7 @@ test_files:
 
 - schema migrationは冪等で、`--apply`と`--check`を分離する。
 - NocoDB移行はdry-run/check/applyを分離し、Task本文・secretを標準出力しない。
+- 移行workflowのstate transitionは`dry-run -> check -> apply -> final check`とし、失敗時は切替を行わずrollbackする。
 - legacy IDまたは冪等キー競合時はapplyを中止する。
 - sourceとlegacy ID・冪等キー・payload fingerprint・version・operation markerが全て同じ既存行だけを
   移行済みとして扱い、applyを安全に再実行できる。
