@@ -50,7 +50,9 @@ function checkingPool({ existingRows = [], targetCount = 0 } = {}) {
                     { indexname: 'canonical_tasks_assignee_due_idx' }
                 ] };
             }
-            if (sql.includes('legacy_nocodb_id = ANY')) return { rows: existingRows };
+            if (sql.includes('SELECT legacy_nocodb_id, idempotency_key, payload_fingerprint')) {
+                return { rows: existingRows };
+            }
             if (sql.includes('SELECT COUNT(*)::integer AS count FROM canonical_tasks')) {
                 return { rows: [{ count: targetCount }] };
             }
@@ -96,7 +98,14 @@ describe('Canonical Task PostgreSQL migration', () => {
 
     it('stops before apply when legacy IDs or idempotency keys conflict', async () => {
         const pool = checkingPool({
-            existingRows: [{ legacy_nocodb_id: '42', idempotency_key: 'different-key' }]
+            existingRows: [{
+                legacy_nocodb_id: '42',
+                idempotency_key: 'different-key',
+                payload_fingerprint: 'fingerprint',
+                version: 1,
+                last_operation_key: null,
+                last_operation_fingerprint: null
+            }]
         });
         await expect(runCanonicalTaskPostgresMigration({
             argv: ['--check'],
@@ -107,7 +116,14 @@ describe('Canonical Task PostgreSQL migration', () => {
 
     it('treats an existing legacy/idempotency pair as an idempotent match', async () => {
         const pool = checkingPool({
-            existingRows: [{ legacy_nocodb_id: '42', idempotency_key: 'key-42' }],
+            existingRows: [{
+                legacy_nocodb_id: '42',
+                idempotency_key: 'key-42',
+                payload_fingerprint: 'fingerprint',
+                version: 1,
+                last_operation_key: null,
+                last_operation_fingerprint: null
+            }],
             targetCount: 1
         });
         const result = await runCanonicalTaskPostgresMigration({
@@ -123,5 +139,41 @@ describe('Canonical Task PostgreSQL migration', () => {
             inserted_count: 0,
             conflict_count: 0
         });
+    });
+
+    it('rejects an existing identity pair when payload or operation state differs', async () => {
+        const pool = checkingPool({
+            existingRows: [{
+                legacy_nocodb_id: '42',
+                idempotency_key: 'key-42',
+                payload_fingerprint: 'stale-fingerprint',
+                version: 1,
+                last_operation_key: null,
+                last_operation_fingerprint: null
+            }]
+        });
+        await expect(runCanonicalTaskPostgresMigration({
+            argv: ['--check'],
+            pool,
+            sourceRepository: sourceRepository([{ Id: 42, 'タイトル': 'Task', '冪等キー': 'key-42' }])
+        })).rejects.toThrow('database=1');
+    });
+
+    it('rejects target-only rows before cutover', async () => {
+        const pool = checkingPool({
+            existingRows: [{
+                legacy_nocodb_id: '99',
+                idempotency_key: 'target-only',
+                payload_fingerprint: 'fingerprint',
+                version: 1,
+                last_operation_key: null,
+                last_operation_fingerprint: null
+            }]
+        });
+        await expect(runCanonicalTaskPostgresMigration({
+            argv: ['--check'],
+            pool,
+            sourceRepository: sourceRepository([{ Id: 42, 'タイトル': 'Task', '冪等キー': 'key-42' }])
+        })).rejects.toThrow('target_only=1');
     });
 });

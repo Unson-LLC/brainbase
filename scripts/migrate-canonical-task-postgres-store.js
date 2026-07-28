@@ -105,17 +105,19 @@ function duplicateValues(rows, field) {
 async function inspectConflicts(pool, rows) {
     const duplicateLegacyIds = duplicateValues(rows, 'legacy_nocodb_id');
     const duplicateIdempotencyKeys = duplicateValues(rows, 'idempotency_key');
-    if (!rows.length) {
-        return { duplicateLegacyIds, duplicateIdempotencyKeys, databaseConflicts: 0, matchedRows: 0, pendingRows: [] };
-    }
     const result = await pool.query(
-        `SELECT legacy_nocodb_id, idempotency_key
-         FROM canonical_tasks
-         WHERE legacy_nocodb_id = ANY($1::text[]) OR idempotency_key = ANY($2::text[])`,
-        [rows.map((row) => row.legacy_nocodb_id), rows.map((row) => row.idempotency_key)]
+        `SELECT legacy_nocodb_id, idempotency_key, payload_fingerprint, version,
+                last_operation_key, last_operation_fingerprint
+         FROM canonical_tasks`
     );
     const existingByLegacy = new Map(result.rows.map((row) => [row.legacy_nocodb_id, row]));
     const existingByIdempotency = new Map(result.rows.map((row) => [row.idempotency_key, row]));
+    const sourceLegacyIds = new Set(rows.map((row) => row.legacy_nocodb_id));
+    const sourceIdempotencyKeys = new Set(rows.map((row) => row.idempotency_key));
+    const targetOnlyRows = result.rows.filter(
+        (row) => !sourceLegacyIds.has(row.legacy_nocodb_id)
+            && !sourceIdempotencyKeys.has(row.idempotency_key)
+    ).length;
     let databaseConflicts = 0;
     let matchedRows = 0;
     const pendingRows = [];
@@ -129,6 +131,10 @@ async function inspectConflicts(pool, rows) {
             && legacyMatch?.idempotency_key === row.idempotency_key
             && idempotencyMatch?.legacy_nocodb_id === row.legacy_nocodb_id
             && idempotencyMatch?.idempotency_key === row.idempotency_key
+            && legacyMatch?.payload_fingerprint === row.payload_fingerprint
+            && Number(legacyMatch?.version) === Number(row.version)
+            && (legacyMatch?.last_operation_key ?? null) === (row.last_operation_key ?? null)
+            && (legacyMatch?.last_operation_fingerprint ?? null) === (row.last_operation_fingerprint ?? null)
         ) {
             matchedRows += 1;
         } else {
@@ -139,6 +145,7 @@ async function inspectConflicts(pool, rows) {
         duplicateLegacyIds,
         duplicateIdempotencyKeys,
         databaseConflicts,
+        targetOnlyRows,
         matchedRows,
         pendingRows
     };
@@ -197,10 +204,16 @@ export async function runCanonicalTaskPostgresMigration({
         });
         const rows = await sourceRows(repository);
         const conflicts = await inspectConflicts(activePool, rows);
-        if (conflicts.duplicateLegacyIds || conflicts.duplicateIdempotencyKeys || conflicts.databaseConflicts) {
+        if (
+            conflicts.duplicateLegacyIds
+            || conflicts.duplicateIdempotencyKeys
+            || conflicts.databaseConflicts
+            || conflicts.targetOnlyRows
+        ) {
             throw new Error(
                 `Canonical Task migration conflict: legacy=${conflicts.duplicateLegacyIds}, `
-                + `idempotency=${conflicts.duplicateIdempotencyKeys}, database=${conflicts.databaseConflicts}`
+                + `idempotency=${conflicts.duplicateIdempotencyKeys}, database=${conflicts.databaseConflicts}, `
+                + `target_only=${conflicts.targetOnlyRows}`
             );
         }
         if (mode === 'apply') await insertRows(activePool, conflicts.pendingRows);

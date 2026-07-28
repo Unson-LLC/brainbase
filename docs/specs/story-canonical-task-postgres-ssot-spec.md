@@ -27,7 +27,8 @@ test_files:
 
 ## Invariants
 
-- Task本文の唯一の正本はBrainbase PostgreSQLの`canonical_tasks`である。
+- 明示的な本番切替後、Task本文の唯一の正本はBrainbase PostgreSQLの`canonical_tasks`である。
+- 切替前はNocoDBを正本として維持し、本PRのmergeだけでauthorityを変更しない。
 - Graph SSOTはperson、organization、project、decisionの権威を維持する。
 - NocoDBとSlack Canvasは再生成可能な投影であり、Canvas直接編集を正本へ逆輸入しない。
 - 公開HTTP契約、owner境界、People検証、single-writer、readiness、監査を維持する。
@@ -52,7 +53,9 @@ test_files:
 - schema migrationは冪等で、`--apply`と`--check`を分離する。
 - NocoDB移行はdry-run/check/applyを分離し、Task本文・secretを標準出力しない。
 - legacy IDまたは冪等キー競合時はapplyを中止する。
-- sourceと同じlegacy ID・冪等キーの既存行は移行済みとして扱い、applyを安全に再実行できる。
+- sourceとlegacy ID・冪等キー・payload fingerprint・version・operation markerが全て同じ既存行だけを
+  移行済みとして扱い、applyを安全に再実行できる。
+- sourceに存在しないtarget-only行は切替前のauthority逸脱として競合にし、applyを中止する。
 - 本番applyとbackend切替は別の運用承認・readiness証跡を必要とする。
 
 ## Diagrams

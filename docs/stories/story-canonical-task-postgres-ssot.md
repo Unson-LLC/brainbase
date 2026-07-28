@@ -79,7 +79,8 @@ legacy IDと冪等キーが別Taskを指す場合はapplyを中止し、Task本�
 - **pre-cutover**: backend未指定ではNocoDBが正本であり、本PRのmergeだけでは本番状態を変えない。
 - **cutover-ready**: schema検査、dry-run、check、実動契約が成功しても、自動では切り替えない。
 - **cutover**: 別の明示承認で`CANONICAL_TASK_BACKEND=postgres`を設定した時だけPostgreSQLを正本にする。
-- **rollback**: 切替後の障害時は、別の運用判断と整合性確認を経てbackend設定を戻す。本Storyでは実行しない。
+- **rollback**: 切替前はNocoDB設定を維持する。PostgreSQLへの本番書込み開始後はreverse syncと整合性確認を
+  含む別の承認済みcutover計画なしにbackend設定を戻さない。本Storyでは実行しない。
 
 各遷移は設定変更を唯一のトリガーとし、PostgreSQL接続・schema・queryの失敗をNocoDB成功へ自動fallback
 させない。本Storyのリリース確認はpre-cutoverとcutover-readyまでで、production cutoverは後続作業である。
