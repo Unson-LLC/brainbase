@@ -51,7 +51,14 @@ export class TaskAddModal extends BaseModal {
             this._focus('add-task-title');
             return;
         }
-        if (!assignee) {
+        const project = this._val('add-task-project');
+        const canonicalProject = this._isCanonicalProject(project);
+        const assigneePersonId = canonicalProject ? this._getAuthenticatedPersonId() : '';
+        if (canonicalProject && !assigneePersonId) {
+            this._showError(ERROR_ID, '担当者を特定するため再認証してください');
+            return;
+        }
+        if (!canonicalProject && !assignee) {
             assignee = this._getDefaultAssignee();
             this._setVal('add-task-assignee', assignee);
         }
@@ -64,7 +71,6 @@ export class TaskAddModal extends BaseModal {
             this._setVal('add-task-due', due);
         }
 
-        const project = this._val('add-task-project');
         if (!project) {
             this._showError(ERROR_ID, 'プロジェクトは必須です');
             this._focus('add-task-project');
@@ -75,9 +81,10 @@ export class TaskAddModal extends BaseModal {
             if (!this.nocodbTaskService) {
                 throw new Error('NocoDBタスクサービスが初期化されていません');
             }
-            await this.nocodbTaskService.createTask({
-                projectId: project, title, assignee, priority, due, description
-            });
+            const payload = { projectId: project, title, priority, due, description };
+            if (canonicalProject) payload.assigneePersonId = assigneePersonId;
+            else payload.assignee = assignee;
+            await this.nocodbTaskService.createTask(payload);
             this.close();
         } catch (error) {
             console.error('Failed to create task:', error);
@@ -92,6 +99,9 @@ export class TaskAddModal extends BaseModal {
         }
 
         this._attachEnterKeyHandler('add-task-title', () => this.save());
+
+        const project = /** @type {HTMLSelectElement|null} */ (document.getElementById('add-task-project'));
+        project?.addEventListener('change', () => this._syncAssigneeMode());
     }
 
     _setModalTitle() {
@@ -103,6 +113,32 @@ export class TaskAddModal extends BaseModal {
     _getDefaultAssignee() {
         const assignee = appStore.getState().preferences?.user?.assignee?.trim();
         return assignee || '自分';
+    }
+
+    _getAuthenticatedPersonId() {
+        return appStore.getState().auth?.access?.personId?.trim() || '';
+    }
+
+    _isCanonicalProject(projectId) {
+        return Boolean(
+            this.nocodbTaskService?.isCanonicalProject?.(projectId)
+            || this.nocodbProjects.some(project => project.id === projectId && project.canonicalTaskStore)
+        );
+    }
+
+    _syncAssigneeMode() {
+        const input = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-assignee'));
+        if (!input) return;
+        const canonicalProject = this._isCanonicalProject(this._val('add-task-project'));
+        input.readOnly = canonicalProject;
+        input.setAttribute('aria-readonly', canonicalProject ? 'true' : 'false');
+        if (canonicalProject) {
+            input.value = this._getAuthenticatedPersonId() ? this._getDefaultAssignee() : '';
+            input.placeholder = '再認証が必要です';
+        } else {
+            input.placeholder = '担当者名';
+            if (!input.value) input.value = this._getDefaultAssignee();
+        }
     }
 
     _getDefaultDueDate() {
@@ -165,5 +201,6 @@ export class TaskAddModal extends BaseModal {
         } else {
             projectInput.value = list[0]?.id || '';
         }
+        this._syncAssigneeMode();
     }
 }

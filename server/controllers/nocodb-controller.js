@@ -10,14 +10,24 @@ function getErrorMessage(error) {
     return error instanceof Error ? error.message : String(error || '');
 }
 
+/** @param {Response} res @param {any} error @param {string} fallbackMessage */
+function sendError(res, error, fallbackMessage) {
+    const body = /** @type {{error: string, code?: string}} */ ({
+        error: getErrorMessage(error) || fallbackMessage
+    });
+    if (error?.code) body.code = error.code;
+    return res.status(error?.statusCode || 500).json(body);
+}
+
 /**
  * NocoDBController
  * NocoDB連携タスクのHTTPリクエスト処理
  */
 export class NocoDBController {
-    /** @param {any} configParser */
-    constructor(configParser) {
+    /** @param {any} configParser @param {{canonicalTaskStoreConfig?: any}} [options] */
+    constructor(configParser, { canonicalTaskStoreConfig = null } = {}) {
         this.configParser = configParser;
+        this.canonicalTaskStoreConfig = canonicalTaskStoreConfig;
         // Support both naming conventions
         this.nocodbUrl = process.env.NOCODB_BASE_URL || process.env.NOCODB_URL;
         this.nocodbToken = process.env.NOCODB_API_TOKEN || process.env.NOCODB_TOKEN;
@@ -57,6 +67,18 @@ export class NocoDBController {
             for (const [baseId, baseMappings] of baseIdToMappings) {
                 // 最初のマッピングを使用してタスクを取得
                 const primaryMapping = baseMappings[0];
+
+                if (baseId === this.canonicalTaskStoreConfig?.baseId) {
+                    for (const mapping of baseMappings) {
+                        projectInfo.push({
+                            id: mapping.project_id,
+                            name: mapping.base_name || mapping.project_id,
+                            baseId: mapping.base_id,
+                            canonicalTaskStore: true
+                        });
+                    }
+                    continue;
+                }
 
                 try {
                     const tasks = await this._fetchProjectTasks(primaryMapping, assignee);
@@ -99,7 +121,12 @@ export class NocoDBController {
 
             res.json({
                 records: allTasks,
-                projects: projectInfo
+                projects: projectInfo,
+                canonicalTaskStore: this.canonicalTaskStoreConfig ? {
+                    baseId: this.canonicalTaskStoreConfig.baseId,
+                    tableId: this.canonicalTaskStoreConfig.tableId,
+                    project: this.canonicalTaskStoreConfig.project
+                } : null
             });
         } catch (error) {
             logger.error('Failed to fetch NocoDB tasks', { error });
@@ -135,6 +162,8 @@ export class NocoDBController {
             if (!mapping) {
                 return res.status(404).json({ error: 'Unknown project or baseId' });
             }
+
+            this._assertLegacyTaskMutationAllowed(mapping.base_id);
 
             const taskTable = await this._findTaskTable(mapping.base_id);
             if (!taskTable) {
@@ -181,7 +210,7 @@ export class NocoDBController {
             res.status(201).json({ success: true, record: result });
         } catch (error) {
             logger.error('Failed to create NocoDB task', { error });
-            res.status((/** @type {any} */ (error)).statusCode || 500).json({ error: getErrorMessage(error) || 'Failed to create task' });
+            sendError(res, error, 'Failed to create task');
         }
     };
 
@@ -202,6 +231,7 @@ export class NocoDBController {
                 return res.status(400).json({ error: 'Missing baseId or fields' });
             }
 
+            this._assertLegacyTaskMutationAllowed(baseId);
             this._ensureConfigured();
             const { taskTable, idFieldName } = await this._resolveTable(baseId);
 
@@ -246,7 +276,7 @@ export class NocoDBController {
             res.json({ success: true, record: result });
         } catch (error) {
             logger.error('Failed to update NocoDB task', { error, taskId: req.params.id });
-            res.status((/** @type {any} */ (error)).statusCode || 500).json({ error: getErrorMessage(error) || 'Failed to update task' });
+            sendError(res, error, 'Failed to update task');
         }
     };
 
@@ -267,6 +297,7 @@ export class NocoDBController {
                 return res.status(400).json({ error: 'Missing baseId' });
             }
 
+            this._assertLegacyTaskMutationAllowed(baseId);
             this._ensureConfigured();
             const { taskTable, idFieldName } = await this._resolveTable(baseId);
 
@@ -310,7 +341,7 @@ export class NocoDBController {
             res.json({ success: true, deletedId: id });
         } catch (error) {
             logger.error('Failed to delete NocoDB task', { error, taskId: req.params.id });
-            res.status(error.statusCode || 500).json({ error: error.message || 'Failed to delete task' });
+            sendError(res, error, 'Failed to delete task');
         }
     };
 
@@ -490,6 +521,27 @@ export class NocoDBController {
         if (!this.nocodbUrl || !this.nocodbToken) {
             const error = new Error('NocoDB configuration missing: NOCODB_URL or NOCODB_TOKEN not set');
             error.statusCode = 500;
+            throw error;
+        }
+    }
+
+    /**
+     * Canonical Task writes must use the versioned Companion API. If the
+     * canonical identity is unavailable, no legacy Task mutation is safe.
+     * @param {string} baseId
+     */
+    _assertLegacyTaskMutationAllowed(baseId) {
+        const canonicalBaseId = this.canonicalTaskStoreConfig?.baseId;
+        if (typeof canonicalBaseId !== 'string' || !canonicalBaseId) {
+            const error = new Error('Canonical Task store configuration is unavailable');
+            error.statusCode = 503;
+            error.code = 'canonical_task_store_config_unavailable';
+            throw error;
+        }
+        if (baseId === canonicalBaseId) {
+            const error = new Error('Canonical Task mutations require the Companion Task API');
+            error.statusCode = 409;
+            error.code = 'canonical_task_api_required';
             throw error;
         }
     }

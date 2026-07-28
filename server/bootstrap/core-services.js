@@ -4,6 +4,11 @@ import multer from 'multer';
 import { ScheduleParser } from '../../lib/schedule-parser.js';
 import { ConfigParser } from '../../lib/config-parser.js';
 import { InfoSSOTService } from '../services/info-ssot-service.js';
+import { createCanonicalTaskStoreConfig } from '../services/companion/canonical-task-store-config.js';
+import { CanonicalTaskNocoDBRepository } from '../services/companion/canonical-task-nocodb-repository.js';
+import { CanonicalTaskOperationRepository } from '../services/companion/canonical-task-operation-repository.js';
+import { CanonicalTaskReadiness } from '../services/companion/canonical-task-readiness.js';
+import { CanonicalTaskService } from '../services/companion/canonical-task-service.js';
 import { AuthService } from '../services/auth-service.js';
 import { ConfigService } from '../services/config-service.js';
 import { GoogleCalendarService } from '../services/google-calendar-service.js';
@@ -38,7 +43,9 @@ export function createCoreServices({
     codexPath,
     configPath,
     uploadsDir,
-    serverDir
+    serverDir,
+    port,
+    sourceHead = null
 }) {
     const googleCalendarService = new GoogleCalendarService();
     const scheduleParser = new ScheduleParser({ googleCalendarService });
@@ -56,6 +63,36 @@ export function createCoreServices({
     );
     const configService = new ConfigService(configPath, projectsRoot, configParser);
     const infoSSOTService = new InfoSSOTService();
+    const canonicalTaskStoreConfig = createCanonicalTaskStoreConfig();
+    const canonicalTaskOperationRepository = new CanonicalTaskOperationRepository({
+        pool: infoSSOTService.pool,
+        writerToken: process.env.BRAINBASE_SERVER_GENERATION || null,
+        processIdentity: {
+            pid: process.pid,
+            port,
+            source_head: sourceHead,
+            entrypoint: process.env.BRAINBASE_STARTED_BY_START_JS === '1' ? 'start.js' : 'server.js'
+        }
+    });
+    const canonicalTaskReadiness = new CanonicalTaskReadiness({
+        operationRepository: canonicalTaskOperationRepository,
+        manifestHash: canonicalTaskStoreConfig.identityHash,
+        schemaVersion: canonicalTaskStoreConfig.schemaVersion,
+        sourceHead
+    });
+    const workflowRepository = new JsonFileWorkflowRepository({
+        filePath: path.join(varDir, 'workflow-ledger.json'),
+        seedWorkflows: [createBrainbaseAliveWorkflow()]
+    });
+    const canonicalTaskRepository = new CanonicalTaskNocoDBRepository({ storeConfig: canonicalTaskStoreConfig });
+    const canonicalTaskService = new CanonicalTaskService({
+        repository: canonicalTaskRepository,
+        infoSSOTService,
+        readiness: canonicalTaskReadiness,
+        operationRepository: canonicalTaskOperationRepository,
+        auditRepository: workflowRepository,
+        ownerPersonId: canonicalTaskStoreConfig.ownerPersonId
+    });
     const authService = new AuthService();
     const wikiService = new WikiService({ pool: infoSSOTService.pool });
     const learningService = new LearningService({
@@ -65,10 +102,6 @@ export function createCoreServices({
     });
     const learningHealthService = new LearningHealthService({
         stateDir: path.join(varDir, 'learning')
-    });
-    const workflowRepository = new JsonFileWorkflowRepository({
-        filePath: path.join(varDir, 'workflow-ledger.json'),
-        seedWorkflows: [createBrainbaseAliveWorkflow()]
     });
     const workflowRunner = new WorkflowRunner({
         repository: workflowRepository,
@@ -85,7 +118,8 @@ export function createCoreServices({
         eveSessionClient,
         infoSSOTService,
         meetingTaskOwnerResolver,
-        projectAccessPolicy
+        projectAccessPolicy,
+        canonicalTaskService
     });
     const eveMeetingNoteReconciler = new EveMeetingNoteReconciler({
         meetingAutomationService: automationRuntime.meetingAutomationService,
@@ -138,6 +172,11 @@ export function createCoreServices({
         configParser,
         configService,
         infoSSOTService,
+        canonicalTaskStoreConfig,
+        canonicalTaskReadiness,
+        canonicalTaskOperationRepository,
+        canonicalTaskRepository,
+        canonicalTaskService,
         authService,
         wikiService,
         learningService,

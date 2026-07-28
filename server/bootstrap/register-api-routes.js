@@ -104,6 +104,8 @@ export function registerApiRoutes(app, {
     projectsRoot,
     authService,
     infoSSOTService,
+    canonicalTaskStoreConfig,
+    canonicalTaskService,
     learningService,
     learningHealthService,
     candidateRepository,
@@ -146,9 +148,11 @@ export function registerApiRoutes(app, {
         projectsRoot,
         infoSSOTService,
         wikiService,
+        canonicalTaskService,
+        authGuard: requireAuth(authService),
         projectCatalogAuthGuard: requireAuth(authService)
     }));
-    app.use('/api/nocodb', createNocoDBRouter(configParser));
+    app.use('/api/nocodb', createNocoDBRouter(configParser, { canonicalTaskStoreConfig }));
     app.use('/api/health', createHealthRouter({ configParser }));
     app.use('/api/terminal', createRetiredCapabilityRouter({
         capability: 'brainbase.terminal-runtime',
@@ -170,7 +174,12 @@ export function registerApiRoutes(app, {
         companionApprovalInboxService,
         infoSSOTService,
         decisionEventService: createDecisionEventService(runtimePaths),
-        authGuard: requireAuth(authService)
+        canonicalTaskService,
+        authGuard: requireAuth(authService),
+        accessGuardOptions: {
+            ownerPersonId: canonicalTaskStoreConfig?.ownerPersonId,
+            ownerAliasIds: canonicalTaskStoreConfig?.ownerAliasIds
+        }
     }));
     app.use('/api/admin', adminNoCacheMiddleware, requireAuth(authService), createAdminVisualizationRouter(new AdminVisualizationService({
         infoSSOTService,

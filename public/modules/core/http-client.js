@@ -98,6 +98,10 @@ export class HttpClient {
         this._authToken = null;
     }
 
+    hasBearerAuth() {
+        return typeof this._authToken === 'string' && this._authToken.length > 0;
+    }
+
     /**
      * 401時のハンドラーを設定
      * @param {Function} handler - callback

@@ -30,6 +30,22 @@ describe('NocoDBTasksView', () => {
         expect(container.textContent).toContain('Settings');
     });
 
+    it('正本タスクの認証がない場合は再認証案内を表示する', async () => {
+        const error = new Error('正本タスクを表示するには再認証が必要です');
+        error.code = 'task_bearer_required';
+        const service = buildService({ loadTasks: vi.fn().mockRejectedValue(error) });
+        const view = new NocoDBTasksView({ nocodbTaskService: service });
+        view.members = ['ksato'];
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        view.container = container;
+
+        await view.onTabActivated();
+
+        expect(service.loadTasks).toHaveBeenCalledOnce();
+        expect(container.textContent).toContain('正本タスクを表示するには再認証が必要です');
+    });
+
     it('自分だけフィルタ時は担当者名を解決して渡す', () => {
         appStore.setState({ preferences: { user: { assignee: 'ksato' } } });
         const tasks = [{
@@ -227,6 +243,41 @@ describe('NocoDBTasksView', () => {
         expect(updateStatus).toHaveBeenCalledWith('nocodb:proj:1', 'completed');
         expect(tasks[0].status).toBe('completed');
         expect(parentChange).not.toHaveBeenCalled();
+    });
+
+    it('ステータス更新が閉鎖中ならエラーを再描画で消さない', async () => {
+        const tasks = [{
+            id: 'nocodb:proj:1',
+            title: 'Fail-closed task',
+            project: 'proj',
+            status: 'pending',
+            assignee: 'ksato'
+        }];
+        const error = new Error('正本タスクの更新は切替完了まで利用できません');
+        let view;
+        const updateStatus = vi.fn(async () => {
+            view._showError(error.message);
+            throw error;
+        });
+        const service = buildService({
+            getFilteredTasks: vi.fn(() => tasks),
+            updateStatus
+        });
+        view = new NocoDBTasksView({ nocodbTaskService: service });
+        view.currentFilter.assignee = '';
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        view.container = container;
+        view.render();
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        container.querySelector('.task-status-select').click();
+        container.querySelector('.task-status-option[data-status-value="completed"]').click();
+        await vi.waitFor(() => expect(updateStatus).toHaveBeenCalledOnce());
+
+        expect(container.textContent).toContain(error.message);
+        expect(container.textContent).not.toContain('Fail-closed task');
+        consoleError.mockRestore();
     });
 
     it('開いたステータスメニューは再描画後も開いたままになる', () => {

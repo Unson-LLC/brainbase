@@ -4,6 +4,7 @@ export function registerGracefulShutdown({
     server,
     meetingSourceMcpSyncService = null,
     eveMeetingNoteReconciler = null,
+    canonicalTaskOperationRepository = null,
     getMeshService = () => null,
     log = console
 }) {
@@ -20,6 +21,12 @@ export function registerGracefulShutdown({
                     });
                     setTimeout(resolve, 5000);
                 })
+            },
+            {
+                name: 'release-canonical-task-writer',
+                fn: async () => {
+                    await canonicalTaskOperationRepository?.releaseWriter?.();
+                }
             },
             {
                 name: 'stop-meeting-source-mcp-sync',

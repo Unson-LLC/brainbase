@@ -1,16 +1,7 @@
-// Frame/Story関連タスクをNoCoDB brainbase タスクテーブルに一括登録
+// Frame/Story関連タスクをBrainbase Canonical Task APIへ一括登録
 // Usage: node scripts/add-frame-story-tasks.js
 
-const NOCODB_BASE_URL = process.env.NOCODB_BASE_URL || 'https://noco.unson.jp';
-const ADMIN_EMAIL = process.env.NOCODB_ADMIN_EMAIL || 'keigo@unson.co.jp';
-const ADMIN_PASSWORD = process.env.NOCODB_ADMIN_PASSWORD;
-
-if (!ADMIN_PASSWORD) {
-    console.error('Error: NOCODB_ADMIN_PASSWORD is required');
-    process.exit(1);
-}
-
-const BRAINBASE_TASK_TABLE_ID = 'm7iys8m7o1abr3f';
+import { CanonicalTaskApiClient } from './lib/canonical-task-api-client.js';
 
 const TASKS = [
     {
@@ -113,53 +104,16 @@ const TASKS = [
     }
 ];
 
-let JWT_TOKEN = null;
-
-async function signin() {
-    const response = await fetch(`${NOCODB_BASE_URL}/api/v1/auth/user/signin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
-    });
-    if (!response.ok) {
-        throw new Error(`Signin failed: ${response.status}`);
-    }
-    const data = await response.json();
-    JWT_TOKEN = data.token;
-}
+const client = new CanonicalTaskApiClient();
 
 async function createTask(task) {
-    const response = await fetch(`${NOCODB_BASE_URL}/api/v2/tables/${BRAINBASE_TASK_TABLE_ID}/records`, {
-        method: 'POST',
-        headers: {
-            'xc-auth': JWT_TOKEN,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            'タイトル': task.title,
-            '説明': task.description,
-            'ステータス': task.status,
-            '優先度': task.priority,
-            'プロジェクト': task.project
-        })
-    });
-
-    if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`Failed to create task: ${response.status} ${body}`);
-    }
-
-    return response.json();
+    return client.createTask(task, 'add-frame-story-tasks');
 }
 
 async function main() {
     console.log('=== Frame/Story タスク一括登録 ===');
-    console.log(`NocoDB: ${NOCODB_BASE_URL}`);
+    console.log(`Brainbase API: ${client.baseUrl}`);
     console.log(`Tasks: ${TASKS.length}\n`);
-
-    console.log('Signing in...');
-    await signin();
-    console.log('✓ Authenticated\n');
 
     let created = 0;
     for (const task of TASKS) {

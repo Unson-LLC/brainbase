@@ -40,6 +40,7 @@ import { registerGracefulShutdown } from './server/bootstrap/graceful-shutdown.j
 import { registerApiRoutes } from './server/bootstrap/register-api-routes.js';
 import { registerStaticRoutes } from './server/bootstrap/static-routes.js';
 import { assertAllowedServerEntrypoint } from './server/bootstrap/direct-launch-guard.js';
+import { BRAINBASE_CORS_OPTIONS } from './server/bootstrap/cors-options.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -123,7 +124,7 @@ async function resolveGitInfo(repoDir) {
     };
 
     try {
-        const { stdout } = await execPromise(`git -C "${repoDir}" rev-parse --short HEAD`);
+        const { stdout } = await execPromise(`git -C "${repoDir}" rev-parse HEAD`);
         const sha = stdout.trim();
         if (sha) info.sha = sha;
     } catch (error) {
@@ -297,6 +298,10 @@ const {
     configParser,
     configService,
     infoSSOTService,
+    canonicalTaskStoreConfig,
+    canonicalTaskReadiness,
+    canonicalTaskOperationRepository,
+    canonicalTaskService,
     authService,
     wikiService,
     learningService,
@@ -322,17 +327,21 @@ const {
     codexPath: CODEX_PATH,
     configPath: CONFIG_PATH,
     uploadsDir: UPLOADS_DIR,
-    serverDir: __dirname
+    serverDir: __dirname,
+    port: PORT,
+    sourceHead: RUNTIME_INFO.git.sha
 });
+
+const canonicalTaskRuntime = await canonicalTaskReadiness.initialize();
+if (canonicalTaskRuntime.ready) {
+    console.log('[canonical-task] writer claimed and persisted readiness verified');
+} else {
+    console.warn(`[canonical-task] mutation disabled: ${canonicalTaskRuntime.reason}`);
+}
 
 // Middleware
 // Enable CORS for local network access and remote auth/api calls (local UI -> bb.unson.jp)
-app.use(cors({
-    origin: true,
-    credentials: true,
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-CSRF-Token', 'X-Session-Id'],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
-}));
+app.use(cors(BRAINBASE_CORS_OPTIONS));
 
 // Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
 app.use(express.json({ limit: '10mb' }));
@@ -409,6 +418,8 @@ registerApiRoutes(app, {
     projectsRoot: PROJECTS_ROOT,
     authService,
     infoSSOTService,
+    canonicalTaskStoreConfig,
+    canonicalTaskService,
     learningService,
     learningHealthService,
     candidateRepository,
@@ -564,6 +575,7 @@ registerGracefulShutdown({
     server,
     meetingSourceMcpSyncService,
     eveMeetingNoteReconciler,
+    canonicalTaskOperationRepository,
     getMeshService: () => meshService,
     log: console
 });
