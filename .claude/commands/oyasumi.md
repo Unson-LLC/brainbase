@@ -105,15 +105,14 @@ node scripts/generate-memory-preamble.mjs
 
 ## SNS Feedback Triage
 
-SNS運用の夜処理も `/oyasumi` に寄せる。今日投稿したものを「反応の報告」ではなく、翌朝の候補選定と個人KGの学習素材へ戻す。
+SNS運用の夜処理も `/oyasumi` に寄せる。今日実際に経験したことのうち、未来の自分へ残したい記録を owner-visible Personal KG へ戻す。Xの反応は履歴・観測値として保存するが、翌朝の本文を反応最大化する材料にはしない。
 
 確認対象:
 
-- 今日出した通常投稿、引用、リプ
-- 引用元本人の like / reply / repost / follow
-- 引用元の読者からの like / reply / repost / bookmark / profile visit
-- LPクリック、診断開始、診断完了、TimeRex予約
-- `impressions > 1000` かつ `replies / impressions > 10%` の anomaly
+- 今日の `daily_log` / `work_log` / `life_log` / `memory` / `unresolved`
+- 今日出した公開ライフログと、その投稿済みURL
+- 確認できた like / reply / repost / bookmark などの反応値（観測記録のみ）
+- 第三者・顧客・家族・健康・秘密情報が混ざっていないか
 
 出力先:
 
@@ -152,20 +151,20 @@ npm run sns:feedback-learning -- --date YYYY-MM-DD
 
 - posted_url
 - lane
-- source_peer
-- peer_reaction
-- reader_reaction
-- conversion_signal
+- source_lifelog_id
+- observed_reaction
 - anomaly
 - learning_candidate
-- next_ohayo_action
+- privacy_review
+- next_ohayo_lifelog_source
 
 扱い:
 
 - 反応取得は確認できた数字だけを書く。不明なものを推測しない
 - anomaly は削除やミュートを自動実行せず、通知/保留/手動対応に分類する
-- 勝ち筋は即正本化せず、`/retro` で再現性があるものだけ `content_pillars.md` / `style_guide.md` / skill 更新候補にする
-- Persona Affect が外れた投稿は、数字が良くても勝ち型にしない
+- 反応値から「勝ち筋」「読者の望む正解」「次のCTA」を作らない
+- 本人の一次体験ではないもの、助言・説得へ変換されたものは、数字が良くても次の投稿型にしない
+- 一次体験ソースがない日は `sns_ready` 0件を正常とする。ただし extractor 自体の入力取得失敗とは区別する
 
 ## 使い分け
 
@@ -173,7 +172,7 @@ npm run sns:feedback-learning -- --date YYYY-MM-DD
 |---|---|
 | `/ohayo` | 朝: インプット整理（カレンダー確認・メール仕分け・今日のフォーカス提案） |
 | `/oyasumi` | 夜: アウトプット整理（今日の会議結果をSSOTに反映し、業務上のblockedとSNS反応を日次整理して寝る） |
-| `/retro` | 週次: Ship/Learn/Block とSNS勝ち筋を集計 |
+| `/retro` | 週次: Ship/Learn/Block と公開ライフログ運用の欠落・誤投影を点検 |
 
 ## 出力先
 

@@ -72,22 +72,26 @@ export function reviewPackToLedgerPayload(input) {
             time: post.time || null,
             scheduled_at: post.scheduled_at || null,
             lane: post.lane || null,
-            format: post.source_url ? 'quote_repost_commentary' : 'standalone',
+            format: post.format || (post.source_url ? 'quote_repost_commentary' : 'standalone'),
             body: post.body || '',
             title: post.topic || post.label || null,
             source_type: sourceTypeForPost(post),
             source_url: post.source_url || null,
             persona_brain: post.persona_brain || {},
             algorithm_fit: post.algorithm_fit || null,
+            lifelog_check: post.lifelog_check || null,
             generation_context_evidence: post.generation_context_evidence || null,
             graph_check: post.graph_check || {},
             quality_gate: post.quality_gate || {},
             safety: {
                 requires_human_review: true,
+                lifelog_integrity: post.quality_gate?.check_type === 'lifelog_integrity'
+                    ? post.quality_gate
+                    : null,
                 persona_affect: post.quality_gate?.persona_affect || null
             },
-            evidence_ids: [],
-            derived_from: []
+            evidence_ids: post.lifelog_check?.evidence_ids || [],
+            derived_from: post.lifelog_check?.source_id ? [post.lifelog_check.source_id] : []
         }))
     };
 }

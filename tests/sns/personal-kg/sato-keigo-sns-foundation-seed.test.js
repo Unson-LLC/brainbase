@@ -6,6 +6,7 @@ import { PersonalKnowledgeGraphReader } from '../../../server/services/sns/perso
 import {
     buildSatoKeigoSnsFoundationCandidates,
     SATO_KEIGO_SNS_FOUNDATION_ITEMS,
+    SATO_KEIGO_SNS_FOUNDATION_SEED_VERSION,
     SATO_KEIGO_SNS_FOUNDATION_SOURCE_SYSTEM
 } from '../../../server/seeds/personal-kg/sato-keigo-sns-foundation-candidates.js';
 
@@ -18,46 +19,37 @@ const viewer = {
     team_ids: []
 };
 
-describe('Sato Keigo SNS foundation personal KG seed', () => {
-    it('contains the required foundation categories before SNS draft generation', () => {
+describe('Sato Keigo public lifelog policy seed', () => {
+    it('contains policy only, without old growth or Persona mechanisms', () => {
         const categories = new Set(SATO_KEIGO_SNS_FOUNDATION_ITEMS.map((item) => item.category));
-        expect(categories).toEqual(new Set([
-            'philosophy',
-            'content_design',
-            'proof',
-            'peer_circle',
-            'reaction_log'
-        ]));
+        const body = SATO_KEIGO_SNS_FOUNDATION_ITEMS.map((item) => item.body).join('\n');
+
+        expect(categories).toEqual(new Set(['content_design', 'operating_principle']));
+        expect(SATO_KEIGO_SNS_FOUNDATION_SEED_VERSION).toBe('2026-07-28-sns-public-lifelog-v2');
+        expect(body).toContain('公開ライフログ');
+        expect(body).toContain('一次体験がなければ候補は0件');
+        expect(body).not.toMatch(/Persona Brain|Peer Circle|Own Proof|週21|フォロワー2,000/);
     });
 
-    it('builds valid owner-visible candidate-store drafts with deterministic provenance', () => {
+    it('builds deterministic owner-visible policy candidates', () => {
         const candidates = buildSatoKeigoSnsFoundationCandidates();
-        expect(candidates.length).toBeGreaterThanOrEqual(20);
+        expect(candidates).toHaveLength(8);
 
         const ids = new Set();
-        const sourceEvents = new Set();
         for (const candidate of candidates) {
-            expect(candidate.id).toMatch(/^seed_sns_foundation_/);
+            expect(candidate.id).toMatch(/^seed_sns_lifelog_/);
             expect(ids.has(candidate.id)).toBe(false);
             ids.add(candidate.id);
-
             expect(candidate.source_system).toBe(SATO_KEIGO_SNS_FOUNDATION_SOURCE_SYSTEM);
             expect(candidate.owner_person_id).toBe('sato_keigo');
-            expect(candidate.actor_person_id).toBe('sato_keigo');
             expect(candidate.visibility).toBe('owner');
-            expect(candidate.sensitivity).toBe('internal');
-            expect(candidate.agency_level).toBe('synthesize');
             expect(candidate.requires_approval).toBe(true);
-            expect(candidate.redaction_status).toBe('none');
-            expect(candidate.permission_snapshot.seed.category).toBeTruthy();
+            expect(candidate.permission_snapshot.seed.supersedes_seed_version).toBe('2026-05-12-sns-foundation-v1');
             expect(candidate.evidence_ids[0].hash).toMatch(/^sha256:/);
-
-            expect(sourceEvents.has(candidate.source_event_ids[0])).toBe(false);
-            sourceEvents.add(candidate.source_event_ids[0]);
         }
     });
 
-    it('can be inserted into candidate-store and read back through PersonalKnowledgeGraphReader', async () => {
+    it('can be stored and read with the policy category intact', async () => {
         const { service } = makeService();
         const candidates = buildSatoKeigoSnsFoundationCandidates();
         for (const candidate of candidates) {
@@ -72,8 +64,7 @@ describe('Sato Keigo SNS foundation personal KG seed', () => {
         });
 
         expect(sources).toHaveLength(candidates.length);
-        expect(sources.some((source) => source.body.includes('Persona Brain'))).toBe(true);
-        expect(sources.some((source) => source.body.includes('PR #684'))).toBe(true);
-        expect(sources.some((source) => source.body.includes('Peer Circle'))).toBe(true);
+        expect(sources.every((source) => ['content_design', 'operating_principle'].includes(source.category))).toBe(true);
+        expect(sources.some((source) => source.body.includes('おばあちゃんの知恵袋'))).toBe(true);
     });
 });

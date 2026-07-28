@@ -166,7 +166,7 @@ slack_read_thread(channel_id="<channel_id>", message_ts="<parent_ts>")
 
 ## SNS Ohayo Brief
 
-SNS運用は `/ohayo` に寄せる。毎朝、週次編集カレンダーを前提に「今日のベースライン2本」と「ニュース/引用差し込み1〜2本」を決める。
+SNS運用は `/ohayo` に寄せる。Xは公開ライフログであり、毎朝、Personal KGにある本人の一次体験から「未来の自分へ残す候補」だけを確認する。候補数のノルマはなく、一次体験ソースがなければ0件を正常とする。
 
 ```bash
 cd /Users/ksato/workspace/code/brainbase
@@ -183,6 +183,7 @@ npm run sns:ohayo-brief -- \
   --limit 5 \
   --generation-context "$CONTEXT_FILE"
 
+# reviewPack.posts が1件以上ある時だけ取り込む
 npm run sns:import-review-pack -- --date "$TODAY"
 ```
 
@@ -191,21 +192,20 @@ npm run sns:import-review-pack -- --date "$TODAY"
 | 出力 | 場所 |
 |---|---|
 | 人間レビュー用brief | `/Users/ksato/workspace/sns/x/ops/daily-briefs/YYYY-MM-DD.md` |
-| weekly pack投入用signals | `/Users/ksato/workspace/sns/x/ops/daily-briefs/YYYY-MM-DD-signals.json` |
+| 公開ライフログ候補と内省プロンプト | `/Users/ksato/workspace/sns/x/ops/daily-briefs/YYYY-MM-DD-signals.json` |
 | AI生成用context | `/Users/ksato/workspace/sns/x/ops/generation-contexts/YYYY-MM-DD.json` |
 | UI用SNS Posting Ledger | `POST /api/sns-growth/review-pack` 経由で `GET /api/sns-growth/posts?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` に反映 |
 
 扱い:
 
-- X検索は低コスト固定。既定は日本語Peer 10 read + 海外/ニュース 10 read、概算 `$0.10/day`
-- Peer候補は「日本語圏、自分と同格〜少し上、相手が拾いやすい論点」を優先する
-- 投稿生成前にSNS Generation Contextを作り、個人KG / SNS Posting Ledger統計 / feedback learning / SNS Strategy OSを生成方針へ反映する
-- APIの `quote_tweet_id` は使わず、本物の引用UIまたは通常投稿末尾の元URLで扱う
-- `Persona Affect: blocked` が1件でもあれば、その本文は投稿対象にしない
-- 投稿本文に「少し上の人に絡む」「相手の読者に入る」など運用意図を書かない
+- X検索を行う場合は低コスト固定。外部投稿やニュースは「自分の経験として思い出すことがあるか」を考える内省プロンプトにだけ使い、外部情報だけから投稿案を作らない
+- 投稿生成前にSNS Generation Contextを作り、Personal KGの `lifelog_entries` だけを投稿候補ソースとして使う
+- 本文は一次体験を忠実に残し、人への助言・指導・訂正・説得、CTA、営業導線へ変換しない
+- `Lifelog Integrity: hold` の本文は投稿対象にしない。修辞で救済せず、一次体験ソースへ戻る。ソースがなければ投稿しない
+- 過去の投稿や反応は履歴・観測値として保存するが、反応最大化のために次の本文を最適化しない
 - `sns:import-review-pack` は生成済み review pack を SNS Posting Ledger へ取り込むだけで、X/Slack等への投稿は行わない
 - Ledger import 後、可能なら `GET /api/sns-growth/posts?startDate=$TODAY&endDate=$TODAY` で件数を確認し、HTMLレポートの SNS item に `created` / `updated` / UI表示件数を載せる
-- Ledger import が失敗した場合は、SNS投稿候補を 0 件として扱わず「SNS Ledger未投入」として HTML レポートとブリーフィングに明記する
+- 一次体験ソースが0件なら「公開ライフログ候補0件（正常）」と記録し、Ledger importは実行しない。候補があるのに import が失敗した場合だけ「SNS Ledger未投入」として明記する
 - 投稿は manual review only。`/ohayo` では投稿実行しない
 
 ## HTML Report
@@ -229,4 +229,4 @@ HTML内のボタンはAIに渡す構造化指示だけを生成する。Slack投
 |---|---|
 | `/ohayo` | 検知: カレンダー、メール、Slack未対応連絡、業務上のblocked、SNS当日briefとPosting Ledger取り込みを朝に必ず見える化 |
 | `/oyasumi` | 日次整理: 当日分を fix/retry/task 化し、SNS反応を学習に戻す |
-| `/retro` | 週次棚卸し: 残った業務上のblockedとSNS勝ち筋をLearn/Blockとしてエスカレーション |
+| `/retro` | 週次棚卸し: 残った業務上のblockedと公開ライフログ運用の欠落・誤投影をLearn/Blockとしてエスカレーション |
