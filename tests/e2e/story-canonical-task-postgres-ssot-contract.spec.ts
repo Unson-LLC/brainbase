@@ -27,3 +27,17 @@ test('story-canonical-task-postgres-ssot ac:1 ac:2 ac:3 S-001 S-002 S-003 S-004 
   expect(story, 'ac:3 production apply and Canvas projection remain out of scope').toContain('本番DBへのapply');
   expect(story, 'ac:3 Canvas projection is a follow-up Story').toContain('後続Story');
 });
+
+test('story-canonical-task-postgres-ssot ac:1 repository and migration contracts are executable', () => {
+  const repository = read('server/services/companion/canonical-task-postgres-repository.js');
+  const migrationTests = read('tests/server/scripts/migrate-canonical-task-postgres-store.test.js');
+  expect(repository).toContain('CanonicalTaskPostgresRepository');
+  expect(migrationTests).toContain('treats an existing legacy/idempotency pair as an idempotent match');
+  expect(migrationTests).toContain('stops before apply when legacy IDs or idempotency keys conflict');
+});
+
+test('story-canonical-task-postgres-ssot ac:2 VibePro traceability surfaces are declared', () => {
+  const story = read('docs/stories/story-canonical-task-postgres-ssot.md');
+  expect(story).toContain('Graphify、Architecture、Spec、Task、Gate、PR');
+  expect(story).toContain('現在HEAD');
+});

@@ -6,6 +6,13 @@ date: 2026-07-28
 story_id: story-canonical-task-postgres-ssot
 related_architecture:
   - docs/architecture/story-canonical-task-postgres-ssot.md
+diagrams:
+  - kind: er
+    path: docs/specs/story-canonical-task-postgres-ssot-spec.md
+    purpose: Graph authority、Canonical Task PostgreSQL正本、operation、projectionの永続関係を示す。
+  - kind: threat_model
+    path: docs/specs/story-canonical-task-postgres-ssot-spec.md
+    purpose: Slack入力、API、Graph authority、migration operator、PostgreSQL、projection間のtrust boundaryを示す。
 implementation_files:
   - server/services/companion/canonical-task-postgres-repository.js
   - server/bootstrap/core-services.js
@@ -50,7 +57,7 @@ test_files:
 
 ## Diagrams
 
-### ER
+### ER (`kind: er`)
 
 ```mermaid
 flowchart LR
@@ -62,7 +69,7 @@ flowchart LR
   CT -->|projection| CV["Slack Canvas"]
 ```
 
-### Threat Model
+### Threat Model (`kind: threat_model`)
 
 ```mermaid
 flowchart LR
