@@ -6,12 +6,14 @@ import { createDefaultWorkflowHandlers } from '../../../server/services/automati
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
 
-function makeHarness(materializeWorkflowApproval, { payload } = {}) {
+function makeHarness(materializeWorkflowApproval, { payload, includeCanonicalTaskService = true } = {}) {
     const repository = new InMemoryWorkflowRepository();
     const service = new AutomationRunService({
         repository,
         runner: new WorkflowRunner({ repository, handlers: createDefaultWorkflowHandlers() }),
-        canonicalTaskService: { materializeWorkflowApproval }
+        ...(includeCanonicalTaskService
+            ? { canonicalTaskService: { materializeWorkflowApproval } }
+            : {})
     });
     repository.upsertWorkflow({
         id: 'wf-task-review',
@@ -63,6 +65,23 @@ function makeHarness(materializeWorkflowApproval, { payload } = {}) {
 }
 
 describe('AutomationRunService Canonical Task materialization', () => {
+    it('fails closed and keeps the human step pending when Canonical Task service is not injected', async () => {
+        const { repository, service, actor } = makeHarness(undefined, {
+            includeCanonicalTaskService: false
+        });
+
+        await expect(service.resolveHumanStep('human-task-review', {
+            run_id: 'run-task-review',
+            resolution: 'approved'
+        }, actor)).rejects.toMatchObject({
+            code: 'task_store_unavailable',
+            statusCode: 503
+        });
+
+        expect(repository.getHumanStep('human-task-review').status).toBe('pending');
+        expect(repository.getRun('run-task-review').status).toBe('waiting_human');
+    });
+
     it('keeps the human step pending when Canonical Task materialization fails', async () => {
         const materializeWorkflowApproval = vi.fn().mockRejectedValue(Object.assign(
             new Error('Task store unavailable'),

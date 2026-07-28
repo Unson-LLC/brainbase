@@ -616,8 +616,15 @@ export class AutomationRunService {
         initialStep = this.repository.getHumanStep(stepId);
         const resolution = input.resolution || input.status || 'approved';
         const approvedResolution = isApprovedHumanResolution(resolution);
-        const materializationEnabled = this._isCanonicalTaskHumanStep(initialStep)
-            && Boolean(this.canonicalTaskService?.materializeWorkflowApproval);
+        const canonicalTaskStep = this._isCanonicalTaskHumanStep(initialStep);
+        const materializationAvailable = Boolean(this.canonicalTaskService?.materializeWorkflowApproval);
+        if (approvedResolution && canonicalTaskStep && !materializationAvailable) {
+            throw new AppError(
+                'Canonical Task service is unavailable',
+                { code: 'task_store_unavailable', statusCode: 503 }
+            );
+        }
+        const materializationEnabled = canonicalTaskStep && materializationAvailable;
         if (initialStep.status === 'approved' && approvedResolution && this._isCanonicalTaskHumanStep(initialStep)) {
             if (!materializationEnabled && !initialStep.canonical_task_materialization) {
                 throw AppError.conflict(`human step '${stepId}' is already ${initialStep.status}`);
