@@ -618,12 +618,6 @@ export class AutomationRunService {
         const approvedResolution = isApprovedHumanResolution(resolution);
         const canonicalTaskStep = this._isCanonicalTaskHumanStep(initialStep);
         const materializationAvailable = Boolean(this.canonicalTaskService?.materializeWorkflowApproval);
-        if (approvedResolution && canonicalTaskStep && !materializationAvailable) {
-            throw new AppError(
-                'Canonical Task service is unavailable',
-                { code: 'task_store_unavailable', statusCode: 503 }
-            );
-        }
         const materializationEnabled = canonicalTaskStep && materializationAvailable;
         if (initialStep.status === 'approved' && approvedResolution && this._isCanonicalTaskHumanStep(initialStep)) {
             if (!materializationEnabled && !initialStep.canonical_task_materialization) {
@@ -641,6 +635,12 @@ export class AutomationRunService {
         }
         if (initialStep.status !== 'pending') {
             throw AppError.conflict(`human step '${stepId}' is already ${initialStep.status}`);
+        }
+        if (approvedResolution && canonicalTaskStep && !materializationAvailable) {
+            throw new AppError(
+                'Canonical Task service is unavailable',
+                { code: 'task_store_unavailable', statusCode: 503 }
+            );
         }
         if (resolution === 'needs_changes' && this._isCanonicalTaskHumanStep(initialStep)) {
             throw AppError.conflict('Canonical Task candidates require changes before approval', {
