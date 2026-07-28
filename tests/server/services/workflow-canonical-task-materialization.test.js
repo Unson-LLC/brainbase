@@ -1,23 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { CanonicalTaskService } from '../../../server/services/companion/canonical-task-service.js';
+import { AutomationRunService } from '../../../server/services/automation-run/automation-run-service.js';
+import { createDefaultWorkflowHandlers } from '../../../server/services/automation-runtime/automation-runtime-defaults-service.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
-import {
-    WorkflowService,
-    createDefaultWorkflowHandlers
-} from '../../../server/services/workflow/workflow-service.js';
 
 function makeHarness(materializeWorkflowApproval, { payload } = {}) {
     const repository = new InMemoryWorkflowRepository();
-    const service = new WorkflowService({
+    const service = new AutomationRunService({
         repository,
         runner: new WorkflowRunner({ repository, handlers: createDefaultWorkflowHandlers() }),
-        configParser: {
-            async getProjects() {
-                return { root: '/workspace', projects: [{ id: 'brainbase', session_select: true }] };
-            }
-        },
         canonicalTaskService: { materializeWorkflowApproval }
     });
     repository.upsertWorkflow({
@@ -69,7 +62,7 @@ function makeHarness(materializeWorkflowApproval, { payload } = {}) {
     };
 }
 
-describe('WorkflowService Canonical Task materialization', () => {
+describe('AutomationRunService Canonical Task materialization', () => {
     it('keeps the human step pending when Canonical Task materialization fails', async () => {
         const materializeWorkflowApproval = vi.fn().mockRejectedValue(Object.assign(
             new Error('Task store unavailable'),

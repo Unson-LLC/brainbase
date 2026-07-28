@@ -4,12 +4,10 @@ import {
     InMemoryWorkflowCheckpointRepository,
     PostgresWorkflowCheckpointRepository
 } from '../../../server/services/workflow/workflow-checkpoint-repository.js';
+import { AutomationRunService } from '../../../server/services/automation-run/automation-run-service.js';
+import { createDefaultWorkflowHandlers } from '../../../server/services/automation-runtime/automation-runtime-defaults-service.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
-import {
-    WorkflowService,
-    createDefaultWorkflowHandlers
-} from '../../../server/services/workflow/workflow-service.js';
 
 const ACTOR = {
     person_id: 'keigo',
@@ -89,14 +87,9 @@ function makeIdempotentCanonicalTaskService() {
 }
 
 function makeService({ repository, checkpointRepository, canonicalTaskService }) {
-    return new WorkflowService({
+    return new AutomationRunService({
         repository,
         runner: new WorkflowRunner({ repository, handlers: createDefaultWorkflowHandlers() }),
-        configParser: {
-            async getProjects() {
-                return { root: '/workspace', projects: [{ id: 'brainbase', session_select: true }] };
-            }
-        },
         canonicalTaskService,
         checkpointRepository
     });

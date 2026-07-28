@@ -32,6 +32,7 @@ export function createAutomationRuntimeServices({
     googleCalendarService = null,
     eveSessionClient = null,
     infoSSOTService = null,
+    canonicalTaskService = null,
     meetingTaskOwnerResolver = null,
     projectAccessPolicy = null
 }) {
@@ -72,7 +73,8 @@ export function createAutomationRuntimeServices({
         prepareProjectAccess: () => accessPolicy.prepare(),
         assertProjectSelectable: (projectId) => accessPolicy.assertProjectSelectable(projectId),
         assertProjectAccess: (projectId, actor) => accessPolicy.assertProjectAccess(projectId, actor),
-        assertHumanStepAccess: assertActorCanResolveHumanStep
+        assertHumanStepAccess: assertActorCanResolveHumanStep,
+        canonicalTaskService
     });
     const companionApprovalInboxService = new CompanionApprovalInboxService({
         repository,
