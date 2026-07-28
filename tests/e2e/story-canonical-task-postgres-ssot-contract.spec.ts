@@ -5,6 +5,7 @@ import path from 'node:path';
 import { CanonicalTaskPostgresRepository } from '../../server/services/companion/canonical-task-postgres-repository.js';
 import { resolveCanonicalTaskBackend } from '../../server/services/companion/canonical-task-store-config.js';
 import { runCanonicalTaskPostgresMigration } from '../../scripts/migrate-canonical-task-postgres-store.js';
+import { runCanonicalTaskPostgresMigrationWorkflow } from '../../scripts/run-canonical-task-postgres-migration-workflow.js';
 
 const rootDir = process.cwd();
 const read = (file: string) => readFileSync(path.join(rootDir, file), 'utf8');
@@ -326,7 +327,8 @@ test('story-canonical-task-postgres-ssot ac:1 persistence_failure rolls back a f
   await expect(runCanonicalTaskPostgresMigration({
     argv: ['--apply'],
     pool,
-    sourceRepository
+    sourceRepository,
+    workflowAuthorized: true
   })).rejects.toThrow('insert failed');
   expect(transaction).toEqual(expect.arrayContaining(['BEGIN', 'ROLLBACK', 'RELEASE']));
   expect(transaction).not.toContain('COMMIT');
@@ -352,6 +354,28 @@ test('story-canonical-task-postgres-ssot ac:2 VibePro traceability surfaces are 
   expect(policy).toContain('本番applyとbackend切替は別の明示承認');
 });
 
+test('story-canonical-task-postgres-ssot ac:1 S-008 workflow enforces ordered phases and stops before apply on check failure', async () => {
+  const calls: string[] = [];
+  const runMigration = async ({ argv }: { argv: string[] }) => {
+    calls.push(argv[0]);
+    if (calls.length === 2) throw new Error('check failed');
+    return {
+      ok: true,
+      source_count: 1,
+      target_count: 0,
+      matched_count: 0,
+      pending_count: 1,
+      inserted_count: 0,
+      conflict_count: 0
+    };
+  };
+
+  await expect(runCanonicalTaskPostgresMigrationWorkflow({
+    runMigration
+  })).rejects.toThrow('check failed');
+  expect(calls).toEqual(['--dry-run', '--check']);
+});
+
 test('story-canonical-task-postgres-ssot flow_replay production_path_matrix scenario_clause_e2e coverage marker AC-1 ac:1 AC-2 ac:2 AC-3 ac:3 S-001 S-002 S-003 S-004 S-005 S-006 S-007 S-008 schema_failure provider_failure persistence_failure workflow state_transition rollback', () => {
   const surfaces = {
     story: read('docs/stories/story-canonical-task-postgres-ssot.md'),
@@ -366,7 +390,7 @@ test('story-canonical-task-postgres-ssot flow_replay production_path_matrix scen
     ['S-005 opaque identifier rejection', 'e2e', /decodeId\('not-an-opaque-id'\)/, /code: 'task_not_found',\s+status: 404/],
     ['S-006 migration conflict rejection', 'e2e', /S-006 migration rejects cross-key conflict before apply/, /rejects\.toThrow\('Canonical Task migration conflict/],
     ['S-007/state_transition explicit backend selection', 'e2e', /expect\(resolveCanonicalTaskBackend\(undefined\)\)\.toBe\('nocodb'\)/, /toThrow\(\s+'CANONICAL_TASK_BACKEND must be nocodb or postgres'/],
-    ['S-008 workflow state transition and rollback contract', 'story', /dry-run -> check -> apply -> final check/, /失敗時は切替を行わずrollbackする/],
+    ['S-008 workflow state transition and rollback contract', 'e2e', /S-008 workflow enforces ordered phases/, /expect\(calls\)\.toEqual\(\['--dry-run', '--check'\]\)/],
     ['schema_failure', 'e2e', /schema_failure rejects an incomplete target schema/, /schema has missing columns/],
     ['provider_failure', 'e2e', /provider_failure stops before target persistence/, /startsWith\('INSERT INTO canonical_tasks'\)\)\)\.toBe\(false\)/],
     ['persistence_failure', 'e2e', /persistence_failure rolls back a failed transaction/, /not\.toContain\('COMMIT'\)/],

@@ -58,6 +58,7 @@
     "migrate:canonical-task-operations": "node scripts/migrate-canonical-task-operations.js",
     "migrate:canonical-task-columns": "node scripts/migrate-canonical-task-columns.js",
     "migrate:canonical-task-postgres": "node scripts/migrate-canonical-task-postgres-store.js",
+    "migrate:canonical-task-postgres-workflow": "node scripts/run-canonical-task-postgres-migration-workflow.js",
     "canonical-task:readiness": "node scripts/set-canonical-task-readiness.js",
     "canonical-task:recover-writer": "node scripts/recover-canonical-task-writer.js",
     "canonical-task:check-postgres-concurrency": "node scripts/check-canonical-task-postgres-concurrency.js",

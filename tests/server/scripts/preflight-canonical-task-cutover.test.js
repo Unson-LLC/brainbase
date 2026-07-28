@@ -255,12 +255,17 @@ describe('canonical task evidence registry and runner parsing', () => {
       path.join(process.cwd(), 'docs/runbooks/canonical-task-cutover.md'),
       'utf8',
     );
+    const workflow = await readFile(
+      path.join(process.cwd(), 'scripts/run-canonical-task-postgres-migration-workflow.js'),
+      'utf8',
+    );
 
-    const dryRun = runbook.indexOf('npm run migrate:canonical-task-postgres -- --dry-run');
-    const initialCheck = runbook.indexOf('npm run migrate:canonical-task-postgres -- --check', dryRun);
-    const apply = runbook.indexOf('npm run migrate:canonical-task-postgres -- --apply', initialCheck);
-    const finalCheck = runbook.indexOf('npm run migrate:canonical-task-postgres -- --check', apply);
+    const dryRun = workflow.indexOf("{ name: 'dry-run', argv: ['--dry-run'] }");
+    const initialCheck = workflow.indexOf("{ name: 'check', argv: ['--check'] }", dryRun);
+    const apply = workflow.indexOf("{ name: 'apply', argv: ['--apply'] }", initialCheck);
+    const finalCheck = workflow.indexOf("{ name: 'final-check', argv: ['--check'] }", apply);
 
+    expect(runbook).toContain('npm run migrate:canonical-task-postgres-workflow');
     expect(dryRun).toBeGreaterThan(-1);
     expect(initialCheck).toBeGreaterThan(dryRun);
     expect(apply).toBeGreaterThan(initialCheck);

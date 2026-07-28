@@ -188,9 +188,15 @@ async function insertRows(pool, rows) {
 export async function runCanonicalTaskPostgresMigration({
     argv = process.argv.slice(2),
     pool = null,
-    sourceRepository = null
+    sourceRepository = null,
+    workflowAuthorized = false
 } = {}) {
     const { mode } = parseCanonicalTaskPostgresMigrationArgs(argv);
+    if (mode === 'apply' && !workflowAuthorized) {
+        throw new Error(
+            'Direct --apply is disabled; run npm run migrate:canonical-task-postgres-workflow'
+        );
+    }
     const databaseUrl = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL;
     const activePool = pool || (databaseUrl ? new Pool({ connectionString: databaseUrl }) : null);
     if (!activePool) throw new Error('INFO_SSOT_DATABASE_URL is required');

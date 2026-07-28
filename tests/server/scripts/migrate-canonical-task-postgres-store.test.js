@@ -68,6 +68,12 @@ describe('Canonical Task PostgreSQL migration', () => {
         expect(() => parseCanonicalTaskPostgresMigrationArgs(['--check', '--apply'])).toThrow('Specify exactly one');
     });
 
+    it('rejects direct apply outside the ordered workflow', async () => {
+        await expect(runCanonicalTaskPostgresMigration({
+            argv: ['--apply']
+        })).rejects.toThrow('Direct --apply is disabled');
+    });
+
     it('checks the schema contract', async () => {
         await expect(checkCanonicalTaskPostgresSchema(checkingPool())).resolves.toMatchObject({
             ok: true,
