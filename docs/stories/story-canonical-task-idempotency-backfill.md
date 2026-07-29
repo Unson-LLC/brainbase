@@ -10,6 +10,13 @@ related_specs:
   - docs/specs/story-canonical-task-idempotency-backfill.md
 responsibility_authority_docs:
   - docs/responsibility-authority/companion-canonical-task-provider.json
+reason: >
+  ADR不要。本変更はADR-016 single-writerとstory-canonical-task-postgres-ssotの既存architecture境界内で、
+  移行前提(全行冪等キー保有)を満たす一回性の運用スクリプトを追加するだけである。
+  代替案として移行スクリプト内での自動採番を検討したが、移行と採番の責務混在で失敗時の切り分けが
+  不能になるため却下した。互換性: 既存キー行は不変で、デプロイによる実行時挙動の変更はない。
+  rollback: 冪等キー列のみの追記で、単一revertとlegacy:nocodb:プレフィクスによる対象特定で戻せる。
+  boundary: NocoDB storeの移行前データ整備に限定し、API契約・writer境界・readinessへ触れない。
 ---
 
 # 既存Taskへ冪等キーを決定的にbackfillする

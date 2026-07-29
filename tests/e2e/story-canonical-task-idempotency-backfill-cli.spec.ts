@@ -38,7 +38,7 @@ function createStubNocoDB(rows: NocoRow[]) {
   };
 }
 
-test('canonical-task idempotency backfill ac:1 ac:2 ac:3 ac:4 CLI contract', async () => {
+test('canonical-task idempotency backfill ac:1 ac:2 ac:4 S-002 dry-run and apply CLI contract', async () => {
   const rows: NocoRow[] = [
     { Id: 1, 'タイトル': 't1', '冪等キー': 'existing-key' },
     { Id: 2, 'タイトル': 't2' },
@@ -70,6 +70,31 @@ test('canonical-task idempotency backfill ac:1 ac:2 ac:3 ac:4 CLI contract', asy
     expect(rows.find(row => row.Id === 3)?.['冪等キー']).toBe('legacy:nocodb:3');
     expect(rows.find(row => row.Id === 1)?.['冪等キー']).toBe('existing-key');
     expect(rows.filter(row => !row['冪等キー'])).toHaveLength(0);
+  } finally {
+    stub.server.closeAllConnections?.();
+    await new Promise<void>(resolve => stub.server.close(() => resolve()));
+  }
+});
+
+test('canonical-task idempotency backfill ac:3 S-001 conflict stops apply before any write', async () => {
+  const rows: NocoRow[] = [
+    { Id: 1, 'タイトル': 't1', '冪等キー': 'legacy:nocodb:2' },
+    { Id: 2, 'タイトル': 't2' }
+  ];
+  const stub = createStubNocoDB(rows);
+  await new Promise<void>(resolve => stub.server.listen(0, '127.0.0.1', () => resolve()));
+  const baseUrl = `http://127.0.0.1:${(stub.server.address() as AddressInfo).port}`;
+  const env = { ...process.env, NOCODB_URL: baseUrl, NOCODB_TOKEN: 'e2e-test-token' };
+
+  try {
+    const apply = await execFileAsync('node', [
+      'scripts/backfill-canonical-task-idempotency-keys.js',
+      '--apply'
+    ], { cwd: process.cwd(), env }).catch(error => error);
+    expect(apply.code).toBe(1);
+    expect(String(apply.stderr)).toContain('idempotency key conflicts: 1');
+    expect(stub.getPatchCount()).toBe(0);
+    expect(rows.find(row => row.Id === 2)?.['冪等キー']).toBeUndefined();
   } finally {
     stub.server.closeAllConnections?.();
     await new Promise<void>(resolve => stub.server.close(() => resolve()));
