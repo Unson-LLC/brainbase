@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Canonical Task mutation tools** (2026-07-29)
+  - Added `create_task` / `update_task` / `transition_task` tools as thin clients over the companion task API (`/api/companion/tasks`)
+  - Auth via dedicated `bbsvc_` service token (`BRAINBASE_TASK_API_TOKEN`, Infisical-managed); missing token reports `unavailable`
+  - Delete is intentionally not exposed; reserved idempotency-key prefixes (`api:` / `workflow:`) rejected client-side
+
 - **Decision Entity Support** (2026-02-07)
   - Added `decision` entity type to brainbase MCP
   - FilesystemSource now scans `common/meta/decisions/` directory

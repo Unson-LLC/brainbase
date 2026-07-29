@@ -37,6 +37,7 @@ import {
   controlPlaneTools,
   handleControlPlaneToolCall,
 } from './tools/control-plane-tools.js';
+import { taskTools, handleTaskToolCall } from './tools/task-tools.js';
 
 // Global index. Runtime lookups rebuild and atomically swap this snapshot.
 let entityIndex: EntityIndex;
@@ -45,6 +46,11 @@ let indexRefreshPromise: Promise<void> | null = null;
 
 // Brainbase API URL for mesh tools (MCP runs out-of-process, so we use REST)
 const brainbaseApiUrl = process.env.BRAINBASE_API_URL || 'http://localhost:31013';
+
+// Canonical Task store (companion task API on Lightsail). Mutations use a
+// dedicated bbsvc_ service token; without it the task tools report unavailable.
+const taskApiUrl = process.env.BRAINBASE_TASK_API_BASE_URL || 'https://bb.unson.jp';
+const taskApiToken = process.env.BRAINBASE_TASK_API_TOKEN;
 
 // Global refs for wiki API calls
 let wikiApiBaseUrl: string;
@@ -818,7 +824,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
 }
 
 export const __testing = {
-  tools: [...tools, ...controlPlaneTools],
+  tools: [...tools, ...controlPlaneTools, ...taskTools],
   setEntityIndex(index: EntityIndex): void {
     entityIndex = index;
   },
@@ -942,7 +948,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: [...tools, ...controlPlaneTools, ...meshTools] };
+    return { tools: [...tools, ...controlPlaneTools, ...taskTools, ...meshTools] };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -956,12 +962,20 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         tokenManager: globalTokenManager,
       });
       // Each extension handler returns null for unknown tool names.
-      const meshResult = controlPlaneResult
+      const taskResult = controlPlaneResult
+        ? null
+        : await handleTaskToolCall(name, toolArgs, {
+            apiUrl: taskApiUrl,
+            token: taskApiToken,
+          });
+      const meshResult = controlPlaneResult || taskResult
         ? null
         : await handleMeshToolCall(name, toolArgs, brainbaseApiUrl);
       const result = controlPlaneResult
         ? JSON.stringify(controlPlaneResult, null, 2)
-        : meshResult ?? await handleToolCall(name, toolArgs);
+        : taskResult
+          ? JSON.stringify(taskResult, null, 2)
+          : meshResult ?? await handleToolCall(name, toolArgs);
       return {
         content: [
           {
