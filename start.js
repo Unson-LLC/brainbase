@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { resolveRuntimePaths } from './lib/runtime-paths.js';
 import { PREVIOUS_SERVER_GRACE_PERIOD_MS } from './lib/server-lifecycle-timeouts.js';
+import { loadRuntimeEnv } from './lib/load-runtime-env.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -29,6 +30,7 @@ const PID_FILE = runtimePaths.pidFile;
 process.env.BRAINBASE_VAR_DIR = runtimePaths.varDir;
 process.env.BRAINBASE_STATE_PATH = runtimePaths.stateFile;
 process.env.BRAINBASE_STARTED_BY_START_JS = '1';
+loadRuntimeEnv({ cwd: __dirname });
 process.env.BRAINBASE_SERVER_GENERATION = process.env.BRAINBASE_SERVER_GENERATION
     || `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
