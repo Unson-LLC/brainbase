@@ -299,6 +299,24 @@ describe('CanonicalTaskService', () => {
         expect(fixture.repository.create).not.toHaveBeenCalled();
     });
 
+    it('accepts the canonical Graph entity id returned by InfoSSOTService', async () => {
+        fixture.people.listGraphEntities.mockResolvedValue([{
+            id: OWNER,
+            entity_type: 'person',
+            payload: { name: '佐藤 圭吾' }
+        }]);
+
+        await fixture.service.createTask(
+            { title: 'Graph entity idで担当者を確定する' },
+            { ...ownerContext(), idempotencyKey: 'graph-entity-id' }
+        );
+
+        expect(fixture.repository.create).toHaveBeenCalledWith(expect.objectContaining({
+            assignee_person_id: OWNER,
+            assignee_display_name: '佐藤 圭吾'
+        }));
+    });
+
     it('resolves an exact Graph payload person_id when the entity id differs', async () => {
         fixture.people.listGraphEntities.mockImplementation(async (_access, query) => {
             if (query.id) return [];

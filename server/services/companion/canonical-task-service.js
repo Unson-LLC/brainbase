@@ -288,13 +288,18 @@ export class CanonicalTaskService {
         if (!this.infoSSOTService?.listGraphEntities) {
             throw new CanonicalTaskError('assignee_directory_unavailable', 'Graph People directory is unavailable', 503);
         }
+        const matchesPersonId = (item) => (
+            item?.id === personId
+            || item?.entity_id === personId
+            || item?.payload?.person_id === personId
+        );
         let rows;
         try {
             // Person identity is global in Graph SSOT. Project scoping can hide a
             // canonical person whose primary row belongs to another project even
             // when that person is a Brainbase project member.
             rows = await this.infoSSOTService.listGraphEntities(context.access, { id: personId, entityType: 'person', limit: 1 });
-            if (!rows.some((item) => item.entity_id === personId || item.payload?.person_id === personId)) {
+            if (!rows.some(matchesPersonId)) {
                 rows = await this.infoSSOTService.listGraphEntities(context.access, {
                     query: personId,
                     entityType: 'person',
@@ -305,8 +310,7 @@ export class CanonicalTaskService {
             throw new CanonicalTaskError('assignee_directory_unavailable', 'Graph People directory is unavailable', 503, { cause: error?.message });
         }
         const matches = rows.filter((item) => {
-            const payload = item.payload || {};
-            return (item.entity_id === personId || payload.person_id === personId) && item.entity_type === 'person';
+            return matchesPersonId(item) && item.entity_type === 'person';
         });
         if (matches.length !== 1) {
             const reason = matches.length > 1 ? 'ambiguous' : 'not_found';
