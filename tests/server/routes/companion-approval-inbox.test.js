@@ -800,6 +800,9 @@ describe('companion approval inbox route', () => {
                 name: '矢島剛',
                 display_name: '矢島剛',
                 aliases: ['矢島さん'],
+                email: 'yajima@example.com',
+                org: 'Hotel Client',
+                role: '営業',
                 status: 'active'
             }))
         };
@@ -812,7 +815,10 @@ describe('companion approval inbox route', () => {
                 source: 'graph_ssot',
                 type: 'person',
                 name: '矢島剛',
-                aliases: ['矢島さん']
+                aliases: ['矢島さん'],
+                email: 'yajima@example.com',
+                org: 'Hotel Client',
+                role: '営業'
             })
             .expect(201);
 
@@ -838,6 +844,9 @@ describe('companion approval inbox route', () => {
                 display_name: '矢島剛',
                 name: '矢島剛',
                 aliases: ['矢島さん'],
+                email: 'yajima@example.com',
+                org: 'Hotel Client',
+                role: '営業',
                 status: 'active',
                 source: 'graph_ssot'
             }
