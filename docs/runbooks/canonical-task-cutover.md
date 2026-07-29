@@ -9,6 +9,7 @@
 - 実行: `npm run preflight:canonical-task-cutover -- --phase <phase>`
 - 実環境証跡収集: `npm run capture:canonical-task-cutover -- --base-url <Brainbase URL> --mac-result <Mac read-only result> --out-dir <directory>`
 - 実Postgres並行検査: `npm run canonical-task:check-postgres-concurrency`
+- 既存行の冪等キーbackfill: `npm run backfill:canonical-task-idempotency-keys -- --dry-run|--apply`
 - Task移行（承認後のみ）: `npm run migrate:canonical-task-postgres-workflow -- --approve-apply`
 - readiness操作: `scripts/set-canonical-task-readiness.js`
 - Postgres向けenable: `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence <artifact>`
@@ -25,6 +26,10 @@
 ## before-enable
 
 1. Postgres調停schemaとNocoDB Task列・冪等key unique migrationをapplyする。続けてTask移行を次の順で実行する。
+   0. 冪等キーを持たない既存NocoDB行がある場合、先に`npm run backfill:canonical-task-idempotency-keys -- --dry-run`で
+      対象件数と競合0件を確認し、before-migration相当のwriter排水を確認した上で`-- --apply`で
+      `legacy:nocodb:<record-id>`形式の決定的キーを採番する。applyは競合検出時に書込前へ停止し、
+      完了後に未設定行0件を再検証する。出力は件数のみで本文・secretを含まない。
    1. 本番applyの明示承認を作業記録へ残したoperatorだけが、`npm run migrate:canonical-task-postgres-workflow -- --approve-apply`を実行する。`--approve-apply`がなければ全phaseを開始せず拒否する。このコマンドだけが`dry-run -> check -> apply -> final-check`を順番に実行でき、途中失敗時は後続phaseへ進まない。
    2. 各phaseの出力には本文やsecretを含めず、`source_count`、`target_count`、`matched_count`、`pending_count`、`inserted_count`、`conflict_count`だけを残す。
    3. `final_check_passed: true`、`pending_count: 0`、`conflict_count: 0`、`source_count`と`target_count`の一致を確認する。一致しなければreadinessをenableしない。
