@@ -31,6 +31,20 @@ function assertFingerprint(record, fingerprint) {
     }
 }
 
+function canReplaceUnmaterializedClaim(record, recoveryCheckpoint) {
+    const current = record?.recovery_checkpoint;
+    return record?.state === 'prepared'
+        && record?.result_json == null
+        && current?.phase === 'human_step_claimed'
+        && current?.post_processing_phase === 'not_started'
+        && recoveryCheckpoint?.phase === 'human_step_claimed'
+        && recoveryCheckpoint?.post_processing_phase === 'not_started'
+        && current.workflow_run_id === recoveryCheckpoint.workflow_run_id
+        && current.workflow_id === recoveryCheckpoint.workflow_id
+        && current.human_step_id === recoveryCheckpoint.human_step_id
+        && current.output_id === recoveryCheckpoint.output_id;
+}
+
 function normalizeRow(row) {
     if (!row) return null;
     return {
@@ -50,6 +64,13 @@ export class InMemoryWorkflowCheckpointRepository {
     async prepare({ operationKey, fingerprint, authorizationSnapshot, recoveryCheckpoint }) {
         const existing = this.records.get(operationKey);
         if (existing) {
+            if (existing.fingerprint !== fingerprint && canReplaceUnmaterializedClaim(existing, recoveryCheckpoint)) {
+                existing.fingerprint = fingerprint;
+                existing.authorization_snapshot = clone(authorizationSnapshot || {});
+                existing.recovery_checkpoint = clone(recoveryCheckpoint || {});
+                existing.updated_at = new Date().toISOString();
+                return normalizeRow(existing);
+            }
             assertFingerprint(existing, fingerprint);
             return normalizeRow(existing);
         }
@@ -167,6 +188,32 @@ export class PostgresWorkflowCheckpointRepository {
                 [WORKFLOW_CHECKPOINT_SCOPE, operationKey]
             );
             const record = normalizeRow(existing.rows[0]);
+            if (record?.fingerprint !== fingerprint && canReplaceUnmaterializedClaim(record, recoveryCheckpoint)) {
+                const replaced = await client.query(
+                    `UPDATE canonical_task_operations
+                     SET fingerprint = $3, writer_token = $4,
+                         authorization_snapshot = $5::jsonb,
+                         recovery_checkpoint = $6::jsonb,
+                         error_json = NULL, updated_at = NOW()
+                     WHERE scope = $1 AND operation_key = $2
+                       AND fingerprint = $7 AND state = 'prepared'
+                       AND result_json IS NULL
+                       AND recovery_checkpoint->>'phase' = 'human_step_claimed'
+                       AND recovery_checkpoint->>'post_processing_phase' = 'not_started'
+                     RETURNING id, scope, operation_key, fingerprint, state, result_json,
+                               authorization_snapshot, recovery_checkpoint, created_at, updated_at`,
+                    [
+                        WORKFLOW_CHECKPOINT_SCOPE,
+                        operationKey,
+                        fingerprint,
+                        this.writerToken,
+                        JSON.stringify(authorizationSnapshot || {}),
+                        JSON.stringify(recoveryCheckpoint || {}),
+                        record.fingerprint
+                    ]
+                );
+                if (replaced.rowCount) return normalizeRow(replaced.rows[0]);
+            }
             assertFingerprint(record, fingerprint);
             return record;
         });

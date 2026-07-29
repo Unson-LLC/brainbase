@@ -14,7 +14,22 @@
 - readiness操作: `scripts/set-canonical-task-readiness.js`
 - Postgres向けenable: `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence <artifact>`
 - disable: `npm run canonical-task:readiness -- --disable --reason <reason>`
+- writer明示回復: `npm run canonical-task:recover-writer -- --expected-token <旧token> --expected-pid <旧PID> --new-token <新process token>`
 - manifest差替え: `CANONICAL_TASK_STORE_MANIFEST`だけを許可する。base/tableの個別環境変数は禁止する。
+
+## stale writer回復
+
+異常終了後に503 `canonical_task_writer_unavailable` が出た場合だけ使用する。自動takeoverは行わない。
+
+1. `canonical_task_writer.process_identity`のPID・entrypoint・source HEADを確認する。tokenは作業ログへ出力しない。
+2. 旧PIDが停止済みであり、同じtokenを使用する別processが存在しないことを確認する。確認できなければ回復しない。
+3. 稼働予定processの`BRAINBASE_SERVER_GENERATION`を新tokenとして固定し、
+   `npm run canonical-task:recover-writer -- --expected-token <旧token> --expected-pid <旧PID> --new-token <新token>`を実行する。
+   compare-and-swapが不一致なら他のoperator/processが状態を変更したため中止する。
+4. 回復操作はreadinessを`writer_recovered_requires_reverification`でclosedにする。
+   current HEADで必須証跡を再収集し、before-enable preflightを通す。
+5. `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence <artifact>`を実行する。
+6. readiness、writer process identity、Task mutation、`task_store`承認materializationを読み戻して確認する。
 
 ## before-migration
 

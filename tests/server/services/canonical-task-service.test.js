@@ -83,6 +83,41 @@ describe('CanonicalTaskService', () => {
         expect(page).toMatchObject({ total_count: 1, count_status: 'exact', read_status: 'complete', warnings: [] });
     });
 
+    it.each([
+        ['missing project scope', { projectCodes: ['other'], clearance: ['internal'] }],
+        ['missing internal clearance', { projectCodes: ['brainbase'], clearance: ['public'] }]
+    ])('rejects service credentials with %s before reading the canonical store', async (_label, access) => {
+        await expect(fixture.service.listTasks({}, {
+            principal: { type: 'service', id: 'unrelated-service' },
+            authSource: 'service-token',
+            access
+        })).rejects.toMatchObject({ code: 'canonical_task_scope_required', status: 403 });
+        expect(fixture.repository.list).not.toHaveBeenCalled();
+    });
+
+    it('persists only a Task reference in the coordination operation result', async () => {
+        await fixture.service.createTask({ title: '確認する', assignee_person_id: OWNER }, {
+            ...ownerContext(),
+            idempotencyKey: 'create-reference-only'
+        });
+
+        expect(fixture.operations.execute).toHaveBeenCalledWith(expect.objectContaining({
+            projectResult: expect.any(Function)
+        }));
+        const [{ projectResult }] = fixture.operations.execute.mock.calls[0];
+        expect(projectResult(task({ title: '保存しない本文' }))).toEqual({ task_id: 'task_1', task_version: 1 });
+    });
+
+    it.each([
+        ['an unassigned Task', null],
+        ['another person Task', 'person_other']
+    ])('AC-18 returns task_not_found for %s', async (_label, assigneePersonId) => {
+        fixture.repository.get.mockResolvedValue(task({ assignee_person_id: assigneePersonId }));
+
+        await expect(fixture.service.getTask('task_1', ownerContext()))
+            .rejects.toMatchObject({ code: 'task_not_found', status: 404 });
+    });
+
     it('preserves non-exact repository read metadata instead of claiming a complete result', async () => {
         fixture.repository.list.mockResolvedValue({
             items: [task()],
@@ -280,10 +315,10 @@ describe('CanonicalTaskService', () => {
         );
 
         expect(fixture.people.listGraphEntities).toHaveBeenNthCalledWith(1, ownerContext().access, {
-            id: OWNER, entityType: 'person', projectCode: 'brainbase', limit: 1
+            id: OWNER, entityType: 'person', limit: 1
         });
         expect(fixture.people.listGraphEntities).toHaveBeenNthCalledWith(2, ownerContext().access, {
-            query: OWNER, entityType: 'person', projectCode: 'brainbase', limit: 10
+            query: OWNER, entityType: 'person', limit: 10
         });
         expect(fixture.repository.create).toHaveBeenCalledWith(expect.objectContaining({
             assignee_person_id: OWNER,

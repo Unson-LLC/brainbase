@@ -1,6 +1,3 @@
-// Load environment variables from shared + local .env files
-import dotenv from 'dotenv';
-import os from 'os';
 import express from 'express';
 import cors from 'cors';
 import { spawn, exec } from 'child_process';
@@ -9,19 +6,9 @@ import fs from 'fs/promises';
 import util from 'util';
 import { fileURLToPath } from 'url';
 import { readFileSync, existsSync } from 'fs';
+import { loadRuntimeEnv } from './lib/load-runtime-env.js';
 
-
-const envPaths = [
-    process.env.BRAINBASE_ENV_PATH,
-    path.join(os.homedir(), 'workspace', '.env'),
-    path.join(process.cwd(), '.env')
-].filter(Boolean);
-
-for (const envPath of envPaths) {
-    if (existsSync(envPath)) {
-        dotenv.config({ path: envPath, override: false });
-    }
-}
+loadRuntimeEnv();
 
 // Crash guards: log and keep running instead of silent death
 import { logger as crashLogger } from './server/utils/logger.js';
