@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 import {
     InMemoryWorkflowCheckpointRepository,
@@ -6,7 +9,10 @@ import {
 } from '../../../server/services/workflow/workflow-checkpoint-repository.js';
 import { AutomationRunService } from '../../../server/services/automation-run/automation-run-service.js';
 import { createDefaultWorkflowHandlers } from '../../../server/services/automation-runtime/automation-runtime-defaults-service.js';
-import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
+import {
+    InMemoryWorkflowRepository,
+    JsonFileWorkflowRepository
+} from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
 
 const ACTOR = {
@@ -96,6 +102,38 @@ function makeService({ repository, checkpointRepository, canonicalTaskService })
 }
 
 describe('Workflow durable Canonical Task checkpoint recovery', () => {
+    it('commits recovered human-step and run targets through a JSON ledger transaction', async () => {
+        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-workflow-ledger-'));
+        try {
+            const repository = new JsonFileWorkflowRepository({
+                filePath: path.join(tempDir, 'workflow-ledger.json')
+            });
+            await repository.transaction(() => seedWorkflow(repository));
+            const checkpointRepository = new InMemoryWorkflowCheckpointRepository();
+            const canonicalTaskService = makeIdempotentCanonicalTaskService();
+            const service = makeService({ repository, checkpointRepository, canonicalTaskService });
+
+            const result = await service.resolveHumanStep('human-task-review', {
+                run_id: 'run-task-review',
+                resolution: 'approved',
+                response_ref: {
+                    review_items: [{
+                        candidate_id: 'candidate-1',
+                        resolution: 'approved',
+                        assignee_person_id: 'keigo'
+                    }]
+                }
+            }, ACTOR);
+
+            repository.reload();
+            expect(result.human_step.status).toBe('approved');
+            expect(repository.getHumanStep('human-task-review').status).toBe('approved');
+            expect(repository.getRun('run-task-review').status).toBe('success');
+        } finally {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+    });
+
     it('allows an unmaterialized claim to be corrected before recovery', async () => {
         const repository = new InMemoryWorkflowCheckpointRepository();
         const base = {
