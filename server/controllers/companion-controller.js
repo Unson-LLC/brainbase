@@ -333,6 +333,9 @@ export class CompanionController {
                         name: result.name || result.display_name,
                         display_name: result.display_name || result.name,
                         aliases: result.aliases || [],
+                        email: result.email || '',
+                        org: result.org || '',
+                        role: result.role || '',
                         status: result.status || 'active'
                     }
                 })

@@ -7,6 +7,7 @@ import {
 import { __testing } from '../../src/server.js';
 import type { EntityIndex } from '../../src/indexer/types.js';
 import type { GraphAPISource } from '../../src/sources/graphapi-source.js';
+import type { EntitySource } from '../../src/sources/entity-source.js';
 
 function seedResolverIndex(): EntityIndex {
   const index = createEmptyIndex();
@@ -55,6 +56,49 @@ function seedResolverIndex(): EntityIndex {
 }
 
 describe('Graph entity resolver', () => {
+  it('refreshes the Graph snapshot atomically before a runtime person lookup', async () => {
+    __testing.setEntityIndex(seedResolverIndex());
+    const refreshed = seedResolverIndex().people.get('per_wakamatsu_fuyumi')!;
+    const source: EntitySource = {
+      async initialize() {},
+      async getProjects() { return []; },
+      async getPeople() {
+        return [{
+          ...refreshed,
+          id: 'per_sugiyama_miki',
+          name: '杉山 美紀',
+          aliases: ['杉山みき', '杉山さん（ユニバーサルアーツ）'],
+        }];
+      },
+      async getOrganizations() { return []; },
+      async getBrands() { return []; },
+      async getRACIs() { return []; },
+      async getApps() { return []; },
+      async getCustomers() { return []; },
+      async getPartners() { return []; },
+      async getDecisions() { return []; },
+      async getGlossaryTerms() { return []; },
+      async getDocuments() { return []; },
+      async getExtensionTypeRegistrations() { return []; },
+      async getExtensionEntities() { return []; },
+    };
+    __testing.setGraphSource(source as GraphAPISource);
+    __testing.setIndexRefreshEnabled(true);
+
+    try {
+      const output = await __testing.handleToolCall('resolve_entity', {
+        query: '杉山美紀',
+        types: ['person'],
+        includePhilosophy: false,
+      });
+      const parsed = JSON.parse(output);
+      assert.strictEqual(parsed.candidates[0]?.entity_id, 'per_sugiyama_miki');
+    } finally {
+      __testing.setIndexRefreshEnabled(false);
+      __testing.setGraphSource(null);
+    }
+  });
+
   it('story-graph-entity-resolver: resolves a noisy compound query by exact person name evidence', () => {
     const result = resolveEntities(seedResolverIndex(), {
       query: '若松 Lecaldo レカルド TechKnight 役員',

@@ -580,8 +580,96 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(id2).toBe('per_sato_keigo');
 
         // 正規化（空白除去）された値もパラメータに含まれていることを検証
-        const allParams = passedParams.flat();
+        const allParams = passedParams.flat(2);
         expect(allParams).toContain('佐藤圭吾');
+    });
+
+    it('ensurePerson_新規入力のaliasまたはemailが既存personに一致する場合_既存personIDを返す', async () => {
+        const { service, client } = buildService();
+
+        client.query.mockImplementation(async (text, params) => {
+            const sql = String(text);
+            if (sql.includes('FROM graph_entities') && sql.includes("entity_type = 'person'")) {
+                expect(params[0]).toContain('矢島様');
+                expect(params[1]).toBe('yajima@example.com');
+                return { rows: [{ id: 'per_yajima' }] };
+            }
+            return { rows: [] };
+        });
+
+        const id = await service.ensurePerson(client, {
+            personName: 'Tsuyoshi Yajima',
+            aliases: ['矢島様'],
+            email: ' YAJIMA@example.com '
+        });
+
+        expect(id).toBe('per_yajima');
+        expect(client.query).toHaveBeenCalledWith(
+            expect.stringContaining('pg_advisory_xact_lock'),
+            expect.any(Array)
+        );
+    });
+
+    it('ensurePerson_複数のcanonical personに一致する場合_任意の一人を選ばず失敗する', async () => {
+        const { service, client } = buildService();
+
+        client.query.mockImplementation(async (text) => {
+            const sql = String(text);
+            if (sql.includes('FROM graph_entities') && sql.includes("entity_type = 'person'")) {
+                return { rows: [{ id: 'per_a' }, { id: 'per_b' }] };
+            }
+            return { rows: [] };
+        });
+
+        await expect(service.ensurePerson(client, {
+            personName: '杉山',
+            aliases: ['杉山さん']
+        })).rejects.toThrow('Ambiguous person identity: per_a, per_b');
+    });
+
+    it('createOrUpdatePerson_email_org_roleを本人照合とpayloadに保存して返す', async () => {
+        const { service, client } = buildService();
+        vi.spyOn(service, 'ensureProject').mockResolvedValue('prj_universal_arts');
+        vi.spyOn(service, 'ensurePerson').mockResolvedValue('per_sugiyama_miki');
+        const upsertSpy = vi.spyOn(service, 'upsertGraphEntity').mockResolvedValue();
+        vi.spyOn(service, 'upsertGraphEdge').mockResolvedValue();
+
+        client.query.mockImplementation(async (text) => {
+            if (String(text).startsWith('SELECT payload FROM graph_entities')) {
+                return { rows: [{ payload: { aliases: ['杉山さん'] } }] };
+            }
+            return { rows: [] };
+        });
+
+        const result = await service.createOrUpdatePerson(accessContext, {
+            projectCode: 'brainbase',
+            name: '杉山 美紀',
+            aliases: ['杉山みき'],
+            email: ' MIKI@example.com ',
+            org: 'ユニバーサルアーツ',
+            role: '事務'
+        });
+
+        expect(service.ensurePerson).toHaveBeenCalledWith(client, {
+            personName: '杉山 美紀',
+            aliases: ['杉山みき'],
+            email: 'miki@example.com'
+        });
+        expect(upsertSpy).toHaveBeenCalledWith(client, expect.objectContaining({
+            id: 'per_sugiyama_miki',
+            payload: expect.objectContaining({
+                email: 'miki@example.com',
+                org: 'ユニバーサルアーツ',
+                role: '事務',
+                aliases: ['杉山さん', '杉山みき']
+            })
+        }));
+        expect(result).toMatchObject({
+            person_id: 'per_sugiyama_miki',
+            email: 'miki@example.com',
+            org: 'ユニバーサルアーツ',
+            role: '事務'
+        });
     });
 
     it('createGlossaryTerm writes graph entity and edges with full payload', async () => {

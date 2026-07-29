@@ -713,7 +713,7 @@ export class InfoSSOTService {
         return rows[0].id;
     }
 
-    async ensurePerson(client, { personId, personName }) {
+    async ensurePerson(client, { personId, personName, aliases = [], email = '' }) {
         if (personId) {
             return personId;
         }
@@ -722,31 +722,53 @@ export class InfoSSOTService {
         }
 
         const trimmed = personName.trim();
-        const normalized = trimmed.replace(/\s+/g, '');
+        const identityNames = Array.from(new Set(
+            [trimmed, ...(Array.isArray(aliases) ? aliases : [])]
+                .map((value) => String(value || '').trim().replace(/\s+/g, '').toLocaleLowerCase())
+                .filter(Boolean)
+        )).sort();
+        const normalizedEmail = String(email || '').trim().toLocaleLowerCase();
+        const identityKeys = [
+            ...identityNames.map((value) => `name:${value}`),
+            ...(normalizedEmail ? [`email:${normalizedEmail}`] : [])
+        ].sort();
+
+        for (const identityKey of identityKeys) {
+            await client.query(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                [`person:${identityKey}`]
+            );
+        }
 
         const { rows: aliased } = await client.query(
             `SELECT id FROM graph_entities
              WHERE entity_type = 'person'
              AND (
-                 payload->>'name' = $1
-                 OR REPLACE(payload->>'name', ' ', '') = $2
+                 LOWER(REGEXP_REPLACE(COALESCE(payload->>'name', ''), '\\s+', '', 'g')) = ANY($1)
                  OR EXISTS (
                      SELECT 1 FROM jsonb_array_elements_text(COALESCE(payload->'aliases', '[]'::jsonb)) a
-                     WHERE a = $1 OR REPLACE(a, ' ', '') = $2
+                     WHERE LOWER(REGEXP_REPLACE(a, '\\s+', '', 'g')) = ANY($1)
                  )
+                 OR ($2 <> '' AND LOWER(BTRIM(COALESCE(payload->>'email', ''))) = $2)
              )
-             LIMIT 1`,
-            [trimmed, normalized]
+             ORDER BY id`,
+            [identityNames, normalizedEmail]
         );
-        if (aliased.length > 0) {
+        if (aliased.length > 1) {
+            throw new Error(`Ambiguous person identity: ${aliased.map((row) => row.id).join(', ')}`);
+        }
+        if (aliased.length === 1) {
             return aliased[0].id;
         }
 
         const { rows: legacy } = await client.query(
-            "SELECT id FROM people WHERE name = $1 OR REPLACE(name, ' ', '') = $2 LIMIT 1",
-            [trimmed, normalized]
+            "SELECT id FROM people WHERE LOWER(REGEXP_REPLACE(name, '\\s+', '', 'g')) = ANY($1) ORDER BY id",
+            [identityNames]
         );
-        if (legacy.length > 0) {
+        if (legacy.length > 1) {
+            throw new Error(`Ambiguous legacy person identity: ${legacy.map((row) => row.id).join(', ')}`);
+        }
+        if (legacy.length === 1) {
             const id = legacy[0].id;
             await client.query(
                 `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
@@ -781,14 +803,17 @@ export class InfoSSOTService {
         const projectName = String(input.projectName || input.project_name || projectCode).trim();
         const roleMin = this.normalizeRole(input.roleMin || input.role_min || 'member');
         const sensitivity = this.normalizeSensitivity(input.sensitivity || 'internal');
+        const aliases = Array.isArray(input.aliases)
+            ? input.aliases.map((alias) => String(alias || '').trim()).filter(Boolean)
+            : [];
+        const email = String(input.email || '').trim().toLocaleLowerCase();
+        const org = String(input.org || input.organization || '').trim();
+        const role = String(input.role || '').trim();
         this.assertWriteAccess(access, { projectCode, roleMin, sensitivity });
 
         return this.withAccessContext(access, async (client) => {
             const projectId = await this.ensureProject(client, { projectCode, projectName });
-            const personId = await this.ensurePerson(client, { personName: name });
-            const aliases = Array.isArray(input.aliases)
-                ? input.aliases.map((alias) => String(alias || '').trim()).filter(Boolean)
-                : [];
+            const personId = await this.ensurePerson(client, { personName: name, aliases, email });
 
             const { rows } = await client.query(
                 'SELECT payload FROM graph_entities WHERE id = $1 AND entity_type = $2 LIMIT 1',
@@ -804,6 +829,9 @@ export class InfoSSOTService {
                 name,
                 display_name: name,
                 aliases: mergedAliases,
+                email: email || currentPayload.email || '',
+                org: org || currentPayload.org || '',
+                role: role || currentPayload.role || '',
                 status: String(input.status || currentPayload.status || 'active').trim()
             };
 
@@ -835,6 +863,10 @@ export class InfoSSOTService {
                 name,
                 display_name: name,
                 aliases: mergedAliases,
+                email: payload.email,
+                org: payload.org,
+                role: payload.role,
+                status: payload.status,
                 source: 'graph_ssot'
             };
         });

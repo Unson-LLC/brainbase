@@ -29,6 +29,7 @@ import {
 import { CORE_ENTITY_TYPES } from './indexer/ontology.js';
 import { loadConfig } from './config.js';
 import { GraphAPISource } from './sources/graphapi-source.js';
+import type { EntitySource } from './sources/entity-source.js';
 import { TokenManager } from './auth/token-manager.js';
 import { filterWikiPages } from './tools/wiki-search.js';
 import { meshTools, handleMeshToolCall } from './tools/mesh-tools.js';
@@ -37,8 +38,10 @@ import {
   handleControlPlaneToolCall,
 } from './tools/control-plane-tools.js';
 
-// Global index (built once at startup)
+// Global index. Runtime lookups rebuild and atomically swap this snapshot.
 let entityIndex: EntityIndex;
+let indexRefreshEnabled = false;
+let indexRefreshPromise: Promise<void> | null = null;
 
 // Brainbase API URL for mesh tools (MCP runs out-of-process, so we use REST)
 const brainbaseApiUrl = process.env.BRAINBASE_API_URL || 'http://localhost:31013';
@@ -49,6 +52,22 @@ let globalTokenManager: TokenManager;
 let globalGraphSource: GraphAPISource | null = null;
 let defaultProjectCode = 'brainbase';
 let configuredProjectCodes: string[] | undefined;
+
+async function refreshEntityIndex(): Promise<void> {
+  if (!indexRefreshEnabled) return;
+  if (!globalGraphSource) {
+    throw new Error('Graph source is unavailable; entity index cannot be refreshed');
+  }
+  if (!indexRefreshPromise) {
+    indexRefreshPromise = (async () => {
+      const nextIndex = await buildIndex(globalGraphSource as EntitySource);
+      entityIndex = nextIndex;
+    })().finally(() => {
+      indexRefreshPromise = null;
+    });
+  }
+  await indexRefreshPromise;
+}
 
 const WIKI_RESOURCE_URI_PREFIX = 'brainbase://wiki/page/';
 const WIKI_RESOURCE_TEMPLATE = 'brainbase://wiki/page/{path}';
@@ -565,6 +584,9 @@ const tools: Tool[] = [
  * Handle tool calls
  */
 async function handleToolCall(name: string, args: Record<string, unknown>): Promise<string> {
+  if (name === 'search' || name === 'resolve_entity') {
+    await refreshEntityIndex();
+  }
   switch (name) {
     case 'get_context': {
       const topic = args.topic as string;
@@ -803,6 +825,10 @@ export const __testing = {
   setGraphSource(source: GraphAPISource | null): void {
     globalGraphSource = source;
   },
+  setIndexRefreshEnabled(enabled: boolean): void {
+    indexRefreshEnabled = enabled;
+  },
+  refreshEntityIndex,
   handleToolCall,
 };
 
@@ -830,6 +856,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   wikiApiBaseUrl = process.env.BRAINBASE_WIKI_API_URL || 'http://localhost:31013';
   const source = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
   globalGraphSource = source;
+  indexRefreshEnabled = true;
   defaultProjectCode = config.projectCodes?.[0] || 'brainbase';
   configuredProjectCodes = config.projectCodes;
   console.error('[brainbase] Using Graph API source');
