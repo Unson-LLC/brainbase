@@ -290,12 +290,14 @@ export class CanonicalTaskService {
         }
         let rows;
         try {
-            rows = await this.infoSSOTService.listGraphEntities(context.access, { id: personId, entityType: 'person', projectCode: 'brainbase', limit: 1 });
+            // Person identity is global in Graph SSOT. Project scoping can hide a
+            // canonical person whose primary row belongs to another project even
+            // when that person is a Brainbase project member.
+            rows = await this.infoSSOTService.listGraphEntities(context.access, { id: personId, entityType: 'person', limit: 1 });
             if (!rows.some((item) => item.entity_id === personId || item.payload?.person_id === personId)) {
                 rows = await this.infoSSOTService.listGraphEntities(context.access, {
                     query: personId,
                     entityType: 'person',
-                    projectCode: 'brainbase',
                     limit: 10
                 });
             }

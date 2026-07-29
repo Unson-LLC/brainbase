@@ -315,10 +315,10 @@ describe('CanonicalTaskService', () => {
         );
 
         expect(fixture.people.listGraphEntities).toHaveBeenNthCalledWith(1, ownerContext().access, {
-            id: OWNER, entityType: 'person', projectCode: 'brainbase', limit: 1
+            id: OWNER, entityType: 'person', limit: 1
         });
         expect(fixture.people.listGraphEntities).toHaveBeenNthCalledWith(2, ownerContext().access, {
-            query: OWNER, entityType: 'person', projectCode: 'brainbase', limit: 10
+            query: OWNER, entityType: 'person', limit: 10
         });
         expect(fixture.repository.create).toHaveBeenCalledWith(expect.objectContaining({
             assignee_person_id: OWNER,
