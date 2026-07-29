@@ -1,4 +1,5 @@
 import { gracefulCleanup } from '../lib/graceful-cleanup.js';
+import { HTTP_SERVER_CLOSE_TIMEOUT_MS } from '../../lib/server-lifecycle-timeouts.js';
 
 export function registerGracefulShutdown({
     server,
@@ -19,7 +20,7 @@ export function registerGracefulShutdown({
                         log.log('HTTP server closed');
                         resolve();
                     });
-                    setTimeout(resolve, 5000);
+                    setTimeout(resolve, HTTP_SERVER_CLOSE_TIMEOUT_MS);
                 })
             },
             {
