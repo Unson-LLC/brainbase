@@ -612,9 +612,19 @@ export class AutomationRunService {
         this.assertProjectAccess(initialStep.project_id, actor);
         this.assertHumanStepAccess(initialStep, actor);
         if (this._isCanonicalTaskHumanStep(initialStep)) input = this._canonicalTaskApprovalInput(initialStep, input);
+        const initialResolution = input.resolution || input.status || 'approved';
+        const shouldPrepareCanonicalTaskCheckpoint = initialStep.status === 'pending'
+            && isApprovedHumanResolution(initialResolution)
+            && this._isCanonicalTaskHumanStep(initialStep)
+            && Boolean(this.canonicalTaskService?.materializeWorkflowApproval)
+            && this.checkpointRepository
+            && isApprovalOnlyIngestWorkflow(this.repository.getWorkflow(initialStep.workflow_id));
+        if (shouldPrepareCanonicalTaskCheckpoint) {
+            return this._resolveWithCheckpoint(initialStep, input, actor);
+        }
         await this._reconcileCanonicalTaskCheckpoints({ humanStepId: stepId });
         initialStep = this.repository.getHumanStep(stepId);
-        const resolution = input.resolution || input.status || 'approved';
+        const resolution = initialResolution;
         const approvedResolution = isApprovedHumanResolution(resolution);
         const canonicalTaskStep = this._isCanonicalTaskHumanStep(initialStep);
         const materializationAvailable = Boolean(this.canonicalTaskService?.materializeWorkflowApproval);

@@ -134,6 +134,77 @@ describe('Workflow durable Canonical Task checkpoint recovery', () => {
         });
     });
 
+    it('replaces a stale unmaterialized claim before attempting recovery', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        const checkpointRepository = new InMemoryWorkflowCheckpointRepository();
+        const canonicalTaskService = {
+            materializeWorkflowApproval: vi.fn(async ({ responseRef }) => {
+                if (responseRef?.review_items?.[0]?.assignee_person_id !== 'person-corrected') {
+                    throw Object.assign(new Error('stale claim has no Graph person ID'), {
+                        code: 'validation_error'
+                    });
+                }
+                return {
+                    status: 'completed',
+                    task_ids: ['ct1.task-1'],
+                    excluded_candidates: [],
+                    warnings: [],
+                    replayed: false
+                };
+            })
+        };
+        seedWorkflow(repository);
+        const step = repository.getHumanStep('human-task-review');
+        const output = repository.getOutput('out-task-review');
+        await checkpointRepository.prepare({
+            operationKey: 'workflow:human-task-review',
+            fingerprint: 'stale-fingerprint',
+            authorizationSnapshot: ACTOR,
+            recoveryCheckpoint: {
+                version: 1,
+                phase: 'human_step_claimed',
+                workflow_run_id: step.workflow_run_id,
+                workflow_id: step.workflow_id,
+                human_step_id: step.id,
+                output_id: output.id,
+                human_step_claim: {
+                    step,
+                    output,
+                    response_ref: {
+                        review_items: [{ candidate_id: 'candidate-1', resolution: 'approved' }]
+                    },
+                    reason: null,
+                    resolved_at: new Date().toISOString(),
+                    resolved_by: ACTOR.person_id,
+                    actor: ACTOR
+                },
+                run_target: null,
+                audit_checkpoint: { ids: [], entries: [] },
+                post_processing_phase: 'not_started'
+            }
+        });
+
+        const service = makeService({ repository, checkpointRepository, canonicalTaskService });
+        await service.waitForCanonicalTaskCheckpointReconciliation();
+        const result = await service.resolveHumanStep('human-task-review', {
+            run_id: 'run-task-review',
+            resolution: 'approved',
+            response_ref: {
+                review_items: [{
+                    candidate_id: 'candidate-1',
+                    resolution: 'approved',
+                    assignee_person_id: 'person-corrected'
+                }]
+            }
+        }, ACTOR);
+
+        expect(canonicalTaskService.materializeWorkflowApproval).toHaveBeenCalledTimes(1);
+        expect(result).toMatchObject({
+            human_step: { status: 'approved' },
+            materialized_task_ids: ['ct1.task-1']
+        });
+    });
+
     it('recovers after Task creation without creating the Task again', async () => {
         const repository = new InMemoryWorkflowRepository();
         const checkpointRepository = new InMemoryWorkflowCheckpointRepository();
