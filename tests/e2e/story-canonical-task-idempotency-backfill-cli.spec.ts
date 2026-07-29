@@ -38,7 +38,7 @@ function createStubNocoDB(rows: NocoRow[]) {
   };
 }
 
-test('canonical-task idempotency backfill ac:1 ac:2 ac:4 S-002 dry-run and apply CLI contract', async () => {
+test('story-canonical-task-idempotency-backfill ac-1 ac-2 ac-4 S-002 dry-run and apply CLI contract', async () => {
   const rows: NocoRow[] = [
     { Id: 1, 'タイトル': 't1', '冪等キー': 'existing-key' },
     { Id: 2, 'タイトル': 't2' },
@@ -50,6 +50,7 @@ test('canonical-task idempotency backfill ac:1 ac:2 ac:4 S-002 dry-run and apply
   const env = { ...process.env, NOCODB_URL: baseUrl, NOCODB_TOKEN: 'e2e-test-token' };
 
   try {
+    // story: story-canonical-task-idempotency-backfill ac-1 ac-2: dry-run reports counts only and writes nothing
     const dryRun = await execFileAsync('node', [
       'scripts/backfill-canonical-task-idempotency-keys.js',
       '--dry-run'
@@ -59,6 +60,7 @@ test('canonical-task idempotency backfill ac:1 ac:2 ac:4 S-002 dry-run and apply
     expect(stub.getPatchCount()).toBe(0);
     expect(rows.filter(row => !row['冪等キー'])).toHaveLength(2);
 
+    // story: story-canonical-task-idempotency-backfill ac-1 ac-4: apply assigns deterministic legacy:nocodb keys then verifies zero missing
     const apply = await execFileAsync('node', [
       'scripts/backfill-canonical-task-idempotency-keys.js',
       '--apply'
@@ -76,7 +78,7 @@ test('canonical-task idempotency backfill ac:1 ac:2 ac:4 S-002 dry-run and apply
   }
 });
 
-test('canonical-task idempotency backfill ac:3 S-001 conflict stops apply before any write', async () => {
+test('story-canonical-task-idempotency-backfill ac-3 S-001 conflict stops apply before any write', async () => {
   const rows: NocoRow[] = [
     { Id: 1, 'タイトル': 't1', '冪等キー': 'legacy:nocodb:2' },
     { Id: 2, 'タイトル': 't2' }
@@ -87,6 +89,7 @@ test('canonical-task idempotency backfill ac:3 S-001 conflict stops apply before
   const env = { ...process.env, NOCODB_URL: baseUrl, NOCODB_TOKEN: 'e2e-test-token' };
 
   try {
+    // story: story-canonical-task-idempotency-backfill ac-3: conflicting planned key stops apply before any write
     const apply = await execFileAsync('node', [
       'scripts/backfill-canonical-task-idempotency-keys.js',
       '--apply'
