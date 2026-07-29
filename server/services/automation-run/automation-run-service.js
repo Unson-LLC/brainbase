@@ -533,9 +533,17 @@ export class AutomationRunService {
             }
             if (!materialization || !current.recovery_checkpoint?.human_step_target) return null;
             const checkpoint = current.recovery_checkpoint;
-            const humanStep = this.repository.updateHumanStep(checkpoint.human_step_id, checkpoint.human_step_target);
-            for (const audit of checkpoint.audit_checkpoint?.entries || []) this.repository.upsertAuditLog(audit);
-            const run = this.repository.updateRun(checkpoint.workflow_run_id, checkpoint.run_target);
+            const { humanStep, run } = await this._transaction(() => {
+                const resolvedHumanStep = this.repository.updateHumanStep(
+                    checkpoint.human_step_id,
+                    checkpoint.human_step_target
+                );
+                for (const audit of checkpoint.audit_checkpoint?.entries || []) {
+                    this.repository.upsertAuditLog(audit);
+                }
+                const resumedRun = this.repository.updateRun(checkpoint.workflow_run_id, checkpoint.run_target);
+                return { humanStep: resolvedHumanStep, run: resumedRun };
+            });
             if (markCompleted && current.state !== 'completed') {
                 await this.checkpointRepository.markCompleted({
                     operationKey: current.operation_key,
