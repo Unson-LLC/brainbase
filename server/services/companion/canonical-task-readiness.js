@@ -8,9 +8,18 @@ export class CanonicalTaskReadinessError extends Error {
 }
 
 export class CanonicalTaskReadiness {
-    constructor({ operationRepository = null, manifestHash = null, schemaVersion = null, sourceHead = null } = {}) {
+    constructor({
+        operationRepository = null,
+        manifestHash = null,
+        schemaVersion = null,
+        sourceHead = null,
+        sourceHeadRebindGuard = null,
+        logger = console
+    } = {}) {
         this.operationRepository = operationRepository;
         this.expected = { manifestHash, schemaVersion, sourceHead };
+        this.sourceHeadRebindGuard = sourceHeadRebindGuard;
+        this.logger = logger;
         this.ready = false;
         this.reason = 'readiness_not_verified';
         this.evidence = null;
@@ -58,6 +67,48 @@ export class CanonicalTaskReadiness {
         return { ready: true, evidence: this.evidence };
     }
 
+    // Readiness rows are blessed for one source_head. When a deploy restarts the
+    // process on a newer HEAD, mutation stays fail-closed unless the guard proves
+    // no canonical-task-relevant path changed between the blessed head and ours.
+    async attemptSourceHeadRebind() {
+        if (!this.sourceHeadRebindGuard || typeof this.operationRepository.rebindReadinessSourceHead !== 'function') {
+            return false;
+        }
+        const row = await this.operationRepository.readReadiness();
+        const rebindCandidate = Boolean(
+            row?.ready
+            && row.manifest_hash === this.expected.manifestHash
+            && row.schema_version === this.expected.schemaVersion
+            && row.evidence_hash
+            && row.source_head
+            && row.source_head !== this.expected.sourceHead
+        );
+        if (!rebindCandidate) return false;
+        const verdict = await this.sourceHeadRebindGuard({
+            fromHead: row.source_head,
+            toHead: this.expected.sourceHead
+        });
+        if (!verdict?.allowed) {
+            this.logger?.warn?.(
+                `[canonical-task] source_head rebind refused (${verdict?.reason || 'unknown'}): `
+                + `${row.source_head} -> ${this.expected.sourceHead}`
+                + (verdict?.changedPaths?.length ? ` changed=${verdict.changedPaths.join(',')}` : '')
+            );
+            return false;
+        }
+        await this.operationRepository.rebindReadinessSourceHead({
+            manifestHash: this.expected.manifestHash,
+            schemaVersion: this.expected.schemaVersion,
+            fromHead: row.source_head,
+            toHead: this.expected.sourceHead
+        });
+        this.logger?.warn?.(
+            `[canonical-task] readiness source_head rebound after guarded diff check: `
+            + `${row.source_head} -> ${this.expected.sourceHead}`
+        );
+        return true;
+    }
+
     async initialize() {
         this.close('readiness_not_verified');
         if (!this.operationRepository) {
@@ -66,7 +117,12 @@ export class CanonicalTaskReadiness {
         }
         try {
             await this.operationRepository.claimWriter({ sourceHead: this.expected.sourceHead });
-            return await this.refresh({ allowWriterRebind: true });
+            const result = await this.refresh({ allowWriterRebind: true });
+            if (result.ready || this.reason !== 'persisted_readiness_mismatch') return result;
+            if (await this.attemptSourceHeadRebind()) {
+                return await this.refresh({ allowWriterRebind: true });
+            }
+            return result;
         } catch (error) {
             this.close(error?.code || 'readiness_reconcile_failed');
             return { ready: false, reason: this.reason, error };

@@ -14,6 +14,7 @@ import { CanonicalTaskNocoDBRepository } from '../services/companion/canonical-t
 import { CanonicalTaskPostgresRepository } from '../services/companion/canonical-task-postgres-repository.js';
 import { CanonicalTaskOperationRepository } from '../services/companion/canonical-task-operation-repository.js';
 import { CanonicalTaskReadiness } from '../services/companion/canonical-task-readiness.js';
+import { createCanonicalTaskSourceHeadGuard } from '../services/companion/canonical-task-source-head-guard.js';
 import { CanonicalTaskService } from '../services/companion/canonical-task-service.js';
 import { AuthService } from '../services/auth-service.js';
 import { ConfigService } from '../services/config-service.js';
@@ -97,7 +98,8 @@ export function createCoreServices({
         operationRepository: canonicalTaskOperationRepository,
         manifestHash: canonicalTaskBackendIdentityHash(canonicalTaskStoreConfig, canonicalTaskBackend),
         schemaVersion: canonicalTaskStoreConfig.schemaVersion,
-        sourceHead
+        sourceHead,
+        sourceHeadRebindGuard: createCanonicalTaskSourceHeadGuard({ repoDir: serverDir })
     });
     const workflowRepository = new JsonFileWorkflowRepository({
         filePath: path.join(varDir, 'workflow-ledger.json'),

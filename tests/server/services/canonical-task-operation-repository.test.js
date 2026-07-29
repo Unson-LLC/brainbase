@@ -569,4 +569,59 @@ describe('CanonicalTaskOperationRepository', () => {
             prepare: async () => { throw notFound; }
         })).rejects.toMatchObject({ code: 'task_not_found', status: 404 });
     });
+
+    it('rebinds the readiness source_head only when the persisted release still matches', async () => {
+        const queries = [];
+        const client = {
+            query: vi.fn(async (sql, params) => {
+                queries.push({ sql, params });
+                if (sql.includes('SELECT 1 FROM canonical_task_writer')) return { rowCount: 1, rows: [{}] };
+                if (sql.includes('UPDATE canonical_task_readiness')) {
+                    return {
+                        rowCount: 1,
+                        rows: [{ ready: true, writer_token: 'writer-1', source_head: 'head-new', evidence_hash: 'evidence-1' }]
+                    };
+                }
+                return { rowCount: 0, rows: [] };
+            }),
+            release: vi.fn()
+        };
+        const repository = new CanonicalTaskOperationRepository({
+            pool: { connect: async () => client, query: client.query },
+            writerToken: 'writer-1',
+            processIdentity: { pid: 1 }
+        });
+
+        await expect(repository.rebindReadinessSourceHead({
+            manifestHash: 'manifest-1', schemaVersion: '1.0.0', fromHead: 'head-old', toHead: 'head-new'
+        })).resolves.toMatchObject({ source_head: 'head-new' });
+        expect(client.query).toHaveBeenCalledWith(
+            expect.stringContaining('UPDATE canonical_task_readiness'),
+            ['manifest-1', '1.0.0', 'head-old', 'head-new', 'writer-1']
+        );
+        expect(queries.some(({ sql }) => sql === 'COMMIT')).toBe(true);
+    });
+
+    it('rolls back a source_head rebind when the persisted readiness changed underneath', async () => {
+        const queries = [];
+        const client = {
+            query: vi.fn(async (sql, params) => {
+                queries.push({ sql, params });
+                if (sql.includes('SELECT 1 FROM canonical_task_writer')) return { rowCount: 1, rows: [{}] };
+                if (sql.includes('UPDATE canonical_task_readiness')) return { rowCount: 0, rows: [] };
+                return { rowCount: 0, rows: [] };
+            }),
+            release: vi.fn()
+        };
+        const repository = new CanonicalTaskOperationRepository({
+            pool: { connect: async () => client, query: client.query },
+            writerToken: 'writer-1',
+            processIdentity: { pid: 1 }
+        });
+
+        await expect(repository.rebindReadinessSourceHead({
+            manifestHash: 'manifest-1', schemaVersion: '1.0.0', fromHead: 'head-old', toHead: 'head-new'
+        })).rejects.toMatchObject({ code: 'canonical_task_readiness_rebind_conflict' });
+        expect(queries.some(({ sql }) => sql === 'ROLLBACK')).toBe(true);
+    });
 });

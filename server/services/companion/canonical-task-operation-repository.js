@@ -218,6 +218,41 @@ export class CanonicalTaskOperationRepository {
         }
     }
 
+    async rebindReadinessSourceHead({ manifestHash, schemaVersion, fromHead, toHead } = {}) {
+        this.assertConfigured();
+        const client = await this.pool.connect();
+        try {
+            await client.query('BEGIN');
+            await this.assertWriter(client);
+            const rebound = await client.query(
+                `UPDATE canonical_task_readiness
+                 SET source_head = $4, writer_token = $5, updated_at = NOW()
+                 WHERE singleton_id = TRUE
+                   AND ready = TRUE
+                   AND manifest_hash = $1
+                   AND schema_version = $2
+                   AND source_head = $3
+                   AND evidence_hash IS NOT NULL
+                 RETURNING ready, writer_token, manifest_hash, schema_version, source_head,
+                           evidence_hash, evidence_path, reason, updated_at`,
+                [manifestHash, schemaVersion, fromHead, toHead, this.writerToken]
+            );
+            if (rebound.rowCount !== 1) {
+                throw canonicalTaskOperationError(
+                    'canonical_task_readiness_rebind_conflict',
+                    'Persisted readiness changed while rebinding source head'
+                );
+            }
+            await client.query('COMMIT');
+            return rebound.rows[0];
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
+
     async releaseWriter() {
         if (!this.pool || !this.writerToken || !this.writerClaimed || this.activeOperations > 0) return false;
         const result = await this.pool.query(

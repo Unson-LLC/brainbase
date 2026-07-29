@@ -59,6 +59,24 @@
 8. `TEST_MODE=true BRAINBASE_CANONICAL_TASK_LIVE_FIXTURE=1 npm run canonical-task:seed-live-fixture -- --ledger <workflow-ledger.json>`で、Mac実契約が使用する固定Human Stepを稼働中processの起動前に作る。担当者はCanonical Task manifestの`owner_person_id`から取得し、既に消費済みなら再利用せず失敗させる。
 9. Brainbaseを起動し、APIの作成・再送・更新・競合・完了・承認materializationの実契約をMac testから確認してからMac Companionを反映する。
 
+## デプロイ・再起動時のHEAD更新（enable後の通常運用）
+
+readiness rowは`source_head`を固定するため、enable後にデプロイでHEADが進んだ再起動は原則そのままでよい。
+起動時に以下の決定論的ガードが自動で判定する（`server/services/companion/canonical-task-source-head-guard.js`）。
+
+1. 保存rowの`manifest_hash`・`schema_version`・`evidence_hash`が現在processと一致し、`source_head`だけが不一致の場合、
+   `git diff --name-only <旧HEAD>..<新HEAD>`をcanonical task関連パス
+   （`server/services/companion/`、`server/sql/`、`server/bootstrap/core-services.js`、`config/canonical-task-store.json`）
+   に限定して実行する。
+2. 差分0件なら`source_head`を新HEADへtransaction内でrebindし、mutationは継続する。起動ログに
+   `[canonical-task] readiness source_head rebound after guarded diff check` が残る。
+3. 差分がある、旧HEADがローカルに存在しない、gitが失敗した場合はfail-closedを維持する
+   （起動ログ: `source_head rebind refused`）。この場合はcanonical task系の変更を含むデプロイなので、
+   before-enableの証跡フロー（手順3〜6）を新HEADで再実行してからenableし直す。
+
+デプロイ後は必ず起動ログで`[canonical-task] writer claimed and persisted readiness verified`を確認する。
+`mutation disabled: persisted_readiness_mismatch`のまま放置しない。手動SQLでの`source_head`書き換えは行わない。
+
 ## rollback
 
 1. `npm run canonical-task:readiness -- --disable --reason rollback`で永続rowをclosedにし、mutationが503になることを確認する。

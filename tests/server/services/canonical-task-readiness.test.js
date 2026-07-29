@@ -129,6 +129,120 @@ describe('CanonicalTaskReadiness', () => {
         });
     });
 
+    it('auto-rebinds source_head at startup when the guard proves no canonical task change', async () => {
+        let row = {
+            ready: true,
+            writer_token: 'writer-old',
+            manifest_hash: 'manifest-1',
+            schema_version: '1.0.0',
+            source_head: 'head-old',
+            evidence_hash: 'evidence-1',
+            evidence_path: 'before-enable.json',
+            updated_at: '2026-07-29T00:00:00.000Z'
+        };
+        const operations = {
+            writerToken: 'writer-new',
+            claimWriter: vi.fn(async () => ({})),
+            reconcileReadiness: vi.fn(async ({ sourceHead, allowWriterRebind }) => {
+                if (allowWriterRebind && row.ready && row.source_head === sourceHead) {
+                    row = { ...row, writer_token: 'writer-new' };
+                }
+                return { ...row };
+            }),
+            readReadiness: vi.fn(async () => ({ ...row })),
+            rebindReadinessSourceHead: vi.fn(async ({ fromHead, toHead }) => {
+                row = { ...row, source_head: toHead, writer_token: 'writer-new' };
+                return { ...row, from_head: fromHead };
+            })
+        };
+        const guard = vi.fn(async () => ({ allowed: true, changedPaths: [] }));
+        const readiness = new CanonicalTaskReadiness({
+            operationRepository: operations,
+            manifestHash: 'manifest-1',
+            schemaVersion: '1.0.0',
+            sourceHead: 'head-new',
+            sourceHeadRebindGuard: guard,
+            logger: { warn: vi.fn() }
+        });
+
+        await expect(readiness.initialize()).resolves.toMatchObject({ ready: true });
+        expect(guard).toHaveBeenCalledWith({ fromHead: 'head-old', toHead: 'head-new' });
+        expect(operations.rebindReadinessSourceHead).toHaveBeenCalledWith({
+            manifestHash: 'manifest-1',
+            schemaVersion: '1.0.0',
+            fromHead: 'head-old',
+            toHead: 'head-new'
+        });
+        await expect(readiness.assertMutationReady()).resolves.toBeUndefined();
+    });
+
+    it('stays fail-closed when the guard reports canonical task paths changed', async () => {
+        const row = {
+            ready: true,
+            writer_token: 'writer-old',
+            manifest_hash: 'manifest-1',
+            schema_version: '1.0.0',
+            source_head: 'head-old',
+            evidence_hash: 'evidence-1'
+        };
+        const operations = {
+            writerToken: 'writer-new',
+            claimWriter: vi.fn(async () => ({})),
+            reconcileReadiness: vi.fn(async () => ({ ...row })),
+            readReadiness: vi.fn(async () => ({ ...row })),
+            rebindReadinessSourceHead: vi.fn()
+        };
+        const guard = vi.fn(async () => ({
+            allowed: false,
+            reason: 'canonical_task_paths_changed',
+            changedPaths: ['server/services/companion/canonical-task-service.js']
+        }));
+        const readiness = new CanonicalTaskReadiness({
+            operationRepository: operations,
+            manifestHash: 'manifest-1',
+            schemaVersion: '1.0.0',
+            sourceHead: 'head-new',
+            sourceHeadRebindGuard: guard,
+            logger: { warn: vi.fn() }
+        });
+
+        await expect(readiness.initialize()).resolves.toEqual({ ready: false, reason: 'persisted_readiness_mismatch' });
+        expect(operations.rebindReadinessSourceHead).not.toHaveBeenCalled();
+        await expect(readiness.assertMutationReady()).rejects.toMatchObject({
+            code: 'canonical_task_mutation_not_ready'
+        });
+    });
+
+    it('does not attempt a rebind when manifest or schema also mismatch', async () => {
+        const row = {
+            ready: true,
+            writer_token: 'writer-old',
+            manifest_hash: 'manifest-other',
+            schema_version: '1.0.0',
+            source_head: 'head-old',
+            evidence_hash: 'evidence-1'
+        };
+        const operations = {
+            writerToken: 'writer-new',
+            claimWriter: vi.fn(async () => ({})),
+            reconcileReadiness: vi.fn(async () => ({ ...row })),
+            readReadiness: vi.fn(async () => ({ ...row })),
+            rebindReadinessSourceHead: vi.fn()
+        };
+        const guard = vi.fn();
+        const readiness = new CanonicalTaskReadiness({
+            operationRepository: operations,
+            manifestHash: 'manifest-1',
+            schemaVersion: '1.0.0',
+            sourceHead: 'head-new',
+            sourceHeadRebindGuard: guard
+        });
+
+        await expect(readiness.initialize()).resolves.toMatchObject({ ready: false });
+        expect(guard).not.toHaveBeenCalled();
+        expect(operations.rebindReadinessSourceHead).not.toHaveBeenCalled();
+    });
+
     it('keeps reads available by reporting a closed gate when coordination fails', async () => {
         const operations = repository(null);
         operations.claimWriter.mockRejectedValue(Object.assign(new Error('database down'), { code: 'coordination_down' }));
