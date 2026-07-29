@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MERGES,
   buildAliasPayload,
+  countLegacyReferences,
   deepReplaceExact,
   mergePayloads,
   sanitizedPlan,
@@ -53,6 +54,21 @@ describe('merge-duplicate-people', () => {
     }, { per_legacy: 'per_canonical' })).toEqual({
       owner: 'per_canonical',
       refs: ['per_canonical', 'prefix-per_legacy'],
+    });
+  });
+
+  it('counts the canonical merged_person_ids entry as provenance', () => {
+    expect(countLegacyReferences({
+      operational: {},
+      graphEdges: [],
+      graphEntities: [
+        { id: 'per_canonical', payload: { merged_person_ids: ['per_legacy'] } },
+        { id: 'per_legacy', payload: { aliases: ['per_legacy'] } },
+      ],
+    }, 'per_legacy')).toEqual({
+      direct: 0,
+      graph_edges: 0,
+      graph_payloads: 1,
     });
   });
 

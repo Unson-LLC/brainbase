@@ -235,7 +235,7 @@ export function validateState(state) {
   return { entities, replacements, aliasReuseByLegacy };
 }
 
-function countLegacyReferences(state, legacyId) {
+export function countLegacyReferences(state, legacyId) {
   const direct = Object.values(state.operational).flat().reduce(
     (count, row) => count + Object.values(row).filter((value) => value === legacyId).length,
     0,
@@ -411,7 +411,10 @@ async function applyMerge(client, state, mergedAt) {
     const remaining = countLegacyReferences(post, legacyId);
     assert(remaining.direct === 0, `current operational references remain for ${legacyId}`);
     assert(remaining.graph_edges === 1, `unexpected graph edge references remain for ${legacyId}`);
-    assert(remaining.graph_payloads === 0, `graph payload references remain for ${legacyId}`);
+    assert(
+      remaining.graph_payloads === 1,
+      `unexpected graph payload references remain for ${legacyId}: ${remaining.graph_payloads}`,
+    );
   }
   return post;
 }
