@@ -96,6 +96,44 @@ function makeService({ repository, checkpointRepository, canonicalTaskService })
 }
 
 describe('Workflow durable Canonical Task checkpoint recovery', () => {
+    it('allows an unmaterialized claim to be corrected before recovery', async () => {
+        const repository = new InMemoryWorkflowCheckpointRepository();
+        const base = {
+            phase: 'human_step_claimed',
+            workflow_run_id: 'run-task-review',
+            workflow_id: 'wf-task-review',
+            human_step_id: 'human-task-review',
+            output_id: 'out-task-review',
+            human_step_claim: { response_ref: null },
+            post_processing_phase: 'not_started'
+        };
+        await repository.prepare({
+            operationKey: 'workflow:human-task-review',
+            fingerprint: 'bad-fingerprint',
+            authorizationSnapshot: { person_id: 'keigo' },
+            recoveryCheckpoint: base
+        });
+
+        const corrected = await repository.prepare({
+            operationKey: 'workflow:human-task-review',
+            fingerprint: 'corrected-fingerprint',
+            authorizationSnapshot: { person_id: 'keigo' },
+            recoveryCheckpoint: {
+                ...base,
+                human_step_claim: { response_ref: { review_items: [{ candidate_id: 'candidate-1' }] } }
+            }
+        });
+
+        expect(corrected).toMatchObject({
+            fingerprint: 'corrected-fingerprint',
+            recovery_checkpoint: {
+                human_step_claim: {
+                    response_ref: { review_items: [{ candidate_id: 'candidate-1' }] }
+                }
+            }
+        });
+    });
+
     it('recovers after Task creation without creating the Task again', async () => {
         const repository = new InMemoryWorkflowRepository();
         const checkpointRepository = new InMemoryWorkflowCheckpointRepository();
