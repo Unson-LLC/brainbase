@@ -9,6 +9,7 @@ set -euo pipefail
 TARGET_SHA="${1:-}"
 UI_API_URL="${BRAINBASE_UI_API_URL:-http://127.0.0.1:31013}"
 MCP_RUNTIME="${BRAINBASE_MCP_RUNTIME_ROOT:-/Users/ksato/workspace/code/.worktrees/brainbase-mcp-runtime-45ec989ba}"
+UI_RUNTIME="${BRAINBASE_UI_RUNTIME_ROOT:-/Users/ksato/workspace/code/brainbase}"
 MCP_LABEL="${BRAINBASE_MCP_LAUNCHD_LABEL:-com.brainbase.mcp-brainbase}"
 RECEIPT="${BRAINBASE_MCP_RECONCILE_RECEIPT:-/Users/ksato/workspace/var/brainbase-mcp-reconcile.last}"
 LOCK_DIR="${BRAINBASE_MCP_RECONCILE_LOCK:-/Users/ksato/workspace/var/brainbase-mcp-reconcile.lock}"
@@ -48,6 +49,8 @@ done
 
 [[ -d "$MCP_RUNTIME/.git" || -f "$MCP_RUNTIME/.git" ]] || \
   fail "MCP runtime checkout not found: $MCP_RUNTIME"
+[[ -d "$UI_RUNTIME/.git" || -f "$UI_RUNTIME/.git" ]] || \
+  fail "UI runtime checkout not found: $UI_RUNTIME"
 
 cd "$MCP_RUNTIME"
 
@@ -56,7 +59,11 @@ tracked_dirty="$(git status --porcelain --untracked-files=no 2>/dev/null || true
   fail "MCP runtime has tracked local changes; refusing to overwrite"
 
 log "syncing MCP runtime to UI SHA ${TARGET_SHA:0:12}"
-git fetch origin develop --quiet || fail "git fetch origin develop failed"
+# The UI updater already fetched and verified this exact commit. Import it from
+# the local canonical checkout so reconciliation does not depend on a second
+# GitHub request that can hang or observe a newer develop head.
+timeout 10 git fetch --quiet "$UI_RUNTIME" "$TARGET_SHA" || \
+  fail "could not import target SHA from local UI runtime"
 git cat-file -e "${TARGET_SHA}^{commit}" 2>/dev/null || \
   fail "target SHA is not available in MCP runtime clone"
 git merge-base --is-ancestor HEAD "$TARGET_SHA" || \
