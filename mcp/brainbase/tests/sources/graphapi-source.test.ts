@@ -10,6 +10,42 @@ import { TokenManager } from '../../src/auth/token-manager.js';
 import { getGraphFetchTypes } from '../../src/indexer/ontology.js';
 
 describe('GraphAPISource', () => {
+  it('searches the Graph API on demand for extension entities beyond the startup snapshot', async () => {
+    const mockTokenManager = {
+      getToken: mock.fn(async () => 'mock-token'),
+      refresh: mock.fn(async () => {}),
+    } as unknown as TokenManager;
+    const mockFetch = mock.fn(async (url: string) => {
+      const parsed = new URL(url);
+      assert.strictEqual(parsed.searchParams.get('type'), 'contact');
+      assert.strictEqual(parsed.searchParams.get('query'), '佐藤');
+      assert.strictEqual(parsed.searchParams.get('limit'), '500');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          entities: [{
+            entity_id: 'contact_sato_keigo',
+            entity_type: 'contact',
+            payload: {
+              name: '佐藤 圭吾',
+              company_name: '株式会社雲孫',
+              email: 'keigo@example.com',
+            },
+          }],
+        }),
+      };
+    });
+    global.fetch = mockFetch as any;
+
+    const source = new GraphAPISource('http://localhost:31013', mockTokenManager);
+    const contacts = await source.searchExtensionEntities('contact', '佐藤');
+
+    assert.strictEqual(contacts.length, 1);
+    assert.strictEqual(contacts[0].id, 'contact_sato_keigo');
+    assert.strictEqual(contacts[0].payload.company_name, '株式会社雲孫');
+  });
+
   describe('initialize', () => {
     it('should fetch entities from Graph API', async () => {
       // Mock TokenManager

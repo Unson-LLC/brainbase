@@ -22,6 +22,7 @@ import {
   getExtensionTypeRegistrations,
   resolveEntities,
   searchEntities,
+  tokenizeEntityQuery,
   getContextForTopic,
   type EntityIndex,
   type EntityType,
@@ -73,6 +74,26 @@ async function refreshEntityIndex(): Promise<void> {
     });
   }
   await indexRefreshPromise;
+}
+
+async function hydrateExtensionQuery(name: string, args: Record<string, unknown>): Promise<void> {
+  if (!globalGraphSource) return;
+  const query = typeof args.query === 'string' ? args.query.trim() : '';
+  if (!query) return;
+  const types = name === 'list_extension_entities'
+    ? [args.type].filter((type): type is string => typeof type === 'string')
+    : Array.isArray(args.types)
+      ? args.types.filter((type): type is string => typeof type === 'string')
+      : [];
+  for (const type of types) {
+    if (!entityIndex.extensions.has(type)) continue;
+    const existing = entityIndex.extensions.get(type) || new Map();
+    for (const term of tokenizeEntityQuery(query)) {
+      const matches = await globalGraphSource.searchExtensionEntities(type, term);
+      for (const entity of matches) existing.set(entity.id, entity);
+    }
+    entityIndex.extensions.set(type, existing);
+  }
 }
 
 const WIKI_RESOURCE_URI_PREFIX = 'brainbase://wiki/page/';
@@ -143,6 +164,29 @@ function formatEntity(entity: unknown): string {
   if (e.term) lines.push(`- **Term**: ${e.term}`);
   if (e.canonical) lines.push(`- **Canonical**: ${e.canonical}`);
   if (e.path) lines.push(`- **Path**: ${e.path}`);
+  if (e.payload && typeof e.payload === 'object') {
+    const payload = e.payload as Record<string, unknown>;
+    const labels: Record<string, string> = {
+      company_name: 'Company',
+      department: 'Department',
+      title: 'Title',
+      email: 'Email',
+      tel_company: 'Company Tel',
+      tel_direct: 'Direct Tel',
+      mobile: 'Mobile',
+      fax: 'Fax',
+      postal_code: 'Postal Code',
+      address: 'Address',
+      url: 'URL',
+      scanned_at: 'Scanned At',
+      exchanged_at: 'Exchanged At',
+      notes: 'Notes',
+    };
+    for (const [field, label] of Object.entries(labels)) {
+      const value = payload[field];
+      if (typeof value === 'string' && value.trim()) lines.push(`- **${label}**: ${value.trim()}`);
+    }
+  }
 
   // Decision-specific fields
   if (e.type === 'decision') {
@@ -457,13 +501,17 @@ const tools: Tool[] = [
   },
   {
     name: 'list_extension_entities',
-    description: 'List entities for an explicitly requested extension type.',
+    description: 'List or search entities for an explicitly requested extension type.',
     inputSchema: {
       type: 'object',
       properties: {
         type: {
           type: 'string',
           description: 'The registered extension entity type to list, e.g. frame or speaking.',
+        },
+        query: {
+          type: 'string',
+          description: 'Optional name, company, department, email, phone, or other payload text to filter by.',
         },
       },
       required: ['type'],
@@ -511,7 +559,7 @@ const tools: Tool[] = [
             type: 'string',
             enum: [...CORE_ENTITY_TYPES, 'contact'],
           },
-          description: 'Optional entity type filters. contact is accepted as a forward-compatible filter but returns no core candidates until a contact entity type exists.',
+          description: 'Optional entity type filters. Registered extension types such as contact are searched only when explicitly requested.',
         },
         project: {
           type: 'string',
@@ -590,8 +638,11 @@ const tools: Tool[] = [
  * Handle tool calls
  */
 async function handleToolCall(name: string, args: Record<string, unknown>): Promise<string> {
-  if (name === 'search' || name === 'resolve_entity') {
+  if (name === 'search' || name === 'resolve_entity' || (name === 'list_extension_entities' && args.query)) {
     await refreshEntityIndex();
+  }
+  if (name === 'resolve_entity' || name === 'list_extension_entities') {
+    await hydrateExtensionQuery(name, args);
   }
   switch (name) {
     case 'get_context': {
@@ -671,7 +722,13 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
 
     case 'list_extension_entities': {
       const type = args.type as string;
-      const entities = getExtensionEntitiesByType(entityIndex, type);
+      const query = typeof args.query === 'string' ? args.query.trim() : '';
+      const entities = query
+        ? resolveEntities(entityIndex, { query, types: [type] }).candidates
+          .map(candidate => getExtensionEntitiesByType(entityIndex, type)
+            .find(entity => entity.id === candidate.entity_id))
+          .filter((entity): entity is NonNullable<typeof entity> => Boolean(entity))
+        : getExtensionEntitiesByType(entityIndex, type);
       if (entities.length === 0) {
         return `No extension entities found for type "${type}".`;
       }

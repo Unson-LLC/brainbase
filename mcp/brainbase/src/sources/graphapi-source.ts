@@ -251,6 +251,34 @@ export class GraphAPISource implements EntitySource {
     return this.entities.filter(e => e.entity_type === publicType).map(e => this.convertToExtensionEntity(e));
   }
 
+  async searchExtensionEntities(type: string, query: string, limit = 500): Promise<ExtensionEntity[]> {
+    const publicType = getPublicType(getStorageType(type));
+    if (!EXTENSION_ENTITY_TYPE_SET.has(publicType) || !query.trim()) {
+      return [];
+    }
+    const token = await this.tokenManager.getToken();
+    const params = new URLSearchParams({
+      type: getStorageType(type),
+      query: query.trim(),
+      limit: String(Math.min(Math.max(limit, 1), 500)),
+    });
+    const response = await this.fetchWithRetry(
+      `${this.apiUrl}/api/info/graph/entities?${params.toString()}`,
+      token,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to search ${type} entities: ${response.status}`);
+    }
+    const data = await response.json() as Record<string, unknown>;
+    return ((data.entities || data.records || []) as GraphEntity[])
+      .map(record => ({
+        ...record,
+        entity_id: record.entity_id || (record as unknown as Record<string, unknown>).id as string,
+        entity_type: publicType,
+      }))
+      .map(record => this.convertToExtensionEntity(record));
+  }
+
   async getPhilosophyContext(request: PhilosophyContextRequest): Promise<PhilosophyContext> {
     const token = await this.tokenManager.getToken();
     const params = new URLSearchParams({
