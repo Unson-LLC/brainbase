@@ -1,0 +1,87 @@
+#!/bin/bash
+# Keep the Brainbase MCP runtime on the same merged develop SHA as the UI.
+# This is called after the canonical UI has started and /api/version reports
+# the target SHA. Secret values are injected by run-brainbase-mcp.sh and are
+# never read or logged here.
+
+set -euo pipefail
+
+TARGET_SHA="${1:-}"
+UI_API_URL="${BRAINBASE_UI_API_URL:-http://127.0.0.1:31013}"
+MCP_RUNTIME="${BRAINBASE_MCP_RUNTIME_ROOT:-/Users/ksato/workspace/code/.worktrees/brainbase-mcp-runtime-45ec989ba}"
+MCP_LABEL="${BRAINBASE_MCP_LAUNCHD_LABEL:-com.brainbase.mcp-brainbase}"
+RECEIPT="${BRAINBASE_MCP_RECONCILE_RECEIPT:-/Users/ksato/workspace/var/brainbase-mcp-reconcile.last}"
+LOCK_DIR="${BRAINBASE_MCP_RECONCILE_LOCK:-/Users/ksato/workspace/var/brainbase-mcp-reconcile.lock}"
+INFISICAL_BIN="${INFISICAL_BIN:-/Users/ksato/.local/bin/infisical}"
+WAIT_ATTEMPTS="${BRAINBASE_MCP_RECONCILE_WAIT_ATTEMPTS:-30}"
+
+log() {
+  printf '[mcp-reconcile] %s %s\n' "$(date -u +%FT%TZ)" "$*" >&2
+}
+
+fail() {
+  log "FAILED: $*"
+  exit 1
+}
+
+[[ "$TARGET_SHA" =~ ^[0-9a-f]{7,40}$ ]] || fail "target SHA is missing or invalid"
+
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  log "another reconciliation is already running"
+  exit 0
+fi
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+
+ui_sha=""
+for ((attempt = 1; attempt <= WAIT_ATTEMPTS; attempt += 1)); do
+  ui_sha="$(curl -fsS "${UI_API_URL%/}/api/version" 2>/dev/null | \
+    node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);process.stdout.write(j?.runtime?.git?.sha||j?.git?.sha||j?.sha||"")}catch{}})' \
+    2>/dev/null || true)"
+  if [[ "$ui_sha" == "$TARGET_SHA" ]]; then
+    break
+  fi
+  sleep 2
+done
+
+[[ "$ui_sha" == "$TARGET_SHA" ]] || \
+  fail "UI did not become ready on target SHA ${TARGET_SHA:0:12}"
+
+[[ -d "$MCP_RUNTIME/.git" || -f "$MCP_RUNTIME/.git" ]] || \
+  fail "MCP runtime checkout not found: $MCP_RUNTIME"
+
+cd "$MCP_RUNTIME"
+
+tracked_dirty="$(git status --porcelain --untracked-files=no 2>/dev/null || true)"
+[[ -z "$tracked_dirty" ]] || \
+  fail "MCP runtime has tracked local changes; refusing to overwrite"
+
+log "syncing MCP runtime to UI SHA ${TARGET_SHA:0:12}"
+git fetch origin develop --quiet || fail "git fetch origin develop failed"
+git cat-file -e "${TARGET_SHA}^{commit}" 2>/dev/null || \
+  fail "target SHA is not available in MCP runtime clone"
+git merge-base --is-ancestor HEAD "$TARGET_SHA" || \
+  fail "MCP runtime cannot fast-forward from $(git rev-parse --short HEAD) to ${TARGET_SHA:0:12}"
+git merge --ff-only "$TARGET_SHA" --quiet || fail "MCP runtime fast-forward failed"
+
+npm --prefix mcp/brainbase run build >&2 || fail "MCP build failed"
+INFISICAL_BIN="$INFISICAL_BIN" scripts/run-brainbase-mcp.sh --check >&2 || \
+  fail "MCP authentication preflight failed"
+
+launchctl kickstart -k "gui/$(id -u)/${MCP_LABEL}" || fail "MCP launchd restart failed"
+
+running=0
+for ((attempt = 1; attempt <= 10; attempt += 1)); do
+  if launchctl print "gui/$(id -u)/${MCP_LABEL}" 2>/dev/null | grep -q 'state = running'; then
+    running=1
+    break
+  fi
+  sleep 1
+done
+[[ "$running" == "1" ]] || fail "MCP launchd did not reach running state"
+
+INFISICAL_BIN="$INFISICAL_BIN" scripts/run-brainbase-mcp.sh --check >&2 || \
+  fail "MCP post-restart authentication check failed"
+
+mkdir -p "$(dirname "$RECEIPT")"
+printf 'sha=%s\ncompleted_at=%s\n' "$TARGET_SHA" "$(date -u +%FT%TZ)" > "$RECEIPT"
+log "complete: UI and MCP are on ${TARGET_SHA:0:12}, task API authentication is healthy"
