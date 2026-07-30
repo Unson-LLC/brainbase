@@ -65,7 +65,7 @@ export const taskTools: Tool[] = [
   {
     name: 'update_task',
     description:
-      'Update fields (title, description, priority, due_at) of an existing Canonical Task. '
+      'Update fields (title, description, priority, assignee_person_id, due_at) of an existing Canonical Task. '
       + 'Requires expected_version for optimistic concurrency; a version conflict returns a structured error. '
       + 'Status changes must use transition_task instead.',
     inputSchema: {
@@ -76,6 +76,10 @@ export const taskTools: Tool[] = [
         title: { type: 'string' },
         description: { type: 'string' },
         priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'] },
+        assignee_person_id: {
+          type: 'string',
+          description: 'Canonical Graph Person ID. The task API verifies the person and normalizes the display name.',
+        },
         due_at: { type: 'string', description: 'Due date-time in ISO 8601 format.' },
         idempotency_key: { type: 'string', description: 'Optional idempotency key ("api:"/"workflow:" prefixes reserved).' },
       },
@@ -184,9 +188,12 @@ function updateTaskRequest(args: Record<string, unknown>): TaskRequest {
   if (title !== null && title.length > 200) throw new Error('title must be 200 characters or less');
   const description = optionalString(args, 'description');
   const priority = optionalEnum(args, 'priority', TASK_PRIORITIES);
+  const assigneePersonId = optionalString(args, 'assignee_person_id');
   const dueAt = optionalString(args, 'due_at');
-  if (title === null && description === null && priority === null && dueAt === null) {
-    throw new Error('update_task requires at least one of: title, description, priority, due_at');
+  if (title === null && description === null && priority === null && assigneePersonId === null && dueAt === null) {
+    throw new Error(
+      'update_task requires at least one of: title, description, priority, assignee_person_id, due_at',
+    );
   }
   return {
     path: `/api/companion/tasks/${encodeURIComponent(taskId)}`,
@@ -195,6 +202,7 @@ function updateTaskRequest(args: Record<string, unknown>): TaskRequest {
       ...(title !== null ? { title } : {}),
       ...(description !== null ? { description } : {}),
       ...(priority !== null ? { priority } : {}),
+      ...(assigneePersonId !== null ? { assignee_person_id: assigneePersonId } : {}),
       ...(dueAt !== null ? { due_at: dueAt } : {}),
     },
   };
