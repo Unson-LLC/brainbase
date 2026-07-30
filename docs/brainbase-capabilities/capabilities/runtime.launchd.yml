@@ -10,32 +10,40 @@ surfaces:
     - server.js
     - lib/runtime-paths.js
     - server/bootstrap/direct-launch-guard.js
+    - scripts/reconcile-brainbase-mcp-runtime.sh
   data:
     - /Users/ksato/Library/LaunchAgents/com.brainbase.ui.plist
     - /Users/ksato/.local/brainbase/launchd-start.sh
     - /Users/ksato/Library/Logs/brainbase-ui.log
     - /Users/ksato/Library/Logs/brainbase-ui.error.log
+    - /Users/ksato/workspace/var/brainbase-mcp-reconcile.last
 depends_on:
   - origin/develop
   - /Users/ksato/workspace/code/brainbase
   - /Users/ksato/workspace/var/brainbase.pid
+  - com.brainbase.mcp-brainbase
 visibility_rules:
   - Port 31013 must be treated as canonical runtime, not an arbitrary dev server.
   - launchd-start syncs server/, scripts/, public/, start.js, .mcp.json, package.json, and package-lock.json from origin/develop before startup.
   - Local unmerged patches in synced paths cannot persist through launchd restart.
+  - After the UI reports the merged develop SHA, the MCP runtime is fast-forwarded to the same SHA, rebuilt, restarted, and authenticated before reconciliation is complete.
 verification:
   commands:
     - curl -s http://127.0.0.1:31013/api/version
     - lsof -nP -iTCP:31013 -sTCP:LISTEN
     - launchctl print gui/$(id -u)/com.brainbase.ui
+    - cat /Users/ksato/workspace/var/brainbase-mcp-reconcile.last
   expected:
     - /api/version runtime.cwd is /Users/ksato/workspace/code/brainbase
     - /api/version runtime.git.sha matches the intended origin/develop commit
     - /api/version runtime.git.dirty is false for canonical verification
+    - brainbase-mcp-reconcile.last sha matches /api/version runtime.git.sha
+    - scripts/run-brainbase-mcp.sh --check returns BRAINBASE_MCP_AVAILABLE
 common_failures:
   - Unmerged local changes disappear after launchd restart because launchd-start checks out origin/develop paths.
   - A manual node start.js process does not replace launchd if KeepAlive restarts another process.
   - A stale PID file can delay or confuse startup.
+  - MCP reconciliation fails closed when the runtime has tracked local changes, cannot fast-forward, cannot build, or fails task API authentication.
 runbooks:
   - ../runbooks/restart-31013-launchd.md
   - ../runbooks/verify-31013-source.md
