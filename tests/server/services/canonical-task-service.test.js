@@ -317,6 +317,35 @@ describe('CanonicalTaskService', () => {
         }));
     });
 
+    it('uses GM directory visibility for exact assignee verification without widening project scope or clearance', async () => {
+        const serviceContext = {
+            ...ownerContext(),
+            authSource: 'service-token',
+            access: {
+                role: 'member',
+                level: 1,
+                projectCodes: ['brainbase', 'zeims'],
+                clearance: ['internal'],
+                personId: OWNER
+            }
+        };
+
+        await fixture.service.createTask(
+            { title: 'GM可視の人物を担当者として検証する' },
+            { ...serviceContext, idempotencyKey: 'gm-directory-assignee' }
+        );
+
+        expect(fixture.people.listGraphEntities).toHaveBeenCalledWith(
+            expect.objectContaining({
+                role: 'gm',
+                level: 2,
+                projectCodes: ['brainbase', 'zeims'],
+                clearance: ['internal']
+            }),
+            { id: OWNER, entityType: 'person', limit: 1 }
+        );
+    });
+
     it('resolves an exact Graph payload person_id when the entity id differs', async () => {
         fixture.people.listGraphEntities.mockImplementation(async (_access, query) => {
             if (query.id) return [];
