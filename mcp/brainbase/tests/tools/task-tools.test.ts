@@ -157,6 +157,24 @@ describe('update_task', () => {
     assert.deepEqual(captured[0].body, { expected_version: 3, title: 'Renamed' });
   });
 
+  it('PATCHes a canonical assignee person ID for server-side verification', async () => {
+    const captured: CapturedRequest[] = [];
+    const result = await handleTaskToolCall(
+      'update_task',
+      {
+        task_id: 'ct1.task',
+        expected_version: 2,
+        assignee_person_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5',
+      },
+      dependencies({ fetch: capturingFetch(captured) }),
+    );
+    assert.equal(result?.status, 'ok');
+    assert.deepEqual(captured[0].body, {
+      expected_version: 2,
+      assignee_person_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5',
+    });
+  });
+
   it('requires expected_version to be a positive integer', async () => {
     for (const expectedVersion of [undefined, 0, -1, 1.5, '2']) {
       const result = await handleTaskToolCall(
