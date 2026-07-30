@@ -112,9 +112,20 @@ def db_url():
     return value
 
 
+def unique_matches(*groups):
+    matches = []
+    seen = set()
+    for group in groups:
+        for match in group:
+            if match and match[0] not in seen:
+                seen.add(match[0])
+                matches.append(match)
+    return matches
+
+
 def write_contacts(contacts, dry_run=False):
     result = {"inserted": 0, "updated": 0, "unchanged": 0,
-              "existing_duplicate_groups": 0}
+              "existing_duplicate_groups": 0, "merged_duplicates": 0}
     if dry_run:
         return result
 
@@ -125,7 +136,7 @@ def write_contacts(contacts, dry_run=False):
             with connection.cursor() as cursor:
                 for contact in contacts:
                     stable_id = contact_id(contact)
-                    matches = []
+                    source_matches = []
                     if contact.get("source_file"):
                         cursor.execute(
                             """SELECT id, payload FROM graph_entities
@@ -134,18 +145,32 @@ def write_contacts(contacts, dry_run=False):
                                ORDER BY created_at, id""",
                             (contact["source_file"],),
                         )
-                        matches = cursor.fetchall()
-                    if not matches:
+                        source_matches = cursor.fetchall()
+                    cursor.execute(
+                        """SELECT id, payload FROM graph_entities
+                           WHERE id=%s AND entity_type='contact'""",
+                        (stable_id,),
+                    )
+                    stable_match = cursor.fetchone()
+                    email_matches = []
+                    if contact.get("email"):
                         cursor.execute(
                             """SELECT id, payload FROM graph_entities
-                               WHERE id=%s AND entity_type='contact'""",
-                            (stable_id,),
+                               WHERE entity_type='contact'
+                                 AND LOWER(payload->>'email')=LOWER(%s)
+                                 AND payload->>'name'=%s
+                               ORDER BY created_at, id""",
+                            (contact["email"], contact.get("name")),
                         )
-                        match = cursor.fetchone()
-                        matches = [match] if match else []
+                        email_matches = cursor.fetchall()
+                    matches = unique_matches(
+                        email_matches,
+                        source_matches,
+                        [stable_match] if stable_match else [],
+                    )
                     if len(matches) > 1:
                         result["existing_duplicate_groups"] += 1
-                    if matches and matches[0][1] == contact:
+                    if matches and matches[0][1] == contact and len(matches) == 1:
                         result["unchanged"] += 1
                         continue
                     entity_id = matches[0][0] if matches else stable_id
@@ -163,6 +188,14 @@ def write_contacts(contacts, dry_run=False):
                         (entity_id, json.dumps(contact, ensure_ascii=False)),
                     )
                     result["inserted" if cursor.fetchone()[0] else "updated"] += 1
+                    duplicate_ids = [match[0] for match in matches[1:]]
+                    if duplicate_ids:
+                        cursor.execute(
+                            """DELETE FROM graph_entities
+                               WHERE entity_type='contact' AND id=ANY(%s)""",
+                            (duplicate_ids,),
+                        )
+                        result["merged_duplicates"] += cursor.rowcount
     finally:
         connection.close()
     return result
@@ -188,7 +221,8 @@ def main(argv=None):
         f"unique_contacts={len(contacts)} csv_duplicates={duplicates} "
         f"inserted={result['inserted']} updated={result['updated']} "
         f"unchanged={result['unchanged']} "
-        f"existing_duplicate_groups={result['existing_duplicate_groups']}"
+        f"existing_duplicate_groups={result['existing_duplicate_groups']} "
+        f"merged_duplicates={result['merged_duplicates']}"
     )
     return 0
 
