@@ -59,12 +59,14 @@ def normalize_row(row, csv_name):
     return {key: value for key, value in payload.items() if value}
 
 
-def read_csv(path, skip_lines=0):
+def read_csv(path):
     contacts = []
     with open(path, encoding="utf-8-sig", newline="") as handle:
-        for _ in range(skip_lines):
-            next(handle)
-        for row in csv.DictReader(handle):
+        reader = csv.reader(handle)
+        header = next((row for row in reader if "氏名" in row), None)
+        if header is None:
+            raise ValueError(f"{os.path.basename(path)}: 氏名列を含むヘッダーがありません")
+        for row in csv.DictReader(handle, fieldnames=header):
             if any(row.values()):
                 contact = normalize_row(row, os.path.basename(path))
                 if contact.get("name"):
@@ -176,7 +178,7 @@ def main(argv=None):
         raise RuntimeError("No contact CSV files found")
     rows = []
     for path in paths:
-        found = read_csv(path, 3 if os.path.basename(path).startswith("eight_") else 0)
+        found = read_csv(path)
         print(f"{os.path.basename(path)}: {len(found)} rows")
         rows.extend(found)
     contacts, duplicates = deduplicate(rows)
