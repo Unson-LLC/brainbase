@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
 import { Pool } from 'pg';
 import { ulid } from 'ulid';
+import { parseGlossaryAliases } from '../lib/info-ssot/glossary.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1214,6 +1215,7 @@ const main = async () => {
             }
             const term = row[termIdx] || '';
             const patterns = row[patternIdx] || '';
+            const aliases = parseGlossaryAliases(patterns);
             const context = row[contextIdx] || '';
             const projectCol = projectIdx !== undefined ? (row[projectIdx] || '').trim() : '';
             console.log(`[DEBUG] term=${term}, projectCol='${projectCol}', row=${JSON.stringify(row)}`);
@@ -1236,6 +1238,7 @@ const main = async () => {
               projectId: projectCol ? targetProject.id : null,  // 空ならnull（全プロジェクト共通）
               payload: {
                 term,
+                aliases,
                 definition: patterns,
                 context,
                 project_code: projectCol || null,
