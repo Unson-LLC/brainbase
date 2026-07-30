@@ -151,6 +151,28 @@ CHECK_SCRIPT='
     echo "BRAINBASE_MCP_UNAVAILABLE: missing BRAINBASE_API_URL in Infisical project ${INFISICAL_PROJECT} (env ${INFISICAL_ENV}, path ${BRAINBASE_MCP_INFISICAL_PATH})" >&2
     exit 78
   fi
+  if [ -z "${BRAINBASE_TASK_API_TOKEN:-}" ]; then
+    echo "BRAINBASE_MCP_UNAVAILABLE: missing BRAINBASE_TASK_API_TOKEN in Infisical project ${INFISICAL_PROJECT} (env ${INFISICAL_ENV}, path ${BRAINBASE_MCP_INFISICAL_PATH})" >&2
+    exit 78
+  fi
+  case "$BRAINBASE_TASK_API_TOKEN" in
+    bbsvc_*) ;;
+    *)
+      echo "BRAINBASE_MCP_UNAVAILABLE: BRAINBASE_TASK_API_TOKEN must use the bbsvc_ service-token format" >&2
+      exit 78
+      ;;
+  esac
+  task_api_base="${BRAINBASE_API_URL:-${BRAINBASE_GRAPH_API_URL}}"
+  task_api_status="$(curl -sS -o /dev/null -w "%{http_code}" \
+    -H "Authorization: Bearer ${BRAINBASE_TASK_API_TOKEN}" \
+    "${task_api_base%/}/api/companion/tasks?limit=1")" || {
+      echo "BRAINBASE_MCP_UNAVAILABLE: canonical task API preflight could not connect" >&2
+      exit 69
+    }
+  if [ "$task_api_status" != "200" ]; then
+    echo "BRAINBASE_MCP_UNAVAILABLE: canonical task API preflight returned HTTP ${task_api_status}" >&2
+    exit 77
+  fi
 '
 
 RUN_SCRIPT="$CHECK_SCRIPT"'

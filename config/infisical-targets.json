@@ -25,7 +25,8 @@
         "@org:unson"
       ],
       "requiredKeys": [
-        "BRAINBASE_API_URL"
+        "BRAINBASE_API_URL",
+        "BRAINBASE_TASK_API_TOKEN"
       ]
     },
     "nocodb-mcp": {
