@@ -95,6 +95,14 @@ class ContactImportTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "氏名"):
                 MODULE.read_csv(path)
 
+    def test_unique_matches_prefers_oldest_email_match_and_deduplicates_ids(self):
+        old = ("con_legacy", {"email": "a@example.com"})
+        stable = ("cnt_stable", {"email": "a@example.com"})
+        self.assertEqual(
+            MODULE.unique_matches([old, stable], [], [stable]),
+            [old, stable],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
