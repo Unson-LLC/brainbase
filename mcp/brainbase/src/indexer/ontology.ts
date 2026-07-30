@@ -24,6 +24,7 @@ export const CORE_ENTITY_TYPES = [
 ] as const;
 
 export const EXTENSION_ENTITY_TYPES = [
+  'contact',
   'frame',
   'story',
   'infrastructure_environment',
@@ -50,6 +51,7 @@ export const ENTITY_TYPE_REGISTRY: EntityTypeRegistration[] = [
   { type: 'raci', category: 'core', storageType: 'raci_assignment', displayName: 'RACI', description: 'Responsibility, authority, and assignment context.', defaultSearch: true },
   { type: 'glossary_term', category: 'core', displayName: 'Glossary Term', description: 'Canonical term, alias, and correction context.', defaultSearch: true },
   { type: 'document', category: 'core', displayName: 'Document', description: 'Operational or knowledge document.', defaultSearch: true },
+  { type: 'contact', category: 'extension', displayName: 'Contact', description: 'Business-card contact awaiting operational promotion to a person.', defaultSearch: false },
   { type: 'frame', category: 'extension', displayName: 'Frame', description: 'Organization-specific framework or mental model.', defaultSearch: false },
   { type: 'story', category: 'extension', displayName: 'Story', description: 'Story-to-ship or task story record.', defaultSearch: false },
   { type: 'infrastructure_environment', category: 'extension', displayName: 'Infrastructure Environment', description: 'Deployment or runtime environment detail.', defaultSearch: false },
