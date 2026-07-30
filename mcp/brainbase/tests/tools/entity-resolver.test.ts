@@ -51,6 +51,42 @@ function seedResolverIndex(): EntityIndex {
     customers: [],
     content: '',
   });
+  index.extensions.set('contact', new Map([
+    ['contact_sato_keigo', {
+      id: 'contact_sato_keigo',
+      filePath: 'graph://contact/contact_sato_keigo',
+      type: 'contact',
+      name: '佐藤 圭吾',
+      title: '代表取締役',
+      content: '',
+      payload: {
+        name: '佐藤 圭吾',
+        company_name: '株式会社雲孫',
+        department: '経営',
+        title: '代表取締役',
+        email: 'keigo@example.com',
+        mobile: '090-0000-0001',
+        exchanged_at: '2026-07-01',
+      },
+    }],
+    ['contact_sato_hanako', {
+      id: 'contact_sato_hanako',
+      filePath: 'graph://contact/contact_sato_hanako',
+      type: 'contact',
+      name: '佐藤 花子',
+      title: '部長',
+      content: '',
+      payload: {
+        name: '佐藤 花子',
+        company_name: '株式会社Example',
+        department: '営業部',
+        title: '部長',
+        email: 'hanako@example.com',
+        tel_company: '03-0000-0000',
+        exchanged_at: '2025-12-10',
+      },
+    }],
+  ]));
 
   return index;
 }
@@ -157,24 +193,60 @@ describe('Graph entity resolver', () => {
     assert.ok(project.candidates.some(candidate => candidate.entity_id === 'senpainurse' || candidate.matched_fields.includes('projects')));
   });
 
-  it('story-graph-entity-resolver: reports unsupported type filters instead of silently dropping them', () => {
+  it('resolves an explicitly requested contact surname to every matching candidate', () => {
     const contactOnly = resolveEntities(seedResolverIndex(), {
-      query: '若松',
+      query: '佐藤さん',
       types: ['contact'],
     });
 
-    assert.deepStrictEqual(contactOnly.unsupported_types, ['contact']);
-    assert.ok(contactOnly.fallbacks_used.includes('unsupported_type_reported'));
-    assert.strictEqual(contactOnly.candidates.length, 0);
-    assert.strictEqual(contactOnly.absence_verdict, 'no_candidate_after_resolver_checks');
+    assert.deepStrictEqual(contactOnly.unsupported_types, []);
+    assert.strictEqual(contactOnly.absence_verdict, 'candidates_found');
+    assert.deepStrictEqual(
+      contactOnly.candidates.map(candidate => candidate.entity_id),
+      ['contact_sato_hanako', 'contact_sato_keigo'],
+    );
+  });
 
-    const mixed = resolveEntities(seedResolverIndex(), {
-      query: '若松',
-      types: ['contact', 'person'],
+  it('returns structured contact details needed to disambiguate people', () => {
+    const result = resolveEntities(seedResolverIndex(), {
+      query: '佐藤圭吾',
+      types: ['contact'],
     });
 
-    assert.deepStrictEqual(mixed.unsupported_types, ['contact']);
+    assert.deepStrictEqual(result.candidates[0]?.details, {
+      company_name: '株式会社雲孫',
+      department: '経営',
+      title: '代表取締役',
+      email: 'keigo@example.com',
+      mobile: '090-0000-0001',
+      exchanged_at: '2026-07-01',
+    });
+  });
+
+  it('still reports genuinely unsupported type filters', () => {
+    const mixed = resolveEntities(seedResolverIndex(), {
+      query: '若松',
+      types: ['unknown_type', 'person'],
+    });
+
+    assert.deepStrictEqual(mixed.unsupported_types, ['unknown_type']);
     assert.strictEqual(mixed.candidates[0]?.entity_id, 'per_wakamatsu_fuyumi');
+  });
+
+  it('filters list_extension_entities by query and renders contact details', async () => {
+    __testing.setEntityIndex(seedResolverIndex());
+
+    const output = await __testing.handleToolCall('list_extension_entities', {
+      type: 'contact',
+      query: '佐藤圭吾',
+    });
+
+    assert.match(output, /佐藤 圭吾/);
+    assert.doesNotMatch(output, /佐藤 花子/);
+    assert.match(output, /株式会社雲孫/);
+    assert.match(output, /keigo@example.com/);
+    assert.match(output, /090-0000-0001/);
+    assert.match(output, /2026-07-01/);
   });
 
   it('story-graph-entity-resolver: exposes resolve_entity MCP tool with structured JSON output', async () => {
@@ -238,12 +310,12 @@ describe('Graph entity resolver', () => {
 
     const output = await __testing.handleToolCall('resolve_entity', {
       query: '若松',
-      types: ['contact'],
+      types: ['unknown_type'],
       includePhilosophy: false,
     });
     const parsed = JSON.parse(output);
 
-    assert.deepStrictEqual(parsed.unsupported_types, ['contact']);
+    assert.deepStrictEqual(parsed.unsupported_types, ['unknown_type']);
     assert.ok(parsed.fallbacks_used.includes('unsupported_type_reported'));
     assert.strictEqual(parsed.candidates.length, 0);
   });
