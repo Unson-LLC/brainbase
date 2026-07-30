@@ -52,6 +52,7 @@ interface MeetingAutomationDiagnosis {
 }
 
 interface BootstrapConfig {
+  config_write_mode: 'create_only';
   user: {
     id: string;
     name: string;
@@ -805,12 +806,16 @@ function parseBootstrapConfig(payload: unknown, scope: string[]): ControlPlaneDa
   })) {
     throw new Error('Bootstrap config contains a project outside the authenticated scope');
   }
+  if (record.configWriteMode !== 'create_only') {
+    throw new Error('Bootstrap config write mode must be create_only');
+  }
   if (typeof record.configYaml !== 'string') {
     throw new Error('Bootstrap config YAML is invalid');
   }
 
   return {
     bootstrap_config: {
+      config_write_mode: record.configWriteMode,
       user: userRecord as unknown as BootstrapConfig['user'],
       projects,
       config_yaml: record.configYaml,

@@ -37,11 +37,15 @@ describe('SetupController', () => {
         expect(configParser.getProjects).not.toHaveBeenCalled();
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
             ok: true,
+            configWriteMode: 'create_only',
             user: expect.objectContaining({ workspaceId: 'T123' }),
             projects: [
                 { id: 'brainbase', name: 'brainbase', description: '' },
                 { id: 'baao', name: 'baao', description: '' }
             ]
         }));
+        expect(res.json.mock.calls[0][0].configYaml).toContain(
+            'Never replace an existing workspace config'
+        );
     });
 });

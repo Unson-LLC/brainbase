@@ -8,7 +8,7 @@ import { logger } from '../utils/logger.js';
 
 /**
  * Setup API Controller
- * ユーザーのプロジェクト設定を取得し、config.ymlを生成する
+ * ユーザーのプロジェクト設定を取得し、初回作成専用のconfig.ymlを生成する
  */
 export class SetupController {
     /**
@@ -61,6 +61,7 @@ export class SetupController {
 
             res.json({
                 ok: true,
+                configWriteMode: 'create_only',
                 user: {
                     id: person.id,
                     name: person.name,
@@ -86,6 +87,7 @@ export class SetupController {
     /** @param {SetupPerson} person @param {SetupProject[]} projects */
     generateConfigYaml(person, projects) {
         const yamlContent = `# brainbase config.yml
+# Initial bootstrap only. Never replace an existing workspace config with this file.
 # Generated for: ${person.name} (${person.id})
 
 # Workspace root (adjust for your environment)

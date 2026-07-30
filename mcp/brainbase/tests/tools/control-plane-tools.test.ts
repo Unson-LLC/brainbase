@@ -127,6 +127,7 @@ describe('Brainbase MCP control-plane tools', () => {
             workspaceId: 'T123',
           },
           projects: [{ id: 'brainbase', name: 'Brainbase' }],
+          configWriteMode: 'create_only',
           configYaml: 'workspace_root: ${HOME}/workspace\nprojects:\n  - id: brainbase\n',
         }), { status: 200 });
       },
@@ -136,6 +137,7 @@ describe('Brainbase MCP control-plane tools', () => {
     assert.ok(serverTesting.tools.some((candidate) => candidate.name === 'brainbase_bootstrap_config'));
     assert.equal(result?.status, 'ok');
     assert.equal(result?.data?.bootstrap_config?.user.id, 'per_keigo');
+    assert.equal(result?.data?.bootstrap_config?.config_write_mode, 'create_only');
     assert.deepEqual(result?.data?.bootstrap_config?.projects.map((project) => project.id), ['brainbase']);
     assert.match(result?.data?.bootstrap_config?.config_yaml || '', /workspace_root/);
     assert.equal(result?.data?.count, 1);
@@ -154,6 +156,7 @@ describe('Brainbase MCP control-plane tools', () => {
           workspaceId: 'T123',
         },
         projects: [{ id: 'salestailor', name: 'SalesTailor' }],
+        configWriteMode: 'create_only',
         configYaml: 'projects:\n  - id: salestailor\n',
       }), { status: 200 }),
     }));
