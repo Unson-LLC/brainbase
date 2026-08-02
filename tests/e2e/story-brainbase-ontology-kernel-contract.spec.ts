@@ -12,10 +12,17 @@ function proposedRelease() {
   return new OntologyRegistry({ rootDir }).resolve({ version: '1.0.0' });
 }
 
-test('story-brainbase-ontology-kernel ac:1 registered types expose complete machine-readable semantics', async () => {
+test('story-brainbase-ontology-kernel ac:1 five ontology domains expose machine-readable contracts', async () => {
+  const acceptanceCriterion = '5領域の機械可読contractをAPIまたはMCPから取得できる';
   const { kernel } = proposedRelease();
+  const contract = kernel.describe();
+  expect(
+    ['entity_types', 'relation_types', 'constraints', 'inference_rules', 'evolution_rules']
+      .every((field) => contract[field] != null),
+    `${storyId} ac:1 ${acceptanceCriterion}`
+  ).toBe(true);
   const required = ['description', 'identity', 'usage', 'examples', 'counter_examples', 'owner'];
-  for (const [id, definition] of Object.entries(kernel.describe().entity_types)) {
+  for (const [id, definition] of Object.entries(contract.entity_types)) {
     expect(required.every((field) => definition[field] != null), `${storyId} ac:1 type ${id}`).toBe(true);
   }
   expect(new Set(['app', 'product', 'brand', 'project'].map((id) => kernel.getType(id).identity)).size).toBe(4);
