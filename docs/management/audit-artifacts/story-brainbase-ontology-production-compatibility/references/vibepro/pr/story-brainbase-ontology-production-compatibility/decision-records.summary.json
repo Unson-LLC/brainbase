@@ -1,0 +1,21 @@
+{
+  "schema_version": "0.1.0",
+  "kind": "artifact_summary",
+  "source_artifact": "decision-records.json",
+  "source_bytes": 36118,
+  "source_content_hash": "sha256:c44af94e40810f679be031679e17ae6c0a88559c524664949bdcfc19e35d0e6a",
+  "conclusion": {
+    "status_fields": {
+      "model": "vibepro-decision-records-v1"
+    },
+    "top_level_counts": {
+      "warnings_count": 1,
+      "decisions_count": 9
+    }
+  },
+  "highlights": [
+    "model=vibepro-decision-records-v1"
+  ],
+  "over_budget_reason": "source_bytes exceeds budget 16384",
+  "full_artifact_path": "decision-records.json"
+}

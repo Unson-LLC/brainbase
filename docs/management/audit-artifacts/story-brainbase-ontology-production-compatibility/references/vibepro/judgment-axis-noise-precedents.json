@@ -1,0 +1,58 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-judgment-axis-noise-precedent-ledger-v1",
+  "entries": [
+    {
+      "fingerprint": "scope_reviewability|changed_files:20|graphify:related_files|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-compatibility",
+      "decision_id": "decision-1785692739792-6e131674",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "Review ownerはOntology kernel/API/audit runner/contract tests/Story-ADR-Specを一貫して確認する。対象外はactivation、Graphデータ修復、publication governance、receipt signing。本番互換性とNo-Go境界を同一判断としてレビュー可能。",
+      "artifact": null,
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:20",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T18:03:45.531Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:21|graphify:related_files|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-compatibility",
+      "decision_id": "decision-1785692739792-6e131674",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "Review ownerはOntology kernel/API/audit runner/contract tests/Story-ADR-Specを一貫して確認する。対象外はactivation、Graphデータ修復、publication governance、receipt signing。本番互換性とNo-Go境界を同一判断としてレビュー可能。",
+      "artifact": null,
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:21",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T18:14:54.850Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:64|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-compatibility",
+      "decision_id": "decision-1785696067589-1c51d2ee",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "scope_reviewed: current 21-file diff is one atomic production-compatibility contract spanning kernel, registry/API, read-only audit, tests, Story/ADR/Spec. review_owner_map: runtime_contract reviewer /root/ontology_compat_gate_review inspected the entire changed surface and found it coherent. Activation, Graph repair, governance publication, and signing remain explicitly excluded and NO_GO; splitting would sever implementation from acceptance evidence.",
+      "artifact": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/transcript-runtime-contract-560f7212.json",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:64",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T18:44:20.314Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    }
+  ]
+}

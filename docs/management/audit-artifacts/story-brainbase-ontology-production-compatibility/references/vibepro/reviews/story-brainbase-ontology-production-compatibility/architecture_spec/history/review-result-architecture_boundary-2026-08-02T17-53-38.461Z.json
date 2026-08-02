@@ -1,0 +1,238 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-ontology-production-compatibility",
+  "stage": "architecture_spec",
+  "role": "architecture_boundary",
+  "status": "pass",
+  "summary": "Current HEAD preserves activation boundary and production compatibility; no architecture-boundary findings remain",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Reviewed all 20 changed paths and server_api boundary; confirmed pre-DB Decision rejection, inactive legacy writes, read-only audit, current null/proposed release, and inherited behavior alignment",
+    "evidence": null,
+    "inputs": [
+      "config/ontology/index.json",
+      "config/ontology/releases/1.0.0.json",
+      "config/ontology/writer-inventory.json",
+      "docs/architecture/ADR-021-brainbase-ontology-kernel.md",
+      "docs/architecture/story-brainbase-ontology-production-compatibility.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.md",
+      "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-08877faa.md",
+      "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-7709a3fd.md",
+      "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-898174ea.md",
+      "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md",
+      "docs/specs/brainbase-ontology-kernel-spec.md",
+      "docs/specs/brainbase-ontology-production-compatibility.json",
+      "docs/specs/brainbase-ontology-production-compatibility.md",
+      "scripts/ontology-shadow-audit.js",
+      "server/services/ontology-kernel.js",
+      "tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts",
+      "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts",
+      "tests/server/services/ontology-api.test.js",
+      "tests/server/services/ontology-kernel.test.js"
+    ]
+  },
+  "judgment_delta": [
+    "no blocking findings"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+    "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+    "expected_root": null,
+    "expected_head_sha": "152842e4a8dc5c646090e472fa726d294c6a5d85",
+    "current_head_sha": "152842e4a8dc5c646090e472fa726d294c6a5d85",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+      "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+      "expected_root": null,
+      "expected_head_sha": "152842e4a8dc5c646090e472fa726d294c6a5d85",
+      "current_head_sha": "152842e4a8dc5c646090e472fa726d294c6a5d85",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-02T17:53:38.461Z",
+  "git_context": {
+    "head_sha": "152842e4a8dc5c646090e472fa726d294c6a5d85",
+    "current_branch": "codex/ontology-production-compat",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-02T17:53:38.388Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 20 file(s)",
+    "recorded_head_sha": "152842e4a8dc5c646090e472fa726d294c6a5d85",
+    "surface_files": [
+      {
+        "path": "config/ontology/index.json",
+        "sha256": "a141a88b932fac316c0fae862f63a047e43e24098d30aafc5bb27c24fc4e3870",
+        "size": 360
+      },
+      {
+        "path": "config/ontology/releases/1.0.0.json",
+        "sha256": "a1c5626016da764d784832b7e2aeb848d6848d4a016fd422603717c49d3e93a3",
+        "size": 28791
+      },
+      {
+        "path": "config/ontology/writer-inventory.json",
+        "sha256": "bebbb2093b9eeb18f1283169df40d53d0b70e7b77be1104cccdf23ec7bb26589",
+        "size": 4047
+      },
+      {
+        "path": "docs/architecture/ADR-021-brainbase-ontology-kernel.md",
+        "sha256": "2057a93cdc2abb4263d341f90e3b68e8602f786a7e35981caec11d09c028f323",
+        "size": 14739
+      },
+      {
+        "path": "docs/architecture/story-brainbase-ontology-production-compatibility.md",
+        "sha256": "df19845938d81c26a0e84fed562a182c3a8574a6b8eebdde86932962fd69d59b",
+        "size": 14934
+      },
+      {
+        "path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json",
+        "sha256": "1582df991c9e8d325745e60acc7c691df4f870c0b52317aeb609d16828e429e2",
+        "size": 5340
+      },
+      {
+        "path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.md",
+        "sha256": "38a770736523cdfd3ba155314d702fceeb3c7908cbc08e38ae0965b04ddd7bf1",
+        "size": 2593
+      },
+      {
+        "path": "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-08877faa.md",
+        "sha256": "aca91ec0f387a6add48948247ad43782716596f0d112d32fb4dbd2965b5a91e2",
+        "size": 1273
+      },
+      {
+        "path": "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-7709a3fd.md",
+        "sha256": "6731cdfe9b883e82cda161da3b5cc0a681ea2cb2d7f5e97208766a2231b3bc8c",
+        "size": 1314
+      },
+      {
+        "path": "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-898174ea.md",
+        "sha256": "acf5586489aae0020d4a3427565f5065a4a55ca245101bbf3cc03e493f4c2fc1",
+        "size": 1236
+      },
+      {
+        "path": "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md",
+        "sha256": "5092bc8ffdee73e8b27edd2c64a5f0fac66d9df44b954f32974034e6f5ce36d6",
+        "size": 3827
+      },
+      {
+        "path": "docs/specs/brainbase-ontology-kernel-spec.md",
+        "sha256": "00b6a858a8dd1bf9bd316887a6a2acb8ad8a516651d37458decc7d4d9b3a805d",
+        "size": 22078
+      },
+      {
+        "path": "docs/specs/brainbase-ontology-production-compatibility.json",
+        "sha256": "0dcde45c3aae5bec53e940363aaf4ca61c09c004dcfbcfd92d169866c230437d",
+        "size": 4764
+      },
+      {
+        "path": "docs/specs/brainbase-ontology-production-compatibility.md",
+        "sha256": "6f4044a57cf473a8d401f6e9959ce7e173912dcd182298001c2bc27d89b50446",
+        "size": 2915
+      },
+      {
+        "path": "scripts/ontology-shadow-audit.js",
+        "sha256": "280df8d21fc914a87e058495592087ae242225f900de1a1a778536cde8676261",
+        "size": 5374
+      },
+      {
+        "path": "server/services/ontology-kernel.js",
+        "sha256": "5bd60e18635857b1ff102272cb8ace4c0fb76e9c7018bd7afeb628566969f875",
+        "size": 22365
+      },
+      {
+        "path": "tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts",
+        "sha256": "bba82eb684284e1c31c576b2d249150e16097814eac3338a2c9ee75d471095c0",
+        "size": 25523
+      },
+      {
+        "path": "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts",
+        "sha256": "636fc2307d841f9965d511d8aeab4a3625fdb3d8acbac927a53669854737926f",
+        "size": 8277
+      },
+      {
+        "path": "tests/server/services/ontology-api.test.js",
+        "sha256": "b67ffbc6e3ef9a00bbda0a99a8c5510d79fdbe48cf2636e629eddac1c22389b0",
+        "size": 14332
+      },
+      {
+        "path": "tests/server/services/ontology-kernel.test.js",
+        "sha256": "fee02a1f1abfe20ff52be39ae7318843c8f62f1b43f72b4032b987fc72d97396",
+        "size": 21546
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "8bfc5750113cd76f554f18434164a14a2598ee72c58c86e502c3c4a0ec97ef65"
+  },
+  "source_fingerprint": "2c59ce1a6707c56ab39b272ed293a018a3fcb404b379c003b7e7670c57101358",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/planning_architecture_boundary",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/planning_architecture_boundary",
+    "session_id": "current-head-152842e4",
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/transcript-architecture-boundary-152842e4.json",
+    "request_artifact": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/review-request-architecture_boundary.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/transcript-architecture-boundary-152842e4.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "current-head-152842e4",
+      "implementation_session_id": "root-implementation-152842e4",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

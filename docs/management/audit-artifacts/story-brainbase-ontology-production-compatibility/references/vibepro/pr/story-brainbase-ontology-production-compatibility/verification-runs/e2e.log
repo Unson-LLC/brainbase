@@ -1,0 +1,38 @@
+
+Running 27 tests using 1 worker
+
+  ✓   1 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:15:1 › story-brainbase-ontology-kernel ac:1 five ontology domains expose machine-readable contracts (15ms)
+  ✓   2 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:31:1 › story-brainbase-ontology-kernel ac:2 relation vocabulary exposes endpoints and lifecycle semantics (22ms)
+  ✓   3 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:42:1 › story-brainbase-ontology-kernel ac:3 invalid relations are rejected before persistence with a rule id (2ms)
+  ✓   4 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:56:1 › story-brainbase-ontology-kernel ac:4 shared constraints cover fields, relations, cardinality and references (2ms)
+  ✓   5 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:89:1 › story-brainbase-ontology-production-compatibility accepts verified production vocabulary without hiding data gaps (1ms)
+  ✓   6 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:127:1 › story-brainbase-ontology-production-compatibility validates decided Decision authority and scope through edges (2ms)
+  ✓   7 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:144:1 › story-brainbase-ontology-kernel ac:5 dry-run and DB audit distinguish violations from incomplete collection (3ms)
+  ✓   8 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:177:1 › story-brainbase-ontology-kernel ac:6 inference results expose rule, version, evidence, time and explanation (7ms)
+  ✓   9 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:199:1 › story-brainbase-ontology-kernel ac:7 S-001 only explicit effective supersedes resolves a decision (11ms)
+  ✓  10 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:239:1 › story-brainbase-ontology-kernel ac:8 releases expose versioning, compatibility, migration and rollback policy (3ms)
+  ✓  11 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:260:1 › story-brainbase-ontology-kernel ac:9 rename and merge evolution preserve canonical identity and provenance (7ms)
+  ✓  12 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:370:1 › story-brainbase-ontology-kernel ac:10 impact reports affected facts, APIs, agents and migration need (1ms)
+  ✓  13 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:390:1 › story-brainbase-ontology-kernel ac:11 unapproved governance cannot become canonical current (4ms)
+  ✓  14 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:410:1 › story-brainbase-ontology-kernel ac:12 publication CI binds full history and rejects rewritten evidence (1ms)
+  ✓  15 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:422:1 › story-brainbase-ontology-kernel ac:13 Core and Extension projection metadata remains explicit (2ms)
+  ✓  16 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:431:1 › story-brainbase-ontology-kernel ac:14 evolution fixtures reproduce rename, dedup, supersession and invalid relation rules (9ms)
+  ✓  17 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:459:1 › story-brainbase-ontology-kernel ac:15 proposed release is explicit-version readable while current stays unavailable (20ms)
+  ✓  18 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:467:1 › story-brainbase-ontology-kernel ac:16 current absence preserves legacy writes but closes canonical audit and commit (0ms)
+  ✓  19 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:476:1 › story-brainbase-ontology-kernel ac:17 active publication remains an explicit follow-up task (2ms)
+  ✓  20 [chromium] › tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts:494:1 › story-brainbase-ontology-kernel ac:18 JSON Spec binds the complete publication authority request (2ms)
+  ✓  21 [chromium] › tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts:15:1 › story-brainbase-ontology-production-compatibility ac:1 classifies only verified production vocabulary (3ms)
+  ✓  22 [chromium] › tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts:24:1 › story-brainbase-ontology-production-compatibility ac:2 accepts verified many-to-many project membership (1ms)
+  ✓  23 [chromium] › tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts:43:1 › story-brainbase-ontology-production-compatibility ac:3 validates and infers decided Decisions from Graph edges (2ms)
+  ✓  24 [chromium] › tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts:85:1 › story-brainbase-ontology-production-compatibility ac:3 entity-only validation cannot approve an effective Decision without authority edges (1ms)
+  ✓  25 [chromium] › tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts:99:1 › story-brainbase-ontology-production-compatibility ac:4 preserves owner, orphan, and unverified-relation residuals (0ms)
+  ✓  26 [chromium] › tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts:120:1 › story-brainbase-ontology-production-compatibility ac:5 records a complete read-only production shadow audit (2ms)
+  ✓  27 [chromium] › tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts:151:1 › story-brainbase-ontology-production-compatibility ac:6 keeps publication and activation disabled (1ms)
+
+  27 passed (1.1s)
+(node:44885) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:44885) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"timestamp":"2026-08-02T18:46:39.242Z","level":"warn","msg":"InfoSSOTService disabled: INFO_SSOT_DATABASE_URL is not set"}
+{"timestamp":"2026-08-02T18:46:39.278Z","level":"warn","msg":"InfoSSOTService disabled: INFO_SSOT_DATABASE_URL is not set"}

@@ -1,0 +1,136 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-ontology-production-compatibility",
+  "stage": "test_plan",
+  "role": "e2e_ux",
+  "status": "pass",
+  "summary": "Invalid Decision scope endpoints no longer create false conflicts; AC1-6 and legacy E2E remain intact",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Inspected refreshed request, endpoint filtering, Story E2E and matching unit fixtures; ran combined E2E, focused kernel tests and ontology verification",
+    "evidence": "26/26 combined Playwright, 20/20 kernel Vitest, ontology verify current null",
+    "inputs": [
+      "server/services/ontology-kernel.js",
+      "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts",
+      "tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts"
+    ]
+  },
+  "judgment_delta": [
+    "Previously stale E2E surface is current and directly proves both non-project and orphan endpoints do not infer false conflicts while valid shared-project inference remains"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+    "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+    "expected_root": null,
+    "expected_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "current_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+      "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+      "expected_root": null,
+      "expected_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+      "current_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-02T16:57:56.643Z",
+  "git_context": {
+    "head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "current_branch": "codex/ontology-production-compat",
+    "dirty": true,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "0247588ed5094c9ba738f8dfb3a4a48e7c7c2ea945a4decfa8c8c4cbb6eb9073",
+    "user_status_fingerprint_hash": "0247588ed5094c9ba738f8dfb3a4a48e7c7c2ea945a4decfa8c8c4cbb6eb9073",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-02T16:57:56.631Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 3 file(s)",
+    "recorded_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "surface_files": [
+      {
+        "path": "server/services/ontology-kernel.js",
+        "sha256": "1437e510aef984e06b2f9f332c824b6324fff1d3ee7155d76c3077cd6e063aab",
+        "size": 21688
+      },
+      {
+        "path": "tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts",
+        "sha256": "bba82eb684284e1c31c576b2d249150e16097814eac3338a2c9ee75d471095c0",
+        "size": 25523
+      },
+      {
+        "path": "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts",
+        "sha256": "98db6a9ca20fcde6421ff1b6e889d991f7df96618c75603a5ed93905439fd6f5",
+        "size": 6593
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "094751f76a96d38f13bb33e08d0b402fb4c6310f3bc6c0e139bd2d9b1f879f8b"
+  },
+  "source_fingerprint": "3be61e30d558c5411fe998999d7e48a9b9672b47985e356a70d767711eed9d14",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "ontology_testplan_e2e_final",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ontology_testplan_e2e_final",
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": null,
+    "request_artifact": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/review-request-e2e_ux.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/ontology_testplan_e2e_final",
+      "implementation_session_id": "/root",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

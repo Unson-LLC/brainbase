@@ -1,0 +1,176 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-ontology-production-compatibility",
+  "stage": "test_plan",
+  "role": "e2e_ux",
+  "status": "pass",
+  "summary": "Story固有E2Eと既存Ontology契約26件が通過し、Decision負例・未登録relation・activation無効化を確認",
+  "findings": [],
+  "finding_dispositions": [
+    {
+      "finding_id": "e2e-prefx-decision-not-red",
+      "disposition": "accepted",
+      "resolved_by": [
+        "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    },
+    {
+      "finding_id": "e2e-story-traceability-missing",
+      "disposition": "accepted",
+      "resolved_by": [
+        "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    },
+    {
+      "finding_id": "e2e-unverified-relation-short-circuited",
+      "disposition": "accepted",
+      "resolved_by": [
+        "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    }
+  ],
+  "artifacts": [],
+  "inspection": {
+    "summary": "新旧26件のPlaywright契約、Story/Spec、manifest/kernel、read-only監査runnerと監査artifactを照合し全lensを確認",
+    "evidence": "Playwright combined run: 26 passed; ontology:verify current=null release_count=1; git diff --check; node --check",
+    "inputs": [
+      "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts",
+      "tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts",
+      "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md",
+      "docs/specs/brainbase-ontology-production-compatibility.md",
+      "config/ontology/releases/1.0.0.json"
+    ]
+  },
+  "judgment_delta": [
+    "prior E2E findings unresolved -> dedicated AC1-6 Story E2E and independent negative fixtures pass while current remains null"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+    "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+    "expected_root": null,
+    "expected_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "current_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+      "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+      "expected_root": null,
+      "expected_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+      "current_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-02T16:47:32.215Z",
+  "git_context": {
+    "head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "current_branch": "codex/ontology-production-compat",
+    "dirty": true,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "191336e0459cbcf63ad80e759ad4faa0356a4992fc952ad86120d6b7ae3ea0d1",
+    "user_status_fingerprint_hash": "191336e0459cbcf63ad80e759ad4faa0356a4992fc952ad86120d6b7ae3ea0d1",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-02T16:47:32.162Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 5 file(s)",
+    "recorded_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "surface_files": [
+      {
+        "path": "config/ontology/releases/1.0.0.json",
+        "sha256": "a1c5626016da764d784832b7e2aeb848d6848d4a016fd422603717c49d3e93a3",
+        "size": 28791
+      },
+      {
+        "path": "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md",
+        "sha256": "7ed933738110ff3e7fcd3634d0a3c3fe5949b478b9f7e1cdef8cf96b2b48a577",
+        "size": 3382
+      },
+      {
+        "path": "docs/specs/brainbase-ontology-production-compatibility.md",
+        "sha256": "50fad8ff26f0aa156cc02282060dbd2aa41bbe66620c12133f240dd1ecce3165",
+        "size": 2632
+      },
+      {
+        "path": "tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts",
+        "sha256": "bba82eb684284e1c31c576b2d249150e16097814eac3338a2c9ee75d471095c0",
+        "size": 25523
+      },
+      {
+        "path": "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts",
+        "sha256": "54922815839a7314731b74759b38982d8d741505defdf9f13e321f1cb0b3ca12",
+        "size": 5753
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "6f55abd2af07fb13c418af0c019c5167ad6bdb3347aaf6f6be8ab4c3b441181e"
+  },
+  "source_fingerprint": "2c301e4186369f1db385acd7f39111e78cb3f0b25a7c667ef0f8908a1562575a",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "ontology_testplan_e2e_final",
+    "agent_role": null,
+    "model": "gpt-5.6",
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ontology_testplan_e2e_final",
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": "collaboration:/root/ontology_testplan_e2e_final final JSON",
+    "request_artifact": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/review-request-e2e_ux.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "VibePro lifecycle 8ef43b55-ad5a-446d-9075-e6939e381973 closed after collaboration completed",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/ontology_testplan_e2e_final",
+      "implementation_session_id": "root",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}
