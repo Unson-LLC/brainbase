@@ -122,17 +122,18 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 
 ## テスト計画
 
-1. manifest contract: version情報と5領域の必須field、MCP型projectionとの一致、current不在時の404と明示version取得。
-2. validation contract: 正しい型・relationを許可し、未登録・endpoint違反を拒否する。
+1. manifest contract: version情報と5領域の必須field、MCP型projectionとの一致、current不在時の404と明示version取得。不正manifestはkernel構築時に構造化失敗し、receipt/index fixtureから`proposed`・`approved`・`active`・`retired`を導出する。as-ofは最初のrelease以前、`effective_at`直前・同時刻・直後でversion/statusを固定する。
+2. validation contract: 正しい型・relationを許可し、未登録type/relation/endpoint違反をrule ID付きで拒否する。entity/edge/snapshot dry-runでは永続化adapterの呼出しが0回であることをspyで検証する。
 3. constraint contract: ownerなしapp、decider/scopeなしactive Decision、snapshot欠落を検出する。
-4. inference contract: 明示supersedesとeffective dateで解決し、無関係なactive Decisionはconflictにする。
-5. evolution contract: SemVer分類、rename/merge履歴、snapshotあり/なしのimpactを説明する。
-6. API/service integration: readback、dry-run、atomic rollback、分離write互換、structured error、access contextに加え、上表の明示version validate/infer/impact許可、current不在時のatomic/audit/暗黙version 503、既存write `inactive_no_current`を検証する。
-7. audit contract: scope、pagination完走、partial/DB failureの`unverified`を検証する。
+4. inference contract: 明示supersedesとeffective dateで解決し、無関係なactive Decisionはconflictにする。結果の`ontology_version`、`evidence`、`as_of`、`explanation`、`explicit`/`inferred`を個別に固定する。
+5. evolution contract: SemVer分類、rename/merge履歴、snapshotあり/なしのimpactを説明する。一致件数、代表ID、影響API/agent、migration要否をassertし、snapshot欠落は`unverified`にする。
+6. API/service integration: readback、dry-run、atomic rollback、分離write互換、structured error、access contextに加え、上表の明示version validate/infer/impact許可、current不在時のatomic/audit/暗黙version 503、既存write `inactive_no_current`を検証する。明示version+caller snapshot経路ではcanonical DB accessorが0回、semantic violation時は同一transactionをrollbackしてentity/edgeのbefore/after件数が不変であることをspyとcountで固定する。
+7. audit contract: scope、全cursor、取得件数、失敗位置を`completeness`へ返し、pagination完走、partial/DB failureの`unverified`を検証する。
 8. release/history contract: current/version/as-of解決、未知version、RACI publication gateを検証する。
 9. compatibility matrix: 上表の全route/scriptについて、ownerなしapp、`depends_on`、Decision/RACI/Glossary/KPI/Initiativeに加えAI Query/AI Decision Logの成功response shapeと生成entity/edge、learning promotionの全mapped typeと未知型拒否、public/storage alias、登録語彙または明示deferredをfixture化する。server/scriptsのSQL/helper/HTTP client writer scanとmatrixを双方向比較し、`upsert-app-environments.mjs`を検出できない旧scannerと未分類writer追加時にfailする。
-10. publication integrity: release file全bytesとindex digestの一致、認証actorとapplier不一致、Accountable/Decision未確認、Decisionに承認されたversion/digest/source commitとの不一致、receipt欠落・署名改ざん・binding差し替え、authority endpointのstatus契約、compatibility view drift、過去release削除、version再利用を失敗させる。PR上のsource/publication直結、merge commit後も保存された直結pair、生成物以外が混入したcommit、squash/rebaseでpairを失った履歴、receipt自身のHEADを要求する旧自己参照設計をfixture化する。
-11. command/CI wiring: `package.json`のpublish/verify command、`.github/workflows/vibepro-graph-ssot.yml`の`fetch-depth: 0`、base/head指定verify stepをfixtureで拘束する。base commit objectを取得できないfixtureではverifyがfail closedになることを確認する。
+10. publication integrity: release file全bytesとindex digestの一致、認証actorとapplier不一致、Accountable/Decision未確認、Decisionに承認されたversion/digest/source commitとの不一致、receipt欠落・署名改ざん・binding差し替え、authority endpointのstatus契約、compatibility view drift、過去release削除、version再利用を失敗させる。成功responseは認証`personId`由来actor、全bindingを含むcanonical payload bytes、`signature_algorithm: ed25519`、key ID、公開鍵で検証可能なsignature、receipt digest/index参照の一致を固定する。PR上のsource/publication直結、merge commit後も保存された直結pair、生成物以外が混入したcommit、squash/rebaseでpairを失った履歴、receipt自身のHEADを要求する旧自己参照設計をfixture化する。
+11. publication lifecycle integration: currentなしから開始し、明示versionでproposedを読めること、actor/applier/RACI/Decision bindingの承認、唯一のpublisherによるreceipt/index/compatibility view生成、currentのactive解決、active-current generic split-write guardまでを1つのfixtureで通す。途中の実効状態`proposed`→`approved`→`active`も観測する。
+12. command/CI wiring: `package.json`のpublish/verify command、`.github/workflows/vibepro-graph-ssot.yml`の`fetch-depth: 0`、base/head指定verify stepをfixtureで拘束する。base commit objectを取得できないfixtureではverifyがfail closedになることを確認する。`ontology:publish`と`ontology:verify`はauthorization denial、binding/digest mismatch、Graph/署名依存欠落、commit object欠落、verification driftでnon-zero exitし、secretを含まず失敗bindingまたは検証理由を示すactionable stderrをassertする。
 
 ## Clause ID正本
 

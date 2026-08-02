@@ -180,6 +180,12 @@
     "publication-authority-http-contract",
     "compatibility-view-drift",
     "http-writer-inventory",
-    "specialized-ai-write-runtime-contract"
+    "specialized-ai-write-runtime-contract",
+    "manifest-resolver-boundary-fixtures",
+    "kernel-result-contract-assertions",
+    "current-absence-db-spy-and-rollback-counts",
+    "signed-receipt-positive-contract",
+    "publication-current-lifecycle-integration",
+    "publisher-cli-error-visibility"
   ]
 }
