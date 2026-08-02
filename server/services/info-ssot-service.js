@@ -1407,6 +1407,7 @@ export class InfoSSOTService {
             roleMin,
             sensitivity
         });
+        const guard = this.getOntologyGuard();
 
         return this.withAccessContext(access, async (client) => {
             const projectId = await this.ensureProject(client, input);
@@ -1538,7 +1539,7 @@ export class InfoSSOTService {
                 sensitivity: 'internal'
             });
 
-            return { decision_id: decisionId, event_id: eventId };
+            return { decision_id: decisionId, event_id: eventId, ...guard };
         });
     }
 
@@ -1550,6 +1551,7 @@ export class InfoSSOTService {
             roleMin,
             sensitivity
         });
+        const guard = this.getOntologyGuard();
 
         return this.withAccessContext(access, async (client) => {
             const projectId = await this.ensureProject(client, input);
@@ -1666,7 +1668,7 @@ export class InfoSSOTService {
                 roleMin: 'member',
                 sensitivity: 'internal'
             });
-            return { raci_id: raciId, event_id: eventId };
+            return { raci_id: raciId, event_id: eventId, ...guard };
         });
     }
 
@@ -2117,6 +2119,7 @@ export class InfoSSOTService {
             roleMin,
             sensitivity
         });
+        const guard = this.getOntologyGuard();
 
         return this.withAccessContext(access, async (client) => {
             const projectId = await this.ensureProject(client, input);
@@ -2184,7 +2187,7 @@ export class InfoSSOTService {
                 sensitivity
             });
 
-            return { glossary_term_id: glossaryTermId, event_id: eventId };
+            return { glossary_term_id: glossaryTermId, event_id: eventId, ...guard };
         });
     }
 
@@ -2199,6 +2202,7 @@ export class InfoSSOTService {
             roleMin,
             sensitivity
         });
+        const guard = this.getOntologyGuard();
 
         return this.withAccessContext(access, async (client) => {
             const projectId = await this.ensureProject(client, input);
@@ -2266,7 +2270,7 @@ export class InfoSSOTService {
                 sensitivity
             });
 
-            return { kpi_id: kpiId, event_id: eventId };
+            return { kpi_id: kpiId, event_id: eventId, ...guard };
         });
     }
 
@@ -2281,6 +2285,7 @@ export class InfoSSOTService {
             roleMin,
             sensitivity
         });
+        const guard = this.getOntologyGuard();
 
         return this.withAccessContext(access, async (client) => {
             const projectId = await this.ensureProject(client, input);
@@ -2370,7 +2375,7 @@ export class InfoSSOTService {
                 sensitivity: 'internal'
             });
 
-            return { initiative_id: initiativeId, event_id: eventId };
+            return { initiative_id: initiativeId, event_id: eventId, ...guard };
         });
     }
 
@@ -2390,6 +2395,7 @@ export class InfoSSOTService {
         if (!input.projectCode) {
             throw new Error('projectCode is required');
         }
+        const guard = this.getOntologyGuard();
 
         return this.withAccessContext(access, async (client) => {
             const projectId = await this.getProjectId(client, input.projectCode);
@@ -2510,7 +2516,8 @@ export class InfoSSOTService {
                 event_id: eventId,
                 result_count: records.length,
                 records,
-                summary_lines: summaryLines
+                summary_lines: summaryLines,
+                ...guard
             };
         });
     }
@@ -2530,6 +2537,7 @@ export class InfoSSOTService {
         if (!input.summary) {
             throw new Error('summary is required');
         }
+        const guard = this.getOntologyGuard();
 
         return this.withAccessContext(access, async (client) => {
             const projectId = await this.getProjectId(client, input.projectCode);
@@ -2636,7 +2644,7 @@ export class InfoSSOTService {
                 sensitivity: 'internal'
             });
 
-            return { ai_decision_id: aiDecisionId, event_id: eventId };
+            return { ai_decision_id: aiDecisionId, event_id: eventId, ...guard };
         });
     }
 

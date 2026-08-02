@@ -32,6 +32,13 @@ const accessContext = {
     clearance: ['internal', 'restricted', 'finance', 'hr', 'contract']
 };
 
+const expectInactiveOntologyGuard = (result) => {
+    expect(result).toMatchObject({
+        guard_status: 'inactive_no_current',
+        ontology_version: null
+    });
+};
+
 describe('InfoSSOTService (Graph SSOT)', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
@@ -459,7 +466,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
     it('createDecision writes graph entity and edges', async () => {
         const { service, client } = buildService();
 
-        await service.createDecision(accessContext, {
+        const result = await service.createDecision(accessContext, {
             projectCode: 'brainbase',
             projectName: 'Brainbase',
             ownerPersonName: 'Alice',
@@ -471,6 +478,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             options: [],
             chosen: { plan: 'graph' }
         });
+        expectInactiveOntologyGuard(result);
 
         const entityCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_entities'));
         const entityTypes = entityCalls.map(([, params]) => params?.[1]).filter(Boolean);
@@ -498,7 +506,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
     it('createRaci writes member_of edge', async () => {
         const { service, client } = buildService();
 
-        await service.createRaci(accessContext, {
+        const result = await service.createRaci(accessContext, {
             projectCode: 'brainbase',
             projectName: 'Brainbase',
             personName: 'Bob',
@@ -507,6 +515,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             sensitivity: 'internal',
             authorityScope: 'ops'
         });
+        expectInactiveOntologyGuard(result);
 
         const edgeCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_edges'));
         const relTypes = edgeCalls.map(([, params]) => params?.[3]).filter(Boolean);
@@ -693,6 +702,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
 
         expect(result.glossary_term_id).toMatch(/^gls_/);
         expect(result.event_id).toMatch(/^evt_/);
+        expectInactiveOntologyGuard(result);
 
         const entityCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_entities'));
         const entityTypes = entityCalls.map(([, params]) => params?.[1]).filter(Boolean);
@@ -747,6 +757,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
 
         expect(result.kpi_id).toMatch(/^kpi_/);
         expect(result.event_id).toMatch(/^evt_/);
+        expectInactiveOntologyGuard(result);
 
         const entityCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_entities'));
         const entityTypes = entityCalls.map(([, params]) => params?.[1]).filter(Boolean);
@@ -800,6 +811,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
 
         expect(result.initiative_id).toMatch(/^ini_/);
         expect(result.event_id).toMatch(/^evt_/);
+        expectInactiveOntologyGuard(result);
 
         const entityCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_entities'));
         const entityTypes = entityCalls.map(([, params]) => params?.[1]).filter(Boolean);
@@ -831,5 +843,35 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             roleMin: 'member',
             sensitivity: 'internal'
         })).rejects.toThrow('title is required');
+    });
+
+    it('createAiQuery returns the inactive ontology guard marker', async () => {
+        const { service } = buildService();
+
+        const result = await service.createAiQuery(accessContext, {
+            projectCode: 'brainbase',
+            actorPersonName: 'AI',
+            queryType: 'entities',
+            roleMin: 'member',
+            sensitivity: 'internal'
+        });
+
+        expect(result.query_id).toMatch(/^qry_/);
+        expectInactiveOntologyGuard(result);
+    });
+
+    it('createAiDecisionLog returns the inactive ontology guard marker', async () => {
+        const { service } = buildService();
+
+        const result = await service.createAiDecisionLog(accessContext, {
+            projectCode: 'brainbase',
+            actorPersonName: 'AI',
+            summary: 'Keep the ontology release proposed',
+            roleMin: 'member',
+            sensitivity: 'internal'
+        });
+
+        expect(result.ai_decision_id).toMatch(/^aid_/);
+        expectInactiveOntologyGuard(result);
     });
 });
