@@ -104,7 +104,7 @@ agentが未登録の`rel_type`や許可されていない型同士のedgeを書�
 - [ ] 現行のCore/Extension型の取得契約と、Extensionを既定表示から除外する互換性を維持する。
 - [ ] 名称変更、組織統合、人物重複、Decision置き換え、不正な関係のfixtureで、検証・推論・履歴解釈を再現できる。
 - [ ] activeなcurrentが存在する場合はcurrent Ontology versionを取得できる。初期`1.0.0`がproposedだけの間は、明示versionとcaller提供snapshotで候補定義・validate・infer・impact結果をreadbackでき、current取得は`ONTOLOGY_CURRENT_UNAVAILABLE`として未公開を明示する。
-- [ ] current不在時は、既存writeをproposed規則で「検証済み」と扱わず従来互換で継続し、guard結果を`inactive_no_current`として記録する。新設atomic commit・DB audit・version未指定の検証/推論/impactは503でfail closedにする。
+- [ ] current不在時は、既存writeをproposed規則で「検証済み」と扱わず従来互換で継続し、すべての成功responseへ後方互換な`guard_status: inactive_no_current`を必須追加する。内部監査だけで代替しない。新設atomic commit・DB audit・version未指定の検証/推論/impactは503でfail closedにする。
 - [ ] 実Decision、対象scopeのAccountable RACI、署名鍵を揃えて`1.0.0`をactive化する作業を必須の後続Taskとして残し、それまではcanonical保存前guardの有効化を完了扱いしない。
 
 ## Architectureで決めること

@@ -114,7 +114,7 @@
         "Without active current, explicit-version caller snapshots are allowed for validate, infer, and impact, but versionless calls, DB-backed audit, and graph commit return 503 ONTOLOGY_CURRENT_UNAVAILABLE",
         "Authenticated callers can dry-run validation, run bounded DB audits, infer decisions, and analyze impact",
         "Atomic entity-plus-edge commits reject all semantic violations transactionally, and return 503 ONTOLOGY_CURRENT_UNAVAILABLE when no active current exists",
-        "Generic split writes reject unknown types, relations, and endpoints before persistence when current is active; without current they preserve legacy behavior with guard_status inactive_no_current and never claim Ontology validation",
+        "All existing runtime Graph writes reject unknown types, relations, and endpoints before persistence when current is active; without current they preserve legacy behavior and must add guard_status inactive_no_current to every successful response rather than relying only on internal audit",
         "POST /api/info/ontology/publications/authorize derives the actor from authenticated personId and accepts release_version, source_commit_sha, release_digest, decision_id, scope_entity_id, and applier_entity_id",
         "The publication authority endpoint returns a canonical Ed25519 receipt and fails with 400, 401, 403, 404, 409, or 503 for its specified validation, authentication, authority, decision, binding, or dependency failures"
       ]
@@ -126,7 +126,7 @@
         "MCP Core and Extension type projection remains compatible",
         "Existing specialized relation names are registered",
         "Existing graph facts are not automatically modified",
-        "Public IDs, storage types, visibility, aliases, depends_on, ownerless legacy app creation, and specialized write paths have compatibility fixtures"
+        "Public IDs, storage types, visibility, aliases, depends_on, ownerless legacy app creation, Companion people writes, and specialized write paths have compatibility fixtures"
       ]
     },
     {
@@ -155,6 +155,7 @@
     { "path": "POST /ai/query", "types": ["ai_query"], "relations": ["belongs_to_project", "requested_by", "member_of"], "v1": "internal_type_manifest_contract" },
     { "path": "POST /ai/decision-log", "types": ["ai_decision"], "relations": ["belongs_to_project", "made_by", "references", "member_of"], "v1": "internal_type_manifest_contract" },
     { "path": "POST /events", "types": [], "relations": [], "v1": "not_applicable_no_graph_write" },
+    { "path": "POST /api/companion/people", "types": ["person", "project"], "relations": ["member_of"], "v1": "runtime_writer_manifest_inventory_guard_and_required_inactive_no_current_response" },
     { "path": "POST /api/learning/memory-candidates/:id/promote-to-graph", "types": ["person", "project", "org", "customer", "decision", "raci_assignment", "philosophy", "glossary_term"], "relations": [], "v1": "runtime_direct_writer_manifest_inventory_guard" },
     { "path": "scripts/info-ssot-migrate-codex.js", "types": ["migration_inventory"], "relations": ["compatibility_inventory"], "v1": "inventory_verify_only" },
     { "path": "scripts/{info-ssot-sync-slack-auth.js,local-data-server-ssot-upsert.js,merge-duplicate-people.mjs,migrate_contacts_to_graph.py,normalize-graph-data-ssot.mjs,seed-sato-personal-records.js,upsert-app-environments.mjs}", "types": ["script_specific"], "relations": ["script_specific"], "v1": "seven_known_sql_helper_and_http_writers_deferred_with_inventory_finding" },

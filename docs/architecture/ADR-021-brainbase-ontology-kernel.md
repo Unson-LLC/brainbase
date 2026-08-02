@@ -48,7 +48,7 @@ ADR-007の型catalogは既存storage型の初期整理として残し、本ADR�
 最初のreleaseでは以下を強制する。
 
 - activeなcurrentが存在するとき、新設する`POST /api/info/ontology/graph/commit`はentityと必須edgeを同一transactionのaggregateとして検証・保存し、ownerなしappやdecider/scopeなしactive Decisionをcanonical Graphへ残さない。current不在時は503 `ONTOLOGY_CURRENT_UNAVAILABLE`でfail closedにし、proposed releaseを暗黙に適用しない。
-- activeなcurrentが存在するとき、既存の分離された汎用Graph entity/edge APIは登録型・relation・endpointだけを保存前検証し、必須relation制約はatomic commitまたはauditで評価する。current不在時は既存clientを停止させず従来挙動を維持するが、guard結果を`inactive_no_current`として明示し「Ontology検証済み」とは扱わない。既存clientの移行完了まではownerなしentity単体作成を直ちに破壊しない。
+- activeなcurrentが存在するとき、既存の分離された汎用Graph entity/edge APIは登録型・relation・endpointだけを保存前検証し、必須relation制約はatomic commitまたはauditで評価する。current不在時は既存clientを停止させず従来挙動を維持するが、Graphへ書くすべての既存runtime pathの成功responseへ後方互換な`guard_status: inactive_no_current`を必須追加し、内部監査だけで代替しない。「Ontology検証済み」とは扱わず、既存clientの移行完了まではownerなしentity単体作成を直ちに破壊しない。
 - dry-run APIはentity、edge、Graph snapshotを保存せず検証する。
 - 既存の専用write pathは互換性維持のため直ちに全面遮断せず、既存relationをmanifestへ登録し、後続で同じguardへ収束させる。
 

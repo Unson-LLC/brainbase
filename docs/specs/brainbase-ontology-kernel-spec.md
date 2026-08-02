@@ -87,7 +87,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 - 既存専用write pathのrelationはv1 manifestへ登録する。
 - 汎用write APIの新規不正入力を拒否するが、既存Graphを自動変更しない。
 - 既存の分離writeは登録型・relation・endpointをguardし、必須relation強制はatomic commitへ移行する。既存ownerなしentity作成契約はv1で即時破壊しない。
-- current不在時の既存writeは従来互換で継続するが、proposed規則を適用せず`guard_status: inactive_no_current`を返すか監査記録し、Ontology検証済みとは扱わない。current公開後に同じ経路のguardを有効化する。
+- current不在時の既存writeは従来互換で継続するが、proposed規則を適用せず、すべての成功responseへ後方互換な追加fieldとして`guard_status: inactive_no_current`を必ず返す。内部監査だけで代替せず、Ontology検証済みとは扱わない。current公開後に同じ経路のguardを有効化する。
 - manifestはpublic ID、storage type、visibility、aliasを明示し、ADR-007とMCP projectionの差をcontract testで固定する。
 
 #### Legacy write surface matrix
@@ -103,12 +103,13 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 | `POST /ai/query` | `ai_query` | `belongs_to_project`、`requested_by`、`member_of` | `internal`型として専用path維持 | typeと3 relationのmanifest登録一致 |
 | `POST /ai/decision-log` | `ai_decision` | `belongs_to_project`、`made_by`、`references`、`member_of` | `internal`型として専用path維持 | typeと4 relationのmanifest登録一致 |
 | `POST /events` | Graph entityなし | なし | Ontology guard非該当。event tableの既存契約を維持 | Graph entity/edgeが増えない既存service test |
+| `POST /api/companion/people` | `person`、`project` | `member_of` | `createOrUpdatePerson`を介するruntime writerとしてmanifest inventory guardへ接続し、current不在時も成功responseへ`guard_status: inactive_no_current`を返す | person/project/member_ofの生成、response guard status、未知語彙をsilentに保存しないこと |
 | `POST /api/learning/memory-candidates/:id/promote-to-graph` | `person`、`project`、`org`、`customer`、`decision`、`raci_assignment`、`philosophy`、`glossary_term` | なし（entity direct write） | runtime direct writerを維持し、candidate type mappingをmanifest inventory guardへ接続する | 全mapped typeがmanifest分類済みで、未知candidate typeはsilentにGraphへ保存されない |
 | `scripts/info-ssot-migrate-codex.js` | legacy migration inventory | 上記compatibility relation | v1 runtime guardの対象外。manifest inventory verifierを必須化し、未知値をfailする | script内type/relation literalが全てmanifest分類済み |
 | `info-ssot-sync-slack-auth.js`、`local-data-server-ssot-upsert.js`、`merge-duplicate-people.mjs`、`migrate_contacts_to_graph.py`、`normalize-graph-data-ssot.mjs`、`seed-sato-personal-records.js`、`upsert-app-environments.mjs` | script固有の既知型 | script固有の既知relation | runtime API非該当。自動実行せず後続guard移行し、各fileをinventoryで`deferred`に分類する | SQL/helper/API clientを含む全7 fileが検出・分類され、値とdeferred理由がreportに出る |
 | 新規または未分類のdirect Graph writer | 未分類 | 未分類 | `server/**/*.{js,mjs}`と`scripts/**/*.{js,mjs,py}`を対象に、`graph_entities` / `graph_edges`へのINSERT・UPDATE・DELETE、upsert helper呼出し、`POST /api/info/graph/entities` / `edges`と共通client wrapperを決定的に探索する | 検出した全fileがmatrix分類済みであること。HTTP writerを含む未分類writer追加時は`ontology:verify`をfailする |
 
-専用pathはv1でkernelを直接呼ばないが、manifest contract testが上表の出力語彙を拘束する。inventory verifierは上記探索範囲の全検出fileとmatrixの双方向一致を検証し、未検出のallowlist entryと未分類writerのどちらもfailする。silent bypassではなく、未登録値はtest/verify gateのfindingにする。
+専用pathはv1でkernelを直接呼ばないが、manifest contract testが上表の出力語彙を拘束する。current不在時にGraphへ書く既存runtime pathは、成功responseの既存fieldを維持したまま`guard_status: inactive_no_current`を必須追加し、route/controller contract testはこのfieldがないpre-fix responseを失敗させる。inventory verifierは上記探索範囲の全検出fileとmatrixの双方向一致を検証し、Companion writerを含む未検出のallowlist entryと未分類writerのどちらもfailする。silent bypassではなく、未登録値はtest/verify gateのfindingにする。
 
 ### ONT-008 Release governance
 
