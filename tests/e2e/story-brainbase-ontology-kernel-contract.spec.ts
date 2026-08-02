@@ -12,7 +12,7 @@ function proposedRelease() {
   return new OntologyRegistry({ rootDir }).resolve({ version: '1.0.0' });
 }
 
-test(`${storyId} ac:1 registered types expose complete machine-readable semantics`, async () => {
+test('story-brainbase-ontology-kernel ac:1 registered types expose complete machine-readable semantics', async () => {
   const { kernel } = proposedRelease();
   const required = ['description', 'identity', 'usage', 'examples', 'counter_examples', 'owner'];
   for (const [id, definition] of Object.entries(kernel.describe().entity_types)) {
@@ -21,7 +21,7 @@ test(`${storyId} ac:1 registered types expose complete machine-readable semantic
   expect(new Set(['app', 'product', 'brand', 'project'].map((id) => kernel.getType(id).identity)).size).toBe(4);
 });
 
-test(`${storyId} ac:2 relation vocabulary exposes endpoints and lifecycle semantics`, async () => {
+test('story-brainbase-ontology-kernel ac:2 relation vocabulary exposes endpoints and lifecycle semantics', async () => {
   const { kernel } = proposedRelease();
   const required = ['from', 'to', 'direction', 'cardinality', 'lifecycle', 'provenance'];
   for (const [id, definition] of Object.entries(kernel.describe().relation_types)) {
@@ -30,7 +30,7 @@ test(`${storyId} ac:2 relation vocabulary exposes endpoints and lifecycle semant
   }
 });
 
-test(`${storyId} ac:3 invalid relations are rejected before persistence with a rule id`, async () => {
+test('story-brainbase-ontology-kernel ac:3 invalid relations are rejected before persistence with a rule id', async () => {
   const { kernel } = proposedRelease();
   expect(kernel.validateEdge({ relation: 'owns', from_type: 'person', to_type: 'app' })).toMatchObject({
     valid: false,
@@ -42,7 +42,7 @@ test(`${storyId} ac:3 invalid relations are rejected before persistence with a r
   });
 });
 
-test(`${storyId} ac:4 shared constraints reject ownerless apps and incomplete active decisions`, async () => {
+test('story-brainbase-ontology-kernel ac:4 shared constraints reject ownerless apps and incomplete active decisions', async () => {
   const { kernel } = proposedRelease();
   const result = kernel.validateSnapshot({
     complete: true,
@@ -58,7 +58,7 @@ test(`${storyId} ac:4 shared constraints reject ownerless apps and incomplete ac
   ]));
 });
 
-test(`${storyId} ac:5 dry-run and DB audit distinguish violations from incomplete collection`, async () => {
+test('story-brainbase-ontology-kernel ac:5 dry-run and DB audit distinguish violations from incomplete collection', async () => {
   const registry = new OntologyRegistry({ rootDir });
   registry.index.current = '1.0.0';
   const client = {
@@ -86,7 +86,7 @@ test(`${storyId} ac:5 dry-run and DB audit distinguish violations from incomplet
   expect(audit.violations).toContainEqual(expect.objectContaining({ rule_id: 'CON-APP-OWNER-001' }));
 });
 
-test(`${storyId} ac:6 inference results expose rule, version, evidence, time and explanation`, async () => {
+test('story-brainbase-ontology-kernel ac:6 inference results expose rule, version, evidence, time and explanation', async () => {
   const { kernel } = proposedRelease();
   const result = kernel.inferDecisions({
     as_of: '2026-08-02T00:00:00.000Z',
@@ -105,7 +105,7 @@ test(`${storyId} ac:6 inference results expose rule, version, evidence, time and
   expect(result.explanation).toContain('decision:new');
 });
 
-test(`${storyId} ac:7 S-001 only explicit effective supersedes resolves a decision`, async () => {
+test('story-brainbase-ontology-kernel ac:7 S-001 only explicit effective supersedes resolves a decision', async () => {
   const { kernel } = proposedRelease();
   const conflict = kernel.inferDecisions({
     entities: [
@@ -118,7 +118,7 @@ test(`${storyId} ac:7 S-001 only explicit effective supersedes resolves a decisi
   expect(conflict.evidence).toContainEqual(expect.objectContaining({ rule_id: 'decision-active-conflict' }));
 });
 
-test(`${storyId} ac:8 releases expose versioning, compatibility, migration and rollback policy`, async () => {
+test('story-brainbase-ontology-kernel ac:8 releases expose versioning, compatibility, migration and rollback policy', async () => {
   const release = proposedRelease();
   expect(release.kernel.describe()).toMatchObject({
     version: '1.0.0',
@@ -130,7 +130,7 @@ test(`${storyId} ac:8 releases expose versioning, compatibility, migration and r
   expect(release.kernel.describe().evolution_rules).toMatchObject({ breaking: 'major', additive: 'minor', editorial: 'patch' });
 });
 
-test(`${storyId} ac:9 rename and merge evolution preserve canonical identity and provenance`, async () => {
+test('story-brainbase-ontology-kernel ac:9 rename and merge evolution preserve canonical identity and provenance', async () => {
   const { kernel } = proposedRelease();
   for (const kind of ['rename', 'merge']) {
     const plan = kernel.planEvolution({
@@ -150,7 +150,7 @@ test(`${storyId} ac:9 rename and merge evolution preserve canonical identity and
   }
 });
 
-test(`${storyId} ac:10 impact reports affected facts, APIs, agents and migration need`, async () => {
+test('story-brainbase-ontology-kernel ac:10 impact reports affected facts, APIs, agents and migration need', async () => {
   const { kernel } = proposedRelease();
   const result = kernel.impact({
     change: {
@@ -170,7 +170,7 @@ test(`${storyId} ac:10 impact reports affected facts, APIs, agents and migration
   expect(typeof result.migration_required).toBe('boolean');
 });
 
-test(`${storyId} ac:11 unapproved governance cannot become canonical current`, async () => {
+test('story-brainbase-ontology-kernel ac:11 unapproved governance cannot become canonical current', async () => {
   const registry = new OntologyRegistry({ rootDir });
   const release = registry.resolve({ version: '1.0.0' });
   expect(release.kernel.describe().governance).toMatchObject({
@@ -184,7 +184,7 @@ test(`${storyId} ac:11 unapproved governance cannot become canonical current`, a
   expect(() => registry.resolve()).toThrowError(expect.objectContaining({ code: 'ONTOLOGY_CURRENT_UNAVAILABLE' }));
 });
 
-test(`${storyId} ac:12 publication CI binds full history and rejects rewritten evidence`, async () => {
+test('story-brainbase-ontology-kernel ac:12 publication CI binds full history and rejects rewritten evidence', async () => {
   const workflow = fs.readFileSync(path.join(rootDir, '.github/workflows/vibepro-graph-ssot.yml'), 'utf8');
   const verifier = fs.readFileSync(path.join(rootDir, 'scripts/ontology-release-verify.js'), 'utf8');
   expect(workflow).toContain('fetch-depth: 0');
@@ -194,7 +194,7 @@ test(`${storyId} ac:12 publication CI binds full history and rejects rewritten e
   expect(verifier).toContain('receipt');
 });
 
-test(`${storyId} ac:13 Core and Extension projection metadata remains explicit`, async () => {
+test('story-brainbase-ontology-kernel ac:13 Core and Extension projection metadata remains explicit', async () => {
   const { kernel } = proposedRelease();
   const definitions = kernel.describe().entity_types;
   expect(definitions.app).toMatchObject({ category: 'core', default_search: true });
@@ -203,7 +203,7 @@ test(`${storyId} ac:13 Core and Extension projection metadata remains explicit`,
   expect(extension.every((definition) => definition.default_search === false)).toBe(true);
 });
 
-test(`${storyId} ac:14 evolution fixtures reproduce rename, dedup, supersession and invalid relation rules`, async () => {
+test('story-brainbase-ontology-kernel ac:14 evolution fixtures reproduce rename, dedup, supersession and invalid relation rules', async () => {
   const { kernel } = proposedRelease();
   expect(kernel.planEvolution({
     kind: 'merge',
@@ -221,13 +221,13 @@ test(`${storyId} ac:14 evolution fixtures reproduce rename, dedup, supersession 
   });
 });
 
-test(`${storyId} ac:15 proposed release is explicit-version readable while current stays unavailable`, async () => {
+test('story-brainbase-ontology-kernel ac:15 proposed release is explicit-version readable while current stays unavailable', async () => {
   const service = new InfoSSOTService({ ontologyRegistry: new OntologyRegistry({ rootDir }) });
   expect(service.describeOntology({ version: '1.0.0' })).toMatchObject({ version: '1.0.0', effective_status: 'proposed' });
   expect(() => service.describeOntology()).toThrowError(expect.objectContaining({ code: 'ONTOLOGY_CURRENT_UNAVAILABLE' }));
 });
 
-test(`${storyId} ac:16 current absence preserves legacy writes but closes canonical audit and commit`, async () => {
+test('story-brainbase-ontology-kernel ac:16 current absence preserves legacy writes but closes canonical audit and commit', async () => {
   const service = new InfoSSOTService({ ontologyRegistry: new OntologyRegistry({ rootDir }) });
   expect(service.getOntologyGuard()).toEqual({ guard_status: 'inactive_no_current', ontology_version: null });
   await expect(service.auditOntology(
@@ -236,7 +236,7 @@ test(`${storyId} ac:16 current absence preserves legacy writes but closes canoni
   )).rejects.toMatchObject({ code: 'ONTOLOGY_CURRENT_UNAVAILABLE' });
 });
 
-test(`${storyId} ac:17 active publication remains an explicit follow-up task`, async () => {
+test('story-brainbase-ontology-kernel ac:17 active publication remains an explicit follow-up task', async () => {
   const task = fs.readFileSync(path.join(rootDir, 'docs/management/tasks/ONT-KERNEL-001.md'), 'utf8');
   const index = JSON.parse(fs.readFileSync(path.join(rootDir, 'config/ontology/index.json'), 'utf8'));
   expect(task).toContain('active');
