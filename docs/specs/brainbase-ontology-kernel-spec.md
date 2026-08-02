@@ -18,6 +18,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 ### ONT-001 Manifest readback
 
 - immutable releaseは`ontology_version`、`schema_version`、`previous_version`、`effective_at`、status、compatibility、migration、rollbackを持ち、indexからcurrent、version、as-ofで解決できる。
+- indexの各release entryは`content_digest_algorithm: sha256`と、release fileの全bytesをhashした`content_digest`を持つ。digestはrelease file自身には埋め込まない。
 - 型、関係、制約、推論規則、変更・競合規則をIDで取得できる。
 - manifestは起動時にschema整合性を検証し、不正ならfail loudする。
 
@@ -86,17 +87,19 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 | `POST /ai/query` | `ai_query` | `belongs_to_project`、`requested_by`、`member_of` | `internal`型として専用path維持 | typeと3 relationのmanifest登録一致 |
 | `POST /ai/decision-log` | `ai_decision` | `belongs_to_project`、`made_by`、`references`、`member_of` | `internal`型として専用path維持 | typeと4 relationのmanifest登録一致 |
 | `POST /events` | Graph entityなし | なし | Ontology guard非該当。event tableの既存契約を維持 | Graph entity/edgeが増えない既存service test |
+| `POST /api/learning/memory-candidates/:id/promote-to-graph` | `person`、`project`、`org`、`customer`、`decision`、`raci_assignment`、`philosophy`、`glossary_term` | なし（entity direct write） | runtime direct writerを維持し、candidate type mappingをmanifest inventory guardへ接続する | 全mapped typeがmanifest分類済みで、未知candidate typeはsilentにGraphへ保存されない |
 | `scripts/info-ssot-migrate-codex.js` | legacy migration inventory | 上記compatibility relation | v1 runtime guardの対象外。manifest inventory verifierを必須化し、未知値をfailする | script内type/relation literalが全てmanifest分類済み |
-| その他のdirect migration/upsert script | migration固有型 | migration固有relation | runtime API非該当。自動実行せず後続guard移行、inventory auditでは`deferred`を明示 | inventory reportにscript、値、deferred理由が出る |
+| `info-ssot-sync-slack-auth.js`、`local-data-server-ssot-upsert.js`、`merge-duplicate-people.mjs`、`migrate_contacts_to_graph.py`、`normalize-graph-data-ssot.mjs`、`seed-sato-personal-records.js`、`upsert-app-environments.mjs` | script固有の既知型 | script固有の既知relation | runtime API非該当。自動実行せず後続guard移行し、各fileをinventoryで`deferred`に分類する | 全7 fileが検出・分類され、値とdeferred理由がreportに出る |
+| 新規または未分類のdirect Graph writer | 未分類 | 未分類 | `server/**/*.{js,mjs}`と`scripts/**/*.{js,mjs,py}`を対象に、`graph_entities` / `graph_edges`へのINSERT・UPDATE・DELETE・upsert helper呼出しを決定的に探索する | 検出した全fileがmatrix分類済みであること。未分類writer追加時は`ontology:verify`をfailする |
 
-専用pathはv1でkernelを直接呼ばないが、manifest contract testが上表の出力語彙を拘束する。silent bypassではなく、未登録値はtest/verify gateのfindingにする。
+専用pathはv1でkernelを直接呼ばないが、manifest contract testが上表の出力語彙を拘束する。inventory verifierは上記探索範囲の全検出fileとmatrixの双方向一致を検証し、未検出のallowlist entryと未分類writerのどちらもfailする。silent bypassではなく、未登録値はtest/verify gateのfindingにする。
 
 ### ONT-008 Release governance
 
 - releaseは`proposed`、`approved`、`active`、`retired`の状態を持つ。
 - proposer、decider、applierのGraph entity ID、RACI scope、根拠Decision IDを持つ。
 - 対象scopeのAccountable承認と適用証跡がないreleaseはcurrent indexへ公開できない。
-- current indexは`ontology:publish`だけが生成し、対象HEAD、release SHA-256、Graph RACI、根拠Decision、applierを検証する。Graph/authorityを確認できない場合は公開を失敗させる。
+- current indexは`ontology:publish`だけが生成し、対象HEAD、release file全bytesのSHA-256、Graph RACI、根拠Decision、applierを検証する。digestはindex entryへalgorithmと共に保存し、release fileには保存しない。Graph/authorityを確認できない場合は公開を失敗させる。
 - `ontology:verify`はbase refと比較し、publisher証跡のないcurrent変更、既公開versionの変更・削除・version再利用を拒否する。
 
 ## テスト計画
@@ -109,8 +112,9 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 6. API/service integration: readback、dry-run、atomic rollback、分離write互換、structured error、access contextを検証する。
 7. audit contract: scope、pagination完走、partial/DB failureの`unverified`を検証する。
 8. release/history contract: current/version/as-of解決、未知version、RACI publication gateを検証する。
-9. compatibility matrix: 上表の全route/scriptについて、ownerなしapp、`depends_on`、専用write、public/storage alias、登録語彙または明示deferredをfixture化する。
-10. publication integrity: 手動index変更、authority未確認、release digest差し替え、過去release削除、version再利用を失敗させる。
+9. compatibility matrix: 上表の全route/scriptについて、ownerなしapp、`depends_on`、専用write、learning promotionの全mapped typeと未知型拒否、public/storage alias、登録語彙または明示deferredをfixture化する。server/scriptsの決定的scanとmatrixを双方向比較し、未分類writer追加時にfailする。
+10. publication integrity: release file全bytesとindex digestの一致、手動index変更、authority未確認、release digest差し替え、過去release削除、version再利用を失敗させる。
+11. command/CI wiring: `package.json`のpublish/verify commandと`.github/workflows/vibepro-graph-ssot.yml`のbase/head指定verify stepをfixtureで拘束する。
 
 ## Clause ID正本
 
