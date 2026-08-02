@@ -11,6 +11,19 @@ related_tasks:
   - task_source: VibePro
     task_ids:
       - ONT-KERNEL-001
+pr_scope_strategy: atomic_single_pr
+pr_scope_reason: "The Ontology requirements SSOT, proposed release data, runtime validation and publication behavior, executable contract tests, repository command wiring, full-history CI verification, and mandatory inactive-current follow-up form one fail-closed semantic contract. Splitting those facets would create an intermediate revision whose runtime or CI meaning cannot be reviewed against the exact release and evidence it governs."
+pr_scope_review_facets:
+  - repo-control
+  - requirements-ssot
+  - runtime-behavior
+  - e2e-gate
+  - misc-follow-up
+pr_scope_dependency_boundaries:
+  - repo-control->requirements-ssot
+  - requirements-ssot->runtime-behavior
+  - runtime-behavior->e2e-gate
+  - e2e-gate->misc-follow-up
 status: active
 created_at: 2026-08-02
 updated_at: 2026-08-02
