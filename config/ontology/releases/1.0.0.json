@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0.0",
+  "version": "1.0.0",
+  "initial_status": "proposed",
+  "effective_at": "2026-08-01T00:00:00.000Z",
+  "previous_version": null,
+  "compatibility": {
+    "classification": "initial",
+    "compatible_from": null
+  },
+  "migration": {
+    "required": false,
+    "plan": null
+  },
+  "rollback": {
+    "strategy": "restore_previous_current",
+    "target_version": null
+  },
+  "governance": {
+    "decision_id": null,
+    "scope_entity_id": null,
+    "proposer_entity_id": null,
+    "decider_entity_id": null,
+    "applier_entity_id": null
+  },
+  "impact_scope": {
+    "graph_scope": "project:brainbase",
+    "affected_apis": ["/api/info/ontology/*", "/api/info/graph/*"],
+    "affected_agents": ["brainbase-graph-agent", "brainbase-mcp"],
+    "migration_required": false,
+    "verification": "proposed_unverified"
+  },
+  "changes": [],
+  "entity_types": {
+    "org": { "meaning": "法的または運営上の組織", "description": "法的または運営上の組織", "identity": "継続的な責任主体", "usage": "所有・契約・RACIのscope", "examples": ["Unson LLC"], "counter_examples": ["期限付きproject"], "owner": "ontology-steward", "category": "core", "default_search": true },
+    "person": { "meaning": "組織や判断に参加する人物", "description": "組織や判断に参加する人物", "identity": "一意な自然人", "usage": "意思決定者・担当者・関係者", "examples": ["佐藤圭吾"], "counter_examples": ["service account"], "owner": "ontology-steward", "category": "core", "default_search": true },
+    "app": { "meaning": "利用者が操作するソフトウェア", "description": "利用者が操作するソフトウェア", "identity": "独立したruntimeまたは操作面", "usage": "deploy・運用・ownerを管理する単位", "examples": ["Brainbase UI"], "counter_examples": ["Brainbaseという顧客価値全体"], "owner": "org", "category": "core", "default_search": true, "required_relations": ["owned_by"] },
+    "product": { "meaning": "顧客価値と収益責任を持つ提供物", "description": "顧客価値と収益責任を持つ提供物", "identity": "顧客課題と価値提案", "usage": "価値・市場・収益を管理する単位", "examples": ["Brainbase"], "counter_examples": ["brainbase server process"], "owner": "org", "category": "extension", "default_search": false },
+    "brand": { "meaning": "市場で識別される約束と表現体系", "description": "市場で識別される約束と表現体系", "identity": "固有の名称・約束・voice", "usage": "positioningと表現資産を管理する単位", "examples": ["Unson"], "counter_examples": ["一時的な開発project"], "owner": "org", "category": "core", "default_search": true },
+    "project": { "meaning": "期限と成果物を持つ実行単位", "description": "期限と成果物を持つ実行単位", "identity": "目的・scope・完了条件", "usage": "期限付きexecutionを管理する単位", "examples": ["Ontology Kernel v1"], "counter_examples": ["恒常的なproduct"], "owner": "person_or_org", "category": "core", "default_search": true },
+    "customer": { "meaning": "価値提供の対象となる顧客", "description": "価値提供の対象となる顧客", "identity": "契約または商談上の顧客主体", "usage": "CRMと提供価値のscope", "examples": ["契約企業"], "counter_examples": ["一般のpartner"], "owner": "sales-ops", "category": "core", "default_search": true },
+    "partner": { "meaning": "協業する人物または組織", "description": "協業する人物または組織", "identity": "協業関係を持つ外部主体", "usage": "協業関係の記録", "examples": ["販売partner"], "counter_examples": ["契約customer"], "owner": "business-ops", "category": "core", "default_search": true },
+    "decision": { "meaning": "適用期間と決定者を持つ判断", "description": "適用期間と決定者を持つ判断", "identity": "決定者・scope・effective dateを持つ判断", "usage": "現在有効な方針の解決", "examples": ["Ontology 1.0.0を採用する"], "counter_examples": ["未決の提案"], "owner": "decision-owner", "category": "core", "default_search": true },
+    "raci": { "meaning": "責任分担の公開型", "description": "責任分担の公開型", "identity": "scope・role・assigned partyの組", "usage": "API上の責任割当", "examples": ["Ontology scopeのAccountable"], "counter_examples": ["役職名だけの記録"], "owner": "org-ops", "storage_type": "raci_assignment", "category": "core", "default_search": true },
+    "raci_assignment": { "meaning": "人物とscopeの責任割当", "description": "人物とscopeの責任割当", "identity": "scope・role・assigned partyの組", "usage": "Graph保存上の責任割当", "examples": ["person A is Accountable"], "counter_examples": ["project membership"], "owner": "org-ops", "public_type": "raci", "category": "internal", "default_search": false },
+    "glossary_term": { "meaning": "組織で合意された用語", "description": "組織で合意された用語", "identity": "canonical termと定義", "usage": "組織語彙の共有", "examples": ["Graph SSOT"], "counter_examples": ["個人メモ"], "owner": "knowledge-ops", "category": "core", "default_search": true },
+    "document": { "meaning": "運用または知識の文書", "description": "運用または知識の文書", "identity": "正本URLまたはrepo相対path", "usage": "Graphから正本contentを参照", "examples": ["ADR"], "counter_examples": ["Graph内の長文コピー"], "owner": "knowledge-ops", "category": "core", "default_search": true },
+    "contact": { "meaning": "人物昇格前の連絡先", "description": "人物昇格前の連絡先", "identity": "連絡先識別子", "usage": "person確定前のCRM記録", "examples": ["名刺由来contact"], "counter_examples": ["本人確認済みperson"], "owner": "sales-ops", "category": "extension", "default_search": false },
+    "frame": { "meaning": "組織固有の思考枠組み", "description": "組織固有の思考枠組み", "identity": "名称と適用方法", "usage": "判断支援", "examples": ["判断frame"], "counter_examples": ["単発decision"], "owner": "knowledge-ops", "category": "extension", "default_search": false },
+    "story": { "meaning": "Story駆動開発の要求記録", "description": "Story駆動開発の要求記録", "identity": "story ID", "usage": "要求と成果の追跡", "examples": ["story-brainbase-ontology-kernel"], "counter_examples": ["実装task"], "owner": "product-ops", "category": "extension", "default_search": false },
+    "infrastructure_environment": { "meaning": "deployまたはruntime環境", "description": "deployまたはruntime環境", "identity": "provider・account・environment名", "usage": "runtime境界の管理", "examples": ["production"], "counter_examples": ["appそのもの"], "owner": "platform-ops", "category": "extension", "default_search": false },
+    "speaking": { "meaning": "登壇実績", "description": "登壇実績", "identity": "登壇者・event・日時", "usage": "公開実績の記録", "examples": ["conference talk"], "counter_examples": ["社内meeting"], "owner": "brand-ops", "category": "extension", "default_search": false },
+    "media_appearance": { "meaning": "メディア出演実績", "description": "メディア出演実績", "identity": "媒体・出演者・公開日", "usage": "公開実績の記録", "examples": ["podcast出演"], "counter_examples": ["自社publication"], "owner": "brand-ops", "category": "extension", "default_search": false },
+    "role_assignment": { "meaning": "プロフィールまたは組織上の役割", "description": "プロフィールまたは組織上の役割", "identity": "person・role・scope・期間", "usage": "経歴と組織roleの記録", "examples": ["代表社員"], "counter_examples": ["RACI assignment"], "owner": "org-ops", "category": "extension", "default_search": false },
+    "publication": { "meaning": "出版物または公開物", "description": "出版物または公開物", "identity": "title・publisher・公開識別子", "usage": "公開物実績の記録", "examples": ["書籍"], "counter_examples": ["未公開draft"], "owner": "brand-ops", "category": "extension", "default_search": false },
+    "press_mention": { "meaning": "報道掲載", "description": "報道掲載", "identity": "媒体・URL・掲載日", "usage": "第三者報道の記録", "examples": ["ニュース記事"], "counter_examples": ["自社press release"], "owner": "brand-ops", "category": "extension", "default_search": false },
+    "kpi": { "meaning": "成果を測る指標", "description": "成果を測る指標", "identity": "metric・scope・期間", "usage": "成果測定", "examples": ["MRR"], "counter_examples": ["施策そのもの"], "owner": "business-ops", "category": "internal", "default_search": false },
+    "initiative": { "meaning": "成果へ向けた施策", "description": "成果へ向けた施策", "identity": "目的・owner・期間", "usage": "実行施策の追跡", "examples": ["onboarding改善"], "counter_examples": ["恒常的product"], "owner": "business-ops", "category": "internal", "default_search": false },
+    "ai_query": { "meaning": "AIへの問合せ記録", "description": "AIへの問合せ記録", "identity": "request・requester・timestamp", "usage": "AI利用の監査", "examples": ["Graph検索query"], "counter_examples": ["AIが採用したdecision"], "owner": "ai-ops", "category": "internal", "default_search": false },
+    "ai_decision": { "meaning": "AI利用を伴う判断記録", "description": "AI利用を伴う判断記録", "identity": "decision・maker・evidence", "usage": "AI支援判断の監査", "examples": ["候補分類の採用"], "counter_examples": ["単なるAI query"], "owner": "ai-ops", "category": "internal", "default_search": false },
+    "philosophy": { "meaning": "判断の根底にある原則", "description": "判断の根底にある原則", "identity": "canonical statementとscope", "usage": "判断根拠の参照", "examples": ["Graph SSOT first"], "counter_examples": ["期限付きdecision"], "owner": "knowledge-ops", "category": "internal", "default_search": false }
+  },
+  "relation_types": {
+    "owns": { "meaning": "所有・運営責任を持つ", "from": ["org"], "to": ["app", "product", "brand", "project"], "direction": "outbound", "cardinality": "one_to_many", "inverse": "owned_by", "lifecycle": "effective_dated", "provenance": "explicit" },
+    "owned_by": { "meaning": "責任主体", "from": ["app", "product", "brand", "project", "decision", "initiative"], "to": ["org", "person"], "direction": "outbound", "cardinality": "many_to_one", "inverse": "owns", "lifecycle": "effective_dated", "provenance": "explicit" },
+    "belongs_to": { "meaning": "包含先", "from": ["app", "product", "brand", "project", "decision", "raci", "raci_assignment", "glossary_term", "kpi", "initiative", "ai_query", "ai_decision"], "to": ["org", "product", "brand", "project"], "direction": "outbound", "cardinality": "many_to_one", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit" },
+    "belongs_to_project": { "meaning": "projectへの包含", "from": ["decision", "raci", "raci_assignment", "glossary_term", "kpi", "initiative", "ai_query", "ai_decision"], "to": ["project"], "direction": "outbound", "cardinality": "many_to_one", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit" },
+    "governs": { "meaning": "規律対象", "from": ["decision", "philosophy"], "to": ["app", "product", "brand", "project", "org", "decision"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit" },
+    "supersedes": { "meaning": "旧判断の置換", "from": ["decision"], "to": ["decision"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit" },
+    "derived_from": { "meaning": "由来", "from": ["app", "product", "brand", "project", "decision", "initiative", "ai_decision"], "to": ["app", "product", "brand", "project", "decision", "philosophy", "ai_query"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "persistent", "provenance": "explicit" },
+    "accountable_for": { "meaning": "最終説明責任", "from": ["person", "org"], "to": ["app", "product", "brand", "project", "decision", "initiative"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit" },
+    "depends_on": { "meaning": "稼働や成果の依存", "from": ["app", "product", "project", "initiative"], "to": ["app", "product", "project", "initiative"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit" },
+    "member_of": { "meaning": "所属", "from": ["person"], "to": ["org", "project"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit" },
+    "assigned_to": { "meaning": "責任割当先", "from": ["raci", "raci_assignment"], "to": ["person", "org"], "direction": "outbound", "cardinality": "many_to_one", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit" },
+    "requested_by": { "meaning": "問合せ要求者", "from": ["ai_query"], "to": ["person"], "direction": "outbound", "cardinality": "many_to_one", "inverse": null, "lifecycle": "persistent", "provenance": "explicit" },
+    "made_by": { "meaning": "判断者", "from": ["ai_decision", "decision"], "to": ["person"], "direction": "outbound", "cardinality": "many_to_one", "inverse": null, "lifecycle": "persistent", "provenance": "explicit" },
+    "references": { "meaning": "根拠参照", "from": ["decision", "ai_decision", "ai_query"], "to": ["decision", "ai_query", "philosophy", "glossary_term"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "persistent", "provenance": "explicit" }
+  },
+  "constraints": [
+    { "id": "CON-APP-OWNER-001", "target": "app", "kind": "required_relation", "related_types": ["org"], "alternatives": [{ "relation": "owned_by", "direction": "outgoing" }, { "relation": "owns", "direction": "incoming" }] },
+    { "id": "CON-DECISION-ACTIVE-001", "target": "decision", "kind": "required_fields_when", "when": { "status": "active" }, "fields": ["decider_id", "scope_ids"] }
+  ],
+  "inference_rules": [
+    { "id": "INF-DECISION-SUPERSESSION-001", "relation": "supersedes", "effect": "target_inactive_at_source_effective_at" }
+  ],
+  "evolution_rules": {
+    "breaking": "major",
+    "additive": "minor",
+    "editorial": "patch",
+    "history_required_for": ["rename", "merge", "split"]
+  }
+}

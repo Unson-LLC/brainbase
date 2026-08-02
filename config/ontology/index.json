@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0.0",
+  "current": null,
+  "releases": [
+    {
+      "version": "1.0.0",
+      "status": "proposed",
+      "effective_at": "2026-08-01T00:00:00.000Z",
+      "path": "releases/1.0.0.json",
+      "content_digest_algorithm": "sha256",
+      "content_digest": "7db6c39c06cf94f1f6c803ecd27671c03af813adca142bf578508f30a1ada1da"
+    }
+  ]
+}

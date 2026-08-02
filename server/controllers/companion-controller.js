@@ -326,6 +326,8 @@ export class CompanionController {
             res.status(201).json({
                 source: 'graph_ssot',
                 type: 'person',
+                guard_status: result.guard_status,
+                ontology_version: result.ontology_version,
                 person: normalizePerson({
                     id: result.entity_id || result.person_id,
                     entity_type: 'person',
