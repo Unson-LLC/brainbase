@@ -9,7 +9,7 @@
     {
       "id": "C-005",
       "type": "contract",
-      "statement": "Immutable Ontology releases and every definition are machine-readable by stable ID and resolvable by current, version, or as-of; invalid manifests fail loudly.",
+      "statement": "Immutable Ontology releases and every definition are machine-readable by stable ID and resolvable by current, version, or as-of; when no active current exists, only explicit-version proposed readback is available and current resolution fails explicitly; invalid manifests fail loudly.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "current Ontology version and definitions are readable" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     },
     {
@@ -39,7 +39,7 @@
     {
       "id": "C-007",
       "type": "contract",
-      "statement": "Info SSOT callers with a valid access context can read current or historical definitions, dry-run, run bounded DB audits, atomically commit aggregates, infer decisions, and analyze impact.",
+      "statement": "Info SSOT callers with a valid access context can read current or historical definitions, dry-run, run bounded DB audits, atomically commit aggregates, infer decisions, and analyze impact; without an active current, only explicit-version proposed readback and side-effect-free dry-run are available.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "API or MCP readback" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     },
     {
@@ -62,7 +62,7 @@
       "shall": [
         "Immutable releases expose version, previous version, effective date, initial_status proposed, compatibility, migration, and rollback metadata; effective lifecycle status is derived from receipts and the index",
         "Each index release entry stores sha256 metadata for the full bytes of its release file, and the digest is not embedded in that release file",
-        "The release index resolves current, explicit version, and as-of requests",
+        "The release index resolves current, explicit version, and as-of requests; absent current returns ONTOLOGY_CURRENT_UNAVAILABLE while explicit version can read a proposed release",
         "Types, relations, constraints, inference rules, and change rules are addressable by stable IDs",
         "An invalid manifest fails loudly at kernel construction"
       ]
@@ -110,10 +110,10 @@
       "id": "ONT-006",
       "title": "Info SSOT API",
       "shall": [
-        "Authenticated callers can read current, explicit-version, and as-of manifests and definitions",
+        "Authenticated callers can read current, explicit-version, and as-of manifests and definitions, with absent current returning 404 ONTOLOGY_CURRENT_UNAVAILABLE",
         "Authenticated callers can dry-run validation, run bounded DB audits, infer decisions, and analyze impact",
-        "Atomic entity-plus-edge commits reject all semantic violations transactionally",
-        "Generic split writes reject unknown types, relations, and endpoints before persistence",
+        "Atomic entity-plus-edge commits reject all semantic violations transactionally, and return 503 ONTOLOGY_CURRENT_UNAVAILABLE when no active current exists",
+        "Generic split writes reject unknown types, relations, and endpoints before persistence when current is active; without current they preserve legacy behavior with guard_status inactive_no_current and never claim Ontology validation",
         "POST /api/info/ontology/publications/authorize derives the actor from authenticated personId and accepts release_version, source_commit_sha, release_digest, decision_id, scope_entity_id, and applier_entity_id",
         "The publication authority endpoint returns a canonical Ed25519 receipt and fails with 400, 401, 403, 404, 409, or 503 for its specified validation, authentication, authority, decision, binding, or dependency failures"
       ]

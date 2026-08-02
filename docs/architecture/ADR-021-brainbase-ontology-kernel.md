@@ -47,8 +47,8 @@ ADR-007の型catalogは既存storage型の初期整理として残し、本ADR�
 
 最初のreleaseでは以下を強制する。
 
-- 新設する`POST /api/info/ontology/graph/commit`はentityと必須edgeを同一transactionのaggregateとして検証・保存し、ownerなしappやdecider/scopeなしactive Decisionをcanonical Graphへ残さない。
-- 既存の分離された汎用Graph entity/edge APIはv1では登録型・relation・endpointだけを保存前検証し、必須relation制約はatomic commitまたはauditで評価する。既存clientの移行完了まではownerなしentity単体作成を直ちに破壊しない。
+- activeなcurrentが存在するとき、新設する`POST /api/info/ontology/graph/commit`はentityと必須edgeを同一transactionのaggregateとして検証・保存し、ownerなしappやdecider/scopeなしactive Decisionをcanonical Graphへ残さない。current不在時は503 `ONTOLOGY_CURRENT_UNAVAILABLE`でfail closedにし、proposed releaseを暗黙に適用しない。
+- activeなcurrentが存在するとき、既存の分離された汎用Graph entity/edge APIは登録型・relation・endpointだけを保存前検証し、必須relation制約はatomic commitまたはauditで評価する。current不在時は既存clientを停止させず従来挙動を維持するが、guard結果を`inactive_no_current`として明示し「Ontology検証済み」とは扱わない。既存clientの移行完了まではownerなしentity単体作成を直ちに破壊しない。
 - dry-run APIはentity、edge、Graph snapshotを保存せず検証する。
 - 既存の専用write pathは互換性維持のため直ちに全面遮断せず、既存relationをmanifestへ登録し、後続で同じguardへ収束させる。
 
@@ -68,7 +68,7 @@ versionはSemVerとし、型・関係の削除、意味変更、許容endpoint�
 
 ### 5. readbackとaccess
 
-既存Info SSOT access contextの検証を通したAPIから、current/as-of/version指定manifest、型・関係定義、dry-run検証、bounded Graph audit、Decision推論、impact reportをreadbackできるようにする。エラーはrule IDを持つ構造化結果として返し、保存APIでは400に変換する。
+既存Info SSOT access contextの検証を通したAPIから、current/as-of/version指定manifest、型・関係定義、dry-run検証、bounded Graph audit、Decision推論、impact reportをreadbackできるようにする。activeなcurrentがない初期状態では、明示version指定のreadbackと副作用なしdry-runだけがproposed候補を利用できる。current取得は404 `ONTOLOGY_CURRENT_UNAVAILABLE`、atomic commit・DB audit・version未指定の検証/推論/impactは503でfail closedにする。既存writeの互換継続は`inactive_no_current`であり、canonical guardの有効化を意味しない。実Decision、Accountable RACI、署名鍵を揃えてactive化する作業は必須の後続Taskとする。その他のエラーはrule IDを持つ構造化結果として返し、保存APIでは400に変換する。
 
 ## 代替案
 

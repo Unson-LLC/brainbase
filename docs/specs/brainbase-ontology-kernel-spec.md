@@ -21,6 +21,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 - indexの各release entryは`content_digest_algorithm: sha256`と、release fileの全bytesをhashした`content_digest`を持つ。digestはrelease file自身には埋め込まない。
 - 型、関係、制約、推論規則、変更・競合規則をIDで取得できる。
 - manifestは起動時にschema整合性を検証し、不正ならfail loudする。
+- activeなcurrentがない場合、current解決は404 `ONTOLOGY_CURRENT_UNAVAILABLE`とし、明示version指定だけがproposed releaseを取得できる。
 
 ### ONT-002 型と関係
 
@@ -66,6 +67,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 - `POST /api/info/ontology/impact` 変更impact
 - `POST /api/info/ontology/publications/authorize` authority receipt発行。requestは`release_version`、`source_commit_sha`、`release_digest`、`decision_id`、`scope_entity_id`、`applier_entity_id`を必須とし、actorはrequest bodyではなく既存auth contextの`personId`から取得する。responseは署名対象payload、`signature_algorithm: ed25519`、署名、key IDを含むcanonical receiptとする。
 - 全endpointは既存Info SSOT access contextを必須とする。
+- current不在時、明示version付きのreadbackと副作用なしdry-runだけがproposed候補を利用できる。atomic commit、DB-backed audit、version未指定のvalidate/infer/impactは503 `ONTOLOGY_CURRENT_UNAVAILABLE`でfail closedにする。
 - authority endpointは入力不正を400、未認証を401、personへ結合できないservice principal・actor/applier不一致・RACI/scope不一致を403、Decision不明を404、release digest/version不一致を409、Graphまたは署名鍵を確認できない場合を503としてfail closedにする。
 
 ### ONT-007 互換性
@@ -74,6 +76,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 - 既存専用write pathのrelationはv1 manifestへ登録する。
 - 汎用write APIの新規不正入力を拒否するが、既存Graphを自動変更しない。
 - 既存の分離writeは登録型・relation・endpointをguardし、必須relation強制はatomic commitへ移行する。既存ownerなしentity作成契約はv1で即時破壊しない。
+- current不在時の既存writeは従来互換で継続するが、proposed規則を適用せず`guard_status: inactive_no_current`を返すか監査記録し、Ontology検証済みとは扱わない。current公開後に同じ経路のguardを有効化する。
 - manifestはpublic ID、storage type、visibility、aliasを明示し、ADR-007とMCP projectionの差をcontract testで固定する。
 
 #### Legacy write surface matrix
@@ -107,12 +110,12 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 
 ## テスト計画
 
-1. manifest contract: version情報と5領域の必須field、MCP型projectionとの一致。
+1. manifest contract: version情報と5領域の必須field、MCP型projectionとの一致、current不在時の404と明示version取得。
 2. validation contract: 正しい型・relationを許可し、未登録・endpoint違反を拒否する。
 3. constraint contract: ownerなしapp、decider/scopeなしactive Decision、snapshot欠落を検出する。
 4. inference contract: 明示supersedesとeffective dateで解決し、無関係なactive Decisionはconflictにする。
 5. evolution contract: SemVer分類、rename/merge履歴、snapshotあり/なしのimpactを説明する。
-6. API/service integration: readback、dry-run、atomic rollback、分離write互換、structured error、access contextを検証する。
+6. API/service integration: readback、dry-run、atomic rollback、分離write互換、structured error、access contextに加え、current不在時のatomic/audit/暗黙version 503と既存write `inactive_no_current`を検証する。
 7. audit contract: scope、pagination完走、partial/DB failureの`unverified`を検証する。
 8. release/history contract: current/version/as-of解決、未知version、RACI publication gateを検証する。
 9. compatibility matrix: 上表の全route/scriptについて、ownerなしapp、`depends_on`、Decision/RACI/Glossary/KPI/Initiativeに加えAI Query/AI Decision Logの成功response shapeと生成entity/edge、learning promotionの全mapped typeと未知型拒否、public/storage alias、登録語彙または明示deferredをfixture化する。server/scriptsのSQL/helper/HTTP client writer scanとmatrixを双方向比較し、`upsert-app-environments.mjs`を検出できない旧scannerと未分類writer追加時にfailする。
@@ -125,4 +128,4 @@ VibePro accepted Specが付与する`C-*`、`INV-*`、`S-*`をclause ID正本と
 
 ## 完了境界
 
-v1の完了は、上記contract test、対象service/route test、typecheck、VibePro Gateが通過し、`1.0.0`がreceiptなしの`proposed` releaseとして取得できる状態とする。実在するDecision/RACIと本番署名鍵が確認できるまでactive publicationは行わない。scopeなしの実データ全件監査と全専用write pathのguard移行は結果を偽らず後続Taskとして残す。
+v1の完了は、上記contract test、対象service/route test、typecheck、VibePro Gateが通過し、`1.0.0`がreceiptなしの`proposed` releaseとして明示versionで取得・dry-runでき、current不在経路が上記contractどおりfail closedまたは`inactive_no_current`になる状態とする。実在するDecision/RACIと本番署名鍵が確認できるまでactive publicationとcanonical guard有効化は行わず、両者を必須の後続Taskとして残す。scopeなしの実データ全件監査と全専用write pathのguard移行も結果を偽らず後続Taskとして残す。

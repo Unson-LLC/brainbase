@@ -103,7 +103,9 @@ agentが未登録の`rel_type`や許可されていない型同士のedgeを書�
 - [ ] canonical versionの公開は認証済みapplier、Decision内で承認されたversion・digest・source commit、scopeのAccountable RACIへ署名付きで結びつく。merge commitを許容しつつ、source commitの直接の子であるpublication commitが許可生成物だけを変更した履歴をCIで検証し、squash/rebaseによる証跡消失、証跡改ざん、生成viewのdriftを拒否できる。
 - [ ] 現行のCore/Extension型の取得契約と、Extensionを既定表示から除外する互換性を維持する。
 - [ ] 名称変更、組織統合、人物重複、Decision置き換え、不正な関係のfixtureで、検証・推論・履歴解釈を再現できる。
-- [ ] current Ontology version、任意の型・関係の定義、検証結果、推論根拠をAPIまたはMCPからreadbackできる。
+- [ ] activeなcurrentが存在する場合はcurrent Ontology versionを取得できる。初期`1.0.0`がproposedだけの間は、version指定で候補定義・検証結果・推論根拠をreadbackでき、current取得は`ONTOLOGY_CURRENT_UNAVAILABLE`として未公開を明示する。
+- [ ] current不在時は、既存writeをproposed規則で「検証済み」と扱わず従来互換で継続し、guard結果を`inactive_no_current`として記録する。新設atomic commit・DB audit・version未指定の検証/推論/impactは503でfail closedにする。
+- [ ] 実Decision、対象scopeのAccountable RACI、署名鍵を揃えて`1.0.0`をactive化する作業を必須の後続Taskとして残し、それまではcanonical保存前guardの有効化を完了扱いしない。
 
 ## Architectureで決めること
 
