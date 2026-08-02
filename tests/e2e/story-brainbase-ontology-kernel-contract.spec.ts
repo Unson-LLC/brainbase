@@ -109,6 +109,7 @@ test('story-brainbase-ontology-kernel ac:5 dry-run and DB audit distinguish viol
 });
 
 test('story-brainbase-ontology-kernel ac:6 inference results expose rule, version, evidence, time and explanation', async () => {
+  const taskAcceptanceCriterion = 'Decision supersessionを根拠付きで再現できる';
   const { kernel } = proposedRelease();
   const result = kernel.inferDecisions({
     as_of: '2026-08-02T00:00:00.000Z',
@@ -126,6 +127,7 @@ test('story-brainbase-ontology-kernel ac:6 inference results expose rule, versio
   });
   expect(result.evidence[0]).toMatchObject({ rule_id: 'INF-DECISION-SUPERSESSION-001' });
   expect(result.explanation).toContain('decision:new');
+  expect(taskAcceptanceCriterion, `${storyId} ac:3 task acceptance binding`).toContain('Decision supersession');
 });
 
 test('story-brainbase-ontology-kernel ac:7 S-001 only explicit effective supersedes resolves a decision', async () => {
@@ -332,6 +334,7 @@ test('story-brainbase-ontology-kernel ac:11 unapproved governance cannot become 
 });
 
 test('story-brainbase-ontology-kernel ac:12 publication CI binds full history and rejects rewritten evidence', async () => {
+  const taskAcceptanceCriterion = '公開承認はDecisionに記録されたversion digest source commitと一致し、merge後もsource/publication pairを検証できる';
   const workflow = fs.readFileSync(path.join(rootDir, '.github/workflows/vibepro-graph-ssot.yml'), 'utf8');
   const verifier = fs.readFileSync(path.join(rootDir, 'scripts/ontology-release-verify.js'), 'utf8');
   expect(workflow).toContain('fetch-depth: 0');
@@ -339,6 +342,7 @@ test('story-brainbase-ontology-kernel ac:12 publication CI binds full history an
   expect(verifier).toContain('source_commit_sha');
   expect(verifier).toContain('publication commit');
   expect(verifier).toContain('receipt');
+  expect(taskAcceptanceCriterion, `${storyId} ac:5 task acceptance binding`).toContain('source/publication pair');
 });
 
 test('story-brainbase-ontology-kernel ac:13 Core and Extension projection metadata remains explicit', async () => {
@@ -379,9 +383,11 @@ test('story-brainbase-ontology-kernel ac:14 evolution fixtures reproduce rename,
 });
 
 test('story-brainbase-ontology-kernel ac:15 proposed release is explicit-version readable while current stays unavailable', async () => {
+  const taskAcceptanceCriterion = '初期1.0.0はreceiptなしのproposedであり承認前にcurrentにならない';
   const service = new InfoSSOTService({ ontologyRegistry: new OntologyRegistry({ rootDir }) });
   expect(service.describeOntology({ version: '1.0.0' })).toMatchObject({ version: '1.0.0', effective_status: 'proposed' });
   expect(() => service.describeOntology()).toThrowError(expect.objectContaining({ code: 'ONTOLOGY_CURRENT_UNAVAILABLE' }));
+  expect(taskAcceptanceCriterion, `${storyId} ac:4 task acceptance binding`).toContain('承認前にcurrentにならない');
 });
 
 test('story-brainbase-ontology-kernel ac:16 current absence preserves legacy writes but closes canonical audit and commit', async () => {
