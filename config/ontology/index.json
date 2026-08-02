@@ -1,14 +1,31 @@
 {
   "schema_version": "1.0.0",
-  "current": null,
+  "current": "1.0.0",
   "releases": [
     {
       "version": "1.0.0",
-      "status": "proposed",
+      "status": "active",
       "effective_at": "2026-08-01T00:00:00.000Z",
       "path": "releases/1.0.0.json",
       "content_digest_algorithm": "sha256",
-      "content_digest": "9d794651151e77c543f00160d705d55c11b4af7e4388114da6923cb567970db4"
+      "content_digest": "9d794651151e77c543f00160d705d55c11b4af7e4388114da6923cb567970db4",
+      "receipt_path": "publications/1.0.0.receipt.json",
+      "receipt_digest_algorithm": "sha256",
+      "receipt_digest": "b92ceca8b7d41c473dff945f206c04e19c882d9971fb2975d118beabf355a06c",
+      "source_commit_sha": "ef12ffabd109d75d2a55d3802daa44f2160aa333",
+      "impact_scope": {
+        "graph_scope": "project:brainbase",
+        "affected_apis": [
+          "/api/info/ontology/*",
+          "/api/info/graph/*"
+        ],
+        "affected_agents": [
+          "brainbase-graph-agent",
+          "brainbase-mcp"
+        ],
+        "migration_required": true,
+        "verification": "production_shadow_audited_zero_residuals"
+      }
     }
   ]
 }
