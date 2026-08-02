@@ -1,0 +1,126 @@
+{
+  "schema_version": "0.1.0",
+  "spec_id": "SPEC-BRAINBASE-ONTOLOGY-KERNEL",
+  "story_id": "story-brainbase-ontology-kernel",
+  "version": "1.0.0",
+  "status": "accepted",
+  "architecture_ref": "docs/architecture/ADR-021-brainbase-ontology-kernel.md",
+  "clauses": [
+    {
+      "id": "ONT-001",
+      "type": "contract",
+      "statement": "Current Ontology release and every definition are machine-readable by stable ID, and invalid manifests fail loudly.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "current Ontology version and definitions are readable" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    },
+    {
+      "id": "ONT-002",
+      "type": "contract",
+      "statement": "Unknown entity types, relation types, and disallowed relation endpoints are rejected with rule-ID violations before generic Graph persistence.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "invalid relations are rejected before canonical Graph persistence" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    },
+    {
+      "id": "ONT-003",
+      "type": "invariant",
+      "statement": "Apps require an owner organization and active Decisions require a decider and an application scope; missing audit input is unverified, never zero violations.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "shared semantic constraints and dry-run audit" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    },
+    {
+      "id": "ONT-004",
+      "type": "scenario",
+      "statement": "Only an explicit effective supersedes edge resolves a current Decision; unrelated active Decisions remain a conflict with traceable evidence.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "Decision supersession is reproducible" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    },
+    {
+      "id": "ONT-005",
+      "type": "contract",
+      "statement": "Ontology evolution follows SemVer and preserves canonical identity, aliases, old IDs, provenance, migration, rollback, and explicit conflicts.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "versioned evolution and history interpretation" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    },
+    {
+      "id": "ONT-006",
+      "type": "contract",
+      "statement": "Info SSOT callers with a valid access context can read definitions and dry-run validation, inference, and impact analysis without persistence.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "API or MCP readback" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    },
+    {
+      "id": "ONT-007",
+      "type": "invariant",
+      "statement": "The MCP Core and Extension type projection remains compatible and existing Graph facts are not automatically modified.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "Core and Extension compatibility" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    }
+  ],
+  "requirements": [
+    {
+      "id": "ONT-001",
+      "title": "Manifest readback",
+      "shall": [
+        "Current release exposes version, previous version, effective date, compatibility, migration, and rollback metadata",
+        "Types, relations, constraints, inference rules, and change rules are addressable by stable IDs",
+        "An invalid manifest fails loudly at kernel construction"
+      ]
+    },
+    {
+      "id": "ONT-002",
+      "title": "Type and relation vocabulary",
+      "shall": [
+        "Registered types expose meaning and identity boundaries",
+        "Registered relations expose endpoint types, direction, cardinality, inverse or symmetry, lifecycle, and provenance",
+        "Unknown types, relations, and invalid endpoints produce rule-ID violations"
+      ]
+    },
+    {
+      "id": "ONT-003",
+      "title": "Constraints and dry-run audit",
+      "shall": [
+        "An app without an owner org is invalid",
+        "An active decision without a decider or scope is invalid",
+        "Entity, edge, and snapshot validation never persists data",
+        "Missing snapshot input returns unverified rather than zero violations"
+      ]
+    },
+    {
+      "id": "ONT-004",
+      "title": "Decision inference",
+      "shall": [
+        "Explicit effective supersedes edges resolve the current decision",
+        "Unrelated active decisions remain a conflict",
+        "Inference returns rule ID, ontology version, evidence, as-of time, and explanation"
+      ]
+    },
+    {
+      "id": "ONT-005",
+      "title": "Evolution, history, and impact",
+      "shall": [
+        "Breaking, additive, and patch changes map to SemVer",
+        "Rename, merge, and dedup rules preserve canonical identity and provenance",
+        "Impact reports distinguish evaluated snapshots from unverified input"
+      ]
+    },
+    {
+      "id": "ONT-006",
+      "title": "Info SSOT API",
+      "shall": [
+        "Authenticated callers can read the manifest and definitions",
+        "Authenticated callers can dry-run validation, decision inference, and impact analysis",
+        "Generic graph writes reject semantic violations before persistence"
+      ]
+    },
+    {
+      "id": "ONT-007",
+      "title": "Compatibility",
+      "shall": [
+        "MCP Core and Extension type projection remains compatible",
+        "Existing specialized relation names are registered",
+        "Existing graph facts are not automatically modified"
+      ]
+    }
+  ],
+  "test_plan": [
+    "manifest-contract",
+    "validation-contract",
+    "constraint-contract",
+    "decision-inference-contract",
+    "evolution-impact-contract",
+    "info-ssot-integration"
+  ]
+}

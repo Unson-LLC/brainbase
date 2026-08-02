@@ -6,11 +6,12 @@ source_requirement:
   approved_at: 2026-08-02
 architecture_docs:
   - path: docs/architecture/ADR-021-brainbase-ontology-kernel.md
-    status: required
+    status: accepted
 related_tasks:
   - task_source: VibePro
-    task_ids: []
-status: draft
+    task_ids:
+      - ONT-KERNEL-001
+status: active
 created_at: 2026-08-02
 updated_at: 2026-08-02
 ---
@@ -119,7 +120,7 @@ agentが未登録の`rel_type`や許可されていない型同士のedgeを書�
 - 既存Graphデータを一括で自動修正または物理削除すること
 - Skills、Commands、project文書、Automation Run、Personal KGの内容をGraphへ複製すること
 - 根拠のない関係、Decisionの優先順位、entity統合をAIが自動確定すること
-- 5領域すべてを一度のreleaseで実装すること。実装順序はArchitectureと後続Spec/Taskで分割する。
+- 一般用途の完全なOntology推論基盤を一度のreleaseで実装すること。最初のreleaseでは5領域それぞれの最小契約を実装し、Graph全件監査や自動移行は後続Taskに分割する。
 
 ---
 
