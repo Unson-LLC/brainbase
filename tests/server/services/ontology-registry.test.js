@@ -19,8 +19,12 @@ describe('OntologyRegistry', () => {
         expect(() => registry.resolve()).toThrowError(expect.objectContaining({ code: 'ONTOLOGY_CURRENT_UNAVAILABLE' }));
     });
 
-    it('resolves exact effective_at and rejects time before the first release', () => {
+    it('rejects implicit historical resolution until a current release exists', () => {
         const registry = new OntologyRegistry({ rootDir });
+        expect(() => registry.resolve({ asOf: '2026-08-01T00:00:00.000Z' })).toThrowError(expect.objectContaining({
+            code: 'ONTOLOGY_CURRENT_UNAVAILABLE'
+        }));
+        registry.index.current = '1.0.0';
         expect(registry.resolve({ asOf: '2026-08-01T00:00:00.000Z' }).kernel.version).toBe('1.0.0');
         expect(() => registry.resolve({ asOf: '2026-07-31T23:59:59.999Z' })).toThrow(OntologyError);
     });

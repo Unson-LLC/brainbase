@@ -10,6 +10,24 @@ const buildHeaders = () => ({
 });
 
 describe('Info SSOT context route', () => {
+    it('POST /api/info/ontology/infer/decisions exposes the canonical decision inference route', async () => {
+        const service = {
+            inferOntology: vi.fn(() => ({ ontology_version: '1.0.0', decisions: {}, evidence: [] }))
+        };
+        const app = express();
+        app.use(express.json());
+        app.use('/api/info', createInfoSSOTRouter(service));
+
+        const res = await request(app)
+            .post('/api/info/ontology/infer/decisions')
+            .set(buildHeaders())
+            .send({ version: '1.0.0', snapshot: { entities: [], edges: [] } })
+            .expect(200);
+
+        expect(res.body.ontology_version).toBe('1.0.0');
+        expect(service.inferOntology).toHaveBeenCalledWith(expect.objectContaining({ version: '1.0.0' }));
+    });
+
     it('GET /api/info/context呼び出し時_philosophy queryをServiceへ渡す', async () => {
         const service = {
             getContext: vi.fn(async () => ({

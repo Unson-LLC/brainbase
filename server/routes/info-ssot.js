@@ -15,6 +15,7 @@ export function createInfoSSOTRouter(infoSSOTService) {
     router.get('/ontology/types/:id', controller.getOntologyType);
     router.get('/ontology/relations/:id', controller.getOntologyRelation);
     router.post('/ontology/validate', controller.validateOntology);
+    router.post('/ontology/infer/decisions', controller.inferOntology);
     router.post('/ontology/infer', controller.inferOntology);
     router.post('/ontology/impact', controller.impactOntology);
     router.post('/ontology/audit', controller.auditOntology);

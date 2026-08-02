@@ -6,7 +6,13 @@ const REQUIRED_MANIFEST_KEYS = [
     'relation_types',
     'constraints',
     'inference_rules',
-    'evolution_rules'
+    'evolution_rules',
+    'previous_version',
+    'compatibility',
+    'migration',
+    'rollback',
+    'governance',
+    'changes'
 ];
 const REQUIRED_TYPE_FIELDS = ['description', 'identity', 'usage', 'examples', 'counter_examples', 'owner'];
 const REQUIRED_RELATION_FIELDS = ['from', 'to', 'direction', 'cardinality', 'lifecycle', 'provenance'];
@@ -25,7 +31,7 @@ function violation(ruleId, message, extra = {}) {
 }
 
 function assertManifest(manifest) {
-    const missing = REQUIRED_MANIFEST_KEYS.filter((key) => manifest?.[key] == null);
+    const missing = REQUIRED_MANIFEST_KEYS.filter((key) => !Object.hasOwn(manifest || {}, key));
     if (missing.length) {
         throw new OntologyError('ONTOLOGY_MANIFEST_INVALID', `Ontology manifest is missing: ${missing.join(', ')}`, { missing });
     }
@@ -44,6 +50,13 @@ function assertManifest(manifest) {
             invalid_types: invalidTypes,
             invalid_relations: invalidRelations
         });
+    }
+    if (!Array.isArray(manifest.changes)
+        || !['initial', 'backward_compatible', 'breaking'].includes(manifest.compatibility?.classification)
+        || typeof manifest.migration?.required !== 'boolean'
+        || typeof manifest.rollback?.strategy !== 'string'
+        || !manifest.governance || typeof manifest.governance !== 'object') {
+        throw new OntologyError('ONTOLOGY_MANIFEST_INVALID', 'Ontology release governance metadata is incomplete');
     }
 }
 
@@ -220,10 +233,29 @@ export class OntologyKernel {
                 representative_ids: [],
                 affected_apis: change.affected_apis || [],
                 affected_agents: change.affected_agents || [],
-                migration_required: semver === 'major'
+                migration_required: semver === 'major',
+                history_required: this.manifest.evolution_rules.history_required_for.includes(kind)
             };
         }
-        const ids = (snapshot.entities || []).filter((entity) => !change.type || (entity.type || entity.entity_type) === change.type).map((entity) => entity.id);
+        const entityIds = (snapshot.entities || [])
+            .filter((entity) => !change.type || (entity.type || entity.entity_type) === change.type)
+            .map((entity) => entity.id);
+        const edgeIds = (snapshot.edges || [])
+            .filter((edge) => !change.relation || (edge.relation || edge.rel_type) === change.relation)
+            .map((edge) => edge.id || `${edge.from_id}:${edge.relation || edge.rel_type}:${edge.to_id}`);
+        let ids = change.relation ? edgeIds : entityIds;
+        if (change.rule_id) {
+            const rule = [...this.manifest.constraints, ...this.manifest.inference_rules]
+                .find((candidate) => candidate.id === change.rule_id);
+            if (!rule) {
+                throw new OntologyError('ONTOLOGY_RULE_UNKNOWN', `Unknown ontology rule: ${change.rule_id}`);
+            }
+            ids = rule.relation
+                ? (snapshot.edges || []).filter((edge) => (edge.relation || edge.rel_type) === rule.relation)
+                    .map((edge) => edge.id || `${edge.from_id}:${edge.relation || edge.rel_type}:${edge.to_id}`)
+                : (snapshot.entities || []).filter((entity) => !rule.target || (entity.type || entity.entity_type) === rule.target)
+                    .map((entity) => entity.id);
+        }
         return {
             ontology_version: this.version,
             semver,
@@ -232,7 +264,31 @@ export class OntologyKernel {
             representative_ids: ids.slice(0, 10),
             affected_apis: change.affected_apis || [],
             affected_agents: change.affected_agents || [],
-            migration_required: semver === 'major'
+            migration_required: semver === 'major',
+            history_required: this.manifest.evolution_rules.history_required_for.includes(kind)
+        };
+    }
+
+    planEvolution(change = {}) {
+        const kind = change.kind;
+        if (!this.manifest.evolution_rules.history_required_for.includes(kind)) {
+            throw new OntologyError('ONTOLOGY_EVOLUTION_KIND_INVALID', `Evolution kind does not require identity history: ${kind}`);
+        }
+        const required = ['canonical_id', 'source_ids', 'effective_at'];
+        const missing = required.filter((field) => !change[field]
+            || (field === 'source_ids' && (!Array.isArray(change[field]) || change[field].length === 0)));
+        if (missing.length) {
+            throw new OntologyError('ONTOLOGY_EVOLUTION_HISTORY_REQUIRED', `Evolution history is missing: ${missing.join(', ')}`, { missing });
+        }
+        return {
+            event_type: `ontology_${kind}`,
+            ontology_version: this.version,
+            canonical_id: change.canonical_id,
+            source_ids: [...new Set(change.source_ids)],
+            aliases: kind === 'rename' ? [...new Set(change.source_ids)] : [],
+            provenance: change.provenance || [],
+            effective_at: change.effective_at,
+            conflict_policy: change.conflict_policy || 'explicit_decision_required'
         };
     }
 }

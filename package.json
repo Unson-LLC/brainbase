@@ -39,7 +39,7 @@
     "test:server": "INTERNAL_API_SECRET=${BRAINBASE_E2E_INTERNAL_API_SECRET:-brainbase-e2e-internal-api-secret} BRAINBASE_TEST_MODE=true BRAINBASE_VAR_DIR=${BRAINBASE_E2E_VAR_DIR:-var/e2e-runtime} BRAINBASE_STATE_PATH=${BRAINBASE_E2E_VAR_DIR:-var/e2e-runtime}/state.json BRAINBASE_ALLOW_DIRECT_SERVER=1 node server.js",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:integration:ontology": "vitest run tests/server/controllers/ontology-controller.test.js tests/server/services/ontology-api.test.js tests/server/services/ontology-mcp-projection.test.js",
+    "test:integration:ontology": "vitest run tests/server/controllers/ontology-controller.test.js tests/server/routes/info-ssot-context.test.js tests/server/services/ontology-api.test.js tests/server/services/ontology-mcp-projection.test.js tests/server/scripts/ontology-release-verify.test.js",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit -p public/jsconfig.json",
     "test:mobile": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js",

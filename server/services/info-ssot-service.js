@@ -156,36 +156,60 @@ export class InfoSSOTService {
         });
     }
 
-    async auditOntology(access, { limit = 500 } = {}) {
+    async auditOntology(access, { limit = 500, cursor = null } = {}) {
         const { kernel } = this.ontologyRegistry.resolve();
         const safeLimit = Math.min(Math.max(Number(limit) || 500, 1), 1000);
         return this.withAccessContext(access, async (client) => {
+            const entities = [];
+            const edges = [];
+            let entityCursor = cursor?.entity_id || null;
+            let edgeCursor = cursor?.edge || null;
+            let completedCursorCount = 0;
+            let failurePosition = null;
             try {
-                const entityResult = await client.query(
-                    `SELECT id, entity_type AS type, payload
-                     FROM graph_entities
-                     ORDER BY id
-                     LIMIT $1`,
-                    [safeLimit + 1]
-                );
-                const edgeResult = await client.query(
-                    `SELECT from_id, to_id, rel_type AS relation, payload
-                     FROM graph_edges
-                     ORDER BY from_id, to_id, rel_type
-                     LIMIT $1`,
-                    [safeLimit + 1]
-                );
-                const truncated = entityResult.rows.length > safeLimit || edgeResult.rows.length > safeLimit;
-                const entities = entityResult.rows.slice(0, safeLimit);
-                const edges = edgeResult.rows.slice(0, safeLimit);
-                const validation = kernel.validateSnapshot({ entities, edges, complete: !truncated });
+                while (true) {
+                    failurePosition = { phase: 'entities', cursor: entityCursor };
+                    const result = await client.query(
+                        `SELECT id, entity_type AS type, payload
+                         FROM graph_entities
+                         WHERE ($1::text IS NULL OR id > $1)
+                         ORDER BY id
+                         LIMIT $2`,
+                        [entityCursor, safeLimit]
+                    );
+                    entities.push(...result.rows);
+                    completedCursorCount += 1;
+                    if (result.rows.length < safeLimit) break;
+                    entityCursor = result.rows.at(-1).id;
+                }
+                while (true) {
+                    failurePosition = { phase: 'edges', cursor: edgeCursor };
+                    const result = await client.query(
+                        `SELECT from_id, to_id, rel_type AS relation, payload
+                         FROM graph_edges
+                         WHERE ($1::text IS NULL OR (from_id, to_id, rel_type) > ($1::text, $2::text, $3::text))
+                         ORDER BY from_id, to_id, rel_type
+                         LIMIT $4`,
+                        [edgeCursor?.from_id || null, edgeCursor?.to_id || null, edgeCursor?.relation || null, safeLimit]
+                    );
+                    edges.push(...result.rows);
+                    completedCursorCount += 1;
+                    if (result.rows.length < safeLimit) break;
+                    const last = result.rows.at(-1);
+                    edgeCursor = { from_id: last.from_id, to_id: last.to_id, relation: last.relation };
+                }
+                const validation = kernel.validateSnapshot({ entities, edges, complete: true });
                 return {
                     ...validation,
                     completeness: {
-                        status: truncated ? 'partial' : 'complete',
+                        status: 'complete',
                         entity_count: entities.length,
                         edge_count: edges.length,
                         limit: safeLimit,
+                        cursor,
+                        next_cursor: null,
+                        completed_cursor_count: completedCursorCount,
+                        failure_position: null,
                         failure: null
                     }
                 };
@@ -197,9 +221,15 @@ export class InfoSSOTService {
                     violations: [],
                     completeness: {
                         status: 'failed',
-                        entity_count: 0,
-                        edge_count: 0,
+                        entity_count: entities.length,
+                        edge_count: edges.length,
                         limit: safeLimit,
+                        cursor,
+                        next_cursor: failurePosition?.phase === 'entities'
+                            ? { entity_id: failurePosition.cursor, edge: cursor?.edge || null }
+                            : { entity_id: entityCursor, edge: failurePosition?.cursor || null },
+                        completed_cursor_count: completedCursorCount,
+                        failure_position: failurePosition,
                         failure: error instanceof Error ? error.message : String(error)
                     }
                 };
@@ -212,9 +242,7 @@ export class InfoSSOTService {
             'release_version',
             'source_commit_sha',
             'release_digest',
-            'decision_id',
-            'scope_entity_id',
-            'applier_entity_id'
+            'decision_id'
         ];
         const missing = requiredFields.filter((field) => !input[field]);
         if (missing.length || !/^[a-f0-9]{40}$/.test(input.source_commit_sha || '')) {
@@ -229,8 +257,8 @@ export class InfoSSOTService {
                 http_status: 401
             });
         }
-        if (access.personId !== input.applier_entity_id) {
-            throw new OntologyError('ONTOLOGY_PUBLICATION_FORBIDDEN', 'Authenticated actor must match the release applier', {
+        if (input.applier_entity_id && access.personId !== input.applier_entity_id) {
+            throw new OntologyError('ONTOLOGY_PUBLICATION_FORBIDDEN', 'Requested applier does not match the authenticated actor', {
                 http_status: 403
             });
         }
@@ -281,6 +309,19 @@ export class InfoSSOTService {
                     mismatches
                 });
             }
+            const scopeEntityId = decision.ontology_scope_entity_id;
+            if (!scopeEntityId) {
+                throw new OntologyError('ONTOLOGY_PUBLICATION_BINDING_MISMATCH', 'Decision does not bind an ontology scope', {
+                    http_status: 409,
+                    mismatches: ['ontology_scope_entity_id']
+                });
+            }
+            if (input.scope_entity_id && input.scope_entity_id !== scopeEntityId) {
+                throw new OntologyError('ONTOLOGY_PUBLICATION_BINDING_MISMATCH', 'Requested scope does not match the Decision binding', {
+                    http_status: 409,
+                    mismatches: ['ontology_scope_entity_id']
+                });
+            }
             const authorityResult = await client.query(
                 `SELECT 1
                  FROM graph_entities r
@@ -293,21 +334,21 @@ export class InfoSSOTService {
                  WHERE r.entity_type IN ('raci', 'raci_assignment')
                    AND COALESCE(r.payload->>'role_code', r.payload->>'role') IN ('A', 'accountable', 'Accountable')
                  LIMIT 1`,
-                [access.personId, input.scope_entity_id]
+                [access.personId, scopeEntityId]
             );
             if (!authorityResult.rows.length) {
                 throw new OntologyError('ONTOLOGY_PUBLICATION_FORBIDDEN', 'Accountable RACI authority was not confirmed for the scope', {
                     http_status: 403,
-                    scope_entity_id: input.scope_entity_id
+                    scope_entity_id: scopeEntityId
                 });
             }
             const payload = {
                 actor_entity_id: access.personId,
-                applier_entity_id: input.applier_entity_id,
+                applier_entity_id: access.personId,
                 decision_id: input.decision_id,
                 release_digest: input.release_digest,
                 release_version: input.release_version,
-                scope_entity_id: input.scope_entity_id,
+                scope_entity_id: scopeEntityId,
                 source_commit_sha: input.source_commit_sha
             };
             return {
@@ -1201,18 +1242,29 @@ export class InfoSSOTService {
         this.assertWriteAccess(access, { projectCode, roleMin, sensitivity });
 
         const guard = this.getOntologyGuard();
-        if (guard.guard_status === 'active_current') {
-            const { kernel } = this.ontologyRegistry.resolve();
-            this.assertOntologyValid(kernel.validateEdge({
-                from_id: fromId,
-                to_id: toId,
-                relation: relType,
-                from_type: input.fromType,
-                to_type: input.toType
-            }));
-        }
-
         return this.withAccessContext(access, async (client) => {
+            if (guard.guard_status === 'active_current') {
+                const endpointResult = await client.query(
+                    `SELECT id, entity_type
+                     FROM graph_entities
+                     WHERE id = ANY($1::text[])`,
+                    [[fromId, toId]]
+                );
+                const endpointTypes = new Map(endpointResult.rows.map((row) => [row.id, row.entity_type]));
+                if (!endpointTypes.has(fromId) || !endpointTypes.has(toId)) {
+                    throw new OntologyError('ONTOLOGY_EDGE_ENDPOINT_NOT_FOUND', 'Graph edge endpoints must exist and be visible', {
+                        missing_endpoint_ids: [fromId, toId].filter((id) => !endpointTypes.has(id))
+                    });
+                }
+                const { kernel } = this.ontologyRegistry.resolve();
+                this.assertOntologyValid(kernel.validateEdge({
+                    from_id: fromId,
+                    to_id: toId,
+                    relation: relType,
+                    from_type: endpointTypes.get(fromId),
+                    to_type: endpointTypes.get(toId)
+                }));
+            }
             const projectId = await this.ensureProject(client, { projectCode, projectName });
             await this.upsertGraphEdge(client, {
                 fromId,

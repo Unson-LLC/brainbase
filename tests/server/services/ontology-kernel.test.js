@@ -30,6 +30,15 @@ const manifest = {
     inference_rules: [{ id: 'decision-supersession', relation: 'supersedes' }],
     evolution_rules: { breaking: 'major', additive: 'minor', editorial: 'patch' }
 };
+Object.assign(manifest, {
+    previous_version: null,
+    compatibility: { classification: 'initial', compatible_from: null },
+    migration: { required: false, plan: null },
+    rollback: { strategy: 'restore_previous_current', target_version: null },
+    governance: { decision_id: null, scope_entity_id: null, proposer_entity_id: null, decider_entity_id: null, applier_entity_id: null },
+    changes: []
+});
+manifest.evolution_rules.history_required_for = ['rename', 'merge', 'split'];
 
 for (const definition of Object.values(manifest.entity_types)) {
     Object.assign(definition, {
@@ -119,6 +128,38 @@ describe('OntologyKernel', () => {
             verification: 'unverified',
             migration_required: false,
             match_count: null
+        });
+    });
+
+    it('finds relation and rule impact across edges and entities', () => {
+        const snapshot = {
+            entities: [{ id: 'app_1', type: 'app' }, { id: 'decision_1', type: 'decision' }],
+            edges: [{ from_id: 'decision_1', to_id: 'app_1', relation: 'governs' }]
+        };
+        expect(kernel().impact({ change: { kind: 'narrow_endpoint', relation: 'governs' }, snapshot })).toMatchObject({
+            match_count: 1,
+            representative_ids: ['decision_1:governs:app_1']
+        });
+        expect(kernel().impact({ change: { kind: 'editorial', rule_id: 'active-decision-context-required' }, snapshot })).toMatchObject({
+            match_count: 1,
+            representative_ids: ['decision_1']
+        });
+    });
+
+    it('requires canonical identity and provenance fields for rename history', () => {
+        expect(() => kernel().planEvolution({ kind: 'rename' })).toThrowError(expect.objectContaining({
+            code: 'ONTOLOGY_EVOLUTION_HISTORY_REQUIRED'
+        }));
+        expect(kernel().planEvolution({
+            kind: 'rename',
+            canonical_id: 'app:brainbase',
+            source_ids: ['app:old-brainbase'],
+            effective_at: '2026-08-02T00:00:00.000Z',
+            provenance: ['decision:rename-brainbase']
+        })).toMatchObject({
+            canonical_id: 'app:brainbase',
+            aliases: ['app:old-brainbase'],
+            conflict_policy: 'explicit_decision_required'
         });
     });
 

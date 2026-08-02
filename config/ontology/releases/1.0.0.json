@@ -3,6 +3,27 @@
   "version": "1.0.0",
   "initial_status": "proposed",
   "effective_at": "2026-08-01T00:00:00.000Z",
+  "previous_version": null,
+  "compatibility": {
+    "classification": "initial",
+    "compatible_from": null
+  },
+  "migration": {
+    "required": false,
+    "plan": null
+  },
+  "rollback": {
+    "strategy": "restore_previous_current",
+    "target_version": null
+  },
+  "governance": {
+    "decision_id": null,
+    "scope_entity_id": null,
+    "proposer_entity_id": null,
+    "decider_entity_id": null,
+    "applier_entity_id": null
+  },
+  "changes": [],
   "entity_types": {
     "org": { "meaning": "法的または運営上の組織", "description": "法的または運営上の組織", "identity": "継続的な責任主体", "usage": "所有・契約・RACIのscope", "examples": ["Unson LLC"], "counter_examples": ["期限付きproject"], "owner": "ontology-steward", "category": "core", "default_search": true },
     "person": { "meaning": "組織や判断に参加する人物", "description": "組織や判断に参加する人物", "identity": "一意な自然人", "usage": "意思決定者・担当者・関係者", "examples": ["佐藤圭吾"], "counter_examples": ["service account"], "owner": "ontology-steward", "category": "core", "default_search": true },

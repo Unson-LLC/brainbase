@@ -39,15 +39,18 @@ export class OntologyRegistry {
         let entry;
         if (version) {
             entry = this.index.releases.find((release) => release.version === version);
-        } else if (asOf) {
-            const target = parseTime(asOf, 'asOf');
-            entry = this.index.releases
-                .filter((release) => parseTime(release.effective_at, 'release effective_at') <= target)
-                .sort((left, right) => parseTime(right.effective_at, 'release effective_at') - parseTime(left.effective_at, 'release effective_at'))[0];
         } else {
             if (!this.hasCurrent()) {
                 throw new OntologyError('ONTOLOGY_CURRENT_UNAVAILABLE', 'No current ontology release has been published');
             }
+        }
+        if (!version && asOf) {
+            const target = parseTime(asOf, 'asOf');
+            entry = this.index.releases
+                .filter((release) => (release.receipt_path || release.version === this.index.current || release.status === 'retired')
+                    && parseTime(release.effective_at, 'release effective_at') <= target)
+                .sort((left, right) => parseTime(right.effective_at, 'release effective_at') - parseTime(left.effective_at, 'release effective_at'))[0];
+        } else if (!version) {
             entry = this.index.releases.find((release) => release.version === this.index.current);
         }
 

@@ -19,6 +19,8 @@ async function main() {
     const rootDir = process.cwd();
     const version = option('version');
     if (!version) throw new Error('--version is required');
+    const decisionId = option('decision-id') || process.env.ONTOLOGY_DECISION_ID;
+    if (!decisionId) throw new Error('--decision-id is required');
     const status = execFileSync('git', ['status', '--porcelain'], { cwd: rootDir, encoding: 'utf8' }).trim();
     if (status) throw new Error('source checkout must be clean before publication');
     const sourceCommit = option('source-commit') || execFileSync('git', ['rev-parse', 'HEAD'], { cwd: rootDir, encoding: 'utf8' }).trim();
@@ -47,9 +49,7 @@ async function main() {
             release_version: version,
             source_commit_sha: sourceCommit,
             release_digest: entry.content_digest,
-            decision_id: required('ONTOLOGY_DECISION_ID'),
-            scope_entity_id: required('ONTOLOGY_SCOPE_ENTITY_ID'),
-            applier_entity_id: required('ONTOLOGY_APPLIER_ENTITY_ID')
+            decision_id: decisionId
         })
     });
     const receipt = await response.json().catch(() => ({}));

@@ -16,7 +16,8 @@ function authorityService({ accountable = true, decision = true } = {}) {
     const inputBindings = {
         ontology_release_version: '1.0.0',
         ontology_release_digest: release.digest,
-        ontology_source_commit_sha: 'a'.repeat(40)
+        ontology_source_commit_sha: 'a'.repeat(40),
+        ontology_scope_entity_id: 'project:brainbase'
     };
     const client = {
         query: async (sql) => {
@@ -46,11 +47,19 @@ describe('Ontology publication authority', () => {
         const { privateKey, publicKey } = generateKeyPairSync('ed25519');
         vi.stubEnv('ONTOLOGY_RECEIPT_PRIVATE_KEY', privateKey.export({ type: 'pkcs8', format: 'pem' }).toString());
         vi.stubEnv('ONTOLOGY_RECEIPT_KEY_ID', 'ontology-test-key');
+        const publicationRequest = request();
+        delete publicationRequest.scope_entity_id;
+        delete publicationRequest.applier_entity_id;
         const receipt = await authorityService().authorizeOntologyPublication({
             role: 'gm', projectCodes: ['brainbase'], clearance: ['internal'], personId: 'person:applier'
-        }, request());
+        }, publicationRequest);
         expect(receipt).toMatchObject({ signature_algorithm: 'ed25519', key_id: 'ontology-test-key' });
-        expect(receipt.payload).toMatchObject({ actor_entity_id: 'person:applier', release_version: '1.0.0' });
+        expect(receipt.payload).toMatchObject({
+            actor_entity_id: 'person:applier',
+            applier_entity_id: 'person:applier',
+            scope_entity_id: 'project:brainbase',
+            release_version: '1.0.0'
+        });
         expect(verifyPublicationReceipt(receipt, publicKey.export({ type: 'spki', format: 'pem' }))).toBe(true);
     });
 

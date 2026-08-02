@@ -88,4 +88,68 @@ describe('InfoSSOTService ontology API', () => {
         expect(statements).not.toContain('COMMIT');
         expect(statements.some((sql) => String(sql).includes('INSERT INTO graph_entities'))).toBe(false);
     });
+
+    it('resolves stored endpoint types before guarding an existing edge write', async () => {
+        const writes = [];
+        const client = {
+            query: async (sql) => {
+                const text = String(sql);
+                if (text.includes('WHERE id = ANY')) return { rows: [{ id: 'app:a', entity_type: 'app' }, { id: 'app:b', entity_type: 'app' }] };
+                if (text.includes('SELECT id FROM projects')) return { rows: [{ id: 'project:brainbase' }] };
+                if (text.includes('INSERT INTO graph_edges')) writes.push(text);
+                return { rows: [] };
+            },
+            release: () => {}
+        };
+        const service = new InfoSSOTService({ ontologyRegistry: activeRegistry(), pool: { connect: async () => client } });
+        const result = await service.createOrUpdateGraphEdge(
+            { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] },
+            { fromId: 'app:a', toId: 'app:b', relType: 'depends_on', projectCode: 'brainbase', roleMin: 'member', sensitivity: 'internal' }
+        );
+        expect(result).toMatchObject({ guard_status: 'active_current', ontology_version: '1.0.0' });
+        expect(writes).toHaveLength(1);
+    });
+
+    it('rejects an edge when persisted endpoint types violate the current relation', async () => {
+        const client = {
+            query: async (sql) => String(sql).includes('WHERE id = ANY')
+                ? { rows: [{ id: 'app:a', entity_type: 'app' }, { id: 'decision:b', entity_type: 'decision' }] }
+                : { rows: [] },
+            release: () => {}
+        };
+        const service = new InfoSSOTService({ ontologyRegistry: activeRegistry(), pool: { connect: async () => client } });
+        await expect(service.createOrUpdateGraphEdge(
+            { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] },
+            { fromId: 'app:a', toId: 'decision:b', relType: 'depends_on', projectCode: 'brainbase', roleMin: 'member', sensitivity: 'internal' }
+        )).rejects.toMatchObject({ code: 'ONTOLOGY_VALIDATION_FAILED' });
+    });
+
+    it('audits every access-scoped cursor page and reports completeness evidence', async () => {
+        let entityPage = 0;
+        let edgePage = 0;
+        const client = {
+            query: async (sql) => {
+                const text = String(sql);
+                if (text.includes('FROM graph_entities') && text.includes('ORDER BY id')) {
+                    entityPage += 1;
+                    return { rows: entityPage === 1 ? [{ id: 'org:a', type: 'org', payload: {} }] : [] };
+                }
+                if (text.includes('FROM graph_edges') && text.includes('ORDER BY from_id')) {
+                    edgePage += 1;
+                    return { rows: edgePage === 1 ? [{ from_id: 'org:a', to_id: 'org:a', relation: 'derived_from', payload: {} }] : [] };
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        };
+        const service = new InfoSSOTService({ ontologyRegistry: activeRegistry(), pool: { connect: async () => client } });
+        const result = await service.auditOntology(
+            { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] },
+            { limit: 1 }
+        );
+        expect(result.completeness).toMatchObject({
+            status: 'complete', entity_count: 1, edge_count: 1, next_cursor: null, completed_cursor_count: 4
+        });
+        expect(result.verification).toBe('verified');
+    });
 });
