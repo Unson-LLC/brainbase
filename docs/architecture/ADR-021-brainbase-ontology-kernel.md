@@ -24,14 +24,16 @@ Ontology定義をGraphの通常entityとして保存すると、Graphの事実�
 
 ### 1. 正本
 
-`config/ontology/brainbase-ontology.v1.json`をOntology releaseの機械可読な正本とする。manifestは次を一つのreleaseとして保持する。
+`config/ontology/releases/<semver>.json`を変更不能なOntology releaseの機械可読な正本とし、`config/ontology/index.json`をversion、`effective_at`、statusからreleaseを解決するindexとする。`config/ontology/brainbase-ontology.v1.json`はactive releaseへの互換viewであり、release本体ではない。manifestは次を一つのreleaseとして保持する。
 
 - semantic version、前version、適用日時、互換性、migration、rollback
 - 型の意味、identity境界、利用条件、例・反例、owner
 - 関係の意味、始点型、終点型、向き、基数、逆関係、lifecycle
 - 制約、推論規則、競合・変更規則
 
-Graph SSOTは引き続き人、組織、project、Decision、RACIなどの事実の正本であり、Ontology manifestをGraph entityへ複製しない。Git commit・review・releaseがOntology変更の承認履歴になる。
+Graph SSOTは引き続き人、組織、project、Decision、RACIなどの事実の正本であり、Ontology manifestをGraph entityへ複製しない。Git commit・reviewは変更内容の証跡、Graph RACIは誰が提案・決裁・適用できるかの権限正本とする。releaseは`proposed -> approved -> active -> retired`を取り、提案者、決裁者、適用者のentity IDと根拠Decision IDを持つ。決裁者が対象scopeでAccountableでないrelease、または承認証跡のないreleaseをindexのactiveへ昇格できない。
+
+ADR-007の型catalogは既存storage型の初期整理として残し、本ADRはpublic型とstorage型の対応を明確化する。manifestの型には`public_id`、`storage_type`、`visibility`、`aliases`を持たせ、MCPの`raci` -> DBの`raci_assignment`のようなprojectionを明示する。既存利用中の型・relationはinventoryで`canonical`、`compatibility`、`internal`、`rejected`に分類し、未分類値は強制開始前に監査対象とする。
 
 ### 2. 実行境界
 
@@ -39,12 +41,12 @@ Graph SSOTは引き続き人、組織、project、Decision、RACIなどの事実
 
 最初のreleaseでは以下を強制する。
 
-- 汎用Graph entity APIは未登録型を保存前に拒否する。
-- 汎用Graph edge APIは未登録関係と許可されない型組み合わせを保存前に拒否する。
+- 新設する`POST /api/info/ontology/graph/commit`はentityと必須edgeを同一transactionのaggregateとして検証・保存し、ownerなしappやdecider/scopeなしactive Decisionをcanonical Graphへ残さない。
+- 既存の分離された汎用Graph entity/edge APIはv1では登録型・relation・endpointだけを保存前検証し、必須relation制約はatomic commitまたはauditで評価する。既存clientの移行完了まではownerなしentity単体作成を直ちに破壊しない。
 - dry-run APIはentity、edge、Graph snapshotを保存せず検証する。
 - 既存の専用write pathは互換性維持のため直ちに全面遮断せず、既存relationをmanifestへ登録し、後続で同じguardへ収束させる。
 
-既存Graph全件の自動修正・削除は行わない。監査入力を渡せない場合やDB接続に失敗した場合は違反0件ではなく`unverified`として返す。
+既存Graph全件の自動修正・削除は行わない。`POST /api/info/ontology/audit`はaccess contextで許可されたprojectまたは明示entity ID集合をserver側でpaginationして読み、件数、cursor完走、取得失敗、scope、Ontology versionをcompleteness metadataとして返す。途中失敗、scope不明、DB接続失敗は違反0件ではなく`unverified`とする。caller提供snapshotのdry-runはcanonical Graph監査を名乗らない。
 
 ### 3. 推論
 
@@ -56,11 +58,11 @@ Graph SSOTは引き続き人、組織、project、Decision、RACIなどの事実
 
 versionはSemVerとし、型・関係の削除、意味変更、許容endpointの縮小はmajor、後方互換な追加はminor、説明や非意味的修正はpatchとする。releaseには`effective_at`、`previous_version`、compatibility、migration、rollbackを必須とする。
 
-名称変更は同じcanonical IDとalias/effective dateで扱う。統合・重複解消は旧IDを削除せずcanonical IDへの明示mappingを残す。異なる定義が同時に有効で優先根拠がなければ自動統合せずconflictとする。過去factは記録されたOntology version、未記録なら当時有効だったreleaseで解釈する。
+名称変更は同じcanonical IDとalias/effective dateで扱う。統合・重複解消は旧IDを削除せずcanonical IDへの明示mappingを残す。異なる定義が同時に有効で優先根拠がなければ自動統合せずconflictとする。過去factは記録されたOntology version、未記録ならindexから当時有効だったimmutable releaseを解決して解釈する。versionも時刻も解決できなければ`unverified`とする。
 
 ### 5. readbackとaccess
 
-既存Info SSOT access contextの検証を通したAPIから、current manifest、型・関係定義、dry-run検証、Decision推論、impact reportをreadbackできるようにする。エラーはrule IDを持つ構造化結果として返し、保存APIでは400に変換する。
+既存Info SSOT access contextの検証を通したAPIから、current/as-of/version指定manifest、型・関係定義、dry-run検証、bounded Graph audit、Decision推論、impact reportをreadbackできるようにする。エラーはrule IDを持つ構造化結果として返し、保存APIでは400に変換する。
 
 ## 代替案
 
@@ -73,6 +75,5 @@ versionはSemVerとし、型・関係の削除、意味変更、許容endpoint�
 
 - Ontology変更はコードreview対象になり、version・適用日・rollbackが一体になる。
 - 汎用Graph APIで意味違反を保存前に止められる。
-- 既存専用write pathの完全移行とDB全件監査は後続Taskとして明示的に残る。
+- 既存専用write pathの完全移行とscopeなしの全DB監査は後続Taskとして明示的に残る。v1でも権限scopeを限定したDB-backed auditは提供する。
 - MCPの既存Core/Extension表示契約は維持し、manifestとの不一致をcontract testで検出する。
-

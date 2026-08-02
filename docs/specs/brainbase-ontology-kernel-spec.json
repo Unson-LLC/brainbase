@@ -9,7 +9,7 @@
     {
       "id": "ONT-001",
       "type": "contract",
-      "statement": "Current Ontology release and every definition are machine-readable by stable ID, and invalid manifests fail loudly.",
+      "statement": "Immutable Ontology releases and every definition are machine-readable by stable ID and resolvable by current, version, or as-of; invalid manifests fail loudly.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "current Ontology version and definitions are readable" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     },
     {
@@ -21,7 +21,7 @@
     {
       "id": "ONT-003",
       "type": "invariant",
-      "statement": "Apps require an owner organization and active Decisions require a decider and an application scope; missing audit input is unverified, never zero violations.",
+      "statement": "Atomic commits prevent Apps without an owner organization and active Decisions without a decider or scope; incomplete DB audits are unverified, never zero violations.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "shared semantic constraints and dry-run audit" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     },
     {
@@ -33,13 +33,13 @@
     {
       "id": "ONT-005",
       "type": "contract",
-      "statement": "Ontology evolution follows SemVer and preserves canonical identity, aliases, old IDs, provenance, migration, rollback, and explicit conflicts.",
+      "statement": "Ontology evolution follows SemVer, preserves immutable historical releases and canonical identity, and resolves past facts by recorded version or as-of time.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "versioned evolution and history interpretation" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     },
     {
       "id": "ONT-006",
       "type": "contract",
-      "statement": "Info SSOT callers with a valid access context can read definitions and dry-run validation, inference, and impact analysis without persistence.",
+      "statement": "Info SSOT callers with a valid access context can read current or historical definitions, dry-run, run bounded DB audits, atomically commit aggregates, infer decisions, and analyze impact.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "API or MCP readback" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     },
     {
@@ -47,6 +47,12 @@
       "type": "invariant",
       "statement": "The MCP Core and Extension type projection remains compatible and existing Graph facts are not automatically modified.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "Core and Extension compatibility" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    },
+    {
+      "id": "ONT-008",
+      "type": "invariant",
+      "statement": "Only an Ontology release approved by the accountable Graph RACI actor and applied with evidence can become canonical active.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "Ontology release governance is linked to RACI" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     }
   ],
   "requirements": [
@@ -54,7 +60,8 @@
       "id": "ONT-001",
       "title": "Manifest readback",
       "shall": [
-        "Current release exposes version, previous version, effective date, compatibility, migration, and rollback metadata",
+        "Immutable releases expose version, previous version, effective date, status, compatibility, migration, and rollback metadata",
+        "The release index resolves current, explicit version, and as-of requests",
         "Types, relations, constraints, inference rules, and change rules are addressable by stable IDs",
         "An invalid manifest fails loudly at kernel construction"
       ]
@@ -72,10 +79,11 @@
       "id": "ONT-003",
       "title": "Constraints and dry-run audit",
       "shall": [
-        "An app without an owner org is invalid",
+        "An atomic commit containing an app without an owner org is rejected and rolled back",
         "An active decision without a decider or scope is invalid",
         "Entity, edge, and snapshot validation never persists data",
-        "Missing snapshot input returns unverified rather than zero violations"
+        "A DB-backed audit proves access scope and pagination completeness",
+        "Missing or partial audit input returns unverified rather than zero violations"
       ]
     },
     {
@@ -93,6 +101,7 @@
       "shall": [
         "Breaking, additive, and patch changes map to SemVer",
         "Rename, merge, and dedup rules preserve canonical identity and provenance",
+        "Past facts resolve using recorded versions or immutable as-of releases",
         "Impact reports distinguish evaluated snapshots from unverified input"
       ]
     },
@@ -100,9 +109,10 @@
       "id": "ONT-006",
       "title": "Info SSOT API",
       "shall": [
-        "Authenticated callers can read the manifest and definitions",
-        "Authenticated callers can dry-run validation, decision inference, and impact analysis",
-        "Generic graph writes reject semantic violations before persistence"
+        "Authenticated callers can read current, explicit-version, and as-of manifests and definitions",
+        "Authenticated callers can dry-run validation, run bounded DB audits, infer decisions, and analyze impact",
+        "Atomic entity-plus-edge commits reject all semantic violations transactionally",
+        "Generic split writes reject unknown types, relations, and endpoints before persistence"
       ]
     },
     {
@@ -111,7 +121,17 @@
       "shall": [
         "MCP Core and Extension type projection remains compatible",
         "Existing specialized relation names are registered",
-        "Existing graph facts are not automatically modified"
+        "Existing graph facts are not automatically modified",
+        "Public IDs, storage types, visibility, aliases, depends_on, ownerless legacy app creation, and specialized write paths have compatibility fixtures"
+      ]
+    },
+    {
+      "id": "ONT-008",
+      "title": "Release governance",
+      "shall": [
+        "Releases transition proposed, approved, active, and retired",
+        "Proposer, decider, and applier identities plus RACI scope and decision evidence are recorded",
+        "An unapproved release cannot become current"
       ]
     }
   ],
@@ -121,6 +141,10 @@
     "constraint-contract",
     "decision-inference-contract",
     "evolution-impact-contract",
-    "info-ssot-integration"
+    "info-ssot-integration",
+    "bounded-db-audit",
+    "historical-release-resolution",
+    "raci-publication-gate",
+    "legacy-write-compatibility-matrix"
   ]
 }

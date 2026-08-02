@@ -120,7 +120,7 @@ agentが未登録の`rel_type`や許可されていない型同士のedgeを書�
 - 既存Graphデータを一括で自動修正または物理削除すること
 - Skills、Commands、project文書、Automation Run、Personal KGの内容をGraphへ複製すること
 - 根拠のない関係、Decisionの優先順位、entity統合をAIが自動確定すること
-- 一般用途の完全なOntology推論基盤を一度のreleaseで実装すること。最初のreleaseでは5領域それぞれの最小契約を実装し、Graph全件監査や自動移行は後続Taskに分割する。
+- 一般用途の完全なOntology推論基盤を一度のreleaseで実装すること。最初のreleaseでは5領域それぞれの最小契約とaccess-scopeを限定したDB-backed auditを実装し、scopeなしのGraph全件監査や自動移行は後続Taskに分割する。
 
 ---
 

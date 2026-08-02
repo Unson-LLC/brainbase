@@ -17,7 +17,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 
 ### ONT-001 Manifest readback
 
-- current releaseは`ontology_version`、`schema_version`、`previous_version`、`effective_at`、compatibility、migration、rollbackを持つ。
+- immutable releaseは`ontology_version`、`schema_version`、`previous_version`、`effective_at`、status、compatibility、migration、rollbackを持ち、indexからcurrent、version、as-ofで解決できる。
 - 型、関係、制約、推論規則、変更・競合規則をIDで取得できる。
 - manifestは起動時にschema整合性を検証し、不正ならfail loudする。
 
@@ -34,6 +34,8 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 - `CON-DECISION-ACTIVE-001`: active Decisionはdecider personとscope project/org/app/productを持つ。
 - entity、edge、snapshotのdry-runは永続化しない。
 - snapshotが欠落・不完全なら`unverified`を返し、違反0件にしない。
+- 必須relationを持つ新規entityはatomic commitでentityとedgeを同一transaction内に検証し、違反時は全体をrollbackする。
+- DB-backed auditはaccess scope、pagination cursor完走、取得件数、失敗をcompletenessとして返し、caller snapshot dry-runと区別する。
 
 ### ONT-004 Decision推論
 
@@ -46,14 +48,19 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 - change classifierはbreaking/additive/patchをSemVer規則へ写像する。
 - renameはcanonical IDを維持し、merge/dedupは旧IDとprovenanceを残す。
 - 同時有効な競合定義を暗黙に統合しない。
+- 過去factは記録version、なければas-of時刻に対応するimmutable releaseで解釈し、解決不能なら`unverified`とする。
 - impact APIは変更対象の型・関係・ruleに一致するsnapshot件数、代表ID、影響API/agent、migration要否を返す。snapshotがない場合は`unverified`とする。
 
 ### ONT-006 API
 
 - `GET /api/info/ontology` current manifest
+- `GET /api/info/ontology/releases/:version` immutable release
+- `GET /api/info/ontology?as_of=<timestamp>` effective release
 - `GET /api/info/ontology/types/:id` 型定義
 - `GET /api/info/ontology/relations/:id` relation定義
 - `POST /api/info/ontology/validate` entity/edge/snapshot dry-run
+- `POST /api/info/ontology/audit` access-scope内のDB-backed audit
+- `POST /api/info/ontology/graph/commit` entityと必須edgeのatomic commit
 - `POST /api/info/ontology/infer/decisions` Decision解決
 - `POST /api/info/ontology/impact` 変更impact
 - 全endpointは既存Info SSOT access contextを必須とする。
@@ -63,6 +70,14 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 - MCPのCore/Extension型とExtension既定非表示契約を維持する。
 - 既存専用write pathのrelationはv1 manifestへ登録する。
 - 汎用write APIの新規不正入力を拒否するが、既存Graphを自動変更しない。
+- 既存の分離writeは登録型・relation・endpointをguardし、必須relation強制はatomic commitへ移行する。既存ownerなしentity作成契約はv1で即時破壊しない。
+- manifestはpublic ID、storage type、visibility、aliasを明示し、ADR-007とMCP projectionの差をcontract testで固定する。
+
+### ONT-008 Release governance
+
+- releaseは`proposed`、`approved`、`active`、`retired`の状態を持つ。
+- proposer、decider、applierのGraph entity ID、RACI scope、根拠Decision IDを持つ。
+- 対象scopeのAccountable承認と適用証跡がないreleaseはcurrent indexへ公開できない。
 
 ## テスト計画
 
@@ -71,8 +86,11 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 3. constraint contract: ownerなしapp、decider/scopeなしactive Decision、snapshot欠落を検出する。
 4. inference contract: 明示supersedesとeffective dateで解決し、無関係なactive Decisionはconflictにする。
 5. evolution contract: SemVer分類、rename/merge履歴、snapshotあり/なしのimpactを説明する。
-6. API/service integration: readback、dry-run、保存前拒否、access contextを検証する。
+6. API/service integration: readback、dry-run、atomic rollback、分離write互換、structured error、access contextを検証する。
+7. audit contract: scope、pagination完走、partial/DB failureの`unverified`を検証する。
+8. release/history contract: current/version/as-of解決、未知version、RACI publication gateを検証する。
+9. compatibility matrix: ownerなしapp、`depends_on`、専用Decision/RACI write、public/storage alias、既存relationをfixture化する。
 
 ## 完了境界
 
-v1の完了は、上記contract test、対象service/route test、typecheck、VibePro Gateが通過した状態とする。実データ全件監査と全専用write pathのguard移行は結果を偽らず後続Taskとして残す。
+v1の完了は、上記contract test、対象service/route test、typecheck、VibePro Gateが通過した状態とする。scopeなしの実データ全件監査と全専用write pathのguard移行は結果を偽らず後続Taskとして残す。
