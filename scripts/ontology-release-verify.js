@@ -4,7 +4,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { publicationReceiptContractErrors, sha256, verifyPublicationReceipt } from '../server/services/ontology-publication.js';
-import { hasPublishedReceipt } from '../server/services/ontology-release-trust.js';
+import { hasPublishedReceipt, hasReceiptMetadata } from '../server/services/ontology-release-trust.js';
 import { verifyWriterInventory } from './ontology-writer-inventory.js';
 
 function fail(message) {
@@ -180,6 +180,9 @@ export function verifyOntologyRelease({ rootDir, publicKeyPem = '', base = null,
     for (const entry of index.releases || []) {
         if (versions.has(entry.version)) throw new Error(`version is reused: ${entry.version}`);
         versions.add(entry.version);
+        if (hasReceiptMetadata(entry) && !hasPublishedReceipt(entry)) {
+            throw new Error(`incomplete receipt binding: ${entry.version}`);
+        }
         if (entry.status === 'retired' && !hasPublishedReceipt(entry)) {
             throw new Error(`retired release has no receipt binding: ${entry.version}`);
         }

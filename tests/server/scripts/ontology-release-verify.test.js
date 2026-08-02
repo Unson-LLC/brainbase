@@ -461,6 +461,35 @@ describe('ontology release Git history verification', () => {
         expect(() => verifyOntologyRelease({ rootDir: fixture.rootDir })).toThrow(/retired release has no receipt binding/);
     });
 
+    it.each([
+        ['path only', {
+            receipt_path: 'publications/1.0.0.receipt.json'
+        }],
+        ['blank path', {
+            receipt_path: '   ',
+            receipt_digest_algorithm: 'sha256',
+            receipt_digest: 'a'.repeat(64)
+        }],
+        ['unsupported algorithm', {
+            receipt_path: 'publications/1.0.0.receipt.json',
+            receipt_digest_algorithm: 'sha512',
+            receipt_digest: 'a'.repeat(64)
+        }],
+        ['malformed digest', {
+            receipt_path: 'publications/1.0.0.receipt.json',
+            receipt_digest_algorithm: 'sha256',
+            receipt_digest: 'not-a-sha256-digest'
+        }]
+    ])('rejects partial receipt metadata on a proposed release: %s', (_label, receiptMetadata) => {
+        const fixture = lifecycleRepository({ includeRuntime: true });
+        const indexPath = path.join(fixture.rootDir, 'config/ontology/index.json');
+        const index = JSON.parse(readFileSync(indexPath, 'utf8'));
+        Object.assign(index.releases[0], receiptMetadata);
+        writeJson(indexPath, index);
+
+        expect(() => verifyOntologyRelease({ rootDir: fixture.rootDir })).toThrow(/incomplete receipt binding/);
+    });
+
     it('fails closed on authority network and incomplete-response failures without publishing outputs', async () => {
         for (const [label, fetchImpl, expected] of [
             ['network', async () => { throw new Error('secret upstream detail'); }, /authority request failed \(Error\)/],
