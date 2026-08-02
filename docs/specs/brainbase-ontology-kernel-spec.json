@@ -134,7 +134,8 @@
         "Proposer, decider, and applier identities plus RACI scope and decision evidence are recorded",
         "An unapproved release cannot become current",
         "The sole publisher validates HEAD, the sha256 of the full release-file bytes, Graph RACI, decision evidence, and applier identity, then stores the digest in the index entry",
-        "The verification gate rejects manual current changes, modified or deleted published releases, and reused versions"
+        "The verification gate rejects manual current changes, modified or deleted published releases, and reused versions",
+        "The PR workflow fetches complete Git history, passes base and head SHAs, and fails closed when the base commit object cannot be resolved"
       ]
     }
   ],
@@ -165,6 +166,7 @@
     "raci-publication-gate",
     "legacy-write-compatibility-matrix",
     "publication-integrity",
-    "package-command-and-ci-wiring"
+    "package-command-and-ci-wiring",
+    "missing-base-object-fail-closed"
   ]
 }

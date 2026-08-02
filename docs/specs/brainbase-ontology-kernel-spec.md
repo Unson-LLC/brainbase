@@ -100,7 +100,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 - proposer、decider、applierのGraph entity ID、RACI scope、根拠Decision IDを持つ。
 - 対象scopeのAccountable承認と適用証跡がないreleaseはcurrent indexへ公開できない。
 - current indexは`ontology:publish`だけが生成し、対象HEAD、release file全bytesのSHA-256、Graph RACI、根拠Decision、applierを検証する。digestはindex entryへalgorithmと共に保存し、release fileには保存しない。Graph/authorityを確認できない場合は公開を失敗させる。
-- `ontology:verify`はbase refと比較し、publisher証跡のないcurrent変更、既公開versionの変更・削除・version再利用を拒否する。
+- `ontology:verify`はbase refと比較し、publisher証跡のないcurrent変更、既公開versionの変更・削除・version再利用を拒否する。PR workflowは`actions/checkout`の`fetch-depth: 0`または同等の明示fetchでbase commit objectを取得し、base/head SHAを渡す。base objectが解決できない場合は比較を省略せず失敗する。
 
 ## テスト計画
 
@@ -114,7 +114,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 8. release/history contract: current/version/as-of解決、未知version、RACI publication gateを検証する。
 9. compatibility matrix: 上表の全route/scriptについて、ownerなしapp、`depends_on`、専用write、learning promotionの全mapped typeと未知型拒否、public/storage alias、登録語彙または明示deferredをfixture化する。server/scriptsの決定的scanとmatrixを双方向比較し、未分類writer追加時にfailする。
 10. publication integrity: release file全bytesとindex digestの一致、手動index変更、authority未確認、release digest差し替え、過去release削除、version再利用を失敗させる。
-11. command/CI wiring: `package.json`のpublish/verify commandと`.github/workflows/vibepro-graph-ssot.yml`のbase/head指定verify stepをfixtureで拘束する。
+11. command/CI wiring: `package.json`のpublish/verify command、`.github/workflows/vibepro-graph-ssot.yml`の`fetch-depth: 0`、base/head指定verify stepをfixtureで拘束する。base commit objectを取得できないfixtureではverifyがfail closedになることを確認する。
 
 ## Clause ID正本
 
