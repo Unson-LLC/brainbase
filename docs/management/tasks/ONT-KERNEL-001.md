@@ -16,10 +16,12 @@ created_at: 2026-08-02
 
 - `config/ontology/brainbase-ontology.v1.json`
 - `config/ontology/index.json`と`config/ontology/releases/1.0.0.json`
+- `config/ontology/publications/1.0.0.receipt.json`
 - `server/services/ontology-kernel.js`
 - `server/services/info-ssot-service.js`
 - `server/controllers/info-ssot-controller.js`
 - `server/routes/info-ssot.js`
+- Graph authority endpoint（既存auth middlewareでprincipalを`personId`へ結合し、Ed25519 receiptを発行）
 - `scripts/ontology-release-publish.js`と`scripts/ontology-release-verify.js`
 - `package.json`の`ontology:publish` / `ontology:verify` command
 - `.github/workflows/vibepro-graph-ssot.yml`の完全履歴checkoutと必須verify step（PRではbase/head SHAを渡す）
@@ -33,9 +35,9 @@ created_at: 2026-08-02
 1. manifestとkernelのcontract testを失敗させる。
 2. 型・関係・制約の検証を実装する。
 3. atomic entity+edge commit、bounded DB-backed audit、Decision推論、変更impact/history contractを実装する。
-4. current/version/as-of readback、HEAD、release file全bytesのSHA-256をindexへ保持するdigest契約、Graph RACI/Decisionを検証する唯一のpublisher、base比較verify gate、汎用write guardへ接続する。
+4. current/version/as-of readback、HEAD、release file全bytesのSHA-256をindexへ保持するdigest契約、認証actor/applier・Graph RACI/Decisionを検証してEd25519 authority receiptを発行するendpoint、receipt・index・compatibility viewを生成する唯一のpublisher、base比較verify gate、汎用write guardへ接続する。
 5. `package.json`へpublish/verify commandを登録し、`.github/workflows/vibepro-graph-ssot.yml`の`actions/checkout`を`fetch-depth: 0`にした上でPRのbase/head SHAを渡して`ontology:verify`を必須実行する。base commit objectを解決できない場合にfail closedとなるfixtureを先に失敗させる。
-6. ownerなしapp、`depends_on`、Decision/RACI/Glossary/KPI/Initiative/AI Query/AI Decision Log、learning memory-candidate promotionの全mapped typeと未知型拒否、既知7 migration/upsert scripts、partial audit、public/storage aliasの回帰matrixを実装する。server/scriptsのGraph table mutationとupsert helperをscanし、matrixとの双方向不一致をfailさせる。
+6. ownerなしapp、`depends_on`、Decision/RACI/Glossary/KPI/Initiative、AI Query/AI Decision Logの成功responseと生成edge、learning memory-candidate promotionの全mapped typeと未知型拒否、既知7 migration/upsert scripts、partial audit、public/storage aliasの回帰matrixを実装する。server/scriptsのGraph table mutation、upsert helper、Graph HTTP POST/common wrapperをscanし、`upsert-app-environments.mjs`を含むmatrixとの双方向不一致をfailさせる。
 7. MCP型projection互換性、対象test、typecheck、VibePro Gateを検証する。
 
 ## 非対象・後続

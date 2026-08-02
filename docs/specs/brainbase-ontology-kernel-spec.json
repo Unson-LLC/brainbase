@@ -135,7 +135,9 @@
         "An unapproved release cannot become current",
         "The sole publisher validates HEAD, the sha256 of the full release-file bytes, Graph RACI, decision evidence, and applier identity, then stores the digest in the index entry",
         "The verification gate rejects manual current changes, modified or deleted published releases, and reused versions",
-        "The PR workflow fetches complete Git history, passes base and head SHAs, and fails closed when the base commit object cannot be resolved"
+        "The PR workflow fetches complete Git history, passes base and head SHAs, and fails closed when the base commit object cannot be resolved",
+        "A Graph authority endpoint binds the authenticated person principal to the release applier, scope, Accountable RACI, decision, HEAD, and release digest and returns an Ed25519-signed canonical receipt",
+        "The publisher generates the signed receipt, current index, and compatibility pointer view in one operation, and verification rejects receipt or view drift"
       ]
     }
   ],
@@ -151,8 +153,8 @@
     { "path": "POST /events", "types": [], "relations": [], "v1": "not_applicable_no_graph_write" },
     { "path": "POST /api/learning/memory-candidates/:id/promote-to-graph", "types": ["person", "project", "org", "customer", "decision", "raci_assignment", "philosophy", "glossary_term"], "relations": [], "v1": "runtime_direct_writer_manifest_inventory_guard" },
     { "path": "scripts/info-ssot-migrate-codex.js", "types": ["migration_inventory"], "relations": ["compatibility_inventory"], "v1": "inventory_verify_only" },
-    { "path": "scripts/{info-ssot-sync-slack-auth.js,local-data-server-ssot-upsert.js,merge-duplicate-people.mjs,migrate_contacts_to_graph.py,normalize-graph-data-ssot.mjs,seed-sato-personal-records.js,upsert-app-environments.mjs}", "types": ["script_specific"], "relations": ["script_specific"], "v1": "seven_known_writers_deferred_with_inventory_finding" },
-    { "path": "server/**/*.{js,mjs} and scripts/**/*.{js,mjs,py}", "types": ["detected_graph_writer"], "relations": ["detected_graph_writer"], "v1": "bidirectional_inventory_scan_fails_for_unclassified_writer_or_stale_allowlist" }
+    { "path": "scripts/{info-ssot-sync-slack-auth.js,local-data-server-ssot-upsert.js,merge-duplicate-people.mjs,migrate_contacts_to_graph.py,normalize-graph-data-ssot.mjs,seed-sato-personal-records.js,upsert-app-environments.mjs}", "types": ["script_specific"], "relations": ["script_specific"], "v1": "seven_known_sql_helper_and_http_writers_deferred_with_inventory_finding" },
+    { "path": "server/**/*.{js,mjs} and scripts/**/*.{js,mjs,py}", "types": ["detected_graph_writer"], "relations": ["detected_graph_writer"], "v1": "bidirectional_sql_helper_and_http_writer_scan_fails_for_unclassified_writer_or_stale_allowlist" }
   ],
   "test_plan": [
     "manifest-contract",
@@ -167,6 +169,10 @@
     "legacy-write-compatibility-matrix",
     "publication-integrity",
     "package-command-and-ci-wiring",
-    "missing-base-object-fail-closed"
+    "missing-base-object-fail-closed",
+    "publisher-authenticated-applier-and-signed-receipt",
+    "compatibility-view-drift",
+    "http-writer-inventory",
+    "specialized-ai-write-runtime-contract"
   ]
 }

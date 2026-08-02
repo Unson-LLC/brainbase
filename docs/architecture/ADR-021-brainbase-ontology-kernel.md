@@ -24,7 +24,7 @@ Ontology定義をGraphの通常entityとして保存すると、Graphの事実�
 
 ### 1. 正本
 
-`config/ontology/releases/<semver>.json`を変更不能なOntology releaseの機械可読な正本とし、`config/ontology/index.json`をversion、`effective_at`、statusからreleaseを解決するindexとする。`config/ontology/brainbase-ontology.v1.json`はactive releaseへの互換viewであり、release本体ではない。manifestは次を一つのreleaseとして保持する。
+`config/ontology/releases/<semver>.json`を変更不能なOntology releaseの機械可読な正本とし、`config/ontology/index.json`をversion、`effective_at`、statusからreleaseを解決するindexとする。`config/ontology/brainbase-ontology.v1.json`はpublisherが生成するactive releaseへの互換pointer viewであり、release本体ではない。manifestは次を一つのreleaseとして保持する。
 
 - semantic version、前version、適用日時、互換性、migration、rollback
 - 型の意味、identity境界、利用条件、例・反例、owner
@@ -33,7 +33,11 @@ Ontology定義をGraphの通常entityとして保存すると、Graphの事実�
 
 Graph SSOTは引き続き人、組織、project、Decision、RACIなどの事実の正本であり、Ontology manifestをGraph entityへ複製しない。Git commit・reviewは変更内容の証跡、Graph RACIは誰が提案・決裁・適用できるかの権限正本とする。releaseは`proposed -> approved -> active -> retired`を取り、提案者、決裁者、適用者のentity IDと根拠Decision IDを持つ。決裁者が対象scopeでAccountableでないrelease、または承認証跡のないreleaseをindexのactiveへ昇格できない。
 
-`npm run ontology:publish -- --version <semver> --decision-id <id>`をcurrent indexを変更できる唯一のpublisherとする。publisherは対象HEAD、release fileの全bytesに対するSHA-256、version再利用、既公開releaseの削除・変更、Graph RACIのAccountable権限、根拠Decision、applier identityを検証してからindexを生成する。digestは自己参照を避けるためrelease file内には置かず、`config/ontology/index.json`の該当version entryに`content_digest_algorithm: "sha256"`と`content_digest`として保持する。CIの`ontology:verify`はbase refのindex/releaseと比較し、publisher証跡のないcurrent変更、既公開versionのdigest変更・削除を拒否する。PR workflowは`actions/checkout`を`fetch-depth: 0`で実行してbase commit objectを取得し、base/head SHAをverifyへ渡す。base objectを解決できなければ比較を省略せずfail closedにする。Graph未到達、権限不明、Decision不明はいずれもfail closedとし、既存active releaseは維持する。
+`npm run ontology:publish -- --version <semver> --decision-id <id>`をcurrent indexとcompatibility viewを変更できる唯一のpublisher commandとする。publisherはreleaseに記録されたapplier entity IDとscopeを、Bearer tokenから既存auth middlewareが解決した`personId`へ結合するGraph authority endpointへ、対象HEAD、release file全bytesのSHA-256、根拠Decision IDを送る。endpointはactorとapplierの一致、対象scopeのAccountable RACI、Decisionの存在と適用対象を検証し、`ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY`で署名したauthority receiptを返す。自己申告applier、service tokenだけでpersonへ結合できないprincipal、scope不一致は拒否する。
+
+publisherはreceiptを`config/ontology/publications/<semver>.receipt.json`へ保存し、そのpathとreceipt bytesのSHA-256をindex entryへ持たせる。receiptの署名対象はschema version、Ontology version、HEAD SHA、release digest、Decision ID、scope entity ID、actor/applier entity ID、発行時刻であり、canonical JSON bytesをEd25519で署名する。CIの`ontology:verify`は`ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY`で署名と全bindingを検証するため、秘密鍵やGraph tokenを持たない変更者は正規receiptを作れない。digestは自己参照を避けるためrelease file内には置かず、index entryに`content_digest_algorithm: "sha256"`と`content_digest`として保持する。
+
+publisherはreceipt、index、active releaseへのpointerだけを持つ`config/ontology/brainbase-ontology.v1.json`を同じpublish operationでtemp fileから生成・置換する。`ontology:verify`はcompatibility viewがindexのcurrent version、release path、digestと一致しない場合も拒否する。CIではbase refのindex/release/receiptと比較し、receiptのないcurrent変更、receipt改ざん、既公開versionのdigest変更・削除を拒否する。PR workflowは`actions/checkout`を`fetch-depth: 0`で実行してbase commit objectを取得し、base/head SHAをverifyへ渡す。base objectを解決できなければ比較を省略せずfail closedにする。Graph未到達、権限不明、Decision不明はいずれもpublishをfail closedとし、既存active releaseは維持する。
 
 ADR-007の型catalogは既存storage型の初期整理として残し、本ADRはpublic型とstorage型の対応を明確化する。manifestの型には`public_id`、`storage_type`、`visibility`、`aliases`を持たせ、MCPの`raci` -> DBの`raci_assignment`のようなprojectionを明示する。既存利用中の型・relationはinventoryで`canonical`、`compatibility`、`internal`、`rejected`に分類し、未分類値は強制開始前に監査対象とする。
 
