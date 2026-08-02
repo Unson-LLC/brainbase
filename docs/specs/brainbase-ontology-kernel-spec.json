@@ -113,7 +113,9 @@
         "Authenticated callers can read current, explicit-version, and as-of manifests and definitions",
         "Authenticated callers can dry-run validation, run bounded DB audits, infer decisions, and analyze impact",
         "Atomic entity-plus-edge commits reject all semantic violations transactionally",
-        "Generic split writes reject unknown types, relations, and endpoints before persistence"
+        "Generic split writes reject unknown types, relations, and endpoints before persistence",
+        "POST /api/info/ontology/publications/authorize derives the actor from authenticated personId and accepts release_version, source_commit_sha, release_digest, decision_id, scope_entity_id, and applier_entity_id",
+        "The publication authority endpoint returns a canonical Ed25519 receipt and fails with 400, 401, 403, 404, 409, or 503 for its specified validation, authentication, authority, decision, binding, or dependency failures"
       ]
     },
     {
@@ -133,11 +135,12 @@
         "Releases transition proposed, approved, active, and retired",
         "Proposer, decider, and applier identities plus RACI scope and decision evidence are recorded",
         "An unapproved release cannot become current",
-        "The sole publisher validates HEAD, the sha256 of the full release-file bytes, Graph RACI, decision evidence, and applier identity, then stores the digest in the index entry",
+        "The sole publisher runs on a clean source commit and validates its SHA, the sha256 of the full release-file bytes, Graph RACI, decision evidence, and applier identity, then stores the digest in the index entry",
         "The verification gate rejects manual current changes, modified or deleted published releases, and reused versions",
-        "The PR workflow fetches complete Git history, passes base and head SHAs, and fails closed when the base commit object cannot be resolved",
-        "A Graph authority endpoint binds the authenticated person principal to the release applier, scope, Accountable RACI, decision, HEAD, and release digest and returns an Ed25519-signed canonical receipt",
-        "The publisher generates the signed receipt, current index, and compatibility pointer view in one operation, and verification rejects receipt or view drift"
+        "The PR workflow fetches complete Git history, passes base and head SHAs, and fails closed when the base or source commit object cannot be resolved",
+        "A Graph authority endpoint binds the authenticated person principal to the release applier, scope, Accountable RACI, decision, source commit SHA, and release digest and returns an Ed25519-signed canonical receipt",
+        "The publisher generates the signed receipt, current index, and compatibility pointer view in one operation, and verification rejects receipt or view drift",
+        "When current changes, the publication commit must immediately follow the signed source commit and may change only the receipt, index, and compatibility pointer view"
       ]
     }
   ],
@@ -171,6 +174,8 @@
     "package-command-and-ci-wiring",
     "missing-base-object-fail-closed",
     "publisher-authenticated-applier-and-signed-receipt",
+    "publication-source-commit-non-self-reference",
+    "publication-authority-http-contract",
     "compatibility-view-drift",
     "http-writer-inventory",
     "specialized-ai-write-runtime-contract"

@@ -64,7 +64,9 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 - `POST /api/info/ontology/graph/commit` entityと必須edgeのatomic commit
 - `POST /api/info/ontology/infer/decisions` Decision解決
 - `POST /api/info/ontology/impact` 変更impact
+- `POST /api/info/ontology/publications/authorize` authority receipt発行。requestは`release_version`、`source_commit_sha`、`release_digest`、`decision_id`、`scope_entity_id`、`applier_entity_id`を必須とし、actorはrequest bodyではなく既存auth contextの`personId`から取得する。responseは署名対象payload、`signature_algorithm: ed25519`、署名、key IDを含むcanonical receiptとする。
 - 全endpointは既存Info SSOT access contextを必須とする。
+- authority endpointは入力不正を400、未認証を401、personへ結合できないservice principal・actor/applier不一致・RACI/scope不一致を403、Decision不明を404、release digest/version不一致を409、Graphまたは署名鍵を確認できない場合を503としてfail closedにする。
 
 ### ONT-007 互換性
 
@@ -99,9 +101,9 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 - releaseは`proposed`、`approved`、`active`、`retired`の状態を持つ。
 - proposer、decider、applierのGraph entity ID、RACI scope、根拠Decision IDを持つ。publisher CLIのBearer principalはGraph authority endpointで`personId`へ解決し、releaseのapplierと一致しなければならない。
 - 対象scopeのAccountable承認と適用証跡がないreleaseはcurrent indexへ公開できない。
-- Graph authority endpointはactor/applier、scopeのAccountable RACI、Decision、HEAD、release digestを検証し、これらをcanonical JSONへbindしたEd25519署名receiptを返す。private keyはserver secret、public keyはCI verify環境で与える。
+- Graph authority endpointはactor/applier、scopeのAccountable RACI、Decision、`source_commit_sha`、release digestを検証し、これらをcanonical JSONへbindしたEd25519署名receiptを返す。`source_commit_sha`はreleaseを含みpublisher生成物をまだ含まないclean commitであり、receipt自身を含むcommit SHAではない。private keyはserver secret、public keyはCI verify環境で与える。
 - current indexとcompatibility pointer viewは`ontology:publish`だけがreceiptと同じoperationで生成する。indexはrelease digestとreceipt path/digestを保持し、release fileにはdigestを保存しない。Graph/authorityを確認できない場合は公開を失敗させる。
-- `ontology:verify`はreceipt署名と全binding、compatibility viewとcurrent indexの一致、base refとの差分を検証し、receipt欠落・改ざん、self-declared applier、view drift、既公開versionの変更・削除・version再利用を拒否する。PR workflowは`actions/checkout`の`fetch-depth: 0`または同等の明示fetchでbase commit objectを取得し、base/head SHAを渡す。base objectが解決できない場合は比較を省略せず失敗する。
+- `ontology:verify`はreceipt署名と全binding、compatibility viewとcurrent indexの一致、base refとの差分を検証し、receipt欠落・改ざん、self-declared applier、view drift、既公開versionの変更・削除・version再利用を拒否する。current変更時は`HEAD^ == source_commit_sha`で、source commitからHEADまでの変更がreceipt、index、compatibility viewだけであることを必須とする。PR workflowは`actions/checkout`の`fetch-depth: 0`または同等の明示fetchでbase/source commit objectを取得し、base/head SHAを渡す。baseまたはsource objectが解決できない場合は比較を省略せず失敗する。
 
 ## テスト計画
 
@@ -114,7 +116,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 7. audit contract: scope、pagination完走、partial/DB failureの`unverified`を検証する。
 8. release/history contract: current/version/as-of解決、未知version、RACI publication gateを検証する。
 9. compatibility matrix: 上表の全route/scriptについて、ownerなしapp、`depends_on`、Decision/RACI/Glossary/KPI/Initiativeに加えAI Query/AI Decision Logの成功response shapeと生成entity/edge、learning promotionの全mapped typeと未知型拒否、public/storage alias、登録語彙または明示deferredをfixture化する。server/scriptsのSQL/helper/HTTP client writer scanとmatrixを双方向比較し、`upsert-app-environments.mjs`を検出できない旧scannerと未分類writer追加時にfailする。
-10. publication integrity: release file全bytesとindex digestの一致、認証actorとapplier不一致、Accountable/Decision未確認、receipt欠落・署名改ざん・binding差し替え、compatibility view drift、過去release削除、version再利用を失敗させる。
+10. publication integrity: release file全bytesとindex digestの一致、認証actorとapplier不一致、Accountable/Decision未確認、receipt欠落・署名改ざん・binding差し替え、authority endpointのstatus契約、compatibility view drift、過去release削除、version再利用を失敗させる。source commit、publisher生成物だけの直後commit、生成物以外が混入したcommit、receipt自身のHEADを要求する旧自己参照設計をfixture化する。
 11. command/CI wiring: `package.json`のpublish/verify command、`.github/workflows/vibepro-graph-ssot.yml`の`fetch-depth: 0`、base/head指定verify stepをfixtureで拘束する。base commit objectを取得できないfixtureではverifyがfail closedになることを確認する。
 
 ## Clause ID正本

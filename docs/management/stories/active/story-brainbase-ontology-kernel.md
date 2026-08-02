@@ -100,7 +100,7 @@ agentが未登録の`rel_type`や許可されていない型同士のedgeを書�
 - [ ] 過去のentity、edge、Decisionは、その時点で有効だったOntology versionで解釈でき、名称変更、統合、重複解消によって履歴やprovenanceが破壊されない。
 - [ ] 型、関係、制約、推論規則の変更前に、影響を受けるGraph件数、代表例、API、agent、移行要否を示すimpact reportを確認できる。
 - [ ] Ontology変更の提案者、決裁者、適用者がRACIに結びつき、承認前の変更がcanonical versionとして公開されない。
-- [ ] canonical versionの公開は認証済みapplier、Decision、scopeのAccountable RACI、HEAD、release digestへ署名付きで結びつき、証跡改ざんや生成viewのdriftをCIで拒否できる。
+- [ ] canonical versionの公開は認証済みapplier、Decision、scopeのAccountable RACI、publisher生成物前のsource commit、release digestへ署名付きで結びつき、source commit直後の許可生成物だけのcommitであること、証跡改ざん、生成viewのdriftをCIで拒否できる。
 - [ ] 現行のCore/Extension型の取得契約と、Extensionを既定表示から除外する互換性を維持する。
 - [ ] 名称変更、組織統合、人物重複、Decision置き換え、不正な関係のfixtureで、検証・推論・履歴解釈を再現できる。
 - [ ] current Ontology version、任意の型・関係の定義、検証結果、推論根拠をAPIまたはMCPからreadbackできる。
