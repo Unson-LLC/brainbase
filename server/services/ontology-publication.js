@@ -23,6 +23,9 @@ export function publicationReceiptContractErrors(receipt) {
     if (receipt?.payload?.schema_version !== ONTOLOGY_PUBLICATION_RECEIPT_SCHEMA_VERSION) {
         errors.push('schema_version');
     }
+    if (typeof receipt?.payload?.actor_entity_id !== 'string' || !receipt.payload.actor_entity_id.trim()) {
+        errors.push('actor_entity_id');
+    }
     const issuedAt = receipt?.payload?.issued_at;
     if (typeof issuedAt !== 'string'
         || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(issuedAt)

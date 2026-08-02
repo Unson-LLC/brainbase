@@ -129,7 +129,8 @@ export async function publishOntologyRelease({
         impact_scope: release.impact_scope,
         proposer_entity_id: proposerEntityId,
         decider_entity_id: deciderEntityId,
-        applier_entity_id: applierEntityId
+        applier_entity_id: applierEntityId,
+        actor_entity_id: applierEntityId
     };
     const mismatches = Object.entries(expectedReceiptBinding)
         .filter(([key, value]) => canonicalJson(receipt.payload[key]) !== canonicalJson(value))

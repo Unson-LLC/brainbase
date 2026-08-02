@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { generateKeyPairSync } from 'node:crypto';
+import { generateKeyPairSync, sign } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
 import { OntologyRegistry } from '../../../server/services/ontology-registry.js';
-import { verifyPublicationReceipt } from '../../../server/services/ontology-publication.js';
+import { canonicalJson, verifyPublicationReceipt } from '../../../server/services/ontology-publication.js';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const registry = new OntologyRegistry({ rootDir });
@@ -69,6 +69,19 @@ describe('Ontology publication authority', () => {
         });
         expect(receipt.payload.issued_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
         expect(verifyPublicationReceipt(receipt, publicKey.export({ type: 'spki', format: 'pem' }))).toBe(true);
+    });
+
+    it('rejects a validly signed receipt without an actor binding', async () => {
+        const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+        vi.stubEnv('ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', privateKey.export({ type: 'pkcs8', format: 'pem' }).toString());
+        vi.stubEnv('ONTOLOGY_PUBLICATION_SIGNING_KEY_ID', 'ontology-test-key');
+        const receipt = await authorityService().authorizeOntologyPublication({
+            role: 'gm', projectCodes: ['brainbase'], clearance: ['internal'], personId: 'person:applier'
+        }, request());
+        delete receipt.payload.actor_entity_id;
+        receipt.signature = sign(null, Buffer.from(canonicalJson(receipt.payload)), privateKey).toString('base64');
+
+        expect(verifyPublicationReceipt(receipt, publicKey.export({ type: 'spki', format: 'pem' }))).toBe(false);
     });
 
     it('requires the accepted scope and applier request bindings', async () => {

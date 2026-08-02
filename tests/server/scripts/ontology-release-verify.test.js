@@ -252,6 +252,56 @@ describe('ontology release Git history verification', () => {
         ]);
     });
 
+    it.each([
+        ['missing', null],
+        ['substituted', 'person:other-actor']
+    ])('rejects a validly signed receipt with %s actor before replacing outputs', async (_label, actorEntityId) => {
+        const fixture = lifecycleRepository();
+        const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+        const configDir = path.join(fixture.rootDir, 'config/ontology');
+        const indexPath = path.join(configDir, 'index.json');
+        const priorIndex = readFileSync(indexPath);
+
+        await expect(publishOntologyRelease({
+            rootDir: fixture.rootDir,
+            version: '1.0.0',
+            decisionId: 'decision:ontology-v1',
+            env: {
+                BRAINBASE_GRAPH_API_URL: 'https://graph.example.test',
+                BRAINBASE_GRAPH_API_TOKEN: 'secret-token',
+                ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY: publicKey.export({ type: 'spki', format: 'pem' }).toString()
+            },
+            fetchImpl: async () => {
+                const payload = {
+                    schema_version: '1.0.0',
+                    issued_at: '2026-08-02T00:00:00.000Z',
+                    applier_entity_id: 'person:applier',
+                    proposer_entity_id: 'person:proposer',
+                    decider_entity_id: 'person:decider',
+                    decision_id: 'decision:ontology-v1',
+                    release_digest: fixture.entry.content_digest,
+                    release_version: '1.0.0',
+                    scope_entity_id: 'project:brainbase',
+                    impact_scope: fixture.release.impact_scope,
+                    source_commit_sha: fixture.sourceCommit
+                };
+                if (actorEntityId) payload.actor_entity_id = actorEntityId;
+                return {
+                    ok: true,
+                    json: async () => ({
+                        payload,
+                        signature_algorithm: 'ed25519',
+                        signature: sign(null, Buffer.from(canonicalJson(payload)), privateKey).toString('base64'),
+                        key_id: 'test-key'
+                    })
+                };
+            }
+        })).rejects.toThrow(/unverifiable receipt|actor_entity_id/);
+
+        expect(readFileSync(indexPath)).toEqual(priorIndex);
+        expect(() => readFileSync(path.join(configDir, 'publications/1.0.0.receipt.json'))).toThrow();
+    });
+
     it('restores every prior output when a later replacement fails', () => {
         const fixture = publicationRepository({ publish: false });
         const configDir = path.join(fixture.rootDir, 'config/ontology');
