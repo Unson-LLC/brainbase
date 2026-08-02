@@ -13,6 +13,11 @@ import {
     shouldCreateSkillCandidate,
     shouldCreateWikiCandidate
 } from '../../../server/services/learning-service.js';
+import { OntologyRegistry } from '../../../server/services/ontology-registry.js';
+import {
+    createProposedOntologyFixture,
+    createSignedActiveOntologyFixture
+} from '../../helpers/ontology-test-fixtures.js';
 
 describe('learning-service helpers', () => {
     it('wiki document type を canonical 種別へ分類する', () => {
@@ -156,6 +161,7 @@ describe('LearningService', () => {
     let selectQueue;
     let wikiService;
     let repoRoot;
+    let ontologyFixtures;
 
     beforeEach(() => {
         selectQueue = [];
@@ -164,6 +170,7 @@ describe('LearningService', () => {
             setPageAccess: vi.fn(async () => ({ success: true }))
         };
         repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bb-learning-service-'));
+        ontologyFixtures = [];
         pool = {
             query: vi.fn(async (sql) => {
                 if (sql.includes('CREATE TABLE') || sql.includes('ALTER TABLE') || sql.includes('CREATE INDEX')) {
@@ -183,6 +190,7 @@ describe('LearningService', () => {
         if (repoRoot && fs.existsSync(repoRoot)) {
             fs.rmSync(repoRoot, { recursive: true, force: true });
         }
+        for (const fixture of ontologyFixtures) fixture.cleanup();
     });
 
     it('recordEpisode validates review/explicit_learn and inserts normalized fields', async () => {
@@ -701,6 +709,9 @@ describe('LearningService', () => {
     });
 
     it('promoteMemoryCandidateToGraphは全mapped typeを分類しguard付きで返し未知型を拒否する', async () => {
+        const ontologyFixture = createProposedOntologyFixture(process.cwd());
+        ontologyFixtures.push(ontologyFixture);
+        service.ontologyRegistry = new OntologyRegistry({ rootDir: ontologyFixture.rootDir });
         vi.spyOn(service, 'ensureSchema').mockResolvedValue();
         vi.spyOn(service, '_transitionMemoryCandidate').mockResolvedValue({ success: true });
         const getMemoryCandidate = vi.spyOn(service, 'getMemoryCandidate');
@@ -734,5 +745,81 @@ describe('LearningService', () => {
         });
         await expect(service.promoteMemoryCandidateToGraph('candidate_unknown'))
             .rejects.toThrow('cannot be promoted to graph');
+    });
+
+    it('promoteMemoryCandidateToGraphはactive Ontology違反をGraph永続化前に拒否する', async () => {
+        const ontologyFixture = createSignedActiveOntologyFixture(process.cwd());
+        ontologyFixtures.push(ontologyFixture);
+        service.ontologyRegistry = new OntologyRegistry({
+            rootDir: ontologyFixture.rootDir,
+            publicKeyPem: ontologyFixture.publicKeyPem
+        });
+        vi.spyOn(service, 'ensureSchema').mockResolvedValue();
+        vi.spyOn(service, 'getMemoryCandidate').mockResolvedValue({
+            id: 'candidate_active_decision_without_authority',
+            subject_type: 'decision',
+            promotion_status: 'approved',
+            redaction_status: 'none',
+            role_min: 'member',
+            sensitivity: 'internal',
+            source_event_ids: [],
+            evidence_ids: [],
+            permission_snapshot: {},
+            memory: {
+                title: 'authorityを欠くactive decision',
+                status: 'active'
+            }
+        });
+        const transition = vi.spyOn(service, '_transitionMemoryCandidate');
+
+        await expect(service.promoteMemoryCandidateToGraph('candidate_active_decision_without_authority'))
+            .rejects.toMatchObject({
+                code: 'ONTOLOGY_VALIDATION_FAILED',
+                details: {
+                    ontology_version: '1.0.0',
+                    violations: expect.arrayContaining([
+                        expect.objectContaining({ rule_id: 'CON-DECISION-DECIDER-001' }),
+                        expect.objectContaining({ rule_id: 'CON-DECISION-SCOPE-001' })
+                    ])
+                }
+            });
+        expect(pool.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO projects'))).toBe(false);
+        expect(pool.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO graph_entities'))).toBe(false);
+        expect(transition).not.toHaveBeenCalled();
+    });
+
+    it('promoteMemoryCandidateToGraphはactive Ontologyに適合するentityを昇格する', async () => {
+        const ontologyFixture = createSignedActiveOntologyFixture(process.cwd());
+        ontologyFixtures.push(ontologyFixture);
+        service.ontologyRegistry = new OntologyRegistry({
+            rootDir: ontologyFixture.rootDir,
+            publicKeyPem: ontologyFixture.publicKeyPem
+        });
+        vi.spyOn(service, 'ensureSchema').mockResolvedValue();
+        vi.spyOn(service, 'getMemoryCandidate').mockResolvedValue({
+            id: 'candidate_valid_person',
+            subject_type: 'person',
+            promotion_status: 'approved',
+            redaction_status: 'none',
+            role_min: 'member',
+            sensitivity: 'internal',
+            source_event_ids: [],
+            evidence_ids: [],
+            permission_snapshot: {},
+            memory: { name: 'Ontology適合人物' }
+        });
+        vi.spyOn(service, '_transitionMemoryCandidate').mockResolvedValue({ success: true });
+
+        await expect(service.promoteMemoryCandidateToGraph('candidate_valid_person'))
+            .resolves.toMatchObject({
+                success: true,
+                guard_status: 'active_current',
+                ontology_version: '1.0.0',
+                graph_entity: {
+                    entity_type: 'person',
+                    payload: { name: 'Ontology適合人物' }
+                }
+            });
+        expect(pool.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO graph_entities'))).toBe(true);
     });
 });

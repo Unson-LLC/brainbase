@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { ulid } from 'ulid';
 import { logger } from '../utils/logger.js';
+import { OntologyError } from './ontology-kernel.js';
 import { OntologyRegistry } from './ontology-registry.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -997,24 +998,23 @@ export class LearningService {
         }
 
         const entityType = mapMemoryCandidateGraphType(candidate);
-        const guard = this.ontologyRegistry.hasCurrent()
-            ? { guard_status: 'active_current', ontology_version: this.ontologyRegistry.resolve().kernel.version }
+        const currentRelease = this.ontologyRegistry.hasCurrent()
+            ? this.ontologyRegistry.resolve()
+            : null;
+        const guard = currentRelease
+            ? { guard_status: 'active_current', ontology_version: currentRelease.kernel.version }
             : { guard_status: 'inactive_no_current', ontology_version: null };
-        const vocabularyRelease = this.ontologyRegistry.resolve({ version: '1.0.0' });
+        const vocabularyRelease = currentRelease || this.ontologyRegistry.resolve({ version: '1.0.0' });
         vocabularyRelease.kernel.getType(entityType);
-        const projectCode = normalizeOptionalString(candidate.project_code);
-        const projectId = projectCode ? `prj_${projectCode.replace(/[^a-zA-Z0-9_]+/g, '_').toLowerCase()}` : null;
-        if (projectCode) {
-            await this.pool.query(
-                `INSERT INTO projects (id, code, name)
-                 VALUES ($1,$2,$3)
-                 ON CONFLICT (code) DO NOTHING`,
-                [projectId, projectCode, projectCode]
-            );
-        }
 
         const graphEntityId = `mem_${candidate.id}`;
+        const semanticMemory = candidate.memory
+            && typeof candidate.memory === 'object'
+            && !Array.isArray(candidate.memory)
+            ? candidate.memory
+            : {};
         const payload = {
+            ...semanticMemory,
             memory_candidate_id: candidate.id,
             subject_type: candidate.subject_type,
             subject_id: candidate.subject_id,
@@ -1034,6 +1034,35 @@ export class LearningService {
             memory: candidate.memory,
             promoted_at: new Date().toISOString()
         };
+
+        if (currentRelease) {
+            const validation = currentRelease.kernel.validateEntity({
+                id: graphEntityId,
+                type: entityType,
+                payload
+            });
+            if (!validation.valid) {
+                throw new OntologyError(
+                    'ONTOLOGY_VALIDATION_FAILED',
+                    'Graph write violates the current ontology',
+                    {
+                        ontology_version: validation.ontology_version,
+                        violations: validation.violations
+                    }
+                );
+            }
+        }
+
+        const projectCode = normalizeOptionalString(candidate.project_code);
+        const projectId = projectCode ? `prj_${projectCode.replace(/[^a-zA-Z0-9_]+/g, '_').toLowerCase()}` : null;
+        if (projectCode) {
+            await this.pool.query(
+                `INSERT INTO projects (id, code, name)
+                 VALUES ($1,$2,$3)
+                 ON CONFLICT (code) DO NOTHING`,
+                [projectId, projectCode, projectCode]
+            );
+        }
 
         await this.pool.query(
             `INSERT INTO graph_entities (
