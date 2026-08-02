@@ -135,6 +135,42 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 11. publication lifecycle integration: currentなしから開始し、明示versionでproposedを読めること、actor/applier/RACI/Decision bindingの承認、唯一のpublisherによるreceipt/index/compatibility view生成、currentのactive解決、active-current generic split-write guardまでを1つのfixtureで通す。途中の実効状態`proposed`→`approved`→`active`も観測する。
 12. command/CI wiring: `package.json`のpublish/verify command、`.github/workflows/vibepro-graph-ssot.yml`の`fetch-depth: 0`、base/head指定verify stepをfixtureで拘束する。base commit objectを取得できないfixtureではverifyがfail closedになることを確認する。`ontology:publish`と`ontology:verify`はauthorization denial、binding/digest mismatch、Graph/署名依存欠落、commit object欠落、verification driftでnon-zero exitし、secretを含まず失敗bindingまたは検証理由を示すactionable stderrをassertする。
 
+## 設計図
+
+### State
+
+```mermaid
+stateDiagram-v2
+    [*] --> Proposed: immutable release commit
+    Proposed --> Approved: Accountable Decision and signed receipt
+    Approved --> Active: publisher updates current and compatibility view
+    Active --> Retired: a later approved release becomes current
+    Proposed --> Proposed: explicit-version read, validate, infer, impact
+    Proposed --> [*]: publication denied or abandoned
+```
+
+`current`が空の間は`Proposed`だけが存在し、canonical Graphのaudit・atomic commit・暗黙version解決は有効化しない。公開操作はsource commitの直接の子としてreceipt、index、compatibility viewだけを生成する。
+
+### Threat model
+
+```mermaid
+flowchart LR
+    Caller["Authenticated caller"] --> Authority["Graph authority endpoint"]
+    Authority --> Decision["Decision and Accountable RACI"]
+    Authority --> Signer["Ed25519 signer secret"]
+    Signer --> Receipt["Signed publication receipt"]
+    Publisher["Ontology publisher"] --> Authority
+    Publisher --> Receipt
+    Receipt --> Index["Current index"]
+    Index --> Runtime["Ontology Kernel runtime"]
+    Attacker["Untrusted body or history rewrite"] -. "actor spoof, binding drift, squash/rebase" .-> Authority
+    Verifier["CI history and signature verifier"] --> Receipt
+    Verifier --> Index
+    Verifier --> Runtime
+```
+
+Trust boundaryは認証context、Graph上のDecision/RACI、server側署名鍵、Git履歴の4点である。request bodyのactor自己申告、scope/applier不一致、署名・digest・source commit差し替え、許可外生成物、履歴のsquash/rebaseはfail closedにする。PIIを含み得るGraph payloadや秘密鍵はrelease manifest、receipt、CI出力へ複製しない。
+
 ## Clause ID正本
 
 VibePro accepted Specが付与する`C-*`、`INV-*`、`S-*`をclause ID正本とし、`ONT-*`はrequirement IDとして使う。tracked JSONとaccepted Specのclause IDは同一に保つ。

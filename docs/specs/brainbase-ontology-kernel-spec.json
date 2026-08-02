@@ -5,6 +5,20 @@
   "version": "1.0.0",
   "status": "accepted",
   "architecture_ref": "docs/architecture/ADR-021-brainbase-ontology-kernel.md",
+  "diagrams": [
+    {
+      "kind": "state",
+      "title": "Ontology release lifecycle",
+      "format": "mermaid",
+      "source": "stateDiagram-v2\n    [*] --> Proposed: immutable release commit\n    Proposed --> Approved: Accountable Decision and signed receipt\n    Approved --> Active: publisher updates current and compatibility view\n    Active --> Retired: a later approved release becomes current"
+    },
+    {
+      "kind": "threat_model",
+      "title": "Publication authority trust boundaries",
+      "format": "mermaid",
+      "source": "flowchart LR\n    Caller[Authenticated caller] --> Authority[Graph authority endpoint]\n    Authority --> Decision[Decision and Accountable RACI]\n    Authority --> Signer[Ed25519 signer secret]\n    Signer --> Receipt[Signed publication receipt]\n    Verifier[CI history and signature verifier] --> Receipt"
+    }
+  ],
   "clauses": [
     {
       "id": "C-001",
