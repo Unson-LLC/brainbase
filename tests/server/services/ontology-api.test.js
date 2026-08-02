@@ -136,6 +136,33 @@ describe('InfoSSOTService ontology API', () => {
         expect(statements.some((sql) => String(sql).includes('INSERT INTO graph_entities'))).toBe(false);
     });
 
+    it('rejects an effective Decision on the active entity-only writer before persistence', async () => {
+        let connectionAttempts = 0;
+        const service = new InfoSSOTService({
+            ontologyRegistry: activeRegistry(),
+            pool: { connect: async () => { connectionAttempts += 1; throw new Error('must not persist'); } }
+        });
+        const access = { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] };
+
+        await expect(service.createOrUpdateGraphEntity(access, {
+            id: 'decision:entity-only',
+            entityType: 'decision',
+            projectCode: 'brainbase',
+            payload: { status: 'decided' },
+            roleMin: 'member',
+            sensitivity: 'internal'
+        })).rejects.toMatchObject({
+            code: 'ONTOLOGY_VALIDATION_FAILED',
+            details: expect.objectContaining({
+                violations: expect.arrayContaining([
+                    expect.objectContaining({ rule_id: 'CON-DECISION-DECIDER-001' }),
+                    expect.objectContaining({ rule_id: 'CON-DECISION-SCOPE-001' })
+                ])
+            })
+        });
+        expect(connectionAttempts).toBe(0);
+    });
+
     it('rejects caller-declared context entities that do not exist in the canonical Graph', async () => {
         const statements = [];
         const client = {

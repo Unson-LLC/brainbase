@@ -18,6 +18,7 @@ const manifest = {
     relation_types: {
         owned_by: { meaning: '責任主体', from: ['app', 'product', 'brand', 'project'], to: ['org', 'person'] },
         belongs_to: { meaning: '包含先', from: ['app', 'product', 'brand', 'project'], to: ['org', 'product', 'brand', 'project'] },
+        belongs_to_project: { meaning: 'projectへの包含', from: ['decision'], to: ['project'] },
         governs: { meaning: '規律対象', from: ['decision'], to: ['app', 'product', 'brand', 'project', 'org'] },
         supersedes: { meaning: '旧判断の置換', from: ['decision'], to: ['decision'] },
         derived_from: { meaning: '由来', from: ['app', 'product', 'brand', 'project', 'decision'], to: ['app', 'product', 'brand', 'project', 'decision'] },
@@ -25,9 +26,11 @@ const manifest = {
     },
     constraints: [
         { id: 'app-owner-required', target: 'app', kind: 'required_relation', relation: 'owned_by', related_types: ['org'] },
-        { id: 'active-decision-context-required', target: 'decision', kind: 'required_fields_when', when: { status: 'active' }, fields: ['decider_id', 'scope_ids'] }
+        { id: 'active-decision-context-required', target: 'decision', kind: 'required_fields_when', when: { status: 'active' }, fields: ['decider_id', 'scope_ids'] },
+        { id: 'effective-decision-decider-required', target: 'decision', kind: 'required_relation_when', when: { status: ['active', 'decided'] }, relation: 'owned_by', related_types: ['person'] },
+        { id: 'effective-decision-scope-required', target: 'decision', kind: 'required_relation_when', when: { status: ['active', 'decided'] }, relation: 'belongs_to_project', related_types: ['project'] }
     ],
-    inference_rules: [{ id: 'decision-supersession', relation: 'supersedes' }],
+    inference_rules: [{ id: 'decision-supersession', relation: 'supersedes', effective_statuses: ['active', 'decided'] }],
     evolution_rules: { breaking: 'major', additive: 'minor', editorial: 'patch' }
 };
 Object.assign(manifest, {
@@ -127,8 +130,115 @@ describe('OntologyKernel', () => {
     it('requires decider and scope for an active decision', () => {
         expect(kernel().validateEntity({ id: 'dec_1', type: 'decision', payload: { status: 'active' } })).toMatchObject({
             valid: false,
-            violations: [{ rule_id: 'active-decision-context-required' }]
+            violations: expect.arrayContaining([expect.objectContaining({ rule_id: 'active-decision-context-required' })])
         });
+    });
+
+    it('validates effective Decision authority from canonical Graph edges', () => {
+        const accepted = kernel().validateSnapshot({
+            entities: [
+                { id: 'dec_1', type: 'decision', payload: { status: 'decided' } },
+                { id: 'person_1', type: 'person', payload: {} },
+                { id: 'project_1', type: 'project', payload: {} }
+            ],
+            edges: [
+                { from_id: 'dec_1', to_id: 'person_1', relation: 'owned_by' },
+                { from_id: 'dec_1', to_id: 'project_1', relation: 'belongs_to_project' }
+            ]
+        });
+        expect(accepted.violations).not.toContainEqual(expect.objectContaining({ rule_id: 'effective-decision-decider-required' }));
+        expect(accepted.violations).not.toContainEqual(expect.objectContaining({ rule_id: 'effective-decision-scope-required' }));
+
+        const missingDecider = kernel().validateSnapshot({
+            entities: [
+                { id: 'dec_1', type: 'decision', payload: { status: 'decided' } },
+                { id: 'project_1', type: 'project', payload: {} }
+            ],
+            edges: [{ from_id: 'dec_1', to_id: 'project_1', relation: 'belongs_to_project' }]
+        });
+        expect(missingDecider.violations).toContainEqual(expect.objectContaining({
+            rule_id: 'effective-decision-decider-required',
+            entity_id: 'dec_1'
+        }));
+
+        const missingScope = kernel().validateSnapshot({
+            entities: [
+                { id: 'dec_1', type: 'decision', payload: { status: 'decided' } },
+                { id: 'person_1', type: 'person', payload: {} }
+            ],
+            edges: [{ from_id: 'dec_1', to_id: 'person_1', relation: 'owned_by' }]
+        });
+        expect(missingScope.violations).toContainEqual(expect.objectContaining({
+            rule_id: 'effective-decision-scope-required',
+            entity_id: 'dec_1'
+        }));
+    });
+
+    it('does not approve a decided Decision on the entity-only validation path', () => {
+        const result = kernel().validateEntity({ id: 'dec_entity_only', type: 'decision', payload: { status: 'decided' } });
+        expect(result.valid).toBe(false);
+        expect(result.violations).toEqual(expect.arrayContaining([
+            expect.objectContaining({ rule_id: 'effective-decision-decider-required', aggregate_required: true }),
+            expect.objectContaining({ rule_id: 'effective-decision-scope-required', aggregate_required: true })
+        ]));
+    });
+
+    it('infers Decision conflicts from canonical project scope edges', () => {
+        const sharedScope = kernel().inferDecisions({
+            entities: [
+                { id: 'dec_a', type: 'decision', payload: { status: 'decided' } },
+                { id: 'dec_b', type: 'decision', payload: { status: 'decided' } },
+                { id: 'project_1', type: 'project', payload: {} }
+            ],
+            edges: [
+                { from_id: 'dec_a', to_id: 'project_1', relation: 'belongs_to_project' },
+                { from_id: 'dec_b', to_id: 'project_1', relation: 'belongs_to_project' }
+            ]
+        });
+        expect(sharedScope.decisions.dec_a).toMatchObject({ status: 'conflict', inferred: true });
+        expect(sharedScope.evidence).toContainEqual(expect.objectContaining({ rule_id: 'decision-active-conflict' }));
+
+        const distinctScopes = kernel().inferDecisions({
+            entities: [
+                { id: 'dec_a', type: 'decision', payload: { status: 'decided' } },
+                { id: 'dec_b', type: 'decision', payload: { status: 'decided' } },
+                { id: 'project_1', type: 'project', payload: {} },
+                { id: 'project_2', type: 'project', payload: {} }
+            ],
+            edges: [
+                { from_id: 'dec_a', to_id: 'project_1', relation: 'belongs_to_project' },
+                { from_id: 'dec_b', to_id: 'project_2', relation: 'belongs_to_project' }
+            ]
+        });
+        expect(distinctScopes.evidence).not.toContainEqual(expect.objectContaining({ rule_id: 'decision-active-conflict' }));
+
+        const invalidScopes = kernel().inferDecisions({
+            entities: [
+                { id: 'dec_a', type: 'decision', payload: { status: 'decided' } },
+                { id: 'dec_b', type: 'decision', payload: { status: 'decided' } },
+                { id: 'person_1', type: 'person', payload: {} }
+            ],
+            edges: [
+                { from_id: 'dec_a', to_id: 'person_1', relation: 'belongs_to_project' },
+                { from_id: 'dec_b', to_id: 'person_1', relation: 'belongs_to_project' },
+                { from_id: 'dec_a', to_id: 'missing_project', relation: 'belongs_to_project' },
+                { from_id: 'dec_b', to_id: 'missing_project', relation: 'belongs_to_project' }
+            ]
+        });
+        expect(invalidScopes.evidence).not.toContainEqual(expect.objectContaining({ rule_id: 'decision-active-conflict' }));
+        expect(invalidScopes.decisions.dec_a).toMatchObject({ status: 'decided' });
+        expect(invalidScopes.decisions.dec_b).toMatchObject({ status: 'decided' });
+    });
+
+    it('treats decided Decisions as effective for supersession inference', () => {
+        const result = kernel().inferDecisions({
+            entities: [
+                { id: 'dec_old', type: 'decision', payload: { status: 'decided', scope_ids: ['app_1'] } },
+                { id: 'dec_new', type: 'decision', payload: { status: 'decided', scope_ids: ['app_1'] } }
+            ],
+            edges: [{ from_id: 'dec_new', to_id: 'dec_old', relation: 'supersedes' }]
+        });
+        expect(result.decisions.dec_old).toMatchObject({ status: 'superseded', inferred: true });
     });
 
     it('marks a superseded decision inactive with evidence and explanation', () => {

@@ -33,7 +33,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 ### ONT-003 制約と監査
 
 - `CON-APP-OWNER-001`: appは`owns`または`owned_by`でorg ownerを1つ以上持つ。personへの`owned_by`だけではこの制約を満たさない。
-- `CON-DECISION-ACTIVE-001`: active Decisionはdecider personとscope project/org/app/productを持つ。
+- `CON-DECISION-DECIDER-001` / `CON-DECISION-SCOPE-001`: activeまたはdecided Decisionは、Graph edgeでdecider personとproject scopeを持つ。既存Graphのauthority/scope正本をpayloadへ重複させない。
 - entity、edge、snapshotのdry-runは永続化しない。
 - snapshotが欠落・不完全なら`unverified`を返し、違反0件にしない。
 - 必須relationを持つ新規entityはatomic commitでentityとedgeを同一transaction内に検証し、違反時は全体をrollbackする。
@@ -86,7 +86,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 - MCPのCore/Extension型とExtension既定非表示契約を維持する。
 - 既存専用write pathのrelationはv1 manifestへ登録する。
 - 汎用write APIの新規不正入力を拒否するが、既存Graphを自動変更しない。
-- 既存の分離writeは登録型・relation・endpointをguardし、必須relation強制はatomic commitへ移行する。既存ownerなしentity作成契約はv1で即時破壊しない。
+- activeなcurrent下の既存分離writeは登録型・relation・endpointをguardし、必須relationを持つentity単体writeは不完全なaggregateとして拒否してatomic commitを要求する。current不在時は既存ownerなしentity作成契約を直ちに破壊せず、`inactive_no_current`を返す。
 - current不在時の既存writeは従来互換で継続するが、proposed規則を適用せず、すべての成功responseへ後方互換な追加fieldとして`guard_status: inactive_no_current`を必ず返す。内部監査だけで代替せず、Ontology検証済みとは扱わない。current公開後に同じ経路のguardを有効化する。
 - manifestはpublic ID、storage type、visibility、aliasを明示し、ADR-007とMCP projectionの差をcontract testで固定する。
 

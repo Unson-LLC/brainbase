@@ -70,7 +70,8 @@ test('story-brainbase-ontology-kernel ac:4 shared constraints cover fields, rela
     ]
   });
   expect(result.violations).toEqual(expect.arrayContaining([
-    expect.objectContaining({ rule_id: 'CON-DECISION-ACTIVE-001' }),
+    expect.objectContaining({ rule_id: 'CON-DECISION-DECIDER-001' }),
+    expect.objectContaining({ rule_id: 'CON-DECISION-SCOPE-001' }),
     expect.objectContaining({ rule_id: 'relation-cardinality-owned_by' }),
     expect.objectContaining({ rule_id: 'edge-reference-integrity' })
   ]));
@@ -83,6 +84,61 @@ test('story-brainbase-ontology-kernel ac:4 shared constraints cover fields, rela
     edges: [{ from_id: 'app:person-owned', to_id: 'person:owner', relation: 'owned_by' }]
   });
   expect(personOwned.violations).toContainEqual(expect.objectContaining({ rule_id: 'CON-APP-OWNER-001' }));
+});
+
+test('story-brainbase-ontology-production-compatibility accepts verified production vocabulary without hiding data gaps', async () => {
+  const { kernel } = proposedRelease();
+  const compatible = kernel.validateSnapshot({
+    complete: true,
+    entities: [
+      { id: 'contact:one', type: 'contact', payload: {} },
+      { id: 'project:one', type: 'project', payload: {} },
+      { id: 'project:two', type: 'project', payload: {} },
+      { id: 'push:one', type: 'push_case', payload: {} },
+      { id: 'diagnosis:one', type: 'diagnosis', payload: {} }
+    ],
+    edges: [
+      { from_id: 'contact:one', to_id: 'project:one', relation: 'belongs_to_project' },
+      { from_id: 'contact:one', to_id: 'project:two', relation: 'belongs_to_project' },
+      { from_id: 'push:one', to_id: 'diagnosis:one', relation: 'has_diagnosis' }
+    ]
+  });
+  expect(compatible.violations).toEqual([]);
+
+  const honestResidual = kernel.validateSnapshot({
+    complete: true,
+    entities: [
+      { id: 'app:ownerless', type: 'app', payload: {} },
+      { id: 'contact:one', type: 'contact', payload: {} },
+      { id: 'project:one', type: 'project', payload: {} }
+    ],
+    edges: [
+      { from_id: 'contact:one', to_id: 'project:one', relation: 'appeared_in' },
+      { from_id: 'missing:source', to_id: 'app:ownerless', relation: 'appeared_in' }
+    ]
+  });
+  expect(honestResidual.violations).toEqual(expect.arrayContaining([
+    expect.objectContaining({ rule_id: 'CON-APP-OWNER-001' }),
+    expect.objectContaining({ rule_id: 'edge-reference-integrity' }),
+    expect.objectContaining({ rule_id: 'relation-type-registered' })
+  ]));
+});
+
+test('story-brainbase-ontology-production-compatibility validates decided Decision authority and scope through edges', async () => {
+  const { kernel } = proposedRelease();
+  const result = kernel.validateSnapshot({
+    complete: true,
+    entities: [
+      { id: 'decision:one', type: 'decision', payload: { status: 'decided' } },
+      { id: 'person:one', type: 'person', payload: {} },
+      { id: 'project:one', type: 'project', payload: {} }
+    ],
+    edges: [
+      { from_id: 'decision:one', to_id: 'person:one', relation: 'owned_by' },
+      { from_id: 'decision:one', to_id: 'project:one', relation: 'belongs_to_project' }
+    ]
+  });
+  expect(result.violations).toEqual([]);
 });
 
 test('story-brainbase-ontology-kernel ac:5 dry-run and DB audit distinguish violations from incomplete collection', async () => {
@@ -186,13 +242,16 @@ test('story-brainbase-ontology-kernel ac:8 releases expose versioning, compatibi
     version: '1.0.0',
     effective_at: expect.any(String),
     compatibility: { classification: 'initial' },
-    migration: { required: false },
+    migration: {
+      required: true,
+      plan: 'docs/management/stories/active/story-brainbase-ontology-production-compatibility.md'
+    },
     rollback: { strategy: 'restore_previous_current' },
     impact_scope: {
       graph_scope: 'project:brainbase',
       affected_apis: expect.arrayContaining(['/api/info/ontology/*']),
       affected_agents: expect.arrayContaining(['brainbase-graph-agent']),
-      migration_required: false
+      migration_required: true
     }
   });
   expect(release.kernel.describe().evolution_rules).toMatchObject({ breaking: 'major', additive: 'minor', editorial: 'patch' });

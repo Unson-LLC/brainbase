@@ -31,6 +31,13 @@ function violation(ruleId, message, extra = {}) {
     return { rule_id: ruleId, message, ...extra };
 }
 
+function matchesWhen(payload, when = {}) {
+    return Object.entries(when).every(([key, expected]) => {
+        const actual = payload?.[key];
+        return Array.isArray(expected) ? expected.includes(actual) : actual === expected;
+    });
+}
+
 function assertManifest(manifest) {
     const missing = REQUIRED_MANIFEST_KEYS.filter((key) => !Object.hasOwn(manifest || {}, key));
     if (missing.length) {
@@ -92,7 +99,7 @@ export class OntologyKernel {
         return structuredClone(definition);
     }
 
-    validateEntity(entity) {
+    validateEntity(entity, { deferRequiredRelations = false } = {}) {
         const violations = [];
         if (!entity?.id) violations.push(violation('entity-id-required', 'Entity id is required'));
         const type = entity?.type || entity?.entity_type;
@@ -101,7 +108,7 @@ export class OntologyKernel {
         }
         for (const rule of this.manifest.constraints) {
             if (rule.target !== type || rule.kind !== 'required_fields_when') continue;
-            const matches = Object.entries(rule.when || {}).every(([key, value]) => entity?.payload?.[key] === value);
+            const matches = matchesWhen(entity?.payload, rule.when);
             if (!matches) continue;
             const missingFields = rule.fields.filter((field) => {
                 const value = entity?.payload?.[field];
@@ -111,6 +118,16 @@ export class OntologyKernel {
                 violations.push(violation(rule.id, `Missing required fields: ${missingFields.join(', ')}`, {
                     entity_id: entity?.id,
                     missing_fields: missingFields
+                }));
+            }
+        }
+        if (!deferRequiredRelations) {
+            for (const rule of this.manifest.constraints) {
+                if (rule.target !== type || !['required_relation', 'required_relation_when'].includes(rule.kind)) continue;
+                if (rule.kind === 'required_relation_when' && !matchesWhen(entity?.payload, rule.when)) continue;
+                violations.push(violation(rule.id, rule.message || `${type} requires relation evidence in an aggregate snapshot`, {
+                    entity_id: entity?.id,
+                    aggregate_required: true
                 }));
             }
         }
@@ -145,7 +162,7 @@ export class OntologyKernel {
         const entities = snapshot?.entities || [];
         const edges = snapshot?.edges || [];
         const byId = new Map(entities.map((entity) => [entity.id, entity]));
-        const violations = entities.flatMap((entity) => this.validateEntity(entity).violations);
+        const violations = entities.flatMap((entity) => this.validateEntity(entity, { deferRequiredRelations: true }).violations);
         for (const edge of edges) {
             const from = byId.get(edge.from_id);
             const to = byId.get(edge.to_id);
@@ -182,8 +199,9 @@ export class OntologyKernel {
             }
         }
         for (const rule of this.manifest.constraints) {
-            if (rule.kind !== 'required_relation') continue;
+            if (!['required_relation', 'required_relation_when'].includes(rule.kind)) continue;
             for (const entity of entities.filter((item) => (item.type || item.entity_type) === rule.target)) {
+                if (rule.kind === 'required_relation_when' && !matchesWhen(entity.payload, rule.when)) continue;
                 const alternatives = rule.alternatives || [{ relation: rule.relation, direction: 'outgoing' }];
                 const hasRelation = alternatives.some((alternative) => edges.some((edge) => {
                     const endpointId = alternative.direction === 'incoming' ? edge.to_id : edge.from_id;
@@ -194,7 +212,7 @@ export class OntologyKernel {
                     return related && rule.related_types.includes(related.type || related.entity_type);
                 }));
                 if (!hasRelation) {
-                    violations.push(violation(rule.id, `${rule.target} requires an ownership relation`, { entity_id: entity.id }));
+                    violations.push(violation(rule.id, rule.message || `${rule.target} requires relation evidence`, { entity_id: entity.id }));
                 }
             }
         }
@@ -217,10 +235,11 @@ export class OntologyKernel {
             .map((entity) => [entity.id, { ...entity.payload, explicit: true, inferred: false }]));
         const evidence = [];
         const supersessionRule = this.manifest.inference_rules.find((rule) => rule.relation === 'supersedes');
+        const effectiveStatuses = new Set(supersessionRule?.effective_statuses || ['active']);
         const isEffectiveSupersession = (edge) => {
             if ((edge.relation || edge.rel_type) !== 'supersedes') return false;
             const replacement = decisions[edge.from_id];
-            if (!replacement || !decisions[edge.to_id] || replacement.status !== 'active') return false;
+            if (!replacement || !decisions[edge.to_id] || !effectiveStatuses.has(replacement.status)) return false;
             const asOfTime = Date.parse(asOf);
             return [edge.effective_at, replacement.effective_at]
                 .filter(Boolean)
@@ -235,16 +254,27 @@ export class OntologyKernel {
         const explicitSupersessions = new Set((snapshot?.edges || [])
             .filter(isEffectiveSupersession)
             .flatMap((edge) => [`${edge.from_id}:${edge.to_id}`, `${edge.to_id}:${edge.from_id}`]));
+        const scopesByDecision = new Map(Object.entries(decisions).map(([id, decision]) => [
+            id,
+            new Set(Array.isArray(decision.scope_ids) ? decision.scope_ids : [])
+        ]));
+        const entitiesById = new Map((snapshot?.entities || []).map((entity) => [entity.id, entity]));
+        for (const edge of snapshot?.edges || []) {
+            if ((edge.relation || edge.rel_type) !== 'belongs_to_project' || !scopesByDecision.has(edge.from_id)) continue;
+            const scope = entitiesById.get(edge.to_id);
+            if (!scope || (scope.type || scope.entity_type) !== 'project') continue;
+            scopesByDecision.get(edge.from_id).add(edge.to_id);
+        }
         const activeIds = Object.entries(decisions)
-            .filter(([, decision]) => decision.status === 'active')
+            .filter(([, decision]) => effectiveStatuses.has(decision.status))
             .map(([id]) => id);
         for (let leftIndex = 0; leftIndex < activeIds.length; leftIndex += 1) {
             for (let rightIndex = leftIndex + 1; rightIndex < activeIds.length; rightIndex += 1) {
                 const leftId = activeIds[leftIndex];
                 const rightId = activeIds[rightIndex];
-                const leftScopes = decisions[leftId].scope_ids || [];
-                const rightScopes = decisions[rightId].scope_ids || [];
-                const overlaps = leftScopes.some((scope) => rightScopes.includes(scope));
+                const leftScopes = scopesByDecision.get(leftId) || new Set();
+                const rightScopes = scopesByDecision.get(rightId) || new Set();
+                const overlaps = [...leftScopes].some((scope) => rightScopes.has(scope));
                 if (!overlaps || explicitSupersessions.has(`${leftId}:${rightId}`)) continue;
                 decisions[leftId] = { ...decisions[leftId], status: 'conflict', inferred: true };
                 decisions[rightId] = { ...decisions[rightId], status: 'conflict', inferred: true };
