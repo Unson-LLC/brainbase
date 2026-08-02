@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -6,9 +6,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { canonicalJson, sha256 } from '../../../server/services/ontology-publication.js';
 import { OntologyRegistry } from '../../../server/services/ontology-registry.js';
+import { createProposedOntologyFixture } from '../../helpers/ontology-test-fixtures.js';
 
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const proposedFixture = createProposedOntologyFixture(sourceRoot);
+const rootDir = proposedFixture.rootDir;
 const temporaryDirectories = [];
+
+afterAll(() => proposedFixture.cleanup());
 
 afterEach(() => {
     for (const directory of temporaryDirectories.splice(0)) rmSync(directory, { recursive: true, force: true });

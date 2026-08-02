@@ -4,9 +4,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { OntologyRegistry } from '../../server/services/ontology-registry.js';
+import { createProposedOntologyFixture } from '../helpers/ontology-test-fixtures.js';
 
 const storyId = 'story-brainbase-ontology-production-compatibility';
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const proposedFixture = createProposedOntologyFixture(sourceRoot);
+const rootDir = proposedFixture.rootDir;
+
+test.afterAll(() => proposedFixture.cleanup());
 
 function proposedRelease() {
   return new OntologyRegistry({ rootDir }).resolve({ version: '1.0.0' });
@@ -18,7 +23,7 @@ test(`${storyId} ac:1 classifies only verified production vocabulary`, async () 
   for (const type of ['capital', 'contract', 'database', 'database_cluster', 'diagnosis', 'finance', 'finance_account', 'org_alias', 'organization', 'person_alias', 'push_case']) {
     expect(manifest.entity_types[type]?.classification, `${storyId} ac:1 type ${type}`).toBe('compatibility');
   }
-  expect(manifest.relation_types.appeared_in, `${storyId} ac:1 unverified relation`).toBeUndefined();
+  expect(manifest.relation_types.appeared_in?.classification, `${storyId} ac:1 verified relation`).toBe('compatibility');
 });
 
 test(`${storyId} ac:2 accepts verified many-to-many project membership`, async () => {
@@ -113,13 +118,13 @@ test(`${storyId} ac:4 preserves owner, orphan, and unverified-relation residuals
   expect(result.violations, `${storyId} ac:4 honest residuals`).toEqual(expect.arrayContaining([
     expect.objectContaining({ rule_id: 'CON-APP-OWNER-001' }),
     expect.objectContaining({ rule_id: 'edge-reference-integrity' }),
-    expect.objectContaining({ rule_id: 'relation-type-registered' })
+    expect.objectContaining({ rule_id: 'relation-endpoint-appeared_in' })
   ]));
 });
 
 test(`${storyId} ac:5 records a complete read-only production shadow audit`, async () => {
   const artifact = JSON.parse(fs.readFileSync(path.join(
-    rootDir,
+    sourceRoot,
     'docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json'
   ), 'utf8'));
   expect(artifact, `${storyId} ac:5 audit`).toMatchObject({
@@ -143,19 +148,19 @@ test(`${storyId} ac:5 records a complete read-only production shadow audit`, asy
     createHash('sha256').update(JSON.stringify(artifact.observed_inventory)).digest('hex')
   );
   expect(artifact.observed_inventory.relation_endpoints['belongs_to_project|decision|project'], `${storyId} ac:5 endpoint evidence`).toBe(235);
-  const runner = fs.readFileSync(path.join(rootDir, 'scripts/ontology-shadow-audit.js'), 'utf8');
+  const runner = fs.readFileSync(path.join(sourceRoot, 'scripts/ontology-shadow-audit.js'), 'utf8');
   expect(runner, `${storyId} ac:5 runner provenance`).toContain("execFileSync('git', ['show'");
   expect(runner, `${storyId} ac:5 runner snapshot digest`).toContain('snapshot_digest: snapshotDigest');
 });
 
-test(`${storyId} ac:6 keeps publication and activation disabled`, async () => {
+test(`${storyId} ac:6 keeps activation disabled until signed publication`, async () => {
   const index = JSON.parse(fs.readFileSync(path.join(rootDir, 'config/ontology/index.json'), 'utf8'));
   const { kernel } = proposedRelease();
   const { manifest } = kernel;
   expect(index.current, `${storyId} ac:6 current`).toBeNull();
   expect(manifest.governance, `${storyId} ac:6 governance`).toMatchObject({
-    decision_id: null,
-    decider_entity_id: null
+    decision_id: 'dec_ontology_1_0_0_activation_20260803',
+    decider_entity_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5'
   });
   expect(kernel.status, `${storyId} ac:6 release status`).toBe('proposed');
 });

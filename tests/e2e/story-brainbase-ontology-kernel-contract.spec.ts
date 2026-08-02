@@ -4,9 +4,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { InfoSSOTService } from '../../server/services/info-ssot-service.js';
 import { OntologyRegistry } from '../../server/services/ontology-registry.js';
+import { createProposedOntologyFixture } from '../helpers/ontology-test-fixtures.js';
 
 const storyId = 'story-brainbase-ontology-kernel';
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const proposedFixture = createProposedOntologyFixture(sourceRoot);
+const rootDir = proposedFixture.rootDir;
+
+test.afterAll(() => proposedFixture.cleanup());
 
 function proposedRelease() {
   return new OntologyRegistry({ rootDir }).resolve({ version: '1.0.0' });
@@ -120,7 +125,7 @@ test('story-brainbase-ontology-production-compatibility accepts verified product
   expect(honestResidual.violations).toEqual(expect.arrayContaining([
     expect.objectContaining({ rule_id: 'CON-APP-OWNER-001' }),
     expect.objectContaining({ rule_id: 'edge-reference-integrity' }),
-    expect.objectContaining({ rule_id: 'relation-type-registered' })
+    expect.objectContaining({ rule_id: 'relation-endpoint-appeared_in' })
   ]));
 });
 
@@ -244,7 +249,7 @@ test('story-brainbase-ontology-kernel ac:8 releases expose versioning, compatibi
     compatibility: { classification: 'initial' },
     migration: {
       required: true,
-      plan: 'docs/management/stories/active/story-brainbase-ontology-production-compatibility.md'
+      plan: 'docs/management/stories/active/story-brainbase-ontology-production-activation.md'
     },
     rollback: { strategy: 'restore_previous_current' },
     impact_scope: {
@@ -387,19 +392,19 @@ test('story-brainbase-ontology-kernel ac:10 impact reports affected facts, APIs,
   expect(typeof result.migration_required).toBe('boolean');
 });
 
-test('story-brainbase-ontology-kernel ac:11 unapproved governance cannot become canonical current', async () => {
+test('story-brainbase-ontology-kernel ac:11 approved governance alone cannot become canonical current', async () => {
   const registry = new OntologyRegistry({ rootDir });
   const release = registry.resolve({ version: '1.0.0' });
   expect(release.kernel.describe().governance).toMatchObject({
-    decision_id: null,
-    scope_entity_id: null,
-    proposer_entity_id: null,
-    decider_entity_id: null,
-    applier_entity_id: null
+    decision_id: 'dec_ontology_1_0_0_activation_20260803',
+    scope_entity_id: 'prj_01KGCS8CAJKKDWACPNK1E5WX8H',
+    proposer_entity_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5',
+    decider_entity_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5',
+    applier_entity_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5'
   });
   expect(registry.index.current).toBeNull();
   expect(() => registry.resolve()).toThrowError(expect.objectContaining({ code: 'ONTOLOGY_CURRENT_UNAVAILABLE' }));
-  const authoritySource = fs.readFileSync(path.join(rootDir, 'server/services/info-ssot-service.js'), 'utf8');
+  const authoritySource = fs.readFileSync(path.join(sourceRoot, 'server/services/info-ssot-service.js'), 'utf8');
   expect(authoritySource).toContain("('proposer'::text, $1::text, 'R'::text)");
   expect(authoritySource).toContain("('decider'::text, $2::text, 'A'::text)");
   expect(authoritySource).toContain("('applier'::text, $3::text, 'A'::text)");
@@ -409,8 +414,8 @@ test('story-brainbase-ontology-kernel ac:11 unapproved governance cannot become 
 
 test('story-brainbase-ontology-kernel ac:12 publication CI binds full history and rejects rewritten evidence', async () => {
   const taskAcceptanceCriterion = '公開承認はDecisionに記録されたversion digest source commitと一致し、merge後もsource/publication pairを検証できる';
-  const workflow = fs.readFileSync(path.join(rootDir, '.github/workflows/vibepro-graph-ssot.yml'), 'utf8');
-  const verifier = fs.readFileSync(path.join(rootDir, 'scripts/ontology-release-verify.js'), 'utf8');
+  const workflow = fs.readFileSync(path.join(sourceRoot, '.github/workflows/vibepro-graph-ssot.yml'), 'utf8');
+  const verifier = fs.readFileSync(path.join(sourceRoot, 'scripts/ontology-release-verify.js'), 'utf8');
   expect(workflow).toContain('fetch-depth: 0');
   expect(workflow).toContain('ontology:verify');
   expect(verifier).toContain('source_commit_sha');
@@ -474,12 +479,12 @@ test('story-brainbase-ontology-kernel ac:16 current absence preserves legacy wri
 });
 
 test('story-brainbase-ontology-kernel ac:17 active publication remains an explicit follow-up task', async () => {
-  const story = fs.readFileSync(path.join(rootDir, 'docs/management/stories/active/story-brainbase-ontology-kernel.md'), 'utf8');
-  const task = fs.readFileSync(path.join(rootDir, 'docs/management/tasks/ONT-KERNEL-002.md'), 'utf8');
+  const story = fs.readFileSync(path.join(sourceRoot, 'docs/management/stories/active/story-brainbase-ontology-kernel.md'), 'utf8');
+  const task = fs.readFileSync(path.join(sourceRoot, 'docs/management/tasks/ONT-KERNEL-002.md'), 'utf8');
   const index = JSON.parse(fs.readFileSync(path.join(rootDir, 'config/ontology/index.json'), 'utf8'));
   const release = JSON.parse(fs.readFileSync(path.join(rootDir, 'config/ontology/releases/1.0.0.json'), 'utf8'));
   expect(story).toContain('ONT-KERNEL-002');
-  expect(task).toMatch(/^status: pending$/m);
+  expect(task).toMatch(/^status: in_progress$/m);
   expect(task).toContain('active');
   expect(task).toContain('Decision');
   expect(task).toContain('RACI');
@@ -492,7 +497,7 @@ test('story-brainbase-ontology-kernel ac:17 active publication remains an explic
 });
 
 test('story-brainbase-ontology-kernel ac:18 JSON Spec binds the complete publication authority request', async () => {
-  const spec = JSON.parse(fs.readFileSync(path.join(rootDir, 'docs/specs/brainbase-ontology-kernel-spec.json'), 'utf8'));
+  const spec = JSON.parse(fs.readFileSync(path.join(sourceRoot, 'docs/specs/brainbase-ontology-kernel-spec.json'), 'utf8'));
   const authorityContract = spec.requirements
     .find(({ id }: { id: string }) => id === 'ONT-006')
     .shall.find((statement: string) => statement.includes('publications/authorize'));

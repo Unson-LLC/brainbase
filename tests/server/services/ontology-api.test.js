@@ -1,10 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
 import { OntologyRegistry } from '../../../server/services/ontology-registry.js';
+import { createProposedOntologyFixture } from '../../helpers/ontology-test-fixtures.js';
 
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const proposedFixture = createProposedOntologyFixture(sourceRoot);
+const rootDir = proposedFixture.rootDir;
+
+afterAll(() => proposedFixture.cleanup());
 
 function createService() {
     return new InfoSSOTService({ ontologyRegistry: new OntologyRegistry({ rootDir }) });

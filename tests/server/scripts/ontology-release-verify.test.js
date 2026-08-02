@@ -9,6 +9,7 @@ import { publishOntologyRelease, replacePublicationOutputs } from '../../../scri
 import { verifyOntologyHistory, verifyOntologyRelease } from '../../../scripts/ontology-release-verify.js';
 import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
 import { OntologyRegistry } from '../../../server/services/ontology-registry.js';
+import { createProposedOntologyFixture } from '../../helpers/ontology-test-fixtures.js';
 
 const projectRoot = path.resolve(import.meta.dirname, '../../..');
 
@@ -108,7 +109,9 @@ function lifecycleRepository({ includeRuntime = false } = {}) {
     git(rootDir, ['config', 'user.name', 'Ontology Test']);
     const configDir = path.join(rootDir, 'config/ontology');
     mkdirSync(path.dirname(configDir), { recursive: true });
-    cpSync(path.join(projectRoot, 'config/ontology'), configDir, { recursive: true });
+    const proposedFixture = createProposedOntologyFixture(projectRoot);
+    cpSync(proposedFixture.configDir, configDir, { recursive: true });
+    proposedFixture.cleanup();
     const releasePath = path.join(configDir, 'releases/1.0.0.json');
     const release = JSON.parse(readFileSync(releasePath, 'utf8'));
     release.governance = {

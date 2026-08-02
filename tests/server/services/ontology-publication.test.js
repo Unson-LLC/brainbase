@@ -1,15 +1,19 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
 import { OntologyRegistry } from '../../../server/services/ontology-registry.js';
 import { canonicalJson, verifyPublicationReceipt } from '../../../server/services/ontology-publication.js';
+import { createProposedOntologyFixture } from '../../helpers/ontology-test-fixtures.js';
 
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const proposedFixture = createProposedOntologyFixture(sourceRoot);
+const rootDir = proposedFixture.rootDir;
 const registry = new OntologyRegistry({ rootDir });
 const release = registry.resolve({ version: '1.0.0' });
 
+afterAll(() => proposedFixture.cleanup());
 afterEach(() => vi.unstubAllEnvs());
 
 function authorityService({ accountable = true, decision = true, decisionOverrides = {} } = {}) {

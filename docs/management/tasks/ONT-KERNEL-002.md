@@ -1,7 +1,7 @@
 ---
 task_id: ONT-KERNEL-002
 story_id: story-brainbase-ontology-kernel
-status: pending
+status: in_progress
 priority: high
 depends_on:
   - ONT-KERNEL-001
