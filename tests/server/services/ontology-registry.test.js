@@ -95,6 +95,21 @@ function signedRegistryFixture({ current = null, status = 'proposed', mutateEntr
 }
 
 describe('OntologyRegistry', () => {
+    it('resolves the active repository release with the distributed public trust anchor', () => {
+        const previousPublicKey = process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+        delete process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+        try {
+            const registry = new OntologyRegistry({ rootDir: sourceRoot });
+            expect(registry.resolve()).toMatchObject({
+                entry: { version: '1.0.0', status: 'active' },
+                kernel: { status: 'active' }
+            });
+        } finally {
+            if (previousPublicKey === undefined) delete process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+            else process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY = previousPublicKey;
+        }
+    });
+
     it('loads the immutable proposed release and verifies its digest', () => {
         const registry = new OntologyRegistry({ rootDir });
         const release = registry.resolve({ version: '1.0.0' });

@@ -36,3 +36,14 @@ test(`${storyId} ac:2 a trusted signed current activates the canonical write gua
     fixture.cleanup();
   }
 });
+
+test(`${storyId} ac:3 the active repository release works without a runtime public-key secret`, async () => {
+  const registry = new OntologyRegistry({ rootDir: sourceRoot, publicKeyPem: '' });
+  const service = new InfoSSOTService({ ontologyRegistry: registry });
+
+  expect(registry.resolve()).toMatchObject({
+    entry: { version: '1.0.0', status: 'active' },
+    kernel: { status: 'active' }
+  });
+  expect(service.getOntologyGuard()).toEqual({ guard_status: 'active_current', ontology_version: '1.0.0' });
+});

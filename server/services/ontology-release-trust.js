@@ -31,7 +31,13 @@ function isContained(parent, child) {
     return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
 }
 
-export function verifyPublishedReceipt({ configDir, entry = {}, manifest, publicKeyPem = '' }) {
+export function verifyPublishedReceipt({
+    configDir,
+    entry = {},
+    manifest,
+    publicKeyPem = '',
+    trustedPublicKeys = {}
+}) {
     if (!hasCompleteReceiptMetadata(entry)) {
         return invalid(hasReceiptMetadata(entry) ? 'incomplete_metadata' : 'missing_metadata');
     }
@@ -71,11 +77,12 @@ export function verifyPublishedReceipt({ configDir, entry = {}, manifest, public
     if (contractErrors.length) {
         return invalid('contract_mismatch', { fields: contractErrors });
     }
-    if (!publicKeyPem) {
+    const trustedPublicKeyPem = publicKeyPem || trustedPublicKeys[receipt.key_id]?.public_key_pem || '';
+    if (!trustedPublicKeyPem) {
         return invalid('public_key_unavailable');
     }
     try {
-        if (!verifyPublicationReceipt(receipt, publicKeyPem)) {
+        if (!verifyPublicationReceipt(receipt, trustedPublicKeyPem)) {
             return invalid('signature_invalid');
         }
     } catch {

@@ -40,7 +40,7 @@ Decision IDは`dec_ontology_1_0_0_activation_20260803`、scopeはBrainbase proje
 
 ## A-003 Signing and publication
 
-Ed25519 keypairはproduction用に生成し、秘密鍵・公開鍵・key IDをInfisical productionからruntimeへ投影する。publication endpointは認証actor、Graph authority、release bindingを確認して署名receiptを返す。publisher以外のcurrent変更は禁止する。
+Ed25519 keypairはproduction用に生成する。秘密鍵はInfisical productionから署名runtimeだけへ投影し、非機密の公開鍵は`config/ontology/trusted-public-keys.json`で`key_id`に結合して全runtimeへ配布する。Registryは明示されたruntime公開鍵を優先し、未指定なら信頼ストアからreceiptの`key_id`に対応する鍵を解決する。どちらでも検証できなければfail closedとする。publication endpointは認証actor、Graph authority、release bindingを確認して署名receiptを返す。publisher以外のcurrent変更は禁止する。
 
 ## A-004 Rollback
 
@@ -52,7 +52,7 @@ merge後の本番runtimeでversion指定とcurrent指定のdigestが一致し、
 
 ## A-006 Compatibility and operator contract
 
-有効化後はcanonical Graph writeがOntology 1.0.0に対してfail closedになる。既存read APIとlegacy write responseの既存フィールドは維持し、guard状態とontology versionを加算的に返す。project memberの手動操作は不要とする。
+有効化後はcanonical Graph writeがOntology 1.0.0に対してfail closedになる。既存read APIとlegacy write responseの既存フィールドは維持し、guard状態とontology versionを加算的に返す。環境変数に公開鍵がない開発・検証runtimeでもGit管理の信頼ストアによりcurrentを検証できる。project memberの手動操作は不要とする。
 
 運用責任者は佐藤圭吾とし、次の証跡を同一のmerged commitへ結び付ける。
 
