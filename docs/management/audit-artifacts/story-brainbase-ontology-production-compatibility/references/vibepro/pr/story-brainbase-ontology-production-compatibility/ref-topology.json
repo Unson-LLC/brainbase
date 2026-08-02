@@ -14,15 +14,15 @@
   "refs": {
     "base_ref": "origin/develop",
     "head_ref": "HEAD",
-    "current_branch": "codex/ontology-production-compat",
-    "base_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
-    "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
-    "merge_base_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9"
+    "current_branch": "codex/ontology-production-audit-delivery",
+    "base_sha": "12502fb0d1c04e7f9c4f070ed9683de4f88f886e",
+    "head_sha": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+    "merge_base_sha": "12502fb0d1c04e7f9c4f070ed9683de4f88f886e"
   },
   "base_selection": {
     "ref": "origin/develop",
-    "explicit": true,
-    "rule": "cli_option"
+    "explicit": false,
+    "rule": "origin_head_then_origin_develop_origin_main_develop_main_master_then_HEAD~1"
   },
   "branches": [
     {
@@ -1358,6 +1358,30 @@
       }
     },
     {
+      "branch": "codex/ontology-1-0-0-activation",
+      "local_sha": "6771ca54f8dbfb24fb097efd7d0d192f53e1cf94",
+      "remotes": {
+        "origin": "6771ca54f8dbfb24fb097efd7d0d192f53e1cf94",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "codex/ontology-production-audit-delivery",
+      "local_sha": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "remotes": {
+        "origin": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
       "branch": "codex/ontology-production-compat",
       "local_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
       "remotes": {
@@ -1670,6 +1694,18 @@
       }
     },
     {
+      "branch": "codex/ten-minute-world-onboarding-runtime",
+      "local_sha": "83fb0f317c443d1b56ecc67e3e9023ebdc38b346",
+      "remotes": {
+        "origin": "83fb0f317c443d1b56ecc67e3e9023ebdc38b346",
+        "upstream": null
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
       "branch": "codex/value-first-onboarding",
       "local_sha": "cd86ab18324335100b7a50a5ec831e99697eb63a",
       "remotes": {
@@ -1697,7 +1733,7 @@
       "branch": "develop",
       "local_sha": "d9f310e3bb68c8a655f0a4b482f612a439b8ddc1",
       "remotes": {
-        "origin": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+        "origin": "12502fb0d1c04e7f9c4f070ed9683de4f88f886e",
         "upstream": "2e2b1fc55f50ff458b8c2cbd5abaeb39b06b9437"
       },
       "divergence": {

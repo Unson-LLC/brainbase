@@ -1,10 +1,10 @@
 {
   "schema_version": "0.1.0",
   "story_id": "story-brainbase-ontology-production-compatibility",
-  "created_at": "2026-08-02T18:56:01.788Z",
+  "created_at": "2026-08-02T21:09:23.091Z",
   "status": "satisfied",
   "required": true,
-  "architecture_decision": "ADRあり (docs/architecture/ADR-021-brainbase-ontology-kernel.md, docs/architecture/story-brainbase-ontology-production-compatibility.md)",
+  "architecture_decision": "ADR不要: alternatives considered: 新規ADR作成と既存ADR更新を検討; compatibility impact: 既存Graph表現を互換語彙として受理し公開契約は変更しない; rollback plan: kernelと監査証跡のcommitをrevertして旧判定へ戻す; boundary and scope: ADR-021の既存境界内で構成、データフロー、authority境界を変更しないため追加ADRは不要",
   "source_artifacts": {
     "story": "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md",
     "review_cockpit": null,
@@ -13,16 +13,16 @@
   "gates": {
     "architecture": {
       "status": "satisfied",
-      "reason": "ADRあり (docs/architecture/ADR-021-brainbase-ontology-kernel.md, docs/architecture/story-brainbase-ontology-production-compatibility.md)"
+      "reason": "ADR不要: alternatives considered: 新規ADR作成と既存ADR更新を検討; compatibility impact: 既存Graph表現を互換語彙として受理し公開契約は変更しない; rollback plan: kernelと監査証跡のcommitをrevertして旧判定へ戻す; boundary and scope: ADR-021の既存境界内で構成、データフロー、authority境界を変更しないため追加ADRは不要"
     },
     "spec": {
       "status": "present",
-      "reason": "explicit Spec docs are present (docs/specs/brainbase-ontology-kernel-spec.md, docs/specs/brainbase-ontology-production-compatibility.json, docs/specs/brainbase-ontology-production-compatibility.md)"
+      "reason": "explicit Spec docs are present (docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/spec-drift.md)"
     }
   },
   "toolchain": {
     "schema_version": "0.1.0",
-    "collected_at": "2026-08-02T18:55:59.885Z",
+    "collected_at": "2026-08-02T21:09:21.869Z",
     "package": {
       "name": "vibepro",
       "version": "0.2.0-beta.2",
@@ -37,7 +37,7 @@
       "commit": "37418424323eb8574168ca026f40d7dde93004d5",
       "branch": null,
       "origin_url": "https://github.com/Unson-LLC/vibepro.git",
-      "origin_main_commit": "d6473e4cb16ab95cbc79c7357837e31b649986c4",
+      "origin_main_commit": "e9826c5176830b6cd8956030a2a20e9eb046c87b",
       "origin_main_relation": "behind",
       "dirty": true,
       "dirty_summary": [

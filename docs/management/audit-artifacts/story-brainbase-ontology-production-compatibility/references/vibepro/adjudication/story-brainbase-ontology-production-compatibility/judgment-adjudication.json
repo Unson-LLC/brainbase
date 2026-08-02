@@ -1,0 +1,1202 @@
+{
+  "schema_version": "0.2.0",
+  "model": "vibepro-judgment-dag-adjudication-v2",
+  "story_id": "story-brainbase-ontology-production-compatibility",
+  "updated_at": "2026-08-02T20:59:09.345Z",
+  "events": [
+    {
+      "event_id": "8138ea6f-df3f-4af4-a264-527d4e712410",
+      "type": "verdict",
+      "item_id": "spine:intent",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "The current commit persists the Story production-audit and decision evidence, directly supporting the Story intent and AC5 requirement to record the post-kernel violation breakdown and collection completeness. This is based on the actual audit bundle and index, not merely token matching.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_audit_judgment",
+        "session_ref": "/root/ontology_audit_judgment"
+      },
+      "head_commit": "ad3f9d785873dd3e7ffa2eff4b3756f3a329274e",
+      "recorded_at": "2026-08-02T20:37:27.233Z"
+    },
+    {
+      "event_id": "44716cbe-172e-4d70-9be0-074f4a66db9d",
+      "type": "verdict",
+      "item_id": "spine:boundaries",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "This change crosses the ephemeral VibePro to versioned repository evidence boundary and publishes review, topology, workflow, local-path, and decision artifacts. The bundle blocked replay and unresolved references disprove that no high-risk boundary surface was detected.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_audit_judgment",
+        "session_ref": "/root/ontology_audit_judgment"
+      },
+      "head_commit": "ad3f9d785873dd3e7ffa2eff4b3756f3a329274e",
+      "recorded_at": "2026-08-02T20:37:27.311Z"
+    },
+    {
+      "event_id": "5c743962-4a42-42c3-95c4-1671c0dddb84",
+      "type": "verdict",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "This is an evidence-lifecycle change and its canonical bundle reports blocked replay with unresolved references. A not_required classification would conceal precisely the named regression.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_audit_judgment",
+        "session_ref": "/root/ontology_audit_judgment"
+      },
+      "head_commit": "ad3f9d785873dd3e7ffa2eff4b3756f3a329274e",
+      "recorded_at": "2026-08-02T20:37:27.419Z"
+    },
+    {
+      "event_id": "5e52f98c-c463-4d54-9c27-df5589368929",
+      "type": "verdict",
+      "item_id": "failure_mode:workflow_state_regression",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "Persisted state is nonterminal or stale for the new HEAD: the original PR is merged, Story remains active, reconciliation_required persists, gate_dag is absent, and accepted decisions bind older HEADs. Current-HEAD adjudication is required.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_audit_judgment",
+        "session_ref": "/root/ontology_audit_judgment"
+      },
+      "head_commit": "ad3f9d785873dd3e7ffa2eff4b3756f3a329274e",
+      "recorded_at": "2026-08-02T20:37:27.546Z"
+    },
+    {
+      "event_id": "2ec06f2e-d1d6-4416-a758-99692409b432",
+      "type": "verdict",
+      "item_id": "spine:done_evidence",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "Downstream tests and reviews bind original implementation HEAD 560f7212, not current evidence-delivery HEAD ad3f9d785. JSON parsing and gzip integrity are observable, but current-HEAD consumer and replay verification is still needed.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_audit_judgment",
+        "session_ref": "/root/ontology_audit_judgment"
+      },
+      "head_commit": "ad3f9d785873dd3e7ffa2eff4b3756f3a329274e",
+      "recorded_at": "2026-08-02T20:37:27.562Z"
+    },
+    {
+      "event_id": "ef365336-c5fe-4c7d-b14c-9799356f17a2",
+      "type": "verdict",
+      "item_id": "spine:invariants",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "The light docs_only premise suppresses real invariants for a canonical audit package: content-hash integrity, JSON and gzip readability, HEAD binding, redaction, immutable decision history, and replayability. The diff adds machine-consumed evidence, so Story and architecture-doc presence is insufficient.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_audit_judgment",
+        "session_ref": "/root/ontology_audit_judgment"
+      },
+      "head_commit": "ad3f9d785873dd3e7ffa2eff4b3756f3a329274e",
+      "recorded_at": "2026-08-02T20:37:27.587Z"
+    },
+    {
+      "event_id": "532af767-7395-48d8-9192-2dd423cb9cf8",
+      "type": "verdict",
+      "item_id": "axis:public_contract",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "needs_evidence is conservative and sound. The commit introduces versioned audit schemas, hashes, decision-outcome paths, and a documented audit replay command while replay is blocked and no current-HEAD consumer compatibility proof is present.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_audit_judgment",
+        "session_ref": "/root/ontology_audit_judgment"
+      },
+      "head_commit": "ad3f9d785873dd3e7ffa2eff4b3756f3a329274e",
+      "recorded_at": "2026-08-02T20:37:27.649Z"
+    },
+    {
+      "event_id": "51bf490a-8a36-4418-aebc-94c74487ff28",
+      "type": "verdict",
+      "item_id": "axis:release_ops",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "block is supported by the persisted evidence: reconciliation remains required after decision outcome binding and canonical audit persistence failures, and handoff replay is blocked. Operator follow-through is required before closure.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_audit_judgment",
+        "session_ref": "/root/ontology_audit_judgment"
+      },
+      "head_commit": "ad3f9d785873dd3e7ffa2eff4b3756f3a329274e",
+      "recorded_at": "2026-08-02T20:37:27.777Z"
+    },
+    {
+      "event_id": "c7147cf7-931c-4482-bd08-11e38eb9b830",
+      "type": "verdict",
+      "item_id": "spine:current_reality",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "Treating the 93-file evidence-persistence commit as generic docs_only is false. The bundle is a historical snapshot generated before current HEAD and reports blocked replay, unresolved references, and reconciliation_required, so Story traceability alone does not establish current state.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_audit_judgment",
+        "session_ref": "/root/ontology_audit_judgment"
+      },
+      "head_commit": "ad3f9d785873dd3e7ffa2eff4b3756f3a329274e",
+      "recorded_at": "2026-08-02T20:37:54.189Z"
+    },
+    {
+      "event_id": "92c2af02-b087-4cb8-8ab8-51b4e890ac6a",
+      "type": "verdict",
+      "item_id": "spine:failure_modes",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "The change exists because canonical decision-outcome persistence failed and packages schemas, replay data, gate history, and workflow state. Schema, persistence, evidence-lifecycle, and stale-state failure modes require explicit evaluation.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_audit_judgment",
+        "session_ref": "/root/ontology_audit_judgment"
+      },
+      "head_commit": "ad3f9d785873dd3e7ffa2eff4b3756f3a329274e",
+      "recorded_at": "2026-08-02T20:37:54.609Z"
+    },
+    {
+      "event_id": "a02a9f4b-5fb1-452f-b432-2f9ccaa54b3d",
+      "type": "verdict",
+      "item_id": "axis:scope_reviewability",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "needs_evidence is sound. Earlier scope decisions cover the original implementation, whereas this is a distinct 93-file audit-persistence surface; current-HEAD reviewer judgment must cover the package.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_audit_judgment",
+        "session_ref": "/root/ontology_audit_judgment"
+      },
+      "head_commit": "ad3f9d785873dd3e7ffa2eff4b3756f3a329274e",
+      "recorded_at": "2026-08-02T20:37:54.925Z"
+    },
+    {
+      "event_id": "3bcc4081-9a70-462b-9874-482da431270b",
+      "type": "verdict",
+      "item_id": "failure_mode:schema_failure",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "The added artifacts include numerous JSON documents plus a gzip replay bundle consumed by automation. They require current-HEAD schema and consumer validation and cannot be classified not_required because paths are under docs.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_audit_judgment",
+        "session_ref": "/root/ontology_audit_judgment"
+      },
+      "head_commit": "ad3f9d785873dd3e7ffa2eff4b3756f3a329274e",
+      "recorded_at": "2026-08-02T20:37:55.253Z"
+    },
+    {
+      "event_id": "89b9678e-981d-458d-8fd7-b67445ea9429",
+      "type": "verdict",
+      "item_id": "failure_mode:persistence_failure",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "Persistence failure directly triggered this commit: expected and promoted evidence existed but canonical persistence failed. This follow-up attempts canonical persistence, so not_required contradicts the evidence.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_audit_judgment",
+        "session_ref": "/root/ontology_audit_judgment"
+      },
+      "head_commit": "ad3f9d785873dd3e7ffa2eff4b3756f3a329274e",
+      "recorded_at": "2026-08-02T20:37:55.562Z"
+    },
+    {
+      "event_id": "4fbfb38d-8501-4969-96b3-c505f8dd60be",
+      "type": "verdict",
+      "item_id": "spine:intent",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "差分は元Storyに結び付く監査bundle・decision・review・verification証跡をGit正本へ永続化するもので、Storyの監査結果と収集完全性を記録する意図に直接対応している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:44:55.602Z"
+    },
+    {
+      "event_id": "1fc5b899-3929-475d-95e2-50ddf8d956d0",
+      "type": "verdict",
+      "item_id": "spine:current_reality",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "HEAD ceba9acafでconsumer replayを実行し、status=ready、handoff_replay_status=ready、missing_artifacts=[]を確認した。bundle内のblocked、reconciliation_required、canonical_audit_git_add_failedは元PR #1112直後の履歴スナップショットであり、現在状態ではない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:44:56.016Z"
+    },
+    {
+      "event_id": "c2233828-5c18-4786-9be8-3b9fc65bdbae",
+      "type": "verdict",
+      "item_id": "spine:invariants",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "94ファイルは監査成果物ディレクトリ内だけに追加され、全JSONがparse可能、gzip整合性も正常だった。current replayはexpanded/compressed hash、artifact種別、欠落0件を検証しており、旧実装HEADの証跡をdelivery HEADの製品検証へ読み替えない境界も明記されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:44:56.421Z"
+    },
+    {
+      "event_id": "4dedb30d-3aef-4a2e-8ee0-7f2e624d45a8",
+      "type": "verdict",
+      "item_id": "spine:boundaries",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "製品コード、active設定、DB schema、runtime topology、Graph、本番activationへの変更はなく、versioned audit packageへの配送境界に限定されている。consumer互換性はcurrent replayで確認され、production activationとGraph remediationは後続Storyへ明示的に分離されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:44:56.773Z"
+    },
+    {
+      "event_id": "b945d2a7-c944-4c39-80c3-ec7defee8c56",
+      "type": "verdict",
+      "item_id": "spine:failure_modes",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "delivery validationとcurrent replayにより、schema/gzip破損、hash不一致、artifact欠落、過去状態の現在状態への誤読、旧HEAD証跡の誤用が具体的に検討されている。genericなdocs-only理由だけでは足りないが、実差分内の追加証拠によりspineの結論は成立する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:44:57.076Z"
+    },
+    {
+      "event_id": "14634eac-8efc-46b6-917b-01275afea813",
+      "type": "verdict",
+      "item_id": "spine:done_evidence",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "元実装の4/4 verificationと6/6 reviewは旧HEAD 560f7212の履歴証拠として保持され、delivery自体の完了はHEAD ceba9acafでのcurrent replay ready、artifact_count=30、missing_artifacts=[]によって別途確認できる。これはproduction activationの完了証明ではない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:44:57.392Z"
+    },
+    {
+      "event_id": "f36c2b14-43a1-4b28-b83a-b1dec905d0e0",
+      "type": "verdict",
+      "item_id": "axis:public_contract",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "needs_evidenceは現在の差分に対して古い。外部製品API・CLI・active設定は変更されず、監査consumer契約であるJSON/gzip・hash・replay commandはHEAD ceba9acafの実行でreadyと確認済みである。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:44:57.778Z"
+    },
+    {
+      "event_id": "a14a4636-a4a8-478a-a4f7-762aabd3f61e",
+      "type": "verdict",
+      "item_id": "axis:scope_reviewability",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "needs_evidenceは現在の差分実体を反映していない。差分94件は、93件の相互参照された監査packageと1件のdelivery validationから成り、すべて同一監査ディレクトリ内である。snapshot内のsplit-planは元実装PR向けであり、このdelivery差分の分割根拠にはならない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:44:58.253Z"
+    },
+    {
+      "event_id": "1201679f-6988-48d7-a8fd-5d755570e28f",
+      "type": "verdict",
+      "item_id": "axis:release_ops",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "blockは過去snapshotのblocked/reconciliation_requiredを現在状態と誤認している。現consumer replayはreadyで、operator action、project member操作不要、observability、rollback、後続activation Storyの境界がdelivery validationに明記されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:44:58.612Z"
+    },
+    {
+      "event_id": "fd4174d9-bab3-438f-a355-9315a4a5fe34",
+      "type": "verdict",
+      "item_id": "failure_mode:schema_failure",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "この差分はautomationが読む多数のJSONとgzip replay bundleを追加するためschema_failureはnot_requiredではない。全JSON parse、gzip検査、current replayによるschema/hash/artifact検証が成功しており、failure modeは該当するが現HEADでは検証済みである。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:44:58.888Z"
+    },
+    {
+      "event_id": "b5c9cf19-ce35-46cf-bacb-3b4c8f9e980b",
+      "type": "verdict",
+      "item_id": "failure_mode:persistence_failure",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "このdeliveryはcanonical_audit_git_add_failedという過去の永続化失敗を補うための変更であり、persistence_failureをnot_requiredにはできない。過去のfailed値は不変履歴として残る一方、成果物は現在Gitに存在し、consumer replayもreadyである。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:44:59.187Z"
+    },
+    {
+      "event_id": "07ec5e20-51bc-4047-8bd4-82d0db1e533c",
+      "type": "verdict",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "監査証跡を一時領域からversioned repositoryへ配送し、consumer replay可能にする変更そのものなので、このfailure modeは中核的でありnot_requiredではない。現HEADでは履歴snapshotのblockedを保持したまま現在replayをreadyとして再構築できている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:44:59.459Z"
+    },
+    {
+      "event_id": "8da555f0-06ab-40bf-a3cc-8339ee9b13ee",
+      "type": "verdict",
+      "item_id": "failure_mode:workflow_state_regression",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "merged、reconciliation_required、persistence failedなどの履歴状態と、現在のhandoff replay readyを同時に扱うためworkflow state regressionは実際に検討すべき対象である。current replayが両者を区別できることは確認済みだが、not_requiredという分類前提は誤りである。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:44:59.810Z"
+    },
+    {
+      "event_id": "5c9e6224-3e26-4e92-b766-81188ba1e6aa",
+      "type": "premise_correction",
+      "item_id": "axis:public_contract",
+      "corrects_verdict_id": "f36c2b14-43a1-4b28-b83a-b1dec905d0e0",
+      "wrong_premise": "外部契約を変更しcurrent verificationがない。",
+      "corrected_premise": "製品API・CLI・active設定は変更せず、監査consumer契約はcurrent replay readyである。",
+      "reason": "現HEADのreplayがJSON、gzip、hash、欠落0件を検証した。",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+          "sha256": "7ab07a2da49118b40279b582f185161fa365bacb77a0cae2e3f7c395b41a4591"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:45:27.908Z"
+    },
+    {
+      "event_id": "02d16de0-3bde-46f5-81bb-246454a99185",
+      "type": "premise_correction",
+      "item_id": "axis:scope_reviewability",
+      "corrects_verdict_id": "a14a4636-a4a8-478a-a4f7-762aabd3f61e",
+      "wrong_premise": "94件の差分は分割されずreview不能である。",
+      "corrected_premise": "94件は単一監査package 93件とvalidation 1件で、同一監査ディレクトリの原子的配送である。",
+      "reason": "delivery validationがscopeと旧split-planとの境界を明記した。",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+          "sha256": "7ab07a2da49118b40279b582f185161fa365bacb77a0cae2e3f7c395b41a4591"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:45:28.381Z"
+    },
+    {
+      "event_id": "319b8575-ae61-409c-a8d5-fdbf3182534e",
+      "type": "premise_correction",
+      "item_id": "axis:release_ops",
+      "corrects_verdict_id": "1201679f-6988-48d7-a8fd-5d755570e28f",
+      "wrong_premise": "operator actionとrollback導線が未記載である。",
+      "corrected_premise": "この配送にoperator actionは不要で、観測・rollback・activation後続境界が明記されている。",
+      "reason": "delivery validationの運用契約とcurrent replay readyを確認した。",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+          "sha256": "7ab07a2da49118b40279b582f185161fa365bacb77a0cae2e3f7c395b41a4591"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:45:28.856Z"
+    },
+    {
+      "event_id": "af088bb3-8734-4689-94bd-f06eb0a7aa29",
+      "type": "premise_correction",
+      "item_id": "failure_mode:schema_failure",
+      "corrects_verdict_id": "fd4174d9-bab3-438f-a355-9315a4a5fe34",
+      "wrong_premise": "docs_onlyなのでschema failureは対象外である。",
+      "corrected_premise": "machine-consumed JSON/gzipのため対象だが、現HEADでparse、gzip、hash、replay検証済みである。",
+      "reason": "current replay ready、missing_artifacts=[]を確認した。",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+          "sha256": "7ab07a2da49118b40279b582f185161fa365bacb77a0cae2e3f7c395b41a4591"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:45:29.199Z"
+    },
+    {
+      "event_id": "a403147c-ab8f-481e-9b3e-f131a527319f",
+      "type": "premise_correction",
+      "item_id": "failure_mode:persistence_failure",
+      "corrects_verdict_id": "b5c9cf19-ce35-46cf-bacb-3b4c8f9e980b",
+      "wrong_premise": "docs_onlyなのでpersistence failureは対象外である。",
+      "corrected_premise": "過去のcanonical persistence失敗を補う配送であり対象だが、成果物は現HEADのGitに永続化済みである。",
+      "reason": "Git差分とcurrent replay readyを確認した。",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+          "sha256": "7ab07a2da49118b40279b582f185161fa365bacb77a0cae2e3f7c395b41a4591"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:45:29.479Z"
+    },
+    {
+      "event_id": "e49e9028-88da-4a4c-acba-4d6875cee36a",
+      "type": "premise_correction",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "corrects_verdict_id": "07ec5e20-51bc-4047-8bd4-82d0db1e533c",
+      "wrong_premise": "docs_onlyなのでevidence lifecycle regressionは対象外である。",
+      "corrected_premise": "証跡配送そのものが対象で、履歴snapshotとcurrent replayを区別して再生可能である。",
+      "reason": "delivery validationとcurrent replay readyを確認した。",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+          "sha256": "7ab07a2da49118b40279b582f185161fa365bacb77a0cae2e3f7c395b41a4591"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:45:29.741Z"
+    },
+    {
+      "event_id": "efe8b31b-09ed-4ef9-9a2f-4059902a031f",
+      "type": "premise_correction",
+      "item_id": "failure_mode:workflow_state_regression",
+      "corrects_verdict_id": "8da555f0-06ab-40bf-a3cc-8339ee9b13ee",
+      "wrong_premise": "docs_onlyなのでworkflow state regressionは対象外である。",
+      "corrected_premise": "履歴のmerged/reconciliation_requiredと現在のreplay readyを区別する必要があり、consumerが区別できている。",
+      "reason": "current replayの履歴merge sectionとtop-level ready状態を確認した。",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+          "sha256": "7ab07a2da49118b40279b582f185161fa365bacb77a0cae2e3f7c395b41a4591"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_judgment_final",
+        "session_ref": "/root/ontology_audit_judgment_final"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:45:30.146Z"
+    },
+    {
+      "event_id": "0efb4a66-87ec-44be-b7f1-9731c315f571",
+      "type": "verdict",
+      "item_id": "axis:public_contract",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "5c9e6224-3e26-4e92-b766-81188ba1e6aa",
+      "reason": "実差分は監査ディレクトリ内の成果物追加のみで、製品API・CLI・active設定を変更していない。HEAD ceba9acafでconsumer replayがready、missing_artifacts=[]となり、JSON・gzip・hashを検証できたため、訂正後の前提は証拠と一致する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_correction_readjudication",
+        "session_ref": "/root/ontology_audit_correction_readjudication"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:47:27.286Z"
+    },
+    {
+      "event_id": "289435f4-1a75-4380-803e-1052ef81b0d4",
+      "type": "verdict",
+      "item_id": "axis:scope_reviewability",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "02d16de0-3bde-46f5-81bb-246454a99185",
+      "reason": "origin/develop...HEADの94ファイルはすべて同一監査ディレクトリにあり、93件の相互参照された監査packageと1件のdelivery validationで構成される。index・digest・replay bundleの整合を保つ原子的配送という訂正は実差分と一致する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_correction_readjudication",
+        "session_ref": "/root/ontology_audit_correction_readjudication"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:47:27.537Z"
+    },
+    {
+      "event_id": "537877d3-3ccc-4ef8-b780-19fb11f9702a",
+      "type": "verdict",
+      "item_id": "axis:release_ops",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "319b8575-ae61-409c-a8d5-fdbf3182534e",
+      "reason": "delivery validationには佐藤圭吾によるVibePro経由のmerge、project member操作不要、replayとGit存在による観測、重大な漏えい・破損時のrevert、後続activation Storyとの責務境界が明記されている。現在のreplayもreadyであり訂正は妥当である。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_correction_readjudication",
+        "session_ref": "/root/ontology_audit_correction_readjudication"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:47:27.825Z"
+    },
+    {
+      "event_id": "8d54bf8c-a967-40f5-a6c5-307840a5fdcd",
+      "type": "verdict",
+      "item_id": "failure_mode:schema_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "af088bb3-8734-4689-94bd-f06eb0a7aa29",
+      "reason": "追加物にはmachine-consumed JSONとgzipが含まれるためschema failureは対象である。HEAD ceba9acafのreplayが展開・content hash・compressed hash・artifact種別・欠落0件を検証しており、対象だが検証済みという訂正は正しい。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_correction_readjudication",
+        "session_ref": "/root/ontology_audit_correction_readjudication"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:47:28.118Z"
+    },
+    {
+      "event_id": "0807a732-edce-4031-bfe9-342ebc9f4cfb",
+      "type": "verdict",
+      "item_id": "failure_mode:persistence_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "a403147c-ab8f-481e-9b3e-f131a527319f",
+      "reason": "bundle内には過去のcanonical_audit_git_add_failedが不変履歴として残る一方、対象成果物はad3f9d785とceba9acafでGitに永続化され、現在のconsumer replayはreadyである。過去の失敗を補う配送という訂正は実git履歴と一致する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_correction_readjudication",
+        "session_ref": "/root/ontology_audit_correction_readjudication"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:47:28.378Z"
+    },
+    {
+      "event_id": "ac72d24e-1e62-42bf-9fb7-226c38d5070c",
+      "type": "verdict",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "e49e9028-88da-4a4c-acba-4d6875cee36a",
+      "reason": "変更目的そのものが監査証跡のversioned repositoryへの配送であり、このfailure modeは対象外ではない。履歴snapshotのreconciliation_requiredを保持しつつ、top-levelのhandoff replayをreadyとして再生できるため、訂正後の前提は成立する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_correction_readjudication",
+        "session_ref": "/root/ontology_audit_correction_readjudication"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:47:28.644Z"
+    },
+    {
+      "event_id": "446b7e2e-6106-4c9f-a9f5-46c925ce1e24",
+      "type": "verdict",
+      "item_id": "failure_mode:workflow_state_regression",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "efe8b31b-09ed-4ef9-9a2f-4059902a031f",
+      "reason": "replay結果は履歴merge内のmerged・reconciliation_required・persistence failedと、現在のstatus=ready・handoff_replay_status=readyを別階層で保持している。consumerが履歴状態と現在状態を区別できるという訂正は実行結果で確認できた。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ontology_audit_correction_readjudication",
+        "session_ref": "/root/ontology_audit_correction_readjudication"
+      },
+      "head_commit": "ceba9acaf3de02d46aa75f41895cd26e547296d6",
+      "recorded_at": "2026-08-02T20:47:28.907Z"
+    },
+    {
+      "event_id": "39bfc367-9ad0-4c5a-bb6f-cf398b90cbe1",
+      "type": "verdict",
+      "item_id": "spine:intent",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Storyに紐づく監査成果物と収集完全性を永続化する差分で、意図に直接対応する",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_adjudication",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:55:28.738Z"
+    },
+    {
+      "event_id": "c0879cad-1a6f-4641-8712-3df1cb15aba4",
+      "type": "verdict",
+      "item_id": "spine:current_reality",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "履歴HEADとdelivery状態が区別され、現HEAD replayもreadyかつmissing_artifacts=[]である",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_adjudication",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:55:28.897Z"
+    },
+    {
+      "event_id": "708a8078-b8c1-41aa-85e1-73a61f6182a2",
+      "type": "verdict",
+      "item_id": "spine:invariants",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "JSONとgzip、hash、欠落、旧HEAD証拠との分離、runtime非変更が現HEADで検証されている",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_adjudication",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:55:29.054Z"
+    },
+    {
+      "event_id": "2c00c1f3-6129-477b-ba4f-9f23105d7bfd",
+      "type": "verdict",
+      "item_id": "spine:boundaries",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "ephemeral VibePro成果物をmachine-consumedなversioned evidenceへ移す境界を高リスク境界なしという前提が見落としている",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_adjudication",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:55:29.219Z"
+    },
+    {
+      "event_id": "81172d8f-cd2d-493e-a51d-088cbe77e389",
+      "type": "verdict",
+      "item_id": "spine:failure_modes",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "schema、hash、永続化、履歴状態誤読、replayabilityが明示的に検討され現HEAD replayで検証されている",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_adjudication",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:55:29.364Z"
+    },
+    {
+      "event_id": "4ab676aa-6e7e-4151-ba94-e47a5b912be9",
+      "type": "verdict",
+      "item_id": "spine:done_evidence",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "機械判定が根拠とするcurrent-head UnitとIntegrationはmissingでAgent Reviewはnot_requiredであり、旧HEAD検証は現HEAD delivery完了証拠ではない",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_adjudication",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:55:29.520Z"
+    },
+    {
+      "event_id": "120b8191-1b14-4b1d-b43b-0979b31b5950",
+      "type": "verdict",
+      "item_id": "axis:public_contract",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "product API、CLI、active configは不変で、現HEADのStory形式解析とaudit consumer replayも成功しておりneeds_evidence前提が古い",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_adjudication",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:55:29.690Z"
+    },
+    {
+      "event_id": "68447b0a-37ed-4436-a09f-647e9db89758",
+      "type": "verdict",
+      "item_id": "axis:scope_reviewability",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "現HEADは95 files、4 commitsだがatomic scope判断は旧HEADの94 filesに拘束されcurrent-head reviewer判断が不足している",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_adjudication",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:55:29.885Z"
+    },
+    {
+      "event_id": "f6263c6c-e297-4b54-a582-2b62ac6db5bc",
+      "type": "verdict",
+      "item_id": "axis:release_ops",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "operator、observability、rollback、member action、後続activation境界はdelivery validationに記録済みでblock前提が実差分と不整合である",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_adjudication",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:55:30.034Z"
+    },
+    {
+      "event_id": "a259c308-7ee2-46fb-8b36-4af9fcbd6d51",
+      "type": "verdict",
+      "item_id": "failure_mode:schema_failure",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "automationが読むJSONとgzipを追加しているため検証済みでもnot_requiredではない",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_adjudication",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:55:30.180Z"
+    },
+    {
+      "event_id": "8f728cb0-7494-47b7-960a-11f5b0017cde",
+      "type": "verdict",
+      "item_id": "failure_mode:persistence_failure",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "canonical persistence失敗を補修する変更そのものでありnot_required前提は成立しない",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_adjudication",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:55:30.349Z"
+    },
+    {
+      "event_id": "6731cf74-a3d4-477f-858b-6dbbf8e03990",
+      "type": "verdict",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "evidence lifecycleを一時領域からversioned repositoryへ配送する変更そのもので非該当にはできない",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_adjudication",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:55:30.547Z"
+    },
+    {
+      "event_id": "797b4d9d-2a60-4448-a5b1-7743dc314d70",
+      "type": "verdict",
+      "item_id": "failure_mode:workflow_state_regression",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "履歴上のmergedとreconciliation状態と現在ready状態の混同リスクがあり直接該当する",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_adjudication",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:55:30.762Z"
+    },
+    {
+      "event_id": "931fb34f-9348-4b93-9004-f8f599efab9a",
+      "type": "premise_correction",
+      "item_id": "spine:boundaries",
+      "corrects_verdict_id": "2c00c1f3-6129-477b-ba4f-9f23105d7bfd",
+      "wrong_premise": "高リスクboundary surfaceはない",
+      "corrected_premise": "一時VibePro証跡からGit管理されたmachine-consumed監査packageへのevidence lifecycle境界があり、製品runtime境界は変更しない",
+      "reason": "delivery validationとreplay契約がこの境界、digest、履歴/current分離を明示するため",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+          "sha256": "7ab07a2da49118b40279b582f185161fa365bacb77a0cae2e3f7c395b41a4591"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "root",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:56:01.981Z"
+    },
+    {
+      "event_id": "4cfa546c-413b-46e3-9b38-01b393d19e8c",
+      "type": "premise_correction",
+      "item_id": "spine:done_evidence",
+      "corrects_verdict_id": "4ab676aa-6e7e-4151-ba94-e47a5b912be9",
+      "wrong_premise": "旧実装HEADのUnit、Integration、Agent Reviewがdelivery HEADの完了根拠である",
+      "corrected_premise": "旧証拠は履歴としてのみ保持し、delivery完了は現HEADのconsumer replay ready、artifact_count 30、missing 0で判断する",
+      "reason": "deliveryは製品実装ではなく監査packageの永続化であり、現HEAD consumer契約の再生が完了条件に対応するため",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+          "sha256": "7ab07a2da49118b40279b582f185161fa365bacb77a0cae2e3f7c395b41a4591"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "root",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:56:02.137Z"
+    },
+    {
+      "event_id": "7e48676e-6a23-44ce-9b85-23d4b6b430e3",
+      "type": "premise_correction",
+      "item_id": "axis:public_contract",
+      "corrects_verdict_id": "120b8191-1b14-4b1d-b43b-0979b31b5950",
+      "wrong_premise": "公開契約のcurrent-head証拠がない",
+      "corrected_premise": "製品API、CLI、active configは不変で、変更される公開契約はversioned audit JSON、gzip、hash、replay commandであり現HEAD replay済み",
+      "reason": "current replayがconsumer contractをparse、digest、欠落0で検証するため",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+          "sha256": "7ab07a2da49118b40279b582f185161fa365bacb77a0cae2e3f7c395b41a4591"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "root",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:56:02.306Z"
+    },
+    {
+      "event_id": "13a5fef9-7d0c-443c-8969-44bebe8ac208",
+      "type": "premise_correction",
+      "item_id": "axis:release_ops",
+      "corrects_verdict_id": "f6263c6c-e297-4b54-a582-2b62ac6db5bc",
+      "wrong_premise": "operator、observability、rollback、member action、後続境界が未定義",
+      "corrected_premise": "operatorは佐藤圭吾、member actionは不要、replayとGitを観測点としrevert方針と後続activation Story境界を定義済み",
+      "reason": "delivery validationの運用契約に全項目が明記されているため",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+          "sha256": "7ab07a2da49118b40279b582f185161fa365bacb77a0cae2e3f7c395b41a4591"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "root",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:56:02.447Z"
+    },
+    {
+      "event_id": "240f2924-c725-4fd8-b000-684876852f49",
+      "type": "premise_correction",
+      "item_id": "failure_mode:schema_failure",
+      "corrects_verdict_id": "a259c308-7ee2-46fb-8b36-4af9fcbd6d51",
+      "wrong_premise": "schema failureはnot_required",
+      "corrected_premise": "JSONとgzipをautomationが読むため対象であり、現HEAD replayでparse、hash、artifact種別を検証済み",
+      "reason": "検証済みであることとfailure mode非該当は別であるため",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+          "sha256": "7ab07a2da49118b40279b582f185161fa365bacb77a0cae2e3f7c395b41a4591"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "root",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:56:02.628Z"
+    },
+    {
+      "event_id": "985c573c-9417-4fe3-a5ee-392143ae56fe",
+      "type": "premise_correction",
+      "item_id": "failure_mode:persistence_failure",
+      "corrects_verdict_id": "8f728cb0-7494-47b7-960a-11f5b0017cde",
+      "wrong_premise": "persistence failureはnot_required",
+      "corrected_premise": "過去のcanonical_audit_git_add_failedを補い成果物をGit永続化する変更であり直接対象、現HEADではGit存在とreplay readyを確認済み",
+      "reason": "変更目的とfailure modeが直接対応するため",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+          "sha256": "7ab07a2da49118b40279b582f185161fa365bacb77a0cae2e3f7c395b41a4591"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "root",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:56:02.771Z"
+    },
+    {
+      "event_id": "06101421-7323-4e9d-a6c7-3224aff2a4da",
+      "type": "premise_correction",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "corrects_verdict_id": "6731cf74-a3d4-477f-858b-6dbbf8e03990",
+      "wrong_premise": "evidence lifecycle regressionはnot_required",
+      "corrected_premise": "一時証跡をversioned repositoryへ配送する変更の中核failure modeで、履歴状態を保存しつつ現状態をreadyとして再生可能",
+      "reason": "変更がevidence lifecycleそのものを扱うため",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+          "sha256": "7ab07a2da49118b40279b582f185161fa365bacb77a0cae2e3f7c395b41a4591"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "root",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:56:02.967Z"
+    },
+    {
+      "event_id": "55d1d8ab-1a27-47eb-af59-85cc07e7c304",
+      "type": "premise_correction",
+      "item_id": "failure_mode:workflow_state_regression",
+      "corrects_verdict_id": "797b4d9d-2a60-4448-a5b1-7743dc314d70",
+      "wrong_premise": "workflow state regressionはnot_required",
+      "corrected_premise": "履歴上のmerged、reconciliation、failedと現在のreadyを区別する必要がある対象failure modeで、replayは両階層を保持する",
+      "reason": "履歴状態と配送現在状態の混同を防ぐことがconsumer contractの一部であるため",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+          "sha256": "7ab07a2da49118b40279b582f185161fa365bacb77a0cae2e3f7c395b41a4591"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "root",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:56:03.102Z"
+    },
+    {
+      "event_id": "6f4fee4d-142d-4870-9444-49b802c43275",
+      "type": "verdict",
+      "item_id": "spine:boundaries",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "931fb34f-9348-4b93-9004-f8f599efab9a",
+      "reason": "evidence-lifecycle境界を正しく認識し、runtime境界非変更とも整合する",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_correction_review",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:59:08.349Z"
+    },
+    {
+      "event_id": "e553114f-c74f-4b1b-9b0d-99be2652e029",
+      "type": "verdict",
+      "item_id": "spine:done_evidence",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "4cfa546c-413b-46e3-9b38-01b393d19e8c",
+      "reason": "現HEAD replayはready、30 artifacts、欠落0で、旧実装証拠をdelivery完了証拠に流用していない",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_correction_review",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:59:08.488Z"
+    },
+    {
+      "event_id": "7ed95bae-b47c-4820-963e-dacf8d322ec9",
+      "type": "verdict",
+      "item_id": "axis:public_contract",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "7e48676e-6a23-44ce-9b85-23d4b6b430e3",
+      "reason": "製品契約は不変でaudit consumer契約のparse、digest、gzip、欠落検査が現HEADで成功した",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_correction_review",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:59:08.638Z"
+    },
+    {
+      "event_id": "db7a5448-701e-45d6-a9e9-ed8b5e0e4cea",
+      "type": "verdict",
+      "item_id": "axis:release_ops",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "13a5fef9-7d0c-443c-8969-44bebe8ac208",
+      "reason": "operator、観測点、rollback、member action、後続activation境界が明記されている",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_correction_review",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:59:08.777Z"
+    },
+    {
+      "event_id": "72fa670c-f766-4f72-888a-b29b18a95d75",
+      "type": "verdict",
+      "item_id": "failure_mode:schema_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "240f2924-c725-4fd8-b000-684876852f49",
+      "reason": "machine-consumed JSONとgzipなので対象であり現HEAD replayで検証済み",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_correction_review",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:59:08.919Z"
+    },
+    {
+      "event_id": "e120c27c-776c-43d0-8471-51814db9aa6b",
+      "type": "verdict",
+      "item_id": "failure_mode:persistence_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "985c573c-9417-4fe3-a5ee-392143ae56fe",
+      "reason": "過去のGit永続化失敗を補う変更そのもので、現在は追跡済み成果物とreplay readyを確認した",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_correction_review",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:59:09.060Z"
+    },
+    {
+      "event_id": "766760a3-fac4-4664-acac-d1a5c78da48e",
+      "type": "verdict",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "06101421-7323-4e9d-a6c7-3224aff2a4da",
+      "reason": "一時証跡からversioned packageへの配送が変更の中核で履歴保持と現在replayを両立している",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_correction_review",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:59:09.205Z"
+    },
+    {
+      "event_id": "a3ff72e6-d005-4739-ada7-1c3201d54b67",
+      "type": "verdict",
+      "item_id": "failure_mode:workflow_state_regression",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "55d1d8ab-1a27-47eb-af59-85cc07e7c304",
+      "reason": "replayはtop-levelの現在readyとnested merge履歴のreconciliationおよびfailed状態を分離して保持する",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "audit_head_8294_correction_review",
+        "session_ref": "HEAD:8294af986"
+      },
+      "head_commit": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+      "recorded_at": "2026-08-02T20:59:09.344Z"
+    }
+  ]
+}
