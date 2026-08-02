@@ -61,4 +61,22 @@ describe('InfoSSOTController ontology endpoints', () => {
             expect(res.body).toMatchObject({ code: 'ONTOLOGY_CURRENT_UNAVAILABLE' });
         }
     });
+
+    it('adds inactive_no_current to every dedicated legacy writer response', async () => {
+        const writers = ['createDecision', 'createRaci', 'createGlossaryTerm', 'createKpi', 'createInitiative', 'createAiQuery', 'createAiDecisionLog'];
+        const service = {
+            getOntologyGuard: () => ({ guard_status: 'inactive_no_current', ontology_version: null })
+        };
+        for (const writer of writers) service[writer] = async () => ({ entity_id: `${writer}:1` });
+        const controller = new InfoSSOTController(service);
+        for (const writer of writers) {
+            const res = responseRecorder();
+            await controller[writer]({ body: {}, access }, res);
+            expect(res.body, writer).toMatchObject({
+                entity_id: `${writer}:1`,
+                guard_status: 'inactive_no_current',
+                ontology_version: null
+            });
+        }
+    });
 });

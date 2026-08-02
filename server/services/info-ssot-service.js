@@ -277,8 +277,8 @@ export class InfoSSOTService {
                 actual: input.release_digest
             });
         }
-        const privateKey = process.env.ONTOLOGY_RECEIPT_PRIVATE_KEY?.replace(/\\n/g, '\n');
-        const keyId = process.env.ONTOLOGY_RECEIPT_KEY_ID;
+        const privateKey = process.env.ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY?.replace(/\\n/g, '\n');
+        const keyId = process.env.ONTOLOGY_PUBLICATION_SIGNING_KEY_ID;
         if (!this.pool || !privateKey || !keyId) {
             throw new OntologyError('ONTOLOGY_PUBLICATION_DEPENDENCY_UNAVAILABLE', 'Graph authority or signing key is unavailable', {
                 http_status: 503

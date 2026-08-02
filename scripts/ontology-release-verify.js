@@ -161,7 +161,7 @@ export function verifyOntologyRelease({ rootDir, publicKeyPem = '', base = null,
     if (index.current) {
         const entry = index.releases.find((item) => item.version === index.current);
         if (!entry?.receipt_path || !entry?.receipt_digest) throw new Error(`current release has no receipt binding: ${index.current}`);
-        if (!publicKeyPem) throw new Error('ONTOLOGY_RECEIPT_PUBLIC_KEY is required for an active current release');
+        if (!publicKeyPem) throw new Error('ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY is required for an active current release');
         const receiptBytes = readFileSync(path.resolve(configDir, entry.receipt_path));
         if (sha256(receiptBytes) !== entry.receipt_digest) throw new Error(`receipt digest mismatch: ${index.current}`);
         const receipt = JSON.parse(receiptBytes.toString('utf8'));
@@ -186,7 +186,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         const args = parseArgs(process.argv.slice(2));
         const result = verifyOntologyRelease({
             rootDir: process.cwd(),
-            publicKeyPem: process.env.ONTOLOGY_RECEIPT_PUBLIC_KEY || '',
+            publicKeyPem: process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY || '',
             base: args.base || null,
             head: args.head || null
         });

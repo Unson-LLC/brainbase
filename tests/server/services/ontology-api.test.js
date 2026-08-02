@@ -64,6 +64,26 @@ describe('InfoSSOTService ontology API', () => {
         });
     });
 
+    it('preserves legacy entity and edge writes while returning inactive_no_current', async () => {
+        const client = {
+            query: async (sql) => String(sql).includes('SELECT id FROM projects')
+                ? { rows: [{ id: 'project:brainbase' }] }
+                : { rows: [] },
+            release: () => {}
+        };
+        const service = new InfoSSOTService({
+            ontologyRegistry: new OntologyRegistry({ rootDir }),
+            pool: { connect: async () => client }
+        });
+        const access = { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] };
+        await expect(service.createOrUpdateGraphEntity(access, {
+            id: 'app:legacy', entityType: 'app', projectCode: 'brainbase', payload: {}, roleMin: 'member', sensitivity: 'internal'
+        })).resolves.toMatchObject({ guard_status: 'inactive_no_current', ontology_version: null });
+        await expect(service.createOrUpdateGraphEdge(access, {
+            fromId: 'app:legacy', toId: 'app:dependency', relType: 'depends_on', projectCode: 'brainbase', roleMin: 'member', sensitivity: 'internal'
+        })).resolves.toMatchObject({ guard_status: 'inactive_no_current', ontology_version: null });
+    });
+
     it('rolls back an atomic commit when the entity and required edge violate the ontology', async () => {
         const statements = [];
         const client = {

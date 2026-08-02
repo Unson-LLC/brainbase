@@ -668,7 +668,9 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             person_id: 'per_sugiyama_miki',
             email: 'miki@example.com',
             org: 'ユニバーサルアーツ',
-            role: '事務'
+            role: '事務',
+            guard_status: 'inactive_no_current',
+            ontology_version: null
         });
     });
 

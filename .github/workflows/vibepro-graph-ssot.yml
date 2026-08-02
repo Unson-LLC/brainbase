@@ -41,7 +41,7 @@ jobs:
 
       - name: Verify Ontology release integrity
         env:
-          ONTOLOGY_RECEIPT_PUBLIC_KEY: ${{ secrets.ONTOLOGY_RECEIPT_PUBLIC_KEY }}
+          ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY: ${{ secrets.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY }}
         run: npm run ontology:verify -- --base "${{ github.event.pull_request.base.sha || github.event.before || github.sha }}" --head "${{ github.event.pull_request.head.sha || github.sha }}"
 
       - name: Require Graph API token

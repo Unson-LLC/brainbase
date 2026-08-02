@@ -803,7 +803,9 @@ describe('companion approval inbox route', () => {
                 email: 'yajima@example.com',
                 org: 'Hotel Client',
                 role: '営業',
-                status: 'active'
+                status: 'active',
+                guard_status: 'inactive_no_current',
+                ontology_version: null
             }))
         };
         const { app } = makeApp({ infoSSOTService });
@@ -837,6 +839,8 @@ describe('companion approval inbox route', () => {
         expect(res.body).toMatchObject({
             source: 'graph_ssot',
             type: 'person',
+            guard_status: 'inactive_no_current',
+            ontology_version: null,
             person: {
                 id: 'person_yajima_tsuyoshi',
                 entity_id: 'person_yajima_tsuyoshi',

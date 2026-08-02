@@ -45,8 +45,8 @@ function request() {
 describe('Ontology publication authority', () => {
     it('binds Graph authority facts into a verifiable Ed25519 receipt', async () => {
         const { privateKey, publicKey } = generateKeyPairSync('ed25519');
-        vi.stubEnv('ONTOLOGY_RECEIPT_PRIVATE_KEY', privateKey.export({ type: 'pkcs8', format: 'pem' }).toString());
-        vi.stubEnv('ONTOLOGY_RECEIPT_KEY_ID', 'ontology-test-key');
+        vi.stubEnv('ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', privateKey.export({ type: 'pkcs8', format: 'pem' }).toString());
+        vi.stubEnv('ONTOLOGY_PUBLICATION_SIGNING_KEY_ID', 'ontology-test-key');
         const receipt = await authorityService().authorizeOntologyPublication({
             role: 'gm', projectCodes: ['brainbase'], clearance: ['internal'], personId: 'person:applier'
         }, request());
@@ -74,8 +74,8 @@ describe('Ontology publication authority', () => {
 
     it('rejects self-declared applier and missing Accountable authority', async () => {
         const { privateKey } = generateKeyPairSync('ed25519');
-        vi.stubEnv('ONTOLOGY_RECEIPT_PRIVATE_KEY', privateKey.export({ type: 'pkcs8', format: 'pem' }).toString());
-        vi.stubEnv('ONTOLOGY_RECEIPT_KEY_ID', 'ontology-test-key');
+        vi.stubEnv('ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', privateKey.export({ type: 'pkcs8', format: 'pem' }).toString());
+        vi.stubEnv('ONTOLOGY_PUBLICATION_SIGNING_KEY_ID', 'ontology-test-key');
         await expect(authorityService().authorizeOntologyPublication({
             role: 'gm', projectCodes: ['brainbase'], clearance: ['internal'], personId: 'person:other'
         }, request())).rejects.toMatchObject({ code: 'ONTOLOGY_PUBLICATION_FORBIDDEN', details: { http_status: 403 } });
@@ -86,8 +86,8 @@ describe('Ontology publication authority', () => {
 
     it('rejects missing Decisions and Decision or scope binding mismatches', async () => {
         const { privateKey } = generateKeyPairSync('ed25519');
-        vi.stubEnv('ONTOLOGY_RECEIPT_PRIVATE_KEY', privateKey.export({ type: 'pkcs8', format: 'pem' }).toString());
-        vi.stubEnv('ONTOLOGY_RECEIPT_KEY_ID', 'ontology-test-key');
+        vi.stubEnv('ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', privateKey.export({ type: 'pkcs8', format: 'pem' }).toString());
+        vi.stubEnv('ONTOLOGY_PUBLICATION_SIGNING_KEY_ID', 'ontology-test-key');
         const access = { role: 'gm', projectCodes: ['brainbase'], clearance: ['internal'], personId: 'person:applier' };
 
         await expect(authorityService({ decision: false }).authorizeOntologyPublication(access, request()))

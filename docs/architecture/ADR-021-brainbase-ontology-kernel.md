@@ -41,6 +41,8 @@ publisherはreceipt、index、active releaseへのpointerだけを持つ`config/
 
 ADR-007の型catalogは既存storage型の初期整理として残し、本ADRはpublic型とstorage型の対応を明確化する。manifestの型には`public_id`、`storage_type`、`visibility`、`aliases`を持たせ、MCPの`raci` -> DBの`raci_assignment`のようなprojectionを明示する。既存利用中の型・relationはinventoryで`canonical`、`compatibility`、`internal`、`rejected`に分類し、未分類値は強制開始前に監査対象とする。
 
+署名鍵の識別子は`ONTOLOGY_PUBLICATION_SIGNING_KEY_ID`で供給する。
+
 ### 2. 実行境界
 
 `OntologyKernel`を副作用のない決定的serviceとして実装し、manifestの取得、entity/edge検証、Decision推論、変更impact評価を担当させる。

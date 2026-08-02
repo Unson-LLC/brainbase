@@ -699,4 +699,40 @@ describe('LearningService', () => {
         expect(result[0].uses).toBe(3);
         expect(result[0].stale_threshold_days).toBe(90);
     });
+
+    it('promoteMemoryCandidateToGraphは全mapped typeを分類しguard付きで返し未知型を拒否する', async () => {
+        vi.spyOn(service, 'ensureSchema').mockResolvedValue();
+        vi.spyOn(service, '_transitionMemoryCandidate').mockResolvedValue({ success: true });
+        const getMemoryCandidate = vi.spyOn(service, 'getMemoryCandidate');
+        const mappedTypes = ['person', 'project', 'org', 'customer', 'decision', 'raci_assignment', 'philosophy', 'glossary_term'];
+        for (const subjectType of mappedTypes) {
+            getMemoryCandidate.mockResolvedValueOnce({
+                id: `candidate_${subjectType}`,
+                subject_type: subjectType,
+                promotion_status: 'approved',
+                redaction_status: 'none',
+                role_min: 'member',
+                sensitivity: 'internal',
+                source_event_ids: [],
+                evidence_ids: [],
+                permission_snapshot: {},
+                memory: { summary: subjectType }
+            });
+            const result = await service.promoteMemoryCandidateToGraph(`candidate_${subjectType}`);
+            expect(result).toMatchObject({
+                success: true,
+                guard_status: 'inactive_no_current',
+                ontology_version: null,
+                graph_entity: { entity_type: subjectType }
+            });
+        }
+        getMemoryCandidate.mockResolvedValueOnce({
+            id: 'candidate_unknown',
+            subject_type: 'unregistered_type',
+            promotion_status: 'approved',
+            redaction_status: 'none'
+        });
+        await expect(service.promoteMemoryCandidateToGraph('candidate_unknown'))
+            .rejects.toThrow('cannot be promoted to graph');
+    });
 });

@@ -70,7 +70,7 @@ export async function publishOntologyRelease({
     });
     const receipt = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(`authority denied (${response.status}): ${receipt.code || receipt.error || 'unknown error'}`);
-    if (!verifyPublicationReceipt(receipt, required(env, 'ONTOLOGY_RECEIPT_PUBLIC_KEY'))) throw new Error('authority returned an unverifiable receipt');
+    if (!verifyPublicationReceipt(receipt, required(env, 'ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY'))) throw new Error('authority returned an unverifiable receipt');
 
     const receiptBytes = Buffer.from(`${JSON.stringify(receipt, null, 2)}\n`);
     const receiptRelative = `publications/${version}.receipt.json`;

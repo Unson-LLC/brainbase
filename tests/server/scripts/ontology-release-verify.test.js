@@ -119,7 +119,7 @@ describe('ontology release Git history verification', () => {
             env: {
                 BRAINBASE_GRAPH_API_URL: 'https://graph.example.test',
                 BRAINBASE_GRAPH_API_TOKEN: 'secret-token',
-                ONTOLOGY_RECEIPT_PUBLIC_KEY: publicKey.export({ type: 'spki', format: 'pem' }).toString()
+                ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY: publicKey.export({ type: 'spki', format: 'pem' }).toString()
             },
             fetchImpl: async (url, options) => {
                 observedRequest = { url, options, body: JSON.parse(options.body) };
