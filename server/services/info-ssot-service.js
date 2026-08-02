@@ -449,6 +449,71 @@ export class InfoSSOTService {
         }
     }
 
+    async validateGraphMutation(client, { entityOverrides = [], edgeOverride = null, validationEntityIds = [] }) {
+        if (!this.ontologyRegistry.hasCurrent()) return;
+        const targetIds = Array.from(new Set([
+            ...validationEntityIds,
+            ...entityOverrides.map((entity) => entity.id),
+            edgeOverride?.from_id,
+            edgeOverride?.to_id
+        ].filter(Boolean)));
+        // Serialize mutations that share an endpoint before reading its current
+        // edges, so concurrent cardinality checks cannot both observe stale data.
+        await client.query(
+            `SELECT id
+             FROM graph_entities
+             WHERE id = ANY($1::text[])
+             ORDER BY id
+             FOR UPDATE`,
+            [targetIds]
+        );
+        const edgeResult = await client.query(
+            `SELECT id, from_id, to_id, rel_type
+             FROM graph_edges
+             WHERE from_id = ANY($1::text[]) OR to_id = ANY($1::text[])`,
+            [targetIds]
+        );
+        const edges = edgeResult.rows.map((edge) => ({ ...edge, relation: edge.rel_type }));
+        if (edgeOverride) {
+            const existingIndex = edges.findIndex((edge) => edge.from_id === edgeOverride.from_id
+                && edge.to_id === edgeOverride.to_id
+                && edge.rel_type === edgeOverride.rel_type);
+            if (existingIndex >= 0) edges[existingIndex] = { ...edges[existingIndex], ...edgeOverride, relation: edgeOverride.rel_type };
+            else edges.push({ ...edgeOverride, relation: edgeOverride.rel_type });
+        }
+        const entityIds = Array.from(new Set([
+            ...targetIds,
+            ...edges.flatMap((edge) => [edge.from_id, edge.to_id])
+        ]));
+        const entityResult = await client.query(
+            `SELECT id, entity_type, payload
+             FROM graph_entities
+             WHERE id = ANY($1::text[])
+             ORDER BY id
+             FOR UPDATE`,
+            [entityIds]
+        );
+        const entities = new Map(entityResult.rows.map((entity) => [entity.id, {
+            id: entity.id,
+            type: entity.entity_type,
+            payload: entity.payload || {}
+        }]));
+        for (const entity of entityOverrides) entities.set(entity.id, entity);
+        const missingEndpointIds = entityIds.filter((id) => !entities.has(id));
+        if (missingEndpointIds.length) {
+            throw new OntologyError('ONTOLOGY_EDGE_ENDPOINT_NOT_FOUND', 'Graph edge endpoints must exist and be visible', {
+                missing_endpoint_ids: missingEndpointIds
+            });
+        }
+        const { kernel } = this.ontologyRegistry.resolve();
+        this.assertOntologyValid(kernel.validateSnapshot({
+            entities: Array.from(entities.values()),
+            edges,
+            validation_entity_ids: validationEntityIds,
+            complete: true
+        }));
+    }
+
     generateId(prefix) {
         return `${prefix}_${ulid()}`;
     }
@@ -493,26 +558,11 @@ export class InfoSSOTService {
 
     async upsertGraphEdge(client, { fromId, toId, relType, projectId, payload, roleMin, sensitivity }) {
         if (this.ontologyRegistry.hasCurrent()) {
-            const endpointResult = await client.query(
-                `SELECT id, entity_type
-                 FROM graph_entities
-                 WHERE id = ANY($1::text[])`,
-                [[fromId, toId]]
-            );
-            const endpointTypes = new Map(endpointResult.rows.map((row) => [row.id, row.entity_type]));
-            if (!endpointTypes.has(fromId) || !endpointTypes.has(toId)) {
-                throw new OntologyError('ONTOLOGY_EDGE_ENDPOINT_NOT_FOUND', 'Graph edge endpoints must exist and be visible', {
-                    missing_endpoint_ids: [fromId, toId].filter((id) => !endpointTypes.has(id))
-                });
-            }
-            const { kernel } = this.ontologyRegistry.resolve();
-            this.assertOntologyValid(kernel.validateEdge({
+            await this.validateGraphMutation(client, { edgeOverride: {
                 from_id: fromId,
                 to_id: toId,
-                relation: relType,
-                from_type: endpointTypes.get(fromId),
-                to_type: endpointTypes.get(toId)
-            }));
+                rel_type: relType
+            }, validationEntityIds: [fromId, toId] });
         }
         const edgeId = this.generateId('edg');
         await client.query(
@@ -1309,11 +1359,18 @@ export class InfoSSOTService {
         const guard = this.getOntologyGuard();
         if (guard.guard_status === 'active_current') {
             const { kernel } = this.ontologyRegistry.resolve();
-            this.assertOntologyValid(kernel.validateEntity({ id, type: entityType, payload: payload || {} }));
+            this.assertOntologyValid(kernel.validateEntity(
+                { id, type: entityType, payload: payload || {} },
+                { deferRequiredRelations: true }
+            ));
         }
 
         return this.withAccessContext(access, async (client) => {
             const projectId = await this.ensureProject(client, { projectCode, projectName });
+            await this.validateGraphMutation(client, {
+                entityOverrides: [{ id, type: entityType, payload: payload || {} }],
+                validationEntityIds: [id]
+            });
             await this.upsertGraphEntity(client, {
                 id,
                 entityType,
@@ -1348,28 +1405,6 @@ export class InfoSSOTService {
 
         const guard = this.getOntologyGuard();
         return this.withAccessContext(access, async (client) => {
-            if (guard.guard_status === 'active_current') {
-                const endpointResult = await client.query(
-                    `SELECT id, entity_type
-                     FROM graph_entities
-                     WHERE id = ANY($1::text[])`,
-                    [[fromId, toId]]
-                );
-                const endpointTypes = new Map(endpointResult.rows.map((row) => [row.id, row.entity_type]));
-                if (!endpointTypes.has(fromId) || !endpointTypes.has(toId)) {
-                    throw new OntologyError('ONTOLOGY_EDGE_ENDPOINT_NOT_FOUND', 'Graph edge endpoints must exist and be visible', {
-                        missing_endpoint_ids: [fromId, toId].filter((id) => !endpointTypes.has(id))
-                    });
-                }
-                const { kernel } = this.ontologyRegistry.resolve();
-                this.assertOntologyValid(kernel.validateEdge({
-                    from_id: fromId,
-                    to_id: toId,
-                    relation: relType,
-                    from_type: endpointTypes.get(fromId),
-                    to_type: endpointTypes.get(toId)
-                }));
-            }
             const projectId = await this.ensureProject(client, { projectCode, projectName });
             await this.upsertGraphEdge(client, {
                 fromId,

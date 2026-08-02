@@ -613,6 +613,13 @@ describe('ontology release Git history verification', () => {
         expect(() => verifyOntologyRelease({ rootDir: fixture.rootDir, publicKeyPem })).toThrow(/contract mismatch: issued_at/);
     });
 
+    it('verifies an active current release through the repository trust store without an environment key', () => {
+        expect(verifyOntologyRelease({ rootDir: projectRoot })).toMatchObject({
+            current: '1.0.0',
+            release_count: 1
+        });
+    });
+
     it('rejects a retired release without an immutable receipt binding', () => {
         const fixture = lifecycleRepository({ includeRuntime: true });
         const indexPath = path.join(fixture.rootDir, 'config/ontology/index.json');

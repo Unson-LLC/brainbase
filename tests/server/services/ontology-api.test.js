@@ -152,11 +152,19 @@ describe('InfoSSOTService ontology API', () => {
         expect(statements.some((sql) => String(sql).includes('INSERT INTO graph_entities'))).toBe(false);
     });
 
-    it('rejects an effective Decision on the active entity-only writer before persistence', async () => {
-        let connectionAttempts = 0;
+    it('rejects an effective Decision without persisted authority relations before persistence', async () => {
+        const statements = [];
+        const client = {
+            query: async (sql) => {
+                statements.push(String(sql));
+                if (String(sql).includes('SELECT id FROM projects')) return { rows: [{ id: 'project:brainbase' }] };
+                return { rows: [] };
+            },
+            release: () => {}
+        };
         const service = new InfoSSOTService({
             ontologyRegistry: activeRegistry(),
-            pool: { connect: async () => { connectionAttempts += 1; throw new Error('must not persist'); } }
+            pool: { connect: async () => client }
         });
         const access = { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] };
 
@@ -176,7 +184,8 @@ describe('InfoSSOTService ontology API', () => {
                 ])
             })
         });
-        expect(connectionAttempts).toBe(0);
+        expect(statements).toContain('ROLLBACK');
+        expect(statements.filter((sql) => sql.trim().startsWith('INSERT INTO graph_entities'))).toHaveLength(1);
     });
 
     it('rejects caller-declared context entities that do not exist in the canonical Graph', async () => {
@@ -260,7 +269,7 @@ describe('InfoSSOTService ontology API', () => {
         const client = {
             query: async (sql) => {
                 const text = String(sql);
-                if (text.includes('WHERE id = ANY')) return { rows: [{ id: 'app:a', entity_type: 'app' }, { id: 'app:b', entity_type: 'app' }] };
+                if (text.includes('WHERE id = ANY')) return { rows: [{ id: 'project:a', entity_type: 'project' }, { id: 'project:b', entity_type: 'project' }] };
                 if (text.includes('SELECT id FROM projects')) return { rows: [{ id: 'project:brainbase' }] };
                 if (text.includes('INSERT INTO graph_edges')) writes.push(text);
                 return { rows: [] };
@@ -270,7 +279,7 @@ describe('InfoSSOTService ontology API', () => {
         const service = new InfoSSOTService({ ontologyRegistry: activeRegistry(), pool: { connect: async () => client } });
         const result = await service.createOrUpdateGraphEdge(
             { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] },
-            { fromId: 'app:a', toId: 'app:b', relType: 'depends_on', projectCode: 'brainbase', roleMin: 'member', sensitivity: 'internal' }
+            { fromId: 'project:a', toId: 'project:b', relType: 'depends_on', projectCode: 'brainbase', roleMin: 'member', sensitivity: 'internal' }
         );
         expect(result).toMatchObject({ guard_status: 'active_current', ontology_version: '1.0.0' });
         expect(writes).toHaveLength(1);
@@ -278,9 +287,14 @@ describe('InfoSSOTService ontology API', () => {
 
     it('rejects an edge when persisted endpoint types violate the current relation', async () => {
         const client = {
-            query: async (sql) => String(sql).includes('WHERE id = ANY')
-                ? { rows: [{ id: 'app:a', entity_type: 'app' }, { id: 'decision:b', entity_type: 'decision' }] }
-                : { rows: [] },
+            query: async (sql) => {
+                const text = String(sql);
+                if (text.includes('SELECT id FROM projects')) return { rows: [{ id: 'project:brainbase' }] };
+                if (text.includes('WHERE id = ANY')) {
+                    return { rows: [{ id: 'app:a', entity_type: 'app' }, { id: 'decision:b', entity_type: 'decision' }] };
+                }
+                return { rows: [] };
+            },
             release: () => {}
         };
         const service = new InfoSSOTService({ ontologyRegistry: activeRegistry(), pool: { connect: async () => client } });

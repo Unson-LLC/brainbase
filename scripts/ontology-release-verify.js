@@ -4,7 +4,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { publicationReceiptContractErrors, sha256, verifyPublicationReceipt } from '../server/services/ontology-publication.js';
-import { hasCompleteReceiptMetadata, hasReceiptMetadata } from '../server/services/ontology-release-trust.js';
+import { hasCompleteReceiptMetadata, hasReceiptMetadata, loadTrustedPublicKeys } from '../server/services/ontology-release-trust.js';
 import { verifyWriterInventory } from './ontology-writer-inventory.js';
 
 function fail(message) {
@@ -218,12 +218,14 @@ export function verifyOntologyRelease({ rootDir, publicKeyPem = '', base = null,
     if (index.current) {
         const entry = index.releases.find((item) => item.version === index.current);
         if (!hasCompleteReceiptMetadata(entry)) throw new Error(`current release has no receipt binding: ${index.current}`);
-        if (!publicKeyPem) throw new Error('ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY is required for an active current release');
         const receiptBytes = readFileSync(path.resolve(configDir, entry.receipt_path));
         if (sha256(receiptBytes) !== entry.receipt_digest) throw new Error(`receipt digest mismatch: ${index.current}`);
         const receipt = JSON.parse(receiptBytes.toString('utf8'));
         assertReceiptContract(receipt, `receipt ${index.current}`);
-        if (!verifyPublicationReceipt(receipt, publicKeyPem)) throw new Error(`receipt signature is invalid: ${index.current}`);
+        const trustedPublicKeys = loadTrustedPublicKeys(configDir);
+        const trustedPublicKeyPem = publicKeyPem || trustedPublicKeys[receipt.key_id]?.public_key_pem || '';
+        if (!trustedPublicKeyPem) throw new Error(`trusted public key is unavailable: ${receipt.key_id}`);
+        if (!verifyPublicationReceipt(receipt, trustedPublicKeyPem)) throw new Error(`receipt signature is invalid: ${index.current}`);
         if (receipt.payload.release_version !== entry.version
             || receipt.payload.release_digest !== entry.content_digest
             || receipt.payload.source_commit_sha !== entry.source_commit_sha) {

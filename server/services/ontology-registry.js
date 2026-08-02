@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { OntologyError, OntologyKernel } from './ontology-kernel.js';
 import {
     hasCompleteReceiptMetadata,
     hasReceiptMetadata,
+    loadTrustedPublicKeys,
     verifyPublishedReceipt
 } from './ontology-release-trust.js';
 
@@ -26,28 +27,6 @@ function parseTime(value, label) {
     return timestamp;
 }
 
-function loadTrustedPublicKeys(configDir) {
-    const trustStorePath = path.join(configDir, 'trusted-public-keys.json');
-    if (!existsSync(trustStorePath)) return {};
-
-    const trustStore = parseJson(readFileSync(trustStorePath), 'ontology trusted public keys');
-    if (trustStore.schema_version !== '1.0.0'
-        || !trustStore.keys
-        || Array.isArray(trustStore.keys)
-        || typeof trustStore.keys !== 'object') {
-        throw new OntologyError('ONTOLOGY_MANIFEST_INVALID', 'Ontology trusted public keys must use the 1.0.0 key map schema');
-    }
-    for (const [keyId, key] of Object.entries(trustStore.keys)) {
-        if (!keyId
-            || key?.algorithm !== 'ed25519'
-            || typeof key.public_key_pem !== 'string'
-            || !key.public_key_pem.includes('-----BEGIN PUBLIC KEY-----')) {
-            throw new OntologyError('ONTOLOGY_MANIFEST_INVALID', `Invalid ontology trusted public key: ${keyId || '<empty>'}`);
-        }
-    }
-    return trustStore.keys;
-}
-
 export class OntologyRegistry {
     constructor({
         rootDir = process.cwd(),
@@ -57,7 +36,11 @@ export class OntologyRegistry {
         this.configDir = path.resolve(rootDir, configDir);
         this.releasesDir = path.resolve(this.configDir, 'releases');
         this.publicKeyPem = publicKeyPem;
-        this.trustedPublicKeys = loadTrustedPublicKeys(this.configDir);
+        try {
+            this.trustedPublicKeys = loadTrustedPublicKeys(this.configDir);
+        } catch (error) {
+            throw new OntologyError('ONTOLOGY_MANIFEST_INVALID', error.message);
+        }
         this.index = parseJson(readFileSync(path.join(this.configDir, 'index.json')), 'ontology index');
         if (!Array.isArray(this.index.releases)) {
             throw new OntologyError('ONTOLOGY_MANIFEST_INVALID', 'Ontology index releases must be an array');

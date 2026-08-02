@@ -126,11 +126,16 @@ describe('learning routes', () => {
 
         const res = await request(authenticatedApp)
             .post('/api/learning/memory-candidates/mem_1/promote-to-graph')
-            .send({ actor_person_id: 'spoofed_person', reason: 'approved' });
+            .send({
+                actor_person_id: 'spoofed_person',
+                decision_owner_person_id: 'spoofed_owner',
+                reason: 'approved'
+            });
 
         expect(res.status).toBe(201);
         expect(service.promoteMemoryCandidateToGraph).toHaveBeenCalledWith('mem_1', {
             actor_person_id: 'person_authenticated',
+            access: { personId: 'person_authenticated' },
             reason: 'approved'
         });
     });

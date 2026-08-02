@@ -1,4 +1,4 @@
-import { readFileSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import {
     canonicalJson,
@@ -29,6 +29,28 @@ function invalid(reason, details = {}) {
 function isContained(parent, child) {
     const relative = path.relative(parent, child);
     return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+export function loadTrustedPublicKeys(configDir) {
+    const trustStorePath = path.join(configDir, 'trusted-public-keys.json');
+    if (!existsSync(trustStorePath)) return {};
+
+    const trustStore = JSON.parse(readFileSync(trustStorePath, 'utf8'));
+    if (trustStore.schema_version !== '1.0.0'
+        || !trustStore.keys
+        || Array.isArray(trustStore.keys)
+        || typeof trustStore.keys !== 'object') {
+        throw new Error('Ontology trusted public keys must use the 1.0.0 key map schema');
+    }
+    for (const [keyId, key] of Object.entries(trustStore.keys)) {
+        if (!keyId
+            || key?.algorithm !== 'ed25519'
+            || typeof key.public_key_pem !== 'string'
+            || !key.public_key_pem.includes('-----BEGIN PUBLIC KEY-----')) {
+            throw new Error(`Invalid ontology trusted public key: ${keyId || '<empty>'}`);
+        }
+    }
+    return trustStore.keys;
 }
 
 export function verifyPublishedReceipt({

@@ -183,6 +183,7 @@ describe('LearningService', () => {
                 return { rows: [], rowCount: 1 };
             })
         };
+        pool.connect = vi.fn(async () => ({ query: pool.query, release: vi.fn() }));
         service = new LearningService({ pool, wikiService, repoRoot });
     });
 
@@ -727,9 +728,13 @@ describe('LearningService', () => {
                 source_event_ids: [],
                 evidence_ids: [],
                 permission_snapshot: {},
+                owner_person_id: 'person_owner',
                 memory: { summary: subjectType }
             });
-            const result = await service.promoteMemoryCandidateToGraph(`candidate_${subjectType}`);
+            const result = await service.promoteMemoryCandidateToGraph(`candidate_${subjectType}`, {
+                actor_person_id: 'person_owner',
+                access: { role: 'member', projectCodes: [] }
+            });
             expect(result).toMatchObject({
                 success: true,
                 guard_status: 'inactive_no_current',
@@ -741,9 +746,13 @@ describe('LearningService', () => {
             id: 'candidate_unknown',
             subject_type: 'unregistered_type',
             promotion_status: 'approved',
-            redaction_status: 'none'
+            redaction_status: 'none',
+            owner_person_id: 'person_owner'
         });
-        await expect(service.promoteMemoryCandidateToGraph('candidate_unknown'))
+        await expect(service.promoteMemoryCandidateToGraph('candidate_unknown', {
+            actor_person_id: 'person_owner',
+            access: { role: 'member', projectCodes: [] }
+        }))
             .rejects.toThrow('cannot be promoted to graph');
     });
 
@@ -765,6 +774,7 @@ describe('LearningService', () => {
             source_event_ids: [],
             evidence_ids: [],
             permission_snapshot: {},
+            owner_person_id: 'person_owner',
             memory: {
                 title: 'authorityを欠くactive decision',
                 status: 'active'
@@ -772,7 +782,10 @@ describe('LearningService', () => {
         });
         const transition = vi.spyOn(service, '_transitionMemoryCandidate');
 
-        await expect(service.promoteMemoryCandidateToGraph('candidate_active_decision_without_authority'))
+        await expect(service.promoteMemoryCandidateToGraph('candidate_active_decision_without_authority', {
+            actor_person_id: 'person_owner',
+            access: { role: 'member', projectCodes: [] }
+        }))
             .rejects.toMatchObject({
                 code: 'ONTOLOGY_VALIDATION_FAILED',
                 details: {
@@ -806,11 +819,15 @@ describe('LearningService', () => {
             source_event_ids: [],
             evidence_ids: [],
             permission_snapshot: {},
+            owner_person_id: 'person_owner',
             memory: { name: 'Ontology適合人物' }
         });
         vi.spyOn(service, '_transitionMemoryCandidate').mockResolvedValue({ success: true });
 
-        await expect(service.promoteMemoryCandidateToGraph('candidate_valid_person'))
+        await expect(service.promoteMemoryCandidateToGraph('candidate_valid_person', {
+            actor_person_id: 'person_owner',
+            access: { role: 'member', projectCodes: [] }
+        }))
             .resolves.toMatchObject({
                 success: true,
                 guard_status: 'active_current',
@@ -821,5 +838,70 @@ describe('LearningService', () => {
                 }
             });
         expect(pool.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO graph_entities'))).toBe(true);
+    });
+
+    it('promoteMemoryCandidateToGraphはproject外またはowner権限外のcallerを拒否する', async () => {
+        vi.spyOn(service, 'ensureSchema').mockResolvedValue();
+        vi.spyOn(service, 'getMemoryCandidate').mockResolvedValue({
+            id: 'candidate_scoped',
+            subject_type: 'person',
+            promotion_status: 'approved',
+            redaction_status: 'none',
+            project_code: 'brainbase',
+            owner_person_id: 'person_owner',
+            role_min: 'member',
+            sensitivity: 'internal',
+            source_event_ids: [],
+            evidence_ids: [],
+            permission_snapshot: {},
+            memory: { name: 'Scoped' }
+        });
+
+        await expect(service.promoteMemoryCandidateToGraph('candidate_scoped', {
+            actor_person_id: 'person_owner',
+            access: { role: 'member', projectCodes: ['other'] }
+        })).rejects.toThrow('promotion project access denied');
+        await expect(service.promoteMemoryCandidateToGraph('candidate_scoped', {
+            actor_person_id: 'person_other',
+            access: { role: 'member', projectCodes: ['brainbase'] }
+        })).rejects.toThrow('promotion owner authority denied');
+        expect(pool.connect).not.toHaveBeenCalled();
+    });
+
+    it('promoteMemoryCandidateToGraphはaudit失敗時にGraph writeもrollbackする', async () => {
+        vi.spyOn(service, 'ensureSchema').mockResolvedValue();
+        vi.spyOn(service, 'getMemoryCandidate').mockResolvedValue({
+            id: 'candidate_atomic',
+            subject_type: 'person',
+            promotion_status: 'approved',
+            redaction_status: 'none',
+            project_code: 'brainbase',
+            owner_person_id: 'person_owner',
+            recommended_owner_person_id: 'person_decider',
+            role_min: 'member',
+            sensitivity: 'internal',
+            source_event_ids: [],
+            evidence_ids: [],
+            permission_snapshot: {},
+            memory: { name: 'Atomic' }
+        });
+        const query = vi.fn(async (sql, params) => {
+            if (sql.includes('INSERT INTO memory_candidate_audit_logs')) throw new Error('audit unavailable');
+            return { rows: [], rowCount: 1, params };
+        });
+        const release = vi.fn();
+        pool.connect.mockResolvedValueOnce({ query, release });
+
+        await expect(service.promoteMemoryCandidateToGraph('candidate_atomic', {
+            actor_person_id: 'person_operator',
+            access: { role: 'gm', projectCodes: ['brainbase'] },
+            decision_owner_person_id: 'spoofed_owner'
+        })).rejects.toThrow('audit unavailable');
+        expect(query.mock.calls.some(([sql]) => sql.includes('INSERT INTO graph_entities'))).toBe(true);
+        expect(query).toHaveBeenCalledWith('ROLLBACK');
+        expect(query.mock.calls.some(([sql]) => sql === 'COMMIT')).toBe(false);
+        const auditCall = query.mock.calls.find(([sql]) => sql.includes('INSERT INTO memory_candidate_audit_logs'));
+        expect(auditCall[1][3]).toBe('person_decider');
+        expect(release).toHaveBeenCalledOnce();
     });
 });

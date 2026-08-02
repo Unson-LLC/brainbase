@@ -154,9 +154,11 @@ export class LearningController {
             if (!actorPersonId) {
                 return res.status(403).json({ error: 'Authenticated Graph promotion actor is required' });
             }
+            const { decision_owner_person_id: _ignoredDecisionOwner, decisionOwnerPersonId: _ignoredDecisionOwnerCamel, ...body } = req.body || {};
             const result = await this.learningService.promoteMemoryCandidateToGraph(req.params.id, {
-                ...(req.body || {}),
-                actor_person_id: actorPersonId
+                ...body,
+                actor_person_id: actorPersonId,
+                access: req.access
             });
             if (result.notFound || !result.success) {
                 return res.status(404).json({ error: 'Memory candidate not found' });
@@ -164,7 +166,7 @@ export class LearningController {
             res.status(201).json(result);
         } catch (error) {
             logger.error('Failed to promote memory candidate to graph', { error });
-            res.status(400).json({ error: error.message || 'Failed to promote memory candidate to graph' });
+            res.status(error.status || 400).json({ error: error.message || 'Failed to promote memory candidate to graph' });
         }
     };
 

@@ -63,6 +63,63 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         vi.restoreAllMocks();
     });
 
+    it('active ontology permits updating an app whose required owner relation already exists', async () => {
+        const { service, client } = buildService();
+        client.query.mockImplementation(async (sql) => {
+            if (sql.startsWith('SELECT id FROM projects')) return { rows: [{ id: 'prj_1' }] };
+            if (sql.includes('FROM graph_edges')) {
+                return { rows: [{ id: 'edge_owner', from_id: 'app_one', to_id: 'org_one', rel_type: 'owned_by' }] };
+            }
+            if (sql.includes('FROM graph_entities') && sql.includes('id = ANY')) {
+                return { rows: [
+                    { id: 'app_one', entity_type: 'app', payload: { name: 'Old' } },
+                    { id: 'org_one', entity_type: 'org', payload: { name: 'Owner' } }
+                ] };
+            }
+            return { rows: [], rowCount: 1 };
+        });
+
+        await expect(service.createOrUpdateGraphEntity(accessContext, {
+            id: 'app_one',
+            entityType: 'app',
+            projectCode: 'brainbase',
+            payload: { name: 'Updated' },
+            roleMin: 'member',
+            sensitivity: 'internal'
+        })).resolves.toMatchObject({ entity_id: 'app_one', guard_status: 'active_current' });
+    });
+
+    it('active ontology rejects a second owner edge before persistence', async () => {
+        const { service, client } = buildService();
+        client.query.mockImplementation(async (sql) => {
+            if (sql.startsWith('SELECT id FROM projects')) return { rows: [{ id: 'prj_1' }] };
+            if (sql.includes('FROM graph_edges')) {
+                return { rows: [{ id: 'edge_owner', from_id: 'app_one', to_id: 'org_one', rel_type: 'owned_by' }] };
+            }
+            if (sql.includes('FROM graph_entities') && sql.includes('id = ANY')) {
+                return { rows: [
+                    { id: 'app_one', entity_type: 'app', payload: { name: 'App' } },
+                    { id: 'org_one', entity_type: 'org', payload: { name: 'Owner one' } },
+                    { id: 'org_two', entity_type: 'org', payload: { name: 'Owner two' } }
+                ] };
+            }
+            return { rows: [], rowCount: 1 };
+        });
+
+        await expect(service.createOrUpdateGraphEdge(accessContext, {
+            fromId: 'app_one',
+            toId: 'org_two',
+            relType: 'owned_by',
+            projectCode: 'brainbase',
+            roleMin: 'member',
+            sensitivity: 'internal'
+        })).rejects.toMatchObject({ code: 'ONTOLOGY_VALIDATION_FAILED' });
+        expect(client.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO graph_edges'))).toBe(false);
+        const statements = client.query.mock.calls.map(([sql]) => String(sql));
+        expect(statements.findIndex((sql) => sql.includes('SELECT id') && sql.includes('FOR UPDATE')))
+            .toBeLessThan(statements.findIndex((sql) => sql.includes('FROM graph_edges')));
+    });
+
     it('getPersonBySlackIdは有効なgrantを確認しGraph人物へ紐づくusersのperson_idを優先する', async () => {
         const { service, client } = buildService();
         client.query.mockResolvedValueOnce({ rows: [{ id: 'per_1', name: 'Test User' }] });
