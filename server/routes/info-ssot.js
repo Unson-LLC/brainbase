@@ -9,6 +9,14 @@ export function createInfoSSOTRouter(infoSSOTService) {
     const router = express.Router();
     const controller = new InfoSSOTController(infoSSOTService);
 
+    // Ontology contract (explicit version/as-of remains available before current publication)
+    router.get('/ontology', controller.getOntology);
+    router.post('/ontology/validate', controller.validateOntology);
+    router.post('/ontology/infer', controller.inferOntology);
+    router.post('/ontology/impact', controller.impactOntology);
+    router.post('/ontology/audit', controller.auditOntology);
+    router.post('/ontology/graph/commit', controller.commitOntologyGraph);
+
     // Read (Graph SSOT only)
     router.get('/graph/entities', controller.listGraphEntities);
     router.get('/graph/edges', controller.listGraphEdges);

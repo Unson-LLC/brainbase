@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "version": "1.0.0",
+  "initial_status": "proposed",
+  "effective_at": "2026-08-01T00:00:00.000Z",
+  "entity_types": {
+    "org": { "meaning": "法的または運営上の組織" },
+    "person": { "meaning": "組織や判断に参加する人物" },
+    "app": { "meaning": "利用者が操作するソフトウェア", "required_relations": ["owned_by"] },
+    "product": { "meaning": "顧客価値と収益責任を持つ提供物" },
+    "brand": { "meaning": "市場で識別される約束と表現体系" },
+    "project": { "meaning": "期限と成果物を持つ実行単位" },
+    "customer": { "meaning": "価値提供の対象となる顧客" },
+    "decision": { "meaning": "適用期間と決定者を持つ判断" },
+    "raci": { "meaning": "責任分担の定義", "storage_type": "raci_assignment" },
+    "raci_assignment": { "meaning": "人物とscopeの責任割当", "public_type": "raci" },
+    "glossary_term": { "meaning": "組織で合意された用語" },
+    "kpi": { "meaning": "成果を測る指標" },
+    "initiative": { "meaning": "成果へ向けた施策" },
+    "ai_query": { "meaning": "AIへの問合せ記録" },
+    "ai_decision": { "meaning": "AI利用を伴う判断記録" },
+    "philosophy": { "meaning": "判断の根底にある原則" }
+  },
+  "relation_types": {
+    "owned_by": { "meaning": "責任主体", "from": ["app", "product", "brand", "project", "decision", "initiative"], "to": ["org", "person"] },
+    "belongs_to": { "meaning": "包含先", "from": ["app", "product", "brand", "project", "decision", "raci", "raci_assignment", "glossary_term", "kpi", "initiative", "ai_query", "ai_decision"], "to": ["org", "product", "brand", "project"] },
+    "belongs_to_project": { "meaning": "projectへの包含", "from": ["decision", "raci", "raci_assignment", "glossary_term", "kpi", "initiative", "ai_query", "ai_decision"], "to": ["project"] },
+    "governs": { "meaning": "規律対象", "from": ["decision", "philosophy"], "to": ["app", "product", "brand", "project", "org", "decision"] },
+    "supersedes": { "meaning": "旧判断の置換", "from": ["decision"], "to": ["decision"] },
+    "derived_from": { "meaning": "由来", "from": ["app", "product", "brand", "project", "decision", "initiative", "ai_decision"], "to": ["app", "product", "brand", "project", "decision", "philosophy", "ai_query"] },
+    "accountable_for": { "meaning": "最終説明責任", "from": ["person", "org"], "to": ["app", "product", "brand", "project", "decision", "initiative"] },
+    "depends_on": { "meaning": "稼働や成果の依存", "from": ["app", "product", "project", "initiative"], "to": ["app", "product", "project", "initiative"] },
+    "member_of": { "meaning": "所属", "from": ["person"], "to": ["org", "project"] },
+    "assigned_to": { "meaning": "責任割当先", "from": ["raci", "raci_assignment"], "to": ["person", "org"] },
+    "requested_by": { "meaning": "問合せ要求者", "from": ["ai_query"], "to": ["person"] },
+    "made_by": { "meaning": "判断者", "from": ["ai_decision", "decision"], "to": ["person"] },
+    "references": { "meaning": "根拠参照", "from": ["decision", "ai_decision", "ai_query"], "to": ["decision", "ai_query", "philosophy", "glossary_term"] }
+  },
+  "constraints": [
+    { "id": "app-owner-required", "target": "app", "kind": "required_relation", "relation": "owned_by" },
+    { "id": "active-decision-context-required", "target": "decision", "kind": "required_fields_when", "when": { "status": "active" }, "fields": ["decider_id", "scope_ids"] }
+  ],
+  "inference_rules": [
+    { "id": "decision-supersession", "relation": "supersedes", "effect": "target_inactive_at_source_effective_at" }
+  ],
+  "evolution_rules": {
+    "breaking": "major",
+    "additive": "minor",
+    "editorial": "patch",
+    "history_required_for": ["rename", "merge", "split"]
+  }
+}

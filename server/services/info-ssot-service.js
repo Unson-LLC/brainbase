@@ -2,6 +2,8 @@ import { Pool } from 'pg';
 import { ulid } from 'ulid';
 import { logger } from '../utils/logger.js';
 import { buildScopedMemoryResult } from './memory-scope-policy.js';
+import { OntologyError } from './ontology-kernel.js';
+import { OntologyRegistry } from './ontology-registry.js';
 
 const ROLE_RANK = {
     member: 1,
@@ -53,9 +55,10 @@ const PHILOSOPHY_SCOPE_IDS = {
 };
 
 export class InfoSSOTService {
-    constructor() {
+    constructor({ ontologyRegistry = null, pool = undefined } = {}) {
         this.databaseUrl = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL || '';
-        this.pool = this.databaseUrl ? new Pool({ connectionString: this.databaseUrl }) : null;
+        this.pool = pool === undefined ? (this.databaseUrl ? new Pool({ connectionString: this.databaseUrl }) : null) : pool;
+        this.ontologyRegistry = ontologyRegistry || new OntologyRegistry();
         if (!this.pool) {
             logger.warn('InfoSSOTService disabled: INFO_SSOT_DATABASE_URL is not set');
         }
@@ -64,6 +67,148 @@ export class InfoSSOTService {
     assertReady() {
         if (!this.pool) {
             throw new Error('Info SSOT database is not configured');
+        }
+    }
+
+    resolveOntology({ version, asOf } = {}) {
+        return this.ontologyRegistry.resolve({ version, asOf });
+    }
+
+    describeOntology({ version, asOf } = {}) {
+        const release = this.resolveOntology({ version, asOf });
+        return { ...release.kernel.describe(), digest: release.digest };
+    }
+
+    validateOntology({ version, asOf, snapshot, entity, edge } = {}) {
+        const { kernel } = this.resolveOntology({ version, asOf });
+        if (snapshot) return kernel.validateSnapshot(snapshot);
+        if (entity) return kernel.validateEntity(entity);
+        if (edge) return kernel.validateEdge(edge);
+        throw new OntologyError('ONTOLOGY_INPUT_REQUIRED', 'snapshot, entity, or edge is required');
+    }
+
+    inferOntology({ version, asOf, snapshot } = {}) {
+        if (!snapshot) throw new OntologyError('ONTOLOGY_INPUT_REQUIRED', 'snapshot is required');
+        return this.resolveOntology({ version, asOf }).kernel.inferDecisions(snapshot);
+    }
+
+    impactOntology({ version, asOf, change, snapshot } = {}) {
+        if (!change) throw new OntologyError('ONTOLOGY_INPUT_REQUIRED', 'change is required');
+        return this.resolveOntology({ version, asOf }).kernel.impact({ change, snapshot });
+    }
+
+    async commitOntologyGraph(access, input = {}) {
+        const { kernel } = this.ontologyRegistry.resolve();
+        const entity = input.entity;
+        const edges = Array.isArray(input.edges) ? input.edges : [];
+        const contextEntities = Array.isArray(input.contextEntities) ? input.contextEntities : [];
+        if (!entity || !input.projectCode) {
+            throw new OntologyError('ONTOLOGY_INPUT_REQUIRED', 'entity and projectCode are required');
+        }
+        const snapshot = { entities: [entity, ...contextEntities], edges };
+        const roleMin = this.normalizeRole(input.roleMin);
+        const sensitivity = this.normalizeSensitivity(input.sensitivity);
+        this.assertWriteAccess(access, { projectCode: input.projectCode, roleMin, sensitivity });
+
+        return this.withAccessContext(access, async (client) => {
+            this.assertOntologyValid(kernel.validateSnapshot(snapshot));
+            const projectId = await this.ensureProject(client, {
+                projectCode: input.projectCode,
+                projectName: input.projectName
+            });
+            await this.upsertGraphEntity(client, {
+                id: entity.id,
+                entityType: entity.type || entity.entity_type,
+                projectId,
+                payload: entity.payload || {},
+                roleMin,
+                sensitivity
+            });
+            for (const edge of edges) {
+                await this.upsertGraphEdge(client, {
+                    fromId: edge.from_id,
+                    toId: edge.to_id,
+                    relType: edge.relation || edge.rel_type,
+                    projectId,
+                    payload: edge.payload || {},
+                    roleMin,
+                    sensitivity
+                });
+            }
+            return {
+                entity_id: entity.id,
+                edge_count: edges.length,
+                guard_status: 'active_current',
+                ontology_version: kernel.version
+            };
+        });
+    }
+
+    async auditOntology(access, { limit = 500 } = {}) {
+        const { kernel } = this.ontologyRegistry.resolve();
+        const safeLimit = Math.min(Math.max(Number(limit) || 500, 1), 1000);
+        return this.withAccessContext(access, async (client) => {
+            try {
+                const entityResult = await client.query(
+                    `SELECT id, entity_type AS type, payload
+                     FROM graph_entities
+                     ORDER BY id
+                     LIMIT $1`,
+                    [safeLimit + 1]
+                );
+                const edgeResult = await client.query(
+                    `SELECT from_id, to_id, rel_type AS relation, payload
+                     FROM graph_edges
+                     ORDER BY from_id, to_id, rel_type
+                     LIMIT $1`,
+                    [safeLimit + 1]
+                );
+                const truncated = entityResult.rows.length > safeLimit || edgeResult.rows.length > safeLimit;
+                const entities = entityResult.rows.slice(0, safeLimit);
+                const edges = edgeResult.rows.slice(0, safeLimit);
+                const validation = kernel.validateSnapshot({ entities, edges, complete: !truncated });
+                return {
+                    ...validation,
+                    completeness: {
+                        status: truncated ? 'partial' : 'complete',
+                        entity_count: entities.length,
+                        edge_count: edges.length,
+                        limit: safeLimit,
+                        failure: null
+                    }
+                };
+            } catch (error) {
+                return {
+                    valid: false,
+                    verification: 'unverified',
+                    ontology_version: kernel.version,
+                    violations: [],
+                    completeness: {
+                        status: 'failed',
+                        entity_count: 0,
+                        edge_count: 0,
+                        limit: safeLimit,
+                        failure: error instanceof Error ? error.message : String(error)
+                    }
+                };
+            }
+        });
+    }
+
+    getOntologyGuard() {
+        if (!this.ontologyRegistry.hasCurrent()) {
+            return { guard_status: 'inactive_no_current', ontology_version: null };
+        }
+        const { kernel } = this.ontologyRegistry.resolve();
+        return { guard_status: 'active_current', ontology_version: kernel.version };
+    }
+
+    assertOntologyValid(result) {
+        if (!result.valid) {
+            throw new OntologyError('ONTOLOGY_VALIDATION_FAILED', 'Graph write violates the current ontology', {
+                ontology_version: result.ontology_version,
+                violations: result.violations
+            });
         }
     }
 
@@ -889,6 +1034,12 @@ export class InfoSSOTService {
 
         this.assertWriteAccess(access, { projectCode, roleMin, sensitivity });
 
+        const guard = this.getOntologyGuard();
+        if (guard.guard_status === 'active_current') {
+            const { kernel } = this.ontologyRegistry.resolve();
+            this.assertOntologyValid(kernel.validateEntity({ id, type: entityType, payload: payload || {} }));
+        }
+
         return this.withAccessContext(access, async (client) => {
             const projectId = await this.ensureProject(client, { projectCode, projectName });
             await this.upsertGraphEntity(client, {
@@ -899,7 +1050,7 @@ export class InfoSSOTService {
                 roleMin,
                 sensitivity
             });
-            return { entity_id: id };
+            return { entity_id: id, ...guard };
         });
     }
 
@@ -923,6 +1074,18 @@ export class InfoSSOTService {
 
         this.assertWriteAccess(access, { projectCode, roleMin, sensitivity });
 
+        const guard = this.getOntologyGuard();
+        if (guard.guard_status === 'active_current') {
+            const { kernel } = this.ontologyRegistry.resolve();
+            this.assertOntologyValid(kernel.validateEdge({
+                from_id: fromId,
+                to_id: toId,
+                relation: relType,
+                from_type: input.fromType,
+                to_type: input.toType
+            }));
+        }
+
         return this.withAccessContext(access, async (client) => {
             const projectId = await this.ensureProject(client, { projectCode, projectName });
             await this.upsertGraphEdge(client, {
@@ -934,7 +1097,7 @@ export class InfoSSOTService {
                 roleMin,
                 sensitivity
             });
-            return { from_id: fromId, to_id: toId, rel_type: relType };
+            return { from_id: fromId, to_id: toId, rel_type: relType, ...guard };
         });
     }
 
