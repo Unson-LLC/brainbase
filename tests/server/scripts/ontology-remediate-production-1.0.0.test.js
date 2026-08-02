@@ -3,7 +3,8 @@ import {
     assertRemediationPrecondition,
     applyPlanToSnapshot,
     buildRemediationPlan,
-    EXPECTED_PRE_REMEDIATION_SNAPSHOT_DIGEST
+    EXPECTED_PRE_REMEDIATION_SNAPSHOT_DIGEST,
+    remediationSnapshotDigest
 } from '../../../scripts/ontology-remediate-production-1.0.0.js';
 
 const appOwners = {
@@ -53,6 +54,25 @@ describe('ontology 1.0.0 production remediation plan', () => {
             violations,
             snapshotDigest: 'f'.repeat(64)
         })).toThrow(/snapshot digest changed/);
+    });
+
+    it.each([
+        ['entity project_id', (snapshot) => { snapshot.entities[0].project_id = 'drifted-project'; }],
+        ['entity role_min', (snapshot) => { snapshot.entities[0].role_min = 'admin'; }],
+        ['entity sensitivity', (snapshot) => { snapshot.entities[0].sensitivity = 'restricted'; }],
+        ['edge project_id', (snapshot) => { snapshot.edges[0].project_id = 'drifted-project'; }],
+        ['edge role_min', (snapshot) => { snapshot.edges[0].role_min = 'admin'; }],
+        ['edge sensitivity', (snapshot) => { snapshot.edges[0].sensitivity = 'restricted'; }]
+    ])('binds plan-relevant metadata drift: %s', (_label, mutate) => {
+        const base = fixture();
+        base.edges.push({
+            id: 'edge-fixture', from_id: base.entities[0].id, to_id: base.entities[1].id,
+            relation: 'belongs_to_project', rel_type: 'belongs_to_project', project_id: 'prj_scope',
+            payload: {}, role_min: 'member', sensitivity: 'internal'
+        });
+        const drifted = structuredClone(base);
+        mutate(drifted);
+        expect(remediationSnapshotDigest(drifted)).not.toBe(remediationSnapshotDigest(base));
     });
 
     it('preserves history and makes only additive edges plus two fixture status updates', () => {

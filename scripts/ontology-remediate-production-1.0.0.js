@@ -12,7 +12,7 @@ const EXPECTED_VIOLATIONS = Object.freeze({
     'CON-DECISION-DECIDER-001': 3,
     'CON-DECISION-SCOPE-001': 1
 });
-export const EXPECTED_PRE_REMEDIATION_SNAPSHOT_DIGEST = '4db7964d1402e50ab7d69f54c7ceb166c87d4d2826d8a8c08e9033dc37f8820a';
+export const EXPECTED_PRE_REMEDIATION_SNAPSHOT_DIGEST = 'da6faee2640908ef93007c1d8eb77a4e0226fe62a5ba6843867566db01216458';
 const CANONICAL_SATO_ID = 'per_01KGYC7NNS0VXADK7NP48W4VR5';
 const HISTORICAL_SATO_ID = 'per_01KGS5F2HGJSWMZX68QJEQB0BB';
 const BRAINBASE_PROJECT_ID = 'prj_01KGCS8CAJKKDWACPNK1E5WX8H';
@@ -77,16 +77,24 @@ export function remediationSnapshotDigest({ entities, edges }) {
         entities: entities.map((entity) => ({
             id: entity.id,
             type: entity.type || entity.entity_type,
-            payload: entity.payload
+            project_id: entity.project_id,
+            payload: entity.payload,
+            role_min: entity.role_min,
+            sensitivity: entity.sensitivity
         })).sort((left, right) => left.id.localeCompare(right.id)),
         edges: edges.map((edge) => ({
+            id: edge.id,
             from_id: edge.from_id,
             to_id: edge.to_id,
             relation: edge.relation || edge.rel_type,
-            payload: edge.payload
+            project_id: edge.project_id,
+            payload: edge.payload,
+            role_min: edge.role_min,
+            sensitivity: edge.sensitivity
         })).sort((left, right) => left.from_id.localeCompare(right.from_id)
             || left.to_id.localeCompare(right.to_id)
-            || left.relation.localeCompare(right.relation))
+            || left.relation.localeCompare(right.relation)
+            || left.id.localeCompare(right.id))
     };
     return createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
 }
