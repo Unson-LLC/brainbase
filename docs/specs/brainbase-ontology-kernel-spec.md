@@ -17,7 +17,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 
 ### ONT-001 Manifest readback
 
-- immutable releaseは`ontology_version`、`schema_version`、`previous_version`、`effective_at`、status、compatibility、migration、rollbackを持ち、indexからcurrent、version、as-ofで解決できる。
+- immutable releaseは`ontology_version`、`schema_version`、`previous_version`、`effective_at`、`initial_status: proposed`、compatibility、migration、rollbackを持つ。実効statusはreceiptとindexから導出し、indexからcurrent、version、as-ofで解決できる。
 - indexの各release entryは`content_digest_algorithm: sha256`と、release fileの全bytesをhashした`content_digest`を持つ。digestはrelease file自身には埋め込まない。
 - 型、関係、制約、推論規則、変更・競合規則をIDで取得できる。
 - manifestは起動時にschema整合性を検証し、不正ならfail loudする。
@@ -98,12 +98,12 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 
 ### ONT-008 Release governance
 
-- releaseは`proposed`、`approved`、`active`、`retired`の状態を持つ。
+- immutable release fileは`initial_status: proposed`から変更しない。実効状態は、receiptなし=`proposed`、有効なreceiptありかつ非current=`approved`、current=`active`、過去activeかつindex上retired=`retired`としてreceiptとindexから導出する。
 - proposer、decider、applierのGraph entity ID、RACI scope、根拠Decision IDを持つ。publisher CLIのBearer principalはGraph authority endpointで`personId`へ解決し、releaseのapplierと一致しなければならない。
 - 対象scopeのAccountable承認と適用証跡がないreleaseはcurrent indexへ公開できない。
-- Graph authority endpointはactor/applier、scopeのAccountable RACI、Decision、`source_commit_sha`、release digestを検証し、これらをcanonical JSONへbindしたEd25519署名receiptを返す。`source_commit_sha`はreleaseを含みpublisher生成物をまだ含まないclean commitであり、receipt自身を含むcommit SHAではない。private keyはserver secret、public keyはCI verify環境で与える。
+- Graph authority endpointはactor/applier、scopeのAccountable RACI、Decisionを検証し、Decision payloadの`ontology_release_version`、`ontology_release_digest`、`ontology_source_commit_sha`とrequestが完全一致する場合だけ、それらをcanonical JSONへbindしたEd25519署名receiptを返す。不一致は409とする。`source_commit_sha`はreleaseを含みpublisher生成物をまだ含まないclean commitであり、receipt自身を含むcommit SHAではない。private keyはserver secret、public keyはCI verify環境で与える。
 - current indexとcompatibility pointer viewは`ontology:publish`だけがreceiptと同じoperationで生成する。indexはrelease digestとreceipt path/digestを保持し、release fileにはdigestを保存しない。Graph/authorityを確認できない場合は公開を失敗させる。
-- `ontology:verify`はreceipt署名と全binding、compatibility viewとcurrent indexの一致、base refとの差分を検証し、receipt欠落・改ざん、self-declared applier、view drift、既公開versionの変更・削除・version再利用を拒否する。current変更時は`HEAD^ == source_commit_sha`で、source commitからHEADまでの変更がreceipt、index、compatibility viewだけであることを必須とする。PR workflowは`actions/checkout`の`fetch-depth: 0`または同等の明示fetchでbase/source commit objectを取得し、base/head SHAを渡す。baseまたはsource objectが解決できない場合は比較を省略せず失敗する。
+- `ontology:verify`はreceipt署名と全binding、compatibility viewとcurrent indexの一致、base refとの差分を検証し、receipt欠落・改ざん、self-declared applier、view drift、既公開versionの変更・削除・version再利用を拒否する。PR時は`HEAD^ == source_commit_sha`かつsourceからHEADの変更がreceipt、index、compatibility viewだけであることを必須とする。merge後はreceiptのsource commitと、その直接の子で到達可能なpublication commitを特定して同じ許可path契約を検証し、merge commitがHEADであることは許容する。Ontology current変更PRはmerge strategyのみを許可し、source/publication pairを消すsquash/rebaseは拒否する。PR workflowは`actions/checkout`の`fetch-depth: 0`または同等の明示fetchでbase/source commit objectを取得し、base/head SHAを渡す。baseまたはsource objectが解決できない場合は比較を省略せず失敗する。
 
 ## テスト計画
 
@@ -116,7 +116,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 7. audit contract: scope、pagination完走、partial/DB failureの`unverified`を検証する。
 8. release/history contract: current/version/as-of解決、未知version、RACI publication gateを検証する。
 9. compatibility matrix: 上表の全route/scriptについて、ownerなしapp、`depends_on`、Decision/RACI/Glossary/KPI/Initiativeに加えAI Query/AI Decision Logの成功response shapeと生成entity/edge、learning promotionの全mapped typeと未知型拒否、public/storage alias、登録語彙または明示deferredをfixture化する。server/scriptsのSQL/helper/HTTP client writer scanとmatrixを双方向比較し、`upsert-app-environments.mjs`を検出できない旧scannerと未分類writer追加時にfailする。
-10. publication integrity: release file全bytesとindex digestの一致、認証actorとapplier不一致、Accountable/Decision未確認、receipt欠落・署名改ざん・binding差し替え、authority endpointのstatus契約、compatibility view drift、過去release削除、version再利用を失敗させる。source commit、publisher生成物だけの直後commit、生成物以外が混入したcommit、receipt自身のHEADを要求する旧自己参照設計をfixture化する。
+10. publication integrity: release file全bytesとindex digestの一致、認証actorとapplier不一致、Accountable/Decision未確認、Decisionに承認されたversion/digest/source commitとの不一致、receipt欠落・署名改ざん・binding差し替え、authority endpointのstatus契約、compatibility view drift、過去release削除、version再利用を失敗させる。PR上のsource/publication直結、merge commit後も保存された直結pair、生成物以外が混入したcommit、squash/rebaseでpairを失った履歴、receipt自身のHEADを要求する旧自己参照設計をfixture化する。
 11. command/CI wiring: `package.json`のpublish/verify command、`.github/workflows/vibepro-graph-ssot.yml`の`fetch-depth: 0`、base/head指定verify stepをfixtureで拘束する。base commit objectを取得できないfixtureではverifyがfail closedになることを確認する。
 
 ## Clause ID正本
@@ -125,4 +125,4 @@ VibePro accepted Specが付与する`C-*`、`INV-*`、`S-*`をclause ID正本と
 
 ## 完了境界
 
-v1の完了は、上記contract test、対象service/route test、typecheck、VibePro Gateが通過した状態とする。scopeなしの実データ全件監査と全専用write pathのguard移行は結果を偽らず後続Taskとして残す。
+v1の完了は、上記contract test、対象service/route test、typecheck、VibePro Gateが通過し、`1.0.0`がreceiptなしの`proposed` releaseとして取得できる状態とする。実在するDecision/RACIと本番署名鍵が確認できるまでactive publicationは行わない。scopeなしの実データ全件監査と全専用write pathのguard移行は結果を偽らず後続Taskとして残す。

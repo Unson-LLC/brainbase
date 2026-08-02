@@ -60,7 +60,7 @@
       "id": "ONT-001",
       "title": "Manifest readback",
       "shall": [
-        "Immutable releases expose version, previous version, effective date, status, compatibility, migration, and rollback metadata",
+        "Immutable releases expose version, previous version, effective date, initial_status proposed, compatibility, migration, and rollback metadata; effective lifecycle status is derived from receipts and the index",
         "Each index release entry stores sha256 metadata for the full bytes of its release file, and the digest is not embedded in that release file",
         "The release index resolves current, explicit version, and as-of requests",
         "Types, relations, constraints, inference rules, and change rules are addressable by stable IDs",
@@ -132,15 +132,15 @@
       "id": "ONT-008",
       "title": "Release governance",
       "shall": [
-        "Releases transition proposed, approved, active, and retired",
+        "Immutable release files remain initial_status proposed while effective lifecycle status is derived as proposed, approved, active, or retired from receipts and the index",
         "Proposer, decider, and applier identities plus RACI scope and decision evidence are recorded",
         "An unapproved release cannot become current",
-        "The sole publisher runs on a clean source commit and validates its SHA, the sha256 of the full release-file bytes, Graph RACI, decision evidence, and applier identity, then stores the digest in the index entry",
+        "The sole publisher runs on a clean source commit and validates its SHA, the sha256 of the full release-file bytes, Graph RACI, decision evidence that explicitly approves the version digest and source commit, and applier identity, then stores the digest in the index entry",
         "The verification gate rejects manual current changes, modified or deleted published releases, and reused versions",
         "The PR workflow fetches complete Git history, passes base and head SHAs, and fails closed when the base or source commit object cannot be resolved",
-        "A Graph authority endpoint binds the authenticated person principal to the release applier, scope, Accountable RACI, decision, source commit SHA, and release digest and returns an Ed25519-signed canonical receipt",
+        "A Graph authority endpoint binds the authenticated person principal to the release applier, scope, Accountable RACI, and a decision whose payload explicitly matches the release version source commit SHA and release digest, then returns an Ed25519-signed canonical receipt",
         "The publisher generates the signed receipt, current index, and compatibility pointer view in one operation, and verification rejects receipt or view drift",
-        "When current changes, the publication commit must immediately follow the signed source commit and may change only the receipt, index, and compatibility pointer view"
+        "On a publication PR the publication commit immediately follows the signed source commit and changes only the receipt index and compatibility pointer view; after merge the verifier accepts a merge commit only when that source and direct-child publication pair remain reachable and rejects squash or rebase history that removes the pair"
       ]
     }
   ],
