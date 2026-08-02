@@ -1,0 +1,50 @@
+id: onboarding.connected-world
+name: Connected-world onboarding
+purpose: |
+  Start Brainbase from the organization's existing work sources rather than asking users
+  to re-enter company knowledge. The host agent discovers callable MCP, Google Drive,
+  Gmail, and explicitly selected local folders, then performs metadata-first collection,
+  evidence-preserving candidate review, Promotion Gate, and first-value answer review.
+status: implemented_agent_workflow
+surfaces:
+  ui: []
+  api: []
+  code:
+    - .claude/skills/brainbase-onboarding/SKILL.md
+    - scripts/normalize-onboarding-source-inventory.mjs
+  data:
+    - host-provided source inventory metadata (credentials and source bodies excluded)
+    - existing Candidate Store and Graph SSOT promotion path
+depends_on:
+  - graph.ssot
+  - existing Promotion Gate in server/services/candidate-store/promotion-gate-service.js
+  - host-agent connector availability and authorization
+visibility_rules:
+  - The host agent may inventory only connector tools actually callable in the current session.
+  - Local folders require an explicitly selected root and deny secrets, VCS metadata, build output, and out-of-scope paths.
+  - Source ACL and owner/org/project scope apply during discovery, retrieval, candidate review, promotion, and answer context.
+verification:
+  commands:
+    - npm run test:run -- tests/unit/onboarding-source-inventory.test.js
+    - npm run vibepro:doc-trace
+    - npm run vibepro:graph-ssot
+  expected:
+    - A ready source without authorization, scope, health timestamp, or evidence reference is downgraded to unconfirmed.
+    - Provider-mismatched scopes, malformed values, nested secrets, invalid timestamps, and duplicate source IDs fail closed.
+    - Waiting, unavailable, error, and unconfirmed states remain distinct from ready and empty data.
+    - Ready MCP, Drive, Gmail, or local-folder sources are recommended before the single-document fallback.
+    - Connector warm-path readiness and single-document fallback readiness are reported separately.
+    - The Skill requires human review and the existing Promotion Gate before Graph SSOT writes.
+common_failures:
+  - A host connector is installed but not authorized; report waiting_for_authorization or unconfirmed, not ready.
+  - The Brainbase server is incorrectly expected to enumerate sibling MCP or app connectors available only to the host agent.
+  - Metadata inventory is mistaken for source content absence or onboarding completion.
+  - Single-document fallback replaces the connector-first product path.
+runbooks:
+  - ../../../.claude/skills/brainbase-onboarding/SKILL.md
+troubleshooting: []
+evidence_boundary:
+  local_contract_tests: implemented
+  host_connector_live_run: unverified
+  candidate_to_graph_e2e: unverified
+  production_e2e: unverified

@@ -7,7 +7,7 @@
 - 主題: Brainbase の基本構成と正本分担
 - 親文書: [UnsonOS ランタイム UI フレーム](../internal/unson-os-runtime-ui-frame.md)
 - 派生元: なし
-- 関連文書: [docs ガイド](../README.md), [UnsonOS 文書トレーサビリティ](../internal/unson-os-document-traceability.md), [現場責任者コンソール](../internal/unson-os-lead-control-console.md), [Brainbase フィードバックループ](./feedback-loop.md)
+- 関連文書: [docs ガイド](../README.md), [UnsonOS 文書トレーサビリティ](../internal/unson-os-document-traceability.md), [現場責任者コンソール](../internal/unson-os-lead-control-console.md), [Brainbase フィードバックループ](./feedback-loop.md), [10分で自社の世界が立ち上がるオンボーディング](./ten-minute-world-onboarding-architecture.md)
 - 置換: なし
 
 ## 目的
@@ -20,6 +20,8 @@ Brainbase で「何が正本で、どこに書き戻され、何を同期する�
 - `wiki` / `skills` / `docs` / `DB` の役割分担
 - sync の意味
 - フィードバックループがどこへ戻るか
+
+Brainbase の初回製品体験は、[10分で自社の世界が立ち上がるオンボーディング](./ten-minute-world-onboarding-architecture.md) を北極星とする。これは新しい正本を作る設計ではなく、raw source、candidate-store、Graph SSOT、UI projection の既存境界を「問いから最初の有用な回答まで」の一つの導線へ編成する設計である。
 
 ## 基本原則
 
