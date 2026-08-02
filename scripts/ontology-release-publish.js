@@ -35,6 +35,15 @@ async function main() {
     const releasePath = path.resolve(configDir, entry.path);
     const releaseBytes = readFileSync(releasePath);
     if (sha256(releaseBytes) !== entry.content_digest) throw new Error(`release digest mismatch: ${version}`);
+    const release = JSON.parse(releaseBytes.toString('utf8'));
+    const scopeEntityId = release.governance?.scope_entity_id;
+    const applierEntityId = release.governance?.applier_entity_id;
+    if (!scopeEntityId || !applierEntityId) {
+        throw new Error('release governance.scope_entity_id and governance.applier_entity_id are required');
+    }
+    if (release.governance?.decision_id && release.governance.decision_id !== decisionId) {
+        throw new Error('--decision-id does not match release governance.decision_id');
+    }
 
     const response = await fetch(`${required('BRAINBASE_GRAPH_API_URL').replace(/\/$/, '')}/api/info/ontology/publications/authorize`, {
         method: 'POST',
@@ -49,7 +58,9 @@ async function main() {
             release_version: version,
             source_commit_sha: sourceCommit,
             release_digest: entry.content_digest,
-            decision_id: decisionId
+            decision_id: decisionId,
+            scope_entity_id: scopeEntityId,
+            applier_entity_id: applierEntityId
         })
     });
     const receipt = await response.json().catch(() => ({}));

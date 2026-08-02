@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { sha256 } from '../../../server/services/ontology-publication.js';
@@ -107,5 +107,27 @@ describe('ontology release Git history verification', () => {
             base: fixture.sourceCommit,
             head: git(fixture.rootDir, ['rev-parse', 'HEAD'])
         })).toThrow(/not byte-bound/);
+    });
+
+    it('rejects manually making an existing receipt release current', () => {
+        const fixture = publicationRepository();
+        const indexPath = path.join(fixture.rootDir, 'config/ontology/index.json');
+        const approvedIndex = JSON.parse(readFileSync(indexPath, 'utf8'));
+        approvedIndex.current = null;
+        writeJson(indexPath, approvedIndex);
+        git(fixture.rootDir, ['add', '.']);
+        git(fixture.rootDir, ['commit', '-m', 'trusted approved snapshot']);
+        const base = git(fixture.rootDir, ['rev-parse', 'HEAD']);
+
+        approvedIndex.current = '1.0.0';
+        writeJson(indexPath, approvedIndex);
+        git(fixture.rootDir, ['add', '.']);
+        git(fixture.rootDir, ['commit', '-m', 'manual current switch']);
+
+        expect(() => verifyOntologyHistory({
+            rootDir: fixture.rootDir,
+            base,
+            head: git(fixture.rootDir, ['rev-parse', 'HEAD'])
+        })).toThrow(/current change must introduce its receipt/);
     });
 });

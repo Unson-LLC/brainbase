@@ -242,7 +242,9 @@ export class InfoSSOTService {
             'release_version',
             'source_commit_sha',
             'release_digest',
-            'decision_id'
+            'decision_id',
+            'scope_entity_id',
+            'applier_entity_id'
         ];
         const missing = requiredFields.filter((field) => !input[field]);
         if (missing.length || !/^[a-f0-9]{40}$/.test(input.source_commit_sha || '')) {

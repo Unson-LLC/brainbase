@@ -47,12 +47,9 @@ describe('Ontology publication authority', () => {
         const { privateKey, publicKey } = generateKeyPairSync('ed25519');
         vi.stubEnv('ONTOLOGY_RECEIPT_PRIVATE_KEY', privateKey.export({ type: 'pkcs8', format: 'pem' }).toString());
         vi.stubEnv('ONTOLOGY_RECEIPT_KEY_ID', 'ontology-test-key');
-        const publicationRequest = request();
-        delete publicationRequest.scope_entity_id;
-        delete publicationRequest.applier_entity_id;
         const receipt = await authorityService().authorizeOntologyPublication({
             role: 'gm', projectCodes: ['brainbase'], clearance: ['internal'], personId: 'person:applier'
-        }, publicationRequest);
+        }, request());
         expect(receipt).toMatchObject({ signature_algorithm: 'ed25519', key_id: 'ontology-test-key' });
         expect(receipt.payload).toMatchObject({
             actor_entity_id: 'person:applier',
@@ -61,6 +58,18 @@ describe('Ontology publication authority', () => {
             release_version: '1.0.0'
         });
         expect(verifyPublicationReceipt(receipt, publicKey.export({ type: 'spki', format: 'pem' }))).toBe(true);
+    });
+
+    it('requires the accepted scope and applier request bindings', async () => {
+        const publicationRequest = request();
+        delete publicationRequest.scope_entity_id;
+        delete publicationRequest.applier_entity_id;
+        await expect(authorityService().authorizeOntologyPublication({
+            role: 'gm', projectCodes: ['brainbase'], clearance: ['internal'], personId: 'person:applier'
+        }, publicationRequest)).rejects.toMatchObject({
+            code: 'ONTOLOGY_PUBLICATION_INPUT_INVALID',
+            details: { missing: ['scope_entity_id', 'applier_entity_id'], http_status: 400 }
+        });
     });
 
     it('rejects self-declared applier and missing Accountable authority', async () => {

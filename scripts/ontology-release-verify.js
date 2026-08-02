@@ -67,6 +67,16 @@ export function verifyOntologyHistory({ rootDir, publicKeyPem = '', base, head }
     const headIndex = gitJson(rootDir, head, indexPath);
     const baseEntries = new Map((baseIndex.releases || []).map((entry) => [entry.version, entry]));
     const headEntries = new Map((headIndex.releases || []).map((entry) => [entry.version, entry]));
+    const currentChanged = baseIndex.current !== headIndex.current;
+
+    if (currentChanged) {
+        if (!headIndex.current) throw new Error('current release cannot be cleared outside the publisher');
+        const activatedEntry = headEntries.get(headIndex.current);
+        if (!activatedEntry?.receipt_path) throw new Error(`current release has no receipt binding: ${headIndex.current}`);
+        if (baseEntries.get(headIndex.current)?.receipt_path) {
+            throw new Error(`current change must introduce its receipt in the same publication history: ${headIndex.current}`);
+        }
+    }
 
     for (const baseEntry of baseEntries.values()) {
         if (!baseEntry.receipt_path) continue;
@@ -83,6 +93,9 @@ export function verifyOntologyHistory({ rootDir, publicKeyPem = '', base, head }
 
     for (const entry of headEntries.values()) {
         if (!entry.receipt_path || baseEntries.get(entry.version)?.receipt_path) continue;
+        if (!currentChanged || entry.version !== headIndex.current) {
+            throw new Error(`new receipt must activate the same release through the publisher: ${entry.version}`);
+        }
         if (!entry.source_commit_sha) throw new Error(`published release has no source commit: ${entry.version}`);
         const receiptPath = `config/ontology/${entry.receipt_path}`;
         const publicationCommits = git(rootDir, ['log', '--format=%H', '--diff-filter=A', `${base}..${head}`, '--', receiptPath])
