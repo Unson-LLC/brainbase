@@ -3,7 +3,7 @@
 - story: story-brainbase-ontology-production-compatibility
 - evidence_depth: standard
 - budget_status: within_budget
-- artifact_lines: 1117
+- artifact_lines: 1099
 - product_changed_lines: 0
 - artifact_code_ratio: unknown
 - diff_stats: available
@@ -15,7 +15,7 @@
 - evidence_reuse: hit key=evk_9253822ceedccaa36b1163f126e45064 verification_updated_at=unknown verification_fingerprint=sha256:09160cdf7e7db7730105ce2485ddc563048b27c19e49ef6acafa59de98f6c2ef
 - senior_gap_judgment: present gaps=4 blocking=0 residual=0
 - pr_create: updated_existing_pr
-- pr_merge: merged delivery=merged reconciliation=reconciliation_required reasons=decision_outcome_binding_failed action=vibepro pr prepare . --story-id story-brainbase-ontology-production-compatibility --base develop -> vibepro execute merge . --story-id story-brainbase-ontology-production-compatibility --base develop --pr https://github.com/Unson-LLC/brainbase-unson/pull/1113
+- pr_merge: merged delivery=merged reconciliation=reconciled reasons=none action=none
 - verification: commands=0 pass=0 fail=0
 - review: summaries=0 results=0 pass=0 block=0
 - missing_artifacts: 1
