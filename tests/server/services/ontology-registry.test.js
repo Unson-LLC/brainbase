@@ -29,6 +29,14 @@ describe('OntologyRegistry', () => {
         expect(() => registry.resolve({ asOf: '2026-07-31T23:59:59.999Z' })).toThrow(OntologyError);
     });
 
+    it('does not trust a retired status without an immutable publication receipt', () => {
+        const registry = new OntologyRegistry({ rootDir });
+        registry.index.releases[0].status = 'retired';
+        expect(() => registry.resolve({ asOf: '2026-08-02T00:00:00.000Z' })).toThrowError(expect.objectContaining({
+            code: 'ONTOLOGY_VERSION_UNKNOWN'
+        }));
+    });
+
     it('derives proposed, approved, active, and retired lifecycle states from index evidence', () => {
         const registry = new OntologyRegistry({ rootDir });
         expect(registry.resolve({ version: '1.0.0' }).kernel.status).toBe('proposed');

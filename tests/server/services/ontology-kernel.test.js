@@ -176,6 +176,25 @@ describe('OntologyKernel', () => {
         expect(result.evidence).toContainEqual(expect.objectContaining({ rule_id: 'decision-active-conflict' }));
     });
 
+    it('does not let a past edge override the future effective date of its replacement decision', () => {
+        const result = kernel().inferDecisions({
+            as_of: '2026-08-02T00:00:00.000Z',
+            entities: [
+                { id: 'dec_old', type: 'decision', payload: { status: 'active', scope_ids: ['app_1'] } },
+                { id: 'dec_future', type: 'decision', payload: { status: 'active', scope_ids: ['app_1'], effective_at: '2026-08-03T00:00:00.000Z' } }
+            ],
+            edges: [{
+                from_id: 'dec_future',
+                to_id: 'dec_old',
+                relation: 'supersedes',
+                effective_at: '2026-08-01T00:00:00.000Z'
+            }]
+        });
+        expect(result.decisions.dec_old).toMatchObject({ status: 'conflict', inferred: true });
+        expect(result.decisions.dec_future).toMatchObject({ status: 'conflict', inferred: true });
+        expect(result.evidence).toContainEqual(expect.objectContaining({ rule_id: 'decision-active-conflict' }));
+    });
+
     it('classifies impact and reports missing snapshots as unverified', () => {
         expect(kernel().impact({ change: { kind: 'add_relation' }, snapshot: null })).toMatchObject({
             semver: 'minor',

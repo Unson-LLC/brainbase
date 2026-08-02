@@ -179,6 +179,9 @@ export function verifyOntologyRelease({ rootDir, publicKeyPem = '', base = null,
     for (const entry of index.releases || []) {
         if (versions.has(entry.version)) throw new Error(`version is reused: ${entry.version}`);
         versions.add(entry.version);
+        if (entry.status === 'retired' && (!entry.receipt_path || !entry.receipt_digest)) {
+            throw new Error(`retired release has no receipt binding: ${entry.version}`);
+        }
         if (entry.content_digest_algorithm !== 'sha256') throw new Error(`unsupported digest algorithm: ${entry.version}`);
         const releasePath = path.resolve(configDir, entry.path);
         if (!releasePath.startsWith(`${path.resolve(configDir, 'releases')}${path.sep}`)) throw new Error(`release path escapes releases/: ${entry.path}`);

@@ -150,6 +150,22 @@ test('story-brainbase-ontology-kernel ac:7 S-001 only explicit effective superse
   });
   expect(beforeEffective.decisions['decision:old']).toMatchObject({ status: 'conflict', inferred: true });
   expect(beforeEffective.decisions['decision:future']).toMatchObject({ status: 'conflict', inferred: true });
+
+  const pastEdgeFutureDecision = kernel.inferDecisions({
+    as_of: '2026-08-02T00:00:00.000Z',
+    entities: [
+      { id: 'decision:old', type: 'decision', payload: { status: 'active', scope_ids: ['app:brainbase'] } },
+      { id: 'decision:future', type: 'decision', payload: { status: 'active', scope_ids: ['app:brainbase'], effective_at: '2026-08-03T00:00:00.000Z' } }
+    ],
+    edges: [{
+      from_id: 'decision:future',
+      to_id: 'decision:old',
+      relation: 'supersedes',
+      effective_at: '2026-08-01T00:00:00.000Z'
+    }]
+  });
+  expect(pastEdgeFutureDecision.decisions['decision:old']).toMatchObject({ status: 'conflict', inferred: true });
+  expect(pastEdgeFutureDecision.decisions['decision:future']).toMatchObject({ status: 'conflict', inferred: true });
 });
 
 test('story-brainbase-ontology-kernel ac:8 releases expose versioning, compatibility, migration and rollback policy', async () => {
@@ -242,6 +258,14 @@ test('story-brainbase-ontology-kernel ac:9 rename and merge evolution preserve c
     asOf: '2026-08-03T00:00:00.000Z'
   })).toMatchObject({
     recorded_ontology_version: null,
+    resolved_ontology_version: null,
+    verification: 'unverified',
+    unverified_reason: { code: 'ONTOLOGY_VERSION_UNKNOWN' }
+  });
+  unversionedRegistry.index.releases[0].status = 'retired';
+  expect(unversionedRegistry.interpretHistory({ entities: [] }, {
+    asOf: '2026-08-03T00:00:00.000Z'
+  })).toMatchObject({
     resolved_ontology_version: null,
     verification: 'unverified',
     unverified_reason: { code: 'ONTOLOGY_VERSION_UNKNOWN' }

@@ -42,7 +42,7 @@ export class OntologyRegistry {
         } else if (asOf) {
             const target = parseTime(asOf, 'asOf');
             entry = this.index.releases
-                .filter((release) => (release.receipt_path || release.version === this.index.current || release.status === 'retired')
+                .filter((release) => (release.receipt_path || release.version === this.index.current)
                     && parseTime(release.effective_at, 'release effective_at') <= target)
                 .sort((left, right) => parseTime(right.effective_at, 'release effective_at') - parseTime(left.effective_at, 'release effective_at'))[0];
         } else {

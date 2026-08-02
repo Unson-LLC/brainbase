@@ -449,6 +449,18 @@ describe('ontology release Git history verification', () => {
         expect(() => verifyOntologyRelease({ rootDir: fixture.rootDir, publicKeyPem })).toThrow(/contract mismatch: issued_at/);
     });
 
+    it('rejects a retired release without an immutable receipt binding', () => {
+        const fixture = lifecycleRepository({ includeRuntime: true });
+        const indexPath = path.join(fixture.rootDir, 'config/ontology/index.json');
+        const index = JSON.parse(readFileSync(indexPath, 'utf8'));
+        index.releases[0].status = 'retired';
+        delete index.releases[0].receipt_path;
+        delete index.releases[0].receipt_digest;
+        writeJson(indexPath, index);
+
+        expect(() => verifyOntologyRelease({ rootDir: fixture.rootDir })).toThrow(/retired release has no receipt binding/);
+    });
+
     it('fails closed on authority network and incomplete-response failures without publishing outputs', async () => {
         for (const [label, fetchImpl, expected] of [
             ['network', async () => { throw new Error('secret upstream detail'); }, /authority request failed \(Error\)/],

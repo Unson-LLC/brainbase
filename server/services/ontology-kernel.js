@@ -221,8 +221,10 @@ export class OntologyKernel {
             if ((edge.relation || edge.rel_type) !== 'supersedes') return false;
             const replacement = decisions[edge.from_id];
             if (!replacement || !decisions[edge.to_id] || replacement.status !== 'active') return false;
-            const effectiveAt = edge.effective_at || replacement.effective_at;
-            return !effectiveAt || Date.parse(effectiveAt) <= Date.parse(asOf);
+            const asOfTime = Date.parse(asOf);
+            return [edge.effective_at, replacement.effective_at]
+                .filter(Boolean)
+                .every((effectiveAt) => Date.parse(effectiveAt) <= asOfTime);
         };
         for (const edge of snapshot?.edges || []) {
             if (!isEffectiveSupersession(edge)) continue;
