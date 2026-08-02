@@ -40,7 +40,7 @@ created_at: 2026-08-02
 6. ownerなしapp、`depends_on`、Decision/RACI/Glossary/KPI/Initiative、AI Query/AI Decision Logの成功responseと生成edge、learning memory-candidate promotionの全mapped typeと未知型拒否、既知7 migration/upsert scripts、partial audit、public/storage aliasの回帰matrixを実装する。server/scriptsのGraph table mutation、upsert helper、Graph HTTP POST/common wrapperをscanし、`upsert-app-environments.mjs`を含むmatrixとの双方向不一致をfailさせる。
 7. MCP型projection互換性、対象test、typecheck、VibePro Gateを検証する。
 
-current不在時は、明示versionのreadback/dry-runだけがproposed候補を利用する。current取得は404、新設atomic commit・DB audit・暗黙versionの検証/推論/impactは503でfail closedとし、既存writeは`inactive_no_current`を明示して互換継続する。proposed規則をcanonical guardとして暗黙適用しない。
+current不在時は、明示versionとcaller提供snapshotのreadback・validate・infer・impactだけがproposed候補を利用する。current取得は404、新設atomic commit・DB audit・暗黙versionのvalidate/infer/impactは503でfail closedとし、明示versionでもcanonical DB snapshotを補完しない。既存writeは`inactive_no_current`を明示して互換継続する。proposed規則をcanonical guardとして暗黙適用しない。
 
 初期`1.0.0`はimmutable releaseとindex entryだけを`proposed`として追加し、receipt/current/compatibility viewは生成しない。実在する承認Decision、Accountable RACI、署名鍵が揃うまでpublishは実行しない。
 

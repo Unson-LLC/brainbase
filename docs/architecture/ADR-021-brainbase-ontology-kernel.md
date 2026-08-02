@@ -68,7 +68,7 @@ versionはSemVerとし、型・関係の削除、意味変更、許容endpoint�
 
 ### 5. readbackとaccess
 
-既存Info SSOT access contextの検証を通したAPIから、current/as-of/version指定manifest、型・関係定義、dry-run検証、bounded Graph audit、Decision推論、impact reportをreadbackできるようにする。activeなcurrentがない初期状態では、明示version指定のreadbackと副作用なしdry-runだけがproposed候補を利用できる。current取得は404 `ONTOLOGY_CURRENT_UNAVAILABLE`、atomic commit・DB audit・version未指定の検証/推論/impactは503でfail closedにする。既存writeの互換継続は`inactive_no_current`であり、canonical guardの有効化を意味しない。実Decision、Accountable RACI、署名鍵を揃えてactive化する作業は必須の後続Taskとする。その他のエラーはrule IDを持つ構造化結果として返し、保存APIでは400に変換する。
+既存Info SSOT access contextの検証を通したAPIから、current/as-of/version指定manifest、型・関係定義、dry-run検証、bounded Graph audit、Decision推論、impact reportをreadbackできるようにする。activeなcurrentがない初期状態では、明示versionとcaller提供snapshotによるreadback・validate・infer・impactだけがproposed候補を利用できる。current取得は404 `ONTOLOGY_CURRENT_UNAVAILABLE`、atomic commit・DB-backed audit・version未指定のvalidate/infer/impactは503でfail closedにする。既存writeの互換継続は`inactive_no_current`であり、canonical guardの有効化を意味しない。実Decision、Accountable RACI、署名鍵を揃えてactive化する作業は必須の後続Taskとする。その他のエラーはrule IDを持つ構造化結果として返し、保存APIでは400に変換する。
 
 ## 代替案
 

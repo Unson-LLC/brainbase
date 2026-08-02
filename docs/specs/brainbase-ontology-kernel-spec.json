@@ -7,7 +7,7 @@
   "architecture_ref": "docs/architecture/ADR-021-brainbase-ontology-kernel.md",
   "clauses": [
     {
-      "id": "C-005",
+      "id": "C-001",
       "type": "contract",
       "statement": "Immutable Ontology releases and every definition are machine-readable by stable ID and resolvable by current, version, or as-of; when no active current exists, only explicit-version proposed readback is available and current resolution fails explicitly; invalid manifests fail loudly.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "current Ontology version and definitions are readable" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
@@ -37,9 +37,9 @@
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "versioned evolution and history interpretation" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     },
     {
-      "id": "C-007",
+      "id": "C-004",
       "type": "contract",
-      "statement": "Info SSOT callers with a valid access context can read current or historical definitions, dry-run, run bounded DB audits, atomically commit aggregates, infer decisions, and analyze impact; without an active current, only explicit-version proposed readback and side-effect-free dry-run are available.",
+      "statement": "Info SSOT callers with a valid access context can read current or historical definitions, dry-run, run bounded DB audits, atomically commit aggregates, infer decisions, and analyze impact; without an active current, explicit-version caller snapshots may be validated, inferred, or impact-analyzed, while DB audit and commit remain unavailable.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "API or MCP readback" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     },
     {
@@ -111,6 +111,7 @@
       "title": "Info SSOT API",
       "shall": [
         "Authenticated callers can read current, explicit-version, and as-of manifests and definitions, with absent current returning 404 ONTOLOGY_CURRENT_UNAVAILABLE",
+        "Without active current, explicit-version caller snapshots are allowed for validate, infer, and impact, but versionless calls, DB-backed audit, and graph commit return 503 ONTOLOGY_CURRENT_UNAVAILABLE",
         "Authenticated callers can dry-run validation, run bounded DB audits, infer decisions, and analyze impact",
         "Atomic entity-plus-edge commits reject all semantic violations transactionally, and return 503 ONTOLOGY_CURRENT_UNAVAILABLE when no active current exists",
         "Generic split writes reject unknown types, relations, and endpoints before persistence when current is active; without current they preserve legacy behavior with guard_status inactive_no_current and never claim Ontology validation",

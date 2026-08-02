@@ -67,7 +67,18 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 - `POST /api/info/ontology/impact` 変更impact
 - `POST /api/info/ontology/publications/authorize` authority receipt発行。requestは`release_version`、`source_commit_sha`、`release_digest`、`decision_id`、`scope_entity_id`、`applier_entity_id`を必須とし、actorはrequest bodyではなく既存auth contextの`personId`から取得する。responseは署名対象payload、`signature_algorithm: ed25519`、署名、key IDを含むcanonical receiptとする。
 - 全endpointは既存Info SSOT access contextを必須とする。
-- current不在時、明示version付きのreadbackと副作用なしdry-runだけがproposed候補を利用できる。atomic commit、DB-backed audit、version未指定のvalidate/infer/impactは503 `ONTOLOGY_CURRENT_UNAVAILABLE`でfail closedにする。
+- current不在時のendpoint境界は次のとおり固定する。
+
+| 操作 | 明示version + caller snapshot | version省略 | 理由 |
+|---|---|---|---|
+| release/type/relation readback | 許可 | current取得のみ404 | proposed候補の閲覧 |
+| validate | 許可 | 503 | 副作用なし候補評価 |
+| infer/decisions | 許可 | 503 | caller snapshotだけを決定的に評価 |
+| impact | 許可 | 503 | caller snapshotだけを候補規則で評価 |
+| DB-backed audit | 503 | 503 | canonical Graph監査はactive current必須 |
+| graph/commit | 503 | 503 | canonical保存はactive current必須 |
+
+  すべて`ONTOLOGY_CURRENT_UNAVAILABLE`を構造化して返し、明示versionでもserverがcanonical DB snapshotを補完しない。
 - authority endpointは入力不正を400、未認証を401、personへ結合できないservice principal・actor/applier不一致・RACI/scope不一致を403、Decision不明を404、release digest/version不一致を409、Graphまたは署名鍵を確認できない場合を503としてfail closedにする。
 
 ### ONT-007 互換性
@@ -115,7 +126,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 3. constraint contract: ownerなしapp、decider/scopeなしactive Decision、snapshot欠落を検出する。
 4. inference contract: 明示supersedesとeffective dateで解決し、無関係なactive Decisionはconflictにする。
 5. evolution contract: SemVer分類、rename/merge履歴、snapshotあり/なしのimpactを説明する。
-6. API/service integration: readback、dry-run、atomic rollback、分離write互換、structured error、access contextに加え、current不在時のatomic/audit/暗黙version 503と既存write `inactive_no_current`を検証する。
+6. API/service integration: readback、dry-run、atomic rollback、分離write互換、structured error、access contextに加え、上表の明示version validate/infer/impact許可、current不在時のatomic/audit/暗黙version 503、既存write `inactive_no_current`を検証する。
 7. audit contract: scope、pagination完走、partial/DB failureの`unverified`を検証する。
 8. release/history contract: current/version/as-of解決、未知version、RACI publication gateを検証する。
 9. compatibility matrix: 上表の全route/scriptについて、ownerなしapp、`depends_on`、Decision/RACI/Glossary/KPI/Initiativeに加えAI Query/AI Decision Logの成功response shapeと生成entity/edge、learning promotionの全mapped typeと未知型拒否、public/storage alias、登録語彙または明示deferredをfixture化する。server/scriptsのSQL/helper/HTTP client writer scanとmatrixを双方向比較し、`upsert-app-environments.mjs`を検出できない旧scannerと未分類writer追加時にfailする。
