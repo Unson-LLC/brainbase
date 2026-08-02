@@ -61,6 +61,27 @@ function publicationBinding(entry) {
     });
 }
 
+function assertReceiptGovernance(receipt, release, label) {
+    const governance = release.governance || {};
+    const expected = {
+        decision_id: governance.decision_id,
+        scope_entity_id: governance.scope_entity_id,
+        proposer_entity_id: governance.proposer_entity_id,
+        decider_entity_id: governance.decider_entity_id,
+        applier_entity_id: governance.applier_entity_id,
+        actor_entity_id: governance.applier_entity_id
+    };
+    const mismatches = Object.entries(expected)
+        .filter(([key, value]) => !value || receipt.payload?.[key] !== value)
+        .map(([key]) => key);
+    if (mismatches.length) {
+        throw new Error(`${label} governance binding mismatch: ${mismatches.join(', ')}`);
+    }
+    if (JSON.stringify(receipt.payload.impact_scope) !== JSON.stringify(release.impact_scope)) {
+        throw new Error(`${label} impact scope mismatch`);
+    }
+}
+
 export function verifyOntologyHistory({ rootDir, publicKeyPem = '', base, head }) {
     for (const ref of [base, head]) execFileSync('git', ['cat-file', '-e', `${ref}^{commit}`], { cwd: rootDir, stdio: 'ignore' });
     const indexPath = 'config/ontology/index.json';
@@ -127,12 +148,13 @@ export function verifyOntologyHistory({ rootDir, publicKeyPem = '', base, head }
         const receiptBytes = gitBytes(rootDir, publicationCommit, receiptPath);
         if (sha256(receiptBytes) !== entry.receipt_digest) throw new Error(`published receipt digest mismatch: ${entry.version}`);
         const receipt = JSON.parse(receiptBytes.toString('utf8'));
+        const release = JSON.parse(sourceRelease.toString('utf8'));
         if (receipt.payload.source_commit_sha !== entry.source_commit_sha
             || receipt.payload.release_version !== entry.version
-            || receipt.payload.release_digest !== entry.content_digest
-            || JSON.stringify(receipt.payload.impact_scope) !== JSON.stringify(entry.impact_scope)) {
+            || receipt.payload.release_digest !== entry.content_digest) {
             throw new Error(`published receipt binding mismatch: ${entry.version}`);
         }
+        assertReceiptGovernance(receipt, release, `published receipt ${entry.version}`);
         if (publicKeyPem && !verifyPublicationReceipt(receipt, publicKeyPem)) {
             throw new Error(`published receipt signature is invalid: ${entry.version}`);
         }
@@ -171,12 +193,13 @@ export function verifyOntologyRelease({ rootDir, publicKeyPem = '', base = null,
         if (sha256(receiptBytes) !== entry.receipt_digest) throw new Error(`receipt digest mismatch: ${index.current}`);
         const receipt = JSON.parse(receiptBytes.toString('utf8'));
         if (!verifyPublicationReceipt(receipt, publicKeyPem)) throw new Error(`receipt signature is invalid: ${index.current}`);
-        if (receipt.payload.release_version !== entry.version || receipt.payload.release_digest !== entry.content_digest) {
+        if (receipt.payload.release_version !== entry.version
+            || receipt.payload.release_digest !== entry.content_digest
+            || receipt.payload.source_commit_sha !== entry.source_commit_sha) {
             throw new Error(`receipt binding mismatch: ${index.current}`);
         }
-        if (JSON.stringify(receipt.payload.impact_scope) !== JSON.stringify(entry.impact_scope)) {
-            throw new Error(`receipt impact scope mismatch: ${index.current}`);
-        }
+        const release = JSON.parse(readFileSync(path.resolve(configDir, entry.path), 'utf8'));
+        assertReceiptGovernance(receipt, release, `receipt ${index.current}`);
         const viewBytes = readFileSync(path.join(configDir, 'brainbase-ontology.v1.json'));
         const releaseBytes = readFileSync(path.resolve(configDir, entry.path));
         if (!viewBytes.equals(releaseBytes)) throw new Error('compatibility view drift');

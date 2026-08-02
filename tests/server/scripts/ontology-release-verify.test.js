@@ -25,7 +25,7 @@ function writeJson(target, value) {
     writeFileSync(target, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function publicationRepository({ publish = true } = {}) {
+function publicationRepository({ publish = true, receiptOverrides = {}, privateKey = null } = {}) {
     const rootDir = mkdtempSync(path.join(tmpdir(), 'ontology-history-'));
     temporaryDirectories.push(rootDir);
     git(rootDir, ['init']);
@@ -65,12 +65,20 @@ function publicationRepository({ publish = true } = {}) {
             release_version: entry.version,
             release_digest: entry.content_digest,
             source_commit_sha: sourceCommit,
-            impact_scope: { graph_scope: 'project:brainbase', migration_required: false }
+            decision_id: 'decision:ontology-v1',
+            scope_entity_id: 'project:brainbase',
+            proposer_entity_id: 'person:proposer',
+            decider_entity_id: 'person:decider',
+            applier_entity_id: 'person:applier',
+            actor_entity_id: 'person:applier',
+            impact_scope: { graph_scope: 'project:brainbase', migration_required: false },
+            ...receiptOverrides
         },
         signature_algorithm: 'ed25519',
         signature: 'fixture',
         key_id: 'fixture'
     };
+    if (privateKey) receipt.signature = sign(null, Buffer.from(canonicalJson(receipt.payload)), privateKey).toString('base64');
     const receiptBytes = Buffer.from(`${JSON.stringify(receipt, null, 2)}\n`);
     mkdirSync(path.join(configDir, 'publications'));
     writeFileSync(path.join(configDir, 'publications/1.0.0.receipt.json'), receiptBytes);
@@ -143,6 +151,24 @@ describe('ontology release Git history verification', () => {
             base: fixture.sourceCommit,
             head: fixture.publicationCommit
         })).toMatchObject({ base_current: null, head_current: '1.0.0' });
+    });
+
+    it.each([
+        ['decision_id', 'decision:other'],
+        ['scope_entity_id', 'project:other'],
+        ['proposer_entity_id', 'person:other-proposer'],
+        ['decider_entity_id', 'person:other-decider'],
+        ['applier_entity_id', 'person:other-applier'],
+        ['actor_entity_id', 'person:other-actor']
+    ])('rejects a validly signed receipt with substituted %s governance', (field, value) => {
+        const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+        const fixture = publicationRepository({ receiptOverrides: { [field]: value }, privateKey });
+        expect(() => verifyOntologyHistory({
+            rootDir: fixture.rootDir,
+            base: fixture.sourceCommit,
+            head: fixture.publicationCommit,
+            publicKeyPem: publicKey.export({ type: 'spki', format: 'pem' }).toString()
+        })).toThrow(/governance binding mismatch/);
     });
 
     it('sends Decision, scope, and applier bindings from release governance', async () => {
