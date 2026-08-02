@@ -175,6 +175,22 @@ describe('ontology release Git history verification', () => {
         })).toThrow(/lifecycle changed outside the publisher/);
     });
 
+    it('requires the newly selected current release to be active', () => {
+        const fixture = publicationRepository();
+        const indexPath = path.join(fixture.rootDir, 'config/ontology/index.json');
+        const index = JSON.parse(readFileSync(indexPath, 'utf8'));
+        index.releases[0].status = 'approved';
+        writeJson(indexPath, index);
+        git(fixture.rootDir, ['add', '.']);
+        git(fixture.rootDir, ['commit', '-m', 'publish inactive current']);
+
+        expect(() => verifyOntologyHistory({
+            rootDir: fixture.rootDir,
+            base: fixture.sourceCommit,
+            head: git(fixture.rootDir, ['rev-parse', 'HEAD'])
+        })).toThrow(/current release must be active after publication/);
+    });
+
     it.each([
         ['decision_id', 'decision:other'],
         ['scope_entity_id', 'project:other'],
@@ -358,6 +374,17 @@ describe('ontology release Git history verification', () => {
         expect(published.current).toBe('1.0.0');
         expect(published.releases.find(({ version }) => version === '0.9.0').status).toBe('retired');
         expect(published.releases.find(({ version }) => version === '1.0.0').status).toBe('active');
+
+        published.releases.find(({ version }) => version === '0.9.0').status = 'active';
+        writeJson(indexPath, published);
+        git(fixture.rootDir, ['add', '.']);
+        git(fixture.rootDir, ['commit', '-m', 'publish without retiring previous current']);
+
+        expect(() => verifyOntologyHistory({
+            rootDir: fixture.rootDir,
+            base: sourceCommit,
+            head: git(fixture.rootDir, ['rev-parse', 'HEAD'])
+        })).toThrow(/publication must retire previous current release/);
     });
 
     it.each([

@@ -101,8 +101,17 @@ export function verifyOntologyHistory({ rootDir, publicKeyPem = '', base, head }
         if (!headIndex.current) throw new Error('current release cannot be cleared outside the publisher');
         const activatedEntry = headEntries.get(headIndex.current);
         if (!hasCompleteReceiptMetadata(activatedEntry)) throw new Error(`current release has no receipt binding: ${headIndex.current}`);
+        if (activatedEntry.status !== 'active') {
+            throw new Error(`current release must be active after publication: ${headIndex.current}`);
+        }
         if (hasCompleteReceiptMetadata(baseEntries.get(headIndex.current))) {
             throw new Error(`current change must introduce its receipt in the same publication history: ${headIndex.current}`);
+        }
+        if (baseIndex.current) {
+            const previousCurrent = headEntries.get(baseIndex.current);
+            if (!previousCurrent || previousCurrent.status !== 'retired') {
+                throw new Error(`publication must retire previous current release: ${baseIndex.current}`);
+            }
         }
     }
 
