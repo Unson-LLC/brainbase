@@ -93,7 +93,9 @@ function sendOntologyError(res, error, { operation = 'read' } = {}) {
         ? (operation === 'read' ? 404 : 503)
         : error.code === 'ONTOLOGY_VERSION_UNKNOWN'
             ? 404
-            : error.code === 'ONTOLOGY_INPUT_REQUIRED' || error.code === 'ONTOLOGY_VALIDATION_FAILED'
+            : error.code === 'ONTOLOGY_INPUT_REQUIRED'
+                || error.code === 'ONTOLOGY_VALIDATION_FAILED'
+                || error.code === 'ONTOLOGY_EDGE_ENDPOINT_NOT_FOUND'
                 ? 400
                 : 500);
     res.status(status).json({

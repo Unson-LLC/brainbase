@@ -85,21 +85,30 @@ describe('InfoSSOTController ontology endpoints', () => {
         const violation = new OntologyError('ONTOLOGY_VALIDATION_FAILED', 'Ontology validation failed', {
             violations: [{ rule_id: 'relation-endpoint-owns', message: 'owns requires org -> app' }]
         });
+        const missingEndpoint = new OntologyError('ONTOLOGY_EDGE_ENDPOINT_NOT_FOUND', 'Ontology edge endpoint not found', {
+            missing_endpoint_ids: ['entity:missing']
+        });
         const controller = new InfoSSOTController({
             createOrUpdateGraphEntity: async () => { throw violation; },
-            createOrUpdateGraphEdge: async () => { throw violation; }
+            createOrUpdateGraphEdge: async () => { throw missingEndpoint; }
         });
 
-        for (const method of ['upsertGraphEntity', 'upsertGraphEdge']) {
-            const res = responseRecorder();
-            await controller[method]({ body: {}, access }, res);
-            expect(res.statusCode, method).toBe(400);
-            expect(res.body, method).toMatchObject({
-                code: 'ONTOLOGY_VALIDATION_FAILED',
-                details: {
-                    violations: [{ rule_id: 'relation-endpoint-owns', message: 'owns requires org -> app' }]
-                }
-            });
-        }
+        const entityRes = responseRecorder();
+        await controller.upsertGraphEntity({ body: {}, access }, entityRes);
+        expect(entityRes.statusCode).toBe(400);
+        expect(entityRes.body).toMatchObject({
+            code: 'ONTOLOGY_VALIDATION_FAILED',
+            details: {
+                violations: [{ rule_id: 'relation-endpoint-owns', message: 'owns requires org -> app' }]
+            }
+        });
+
+        const edgeRes = responseRecorder();
+        await controller.upsertGraphEdge({ body: {}, access }, edgeRes);
+        expect(edgeRes.statusCode).toBe(400);
+        expect(edgeRes.body).toMatchObject({
+            code: 'ONTOLOGY_EDGE_ENDPOINT_NOT_FOUND',
+            details: { missing_endpoint_ids: ['entity:missing'] }
+        });
     });
 });
