@@ -394,6 +394,7 @@ export class InfoSSOTService {
                     AND scoped.rel_type IN ('belongs_to', 'belongs_to_project', 'accountable_for')
                     AND scoped.to_id = $4
                  WHERE r.entity_type IN ('raci', 'raci_assignment')
+                   AND COALESCE(r.payload->>'lane', '') = required.lane
                    AND CASE required.role_code
                        WHEN 'R' THEN COALESCE(r.payload->>'role_code', r.payload->>'role') IN ('R', 'responsible', 'Responsible')
                        WHEN 'A' THEN COALESCE(r.payload->>'role_code', r.payload->>'role') IN ('A', 'accountable', 'Accountable')

@@ -12,6 +12,7 @@ const EXPECTED_VIOLATIONS = Object.freeze({
     'CON-DECISION-DECIDER-001': 3,
     'CON-DECISION-SCOPE-001': 1
 });
+export const EXPECTED_PRE_REMEDIATION_SNAPSHOT_DIGEST = '4db7964d1402e50ab7d69f54c7ceb166c87d4d2826d8a8c08e9033dc37f8820a';
 const CANONICAL_SATO_ID = 'per_01KGYC7NNS0VXADK7NP48W4VR5';
 const HISTORICAL_SATO_ID = 'per_01KGS5F2HGJSWMZX68QJEQB0BB';
 const BRAINBASE_PROJECT_ID = 'prj_01KGCS8CAJKKDWACPNK1E5WX8H';
@@ -69,6 +70,36 @@ function counts(violations) {
 function sameCounts(actual, expected) {
     const keys = new Set([...Object.keys(actual), ...Object.keys(expected)]);
     return [...keys].every((key) => actual[key] === expected[key]);
+}
+
+export function remediationSnapshotDigest({ entities, edges }) {
+    const normalized = {
+        entities: entities.map((entity) => ({
+            id: entity.id,
+            type: entity.type || entity.entity_type,
+            payload: entity.payload
+        })).sort((left, right) => left.id.localeCompare(right.id)),
+        edges: edges.map((edge) => ({
+            from_id: edge.from_id,
+            to_id: edge.to_id,
+            relation: edge.relation || edge.rel_type,
+            payload: edge.payload
+        })).sort((left, right) => left.from_id.localeCompare(right.from_id)
+            || left.to_id.localeCompare(right.to_id)
+            || left.relation.localeCompare(right.relation))
+    };
+    return createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+}
+
+export function assertRemediationPrecondition({ violations, snapshotDigest }) {
+    const actualCounts = counts(violations);
+    if (!sameCounts(actualCounts, EXPECTED_VIOLATIONS)) {
+        throw new Error(`Precondition failed: unexpected ontology violations ${JSON.stringify(actualCounts)}`);
+    }
+    if (snapshotDigest !== EXPECTED_PRE_REMEDIATION_SNAPSHOT_DIGEST) {
+        throw new Error(`Precondition failed: production snapshot digest changed (${snapshotDigest})`);
+    }
+    return actualCounts;
 }
 
 function stableEdgeId(fromId, toId, relation) {
@@ -308,10 +339,10 @@ async function main() {
             process.stdout.write(`${JSON.stringify({ mode: apply ? 'apply' : 'dry-run', status: 'already_valid', before: 0, after: 0 }, null, 2)}\n`);
             return;
         }
-        const actualCounts = counts(before.violations);
-        if (!sameCounts(actualCounts, EXPECTED_VIOLATIONS)) {
-            throw new Error(`Precondition failed: unexpected ontology violations ${JSON.stringify(actualCounts)}`);
-        }
+        const actualCounts = assertRemediationPrecondition({
+            violations: before.violations,
+            snapshotDigest: remediationSnapshotDigest(beforeSnapshot)
+        });
         const plan = buildRemediationPlan(beforeSnapshot);
         const planned = release.kernel.validateSnapshot(applyPlanToSnapshot(beforeSnapshot, plan));
         if (!planned.valid) throw new Error(`Planned snapshot remains invalid: ${JSON.stringify(counts(planned.violations))}`);

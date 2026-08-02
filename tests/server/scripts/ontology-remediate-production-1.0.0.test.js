@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+    assertRemediationPrecondition,
     applyPlanToSnapshot,
-    buildRemediationPlan
+    buildRemediationPlan,
+    EXPECTED_PRE_REMEDIATION_SNAPSHOT_DIGEST
 } from '../../../scripts/ontology-remediate-production-1.0.0.js';
 
 const appOwners = {
@@ -36,6 +38,23 @@ function fixture() {
 }
 
 describe('ontology 1.0.0 production remediation plan', () => {
+    it('binds the exact audited snapshot instead of accepting count-equivalent drift', () => {
+        const violations = [
+            ...Array.from({ length: 31 }, (_, index) => ({ rule_id: 'edge-reference-integrity', edge_id: `edge-${index}` })),
+            ...Array.from({ length: 26 }, (_, index) => ({ rule_id: 'CON-APP-OWNER-001', entity_id: `app-${index}` })),
+            ...Array.from({ length: 3 }, (_, index) => ({ rule_id: 'CON-DECISION-DECIDER-001', entity_id: `decision-${index}` })),
+            { rule_id: 'CON-DECISION-SCOPE-001', entity_id: 'decision-scope' }
+        ];
+        expect(assertRemediationPrecondition({
+            violations,
+            snapshotDigest: EXPECTED_PRE_REMEDIATION_SNAPSHOT_DIGEST
+        })).toMatchObject({ 'CON-APP-OWNER-001': 26, 'edge-reference-integrity': 31 });
+        expect(() => assertRemediationPrecondition({
+            violations,
+            snapshotDigest: 'f'.repeat(64)
+        })).toThrow(/snapshot digest changed/);
+    });
+
     it('preserves history and makes only additive edges plus two fixture status updates', () => {
         const snapshot = fixture();
         const plan = buildRemediationPlan(snapshot);

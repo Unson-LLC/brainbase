@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import pg from 'pg';
+import { canonicalJson } from '../server/services/ontology-publication.js';
 
 export const AUTHORITY = Object.freeze({
     storyId: 'story-brainbase-ontology-production-activation',
@@ -87,6 +88,63 @@ export function buildAuthorityPlan({ sourceCommit, releaseDigest, impactScope, p
     return { entities, edges };
 }
 
+function entityBinding(entity) {
+    return canonicalJson({
+        id: entity.id,
+        entity_type: entity.entity_type,
+        project_id: entity.project_id,
+        payload: entity.payload,
+        role_min: entity.role_min,
+        sensitivity: entity.sensitivity
+    });
+}
+
+function edgeBinding(edge) {
+    return canonicalJson({
+        id: edge.id,
+        from_id: edge.from_id,
+        to_id: edge.to_id,
+        relation: edge.relation || edge.rel_type,
+        project_id: edge.project_id,
+        payload: edge.payload,
+        role_min: edge.role_min,
+        sensitivity: edge.sensitivity
+    });
+}
+
+export function assertAuthorityPlanCompatible({ existingEntities, existingEdges }, plan) {
+    const expectedEntities = new Map(plan.entities.map((entity) => [entity.id, entity]));
+    for (const existing of existingEntities) {
+        const expected = expectedEntities.get(existing.id);
+        if (!expected || entityBinding(existing) !== entityBinding(expected)) {
+            throw new Error(`Authority conflict: existing Graph entity ${existing.id} has a different binding`);
+        }
+    }
+    const expectedEdges = new Map(plan.edges.map((edge) => [`${edge.from_id}\0${edge.to_id}\0${edge.relation}`, edge]));
+    const expectedEdgeIds = new Set(plan.edges.map((edge) => edge.id));
+    for (const existing of existingEdges) {
+        const key = `${existing.from_id}\0${existing.to_id}\0${existing.rel_type || existing.relation}`;
+        const expected = expectedEdges.get(key);
+        if (!expected && !expectedEdgeIds.has(existing.id)) continue;
+        if (!expected || edgeBinding(existing) !== edgeBinding(expected)) {
+            throw new Error(`Authority conflict: existing Graph edge ${existing.id} has a different binding`);
+        }
+    }
+}
+
+async function loadExistingAuthority(client, plan) {
+    const ids = plan.entities.map((item) => item.id);
+    const existingEntities = (await client.query(
+        'SELECT id, entity_type, project_id, payload, role_min, sensitivity FROM graph_entities WHERE id = ANY($1::text[]) ORDER BY id',
+        [ids]
+    )).rows;
+    const existingEdges = (await client.query(
+        'SELECT id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity FROM graph_edges WHERE from_id = ANY($1::text[]) ORDER BY id',
+        [ids]
+    )).rows;
+    return { existingEntities, existingEdges };
+}
+
 async function saveBackup(client, plan, backupDir) {
     const ids = plan.entities.map((item) => item.id);
     const existingEntities = (await client.query('SELECT * FROM graph_entities WHERE id = ANY($1::text[]) ORDER BY id', [ids])).rows;
@@ -106,8 +164,7 @@ async function persist(client, plan) {
         await client.query(
             `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
              VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
-             ON CONFLICT (id) DO UPDATE SET entity_type=EXCLUDED.entity_type, project_id=EXCLUDED.project_id,
-                 payload=EXCLUDED.payload, role_min=EXCLUDED.role_min, sensitivity=EXCLUDED.sensitivity, updated_at=NOW()`,
+             ON CONFLICT (id) DO NOTHING`,
             [entity.id, entity.entity_type, entity.project_id, JSON.stringify(entity.payload), entity.role_min, entity.sensitivity]
         );
     }
@@ -115,8 +172,7 @@ async function persist(client, plan) {
         await client.query(
             `INSERT INTO graph_edges (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())
-             ON CONFLICT (from_id, to_id, rel_type) DO UPDATE SET project_id=EXCLUDED.project_id,
-                 payload=EXCLUDED.payload, role_min=EXCLUDED.role_min, sensitivity=EXCLUDED.sensitivity, updated_at=NOW()`,
+             ON CONFLICT (from_id, to_id, rel_type) DO NOTHING`,
             [edge.id, edge.from_id, edge.to_id, edge.relation, edge.project_id, JSON.stringify(edge.payload), edge.role_min, edge.sensitivity]
         );
     }
@@ -143,6 +199,7 @@ async function main() {
         if (required.find((row) => row.id === AUTHORITY.personId)?.entity_type !== 'person') throw new Error('Publication actor person is missing');
         const projectId = required.find((row) => row.id === AUTHORITY.scopeId).project_id;
         const plan = buildAuthorityPlan({ sourceCommit, releaseDigest, impactScope, projectId });
+        assertAuthorityPlanCompatible(await loadExistingAuthority(client, plan), plan);
         let backupPath = null;
         if (apply) {
             backupPath = await saveBackup(client, plan, path.resolve(option('--backup-dir') || 'var/ontology-backups'));
