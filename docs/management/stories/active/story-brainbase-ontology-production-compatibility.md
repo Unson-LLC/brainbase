@@ -4,6 +4,7 @@ title: 本番GraphとOntology 1.0.0の互換性を確立する
 status: active
 period: 2026-08
 architecture: docs/architecture/ADR-021-brainbase-ontology-kernel.md
+architecture_reason: ADR-021の既存境界内で互換語彙と本番監査証跡を追加する変更であり、新しいコンポーネント、データフロー、またはauthority境界を導入しないため追加ADRは不要
 spec: docs/specs/brainbase-ontology-production-compatibility.md
 ---
 
