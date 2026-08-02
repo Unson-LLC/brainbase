@@ -337,6 +337,12 @@ export class OntologyKernel {
         const provenanceById = new Map();
         for (const event of events) {
             for (const sourceId of event.source_ids || []) {
+                if (canonicalById.has(sourceId) && canonicalById.get(sourceId) !== event.canonical_id) {
+                    throw new OntologyError('ONTOLOGY_EVOLUTION_CONFLICT', `Multiple active evolution targets exist for ${sourceId}`, {
+                        source_id: sourceId,
+                        canonical_ids: [canonicalById.get(sourceId), event.canonical_id]
+                    });
+                }
                 canonicalById.set(sourceId, event.canonical_id);
                 provenanceById.set(sourceId, [...(event.provenance || [])]);
             }
@@ -344,29 +350,44 @@ export class OntologyKernel {
         const resolveId = (id) => {
             const seen = new Set();
             let current = id;
-            while (canonicalById.has(current) && !seen.has(current)) {
+            const provenance = [];
+            while (canonicalById.has(current)) {
+                if (seen.has(current)) {
+                    throw new OntologyError('ONTOLOGY_EVOLUTION_CYCLE', `Evolution history contains a cycle from ${id}`, {
+                        source_id: id,
+                        cycle_at: current
+                    });
+                }
                 seen.add(current);
+                provenance.push(...(provenanceById.get(current) || []));
                 current = canonicalById.get(current);
             }
-            return current;
+            return { canonical_id: current, provenance: [...new Set(provenance)] };
         };
         return {
             ontology_version: this.version,
             as_of: interpretationTime,
             applied_event_ids: events.map((event) => event.event_id),
-            entities: (snapshot.entities || []).map((entity) => ({
-                ...structuredClone(entity),
-                historical_id: entity.id,
-                canonical_id: resolveId(entity.id),
-                evolution_provenance: provenanceById.get(entity.id) || []
-            })),
-            edges: (snapshot.edges || []).map((edge) => ({
-                ...structuredClone(edge),
-                historical_from_id: edge.from_id,
-                historical_to_id: edge.to_id,
-                from_id: resolveId(edge.from_id),
-                to_id: resolveId(edge.to_id)
-            }))
+            entities: (snapshot.entities || []).map((entity) => {
+                const interpretation = resolveId(entity.id);
+                return {
+                    ...structuredClone(entity),
+                    historical_id: entity.id,
+                    canonical_id: interpretation.canonical_id,
+                    evolution_provenance: interpretation.provenance
+                };
+            }),
+            edges: (snapshot.edges || []).map((edge) => {
+                const from = resolveId(edge.from_id);
+                const to = resolveId(edge.to_id);
+                return {
+                    ...structuredClone(edge),
+                    historical_from_id: edge.from_id,
+                    historical_to_id: edge.to_id,
+                    from_id: from.canonical_id,
+                    to_id: to.canonical_id
+                };
+            })
         };
     }
 }

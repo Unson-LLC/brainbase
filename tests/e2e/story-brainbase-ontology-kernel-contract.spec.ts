@@ -184,6 +184,19 @@ test('story-brainbase-ontology-kernel ac:9 rename and merge evolution preserve c
       evolution_provenance: ['decision:ontology-evolution']
     });
   }
+
+  const chained = kernel.interpretHistory({
+    entities: [{ id: 'org:legacy', type: 'org', payload: {} }],
+    evolution_events: [
+      kernel.planEvolution({ kind: 'rename', canonical_id: 'org:middle', source_ids: ['org:legacy'], effective_at: '2026-08-02T00:00:00.000Z', provenance: ['decision:first'] }),
+      kernel.planEvolution({ kind: 'merge', canonical_id: 'org:unson', source_ids: ['org:middle'], effective_at: '2026-08-03T00:00:00.000Z', provenance: ['decision:second'] })
+    ]
+  }, { asOf: '2026-08-04T00:00:00.000Z' });
+  expect(chained.entities[0]).toMatchObject({
+    historical_id: 'org:legacy',
+    canonical_id: 'org:unson',
+    evolution_provenance: ['decision:first', 'decision:second']
+  });
 });
 
 test('story-brainbase-ontology-kernel ac:10 impact reports affected facts, APIs, agents and migration need', async () => {

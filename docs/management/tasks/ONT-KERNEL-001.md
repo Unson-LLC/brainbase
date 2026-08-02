@@ -50,7 +50,7 @@ current不在時は、明示versionとcaller提供snapshotのreadback・validate
 
 - deploy後も`index.current`は`null`のままで、receiptとcompatibility viewは生成しない。既存writeは`guard_status: inactive_no_current`で従来互換を維持し、Ontologyをcanonical guardとして有効化しない。
 - このPRはGraph migrationとcanonical current変更を含まないため、code releaseのrollbackはこのPRのmerge commitを通常のrevert手順で戻す。Graph entity/edge、Decision、RACI、publication receiptを変更・削除する操作は行わない。
-- publisherがreceipt・view・indexの置換途中で失敗した場合は、3出力をpublish前のbytesへ補償復元する。後段rename失敗と、authority通信失敗・不完全応答で生成物が残らないことをintegration fixtureで検証する。
+- publisherがreceipt・view・indexの置換途中で通常例外により失敗した場合は、同一process内で3出力をpublish前のbytesへ補償復元する。後段rename失敗と、authority通信失敗・不完全応答で生成物が残らないことをintegration fixtureで検証する。SIGKILL・電源断・filesystem障害を跨ぐdurabilityはこのPRの保証外とし、再実行時のclean checkout検査で停止する。operatorは対象3 pathと`.tmp`/`.rollback`だけを確認し、Git上のsource commitから復元したうえで`npm run ontology:verify`が成功するまでpublishを再開しない。
 - `1.0.0`のactive化は後続Taskであり、実行前に実Decision、提案者RACI、決裁者RACI、scope Accountable、applier、署名鍵に加え、active化後のsigned rollbackまたはprevious-current復元手順を別途Gateする。これがない状態ではproduction publishを実行しない。
 
 ## 非対象・後続

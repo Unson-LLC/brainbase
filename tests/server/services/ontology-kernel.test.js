@@ -213,6 +213,26 @@ describe('OntologyKernel', () => {
         expect(after.applied_event_ids).toEqual([event.event_id]);
     });
 
+    it('preserves the complete provenance chain and rejects ambiguous history', () => {
+        const events = [
+            kernel().planEvolution({ kind: 'rename', canonical_id: 'org:middle', source_ids: ['org:legacy'], effective_at: '2026-08-02T00:00:00.000Z', provenance: ['decision:first'] }),
+            kernel().planEvolution({ kind: 'merge', canonical_id: 'org:canonical', source_ids: ['org:middle'], effective_at: '2026-08-03T00:00:00.000Z', provenance: ['decision:second'] })
+        ];
+        const interpreted = kernel().interpretHistory({ entities: [{ id: 'org:legacy', type: 'org' }], evolution_events: events }, { asOf: '2026-08-04T00:00:00.000Z' });
+        expect(interpreted.entities[0]).toMatchObject({
+            historical_id: 'org:legacy',
+            canonical_id: 'org:canonical',
+            evolution_provenance: ['decision:first', 'decision:second']
+        });
+
+        const conflict = { ...events[0], event_id: 'event:conflict', canonical_id: 'org:other' };
+        expect(() => kernel().interpretHistory({ evolution_events: [events[0], conflict] }, { asOf: '2026-08-04T00:00:00.000Z' }))
+            .toThrow(expect.objectContaining({ code: 'ONTOLOGY_EVOLUTION_CONFLICT' }));
+        const cycle = { ...events[1], event_id: 'event:cycle', canonical_id: 'org:legacy', source_ids: ['org:canonical'] };
+        expect(() => kernel().interpretHistory({ entities: [{ id: 'org:legacy', type: 'org' }], evolution_events: [...events, cycle] }, { asOf: '2026-08-04T00:00:00.000Z' }))
+            .toThrow(expect.objectContaining({ code: 'ONTOLOGY_EVOLUTION_CYCLE' }));
+    });
+
     it('never calls persistence during dry-run validation', () => {
         const persist = vi.fn();
         kernel().validateSnapshot({ entities: [], edges: [] }, { persist });
