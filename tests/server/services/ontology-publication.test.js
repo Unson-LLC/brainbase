@@ -12,7 +12,7 @@ const release = registry.resolve({ version: '1.0.0' });
 
 afterEach(() => vi.unstubAllEnvs());
 
-function authorityService({ accountable = true, decision = true } = {}) {
+function authorityService({ accountable = true, decision = true, decisionOverrides = {} } = {}) {
     const inputBindings = {
         ontology_release_version: '1.0.0',
         ontology_release_digest: release.digest,
@@ -22,7 +22,7 @@ function authorityService({ accountable = true, decision = true } = {}) {
     const client = {
         query: async (sql) => {
             const text = String(sql);
-            if (text.includes("entity_type = 'decision'")) return { rows: decision ? [{ payload: inputBindings }] : [] };
+            if (text.includes("entity_type = 'decision'")) return { rows: decision ? [{ payload: { ...inputBindings, ...decisionOverrides } }] : [] };
             if (text.includes("entity_type IN ('raci'")) return { rows: accountable ? [{ '?column?': 1 }] : [] };
             return { rows: [] };
         },
@@ -82,5 +82,19 @@ describe('Ontology publication authority', () => {
         await expect(authorityService({ accountable: false }).authorizeOntologyPublication({
             role: 'gm', projectCodes: ['brainbase'], clearance: ['internal'], personId: 'person:applier'
         }, request())).rejects.toMatchObject({ code: 'ONTOLOGY_PUBLICATION_FORBIDDEN', details: { http_status: 403 } });
+    });
+
+    it('rejects missing Decisions and Decision or scope binding mismatches', async () => {
+        const { privateKey } = generateKeyPairSync('ed25519');
+        vi.stubEnv('ONTOLOGY_RECEIPT_PRIVATE_KEY', privateKey.export({ type: 'pkcs8', format: 'pem' }).toString());
+        vi.stubEnv('ONTOLOGY_RECEIPT_KEY_ID', 'ontology-test-key');
+        const access = { role: 'gm', projectCodes: ['brainbase'], clearance: ['internal'], personId: 'person:applier' };
+
+        await expect(authorityService({ decision: false }).authorizeOntologyPublication(access, request()))
+            .rejects.toMatchObject({ code: 'ONTOLOGY_PUBLICATION_DECISION_NOT_FOUND', details: { http_status: 404 } });
+        await expect(authorityService({ decisionOverrides: { ontology_release_digest: 'mismatch' } }).authorizeOntologyPublication(access, request()))
+            .rejects.toMatchObject({ code: 'ONTOLOGY_PUBLICATION_BINDING_MISMATCH', details: { http_status: 409 } });
+        await expect(authorityService().authorizeOntologyPublication(access, { ...request(), scope_entity_id: 'project:other' }))
+            .rejects.toMatchObject({ code: 'ONTOLOGY_PUBLICATION_BINDING_MISMATCH', details: { http_status: 409 } });
     });
 });
