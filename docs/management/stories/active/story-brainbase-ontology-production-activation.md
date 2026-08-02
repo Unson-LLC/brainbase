@@ -23,13 +23,13 @@ BrainbaseのGraph運用責任者として、Ontology 1.0.0を実データ・権�
 
 ## 受入条件
 
-- [ ] 本番Graphの完全snapshotがOntology 1.0.0に対して0 violationである。
-- [ ] 修復はexact precondition、transaction、advisory lock、事前backup、事後再監査を持ち、deleteを行わない。
-- [ ] publication Decisionがversion、release digest、source commit、scope、impact、proposer、deciderを完全にbindする。
-- [ ] 同一scopeにResponsible、Accountable、ApplierのRACIが存在し、認証actorはapplier personと一致する。
-- [ ] Ed25519秘密鍵はInfisical productionだけに保存し、repositoryやログへ出さない。公開鍵とkey IDでreceiptを検証できる。
-- [ ] publisherだけが`current`、receipt、compatibility viewを変更し、source commitの直接の子をpublication commitとする。
-- [ ] publication commitを戻して`current: null`へ復旧する演習を独立checkoutで行い、`ontology:verify`が合格する。
+- [x] 本番Graphの完全snapshotがOntology 1.0.0に対して0 violationである。
+- [x] 修復はexact precondition、transaction、advisory lock、事前backup、事後再監査を持ち、deleteを行わない。
+- [x] publication Decisionがversion、release digest、source commit、scope、impact、proposer、deciderを完全にbindする。
+- [x] 同一scopeにResponsible、Accountable、ApplierのRACIが存在し、認証actorはapplier personと一致する。
+- [x] Ed25519秘密鍵はInfisical productionだけに保存し、repositoryやログへ出さない。公開鍵とkey IDでreceiptを検証できる。
+- [x] publisherだけが`current`、receipt、compatibility viewを変更し、source commitの直接の子をpublication commitとする。
+- [x] publication commitを戻して`current: null`へ復旧する演習を独立checkoutで行い、`ontology:verify`が合格する。
 - [ ] VibePro Gate、CI、merge、production deploy後のcurrent readbackとGraph auditが合格して初めて完了とする。
 
 ## 停止条件
