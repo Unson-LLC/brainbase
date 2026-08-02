@@ -418,11 +418,18 @@ test('story-brainbase-ontology-kernel ac:17 active publication remains an explic
   const story = fs.readFileSync(path.join(rootDir, 'docs/management/stories/active/story-brainbase-ontology-kernel.md'), 'utf8');
   const task = fs.readFileSync(path.join(rootDir, 'docs/management/tasks/ONT-KERNEL-002.md'), 'utf8');
   const index = JSON.parse(fs.readFileSync(path.join(rootDir, 'config/ontology/index.json'), 'utf8'));
+  const release = JSON.parse(fs.readFileSync(path.join(rootDir, 'config/ontology/releases/1.0.0.json'), 'utf8'));
   expect(story).toContain('ONT-KERNEL-002');
+  expect(task).toMatch(/^status: pending$/m);
   expect(task).toContain('active');
   expect(task).toContain('Decision');
   expect(task).toContain('RACI');
   expect(index.current).toBeNull();
+  expect(index.releases.find(({ version }: { version: string }) => version === '1.0.0'))
+    .toMatchObject({ status: 'proposed' });
+  expect(release).toMatchObject({ version: '1.0.0', initial_status: 'proposed' });
+  expect(fs.existsSync(path.join(rootDir, 'config/ontology/publications'))).toBe(false);
+  expect(fs.existsSync(path.join(rootDir, 'config/ontology/brainbase-ontology.v1.json'))).toBe(false);
 });
 
 test('story-brainbase-ontology-kernel ac:18 JSON Spec binds the complete publication authority request', async () => {
