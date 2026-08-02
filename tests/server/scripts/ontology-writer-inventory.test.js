@@ -6,7 +6,7 @@ import { verifyWriterInventory } from '../../../scripts/ontology-writer-inventor
 
 const roots = [];
 
-function fixture({ source, vocabulary }) {
+function fixture({ source, vocabulary, mode = 'runtime_guarded', classifiedLiterals }) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ontology-writer-inventory-'));
     roots.push(root);
     fs.mkdirSync(path.join(root, 'server'), { recursive: true });
@@ -20,9 +20,10 @@ function fixture({ source, vocabulary }) {
     fs.writeFileSync(path.join(root, 'config/ontology/writer-inventory.json'), JSON.stringify({
         writers: {
             'server/writer.js': {
-                mode: 'runtime_guarded',
+                mode,
                 reason: 'fixture',
-                vocabulary
+                vocabulary,
+                ...(classifiedLiterals ? { classified_literals: classifiedLiterals } : {})
             }
         }
     }));
@@ -54,5 +55,31 @@ describe('ontology writer inventory vocabulary contract', () => {
             vocabulary: { types: [], relations: [] }
         });
         expect(() => verifyWriterInventory({ rootDir: undeclaredRoot })).toThrow('undeclared types=[app]');
+    });
+
+    it('requires deferred writers to classify every non-canonical literal', () => {
+        const unclassifiedRoot = fixture({
+            source: "upsertGraphEntity({ entityType: 'legacy_person' });",
+            mode: 'deferred',
+            vocabulary: { types: [], relations: [] },
+            classifiedLiterals: { compatibility: [], internal: [], rejected: [] }
+        });
+        expect(() => verifyWriterInventory({ rootDir: unclassifiedRoot })).toThrow('unknown graph vocabulary=[legacy_person]');
+
+        const classifiedRoot = fixture({
+            source: "upsertGraphEntity({ entityType: 'legacy_person' });",
+            mode: 'deferred',
+            vocabulary: { types: [], relations: [] },
+            classifiedLiterals: { compatibility: ['legacy_person'], internal: [], rejected: [] }
+        });
+        expect(verifyWriterInventory({ rootDir: classifiedRoot })).toMatchObject({
+            writer_count: 1,
+            classifications: {
+                'server/writer.js': {
+                    mode: 'deferred',
+                    classified_literals: { compatibility: ['legacy_person'], internal: [], rejected: [] }
+                }
+            }
+        });
     });
 });

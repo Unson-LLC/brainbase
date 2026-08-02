@@ -65,7 +65,6 @@ export function verifyWriterInventory({ rootDir = process.cwd() } = {}) {
         const actual = vocabularyByWriter[file];
         if (classification.mode === 'deferred') {
             if (!classification.reason) vocabularyErrors.push(`${file}: deferred writer requires reason`);
-            continue;
         }
         const declared = classification.vocabulary || {};
         for (const kind of ['types', 'relations']) {
@@ -76,12 +75,36 @@ export function verifyWriterInventory({ rootDir = process.cwd() } = {}) {
             if (invalid.length) vocabularyErrors.push(`${file}: invalid ${kind}=[${invalid.join(', ')}]`);
             if (undeclared.length) vocabularyErrors.push(`${file}: undeclared ${kind}=[${undeclared.join(', ')}]`);
         }
-        if (actual.unknown.length) vocabularyErrors.push(`${file}: unknown graph vocabulary=[${actual.unknown.join(', ')}]`);
+        const classifiedLiterals = classification.classified_literals || {};
+        const literalCategories = ['compatibility', 'internal', 'rejected'];
+        const declaredLiterals = literalCategories.flatMap((category) => (
+            Array.isArray(classifiedLiterals[category]) ? classifiedLiterals[category] : []
+        ));
+        const duplicateLiterals = declaredLiterals.filter((value, index) => declaredLiterals.indexOf(value) !== index);
+        const unclassifiedLiterals = actual.unknown.filter((value) => !declaredLiterals.includes(value));
+        const staleLiterals = declaredLiterals.filter((value) => !actual.unknown.includes(value));
+        if (classification.mode === 'deferred') {
+            for (const category of literalCategories) {
+                if (!Array.isArray(classifiedLiterals[category])) {
+                    vocabularyErrors.push(`${file}: deferred writer requires classified_literals.${category}`);
+                }
+            }
+        }
+        if (duplicateLiterals.length) vocabularyErrors.push(`${file}: duplicate classified literals=[${[...new Set(duplicateLiterals)].join(', ')}]`);
+        if (unclassifiedLiterals.length) vocabularyErrors.push(`${file}: unknown graph vocabulary=[${unclassifiedLiterals.join(', ')}]`);
+        if (staleLiterals.length) vocabularyErrors.push(`${file}: stale classified literals=[${staleLiterals.join(', ')}]`);
     }
     if (unclassified.length || missing.length || vocabularyErrors.length) {
         throw new Error(`Graph writer inventory mismatch: unclassified=[${unclassified.join(', ')}] missing=[${missing.join(', ')}] vocabulary=[${vocabularyErrors.join('; ')}]`);
     }
-    return { writer_count: detected.size, writers: [...detected].sort(), vocabulary: vocabularyByWriter };
+    return {
+        writer_count: detected.size,
+        writers: [...detected].sort(),
+        vocabulary: vocabularyByWriter,
+        classifications: Object.fromEntries(
+            [...detected].sort().map((file) => [file, inventory.writers[file]])
+        )
+    };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
