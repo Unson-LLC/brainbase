@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { OntologyError, OntologyKernel } from './ontology-kernel.js';
+import { hasPublishedReceipt } from './ontology-release-trust.js';
 
 function parseJson(bytes, label) {
     try {
@@ -42,7 +43,7 @@ export class OntologyRegistry {
         } else if (asOf) {
             const target = parseTime(asOf, 'asOf');
             entry = this.index.releases
-                .filter((release) => (release.receipt_path || release.version === this.index.current)
+                .filter((release) => (hasPublishedReceipt(release) || release.version === this.index.current)
                     && parseTime(release.effective_at, 'release effective_at') <= target)
                 .sort((left, right) => parseTime(right.effective_at, 'release effective_at') - parseTime(left.effective_at, 'release effective_at'))[0];
         } else {
@@ -89,9 +90,9 @@ export class OntologyRegistry {
 
         const effectiveStatus = this.index.current === entry.version
             ? 'active'
-            : entry.status === 'retired'
+            : entry.status === 'retired' && hasPublishedReceipt(entry)
                 ? 'retired'
-                : entry.receipt_path
+                : hasPublishedReceipt(entry)
                     ? 'approved'
                     : 'proposed';
         return {

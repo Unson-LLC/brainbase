@@ -4,6 +4,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { publicationReceiptContractErrors, sha256, verifyPublicationReceipt } from '../server/services/ontology-publication.js';
+import { hasPublishedReceipt } from '../server/services/ontology-release-trust.js';
 import { verifyWriterInventory } from './ontology-writer-inventory.js';
 
 function fail(message) {
@@ -99,14 +100,14 @@ export function verifyOntologyHistory({ rootDir, publicKeyPem = '', base, head }
     if (currentChanged) {
         if (!headIndex.current) throw new Error('current release cannot be cleared outside the publisher');
         const activatedEntry = headEntries.get(headIndex.current);
-        if (!activatedEntry?.receipt_path) throw new Error(`current release has no receipt binding: ${headIndex.current}`);
-        if (baseEntries.get(headIndex.current)?.receipt_path) {
+        if (!hasPublishedReceipt(activatedEntry)) throw new Error(`current release has no receipt binding: ${headIndex.current}`);
+        if (hasPublishedReceipt(baseEntries.get(headIndex.current))) {
             throw new Error(`current change must introduce its receipt in the same publication history: ${headIndex.current}`);
         }
     }
 
     for (const baseEntry of baseEntries.values()) {
-        if (!baseEntry.receipt_path) continue;
+        if (!hasPublishedReceipt(baseEntry)) continue;
         const headEntry = headEntries.get(baseEntry.version);
         if (!headEntry || publicationBinding(headEntry) !== publicationBinding(baseEntry)) {
             throw new Error(`published release binding changed or disappeared: ${baseEntry.version}`);
@@ -119,7 +120,7 @@ export function verifyOntologyHistory({ rootDir, publicKeyPem = '', base, head }
     }
 
     for (const entry of headEntries.values()) {
-        if (!entry.receipt_path || baseEntries.get(entry.version)?.receipt_path) continue;
+        if (!hasPublishedReceipt(entry) || hasPublishedReceipt(baseEntries.get(entry.version))) continue;
         if (!currentChanged || entry.version !== headIndex.current) {
             throw new Error(`new receipt must activate the same release through the publisher: ${entry.version}`);
         }
@@ -179,7 +180,7 @@ export function verifyOntologyRelease({ rootDir, publicKeyPem = '', base = null,
     for (const entry of index.releases || []) {
         if (versions.has(entry.version)) throw new Error(`version is reused: ${entry.version}`);
         versions.add(entry.version);
-        if (entry.status === 'retired' && (!entry.receipt_path || !entry.receipt_digest)) {
+        if (entry.status === 'retired' && !hasPublishedReceipt(entry)) {
             throw new Error(`retired release has no receipt binding: ${entry.version}`);
         }
         if (entry.content_digest_algorithm !== 'sha256') throw new Error(`unsupported digest algorithm: ${entry.version}`);
@@ -196,7 +197,7 @@ export function verifyOntologyRelease({ rootDir, publicKeyPem = '', base = null,
 
     if (index.current) {
         const entry = index.releases.find((item) => item.version === index.current);
-        if (!entry?.receipt_path || !entry?.receipt_digest) throw new Error(`current release has no receipt binding: ${index.current}`);
+        if (!hasPublishedReceipt(entry)) throw new Error(`current release has no receipt binding: ${index.current}`);
         if (!publicKeyPem) throw new Error('ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY is required for an active current release');
         const receiptBytes = readFileSync(path.resolve(configDir, entry.receipt_path));
         if (sha256(receiptBytes) !== entry.receipt_digest) throw new Error(`receipt digest mismatch: ${index.current}`);

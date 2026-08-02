@@ -271,6 +271,16 @@ test('story-brainbase-ontology-kernel ac:9 rename and merge evolution preserve c
     unverified_reason: { code: 'ONTOLOGY_VERSION_UNKNOWN' }
   });
   unversionedRegistry.index.releases[0].receipt_path = 'receipts/1.0.0.json';
+  expect(unversionedRegistry.interpretHistory({ entities: [] }, {
+    asOf: '2026-08-03T00:00:00.000Z'
+  })).toMatchObject({
+    resolved_ontology_version: null,
+    verification: 'unverified',
+    unverified_reason: { code: 'ONTOLOGY_VERSION_UNKNOWN' }
+  });
+  expect(unversionedRegistry.resolve({ version: '1.0.0' }).kernel.status).toBe('proposed');
+  unversionedRegistry.index.releases[0].receipt_digest_algorithm = 'sha256';
+  unversionedRegistry.index.releases[0].receipt_digest = 'a'.repeat(64);
   expect(unversionedRegistry.interpretHistory({ entities: [{ id: 'org:legacy', type: 'org' }] }, {
     asOf: '2026-08-03T00:00:00.000Z'
   })).toMatchObject({
