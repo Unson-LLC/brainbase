@@ -5,7 +5,7 @@ const buildService = () => {
     process.env.INFO_SSOT_DATABASE_URL = 'postgres://test';
     const service = new InfoSSOTService();
     const client = {
-        query: vi.fn(async (text) => {
+        query: vi.fn(async (text, params = []) => {
             if (typeof text === 'string' && text.startsWith('SELECT id FROM projects')) {
                 return { rows: [{ id: 'prj_1' }] };
             }
@@ -17,6 +17,25 @@ const buildService = () => {
             }
             if (typeof text === 'string' && text.includes('INSERT INTO raci_assignments')) {
                 return { rows: [{ id: 'rac_1' }] };
+            }
+            if (typeof text === 'string' && text.includes('WHERE id = ANY')) {
+                const entityTypeByPrefix = {
+                    prj: 'project',
+                    per: 'person',
+                    dec: 'decision',
+                    rac: 'raci_assignment',
+                    gls: 'glossary_term',
+                    kpi: 'kpi',
+                    ini: 'initiative',
+                    qry: 'ai_query',
+                    aid: 'ai_decision'
+                };
+                return {
+                    rows: (params[0] || []).map((id) => ({
+                        id,
+                        entity_type: entityTypeByPrefix[String(id).split('_')[0]]
+                    }))
+                };
             }
             return { rows: [] };
         }),
@@ -32,10 +51,10 @@ const accessContext = {
     clearance: ['internal', 'restricted', 'finance', 'hr', 'contract']
 };
 
-const expectInactiveOntologyGuard = (result) => {
+const expectActiveOntologyGuard = (result) => {
     expect(result).toMatchObject({
-        guard_status: 'inactive_no_current',
-        ontology_version: null
+        guard_status: 'active_current',
+        ontology_version: '1.0.0'
     });
 };
 
@@ -478,7 +497,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             options: [],
             chosen: { plan: 'graph' }
         });
-        expectInactiveOntologyGuard(result);
+        expectActiveOntologyGuard(result);
 
         const entityCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_entities'));
         const entityTypes = entityCalls.map(([, params]) => params?.[1]).filter(Boolean);
@@ -515,7 +534,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             sensitivity: 'internal',
             authorityScope: 'ops'
         });
-        expectInactiveOntologyGuard(result);
+        expectActiveOntologyGuard(result);
 
         const edgeCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_edges'));
         const relTypes = edgeCalls.map(([, params]) => params?.[3]).filter(Boolean);
@@ -678,8 +697,8 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             email: 'miki@example.com',
             org: 'ユニバーサルアーツ',
             role: '事務',
-            guard_status: 'inactive_no_current',
-            ontology_version: null
+            guard_status: 'active_current',
+            ontology_version: '1.0.0'
         });
     });
 
@@ -702,7 +721,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
 
         expect(result.glossary_term_id).toMatch(/^gls_/);
         expect(result.event_id).toMatch(/^evt_/);
-        expectInactiveOntologyGuard(result);
+        expectActiveOntologyGuard(result);
 
         const entityCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_entities'));
         const entityTypes = entityCalls.map(([, params]) => params?.[1]).filter(Boolean);
@@ -757,7 +776,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
 
         expect(result.kpi_id).toMatch(/^kpi_/);
         expect(result.event_id).toMatch(/^evt_/);
-        expectInactiveOntologyGuard(result);
+        expectActiveOntologyGuard(result);
 
         const entityCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_entities'));
         const entityTypes = entityCalls.map(([, params]) => params?.[1]).filter(Boolean);
@@ -811,7 +830,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
 
         expect(result.initiative_id).toMatch(/^ini_/);
         expect(result.event_id).toMatch(/^evt_/);
-        expectInactiveOntologyGuard(result);
+        expectActiveOntologyGuard(result);
 
         const entityCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_entities'));
         const entityTypes = entityCalls.map(([, params]) => params?.[1]).filter(Boolean);
@@ -845,7 +864,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         })).rejects.toThrow('title is required');
     });
 
-    it('createAiQuery returns the inactive ontology guard marker', async () => {
+    it('createAiQuery returns the active ontology guard marker', async () => {
         const { service } = buildService();
 
         const result = await service.createAiQuery(accessContext, {
@@ -857,10 +876,10 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         });
 
         expect(result.query_id).toMatch(/^qry_/);
-        expectInactiveOntologyGuard(result);
+        expectActiveOntologyGuard(result);
     });
 
-    it('createAiDecisionLog returns the inactive ontology guard marker', async () => {
+    it('createAiDecisionLog returns the active ontology guard marker', async () => {
         const { service } = buildService();
 
         const result = await service.createAiDecisionLog(accessContext, {
@@ -872,6 +891,6 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         });
 
         expect(result.ai_decision_id).toMatch(/^aid_/);
-        expectInactiveOntologyGuard(result);
+        expectActiveOntologyGuard(result);
     });
 });

@@ -27,6 +27,17 @@ function activeRegistry() {
     };
 }
 
+function activeRegistryWith(overrides = {}) {
+    const registry = activeRegistry();
+    return {
+        ...registry,
+        resolve: (options = {}) => {
+            const release = registry.resolve(options);
+            return { ...release, kernel: Object.assign(Object.create(release.kernel), overrides) };
+        }
+    };
+}
+
 describe('InfoSSOTService ontology API', () => {
     it('describes an explicit immutable release with its digest', () => {
         const result = createService().describeOntology({ version: '1.0.0' });
@@ -209,7 +220,10 @@ describe('InfoSSOTService ontology API', () => {
                 const text = String(sql);
                 statements.push(text);
                 if (text.includes('FROM graph_entities')) {
-                    return { rows: [{ id: 'org:unson', entity_type: 'org', payload: { name: 'Unson' } }] };
+                    return { rows: [
+                        { id: 'org:unson', entity_type: 'org', payload: { name: 'Unson' } },
+                        { id: 'app:new', entity_type: 'app', payload: {} }
+                    ] };
                 }
                 if (text.includes('SELECT id FROM projects')) return { rows: [{ id: 'project:brainbase' }] };
                 return { rows: [] };
@@ -274,6 +288,119 @@ describe('InfoSSOTService ontology API', () => {
             { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] },
             { fromId: 'app:a', toId: 'decision:b', relType: 'depends_on', projectCode: 'brainbase', roleMin: 'member', sensitivity: 'internal' }
         )).rejects.toMatchObject({ code: 'ONTOLOGY_VALIDATION_FAILED' });
+    });
+
+    it('rolls back a legacy writer when the active ontology rejects its entity', async () => {
+        const statements = [];
+        const client = {
+            query: async (sql) => {
+                const text = String(sql);
+                statements.push(text);
+                if (text.includes('SELECT id FROM projects')) return { rows: [{ id: 'project:brainbase' }] };
+                return { rows: [] };
+            },
+            release: () => {}
+        };
+        const service = new InfoSSOTService({
+            ontologyRegistry: activeRegistryWith({
+                validateEntity: () => ({
+                    valid: false,
+                    ontology_version: '1.0.0',
+                    violations: [{ rule_id: 'test-kpi-rejected' }]
+                })
+            }),
+            pool: { connect: async () => client }
+        });
+
+        await expect(service.createKpi(
+            { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] },
+            { projectCode: 'brainbase', metricName: 'MRR' }
+        )).rejects.toMatchObject({ code: 'ONTOLOGY_VALIDATION_FAILED' });
+        expect(statements).toContain('ROLLBACK');
+        expect(statements).not.toContain('COMMIT');
+        expect(statements.some((sql) => sql.includes('INSERT INTO graph_entities'))).toBe(false);
+    });
+
+    it('validates a legacy Decision aggregate before committing its transaction', async () => {
+        const statements = [];
+        const client = {
+            query: async (sql) => {
+                const text = String(sql);
+                statements.push(text);
+                if (text.includes('SELECT id FROM projects')) return { rows: [{ id: 'project:brainbase' }] };
+                if (text.includes("entity_type = 'person'")) return { rows: [{ id: 'person:owner' }] };
+                return { rows: [] };
+            },
+            release: () => {}
+        };
+        const service = new InfoSSOTService({
+            ontologyRegistry: activeRegistryWith({
+                validateSnapshot: () => ({
+                    valid: false,
+                    ontology_version: '1.0.0',
+                    violations: [{ rule_id: 'test-decision-aggregate-rejected' }]
+                })
+            }),
+            pool: { connect: async () => client }
+        });
+
+        await expect(service.createDecision(
+            { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] },
+            {
+                projectCode: 'brainbase',
+                ownerPersonName: '佐藤圭吾',
+                title: 'Ontologyを有効化する',
+                enforceRaci: false,
+                roleMin: 'member',
+                sensitivity: 'internal'
+            }
+        )).rejects.toMatchObject({ code: 'ONTOLOGY_VALIDATION_FAILED' });
+        expect(statements).toContain('ROLLBACK');
+        expect(statements).not.toContain('COMMIT');
+        expect(statements.some((sql) => sql.includes('INSERT INTO events'))).toBe(false);
+        expect(statements.some((sql) => sql.includes('INSERT INTO decisions'))).toBe(false);
+    });
+
+    it('preserves the legacy Decision response after active aggregate validation', async () => {
+        const statements = [];
+        const client = {
+            query: async (sql, params = []) => {
+                const text = String(sql);
+                statements.push(text);
+                if (text.includes('SELECT id FROM projects')) return { rows: [{ id: 'project:brainbase' }] };
+                if (text.includes("entity_type = 'person'")) return { rows: [{ id: 'person:owner' }] };
+                if (text.includes('WHERE id = ANY')) {
+                    return {
+                        rows: (params[0] || []).map((id) => ({
+                            id,
+                            entity_type: id.startsWith('dec_') ? 'decision' : id.startsWith('person:') ? 'person' : 'project'
+                        }))
+                    };
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        };
+        const service = new InfoSSOTService({ ontologyRegistry: activeRegistry(), pool: { connect: async () => client } });
+
+        await expect(service.createDecision(
+            { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] },
+            {
+                projectCode: 'brainbase',
+                ownerPersonName: '佐藤圭吾',
+                title: 'Ontologyを有効化する',
+                enforceRaci: false,
+                roleMin: 'member',
+                sensitivity: 'internal'
+            }
+        )).resolves.toMatchObject({
+            decision_id: expect.stringMatching(/^dec_/),
+            event_id: expect.stringMatching(/^evt_/),
+            guard_status: 'active_current',
+            ontology_version: '1.0.0'
+        });
+        expect(statements).toContain('COMMIT');
+        expect(statements.filter((sql) => sql.includes('INSERT INTO graph_edges'))).toHaveLength(3);
     });
 
     it('audits every access-scoped cursor page and reports completeness evidence', async () => {

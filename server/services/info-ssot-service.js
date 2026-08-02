@@ -454,6 +454,13 @@ export class InfoSSOTService {
     }
 
     async upsertGraphEntity(client, { id, entityType, projectId, payload, roleMin, sensitivity }) {
+        if (this.ontologyRegistry.hasCurrent()) {
+            const { kernel } = this.ontologyRegistry.resolve();
+            this.assertOntologyValid(kernel.validateEntity(
+                { id, type: entityType, payload: payload || {} },
+                { deferRequiredRelations: true }
+            ));
+        }
         await client.query(
             `INSERT INTO graph_entities (
                 id,
@@ -485,6 +492,28 @@ export class InfoSSOTService {
     }
 
     async upsertGraphEdge(client, { fromId, toId, relType, projectId, payload, roleMin, sensitivity }) {
+        if (this.ontologyRegistry.hasCurrent()) {
+            const endpointResult = await client.query(
+                `SELECT id, entity_type
+                 FROM graph_entities
+                 WHERE id = ANY($1::text[])`,
+                [[fromId, toId]]
+            );
+            const endpointTypes = new Map(endpointResult.rows.map((row) => [row.id, row.entity_type]));
+            if (!endpointTypes.has(fromId) || !endpointTypes.has(toId)) {
+                throw new OntologyError('ONTOLOGY_EDGE_ENDPOINT_NOT_FOUND', 'Graph edge endpoints must exist and be visible', {
+                    missing_endpoint_ids: [fromId, toId].filter((id) => !endpointTypes.has(id))
+                });
+            }
+            const { kernel } = this.ontologyRegistry.resolve();
+            this.assertOntologyValid(kernel.validateEdge({
+                from_id: fromId,
+                to_id: toId,
+                relation: relType,
+                from_type: endpointTypes.get(fromId),
+                to_type: endpointTypes.get(toId)
+            }));
+        }
         const edgeId = this.generateId('edg');
         await client.query(
             `INSERT INTO graph_edges (
@@ -1152,12 +1181,14 @@ export class InfoSSOTService {
         }
         if (legacy.length === 1) {
             const id = legacy[0].id;
-            await client.query(
-                `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
-                 VALUES ($1, 'person', NULL, $2::jsonb, 'member', 'internal', NOW(), NOW())
-                 ON CONFLICT (id) DO NOTHING`,
-                [id, JSON.stringify({ name: trimmed })]
-            );
+            await this.upsertGraphEntity(client, {
+                id,
+                entityType: 'person',
+                projectId: null,
+                payload: { name: trimmed },
+                roleMin: 'member',
+                sensitivity: 'internal'
+            });
             return id;
         }
 
@@ -1166,12 +1197,14 @@ export class InfoSSOTService {
             'INSERT INTO people (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
             [id, trimmed]
         );
-        await client.query(
-            `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
-             VALUES ($1, 'person', NULL, $2::jsonb, 'member', 'internal', NOW(), NOW())
-             ON CONFLICT (id) DO NOTHING`,
-            [id, JSON.stringify({ name: trimmed })]
-        );
+        await this.upsertGraphEntity(client, {
+            id,
+            entityType: 'person',
+            projectId: null,
+            payload: { name: trimmed },
+            roleMin: 'member',
+            sensitivity: 'internal'
+        });
         return id;
     }
 
@@ -1427,6 +1460,31 @@ export class InfoSSOTService {
 
             const eventId = this.generateId('evt');
             const decisionId = this.generateId('dec');
+            const decidedAt = input.decidedAt || new Date().toISOString();
+            const status = input.status || 'decided';
+            const decisionPayload = {
+                title: input.title,
+                decision_domain: this.resolveDecisionDomain(input) || null,
+                decided_at: decidedAt,
+                status
+            };
+
+            if (guard.guard_status === 'active_current') {
+                const { kernel } = this.ontologyRegistry.resolve();
+                this.assertOntologyValid(kernel.validateSnapshot({
+                    entities: [
+                        { id: decisionId, type: 'decision', payload: decisionPayload },
+                        { id: projectId, type: 'project', payload: {} },
+                        { id: ownerPersonId, type: 'person', payload: {} }
+                    ],
+                    edges: [
+                        { from_id: decisionId, to_id: projectId, relation: 'belongs_to_project' },
+                        { from_id: decisionId, to_id: ownerPersonId, relation: 'owned_by' },
+                        { from_id: ownerPersonId, to_id: projectId, relation: 'member_of' }
+                    ],
+                    complete: true
+                }));
+            }
 
             await client.query(
                 `INSERT INTO events (
@@ -1455,7 +1513,7 @@ export class InfoSSOTService {
                         chosen: input.chosen || {},
                         reason: input.reason || ''
                     }),
-                    input.decidedAt || new Date().toISOString(),
+                    decidedAt,
                     input.source || 'manual',
                     input.confidence ?? 1,
                     roleMin,
@@ -1488,8 +1546,8 @@ export class InfoSSOTService {
                     JSON.stringify(input.options || []),
                     JSON.stringify(input.chosen || {}),
                     input.reason || '',
-                    input.decidedAt || new Date().toISOString(),
-                    input.status || 'decided',
+                    decidedAt,
+                    status,
                     roleMin,
                     sensitivity,
                     eventId
@@ -1500,12 +1558,7 @@ export class InfoSSOTService {
                 id: decisionId,
                 entityType: 'decision',
                 projectId,
-                payload: {
-                    title: input.title,
-                    decision_domain: this.resolveDecisionDomain(input) || null,
-                    decided_at: input.decidedAt || new Date().toISOString(),
-                    status: input.status || 'decided'
-                },
+                payload: decisionPayload,
                 roleMin,
                 sensitivity
             });
