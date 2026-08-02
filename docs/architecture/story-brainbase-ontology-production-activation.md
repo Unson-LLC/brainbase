@@ -25,3 +25,15 @@ release bytesとpublication実装はGit、人物・Decision・RACIはGraph SSOT�
 ## Fail closed
 
 release digest不一致、source commit不一致、認証actor不一致、RACI不足、Decision binding不足、署名検証失敗、Graph violation、partial snapshotではreceiptを作らずcurrentを変更しない。
+
+## 運用責任と観測面
+
+佐藤圭吾がdeploy、readback、support、rollbackのownerを兼ねる。project memberの追加操作は不要である。観測面は次の5点を正本とする。
+
+1. 本番checkoutの稼働commitとmerge済みcommitの一致
+2. `brainbase-ssot.service`のactive状態とhealth応答
+3. version指定/current指定APIのversion・digest一致
+4. production public keyによるreceipt検証とDB-backed audit 0件
+5. restart後journalのRegistry、署名、DB接続エラー不存在
+
+本番切替後にいずれかが崩れた場合、直前の未公開artifactを再deployしてserviceを再起動する。初回releaseのためrollback後の`current`は`null`となる。Graph remediationとDecision/RACIは監査履歴として保持し、削除や逆変換を行わない。

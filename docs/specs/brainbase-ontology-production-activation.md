@@ -8,6 +8,28 @@ date: 2026-08-03
 
 # Brainbase Ontology Production Activation Spec
 
+## Diagrams
+
+```mermaid
+flowchart LR
+    A["61件の既知violation"] --> B["exact precondition付きtransaction修復"]
+    B --> C["完全snapshot監査 0件"]
+    C --> D["Decision / RACI authority"]
+    D --> E["Infisical production signing key"]
+    E --> F["署名receiptとpublication commit"]
+    F --> G["VibePro Gate / CI / merge"]
+    G --> H["本番deployとreadback"]
+```
+
+```mermaid
+flowchart LR
+    T1["誤ったGraph修復"] --> S1["precondition差異で停止"]
+    T2["未承認actor"] --> S2["Decision / RACI照合で停止"]
+    T3["鍵または署名不整合"] --> S3["receipt生成前に停止"]
+    T4["不完全なpublication"] --> S4["currentを変更せず補償復元"]
+    T5["deploy後の不整合"] --> S5["直前artifactへrollback"]
+```
+
 ## A-001 Graph remediation
 
 実行器は既知の61 violationだけをexact preconditionとし、差異があれば停止する。全変更を1 transactionに含め、削除せず、事前backupとpersist後の0 violationを必須とする。再実行は0 violationならno-op成功とする。
@@ -27,3 +49,17 @@ publication commitの親がsource commitで、変更pathがreceipt、index、com
 ## A-005 Production completion
 
 merge後の本番runtimeでversion指定とcurrent指定のdigestが一致し、署名receiptが検証可能で、DB-backed auditがcompleteかつ0 violationである場合のみ有効化完了とする。
+
+## A-006 Compatibility and operator contract
+
+有効化後はcanonical Graph writeがOntology 1.0.0に対してfail closedになる。既存read APIとlegacy write responseの既存フィールドは維持し、guard状態とontology versionを加算的に返す。project memberの手動操作は不要とする。
+
+運用責任者は佐藤圭吾とし、次の証跡を同一のmerged commitへ結び付ける。
+
+- deploy: merged SHAを本番checkoutへ反映し、`brainbase-ssot.service`を再起動する。
+- readback: health、version指定/current指定API、両digest一致、署名receiptを確認する。
+- audit: DB-backed full auditの`collection_complete: true`とviolation 0件を確認する。
+- observability: systemd状態、起動後journal、Registry/署名/DB接続エラー不存在を確認する。
+- rollback: publication前のartifactへ戻して再起動し、`current: null`とverify合格を確認する。Graph修復とauthority factは保持する。
+
+support ownerとrollback decision ownerも佐藤圭吾とする。これらの本番証跡が揃う前は「公開commit作成済み」「merge済み」「deploy済み」「本番有効化完了」を別状態として報告する。

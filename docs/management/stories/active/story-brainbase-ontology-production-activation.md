@@ -35,3 +35,11 @@ BrainbaseのGraph運用責任者として、Ontology 1.0.0を実データ・権�
 ## 停止条件
 
 署名鍵、actor binding、Decision/RACI、0 violation監査、rollback演習、VibePro Gate、CIのいずれかが未確認または不合格なら、`current`を変更せずNo-Goとする。
+
+## リリース責任
+
+- deploy / readback / observability / support / rollback owner: 佐藤圭吾
+- project memberの追加操作: なし
+- compatibility: 既存readとlegacy response契約を維持し、canonical writeだけをactive Ontologyへfail closedで結合する
+- completion evidence: merged SHA、service health、API digest一致、署名receipt、完全Graph audit 0件、restart後ログ
+- rollback target: 初回release直前の`current: null` artifact。Graph修復とgovernance factは保持する
