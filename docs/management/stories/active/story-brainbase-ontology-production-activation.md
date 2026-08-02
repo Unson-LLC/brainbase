@@ -13,6 +13,26 @@ spec: docs/specs/brainbase-ontology-production-activation.md
 
 BrainbaseのGraph運用責任者として、Ontology 1.0.0を実データ・権限・署名・復旧手順に結合して本番有効化したい。そうすることで、型・関係・制約・推論・変更履歴をcanonical writeで機械検証しつつ、誤った公開をfail closedで止められる。
 
+## 利用文脈
+
+- 誰のため: Brainbase Graphを読み書きする人、agent、canonical write runtime。
+- 課題: Ontology 1.0.0の実装が存在しても、本番Graph、公開権限、署名、deploy済みruntimeが同じreleaseへ結合されなければ、安全に有効とは判断できない。
+- 望む変化: 監査、修復、authority、署名、rollback、merge、deployを同一release digestとcommit lineageで追跡できる。
+- 成果: 本番のcanonical writeが検証済みOntology 1.0.0へfail closedで拘束され、current releaseをAPIと監査証跡から再現できる。
+- 事業価値: Graphの意味品質を運用者やagentの暗黙判断に依存させず、不正な組織事実やDecisionが後工程へ流れるリスクを減らす。
+- 受け入れ基準: 本番Graph完全監査がcollection completeかつ0 violationである。
+- 受け入れ基準: current releaseのdigestと署名receiptが本番runtimeで検証できる。
+- 受け入れ基準: deploy後のhealth、version/current API、journal、再監査が合格し、不合格時は直前artifactへrollbackできる。
+
+## 成功指標
+
+| 指標 | 成功条件 |
+|---|---|
+| Graph品質 | DB-backed完全監査が`collection_complete: true`かつviolation 0件である。 |
+| Release整合性 | version指定とcurrent指定のdigestが一致し、Ed25519 receipt検証が合格する。 |
+| Runtime有効化 | merged SHAが本番serviceで稼働し、healthと起動後journalにRegistry・署名・DB接続エラーがない。 |
+| 復旧可能性 | publication前の`current: null`へ戻す独立演習と、本番rollback手順・責任者が確認済みである。 |
+
 ## 人間の判断
 
 2026-08-03、佐藤圭吾が次を承認した。
