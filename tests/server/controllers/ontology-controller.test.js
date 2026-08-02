@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { InfoSSOTController } from '../../../server/controllers/info-ssot-controller.js';
 import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
+import { OntologyError } from '../../../server/services/ontology-kernel.js';
 import { OntologyRegistry } from '../../../server/services/ontology-registry.js';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -76,6 +77,28 @@ describe('InfoSSOTController ontology endpoints', () => {
                 entity_id: `${writer}:1`,
                 guard_status: 'inactive_no_current',
                 ontology_version: null
+            });
+        }
+    });
+
+    it('preserves structured ontology violations for generic Graph writes', async () => {
+        const violation = new OntologyError('ONTOLOGY_VALIDATION_FAILED', 'Ontology validation failed', {
+            violations: [{ rule_id: 'relation-endpoint-owns', message: 'owns requires org -> app' }]
+        });
+        const controller = new InfoSSOTController({
+            createOrUpdateGraphEntity: async () => { throw violation; },
+            createOrUpdateGraphEdge: async () => { throw violation; }
+        });
+
+        for (const method of ['upsertGraphEntity', 'upsertGraphEdge']) {
+            const res = responseRecorder();
+            await controller[method]({ body: {}, access }, res);
+            expect(res.statusCode, method).toBe(400);
+            expect(res.body, method).toMatchObject({
+                code: 'ONTOLOGY_VALIDATION_FAILED',
+                details: {
+                    violations: [{ rule_id: 'relation-endpoint-owns', message: 'owns requires org -> app' }]
+                }
             });
         }
     });

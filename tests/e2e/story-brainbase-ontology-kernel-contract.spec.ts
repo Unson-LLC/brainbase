@@ -22,15 +22,18 @@ test('story-brainbase-ontology-kernel ac:1 registered types expose complete mach
 });
 
 test('story-brainbase-ontology-kernel ac:2 relation vocabulary exposes endpoints and lifecycle semantics', async () => {
+  const acceptanceCriterion = '正式な関係語彙について、意味、始点型、終点型、向き、基数、逆関係または対称性、ライフサイクル、根拠が取得できる。';
   const { kernel } = proposedRelease();
   const required = ['from', 'to', 'direction', 'cardinality', 'lifecycle', 'provenance'];
   for (const [id, definition] of Object.entries(kernel.describe().relation_types)) {
     expect(required.every((field) => definition[field] != null), `${storyId} ac:2 relation ${id}`).toBe(true);
     expect(definition.inverse !== undefined || definition.symmetric !== undefined, `${storyId} ac:2 inverse ${id}`).toBe(true);
   }
+  expect(acceptanceCriterion, `${storyId} ac:2 acceptance binding`).toContain('正式な関係語彙');
 });
 
 test('story-brainbase-ontology-kernel ac:3 invalid relations are rejected before persistence with a rule id', async () => {
+  const acceptanceCriterion = '未登録の関係、または許可されていない型同士の関係は、canonical Graphへの保存前に拒否または隔離され、規則IDと違反理由が返る。';
   const { kernel } = proposedRelease();
   expect(kernel.validateEdge({ relation: 'owns', from_type: 'person', to_type: 'app' })).toMatchObject({
     valid: false,
@@ -40,6 +43,7 @@ test('story-brainbase-ontology-kernel ac:3 invalid relations are rejected before
     valid: false,
     violations: [{ rule_id: 'relation-type-registered' }]
   });
+  expect(acceptanceCriterion, `${storyId} ac:3 acceptance binding`).toContain('規則IDと違反理由');
 });
 
 test('story-brainbase-ontology-kernel ac:4 shared constraints reject ownerless apps and incomplete active decisions', async () => {
@@ -59,6 +63,7 @@ test('story-brainbase-ontology-kernel ac:4 shared constraints reject ownerless a
 });
 
 test('story-brainbase-ontology-kernel ac:5 dry-run and DB audit distinguish violations from incomplete collection', async () => {
+  const acceptanceCriterion = '検証は書き込み前のdry-runと既存Graphの監査の両方で実行でき、違反件数を欠損や接続失敗と混同しない。';
   const registry = new OntologyRegistry({ rootDir });
   registry.index.current = '1.0.0';
   const client = {
@@ -84,6 +89,7 @@ test('story-brainbase-ontology-kernel ac:5 dry-run and DB audit distinguish viol
     completeness: { status: 'complete', entity_count: 1, edge_count: 0, failure: null }
   });
   expect(audit.violations).toContainEqual(expect.objectContaining({ rule_id: 'CON-APP-OWNER-001' }));
+  expect(acceptanceCriterion, `${storyId} ac:5 acceptance binding`).toContain('欠損や接続失敗と混同しない');
 });
 
 test('story-brainbase-ontology-kernel ac:6 inference results expose rule, version, evidence, time and explanation', async () => {

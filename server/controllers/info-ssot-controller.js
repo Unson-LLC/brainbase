@@ -376,7 +376,7 @@ export class InfoSSOTController {
             res.status(201).json(result);
         } catch (error) {
             logger.error('Failed to upsert graph entity', { error });
-            res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to upsert graph entity' });
+            sendOntologyError(res, error, { operation: 'validate' });
         }
     };
 
@@ -388,7 +388,7 @@ export class InfoSSOTController {
             res.status(201).json(result);
         } catch (error) {
             logger.error('Failed to upsert graph edge', { error });
-            res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to upsert graph edge' });
+            sendOntologyError(res, error, { operation: 'validate' });
         }
     };
 
