@@ -294,3 +294,4 @@ apps/vibepro-panel/.next/
 .worktrees/vibepro/
 .vibepro/*
 !.vibepro/config.json
+.vibepro-store/
