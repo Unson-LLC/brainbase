@@ -129,7 +129,7 @@
         "Authenticated callers can dry-run validation, run bounded DB audits, infer decisions, and analyze impact",
         "Atomic entity-plus-edge commits reject all semantic violations transactionally, and return 503 ONTOLOGY_CURRENT_UNAVAILABLE when no active current exists",
         "Generic split Graph writes reject unknown types, relations, and endpoints before persistence when current is active; without current all existing runtime Graph writes preserve legacy behavior and must add guard_status inactive_no_current to every successful response rather than relying only on internal audit",
-        "POST /api/info/ontology/publications/authorize derives the actor from authenticated personId and accepts release_version, source_commit_sha, release_digest, decision_id, scope_entity_id, and applier_entity_id",
+        "POST /api/info/ontology/publications/authorize derives the actor from authenticated personId and accepts release_version, source_commit_sha, release_digest, decision_id, scope_entity_id, impact_scope, proposer_entity_id, decider_entity_id, and applier_entity_id",
         "The publication authority endpoint returns a canonical Ed25519 receipt and fails with 400, 401, 403, 404, 409, or 503 for its specified validation, authentication, authority, decision, binding, or dependency failures"
       ]
     },

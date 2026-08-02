@@ -122,12 +122,55 @@ export class InfoSSOTService {
         if (!entity || !input.projectCode) {
             throw new OntologyError('ONTOLOGY_INPUT_REQUIRED', 'entity and projectCode are required');
         }
-        const snapshot = { entities: [entity, ...contextEntities], edges };
         const roleMin = this.normalizeRole(input.roleMin);
         const sensitivity = this.normalizeSensitivity(input.sensitivity);
         this.assertWriteAccess(access, { projectCode: input.projectCode, roleMin, sensitivity });
 
         return this.withAccessContext(access, async (client) => {
+            const contextIds = [...new Set(contextEntities
+                .map((item) => item?.id)
+                .filter((id) => id && id !== entity.id))];
+            let persistedContextEntities = [];
+            if (contextIds.length) {
+                const contextResult = await client.query(
+                    `SELECT id, entity_type, payload
+                     FROM graph_entities
+                     WHERE id = ANY($1::text[])`,
+                    [contextIds]
+                );
+                const persistedById = new Map(contextResult.rows.map((row) => [row.id, row]));
+                const missingEndpointIds = contextIds.filter((id) => !persistedById.has(id));
+                if (missingEndpointIds.length) {
+                    throw new OntologyError('ONTOLOGY_EDGE_ENDPOINT_NOT_FOUND', 'Graph edge endpoints must exist and be visible', {
+                        missing_endpoint_ids: missingEndpointIds
+                    });
+                }
+                const typeMismatches = contextEntities
+                    .filter((item) => item?.id && item.id !== entity.id)
+                    .filter((item) => {
+                        const declaredType = item.type || item.entity_type;
+                        return declaredType && declaredType !== persistedById.get(item.id)?.entity_type;
+                    })
+                    .map((item) => ({
+                        id: item.id,
+                        declared_type: item.type || item.entity_type,
+                        persisted_type: persistedById.get(item.id)?.entity_type
+                    }));
+                if (typeMismatches.length) {
+                    throw new OntologyError('ONTOLOGY_CONTEXT_ENTITY_TYPE_MISMATCH', 'Context entity types must match the canonical Graph', {
+                        mismatches: typeMismatches
+                    });
+                }
+                persistedContextEntities = contextIds.map((id) => {
+                    const row = persistedById.get(id);
+                    return {
+                        id: row.id,
+                        type: row.entity_type,
+                        payload: typeof row.payload === 'string' ? JSON.parse(row.payload) : (row.payload || {})
+                    };
+                });
+            }
+            const snapshot = { entities: [entity, ...persistedContextEntities], edges };
             this.assertOntologyValid(kernel.validateSnapshot(snapshot));
             const projectId = await this.ensureProject(client, {
                 projectCode: input.projectCode,

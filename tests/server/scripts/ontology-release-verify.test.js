@@ -252,6 +252,75 @@ describe('ontology release Git history verification', () => {
         ]);
     });
 
+    it('retires the previous current release when a later release becomes active', async () => {
+        const fixture = publicationRepository({ publish: false });
+        const configDir = path.join(fixture.rootDir, 'config/ontology');
+        const indexPath = path.join(configDir, 'index.json');
+        const index = JSON.parse(readFileSync(indexPath, 'utf8'));
+        index.current = '0.9.0';
+        index.releases.unshift({
+            version: '0.9.0',
+            status: 'active',
+            effective_at: '2026-07-01T00:00:00.000Z',
+            path: 'releases/0.9.0.json',
+            content_digest_algorithm: 'sha256',
+            content_digest: '0'.repeat(64),
+            receipt_path: 'publications/0.9.0.receipt.json',
+            receipt_digest_algorithm: 'sha256',
+            receipt_digest: '1'.repeat(64),
+            source_commit_sha: '2'.repeat(40),
+            impact_scope: { graph_scope: 'project:brainbase', migration_required: false }
+        });
+        writeJson(indexPath, index);
+        git(fixture.rootDir, ['add', '.']);
+        git(fixture.rootDir, ['commit', '-m', 'add previous current']);
+        const sourceCommit = git(fixture.rootDir, ['rev-parse', 'HEAD']);
+        const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+
+        await publishOntologyRelease({
+            rootDir: fixture.rootDir,
+            version: '1.0.0',
+            decisionId: 'decision:ontology-v1',
+            sourceCommit,
+            env: {
+                BRAINBASE_GRAPH_API_URL: 'https://graph.example.test',
+                BRAINBASE_GRAPH_API_TOKEN: 'secret-token',
+                ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY: publicKey.export({ type: 'spki', format: 'pem' }).toString()
+            },
+            fetchImpl: async (_url, options) => {
+                const request = JSON.parse(options.body);
+                const payload = {
+                    schema_version: '1.0.0',
+                    issued_at: '2026-08-02T00:00:00.000Z',
+                    actor_entity_id: 'person:applier',
+                    applier_entity_id: 'person:applier',
+                    proposer_entity_id: 'person:proposer',
+                    decider_entity_id: 'person:decider',
+                    decision_id: request.decision_id,
+                    release_digest: request.release_digest,
+                    release_version: request.release_version,
+                    scope_entity_id: request.scope_entity_id,
+                    impact_scope: request.impact_scope,
+                    source_commit_sha: request.source_commit_sha
+                };
+                return {
+                    ok: true,
+                    json: async () => ({
+                        payload,
+                        signature_algorithm: 'ed25519',
+                        signature: sign(null, Buffer.from(canonicalJson(payload)), privateKey).toString('base64'),
+                        key_id: 'test-key'
+                    })
+                };
+            }
+        });
+
+        const published = JSON.parse(readFileSync(indexPath, 'utf8'));
+        expect(published.current).toBe('1.0.0');
+        expect(published.releases.find(({ version }) => version === '0.9.0').status).toBe('retired');
+        expect(published.releases.find(({ version }) => version === '1.0.0').status).toBe('active');
+    });
+
     it.each([
         ['missing', null],
         ['substituted', 'person:other-actor']

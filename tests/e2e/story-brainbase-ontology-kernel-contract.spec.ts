@@ -415,10 +415,32 @@ test('story-brainbase-ontology-kernel ac:16 current absence preserves legacy wri
 });
 
 test('story-brainbase-ontology-kernel ac:17 active publication remains an explicit follow-up task', async () => {
-  const task = fs.readFileSync(path.join(rootDir, 'docs/management/tasks/ONT-KERNEL-001.md'), 'utf8');
+  const story = fs.readFileSync(path.join(rootDir, 'docs/management/stories/active/story-brainbase-ontology-kernel.md'), 'utf8');
+  const task = fs.readFileSync(path.join(rootDir, 'docs/management/tasks/ONT-KERNEL-002.md'), 'utf8');
   const index = JSON.parse(fs.readFileSync(path.join(rootDir, 'config/ontology/index.json'), 'utf8'));
+  expect(story).toContain('ONT-KERNEL-002');
   expect(task).toContain('active');
   expect(task).toContain('Decision');
   expect(task).toContain('RACI');
   expect(index.current).toBeNull();
+});
+
+test('story-brainbase-ontology-kernel ac:18 JSON Spec binds the complete publication authority request', async () => {
+  const spec = JSON.parse(fs.readFileSync(path.join(rootDir, 'docs/specs/brainbase-ontology-kernel-spec.json'), 'utf8'));
+  const authorityContract = spec.requirements
+    .find(({ id }: { id: string }) => id === 'ONT-006')
+    .shall.find((statement: string) => statement.includes('publications/authorize'));
+  for (const field of [
+    'release_version',
+    'source_commit_sha',
+    'release_digest',
+    'decision_id',
+    'scope_entity_id',
+    'impact_scope',
+    'proposer_entity_id',
+    'decider_entity_id',
+    'applier_entity_id'
+  ]) {
+    expect(authorityContract, `publication authority field ${field}`).toContain(field);
+  }
 });

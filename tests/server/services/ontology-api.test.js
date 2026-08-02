@@ -136,6 +136,79 @@ describe('InfoSSOTService ontology API', () => {
         expect(statements.some((sql) => String(sql).includes('INSERT INTO graph_entities'))).toBe(false);
     });
 
+    it('rejects caller-declared context entities that do not exist in the canonical Graph', async () => {
+        const statements = [];
+        const client = {
+            query: async (sql) => {
+                statements.push(String(sql));
+                if (String(sql).includes('FROM graph_entities')) return { rows: [] };
+                return { rows: [] };
+            },
+            release: () => {}
+        };
+        const service = new InfoSSOTService({
+            ontologyRegistry: activeRegistry(),
+            pool: { connect: async () => client }
+        });
+
+        await expect(service.commitOntologyGraph(
+            { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] },
+            {
+                projectCode: 'brainbase',
+                roleMin: 'member',
+                sensitivity: 'internal',
+                entity: { id: 'app:new', type: 'app', payload: {} },
+                contextEntities: [{ id: 'org:invented', type: 'org', payload: {} }],
+                edges: [{ from_id: 'org:invented', to_id: 'app:new', relation: 'owns' }]
+            }
+        )).rejects.toMatchObject({
+            code: 'ONTOLOGY_EDGE_ENDPOINT_NOT_FOUND',
+            details: { missing_endpoint_ids: ['org:invented'] }
+        });
+        expect(statements).toContain('ROLLBACK');
+        expect(statements.some((sql) => sql.includes('INSERT INTO graph_entities'))).toBe(false);
+        expect(statements.some((sql) => sql.includes('INSERT INTO graph_edges'))).toBe(false);
+    });
+
+    it('validates an atomic commit with context resolved from the canonical Graph', async () => {
+        const statements = [];
+        const client = {
+            query: async (sql) => {
+                const text = String(sql);
+                statements.push(text);
+                if (text.includes('FROM graph_entities')) {
+                    return { rows: [{ id: 'org:unson', entity_type: 'org', payload: { name: 'Unson' } }] };
+                }
+                if (text.includes('SELECT id FROM projects')) return { rows: [{ id: 'project:brainbase' }] };
+                return { rows: [] };
+            },
+            release: () => {}
+        };
+        const service = new InfoSSOTService({
+            ontologyRegistry: activeRegistry(),
+            pool: { connect: async () => client }
+        });
+
+        await expect(service.commitOntologyGraph(
+            { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] },
+            {
+                projectCode: 'brainbase',
+                roleMin: 'member',
+                sensitivity: 'internal',
+                entity: { id: 'app:new', type: 'app', payload: {} },
+                contextEntities: [{ id: 'org:unson', type: 'org' }],
+                edges: [{ from_id: 'org:unson', to_id: 'app:new', relation: 'owns' }]
+            }
+        )).resolves.toMatchObject({
+            entity_id: 'app:new',
+            edge_count: 1,
+            guard_status: 'active_current'
+        });
+        expect(statements.some((sql) => sql.includes('INSERT INTO graph_entities'))).toBe(true);
+        expect(statements.some((sql) => sql.includes('INSERT INTO graph_edges'))).toBe(true);
+        expect(statements).toContain('COMMIT');
+    });
+
     it('resolves stored endpoint types before guarding an existing edge write', async () => {
         const writes = [];
         const client = {

@@ -154,7 +154,16 @@ export async function publishOntologyRelease({
         source_commit_sha: sourceCommit,
         impact_scope: structuredClone(release.impact_scope)
     };
-    const nextIndex = { ...index, current: version, releases: index.releases.map((item) => item.version === version ? nextEntry : item) };
+    const previousCurrent = index.current;
+    const nextIndex = {
+        ...index,
+        current: version,
+        releases: index.releases.map((item) => {
+            if (item.version === version) return nextEntry;
+            if (previousCurrent && item.version === previousCurrent) return { ...item, status: 'retired' };
+            return item;
+        })
+    };
     const outputs = [
         [receiptPath, receiptBytes],
         [path.join(configDir, 'brainbase-ontology.v1.json'), releaseBytes],
