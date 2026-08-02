@@ -1,0 +1,145 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-ontology-production-compatibility",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "status": "needs_changes",
+  "summary": "Regression checks pass, but edge-scope inference and Story-specific Gate coverage remain incomplete",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "gate-coverage-decision-edge-scope-inference",
+      "detail": "Derive Decision conflict scope from belongs_to_project edges"
+    },
+    {
+      "severity": "medium",
+      "id": "gate-coverage-story-e2e-traceability",
+      "detail": "Add Story-specific AC-bound E2E coverage"
+    },
+    {
+      "severity": "medium",
+      "id": "gate-coverage-decision-negative-matrix",
+      "detail": "Test each missing Decision authority edge independently"
+    },
+    {
+      "severity": "low",
+      "id": "gate-coverage-shadow-audit-reproducibility",
+      "detail": "Keep a repository audit runner reference for future read-only audits"
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Focused tests, ontology verify, typecheck, and 20 Playwright contracts passed; Gate diagnostics still show missing Story coverage",
+    "evidence": ".vibepro/pr/story-brainbase-ontology-production-compatibility/pr-prepare.json; docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json",
+    "inputs": [
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json"
+    ]
+  },
+  "judgment_delta": [
+    "Baseline compatibility is stable, but AC3 and current-head Story coverage cannot pass until edge inference and traceability are repaired"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+    "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+    "expected_root": null,
+    "expected_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "current_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+      "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+      "expected_root": null,
+      "expected_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+      "current_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-02T16:38:37.582Z",
+  "git_context": {
+    "head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "current_branch": "codex/ontology-production-compat",
+    "dirty": true,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "7ba5df4140002c7e29ebfdda9fd323ab621f2cfe2870f3fdd261c084a145ca72",
+    "user_status_fingerprint_hash": "7ba5df4140002c7e29ebfdda9fd323ab621f2cfe2870f3fdd261c084a145ca72",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-02T16:38:37.571Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 1 file(s)",
+    "recorded_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "surface_files": [
+      {
+        "path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json",
+        "sha256": "8ab1ab2ce27de40a11d114c0f8a25706958198be1514b46c655c90b01eabf777",
+        "size": 834
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "2aa50e608936c1e98ea8f3edca7bed0848dee0a982edbd865d05c9c8bae12063"
+  },
+  "source_fingerprint": "7b9bb97f65c699ac460945da1654d13a15e2281f6cc9d00555d019fa535ddd5d",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "ontology_testplan_gate",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ontology_testplan_gate",
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": null,
+    "request_artifact": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/review-request-gate_coverage.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "Review completed with edge-scope and Gate coverage findings",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/ontology_testplan_gate",
+      "implementation_session_id": "root",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

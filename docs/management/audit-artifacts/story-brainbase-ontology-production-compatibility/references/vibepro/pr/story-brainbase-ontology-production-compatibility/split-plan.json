@@ -1,0 +1,307 @@
+{
+  "schema_version": "0.1.0",
+  "model": "story-pr-split-plan-v1",
+  "story_id": "story-brainbase-ontology-production-compatibility",
+  "status": "split_recommended",
+  "recommended_strategy": "split_by_lane_then_prepare",
+  "automatic_recommendation": {
+    "status": "split_recommended",
+    "recommended_strategy": "split_by_lane_then_prepare"
+  },
+  "accepted_current_story_lineage": [],
+  "task_bound_repo_control": null,
+  "atomic_scope": {
+    "status": "not_requested",
+    "strategy": null,
+    "reason": null,
+    "review_facets": [],
+    "dependency_boundaries": [],
+    "missing_review_facets": [],
+    "missing_dependency_facets": [],
+    "invalid_dependency_boundaries": [],
+    "unsafe_scope_signals": [],
+    "unsafe_scope_reasons": [],
+    "source_ref": "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md"
+  },
+  "rationale": [
+    "baseからのcommitが 4 件あるため履歴確認が必要だが、別Story lineageは検出されていない",
+    "4 lanes に分けると、要求正本・実装・検証基盤・repo制御を別々にレビューできる",
+    "Graphifyで 4 changed files が一致し、9 related files を影響調査候補にした"
+  ],
+  "graph_context": {
+    "available": true,
+    "graph_path": ".vibepro/graphify/graph.json",
+    "edge_source_key": "links",
+    "node_count": 6439,
+    "edge_count": 13766,
+    "matched_file_count": 4,
+    "related_file_count": 9,
+    "investigation_files": [
+      "cli/sync.js",
+      "docs/design/prototypes/meeting-workflow-pack/support.js",
+      "lib/state-store.js",
+      "public/modules/core/di-container.js",
+      "public/modules/core/session-data-cache.js",
+      "public/modules/ui/mobile-clipboard-manager.js",
+      "scripts/populate-auth-grants.mjs",
+      "server/services/info-ssot-service.js",
+      "server/services/learning-service.js"
+    ],
+    "impact_by_file": [
+      {
+        "file": "server/services/ontology-kernel.js",
+        "matched_nodes": [
+          "server_services_ontology_kernel_js",
+          "services_ontology_kernel_ontologyerror",
+          "services_ontology_kernel_ontologyerror_constructor",
+          "services_ontology_kernel_violation",
+          "services_ontology_kernel_matcheswhen",
+          "services_ontology_kernel_assertmanifest",
+          "services_ontology_kernel_ontologykernel",
+          "services_ontology_kernel_ontologykernel_constructor"
+        ],
+        "related_files": [
+          "cli/sync.js",
+          "lib/state-store.js",
+          "public/modules/core/di-container.js",
+          "public/modules/core/session-data-cache.js",
+          "public/modules/ui/mobile-clipboard-manager.js",
+          "scripts/populate-auth-grants.mjs",
+          "server/services/info-ssot-service.js",
+          "server/services/learning-service.js"
+        ]
+      },
+      {
+        "file": "tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts",
+        "matched_nodes": [
+          "tests_e2e_story_brainbase_ontology_kernel_contract_spec_ts",
+          "e2e_story_brainbase_ontology_kernel_contract_spec_proposedrelease"
+        ],
+        "related_files": [
+          "docs/design/prototypes/meeting-workflow-pack/support.js"
+        ]
+      },
+      {
+        "file": "tests/server/services/ontology-api.test.js",
+        "matched_nodes": [
+          "tests_server_services_ontology_api_test_js",
+          "services_ontology_api_test_createservice",
+          "services_ontology_api_test_activeregistry"
+        ],
+        "related_files": []
+      },
+      {
+        "file": "tests/server/services/ontology-kernel.test.js",
+        "matched_nodes": [
+          "tests_server_services_ontology_kernel_test_js",
+          "services_ontology_kernel_test_kernel"
+        ],
+        "related_files": []
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "requirements-ssot",
+      "order": 10,
+      "title": "Story / Spec / Architecture / Policy SSOT",
+      "category": "requirements",
+      "recommendation": "separate_pr",
+      "files": [
+        "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md",
+        "docs/specs/brainbase-ontology-kernel-spec.md",
+        "docs/specs/brainbase-ontology-production-compatibility.json",
+        "docs/specs/brainbase-ontology-production-compatibility.md",
+        "docs/architecture/ADR-021-brainbase-ontology-kernel.md",
+        "docs/architecture/story-brainbase-ontology-production-compatibility.md"
+      ],
+      "required_gates": [
+        "Requirement Gate"
+      ],
+      "review_focus": [
+        "Story / Spec / Architecture / Policy の正本が互いに矛盾していないか",
+        "実装差分が要求の範囲を超えていないか",
+        "Storyに明示されたREADME/helpなどの利用者向け出力面が受け入れ基準と対応しているか"
+      ],
+      "file_count": 6,
+      "graph_investigation_files": [],
+      "suggested_branch": "feat/brainbase-ontology-production-compatibility-requirements-ssot"
+    },
+    {
+      "id": "runtime-behavior",
+      "order": 20,
+      "title": "Runtime behavior and unit coverage",
+      "category": "implementation",
+      "recommendation": "primary_pr",
+      "files": [
+        "scripts/ontology-shadow-audit.js",
+        "server/services/ontology-kernel.js",
+        "tests/server/services/ontology-api.test.js",
+        "tests/server/services/ontology-kernel.test.js"
+      ],
+      "required_gates": [
+        "Requirement Gate",
+        "Unit Gate",
+        "Integration Gate",
+        "E2E Gate"
+      ],
+      "review_focus": [
+        "受け入れ基準と実装分岐が対応しているか",
+        "Graphifyで隣接するファイルまで影響確認されているか"
+      ],
+      "file_count": 4,
+      "graph_investigation_files": [
+        "cli/sync.js",
+        "lib/state-store.js",
+        "public/modules/core/di-container.js",
+        "public/modules/core/session-data-cache.js",
+        "public/modules/ui/mobile-clipboard-manager.js",
+        "scripts/populate-auth-grants.mjs",
+        "server/services/info-ssot-service.js",
+        "server/services/learning-service.js"
+      ],
+      "suggested_branch": "feat/brainbase-ontology-production-compatibility-runtime-behavior"
+    },
+    {
+      "id": "e2e-gate",
+      "order": 30,
+      "title": "E2E and verification harness",
+      "category": "verification",
+      "recommendation": "separate_pr",
+      "files": [
+        "tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts",
+        "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts"
+      ],
+      "required_gates": [
+        "E2E Gate",
+        "Integration Gate"
+      ],
+      "review_focus": [
+        "E2E harnessが失敗exit codeを握りつぶしていないか",
+        "PR Gateが変更対象のE2Eに正しくスコープされているか"
+      ],
+      "file_count": 2,
+      "graph_investigation_files": [
+        "docs/design/prototypes/meeting-workflow-pack/support.js"
+      ],
+      "suggested_branch": "feat/brainbase-ontology-production-compatibility-e2e-gate"
+    },
+    {
+      "id": "misc-follow-up",
+      "order": 90,
+      "title": "Miscellaneous follow-up",
+      "category": "other",
+      "recommendation": "separate_pr",
+      "files": [
+        "config/ontology/index.json",
+        "config/ontology/releases/1.0.0.json",
+        "config/ontology/writer-inventory.json",
+        "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json",
+        "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.md",
+        "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-08877faa.md",
+        "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-4c881813.md",
+        "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-7709a3fd.md",
+        "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-898174ea.md"
+      ],
+      "required_gates": [
+        "Manual Review"
+      ],
+      "review_focus": [
+        "Storyとの対応が不明な差分をPRから外すか、Storyに根拠を追記する"
+      ],
+      "file_count": 9,
+      "graph_investigation_files": [],
+      "suggested_branch": "feat/brainbase-ontology-production-compatibility-misc-follow-up"
+    }
+  ],
+  "merge_order": [
+    "requirements-ssot",
+    "runtime-behavior",
+    "e2e-gate",
+    "misc-follow-up"
+  ],
+  "stacked_gate_plan": {
+    "schema_version": "0.1.0",
+    "model": "stacked-pr-gate-plan-v1",
+    "summary": {
+      "lane_count": 4,
+      "cumulative_gate_count": 0,
+      "requires_cumulative_e2e": false,
+      "requires_atomic_head_validation": false
+    },
+    "lane_plans": [
+      {
+        "lane_id": "requirements-ssot",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "Requirement Gate / document consistency review"
+        ],
+        "cumulative_checks": [],
+        "review_note": "requirements-ssot は単体PRとしてレビュー可能。"
+      },
+      {
+        "lane_id": "runtime-behavior",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "npm run test:run -- tests/server/services/ontology-publication.test.js",
+          "CI VibePro Graph SSOT Check: https://github.com/Unson-LLC/brainbase-unson/actions/runs/30761974621/job/91534024996"
+        ],
+        "cumulative_checks": [],
+        "review_note": "runtime差分はUnit/Integrationを単体PRで確認する。E2E Gateが不要な変更では、後続E2Eまたは累積validationを要求しない。"
+      },
+      {
+        "lane_id": "e2e-gate",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "CI VibePro Graph SSOT Check: https://github.com/Unson-LLC/brainbase-unson/actions/runs/30761974621/job/91534024996",
+          "Playwright harness smoke if runtime dependencies are already merged"
+        ],
+        "cumulative_checks": [],
+        "review_note": "e2e-gate は単体PRとしてレビュー可能。"
+      },
+      {
+        "lane_id": "misc-follow-up",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "manual review"
+        ],
+        "cumulative_checks": [],
+        "review_note": "misc-follow-up は単体PRとしてレビュー可能。"
+      }
+    ],
+    "final_validation": {
+      "required": false,
+      "trigger": "各PRのisolated checksで十分",
+      "commands": [
+        "npm run test:run -- tests/server/services/ontology-publication.test.js",
+        "CI VibePro Graph SSOT Check: https://github.com/Unson-LLC/brainbase-unson/actions/runs/30761974621/job/91534024996"
+      ]
+    }
+  },
+  "next_actions": [
+    {
+      "lane_id": "requirements-ssot",
+      "action": "Create feat/brainbase-ontology-production-compatibility-requirements-ssot with 6 files",
+      "command": "git switch -c feat/brainbase-ontology-production-compatibility-requirements-ssot \"<base>\" && git add docs/management/stories/active/story-brainbase-ontology-production-compatibility.md docs/specs/brainbase-ontology-kernel-spec.md docs/specs/brainbase-ontology-production-compatibility.json docs/specs/brainbase-ontology-production-compatibility.md docs/architecture/ADR-021-brainbase-ontology-kernel.md docs/architecture/story-brainbase-ontology-production-compatibility.md"
+    },
+    {
+      "lane_id": "runtime-behavior",
+      "action": "Create feat/brainbase-ontology-production-compatibility-runtime-behavior with 4 files",
+      "command": "git switch -c feat/brainbase-ontology-production-compatibility-runtime-behavior \"<base>\" && git add scripts/ontology-shadow-audit.js server/services/ontology-kernel.js tests/server/services/ontology-api.test.js tests/server/services/ontology-kernel.test.js"
+    },
+    {
+      "lane_id": "e2e-gate",
+      "action": "Create feat/brainbase-ontology-production-compatibility-e2e-gate with 2 files",
+      "command": "git switch -c feat/brainbase-ontology-production-compatibility-e2e-gate \"<base>\" && git add tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts"
+    },
+    {
+      "lane_id": "misc-follow-up",
+      "action": "Create feat/brainbase-ontology-production-compatibility-misc-follow-up with 9 files",
+      "command": "git switch -c feat/brainbase-ontology-production-compatibility-misc-follow-up \"<base>\" && git add config/ontology/index.json config/ontology/releases/1.0.0.json config/ontology/writer-inventory.json docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.md docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-08877faa.md docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-4c881813.md docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-7709a3fd.md docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-898174ea.md"
+    }
+  ]
+}

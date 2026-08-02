@@ -1,0 +1,146 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-ontology-production-compatibility",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "status": "pass",
+  "summary": "False Decision conflicts from invalid belongs_to_project endpoints are eliminated; activation remains disabled",
+  "findings": [],
+  "finding_dispositions": [
+    {
+      "finding_id": "gate-coverage-decision-scope-endpoint-validation",
+      "disposition": "accepted",
+      "resolved_by": [
+        "server/services/ontology-kernel.js"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    }
+  ],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Reviewed public infer path, endpoint filter, unit and Story E2E negative fixtures, shadow audit and inactive release boundary",
+    "evidence": "20 kernel tests, 26 combined E2E tests, invalid endpoint probe and ontology verify passed",
+    "inputs": [
+      "server/services/ontology-kernel.js",
+      "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json"
+    ]
+  },
+  "judgment_delta": [
+    "Previously unresolved endpoint validation gap is closed for both non-project and orphan targets without weakening valid edge inference"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+    "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+    "expected_root": null,
+    "expected_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "current_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+      "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+      "expected_root": null,
+      "expected_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+      "current_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-02T16:55:16.322Z",
+  "git_context": {
+    "head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "current_branch": "codex/ontology-production-compat",
+    "dirty": true,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "e96f2c1cd2d32075e2d3a4547059e1506367be86152800646fb9abb715057e39",
+    "user_status_fingerprint_hash": "e96f2c1cd2d32075e2d3a4547059e1506367be86152800646fb9abb715057e39",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-02T16:55:16.276Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 3 file(s)",
+    "recorded_head_sha": "92d94a90d5d1d072c2869842495a7e69787e70a9",
+    "surface_files": [
+      {
+        "path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json",
+        "sha256": "8ab1ab2ce27de40a11d114c0f8a25706958198be1514b46c655c90b01eabf777",
+        "size": 834
+      },
+      {
+        "path": "server/services/ontology-kernel.js",
+        "sha256": "1437e510aef984e06b2f9f332c824b6324fff1d3ee7155d76c3077cd6e063aab",
+        "size": 21688
+      },
+      {
+        "path": "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts",
+        "sha256": "98db6a9ca20fcde6421ff1b6e889d991f7df96618c75603a5ed93905439fd6f5",
+        "size": 6593
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "19a09622534696511ceb3988b4f29e4d58fa38591cfdbd40f3095beda424fb10"
+  },
+  "source_fingerprint": "9831d5ba7c5ad62f9f87b18b49e4cb29872d24139db146d9ef9cb229f3544a25",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "ontology_endpoint_gate_verify",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ontology_endpoint_gate_verify",
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": null,
+    "request_artifact": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/review-request-gate_coverage.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/ontology_endpoint_gate_verify",
+      "implementation_session_id": "/root",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}
