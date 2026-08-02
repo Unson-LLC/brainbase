@@ -146,7 +146,18 @@ export class LearningController {
 
     promoteMemoryCandidateToGraph = async (req, res) => {
         try {
-            const result = await this.learningService.promoteMemoryCandidateToGraph(req.params.id, req.body || {});
+            const actorPersonId = req.access?.personId
+                || req.auth?.person_id
+                || req.auth?.personId
+                || req.auth?.sub
+                || null;
+            if (!actorPersonId) {
+                return res.status(403).json({ error: 'Authenticated Graph promotion actor is required' });
+            }
+            const result = await this.learningService.promoteMemoryCandidateToGraph(req.params.id, {
+                ...(req.body || {}),
+                actor_person_id: actorPersonId
+            });
             if (result.notFound || !result.success) {
                 return res.status(404).json({ error: 'Memory candidate not found' });
             }
