@@ -39,18 +39,16 @@ export class OntologyRegistry {
         let entry;
         if (version) {
             entry = this.index.releases.find((release) => release.version === version);
-        } else {
-            if (!this.hasCurrent()) {
-                throw new OntologyError('ONTOLOGY_CURRENT_UNAVAILABLE', 'No current ontology release has been published');
-            }
-        }
-        if (!version && asOf) {
+        } else if (asOf) {
             const target = parseTime(asOf, 'asOf');
             entry = this.index.releases
                 .filter((release) => (release.receipt_path || release.version === this.index.current || release.status === 'retired')
                     && parseTime(release.effective_at, 'release effective_at') <= target)
                 .sort((left, right) => parseTime(right.effective_at, 'release effective_at') - parseTime(left.effective_at, 'release effective_at'))[0];
-        } else if (!version) {
+        } else {
+            if (!this.hasCurrent()) {
+                throw new OntologyError('ONTOLOGY_CURRENT_UNAVAILABLE', 'No current ontology release has been published');
+            }
             entry = this.index.releases.find((release) => release.version === this.index.current);
         }
 
@@ -104,32 +102,63 @@ export class OntologyRegistry {
     }
 
     interpretHistory(snapshot = {}, { version, asOf } = {}) {
-        const recordedVersion = version || snapshot.ontology_version;
-        if (!recordedVersion) {
-            throw new OntologyError(
-                'ONTOLOGY_HISTORY_VERSION_REQUIRED',
-                'Historical interpretation requires the ontology version recorded with the fact'
-            );
-        }
-        if (version && snapshot.ontology_version && version !== snapshot.ontology_version) {
+        const recordedVersion = snapshot.ontology_version || null;
+        if (version && recordedVersion && version !== recordedVersion) {
             throw new OntologyError('ONTOLOGY_HISTORY_VERSION_MISMATCH', 'Requested ontology version does not match the recorded fact version', {
                 requested_version: version,
-                recorded_version: snapshot.ontology_version
+                recorded_version: recordedVersion
             });
         }
+        let release;
+        try {
+            if (version || recordedVersion) {
+                release = this.resolve({ version: version || recordedVersion });
+            } else if (asOf) {
+                release = this.resolve({ asOf });
+            } else {
+                return this.unverifiedHistory(snapshot, asOf, {
+                    code: 'ONTOLOGY_HISTORY_VERSION_UNRESOLVED',
+                    message: 'Historical interpretation requires a recorded ontology version or resolvable as-of time'
+                });
+            }
+        } catch (error) {
+            if (!version && !recordedVersion && error instanceof OntologyError
+                && ['ONTOLOGY_VERSION_UNKNOWN', 'ONTOLOGY_CURRENT_UNAVAILABLE'].includes(error.code)) {
+                return this.unverifiedHistory(snapshot, asOf, {
+                    code: error.code,
+                    message: error.message
+                });
+            }
+            throw error;
+        }
+        const resolvedVersion = release.entry.version;
         const mismatchedEvents = (snapshot.evolution_events || [])
-            .filter((event) => event.ontology_version && event.ontology_version !== recordedVersion)
+            .filter((event) => event.ontology_version && event.ontology_version !== resolvedVersion)
             .map((event) => event.event_id);
         if (mismatchedEvents.length) {
             throw new OntologyError('ONTOLOGY_HISTORY_VERSION_MISMATCH', 'Evolution events must use the recorded fact ontology version', {
                 recorded_version: recordedVersion,
+                resolved_version: resolvedVersion,
                 event_ids: mismatchedEvents
             });
         }
-        const { kernel } = this.resolve({ version: recordedVersion });
         return {
-            ...kernel.interpretHistory(snapshot, { asOf }),
-            recorded_ontology_version: recordedVersion
+            ...release.kernel.interpretHistory(snapshot, { asOf }),
+            recorded_ontology_version: recordedVersion,
+            resolved_ontology_version: resolvedVersion,
+            verification: 'verified'
+        };
+    }
+
+    unverifiedHistory(snapshot, asOf, reason) {
+        return {
+            ...structuredClone(snapshot),
+            ontology_version: null,
+            recorded_ontology_version: snapshot.ontology_version || null,
+            resolved_ontology_version: null,
+            interpretation_as_of: asOf || null,
+            verification: 'unverified',
+            unverified_reason: reason
         };
     }
 }
