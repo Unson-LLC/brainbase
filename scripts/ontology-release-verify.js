@@ -112,6 +112,14 @@ export function verifyOntologyHistory({ rootDir, publicKeyPem = '', base, head }
         if (!headEntry || publicationBinding(headEntry) !== publicationBinding(baseEntry)) {
             throw new Error(`published release binding changed or disappeared: ${baseEntry.version}`);
         }
+        const isPublisherRetirement = currentChanged
+            && baseIndex.current === baseEntry.version
+            && headIndex.current !== baseEntry.version
+            && baseEntry.status === 'active'
+            && headEntry.status === 'retired';
+        if (headEntry.status !== baseEntry.status && !isPublisherRetirement) {
+            throw new Error(`published release lifecycle changed outside the publisher: ${baseEntry.version}`);
+        }
         for (const relativePath of [`config/ontology/${baseEntry.path}`, `config/ontology/${baseEntry.receipt_path}`]) {
             if (!gitBytes(rootDir, base, relativePath).equals(gitBytes(rootDir, head, relativePath))) {
                 throw new Error(`published object mutated: ${relativePath}`);

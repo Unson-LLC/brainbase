@@ -111,4 +111,24 @@ describe('InfoSSOTController ontology endpoints', () => {
             details: { missing_endpoint_ids: ['entity:missing'] }
         });
     });
+
+    it('returns 400 when an atomic commit context type differs from canonical Graph', async () => {
+        const mismatch = new OntologyError(
+            'ONTOLOGY_CONTEXT_ENTITY_TYPE_MISMATCH',
+            'Context entity types must match the canonical Graph',
+            { mismatches: [{ id: 'project:brainbase', declared_type: 'org', persisted_type: 'project' }] }
+        );
+        const controller = new InfoSSOTController({
+            commitOntologyGraph: async () => { throw mismatch; }
+        });
+        const res = responseRecorder();
+
+        await controller.commitOntologyGraph({ body: {}, access }, res);
+
+        expect(res.statusCode).toBe(400);
+        expect(res.body).toMatchObject({
+            code: 'ONTOLOGY_CONTEXT_ENTITY_TYPE_MISMATCH',
+            details: { mismatches: [{ id: 'project:brainbase', declared_type: 'org', persisted_type: 'project' }] }
+        });
+    });
 });

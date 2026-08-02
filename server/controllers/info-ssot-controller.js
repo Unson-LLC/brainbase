@@ -96,6 +96,7 @@ function sendOntologyError(res, error, { operation = 'read' } = {}) {
             : error.code === 'ONTOLOGY_INPUT_REQUIRED'
                 || error.code === 'ONTOLOGY_VALIDATION_FAILED'
                 || error.code === 'ONTOLOGY_EDGE_ENDPOINT_NOT_FOUND'
+                || error.code === 'ONTOLOGY_CONTEXT_ENTITY_TYPE_MISMATCH'
                 ? 400
                 : 500);
     res.status(status).json({

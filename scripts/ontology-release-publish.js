@@ -87,10 +87,14 @@ export async function publishOntologyRelease({
     const proposerEntityId = release.governance?.proposer_entity_id;
     const deciderEntityId = release.governance?.decider_entity_id;
     const applierEntityId = release.governance?.applier_entity_id;
+    const releaseDecisionId = release.governance?.decision_id;
     if (!scopeEntityId || !proposerEntityId || !deciderEntityId || !applierEntityId) {
         throw new Error('release governance scope, proposer, decider, and applier entity ids are required');
     }
-    if (release.governance?.decision_id && release.governance.decision_id !== decisionId) {
+    if (!releaseDecisionId) {
+        throw new Error('release governance decision_id is required');
+    }
+    if (releaseDecisionId !== decisionId) {
         throw new Error('--decision-id does not match release governance.decision_id');
     }
 

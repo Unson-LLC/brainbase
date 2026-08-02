@@ -159,6 +159,22 @@ describe('ontology release Git history verification', () => {
         })).toMatchObject({ base_current: null, head_current: '1.0.0' });
     });
 
+    it('rejects reopening a published release after its lifecycle status is recorded', () => {
+        const fixture = publicationRepository();
+        const indexPath = path.join(fixture.rootDir, 'config/ontology/index.json');
+        const index = JSON.parse(readFileSync(indexPath, 'utf8'));
+        index.releases[0].status = 'approved';
+        writeJson(indexPath, index);
+        git(fixture.rootDir, ['add', '.']);
+        git(fixture.rootDir, ['commit', '-m', 'reopen published release']);
+
+        expect(() => verifyOntologyHistory({
+            rootDir: fixture.rootDir,
+            base: fixture.publicationCommit,
+            head: git(fixture.rootDir, ['rev-parse', 'HEAD'])
+        })).toThrow(/lifecycle changed outside the publisher/);
+    });
+
     it.each([
         ['decision_id', 'decision:other'],
         ['scope_entity_id', 'project:other'],
@@ -250,6 +266,29 @@ describe('ontology release Git history verification', () => {
             'config/ontology/brainbase-ontology.v1.json',
             'config/ontology/index.json'
         ]);
+    });
+
+    it('rejects publication when the release manifest has no Decision binding', async () => {
+        const fixture = publicationRepository({ publish: false });
+        const release = JSON.parse(readFileSync(fixture.releasePath, 'utf8'));
+        delete release.governance.decision_id;
+        writeJson(fixture.releasePath, release);
+        const indexPath = path.join(fixture.rootDir, 'config/ontology/index.json');
+        const index = JSON.parse(readFileSync(indexPath, 'utf8'));
+        index.releases[0].content_digest = sha256(readFileSync(fixture.releasePath));
+        writeJson(indexPath, index);
+        git(fixture.rootDir, ['add', '.']);
+        git(fixture.rootDir, ['commit', '-m', 'remove decision binding']);
+        let requested = false;
+
+        await expect(publishOntologyRelease({
+            rootDir: fixture.rootDir,
+            version: '1.0.0',
+            decisionId: 'decision:ontology-v1',
+            env: {},
+            fetchImpl: async () => { requested = true; }
+        })).rejects.toThrow(/governance decision_id is required/);
+        expect(requested).toBe(false);
     });
 
     it('retires the previous current release when a later release becomes active', async () => {
