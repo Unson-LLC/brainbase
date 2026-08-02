@@ -75,9 +75,12 @@ describe('InfoSSOTService ontology API', () => {
             }
         });
         expect(result).toMatchObject({
-            ontology_version: '1.0.0',
+            ontology_version: null,
             recorded_ontology_version: '1.0.0',
-            entities: [{ historical_id: 'org:legacy', canonical_id: 'org:unson' }]
+            resolved_ontology_version: null,
+            verification: 'unverified',
+            unverified_reason: { code: 'ONTOLOGY_PUBLICATION_UNVERIFIED' },
+            entities: [{ id: 'org:legacy', type: 'org' }]
         });
     });
 

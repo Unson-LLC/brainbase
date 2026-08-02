@@ -2,7 +2,11 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { OntologyError, OntologyKernel } from './ontology-kernel.js';
-import { hasPublishedReceipt } from './ontology-release-trust.js';
+import {
+    hasCompleteReceiptMetadata,
+    hasReceiptMetadata,
+    verifyPublishedReceipt
+} from './ontology-release-trust.js';
 
 function parseJson(bytes, label) {
     try {
@@ -23,9 +27,14 @@ function parseTime(value, label) {
 }
 
 export class OntologyRegistry {
-    constructor({ rootDir = process.cwd(), configDir = 'config/ontology' } = {}) {
+    constructor({
+        rootDir = process.cwd(),
+        configDir = 'config/ontology',
+        publicKeyPem = process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY || ''
+    } = {}) {
         this.configDir = path.resolve(rootDir, configDir);
         this.releasesDir = path.resolve(this.configDir, 'releases');
+        this.publicKeyPem = publicKeyPem;
         this.index = parseJson(readFileSync(path.join(this.configDir, 'index.json')), 'ontology index');
         if (!Array.isArray(this.index.releases)) {
             throw new OntologyError('ONTOLOGY_MANIFEST_INVALID', 'Ontology index releases must be an array');
@@ -43,7 +52,7 @@ export class OntologyRegistry {
         } else if (asOf) {
             const target = parseTime(asOf, 'asOf');
             entry = this.index.releases
-                .filter((release) => (hasPublishedReceipt(release) || release.version === this.index.current)
+                .filter((release) => (hasCompleteReceiptMetadata(release) || release.version === this.index.current)
                     && parseTime(release.effective_at, 'release effective_at') <= target)
                 .sort((left, right) => parseTime(right.effective_at, 'release effective_at') - parseTime(left.effective_at, 'release effective_at'))[0];
         } else {
@@ -88,11 +97,29 @@ export class OntologyRegistry {
             });
         }
 
-        const effectiveStatus = this.index.current === entry.version
+        const receiptTrust = verifyPublishedReceipt({
+            configDir: this.configDir,
+            entry,
+            manifest,
+            publicKeyPem: this.publicKeyPem
+        });
+        const claimsPublication = this.index.current === entry.version
+            || entry.status === 'retired'
+            || hasReceiptMetadata(entry);
+        if (claimsPublication && !receiptTrust.verified) {
+            throw new OntologyError('ONTOLOGY_PUBLICATION_UNVERIFIED', `Ontology publication receipt is not trusted: ${entry.version}`, {
+                http_status: 503,
+                version: entry.version,
+                reason: receiptTrust.reason,
+                ...receiptTrust.details
+            });
+        }
+
+        const effectiveStatus = receiptTrust.verified && this.index.current === entry.version
             ? 'active'
-            : entry.status === 'retired' && hasPublishedReceipt(entry)
+            : receiptTrust.verified && entry.status === 'retired'
                 ? 'retired'
-                : hasPublishedReceipt(entry)
+                : receiptTrust.verified
                     ? 'approved'
                     : 'proposed';
         return {
@@ -124,13 +151,19 @@ export class OntologyRegistry {
             }
         } catch (error) {
             if (!version && !recordedVersion && error instanceof OntologyError
-                && ['ONTOLOGY_VERSION_UNKNOWN', 'ONTOLOGY_CURRENT_UNAVAILABLE'].includes(error.code)) {
+                && ['ONTOLOGY_VERSION_UNKNOWN', 'ONTOLOGY_CURRENT_UNAVAILABLE', 'ONTOLOGY_PUBLICATION_UNVERIFIED'].includes(error.code)) {
                 return this.unverifiedHistory(snapshot, asOf, {
                     code: error.code,
                     message: error.message
                 });
             }
             throw error;
+        }
+        if (release.kernel.status === 'proposed') {
+            return this.unverifiedHistory(snapshot, asOf, {
+                code: 'ONTOLOGY_PUBLICATION_UNVERIFIED',
+                message: `Ontology release has not been published: ${release.entry.version}`
+            });
         }
         const resolvedVersion = release.entry.version;
         const mismatchedEvents = (snapshot.evolution_events || [])

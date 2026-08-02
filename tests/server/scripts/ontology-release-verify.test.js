@@ -380,7 +380,33 @@ describe('ontology release Git history verification', () => {
                 };
             }
         });
-        const activeRegistry = new OntologyRegistry({ rootDir: fixture.rootDir });
+        let untrustedConnectionAttempts = 0;
+        const untrustedService = new InfoSSOTService({
+            ontologyRegistry: new OntologyRegistry({ rootDir: fixture.rootDir, publicKeyPem: '' }),
+            pool: {
+                connect: async () => {
+                    untrustedConnectionAttempts += 1;
+                    throw new Error('must not connect');
+                }
+            }
+        });
+        await expect(untrustedService.createOrUpdateGraphEntity(
+            { role: 'gm', projectCodes: ['brainbase'], clearance: ['internal'] },
+            {
+                id: 'org:untrusted',
+                entityType: 'org',
+                projectCode: 'brainbase',
+                payload: {},
+                roleMin: 'member',
+                sensitivity: 'internal'
+            }
+        )).rejects.toMatchObject({ code: 'ONTOLOGY_PUBLICATION_UNVERIFIED' });
+        expect(untrustedConnectionAttempts).toBe(0);
+
+        const activeRegistry = new OntologyRegistry({
+            rootDir: fixture.rootDir,
+            publicKeyPem: publicKey.export({ type: 'spki', format: 'pem' }).toString()
+        });
         expect(activeRegistry.index.current).toBe('1.0.0');
         const service = new InfoSSOTService({ ontologyRegistry: activeRegistry, pool: { connect: async () => { throw new Error('must not persist'); } } });
         expect(service.getOntologyGuard()).toEqual({ guard_status: 'active_current', ontology_version: '1.0.0' });

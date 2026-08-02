@@ -81,7 +81,10 @@ test('story-brainbase-ontology-kernel ac:4 shared constraints cover fields, rela
 test('story-brainbase-ontology-kernel ac:5 dry-run and DB audit distinguish violations from incomplete collection', async () => {
   const acceptanceCriterion = '検証は書き込み前のdry-runと既存Graphの監査の両方で実行でき、違反件数を欠損や接続失敗と混同しない。';
   const registry = new OntologyRegistry({ rootDir });
+  const activeRelease = registry.resolve({ version: '1.0.0' });
+  activeRelease.kernel.status = 'active';
   registry.index.current = '1.0.0';
+  registry.resolve = () => activeRelease;
   const client = {
     async query(sql: string) {
       if (sql.includes('FROM graph_entities')) return { rows: [{ id: 'app:ownerless', type: 'app', payload: {} }] };
@@ -250,9 +253,10 @@ test('story-brainbase-ontology-kernel ac:9 rename and merge evolution preserve c
   }, { asOf: '2026-08-03T00:00:00.000Z' });
   expect(versionBound).toMatchObject({
     recorded_ontology_version: '1.0.0',
-    resolved_ontology_version: '1.0.0',
-    ontology_version: '1.0.0',
-    verification: 'verified'
+    resolved_ontology_version: null,
+    ontology_version: null,
+    verification: 'unverified',
+    unverified_reason: { code: 'ONTOLOGY_PUBLICATION_UNVERIFIED' }
   });
 
   const unversionedRegistry = new OntologyRegistry({ rootDir });
@@ -280,16 +284,20 @@ test('story-brainbase-ontology-kernel ac:9 rename and merge evolution preserve c
     verification: 'unverified',
     unverified_reason: { code: 'ONTOLOGY_VERSION_UNKNOWN' }
   });
-  expect(unversionedRegistry.resolve({ version: '1.0.0' }).kernel.status).toBe('proposed');
+  expect(() => unversionedRegistry.resolve({ version: '1.0.0' })).toThrow(expect.objectContaining({
+    code: 'ONTOLOGY_PUBLICATION_UNVERIFIED',
+    details: expect.objectContaining({ reason: 'incomplete_metadata' })
+  }));
   unversionedRegistry.index.releases[0].receipt_digest_algorithm = 'sha256';
   unversionedRegistry.index.releases[0].receipt_digest = 'a'.repeat(64);
   expect(unversionedRegistry.interpretHistory({ entities: [{ id: 'org:legacy', type: 'org' }] }, {
     asOf: '2026-08-03T00:00:00.000Z'
   })).toMatchObject({
     recorded_ontology_version: null,
-    resolved_ontology_version: '1.0.0',
-    ontology_version: '1.0.0',
-    verification: 'verified'
+    resolved_ontology_version: null,
+    ontology_version: null,
+    verification: 'unverified',
+    unverified_reason: { code: 'ONTOLOGY_PUBLICATION_UNVERIFIED' }
   });
 });
 

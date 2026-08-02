@@ -9,7 +9,7 @@ import {
     sha256,
     verifyPublicationReceipt
 } from '../server/services/ontology-publication.js';
-import { hasPublishedReceipt, hasReceiptMetadata } from '../server/services/ontology-release-trust.js';
+import { hasCompleteReceiptMetadata, hasReceiptMetadata } from '../server/services/ontology-release-trust.js';
 
 function required(env, name) {
     const value = env[name];
@@ -75,10 +75,10 @@ export async function publishOntologyRelease({
     const index = JSON.parse(readFileSync(indexPath, 'utf8'));
     const entry = index.releases.find((item) => item.version === version);
     if (!entry) throw new Error(`release is not indexed: ${version}`);
-    if (hasReceiptMetadata(entry) && !hasPublishedReceipt(entry)) {
+    if (hasReceiptMetadata(entry) && !hasCompleteReceiptMetadata(entry)) {
         throw new Error(`release has incomplete receipt binding: ${version}`);
     }
-    if (index.current === version || hasPublishedReceipt(entry)) throw new Error(`release is already published: ${version}`);
+    if (index.current === version || hasCompleteReceiptMetadata(entry)) throw new Error(`release is already published: ${version}`);
     const releasePath = path.resolve(configDir, entry.path);
     const releaseBytes = readFileSync(releasePath);
     if (sha256(releaseBytes) !== entry.content_digest) throw new Error(`release digest mismatch: ${version}`);

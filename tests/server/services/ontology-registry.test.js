@@ -1,10 +1,93 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { generateKeyPairSync, sign } from 'node:crypto';
+import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { OntologyError } from '../../../server/services/ontology-kernel.js';
+import { canonicalJson, sha256 } from '../../../server/services/ontology-publication.js';
 import { OntologyRegistry } from '../../../server/services/ontology-registry.js';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const temporaryDirectories = [];
+
+afterEach(() => {
+    for (const directory of temporaryDirectories.splice(0)) rmSync(directory, { recursive: true, force: true });
+});
+
+function writeJson(target, value) {
+    writeFileSync(target, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function signedRegistryFixture({ current = null, status = 'proposed', mutateEntry, mutateReceipt, publicKeyPem } = {}) {
+    const fixtureRoot = mkdtempSync(path.join(tmpdir(), 'ontology-registry-'));
+    temporaryDirectories.push(fixtureRoot);
+    const configDir = path.join(fixtureRoot, 'config/ontology');
+    cpSync(path.join(rootDir, 'config/ontology'), configDir, { recursive: true });
+
+    const releasePath = path.join(configDir, 'releases/1.0.0.json');
+    const release = JSON.parse(readFileSync(releasePath, 'utf8'));
+    release.governance = {
+        decision_id: 'decision:ontology-v1',
+        scope_entity_id: 'project:brainbase',
+        proposer_entity_id: 'person:proposer',
+        decider_entity_id: 'person:decider',
+        applier_entity_id: 'person:applier'
+    };
+    writeJson(releasePath, release);
+    const releaseBytes = readFileSync(releasePath);
+
+    const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+    const indexPath = path.join(configDir, 'index.json');
+    const index = JSON.parse(readFileSync(indexPath, 'utf8'));
+    const entry = index.releases[0];
+    entry.status = status;
+    entry.content_digest = sha256(releaseBytes);
+    entry.source_commit_sha = '1'.repeat(40);
+    entry.impact_scope = release.impact_scope;
+    index.current = current;
+
+    const receipt = {
+        payload: {
+            schema_version: '1.0.0',
+            issued_at: '2026-08-02T00:00:00.000Z',
+            release_version: entry.version,
+            release_digest: entry.content_digest,
+            source_commit_sha: entry.source_commit_sha,
+            decision_id: release.governance.decision_id,
+            scope_entity_id: release.governance.scope_entity_id,
+            proposer_entity_id: release.governance.proposer_entity_id,
+            decider_entity_id: release.governance.decider_entity_id,
+            applier_entity_id: release.governance.applier_entity_id,
+            actor_entity_id: release.governance.applier_entity_id,
+            impact_scope: release.impact_scope
+        },
+        signature_algorithm: 'ed25519',
+        signature: '',
+        key_id: 'test-key'
+    };
+    mutateReceipt?.(receipt);
+    receipt.signature = sign(null, Buffer.from(canonicalJson(receipt.payload)), privateKey).toString('base64');
+    const receiptBytes = Buffer.from(`${JSON.stringify(receipt, null, 2)}\n`);
+    mkdirSync(path.join(configDir, 'publications'), { recursive: true });
+    const receiptPath = path.join(configDir, 'publications/1.0.0.receipt.json');
+    writeFileSync(receiptPath, receiptBytes);
+    Object.assign(entry, {
+        receipt_path: 'publications/1.0.0.receipt.json',
+        receipt_digest_algorithm: 'sha256',
+        receipt_digest: sha256(receiptBytes)
+    });
+    mutateEntry?.(entry, { configDir, receiptPath });
+    writeJson(indexPath, index);
+
+    const trustedPublicKey = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    return {
+        registry: new OntologyRegistry({
+            rootDir: fixtureRoot,
+            publicKeyPem: publicKeyPem === undefined ? trustedPublicKey : publicKeyPem
+        }),
+        trustedPublicKey
+    };
+}
 
 describe('OntologyRegistry', () => {
     it('loads the immutable proposed release and verifies its digest', () => {
@@ -19,88 +102,92 @@ describe('OntologyRegistry', () => {
         expect(() => registry.resolve()).toThrowError(expect.objectContaining({ code: 'ONTOLOGY_CURRENT_UNAVAILABLE' }));
     });
 
-    it('resolves as-of history only from an immutable published release', () => {
+    it('does not treat receipt metadata as publication evidence', () => {
         const registry = new OntologyRegistry({ rootDir });
-        expect(() => registry.resolve({ asOf: '2026-08-01T00:00:00.000Z' })).toThrowError(expect.objectContaining({
-            code: 'ONTOLOGY_VERSION_UNKNOWN'
+        Object.assign(registry.index.releases[0], {
+            receipt_path: 'publications/1.0.0.receipt.json',
+            receipt_digest_algorithm: 'sha256',
+            receipt_digest: 'a'.repeat(64)
+        });
+        expect(() => registry.resolve({ version: '1.0.0' })).toThrowError(expect.objectContaining({
+            code: 'ONTOLOGY_PUBLICATION_UNVERIFIED',
+            details: expect.objectContaining({ reason: 'receipt_unavailable' })
         }));
-        registry.index.releases[0].receipt_path = 'receipts/1.0.0.json';
-        registry.index.releases[0].receipt_digest_algorithm = 'sha256';
-        registry.index.releases[0].receipt_digest = 'a'.repeat(64);
-        expect(registry.resolve({ asOf: '2026-08-01T00:00:00.000Z' }).kernel.version).toBe('1.0.0');
-        expect(() => registry.resolve({ asOf: '2026-07-31T23:59:59.999Z' })).toThrow(OntologyError);
-    });
-
-    it('does not trust a retired status without an immutable publication receipt', () => {
-        const registry = new OntologyRegistry({ rootDir });
-        registry.index.releases[0].status = 'retired';
-        expect(() => registry.resolve({ asOf: '2026-08-02T00:00:00.000Z' })).toThrowError(expect.objectContaining({
-            code: 'ONTOLOGY_VERSION_UNKNOWN'
-        }));
-    });
-
-    it('does not trust a retired receipt path without its digest binding', () => {
-        const registry = new OntologyRegistry({ rootDir });
-        registry.index.releases[0].status = 'retired';
-        registry.index.releases[0].receipt_path = 'receipts/1.0.0.json';
-        expect(() => registry.resolve({ asOf: '2026-08-02T00:00:00.000Z' })).toThrowError(expect.objectContaining({
-            code: 'ONTOLOGY_VERSION_UNKNOWN'
-        }));
-        expect(registry.resolve({ version: '1.0.0' }).kernel.status).toBe('proposed');
-    });
-
-    it('derives proposed, approved, active, and retired lifecycle states from index evidence', () => {
-        const registry = new OntologyRegistry({ rootDir });
-        expect(registry.resolve({ version: '1.0.0' }).kernel.status).toBe('proposed');
-
-        registry.index.releases[0].receipt_path = 'receipts/1.0.0.json';
-        registry.index.releases[0].receipt_digest_algorithm = 'sha256';
-        registry.index.releases[0].receipt_digest = 'a'.repeat(64);
-        expect(registry.resolve({ version: '1.0.0' }).kernel.status).toBe('approved');
-
-        registry.index.current = '1.0.0';
-        expect(registry.resolve({ version: '1.0.0' }).kernel.status).toBe('active');
-
-        registry.index.current = null;
-        registry.index.releases[0].status = 'retired';
-        expect(registry.resolve({ version: '1.0.0' }).kernel.status).toBe('retired');
-    });
-
-    it('interprets historical facts with their recorded ontology version', () => {
-        const registry = new OntologyRegistry({ rootDir });
-        const result = registry.interpretHistory({
-            ontology_version: '1.0.0',
-            entities: [{ id: 'org:legacy', type: 'org' }],
-            evolution_events: [{
-                event_id: 'ontology:rename:org:unson',
-                event_type: 'ontology_rename',
-                ontology_version: '1.0.0',
-                canonical_id: 'org:unson',
-                source_ids: ['org:legacy'],
-                provenance: ['decision:rename'],
-                effective_at: '2026-08-02T00:00:00.000Z'
-            }]
-        }, { asOf: '2026-08-03T00:00:00.000Z' });
-        expect(result).toMatchObject({
-            ontology_version: '1.0.0',
-            recorded_ontology_version: '1.0.0',
-            entities: [{ canonical_id: 'org:unson' }]
+        expect(registry.interpretHistory({ entities: [] }, { asOf: '2026-08-03T00:00:00.000Z' })).toMatchObject({
+            verification: 'unverified',
+            unverified_reason: { code: 'ONTOLOGY_PUBLICATION_UNVERIFIED' }
         });
     });
 
-    it('falls back to the immutable as-of release when the fact has no recorded version', () => {
+    it('rejects partial receipt metadata instead of treating it as proposed', () => {
         const registry = new OntologyRegistry({ rootDir });
-        registry.index.releases[0].receipt_path = 'receipts/1.0.0.json';
-        registry.index.releases[0].receipt_digest_algorithm = 'sha256';
-        registry.index.releases[0].receipt_digest = 'a'.repeat(64);
-        expect(registry.interpretHistory({ entities: [{ id: 'org:legacy', type: 'org' }] }, {
-            asOf: '2026-08-03T00:00:00.000Z'
-        })).toMatchObject({
+        registry.index.releases[0].receipt_path = 'publications/1.0.0.receipt.json';
+        expect(() => registry.resolve({ version: '1.0.0' })).toThrowError(expect.objectContaining({
+            code: 'ONTOLOGY_PUBLICATION_UNVERIFIED',
+            details: expect.objectContaining({ reason: 'incomplete_metadata' })
+        }));
+    });
+
+    it('requires a trusted receipt before a current release can become active', () => {
+        const registry = new OntologyRegistry({ rootDir });
+        registry.index.current = '1.0.0';
+        expect(() => registry.resolve()).toThrowError(expect.objectContaining({
+            code: 'ONTOLOGY_PUBLICATION_UNVERIFIED',
+            details: expect.objectContaining({ reason: 'missing_metadata' })
+        }));
+    });
+
+    it('keeps proposed recorded-version history explicitly unverified', () => {
+        const registry = new OntologyRegistry({ rootDir });
+        expect(registry.interpretHistory({
             ontology_version: '1.0.0',
-            recorded_ontology_version: null,
+            entities: [{ id: 'org:legacy', type: 'org' }]
+        })).toMatchObject({
+            ontology_version: null,
+            recorded_ontology_version: '1.0.0',
+            resolved_ontology_version: null,
+            verification: 'unverified',
+            unverified_reason: { code: 'ONTOLOGY_PUBLICATION_UNVERIFIED' }
+        });
+    });
+
+    it('derives approved, active, retired, as-of, and verified history only from a valid signed receipt', () => {
+        const approved = signedRegistryFixture().registry;
+        expect(approved.resolve({ version: '1.0.0' }).kernel.status).toBe('approved');
+        expect(approved.resolve({ asOf: '2026-08-03T00:00:00.000Z' }).kernel.version).toBe('1.0.0');
+        expect(approved.interpretHistory({ entities: [] }, { asOf: '2026-08-03T00:00:00.000Z' })).toMatchObject({
             resolved_ontology_version: '1.0.0',
             verification: 'verified'
         });
+
+        const active = signedRegistryFixture({ current: '1.0.0', status: 'active' }).registry;
+        expect(active.resolve().kernel.status).toBe('active');
+
+        const retired = signedRegistryFixture({ status: 'retired' }).registry;
+        expect(retired.resolve({ version: '1.0.0' }).kernel.status).toBe('retired');
+    });
+
+    it.each([
+        ['missing public key', { publicKeyPem: '' }, 'public_key_unavailable'],
+        ['receipt path escape', { mutateEntry: (entry) => { entry.receipt_path = '../outside.json'; } }, 'path_escape'],
+        ['receipt digest mismatch', { mutateEntry: (entry) => { entry.receipt_digest = 'a'.repeat(64); } }, 'digest_mismatch'],
+        ['payload binding mismatch', { mutateReceipt: (receipt) => { receipt.payload.source_commit_sha = '2'.repeat(40); } }, 'binding_mismatch']
+    ])('fails closed for %s', (_label, options, reason) => {
+        const { registry } = signedRegistryFixture(options);
+        expect(() => registry.resolve({ version: '1.0.0' })).toThrowError(expect.objectContaining({
+            code: 'ONTOLOGY_PUBLICATION_UNVERIFIED',
+            details: expect.objectContaining({ reason })
+        }));
+    });
+
+    it('fails closed for a receipt signed by an untrusted key', () => {
+        const { publicKey } = generateKeyPairSync('ed25519');
+        const untrustedKey = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+        const { registry } = signedRegistryFixture({ publicKeyPem: untrustedKey });
+        expect(() => registry.resolve({ version: '1.0.0' })).toThrowError(expect.objectContaining({
+            code: 'ONTOLOGY_PUBLICATION_UNVERIFIED',
+            details: expect.objectContaining({ reason: 'signature_invalid' })
+        }));
     });
 
     it('returns structured unverified history when neither version nor as-of release can be resolved', () => {
@@ -112,9 +199,7 @@ describe('OntologyRegistry', () => {
             recorded_ontology_version: null,
             resolved_ontology_version: null,
             verification: 'unverified',
-            unverified_reason: {
-                code: 'ONTOLOGY_VERSION_UNKNOWN'
-            },
+            unverified_reason: { code: 'ONTOLOGY_VERSION_UNKNOWN' },
             entities: [{ id: 'org:legacy', type: 'org' }]
         });
     });
