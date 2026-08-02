@@ -102,4 +102,34 @@ export class OntologyRegistry {
             entry: structuredClone(entry)
         };
     }
+
+    interpretHistory(snapshot = {}, { version, asOf } = {}) {
+        const recordedVersion = version || snapshot.ontology_version;
+        if (!recordedVersion) {
+            throw new OntologyError(
+                'ONTOLOGY_HISTORY_VERSION_REQUIRED',
+                'Historical interpretation requires the ontology version recorded with the fact'
+            );
+        }
+        if (version && snapshot.ontology_version && version !== snapshot.ontology_version) {
+            throw new OntologyError('ONTOLOGY_HISTORY_VERSION_MISMATCH', 'Requested ontology version does not match the recorded fact version', {
+                requested_version: version,
+                recorded_version: snapshot.ontology_version
+            });
+        }
+        const mismatchedEvents = (snapshot.evolution_events || [])
+            .filter((event) => event.ontology_version && event.ontology_version !== recordedVersion)
+            .map((event) => event.event_id);
+        if (mismatchedEvents.length) {
+            throw new OntologyError('ONTOLOGY_HISTORY_VERSION_MISMATCH', 'Evolution events must use the recorded fact ontology version', {
+                recorded_version: recordedVersion,
+                event_ids: mismatchedEvents
+            });
+        }
+        const { kernel } = this.resolve({ version: recordedVersion });
+        return {
+            ...kernel.interpretHistory(snapshot, { asOf }),
+            recorded_ontology_version: recordedVersion
+        };
+    }
 }

@@ -32,7 +32,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 
 ### ONT-003 制約と監査
 
-- `CON-APP-OWNER-001`: appは`owns`または`owned_by`でorg ownerを1つ以上持つ。
+- `CON-APP-OWNER-001`: appは`owns`または`owned_by`でorg ownerを1つ以上持つ。personへの`owned_by`だけではこの制約を満たさない。
 - `CON-DECISION-ACTIVE-001`: active Decisionはdecider personとscope project/org/app/productを持つ。
 - entity、edge、snapshotのdry-runは永続化しない。
 - snapshotが欠落・不完全なら`unverified`を返し、違反0件にしない。
@@ -41,7 +41,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 
 ### ONT-004 Decision推論
 
-- `INF-DECISION-SUPERSESSION-001`: activeかつeffectiveな後継Decisionが明示的に旧Decisionを`supersedes`するとき、現在有効なDecisionを後継へ解決する。
+- `INF-DECISION-SUPERSESSION-001`: activeかつeffectiveな後継Decisionが明示的に旧Decisionを`supersedes`するとき、現在有効なDecisionを後継へ解決する。未来発効の関係は発効前の競合判定を抑止しない。
 - 明示的な`supersedes`がない複数active Decisionは`conflict`となる。
 - 結果はrule ID、Ontology version、evidence、as-of、explanation、explicit/inferred区分を含む。
 
@@ -126,7 +126,7 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 2. validation contract: 正しい型・relationを許可し、未登録type/relation/endpoint違反をrule ID付きで拒否する。entity/edge/snapshot dry-runでは永続化adapterの呼出しが0回であることをspyで検証する。
 3. constraint contract: ownerなしapp、decider/scopeなしactive Decision、snapshot欠落を検出する。
 4. inference contract: 明示supersedesとeffective dateで解決し、無関係なactive Decisionはconflictにする。結果の`ontology_version`、`evidence`、`as_of`、`explanation`、`explicit`/`inferred`を個別に固定する。
-5. evolution contract: SemVer分類、rename/merge履歴、snapshotあり/なしのimpactを説明する。一致件数、代表ID、影響API/agent、migration要否をassertし、snapshot欠落は`unverified`にする。
+5. evolution contract: SemVer分類、rename/merge履歴、snapshotあり/なしのimpactを説明する。過去factは記録された`ontology_version`でRegistryからimmutable releaseを解決し、eventとversionが不一致なら拒否する。entityとedgeの旧ID、canonical ID、evolution provenanceを保持する。一致件数、代表ID、影響API/agent、migration要否をassertし、snapshot欠落は`unverified`にする。
 6. API/service integration: readback、dry-run、atomic rollback、分離write互換、structured error、access contextに加え、上表の明示version validate/infer/impact許可、current不在時のatomic/audit/暗黙version 503、既存write `inactive_no_current`を検証する。明示version+caller snapshot経路ではcanonical DB accessorが0回、semantic violation時は同一transactionをrollbackしてentity/edgeのbefore/after件数が不変であることをspyとcountで固定する。
 7. audit contract: scope、全cursor、取得件数、失敗位置を`completeness`へ返し、pagination完走、partial/DB failureの`unverified`を検証する。
 8. release/history contract: current/version/as-of解決、未知version、RACI publication gateを検証する。

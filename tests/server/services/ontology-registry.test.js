@@ -43,4 +43,32 @@ describe('OntologyRegistry', () => {
         registry.index.releases[0].status = 'retired';
         expect(registry.resolve({ version: '1.0.0' }).kernel.status).toBe('retired');
     });
+
+    it('interprets historical facts with their recorded ontology version', () => {
+        const registry = new OntologyRegistry({ rootDir });
+        const result = registry.interpretHistory({
+            ontology_version: '1.0.0',
+            entities: [{ id: 'org:legacy', type: 'org' }],
+            evolution_events: [{
+                event_id: 'ontology:rename:org:unson',
+                event_type: 'ontology_rename',
+                ontology_version: '1.0.0',
+                canonical_id: 'org:unson',
+                source_ids: ['org:legacy'],
+                provenance: ['decision:rename'],
+                effective_at: '2026-08-02T00:00:00.000Z'
+            }]
+        }, { asOf: '2026-08-03T00:00:00.000Z' });
+        expect(result).toMatchObject({
+            ontology_version: '1.0.0',
+            recorded_ontology_version: '1.0.0',
+            entities: [{ canonical_id: 'org:unson' }]
+        });
+    });
+
+    it('rejects historical interpretation without a recorded ontology version', () => {
+        const registry = new OntologyRegistry({ rootDir });
+        expect(() => registry.interpretHistory({ entities: [] }, { asOf: '2026-08-03T00:00:00.000Z' }))
+            .toThrowError(expect.objectContaining({ code: 'ONTOLOGY_HISTORY_VERSION_REQUIRED' }));
+    });
 });

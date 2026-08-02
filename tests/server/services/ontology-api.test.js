@@ -57,6 +57,30 @@ describe('InfoSSOTService ontology API', () => {
         expect(impact).toMatchObject({ ontology_version: '1.0.0', semver: 'major', verification: 'unverified' });
     });
 
+    it('interprets history through the ontology version recorded with the fact', () => {
+        const result = createService().interpretOntologyHistory({
+            asOf: '2026-08-03T00:00:00.000Z',
+            snapshot: {
+                ontology_version: '1.0.0',
+                entities: [{ id: 'org:legacy', type: 'org' }],
+                evolution_events: [{
+                    event_id: 'ontology:rename:org:unson',
+                    event_type: 'ontology_rename',
+                    ontology_version: '1.0.0',
+                    canonical_id: 'org:unson',
+                    source_ids: ['org:legacy'],
+                    provenance: ['decision:rename'],
+                    effective_at: '2026-08-02T00:00:00.000Z'
+                }]
+            }
+        });
+        expect(result).toMatchObject({
+            ontology_version: '1.0.0',
+            recorded_ontology_version: '1.0.0',
+            entities: [{ historical_id: 'org:legacy', canonical_id: 'org:unson' }]
+        });
+    });
+
     it('reports inactive_no_current on legacy Graph writes before publication', () => {
         expect(createService().getOntologyGuard()).toEqual({
             guard_status: 'inactive_no_current',

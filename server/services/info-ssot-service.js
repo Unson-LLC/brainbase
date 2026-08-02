@@ -109,6 +109,11 @@ export class InfoSSOTService {
         return this.resolveOntology({ version, asOf }).kernel.impact({ change, snapshot });
     }
 
+    interpretOntologyHistory({ version, asOf, snapshot } = {}) {
+        if (!snapshot) throw new OntologyError('ONTOLOGY_INPUT_REQUIRED', 'snapshot is required');
+        return this.ontologyRegistry.interpretHistory(snapshot, { version, asOf });
+    }
+
     async commitOntologyGraph(access, input = {}) {
         const { kernel } = this.ontologyRegistry.resolve();
         const entity = input.entity;

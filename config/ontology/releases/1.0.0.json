@@ -77,7 +77,7 @@
     "references": { "meaning": "根拠参照", "from": ["decision", "ai_decision", "ai_query"], "to": ["decision", "ai_query", "philosophy", "glossary_term"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "persistent", "provenance": "explicit" }
   },
   "constraints": [
-    { "id": "CON-APP-OWNER-001", "target": "app", "kind": "required_relation", "alternatives": [{ "relation": "owned_by", "direction": "outgoing" }, { "relation": "owns", "direction": "incoming" }] },
+    { "id": "CON-APP-OWNER-001", "target": "app", "kind": "required_relation", "related_types": ["org"], "alternatives": [{ "relation": "owned_by", "direction": "outgoing" }, { "relation": "owns", "direction": "incoming" }] },
     { "id": "CON-DECISION-ACTIVE-001", "target": "decision", "kind": "required_fields_when", "when": { "status": "active" }, "fields": ["decider_id", "scope_ids"] }
   ],
   "inference_rules": [

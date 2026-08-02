@@ -67,6 +67,15 @@ test('story-brainbase-ontology-kernel ac:4 shared constraints cover fields, rela
     expect.objectContaining({ rule_id: 'relation-cardinality-owned_by' }),
     expect.objectContaining({ rule_id: 'edge-reference-integrity' })
   ]));
+  const personOwned = kernel.validateSnapshot({
+    complete: true,
+    entities: [
+      { id: 'app:person-owned', type: 'app', payload: {} },
+      { id: 'person:owner', type: 'person', payload: {} }
+    ],
+    edges: [{ from_id: 'app:person-owned', to_id: 'person:owner', relation: 'owned_by' }]
+  });
+  expect(personOwned.violations).toContainEqual(expect.objectContaining({ rule_id: 'CON-APP-OWNER-001' }));
 });
 
 test('story-brainbase-ontology-kernel ac:5 dry-run and DB audit distinguish violations from incomplete collection', async () => {
@@ -130,6 +139,17 @@ test('story-brainbase-ontology-kernel ac:7 S-001 only explicit effective superse
   });
   expect(conflict.decisions['decision:a']).toMatchObject({ status: 'conflict', inferred: true });
   expect(conflict.evidence).toContainEqual(expect.objectContaining({ rule_id: 'decision-active-conflict' }));
+
+  const beforeEffective = kernel.inferDecisions({
+    as_of: '2026-08-01T00:00:00.000Z',
+    entities: [
+      { id: 'decision:old', type: 'decision', payload: { status: 'active', scope_ids: ['app:brainbase'] } },
+      { id: 'decision:future', type: 'decision', payload: { status: 'active', scope_ids: ['app:brainbase'], effective_at: '2026-08-03T00:00:00.000Z' } }
+    ],
+    edges: [{ from_id: 'decision:future', to_id: 'decision:old', relation: 'supersedes' }]
+  });
+  expect(beforeEffective.decisions['decision:old']).toMatchObject({ status: 'conflict', inferred: true });
+  expect(beforeEffective.decisions['decision:future']).toMatchObject({ status: 'conflict', inferred: true });
 });
 
 test('story-brainbase-ontology-kernel ac:8 releases expose versioning, compatibility, migration and rollback policy', async () => {
@@ -197,6 +217,20 @@ test('story-brainbase-ontology-kernel ac:9 rename and merge evolution preserve c
     canonical_id: 'org:unson',
     evolution_provenance: ['decision:first', 'decision:second']
   });
+
+  const registry = new OntologyRegistry({ rootDir });
+  const versionBound = registry.interpretHistory({
+    ontology_version: '1.0.0',
+    entities: [{ id: 'org:legacy', type: 'org', payload: {} }],
+    evolution_events: [kernel.planEvolution({
+      kind: 'rename',
+      canonical_id: 'org:unson',
+      source_ids: ['org:legacy'],
+      effective_at: '2026-08-02T00:00:00.000Z',
+      provenance: ['decision:ontology-evolution']
+    })]
+  }, { asOf: '2026-08-03T00:00:00.000Z' });
+  expect(versionBound).toMatchObject({ recorded_ontology_version: '1.0.0', ontology_version: '1.0.0' });
 });
 
 test('story-brainbase-ontology-kernel ac:10 impact reports affected facts, APIs, agents and migration need', async () => {

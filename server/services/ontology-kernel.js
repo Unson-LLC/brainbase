@@ -187,7 +187,11 @@ export class OntologyKernel {
                 const alternatives = rule.alternatives || [{ relation: rule.relation, direction: 'outgoing' }];
                 const hasRelation = alternatives.some((alternative) => edges.some((edge) => {
                     const endpointId = alternative.direction === 'incoming' ? edge.to_id : edge.from_id;
-                    return endpointId === entity.id && (edge.relation || edge.rel_type) === alternative.relation;
+                    if (endpointId !== entity.id || (edge.relation || edge.rel_type) !== alternative.relation) return false;
+                    if (!Array.isArray(rule.related_types) || rule.related_types.length === 0) return true;
+                    const relatedId = alternative.direction === 'incoming' ? edge.from_id : edge.to_id;
+                    const related = byId.get(relatedId);
+                    return related && rule.related_types.includes(related.type || related.entity_type);
                 }));
                 if (!hasRelation) {
                     violations.push(violation(rule.id, `${rule.target} requires an ownership relation`, { entity_id: entity.id }));
@@ -213,17 +217,21 @@ export class OntologyKernel {
             .map((entity) => [entity.id, { ...entity.payload, explicit: true, inferred: false }]));
         const evidence = [];
         const supersessionRule = this.manifest.inference_rules.find((rule) => rule.relation === 'supersedes');
-        for (const edge of snapshot?.edges || []) {
-            if ((edge.relation || edge.rel_type) !== 'supersedes') continue;
+        const isEffectiveSupersession = (edge) => {
+            if ((edge.relation || edge.rel_type) !== 'supersedes') return false;
             const replacement = decisions[edge.from_id];
-            if (!replacement || !decisions[edge.to_id]) continue;
-            if (replacement.status !== 'active') continue;
-            if (replacement.effective_at && replacement.effective_at > asOf) continue;
+            if (!replacement || !decisions[edge.to_id] || replacement.status !== 'active') return false;
+            const effectiveAt = edge.effective_at || replacement.effective_at;
+            return !effectiveAt || Date.parse(effectiveAt) <= Date.parse(asOf);
+        };
+        for (const edge of snapshot?.edges || []) {
+            if (!isEffectiveSupersession(edge)) continue;
+            const replacement = decisions[edge.from_id];
             decisions[edge.to_id] = { ...decisions[edge.to_id], status: 'superseded', inferred: true };
             evidence.push({ rule_id: supersessionRule?.id || 'decision-supersession', from_id: edge.from_id, to_id: edge.to_id });
         }
         const explicitSupersessions = new Set((snapshot?.edges || [])
-            .filter((edge) => (edge.relation || edge.rel_type) === 'supersedes')
+            .filter(isEffectiveSupersession)
             .flatMap((edge) => [`${edge.from_id}:${edge.to_id}`, `${edge.to_id}:${edge.from_id}`]));
         const activeIds = Object.entries(decisions)
             .filter(([, decision]) => decision.status === 'active')
@@ -385,7 +393,8 @@ export class OntologyKernel {
                     historical_from_id: edge.from_id,
                     historical_to_id: edge.to_id,
                     from_id: from.canonical_id,
-                    to_id: to.canonical_id
+                    to_id: to.canonical_id,
+                    evolution_provenance: [...new Set([...from.provenance, ...to.provenance])]
                 };
             })
         };

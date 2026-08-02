@@ -24,7 +24,7 @@ const manifest = {
         accountable_for: { meaning: '最終説明責任', from: ['person', 'org'], to: ['app', 'product', 'brand', 'project', 'decision'] }
     },
     constraints: [
-        { id: 'app-owner-required', target: 'app', kind: 'required_relation', relation: 'owned_by' },
+        { id: 'app-owner-required', target: 'app', kind: 'required_relation', relation: 'owned_by', related_types: ['org'] },
         { id: 'active-decision-context-required', target: 'decision', kind: 'required_fields_when', when: { status: 'active' }, fields: ['decider_id', 'scope_ids'] }
     ],
     inference_rules: [{ id: 'decision-supersession', relation: 'supersedes' }],
@@ -90,6 +90,21 @@ describe('OntologyKernel', () => {
         expect(result).toMatchObject({ valid: false, violations: [{ rule_id: 'app-owner-required', entity_id: 'app_1' }] });
     });
 
+    it('does not treat a person owner as the required owner org', () => {
+        const result = kernel().validateSnapshot({
+            entities: [
+                { id: 'app_1', type: 'app', payload: {} },
+                { id: 'person_1', type: 'person', payload: {} }
+            ],
+            edges: [{ from_id: 'app_1', to_id: 'person_1', relation: 'owned_by' }]
+        });
+        expect(result).toMatchObject({ valid: false });
+        expect(result.violations).toContainEqual(expect.objectContaining({
+            rule_id: 'app-owner-required',
+            entity_id: 'app_1'
+        }));
+    });
+
     it('validates reference integrity and declared relation cardinality', () => {
         const result = kernel().validateSnapshot({
             entities: [
@@ -144,6 +159,20 @@ describe('OntologyKernel', () => {
             edges: []
         });
         expect(result.decisions.dec_a).toMatchObject({ status: 'conflict', inferred: true });
+        expect(result.evidence).toContainEqual(expect.objectContaining({ rule_id: 'decision-active-conflict' }));
+    });
+
+    it('does not let a future supersession suppress a current conflict', () => {
+        const result = kernel().inferDecisions({
+            as_of: '2026-08-02T00:00:00.000Z',
+            entities: [
+                { id: 'dec_old', type: 'decision', payload: { status: 'active', scope_ids: ['app_1'] } },
+                { id: 'dec_future', type: 'decision', payload: { status: 'active', scope_ids: ['app_1'], effective_at: '2026-08-03T00:00:00.000Z' } }
+            ],
+            edges: [{ from_id: 'dec_future', to_id: 'dec_old', relation: 'supersedes' }]
+        });
+        expect(result.decisions.dec_old).toMatchObject({ status: 'conflict', inferred: true });
+        expect(result.decisions.dec_future).toMatchObject({ status: 'conflict', inferred: true });
         expect(result.evidence).toContainEqual(expect.objectContaining({ rule_id: 'decision-active-conflict' }));
     });
 
