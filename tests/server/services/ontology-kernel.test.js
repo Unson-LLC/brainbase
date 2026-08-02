@@ -36,6 +36,7 @@ Object.assign(manifest, {
     migration: { required: false, plan: null },
     rollback: { strategy: 'restore_previous_current', target_version: null },
     governance: { decision_id: null, scope_entity_id: null, proposer_entity_id: null, decider_entity_id: null, applier_entity_id: null },
+    impact_scope: { graph_scope: 'project:brainbase', affected_apis: [], affected_agents: [], migration_required: false },
     changes: []
 });
 manifest.evolution_rules.history_required_for = ['rename', 'merge', 'split'];
@@ -59,6 +60,7 @@ for (const definition of Object.values(manifest.relation_types)) {
         provenance: 'explicit'
     });
 }
+manifest.relation_types.owned_by.cardinality = 'many_to_one';
 
 const kernel = () => new OntologyKernel({ manifest, status: 'proposed' });
 
@@ -88,6 +90,25 @@ describe('OntologyKernel', () => {
         expect(result).toMatchObject({ valid: false, violations: [{ rule_id: 'app-owner-required', entity_id: 'app_1' }] });
     });
 
+    it('validates reference integrity and declared relation cardinality', () => {
+        const result = kernel().validateSnapshot({
+            entities: [
+                { id: 'app_1', type: 'app', payload: {} },
+                { id: 'org_1', type: 'org', payload: {} },
+                { id: 'org_2', type: 'org', payload: {} }
+            ],
+            edges: [
+                { id: 'edge_1', from_id: 'app_1', to_id: 'org_1', relation: 'owned_by' },
+                { id: 'edge_2', from_id: 'app_1', to_id: 'org_2', relation: 'owned_by' },
+                { id: 'edge_3', from_id: 'missing', to_id: 'org_1', relation: 'owned_by' }
+            ]
+        });
+        expect(result.violations).toEqual(expect.arrayContaining([
+            expect.objectContaining({ rule_id: 'relation-cardinality-owned_by', entity_id: 'app_1' }),
+            expect.objectContaining({ rule_id: 'edge-reference-integrity', missing_endpoint_ids: ['missing'] })
+        ]));
+    });
+
     it('requires decider and scope for an active decision', () => {
         expect(kernel().validateEntity({ id: 'dec_1', type: 'decision', payload: { status: 'active' } })).toMatchObject({
             valid: false,
@@ -103,9 +124,13 @@ describe('OntologyKernel', () => {
                 { id: 'dec_new', type: 'decision', payload: { status: 'active', decider_id: 'person_1', scope_ids: ['app_1'], effective_at: '2026-08-02T00:00:00.000Z' } }
             ],
             edges: [{ from_id: 'dec_new', to_id: 'dec_old', relation: 'supersedes' }]
-        });
+        }, { derivedAt: '2026-08-02T00:00:01.000Z' });
         expect(result.decisions.dec_old).toMatchObject({ status: 'superseded', explicit: true, inferred: true });
-        expect(result).toMatchObject({ ontology_version: '1.0.0', as_of: '2026-08-02T00:00:00.000Z' });
+        expect(result).toMatchObject({
+            ontology_version: '1.0.0',
+            as_of: '2026-08-02T00:00:00.000Z',
+            derived_at: '2026-08-02T00:00:01.000Z'
+        });
         expect(result.evidence).toHaveLength(1);
         expect(result.explanation).toContain('dec_new');
     });
@@ -161,6 +186,31 @@ describe('OntologyKernel', () => {
             aliases: ['app:old-brainbase'],
             conflict_policy: 'explicit_decision_required'
         });
+    });
+
+    it('replays evolution events by effective time without destroying historical ids', () => {
+        const event = kernel().planEvolution({
+            kind: 'merge',
+            canonical_id: 'person:canonical',
+            source_ids: ['person:duplicate'],
+            effective_at: '2026-08-03T00:00:00.000Z',
+            provenance: ['decision:dedup']
+        });
+        const snapshot = {
+            entities: [{ id: 'person:duplicate', type: 'person', payload: { name: 'Before' } }],
+            edges: [{ from_id: 'person:duplicate', to_id: 'org:unson', relation: 'member_of' }],
+            evolution_events: [event]
+        };
+        expect(kernel().interpretHistory(snapshot, { asOf: '2026-08-02T00:00:00.000Z' }).entities[0])
+            .toMatchObject({ historical_id: 'person:duplicate', canonical_id: 'person:duplicate' });
+        const after = kernel().interpretHistory(snapshot, { asOf: '2026-08-04T00:00:00.000Z' });
+        expect(after.entities[0]).toMatchObject({
+            historical_id: 'person:duplicate',
+            canonical_id: 'person:canonical',
+            evolution_provenance: ['decision:dedup']
+        });
+        expect(after.edges[0]).toMatchObject({ historical_from_id: 'person:duplicate', from_id: 'person:canonical' });
+        expect(after.applied_event_ids).toEqual([event.event_id]);
     });
 
     it('never calls persistence during dry-run validation', () => {

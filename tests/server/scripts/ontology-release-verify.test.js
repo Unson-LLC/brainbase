@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { canonicalJson, sha256 } from '../../../server/services/ontology-publication.js';
-import { publishOntologyRelease } from '../../../scripts/ontology-release-publish.js';
+import { publishOntologyRelease, replacePublicationOutputs } from '../../../scripts/ontology-release-publish.js';
 import { verifyOntologyHistory } from '../../../scripts/ontology-release-verify.js';
+import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
+import { OntologyRegistry } from '../../../server/services/ontology-registry.js';
 
 const projectRoot = path.resolve(import.meta.dirname, '../../..');
 
@@ -37,8 +39,11 @@ function publicationRepository({ publish = true } = {}) {
         governance: {
             decision_id: 'decision:ontology-v1',
             scope_entity_id: 'project:brainbase',
+            proposer_entity_id: 'person:proposer',
+            decider_entity_id: 'person:decider',
             applier_entity_id: 'person:applier'
-        }
+        },
+        impact_scope: { graph_scope: 'project:brainbase', migration_required: false }
     })}\n`);
     writeFileSync(path.join(configDir, 'releases/1.0.0.json'), releaseBytes);
     const entry = {
@@ -59,7 +64,8 @@ function publicationRepository({ publish = true } = {}) {
         payload: {
             release_version: entry.version,
             release_digest: entry.content_digest,
-            source_commit_sha: sourceCommit
+            source_commit_sha: sourceCommit,
+            impact_scope: { graph_scope: 'project:brainbase', migration_required: false }
         },
         signature_algorithm: 'ed25519',
         signature: 'fixture',
@@ -75,12 +81,43 @@ function publicationRepository({ publish = true } = {}) {
         receipt_path: 'publications/1.0.0.receipt.json',
         receipt_digest_algorithm: 'sha256',
         receipt_digest: sha256(receiptBytes),
-        source_commit_sha: sourceCommit
+        source_commit_sha: sourceCommit,
+        impact_scope: { graph_scope: 'project:brainbase', migration_required: false }
     };
     writeJson(path.join(configDir, 'index.json'), { current: '1.0.0', releases: [publishedEntry] });
     git(rootDir, ['add', '.']);
     git(rootDir, ['commit', '-m', 'publish']);
     return { rootDir, sourceCommit, publicationCommit: git(rootDir, ['rev-parse', 'HEAD']), releasePath: path.join(configDir, 'releases/1.0.0.json') };
+}
+
+function lifecycleRepository() {
+    const rootDir = mkdtempSync(path.join(tmpdir(), 'ontology-lifecycle-'));
+    temporaryDirectories.push(rootDir);
+    git(rootDir, ['init']);
+    git(rootDir, ['config', 'user.email', 'ontology@example.test']);
+    git(rootDir, ['config', 'user.name', 'Ontology Test']);
+    const configDir = path.join(rootDir, 'config/ontology');
+    mkdirSync(path.dirname(configDir), { recursive: true });
+    cpSync(path.join(projectRoot, 'config/ontology'), configDir, { recursive: true });
+    const releasePath = path.join(configDir, 'releases/1.0.0.json');
+    const release = JSON.parse(readFileSync(releasePath, 'utf8'));
+    release.governance = {
+        decision_id: 'decision:ontology-v1',
+        scope_entity_id: 'project:brainbase',
+        proposer_entity_id: 'person:proposer',
+        decider_entity_id: 'person:decider',
+        applier_entity_id: 'person:applier'
+    };
+    writeJson(releasePath, release);
+    const releaseBytes = readFileSync(releasePath);
+    const indexPath = path.join(configDir, 'index.json');
+    const index = JSON.parse(readFileSync(indexPath, 'utf8'));
+    index.current = null;
+    index.releases[0].content_digest = sha256(releaseBytes);
+    writeJson(indexPath, index);
+    git(rootDir, ['add', '.']);
+    git(rootDir, ['commit', '-m', 'approved source']);
+    return { rootDir, release, entry: index.releases[0], sourceCommit: git(rootDir, ['rev-parse', 'HEAD']) };
 }
 
 describe('ontology release Git history verification', () => {
@@ -126,10 +163,13 @@ describe('ontology release Git history verification', () => {
                 const payload = {
                     actor_entity_id: 'person:applier',
                     applier_entity_id: 'person:applier',
+                    proposer_entity_id: 'person:proposer',
+                    decider_entity_id: 'person:decider',
                     decision_id: 'decision:ontology-v1',
                     release_digest: fixture.entry.content_digest,
                     release_version: '1.0.0',
                     scope_entity_id: 'project:brainbase',
+                    impact_scope: { graph_scope: 'project:brainbase', migration_required: false },
                     source_commit_sha: fixture.sourceCommit
                 };
                 return {
@@ -151,6 +191,9 @@ describe('ontology release Git history verification', () => {
             release_digest: fixture.entry.content_digest,
             decision_id: 'decision:ontology-v1',
             scope_entity_id: 'project:brainbase',
+            impact_scope: { graph_scope: 'project:brainbase', migration_required: false },
+            proposer_entity_id: 'person:proposer',
+            decider_entity_id: 'person:decider',
             applier_entity_id: 'person:applier'
         });
         expect(observedRequest.options.headers.authorization).toBe('Bearer secret-token');
@@ -159,6 +202,122 @@ describe('ontology release Git history verification', () => {
             'config/ontology/brainbase-ontology.v1.json',
             'config/ontology/index.json'
         ]);
+    });
+
+    it('restores every prior output when a later replacement fails', () => {
+        const fixture = publicationRepository({ publish: false });
+        const configDir = path.join(fixture.rootDir, 'config/ontology');
+        const viewPath = path.join(configDir, 'brainbase-ontology.v1.json');
+        const indexPath = path.join(configDir, 'index.json');
+        mkdirSync(path.join(configDir, 'publications'));
+        writeFileSync(viewPath, 'prior-view\n');
+        const priorIndex = readFileSync(indexPath);
+        let renameCount = 0;
+        expect(() => replacePublicationOutputs([
+            [path.join(configDir, 'publications/1.0.0.receipt.json'), Buffer.from('receipt\n')],
+            [viewPath, Buffer.from('next-view\n')],
+            [indexPath, Buffer.from('next-index\n')]
+        ], {
+            renameSync: (source, target) => {
+                renameCount += 1;
+                if (renameCount === 3) throw new Error('fixture rename failure');
+                return execFileSync('mv', [source, target]);
+            }
+        })).toThrow(/prior current was restored/);
+        expect(readFileSync(viewPath, 'utf8')).toBe('prior-view\n');
+        expect(readFileSync(indexPath)).toEqual(priorIndex);
+        expect(() => readFileSync(path.join(configDir, 'publications/1.0.0.receipt.json'))).toThrow();
+    });
+
+    it('runs current-null through signed publication to an active generic write guard', async () => {
+        const fixture = lifecycleRepository();
+        const proposedRegistry = new OntologyRegistry({ rootDir: fixture.rootDir });
+        expect(proposedRegistry.index.current).toBeNull();
+        expect(proposedRegistry.resolve({ version: '1.0.0' }).kernel.describe().effective_status).toBe('proposed');
+        const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+        await publishOntologyRelease({
+            rootDir: fixture.rootDir,
+            version: '1.0.0',
+            decisionId: 'decision:ontology-v1',
+            env: {
+                BRAINBASE_GRAPH_API_URL: 'https://graph.example.test',
+                BRAINBASE_GRAPH_API_TOKEN: 'secret-token',
+                ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY: publicKey.export({ type: 'spki', format: 'pem' }).toString()
+            },
+            fetchImpl: async (_url, options) => {
+                const requestBody = JSON.parse(options.body);
+                const payload = {
+                    actor_entity_id: 'person:applier',
+                    applier_entity_id: 'person:applier',
+                    proposer_entity_id: 'person:proposer',
+                    decider_entity_id: 'person:decider',
+                    decision_id: 'decision:ontology-v1',
+                    release_digest: fixture.entry.content_digest,
+                    release_version: '1.0.0',
+                    scope_entity_id: 'project:brainbase',
+                    impact_scope: fixture.release.impact_scope,
+                    source_commit_sha: fixture.sourceCommit
+                };
+                expect(requestBody).toMatchObject({
+                    release_version: payload.release_version,
+                    release_digest: payload.release_digest,
+                    source_commit_sha: payload.source_commit_sha,
+                    decision_id: payload.decision_id,
+                    scope_entity_id: payload.scope_entity_id,
+                    impact_scope: payload.impact_scope,
+                    proposer_entity_id: payload.proposer_entity_id,
+                    decider_entity_id: payload.decider_entity_id,
+                    applier_entity_id: payload.applier_entity_id
+                });
+                return {
+                    ok: true,
+                    json: async () => ({
+                        payload,
+                        signature_algorithm: 'ed25519',
+                        signature: sign(null, Buffer.from(canonicalJson(payload)), privateKey).toString('base64'),
+                        key_id: 'test-key'
+                    })
+                };
+            }
+        });
+        const activeRegistry = new OntologyRegistry({ rootDir: fixture.rootDir });
+        expect(activeRegistry.index.current).toBe('1.0.0');
+        const service = new InfoSSOTService({ ontologyRegistry: activeRegistry, pool: { connect: async () => { throw new Error('must not persist'); } } });
+        expect(service.getOntologyGuard()).toEqual({ guard_status: 'active_current', ontology_version: '1.0.0' });
+        await expect(service.createOrUpdateGraphEntity(
+            { role: 'gm', projectCodes: ['brainbase'], clearance: ['internal'] },
+            {
+                id: 'unknown:one',
+                entityType: 'unknown_type',
+                projectCode: 'brainbase',
+                payload: {},
+                roleMin: 'member',
+                sensitivity: 'internal'
+            }
+        )).rejects.toMatchObject({ code: 'ONTOLOGY_VALIDATION_FAILED' });
+    });
+
+    it('fails closed on authority network and incomplete-response failures without publishing outputs', async () => {
+        for (const [label, fetchImpl, expected] of [
+            ['network', async () => { throw new Error('secret upstream detail'); }, /authority request failed \(Error\)/],
+            ['incomplete', async () => ({ ok: true, json: async () => ({ payload: {} }) }), /unverifiable receipt/]
+        ]) {
+            const fixture = lifecycleRepository();
+            await expect(publishOntologyRelease({
+                rootDir: fixture.rootDir,
+                version: '1.0.0',
+                decisionId: 'decision:ontology-v1',
+                env: {
+                    BRAINBASE_GRAPH_API_URL: 'https://graph.example.test',
+                    BRAINBASE_GRAPH_API_TOKEN: `secret-${label}`,
+                    ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY: 'unused-fixture-key'
+                },
+                fetchImpl
+            })).rejects.toThrow(expected);
+            const index = JSON.parse(readFileSync(path.join(fixture.rootDir, 'config/ontology/index.json'), 'utf8'));
+            expect(index.current).toBeNull();
+            expect(index.releases[0].receipt_path).toBeUndefined();
+        }
     });
 
     it('rejects release mutation after publication', () => {

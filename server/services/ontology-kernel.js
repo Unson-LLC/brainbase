@@ -12,6 +12,7 @@ const REQUIRED_MANIFEST_KEYS = [
     'migration',
     'rollback',
     'governance',
+    'impact_scope',
     'changes'
 ];
 const REQUIRED_TYPE_FIELDS = ['description', 'identity', 'usage', 'examples', 'counter_examples', 'owner'];
@@ -148,7 +149,37 @@ export class OntologyKernel {
         for (const edge of edges) {
             const from = byId.get(edge.from_id);
             const to = byId.get(edge.to_id);
+            if (!from || !to) {
+                violations.push(violation('edge-reference-integrity', 'Edge endpoints must reference entities in the snapshot', {
+                    edge_id: edge.id || null,
+                    missing_endpoint_ids: [!from ? edge.from_id : null, !to ? edge.to_id : null].filter(Boolean)
+                }));
+                continue;
+            }
             violations.push(...this.validateEdge({ ...edge, from_type: edge.from_type || from?.type, to_type: edge.to_type || to?.type }).violations);
+        }
+        for (const [relation, definition] of Object.entries(this.manifest.relation_types)) {
+            if (!['many_to_one', 'one_to_many', 'one_to_one'].includes(definition.cardinality)) continue;
+            const relationEdges = edges.filter((edge) => (edge.relation || edge.rel_type) === relation);
+            const constrainedSides = definition.cardinality === 'many_to_one'
+                ? [['from_id', 'outgoing']]
+                : definition.cardinality === 'one_to_many'
+                    ? [['to_id', 'incoming']]
+                    : [['from_id', 'outgoing'], ['to_id', 'incoming']];
+            for (const [endpoint, direction] of constrainedSides) {
+                const counts = new Map();
+                for (const edge of relationEdges) counts.set(edge[endpoint], (counts.get(edge[endpoint]) || 0) + 1);
+                for (const [entityId, count] of counts) {
+                    if (count <= 1) continue;
+                    violations.push(violation(`relation-cardinality-${relation}`, `${relation} permits at most one ${direction} edge`, {
+                        relation,
+                        entity_id: entityId,
+                        direction,
+                        count,
+                        cardinality: definition.cardinality
+                    }));
+                }
+            }
         }
         for (const rule of this.manifest.constraints) {
             if (rule.kind !== 'required_relation') continue;
@@ -174,8 +205,9 @@ export class OntologyKernel {
         };
     }
 
-    inferDecisions(snapshot) {
+    inferDecisions(snapshot, { derivedAt } = {}) {
         const asOf = snapshot?.as_of || new Date().toISOString();
+        const derived_at = derivedAt || snapshot?.derived_at || new Date().toISOString();
         const decisions = Object.fromEntries((snapshot?.entities || [])
             .filter((entity) => (entity.type || entity.entity_type) === 'decision')
             .map((entity) => [entity.id, { ...entity.payload, explicit: true, inferred: false }]));
@@ -214,7 +246,7 @@ export class OntologyKernel {
                 ? `${item.decision_ids.join(' and ')} conflict`
                 : `${item.from_id} supersedes ${item.to_id}`).join('; ')
             : 'No decision supersession was inferred';
-        return { ontology_version: this.version, as_of: asOf, decisions, evidence, explanation };
+        return { ontology_version: this.version, as_of: asOf, derived_at, decisions, evidence, explanation };
     }
 
     impact({ change = {}, snapshot = null }) {
@@ -281,6 +313,7 @@ export class OntologyKernel {
             throw new OntologyError('ONTOLOGY_EVOLUTION_HISTORY_REQUIRED', `Evolution history is missing: ${missing.join(', ')}`, { missing });
         }
         return {
+            event_id: change.event_id || `ontology:${kind}:${change.canonical_id}:${change.effective_at}`,
             event_type: `ontology_${kind}`,
             ontology_version: this.version,
             canonical_id: change.canonical_id,
@@ -289,6 +322,51 @@ export class OntologyKernel {
             provenance: change.provenance || [],
             effective_at: change.effective_at,
             conflict_policy: change.conflict_policy || 'explicit_decision_required'
+        };
+    }
+
+    interpretHistory(snapshot = {}, { asOf } = {}) {
+        const interpretationTime = asOf || snapshot.as_of;
+        if (!interpretationTime || !Number.isFinite(Date.parse(interpretationTime))) {
+            throw new OntologyError('ONTOLOGY_HISTORY_AS_OF_REQUIRED', 'A valid as_of timestamp is required for historical interpretation');
+        }
+        const events = (snapshot.evolution_events || [])
+            .filter((event) => Date.parse(event.effective_at) <= Date.parse(interpretationTime))
+            .sort((left, right) => Date.parse(left.effective_at) - Date.parse(right.effective_at));
+        const canonicalById = new Map();
+        const provenanceById = new Map();
+        for (const event of events) {
+            for (const sourceId of event.source_ids || []) {
+                canonicalById.set(sourceId, event.canonical_id);
+                provenanceById.set(sourceId, [...(event.provenance || [])]);
+            }
+        }
+        const resolveId = (id) => {
+            const seen = new Set();
+            let current = id;
+            while (canonicalById.has(current) && !seen.has(current)) {
+                seen.add(current);
+                current = canonicalById.get(current);
+            }
+            return current;
+        };
+        return {
+            ontology_version: this.version,
+            as_of: interpretationTime,
+            applied_event_ids: events.map((event) => event.event_id),
+            entities: (snapshot.entities || []).map((entity) => ({
+                ...structuredClone(entity),
+                historical_id: entity.id,
+                canonical_id: resolveId(entity.id),
+                evolution_provenance: provenanceById.get(entity.id) || []
+            })),
+            edges: (snapshot.edges || []).map((edge) => ({
+                ...structuredClone(edge),
+                historical_from_id: edge.from_id,
+                historical_to_id: edge.to_id,
+                from_id: resolveId(edge.from_id),
+                to_id: resolveId(edge.to_id)
+            }))
         };
     }
 }

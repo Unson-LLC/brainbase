@@ -23,6 +23,13 @@
     "decider_entity_id": null,
     "applier_entity_id": null
   },
+  "impact_scope": {
+    "graph_scope": "project:brainbase",
+    "affected_apis": ["/api/info/ontology/*", "/api/info/graph/*"],
+    "affected_agents": ["brainbase-graph-agent", "brainbase-mcp"],
+    "migration_required": false,
+    "verification": "proposed_unverified"
+  },
   "changes": [],
   "entity_types": {
     "org": { "meaning": "法的または運営上の組織", "description": "法的または運営上の組織", "identity": "継続的な責任主体", "usage": "所有・契約・RACIのscope", "examples": ["Unson LLC"], "counter_examples": ["期限付きproject"], "owner": "ontology-steward", "category": "core", "default_search": true },

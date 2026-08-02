@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { sha256, verifyPublicationReceipt } from '../server/services/ontology-publication.js';
+import { canonicalJson, sha256, verifyPublicationReceipt } from '../server/services/ontology-publication.js';
 
 function required(env, name) {
     const value = env[name];
@@ -16,13 +16,46 @@ function option(name) {
     return index >= 0 ? process.argv[index + 1] : null;
 }
 
+export function replacePublicationOutputs(outputs, fileOps = {}) {
+    const operations = { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync, ...fileOps };
+    const originals = new Map(outputs.map(([target]) => [target, operations.existsSync(target) ? operations.readFileSync(target) : null]));
+    try {
+        for (const [target, bytes] of outputs) operations.writeFileSync(`${target}.tmp`, bytes);
+        for (const [target] of outputs) operations.renameSync(`${target}.tmp`, target);
+    } catch (error) {
+        const rollbackErrors = [];
+        for (const [target] of [...outputs].reverse()) {
+            try {
+                const original = originals.get(target);
+                if (original === null) {
+                    if (operations.existsSync(target)) operations.unlinkSync(target);
+                } else {
+                    operations.writeFileSync(`${target}.rollback`, original);
+                    operations.renameSync(`${target}.rollback`, target);
+                }
+            } catch (rollbackError) {
+                rollbackErrors.push(`${target}: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`);
+            }
+        }
+        if (rollbackErrors.length) throw new Error(`publication failed and rollback was incomplete: ${rollbackErrors.join('; ')}`, { cause: error });
+        throw new Error('publication output replacement failed; prior current was restored', { cause: error });
+    } finally {
+        for (const [target] of outputs) {
+            for (const suffix of ['.tmp', '.rollback']) {
+                if (operations.existsSync(`${target}${suffix}`)) operations.unlinkSync(`${target}${suffix}`);
+            }
+        }
+    }
+}
+
 export async function publishOntologyRelease({
     rootDir = process.cwd(),
     version,
     decisionId,
     sourceCommit: requestedSourceCommit = null,
     env = process.env,
-    fetchImpl = fetch
+    fetchImpl = fetch,
+    fileOps = {}
 }) {
     if (!version) throw new Error('--version is required');
     if (!decisionId) throw new Error('--decision-id is required');
@@ -42,35 +75,60 @@ export async function publishOntologyRelease({
     if (sha256(releaseBytes) !== entry.content_digest) throw new Error(`release digest mismatch: ${version}`);
     const release = JSON.parse(releaseBytes.toString('utf8'));
     const scopeEntityId = release.governance?.scope_entity_id;
+    const proposerEntityId = release.governance?.proposer_entity_id;
+    const deciderEntityId = release.governance?.decider_entity_id;
     const applierEntityId = release.governance?.applier_entity_id;
-    if (!scopeEntityId || !applierEntityId) {
-        throw new Error('release governance.scope_entity_id and governance.applier_entity_id are required');
+    if (!scopeEntityId || !proposerEntityId || !deciderEntityId || !applierEntityId) {
+        throw new Error('release governance scope, proposer, decider, and applier entity ids are required');
     }
     if (release.governance?.decision_id && release.governance.decision_id !== decisionId) {
         throw new Error('--decision-id does not match release governance.decision_id');
     }
 
-    const response = await fetchImpl(`${required(env, 'BRAINBASE_GRAPH_API_URL').replace(/\/$/, '')}/api/info/ontology/publications/authorize`, {
-        method: 'POST',
-        headers: {
-            authorization: `Bearer ${required(env, 'BRAINBASE_GRAPH_API_TOKEN')}`,
-            'content-type': 'application/json',
-            'x-brainbase-role': env.BRAINBASE_ROLE || 'gm',
-            'x-brainbase-projects': env.BRAINBASE_PROJECTS || 'brainbase',
-            'x-brainbase-clearance': env.BRAINBASE_CLEARANCE || 'internal,restricted'
-        },
-        body: JSON.stringify({
-            release_version: version,
-            source_commit_sha: sourceCommit,
-            release_digest: entry.content_digest,
-            decision_id: decisionId,
-            scope_entity_id: scopeEntityId,
-            applier_entity_id: applierEntityId
-        })
-    });
+    let response;
+    try {
+        response = await fetchImpl(`${required(env, 'BRAINBASE_GRAPH_API_URL').replace(/\/$/, '')}/api/info/ontology/publications/authorize`, {
+            method: 'POST',
+            headers: {
+                authorization: `Bearer ${required(env, 'BRAINBASE_GRAPH_API_TOKEN')}`,
+                'content-type': 'application/json',
+                'x-brainbase-role': env.BRAINBASE_ROLE || 'gm',
+                'x-brainbase-projects': env.BRAINBASE_PROJECTS || 'brainbase',
+                'x-brainbase-clearance': env.BRAINBASE_CLEARANCE || 'internal,restricted'
+            },
+            body: JSON.stringify({
+                release_version: version,
+                source_commit_sha: sourceCommit,
+                release_digest: entry.content_digest,
+                decision_id: decisionId,
+                scope_entity_id: scopeEntityId,
+                impact_scope: release.impact_scope,
+                proposer_entity_id: proposerEntityId,
+                decider_entity_id: deciderEntityId,
+                applier_entity_id: applierEntityId
+            })
+        });
+    } catch (error) {
+        throw new Error(`authority request failed (${error instanceof Error ? error.name : 'unknown error'})`);
+    }
     const receipt = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(`authority denied (${response.status}): ${receipt.code || receipt.error || 'unknown error'}`);
     if (!verifyPublicationReceipt(receipt, required(env, 'ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY'))) throw new Error('authority returned an unverifiable receipt');
+    const expectedReceiptBinding = {
+        release_version: version,
+        source_commit_sha: sourceCommit,
+        release_digest: entry.content_digest,
+        decision_id: decisionId,
+        scope_entity_id: scopeEntityId,
+        impact_scope: release.impact_scope,
+        proposer_entity_id: proposerEntityId,
+        decider_entity_id: deciderEntityId,
+        applier_entity_id: applierEntityId
+    };
+    const mismatches = Object.entries(expectedReceiptBinding)
+        .filter(([key, value]) => canonicalJson(receipt.payload[key]) !== canonicalJson(value))
+        .map(([key]) => key);
+    if (mismatches.length) throw new Error(`authority receipt binding mismatch: ${mismatches.join(', ')}`);
 
     const receiptBytes = Buffer.from(`${JSON.stringify(receipt, null, 2)}\n`);
     const receiptRelative = `publications/${version}.receipt.json`;
@@ -82,7 +140,8 @@ export async function publishOntologyRelease({
         receipt_path: receiptRelative,
         receipt_digest_algorithm: 'sha256',
         receipt_digest: sha256(receiptBytes),
-        source_commit_sha: sourceCommit
+        source_commit_sha: sourceCommit,
+        impact_scope: structuredClone(release.impact_scope)
     };
     const nextIndex = { ...index, current: version, releases: index.releases.map((item) => item.version === version ? nextEntry : item) };
     const outputs = [
@@ -90,8 +149,7 @@ export async function publishOntologyRelease({
         [path.join(configDir, 'brainbase-ontology.v1.json'), releaseBytes],
         [indexPath, Buffer.from(`${JSON.stringify(nextIndex, null, 2)}\n`)]
     ];
-    for (const [target, bytes] of outputs) writeFileSync(`${target}.tmp`, bytes);
-    for (const [target] of outputs) renameSync(`${target}.tmp`, target);
+    replacePublicationOutputs(outputs, fileOps);
     return { version, source_commit_sha: sourceCommit, generated: outputs.map(([target]) => path.relative(rootDir, target)) };
 }
 

@@ -244,6 +244,9 @@ export class InfoSSOTService {
             'release_digest',
             'decision_id',
             'scope_entity_id',
+            'impact_scope',
+            'proposer_entity_id',
+            'decider_entity_id',
             'applier_entity_id'
         ];
         const missing = requiredFields.filter((field) => !input[field]);
@@ -302,9 +305,12 @@ export class InfoSSOTService {
             const bindings = {
                 ontology_release_version: input.release_version,
                 ontology_release_digest: input.release_digest,
-                ontology_source_commit_sha: input.source_commit_sha
+                ontology_source_commit_sha: input.source_commit_sha,
+                ontology_proposer_entity_id: input.proposer_entity_id,
+                ontology_decider_entity_id: input.decider_entity_id
             };
             const mismatches = Object.entries(bindings).filter(([key, value]) => decision[key] !== value).map(([key]) => key);
+            if (canonicalJson(decision.ontology_impact_scope) !== canonicalJson(input.impact_scope)) mismatches.push('ontology_impact_scope');
             if (mismatches.length) {
                 throw new OntologyError('ONTOLOGY_PUBLICATION_BINDING_MISMATCH', 'Decision bindings do not match the publication request', {
                     http_status: 409,
@@ -325,21 +331,31 @@ export class InfoSSOTService {
                 });
             }
             const authorityResult = await client.query(
-                `SELECT 1
-                 FROM graph_entities r
+                `WITH required_assignment(lane, person_id, role_code) AS (
+                    VALUES ('proposer'::text, $1::text, 'R'::text),
+                           ('decider'::text, $2::text, 'A'::text),
+                           ('applier'::text, $3::text, 'A'::text)
+                 )
+                 SELECT 1
+                 FROM required_assignment required
+                 JOIN graph_entities r ON TRUE
                  JOIN graph_edges assigned ON assigned.from_id = r.id
                     AND assigned.rel_type = 'assigned_to'
-                    AND assigned.to_id = $1
+                    AND assigned.to_id = required.person_id
                  JOIN graph_edges scoped ON scoped.from_id = r.id
                     AND scoped.rel_type IN ('belongs_to', 'belongs_to_project', 'accountable_for')
-                    AND scoped.to_id = $2
+                    AND scoped.to_id = $4
                  WHERE r.entity_type IN ('raci', 'raci_assignment')
-                   AND COALESCE(r.payload->>'role_code', r.payload->>'role') IN ('A', 'accountable', 'Accountable')
-                 LIMIT 1`,
-                [access.personId, scopeEntityId]
+                   AND CASE required.role_code
+                       WHEN 'R' THEN COALESCE(r.payload->>'role_code', r.payload->>'role') IN ('R', 'responsible', 'Responsible')
+                       WHEN 'A' THEN COALESCE(r.payload->>'role_code', r.payload->>'role') IN ('A', 'accountable', 'Accountable')
+                   END
+                 GROUP BY required.lane, required.person_id, required.role_code
+                 HAVING COUNT(*) > 0`,
+                [input.proposer_entity_id, input.decider_entity_id, access.personId, scopeEntityId]
             );
-            if (!authorityResult.rows.length) {
-                throw new OntologyError('ONTOLOGY_PUBLICATION_FORBIDDEN', 'Accountable RACI authority was not confirmed for the scope', {
+            if (authorityResult.rows.length !== 3) {
+                throw new OntologyError('ONTOLOGY_PUBLICATION_FORBIDDEN', 'Proposer, decider, and applier RACI authority was not confirmed for the scope', {
                     http_status: 403,
                     scope_entity_id: scopeEntityId
                 });
@@ -347,6 +363,9 @@ export class InfoSSOTService {
             const payload = {
                 actor_entity_id: access.personId,
                 applier_entity_id: access.personId,
+                proposer_entity_id: input.proposer_entity_id,
+                decider_entity_id: input.decider_entity_id,
+                impact_scope: input.impact_scope,
                 decision_id: input.decision_id,
                 release_digest: input.release_digest,
                 release_version: input.release_version,

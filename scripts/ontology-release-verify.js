@@ -56,7 +56,8 @@ function publicationBinding(entry) {
         content_digest: entry.content_digest,
         receipt_path: entry.receipt_path,
         receipt_digest: entry.receipt_digest,
-        source_commit_sha: entry.source_commit_sha
+        source_commit_sha: entry.source_commit_sha,
+        impact_scope: entry.impact_scope
     });
 }
 
@@ -128,7 +129,8 @@ export function verifyOntologyHistory({ rootDir, publicKeyPem = '', base, head }
         const receipt = JSON.parse(receiptBytes.toString('utf8'));
         if (receipt.payload.source_commit_sha !== entry.source_commit_sha
             || receipt.payload.release_version !== entry.version
-            || receipt.payload.release_digest !== entry.content_digest) {
+            || receipt.payload.release_digest !== entry.content_digest
+            || JSON.stringify(receipt.payload.impact_scope) !== JSON.stringify(entry.impact_scope)) {
             throw new Error(`published receipt binding mismatch: ${entry.version}`);
         }
         if (publicKeyPem && !verifyPublicationReceipt(receipt, publicKeyPem)) {
@@ -156,6 +158,9 @@ export function verifyOntologyRelease({ rootDir, publicKeyPem = '', base = null,
         if (sha256(releaseBytes) !== entry.content_digest) throw new Error(`release digest mismatch: ${entry.version}`);
         const release = JSON.parse(releaseBytes.toString('utf8'));
         if (release.version !== entry.version || release.effective_at !== entry.effective_at) throw new Error(`release metadata mismatch: ${entry.version}`);
+        if (JSON.stringify(release.impact_scope) !== JSON.stringify(entry.impact_scope || release.impact_scope)) {
+            throw new Error(`release impact scope mismatch: ${entry.version}`);
+        }
     }
 
     if (index.current) {
@@ -168,6 +173,9 @@ export function verifyOntologyRelease({ rootDir, publicKeyPem = '', base = null,
         if (!verifyPublicationReceipt(receipt, publicKeyPem)) throw new Error(`receipt signature is invalid: ${index.current}`);
         if (receipt.payload.release_version !== entry.version || receipt.payload.release_digest !== entry.content_digest) {
             throw new Error(`receipt binding mismatch: ${index.current}`);
+        }
+        if (JSON.stringify(receipt.payload.impact_scope) !== JSON.stringify(entry.impact_scope)) {
+            throw new Error(`receipt impact scope mismatch: ${index.current}`);
         }
         const viewBytes = readFileSync(path.join(configDir, 'brainbase-ontology.v1.json'));
         const releaseBytes = readFileSync(path.resolve(configDir, entry.path));

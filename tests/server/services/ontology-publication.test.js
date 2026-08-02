@@ -17,13 +17,16 @@ function authorityService({ accountable = true, decision = true, decisionOverrid
         ontology_release_version: '1.0.0',
         ontology_release_digest: release.digest,
         ontology_source_commit_sha: 'a'.repeat(40),
-        ontology_scope_entity_id: 'project:brainbase'
+        ontology_scope_entity_id: 'project:brainbase',
+        ontology_proposer_entity_id: 'person:proposer',
+        ontology_decider_entity_id: 'person:decider',
+        ontology_impact_scope: { graph_scope: 'project:brainbase', migration_required: false }
     };
     const client = {
         query: async (sql) => {
             const text = String(sql);
             if (text.includes("entity_type = 'decision'")) return { rows: decision ? [{ payload: { ...inputBindings, ...decisionOverrides } }] : [] };
-            if (text.includes("entity_type IN ('raci'")) return { rows: accountable ? [{ '?column?': 1 }] : [] };
+            if (text.includes("entity_type IN ('raci'")) return { rows: accountable ? [{ '?column?': 1 }, { '?column?': 1 }, { '?column?': 1 }] : [] };
             return { rows: [] };
         },
         release: () => {}
@@ -38,6 +41,9 @@ function request() {
         release_digest: release.digest,
         decision_id: 'decision:ontology-v1',
         scope_entity_id: 'project:brainbase',
+        impact_scope: { graph_scope: 'project:brainbase', migration_required: false },
+        proposer_entity_id: 'person:proposer',
+        decider_entity_id: 'person:decider',
         applier_entity_id: 'person:applier'
     };
 }
@@ -54,8 +60,11 @@ describe('Ontology publication authority', () => {
         expect(receipt.payload).toMatchObject({
             actor_entity_id: 'person:applier',
             applier_entity_id: 'person:applier',
+            proposer_entity_id: 'person:proposer',
+            decider_entity_id: 'person:decider',
             scope_entity_id: 'project:brainbase',
-            release_version: '1.0.0'
+            release_version: '1.0.0',
+            impact_scope: { graph_scope: 'project:brainbase', migration_required: false }
         });
         expect(verifyPublicationReceipt(receipt, publicKey.export({ type: 'spki', format: 'pem' }))).toBe(true);
     });

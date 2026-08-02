@@ -46,19 +46,26 @@ test('story-brainbase-ontology-kernel ac:3 invalid relations are rejected before
   expect(acceptanceCriterion, `${storyId} ac:3 acceptance binding`).toContain('規則IDと違反理由');
 });
 
-test('story-brainbase-ontology-kernel ac:4 shared constraints reject ownerless apps and incomplete active decisions', async () => {
+test('story-brainbase-ontology-kernel ac:4 shared constraints cover fields, relations, cardinality and references', async () => {
   const { kernel } = proposedRelease();
   const result = kernel.validateSnapshot({
     complete: true,
     entities: [
       { id: 'app:ownerless', type: 'app', payload: {} },
-      { id: 'decision:incomplete', type: 'decision', payload: { status: 'active' } }
+      { id: 'decision:incomplete', type: 'decision', payload: { status: 'active' } },
+      { id: 'org:one', type: 'org', payload: {} },
+      { id: 'org:two', type: 'org', payload: {} }
     ],
-    edges: []
+    edges: [
+      { id: 'owner:one', from_id: 'app:ownerless', to_id: 'org:one', relation: 'owned_by' },
+      { id: 'owner:two', from_id: 'app:ownerless', to_id: 'org:two', relation: 'owned_by' },
+      { id: 'missing:edge', from_id: 'missing:app', to_id: 'org:one', relation: 'owned_by' }
+    ]
   });
   expect(result.violations).toEqual(expect.arrayContaining([
-    expect.objectContaining({ rule_id: 'CON-APP-OWNER-001' }),
-    expect.objectContaining({ rule_id: 'CON-DECISION-ACTIVE-001' })
+    expect.objectContaining({ rule_id: 'CON-DECISION-ACTIVE-001' }),
+    expect.objectContaining({ rule_id: 'relation-cardinality-owned_by' }),
+    expect.objectContaining({ rule_id: 'edge-reference-integrity' })
   ]));
 });
 
@@ -101,10 +108,11 @@ test('story-brainbase-ontology-kernel ac:6 inference results expose rule, versio
       { id: 'decision:new', type: 'decision', payload: { status: 'active', scope_ids: ['app:brainbase'], effective_at: '2026-08-02T00:00:00.000Z' } }
     ],
     edges: [{ from_id: 'decision:new', to_id: 'decision:old', relation: 'supersedes' }]
-  });
+  }, { derivedAt: '2026-08-02T00:00:01.000Z' });
   expect(result).toMatchObject({
     ontology_version: '1.0.0',
     as_of: '2026-08-02T00:00:00.000Z',
+    derived_at: '2026-08-02T00:00:01.000Z',
     decisions: { 'decision:old': { explicit: true, inferred: true } }
   });
   expect(result.evidence[0]).toMatchObject({ rule_id: 'INF-DECISION-SUPERSESSION-001' });
@@ -131,7 +139,13 @@ test('story-brainbase-ontology-kernel ac:8 releases expose versioning, compatibi
     effective_at: expect.any(String),
     compatibility: { classification: 'initial' },
     migration: { required: false },
-    rollback: { strategy: 'restore_previous_current' }
+    rollback: { strategy: 'restore_previous_current' },
+    impact_scope: {
+      graph_scope: 'project:brainbase',
+      affected_apis: expect.arrayContaining(['/api/info/ontology/*']),
+      affected_agents: expect.arrayContaining(['brainbase-graph-agent']),
+      migration_required: false
+    }
   });
   expect(release.kernel.describe().evolution_rules).toMatchObject({ breaking: 'major', additive: 'minor', editorial: 'patch' });
 });
@@ -153,6 +167,22 @@ test('story-brainbase-ontology-kernel ac:9 rename and merge evolution preserve c
       conflict_policy: 'explicit_decision_required'
     });
     expect(plan.aliases).toEqual(kind === 'rename' ? ['org:legacy'] : []);
+    const before = kernel.interpretHistory({
+      entities: [{ id: 'org:legacy', type: 'org', payload: {} }],
+      edges: [],
+      evolution_events: [plan]
+    }, { asOf: '2026-08-01T00:00:00.000Z' });
+    const after = kernel.interpretHistory({
+      entities: [{ id: 'org:legacy', type: 'org', payload: {} }],
+      edges: [],
+      evolution_events: [plan]
+    }, { asOf: '2026-08-03T00:00:00.000Z' });
+    expect(before.entities[0]).toMatchObject({ historical_id: 'org:legacy', canonical_id: 'org:legacy' });
+    expect(after.entities[0]).toMatchObject({
+      historical_id: 'org:legacy',
+      canonical_id: 'org:unson',
+      evolution_provenance: ['decision:ontology-evolution']
+    });
   }
 });
 
@@ -188,6 +218,12 @@ test('story-brainbase-ontology-kernel ac:11 unapproved governance cannot become 
   });
   expect(registry.index.current).toBeNull();
   expect(() => registry.resolve()).toThrowError(expect.objectContaining({ code: 'ONTOLOGY_CURRENT_UNAVAILABLE' }));
+  const authoritySource = fs.readFileSync(path.join(rootDir, 'server/services/info-ssot-service.js'), 'utf8');
+  expect(authoritySource).toContain("('proposer'::text, $1::text, 'R'::text)");
+  expect(authoritySource).toContain("('decider'::text, $2::text, 'A'::text)");
+  expect(authoritySource).toContain("('applier'::text, $3::text, 'A'::text)");
+  expect(authoritySource).toContain('ontology_proposer_entity_id');
+  expect(authoritySource).toContain('ontology_decider_entity_id');
 });
 
 test('story-brainbase-ontology-kernel ac:12 publication CI binds full history and rejects rewritten evidence', async () => {
@@ -211,15 +247,25 @@ test('story-brainbase-ontology-kernel ac:13 Core and Extension projection metada
 
 test('story-brainbase-ontology-kernel ac:14 evolution fixtures reproduce rename, dedup, supersession and invalid relation rules', async () => {
   const { kernel } = proposedRelease();
-  expect(kernel.planEvolution({
+  const merge = kernel.planEvolution({
     kind: 'merge',
     canonical_id: 'person:canonical',
     source_ids: ['person:duplicate'],
     effective_at: '2026-08-02T00:00:00.000Z',
     provenance: ['decision:dedup']
-  })).toMatchObject({
+  });
+  expect(merge).toMatchObject({
     source_ids: ['person:duplicate'],
     provenance: ['decision:dedup']
+  });
+  expect(kernel.interpretHistory({
+    entities: [{ id: 'person:duplicate', type: 'person', payload: {} }],
+    edges: [],
+    evolution_events: [merge]
+  }, { asOf: '2026-08-03T00:00:00.000Z' }).entities[0]).toMatchObject({
+    historical_id: 'person:duplicate',
+    canonical_id: 'person:canonical',
+    evolution_provenance: ['decision:dedup']
   });
   expect(kernel.validateEdge({ relation: 'governs', from_type: 'app', to_type: 'decision' })).toMatchObject({
     valid: false,

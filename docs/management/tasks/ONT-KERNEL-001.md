@@ -46,6 +46,13 @@ current不在時は、明示versionとcaller提供snapshotのreadback・validate
 
 初期`1.0.0`はimmutable releaseとindex entryだけを`proposed`として追加し、receipt/current/compatibility viewは生成しない。実在する承認Decision、Accountable RACI、署名鍵が揃うまでpublishは実行しない。
 
+## このPRのrelease・rollback境界
+
+- deploy後も`index.current`は`null`のままで、receiptとcompatibility viewは生成しない。既存writeは`guard_status: inactive_no_current`で従来互換を維持し、Ontologyをcanonical guardとして有効化しない。
+- このPRはGraph migrationとcanonical current変更を含まないため、code releaseのrollbackはこのPRのmerge commitを通常のrevert手順で戻す。Graph entity/edge、Decision、RACI、publication receiptを変更・削除する操作は行わない。
+- publisherがreceipt・view・indexの置換途中で失敗した場合は、3出力をpublish前のbytesへ補償復元する。後段rename失敗と、authority通信失敗・不完全応答で生成物が残らないことをintegration fixtureで検証する。
+- `1.0.0`のactive化は後続Taskであり、実行前に実Decision、提案者RACI、決裁者RACI、scope Accountable、applier、署名鍵に加え、active化後のsigned rollbackまたはprevious-current復元手順を別途Gateする。これがない状態ではproduction publishを実行しない。
+
 ## 非対象・後続
 
 - scopeなしの既存Graph全件監査、自動修正または削除
