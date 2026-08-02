@@ -10,31 +10,33 @@
   },
   "migration": {
     "required": true,
-    "plan": "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md"
+    "plan": "docs/management/stories/active/story-brainbase-ontology-production-activation.md"
   },
   "rollback": {
     "strategy": "restore_previous_current",
     "target_version": null
   },
   "governance": {
-    "decision_id": null,
-    "scope_entity_id": null,
-    "proposer_entity_id": null,
-    "decider_entity_id": null,
-    "applier_entity_id": null
+    "decision_id": "dec_ontology_1_0_0_activation_20260803",
+    "scope_entity_id": "prj_01KGCS8CAJKKDWACPNK1E5WX8H",
+    "proposer_entity_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+    "decider_entity_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+    "applier_entity_id": "per_01KGYC7NNS0VXADK7NP48W4VR5"
   },
   "impact_scope": {
     "graph_scope": "project:brainbase",
     "affected_apis": ["/api/info/ontology/*", "/api/info/graph/*"],
     "affected_agents": ["brainbase-graph-agent", "brainbase-mcp"],
     "migration_required": true,
-    "verification": "production_shadow_audited_with_residuals"
+    "verification": "production_shadow_audited_zero_residuals"
   },
   "changes": [
     "classify verified production storage entity types as compatibility vocabulary",
     "classify relations whose production endpoint types are verified",
     "align project membership cardinality with verified multi-project facts",
-    "validate decided Decision authority and scope through canonical Graph edges"
+    "validate decided Decision authority and scope through canonical Graph edges",
+    "restore verified references and assign explicit owners without deleting Graph facts",
+    "bind publication authority to Brainbase scope and a signed source commit"
   ],
   "entity_types": {
     "org": { "meaning": "法的または運営上の組織", "description": "法的または運営上の組織", "identity": "継続的な責任主体", "usage": "所有・契約・RACIのscope", "examples": ["Unson LLC"], "counter_examples": ["期限付きproject"], "owner": "ontology-steward", "category": "core", "default_search": true },
@@ -121,7 +123,16 @@
     "supports_project": { "meaning": "partnerがproject運営orgを支援する", "from": ["partner"], "to": ["org"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit", "classification": "compatibility" },
     "uses_app": { "meaning": "projectがappを利用する", "from": ["project"], "to": ["app"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit", "classification": "compatibility" },
     "uses_database": { "meaning": "appがdatabaseを利用する", "from": ["app"], "to": ["database"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit", "classification": "compatibility" },
-    "uses_secret_store": { "meaning": "appがsecret store appを利用する", "from": ["app"], "to": ["app"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit", "classification": "compatibility" }
+    "uses_secret_store": { "meaning": "appがsecret store appを利用する", "from": ["app"], "to": ["app"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit", "classification": "compatibility" },
+    "appeared_in": { "meaning": "人物のmedia出演実績", "from": ["person"], "to": ["media_appearance"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "persistent", "provenance": "explicit", "classification": "compatibility" },
+    "authored": { "meaning": "人物がpublicationを著した", "from": ["person"], "to": ["publication"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "persistent", "provenance": "explicit", "classification": "compatibility" },
+    "created": { "meaning": "人物がproductを創出した", "from": ["person"], "to": ["product"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "persistent", "provenance": "explicit", "classification": "compatibility" },
+    "holds_role": { "meaning": "人物がrole assignmentを保持する", "from": ["person"], "to": ["role_assignment"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit", "classification": "compatibility" },
+    "informs": { "meaning": "文書がproject運営の判断材料になる", "from": ["document"], "to": ["project"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "persistent", "provenance": "explicit", "classification": "compatibility" },
+    "mentioned_in": { "meaning": "人物がpress mentionに掲載された", "from": ["person"], "to": ["press_mention"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "persistent", "provenance": "explicit", "classification": "compatibility" },
+    "operates": { "meaning": "組織がprojectを運営する", "from": ["org"], "to": ["project"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit", "classification": "compatibility" },
+    "related_to": { "meaning": "組織がprojectの関係主体である", "from": ["org"], "to": ["project"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "effective_dated", "provenance": "explicit", "classification": "compatibility" },
+    "spoke_at": { "meaning": "人物が登壇実績を持つ", "from": ["person"], "to": ["speaking"], "direction": "outbound", "cardinality": "many_to_many", "inverse": null, "lifecycle": "persistent", "provenance": "explicit", "classification": "compatibility" }
   },
   "constraints": [
     { "id": "CON-APP-OWNER-001", "target": "app", "kind": "required_relation", "related_types": ["org"], "alternatives": [{ "relation": "owned_by", "direction": "outgoing" }, { "relation": "owns", "direction": "incoming" }] },

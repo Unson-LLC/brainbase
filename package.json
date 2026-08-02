@@ -59,6 +59,8 @@
     "ontology:publish": "node scripts/ontology-release-publish.js",
     "ontology:verify": "node scripts/ontology-release-verify.js",
     "ontology:inventory": "node scripts/ontology-writer-inventory.js",
+    "ontology:remediate:production:1.0.0": "node scripts/ontology-remediate-production-1.0.0.js",
+    "ontology:authority:production:1.0.0": "node scripts/ontology-establish-publication-authority-1.0.0.js",
     "vibepro:component-style": "node scripts/vibepro-component-style-check.mjs",
     "migrate:canonical-task-operations": "node scripts/migrate-canonical-task-operations.js",
     "migrate:canonical-task-columns": "node scripts/migrate-canonical-task-columns.js",
