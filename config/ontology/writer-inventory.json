@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "writers": {
+    "server/controllers/info-ssot-controller.js": { "mode": "runtime", "reason": "Info SSOT HTTP write surface" },
+    "server/routes/info-ssot.js": { "mode": "runtime", "reason": "Info SSOT HTTP route registration" },
+    "server/services/info-ssot-service.js": { "mode": "runtime_guarded", "reason": "canonical Graph writer and Ontology guard" },
+    "server/services/learning-service.js": { "mode": "runtime_inventory_guarded", "reason": "memory candidate direct Graph promotion" },
+    "scripts/generate-memory-preamble.mjs": { "mode": "deferred", "reason": "Graph query text includes writer vocabulary; runtime migration is out of v1" },
+    "scripts/info-ssot-migrate-codex.js": { "mode": "deferred", "reason": "legacy migration" },
+    "scripts/info-ssot-sync-slack-auth.js": { "mode": "deferred", "reason": "Slack auth migration" },
+    "scripts/local-data-server-ssot-upsert.js": { "mode": "deferred", "reason": "local SSOT migration" },
+    "scripts/merge-duplicate-people.mjs": { "mode": "deferred", "reason": "explicit dedup migration" },
+    "scripts/migrate_contacts_to_graph.py": { "mode": "deferred", "reason": "contact migration" },
+    "scripts/normalize-graph-data-ssot.mjs": { "mode": "deferred", "reason": "normalization migration" },
+    "scripts/seed-sato-personal-records.js": { "mode": "deferred", "reason": "personal record seed" },
+    "scripts/upsert-app-environments.mjs": { "mode": "deferred", "reason": "app environment migration" },
+    "scripts/vibepro-graph-ssot-check.mjs": { "mode": "deferred", "reason": "Graph checker contains write-path contract fixtures" }
+  }
+}

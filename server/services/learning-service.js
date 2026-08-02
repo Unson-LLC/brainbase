@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { ulid } from 'ulid';
 import { logger } from '../utils/logger.js';
+import { OntologyRegistry } from './ontology-registry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -594,10 +595,11 @@ export function buildSkillCandidateContent(episode, wikiTargetRef, targetRef = d
 }
 
 export class LearningService {
-    constructor({ pool, wikiService = null, repoRoot = process.cwd() }) {
+    constructor({ pool, wikiService = null, repoRoot = process.cwd(), ontologyRegistry = null }) {
         this.pool = pool;
         this.wikiService = wikiService;
         this.repoRoot = repoRoot;
+        this.ontologyRegistry = ontologyRegistry || new OntologyRegistry();
         this._schemaReady = false;
     }
 
@@ -995,6 +997,11 @@ export class LearningService {
         }
 
         const entityType = mapMemoryCandidateGraphType(candidate);
+        const guard = this.ontologyRegistry.hasCurrent()
+            ? { guard_status: 'active_current', ontology_version: this.ontologyRegistry.resolve().kernel.version }
+            : { guard_status: 'inactive_no_current', ontology_version: null };
+        const vocabularyRelease = this.ontologyRegistry.resolve({ version: '1.0.0' });
+        vocabularyRelease.kernel.getType(entityType);
         const projectCode = normalizeOptionalString(candidate.project_code);
         const projectId = projectCode ? `prj_${projectCode.replace(/[^a-zA-Z0-9_]+/g, '_').toLowerCase()}` : null;
         if (projectCode) {
@@ -1060,6 +1067,7 @@ export class LearningService {
 
         return {
             ...transition,
+            ...guard,
             graph_entity: {
                 id: graphEntityId,
                 entity_type: entityType,

@@ -31,6 +31,26 @@ const manifest = {
     evolution_rules: { breaking: 'major', additive: 'minor', editorial: 'patch' }
 };
 
+for (const definition of Object.values(manifest.entity_types)) {
+    Object.assign(definition, {
+        description: definition.meaning,
+        identity: 'fixture identity',
+        usage: 'fixture usage',
+        examples: ['fixture example'],
+        counter_examples: ['fixture counter example'],
+        owner: 'fixture owner'
+    });
+}
+for (const definition of Object.values(manifest.relation_types)) {
+    Object.assign(definition, {
+        direction: 'outbound',
+        cardinality: 'many_to_many',
+        inverse: null,
+        lifecycle: 'effective_dated',
+        provenance: 'explicit'
+    });
+}
+
 const kernel = () => new OntologyKernel({ manifest, status: 'proposed' });
 
 describe('OntologyKernel', () => {
@@ -79,6 +99,18 @@ describe('OntologyKernel', () => {
         expect(result).toMatchObject({ ontology_version: '1.0.0', as_of: '2026-08-02T00:00:00.000Z' });
         expect(result.evidence).toHaveLength(1);
         expect(result.explanation).toContain('dec_new');
+    });
+
+    it('marks overlapping active decisions without supersedes as conflict', () => {
+        const result = kernel().inferDecisions({
+            entities: [
+                { id: 'dec_a', type: 'decision', payload: { status: 'active', scope_ids: ['app_1'] } },
+                { id: 'dec_b', type: 'decision', payload: { status: 'active', scope_ids: ['app_1'] } }
+            ],
+            edges: []
+        });
+        expect(result.decisions.dec_a).toMatchObject({ status: 'conflict', inferred: true });
+        expect(result.evidence).toContainEqual(expect.objectContaining({ rule_id: 'decision-active-conflict' }));
     });
 
     it('classifies impact and reports missing snapshots as unverified', () => {

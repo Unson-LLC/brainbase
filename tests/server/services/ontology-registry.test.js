@@ -24,4 +24,19 @@ describe('OntologyRegistry', () => {
         expect(registry.resolve({ asOf: '2026-08-01T00:00:00.000Z' }).kernel.version).toBe('1.0.0');
         expect(() => registry.resolve({ asOf: '2026-07-31T23:59:59.999Z' })).toThrow(OntologyError);
     });
+
+    it('derives proposed, approved, active, and retired lifecycle states from index evidence', () => {
+        const registry = new OntologyRegistry({ rootDir });
+        expect(registry.resolve({ version: '1.0.0' }).kernel.status).toBe('proposed');
+
+        registry.index.releases[0].receipt_path = 'receipts/1.0.0.json';
+        expect(registry.resolve({ version: '1.0.0' }).kernel.status).toBe('approved');
+
+        registry.index.current = '1.0.0';
+        expect(registry.resolve({ version: '1.0.0' }).kernel.status).toBe('active');
+
+        registry.index.current = null;
+        registry.index.releases[0].status = 'retired';
+        expect(registry.resolve({ version: '1.0.0' }).kernel.status).toBe('retired');
+    });
 });

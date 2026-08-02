@@ -27,6 +27,12 @@ describe('InfoSSOTService ontology API', () => {
         const result = createService().describeOntology({ version: '1.0.0' });
         expect(result).toMatchObject({ version: '1.0.0', effective_status: 'proposed' });
         expect(result.digest).toMatch(/^[a-f0-9]{64}$/);
+        expect(createService().describeOntologyType('app', { version: '1.0.0' })).toMatchObject({
+            id: 'app', ontology_version: '1.0.0', definition: { owner: 'org' }
+        });
+        expect(createService().describeOntologyRelation('supersedes', { version: '1.0.0' })).toMatchObject({
+            id: 'supersedes', ontology_version: '1.0.0'
+        });
     });
 
     it('validates an explicit-version snapshot without a database', () => {
@@ -39,7 +45,7 @@ describe('InfoSSOTService ontology API', () => {
         });
         expect(result.valid).toBe(false);
         expect(result.violations).toEqual(expect.arrayContaining([
-            expect.objectContaining({ rule_id: 'app-owner-required' })
+            expect.objectContaining({ rule_id: 'CON-APP-OWNER-001' })
         ]));
     });
 

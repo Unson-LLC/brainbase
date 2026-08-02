@@ -8,6 +8,8 @@ const REQUIRED_MANIFEST_KEYS = [
     'inference_rules',
     'evolution_rules'
 ];
+const REQUIRED_TYPE_FIELDS = ['description', 'identity', 'usage', 'examples', 'counter_examples', 'owner'];
+const REQUIRED_RELATION_FIELDS = ['from', 'to', 'direction', 'cardinality', 'lifecycle', 'provenance'];
 
 export class OntologyError extends Error {
     constructor(code, message, details = {}) {
@@ -29,6 +31,19 @@ function assertManifest(manifest) {
     }
     if (!Object.keys(manifest.entity_types).length || !Object.keys(manifest.relation_types).length) {
         throw new OntologyError('ONTOLOGY_MANIFEST_INVALID', 'Ontology manifest vocabulary must not be empty');
+    }
+    const invalidTypes = Object.entries(manifest.entity_types)
+        .filter(([, definition]) => REQUIRED_TYPE_FIELDS.some((field) => definition[field] == null))
+        .map(([id]) => id);
+    const invalidRelations = Object.entries(manifest.relation_types)
+        .filter(([, definition]) => REQUIRED_RELATION_FIELDS.some((field) => definition[field] == null)
+            || (definition.inverse === undefined && definition.symmetric === undefined))
+        .map(([id]) => id);
+    if (invalidTypes.length || invalidRelations.length) {
+        throw new OntologyError('ONTOLOGY_MANIFEST_INVALID', 'Ontology vocabulary metadata is incomplete', {
+            invalid_types: invalidTypes,
+            invalid_relations: invalidRelations
+        });
     }
 }
 
@@ -125,9 +140,13 @@ export class OntologyKernel {
         for (const rule of this.manifest.constraints) {
             if (rule.kind !== 'required_relation') continue;
             for (const entity of entities.filter((item) => (item.type || item.entity_type) === rule.target)) {
-                const hasRelation = edges.some((edge) => edge.from_id === entity.id && (edge.relation || edge.rel_type) === rule.relation);
+                const alternatives = rule.alternatives || [{ relation: rule.relation, direction: 'outgoing' }];
+                const hasRelation = alternatives.some((alternative) => edges.some((edge) => {
+                    const endpointId = alternative.direction === 'incoming' ? edge.to_id : edge.from_id;
+                    return endpointId === entity.id && (edge.relation || edge.rel_type) === alternative.relation;
+                }));
                 if (!hasRelation) {
-                    violations.push(violation(rule.id, `${rule.target} requires ${rule.relation}`, { entity_id: entity.id }));
+                    violations.push(violation(rule.id, `${rule.target} requires an ownership relation`, { entity_id: entity.id }));
                 }
             }
         }
@@ -148,16 +167,39 @@ export class OntologyKernel {
             .filter((entity) => (entity.type || entity.entity_type) === 'decision')
             .map((entity) => [entity.id, { ...entity.payload, explicit: true, inferred: false }]));
         const evidence = [];
+        const supersessionRule = this.manifest.inference_rules.find((rule) => rule.relation === 'supersedes');
         for (const edge of snapshot?.edges || []) {
             if ((edge.relation || edge.rel_type) !== 'supersedes') continue;
             const replacement = decisions[edge.from_id];
             if (!replacement || !decisions[edge.to_id]) continue;
+            if (replacement.status !== 'active') continue;
             if (replacement.effective_at && replacement.effective_at > asOf) continue;
             decisions[edge.to_id] = { ...decisions[edge.to_id], status: 'superseded', inferred: true };
-            evidence.push({ rule_id: 'decision-supersession', from_id: edge.from_id, to_id: edge.to_id });
+            evidence.push({ rule_id: supersessionRule?.id || 'decision-supersession', from_id: edge.from_id, to_id: edge.to_id });
+        }
+        const explicitSupersessions = new Set((snapshot?.edges || [])
+            .filter((edge) => (edge.relation || edge.rel_type) === 'supersedes')
+            .flatMap((edge) => [`${edge.from_id}:${edge.to_id}`, `${edge.to_id}:${edge.from_id}`]));
+        const activeIds = Object.entries(decisions)
+            .filter(([, decision]) => decision.status === 'active')
+            .map(([id]) => id);
+        for (let leftIndex = 0; leftIndex < activeIds.length; leftIndex += 1) {
+            for (let rightIndex = leftIndex + 1; rightIndex < activeIds.length; rightIndex += 1) {
+                const leftId = activeIds[leftIndex];
+                const rightId = activeIds[rightIndex];
+                const leftScopes = decisions[leftId].scope_ids || [];
+                const rightScopes = decisions[rightId].scope_ids || [];
+                const overlaps = leftScopes.some((scope) => rightScopes.includes(scope));
+                if (!overlaps || explicitSupersessions.has(`${leftId}:${rightId}`)) continue;
+                decisions[leftId] = { ...decisions[leftId], status: 'conflict', inferred: true };
+                decisions[rightId] = { ...decisions[rightId], status: 'conflict', inferred: true };
+                evidence.push({ rule_id: 'decision-active-conflict', decision_ids: [leftId, rightId] });
+            }
         }
         const explanation = evidence.length
-            ? evidence.map((item) => `${item.from_id} supersedes ${item.to_id}`).join('; ')
+            ? evidence.map((item) => item.decision_ids
+                ? `${item.decision_ids.join(' and ')} conflict`
+                : `${item.from_id} supersedes ${item.to_id}`).join('; ')
             : 'No decision supersession was inferred';
         return { ontology_version: this.version, as_of: asOf, decisions, evidence, explanation };
     }

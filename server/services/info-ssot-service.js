@@ -1,9 +1,11 @@
 import { Pool } from 'pg';
 import { ulid } from 'ulid';
+import { sign } from 'node:crypto';
 import { logger } from '../utils/logger.js';
 import { buildScopedMemoryResult } from './memory-scope-policy.js';
 import { OntologyError } from './ontology-kernel.js';
 import { OntologyRegistry } from './ontology-registry.js';
+import { canonicalJson } from './ontology-publication.js';
 
 const ROLE_RANK = {
     member: 1,
@@ -77,6 +79,16 @@ export class InfoSSOTService {
     describeOntology({ version, asOf } = {}) {
         const release = this.resolveOntology({ version, asOf });
         return { ...release.kernel.describe(), digest: release.digest };
+    }
+
+    describeOntologyType(id, { version, asOf } = {}) {
+        const { kernel } = this.resolveOntology({ version, asOf });
+        return { id, ontology_version: kernel.version, definition: kernel.getType(id) };
+    }
+
+    describeOntologyRelation(id, { version, asOf } = {}) {
+        const { kernel } = this.resolveOntology({ version, asOf });
+        return { id, ontology_version: kernel.version, definition: kernel.getRelation(id) };
     }
 
     validateOntology({ version, asOf, snapshot, entity, edge } = {}) {
@@ -192,6 +204,118 @@ export class InfoSSOTService {
                     }
                 };
             }
+        });
+    }
+
+    async authorizeOntologyPublication(access, input = {}) {
+        const requiredFields = [
+            'release_version',
+            'source_commit_sha',
+            'release_digest',
+            'decision_id',
+            'scope_entity_id',
+            'applier_entity_id'
+        ];
+        const missing = requiredFields.filter((field) => !input[field]);
+        if (missing.length || !/^[a-f0-9]{40}$/.test(input.source_commit_sha || '')) {
+            throw new OntologyError('ONTOLOGY_PUBLICATION_INPUT_INVALID', 'Publication authorization input is invalid', {
+                http_status: 400,
+                missing,
+                source_commit_sha_valid: /^[a-f0-9]{40}$/.test(input.source_commit_sha || '')
+            });
+        }
+        if (!access?.personId) {
+            throw new OntologyError('ONTOLOGY_PUBLICATION_UNAUTHENTICATED', 'Authenticated principal is not bound to a person', {
+                http_status: 401
+            });
+        }
+        if (access.personId !== input.applier_entity_id) {
+            throw new OntologyError('ONTOLOGY_PUBLICATION_FORBIDDEN', 'Authenticated actor must match the release applier', {
+                http_status: 403
+            });
+        }
+        let release;
+        try {
+            release = this.ontologyRegistry.resolve({ version: input.release_version });
+        } catch (error) {
+            throw new OntologyError('ONTOLOGY_PUBLICATION_BINDING_MISMATCH', error.message, { http_status: 409 });
+        }
+        if (release.digest !== input.release_digest) {
+            throw new OntologyError('ONTOLOGY_PUBLICATION_BINDING_MISMATCH', 'Release digest does not match the immutable release', {
+                http_status: 409,
+                expected: release.digest,
+                actual: input.release_digest
+            });
+        }
+        const privateKey = process.env.ONTOLOGY_RECEIPT_PRIVATE_KEY?.replace(/\\n/g, '\n');
+        const keyId = process.env.ONTOLOGY_RECEIPT_KEY_ID;
+        if (!this.pool || !privateKey || !keyId) {
+            throw new OntologyError('ONTOLOGY_PUBLICATION_DEPENDENCY_UNAVAILABLE', 'Graph authority or signing key is unavailable', {
+                http_status: 503
+            });
+        }
+
+        return this.withAccessContext(access, async (client) => {
+            const decisionResult = await client.query(
+                `SELECT payload FROM graph_entities
+                 WHERE id = $1 AND entity_type = 'decision'
+                 LIMIT 1`,
+                [input.decision_id]
+            );
+            if (!decisionResult.rows.length) {
+                throw new OntologyError('ONTOLOGY_PUBLICATION_DECISION_NOT_FOUND', 'Publication Decision was not found', {
+                    http_status: 404,
+                    decision_id: input.decision_id
+                });
+            }
+            const decision = decisionResult.rows[0].payload || {};
+            const bindings = {
+                ontology_release_version: input.release_version,
+                ontology_release_digest: input.release_digest,
+                ontology_source_commit_sha: input.source_commit_sha
+            };
+            const mismatches = Object.entries(bindings).filter(([key, value]) => decision[key] !== value).map(([key]) => key);
+            if (mismatches.length) {
+                throw new OntologyError('ONTOLOGY_PUBLICATION_BINDING_MISMATCH', 'Decision bindings do not match the publication request', {
+                    http_status: 409,
+                    mismatches
+                });
+            }
+            const authorityResult = await client.query(
+                `SELECT 1
+                 FROM graph_entities r
+                 JOIN graph_edges assigned ON assigned.from_id = r.id
+                    AND assigned.rel_type = 'assigned_to'
+                    AND assigned.to_id = $1
+                 JOIN graph_edges scoped ON scoped.from_id = r.id
+                    AND scoped.rel_type IN ('belongs_to', 'belongs_to_project', 'accountable_for')
+                    AND scoped.to_id = $2
+                 WHERE r.entity_type IN ('raci', 'raci_assignment')
+                   AND COALESCE(r.payload->>'role_code', r.payload->>'role') IN ('A', 'accountable', 'Accountable')
+                 LIMIT 1`,
+                [access.personId, input.scope_entity_id]
+            );
+            if (!authorityResult.rows.length) {
+                throw new OntologyError('ONTOLOGY_PUBLICATION_FORBIDDEN', 'Accountable RACI authority was not confirmed for the scope', {
+                    http_status: 403,
+                    scope_entity_id: input.scope_entity_id
+                });
+            }
+            const payload = {
+                actor_entity_id: access.personId,
+                applier_entity_id: input.applier_entity_id,
+                decision_id: input.decision_id,
+                release_digest: input.release_digest,
+                release_version: input.release_version,
+                scope_entity_id: input.scope_entity_id,
+                source_commit_sha: input.source_commit_sha
+            };
+            return {
+                payload,
+                signature_algorithm: 'ed25519',
+                signature: sign(null, Buffer.from(canonicalJson(payload)), privateKey).toString('base64'),
+                key_id: keyId
+            };
         });
     }
 
@@ -955,6 +1079,7 @@ export class InfoSSOTService {
         const org = String(input.org || input.organization || '').trim();
         const role = String(input.role || '').trim();
         this.assertWriteAccess(access, { projectCode, roleMin, sensitivity });
+        const guard = this.getOntologyGuard();
 
         return this.withAccessContext(access, async (client) => {
             const projectId = await this.ensureProject(client, { projectCode, projectName });
@@ -1012,7 +1137,8 @@ export class InfoSSOTService {
                 org: payload.org,
                 role: payload.role,
                 status: payload.status,
-                source: 'graph_ssot'
+                source: 'graph_ssot',
+                ...guard
             };
         });
     }

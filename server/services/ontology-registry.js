@@ -68,10 +68,10 @@ export class OntologyRegistry {
 
         const bytes = readFileSync(releasePath);
         const digest = createHash('sha256').update(bytes).digest('hex');
-        if (digest !== entry.sha256) {
+        if (entry.content_digest_algorithm !== 'sha256' || digest !== entry.content_digest) {
             throw new OntologyError('ONTOLOGY_DIGEST_MISMATCH', `Ontology release digest mismatch: ${entry.version}`, {
                 version: entry.version,
-                expected: entry.sha256,
+                expected: entry.content_digest,
                 actual: digest
             });
         }
@@ -86,8 +86,15 @@ export class OntologyRegistry {
             });
         }
 
+        const effectiveStatus = this.index.current === entry.version
+            ? 'active'
+            : entry.status === 'retired'
+                ? 'retired'
+                : entry.receipt_path
+                    ? 'approved'
+                    : 'proposed';
         return {
-            kernel: new OntologyKernel({ manifest, status: entry.status }),
+            kernel: new OntologyKernel({ manifest, status: effectiveStatus }),
             digest,
             entry: structuredClone(entry)
         };

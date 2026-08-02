@@ -11,11 +11,15 @@ export function createInfoSSOTRouter(infoSSOTService) {
 
     // Ontology contract (explicit version/as-of remains available before current publication)
     router.get('/ontology', controller.getOntology);
+    router.get('/ontology/releases/:version', controller.getOntologyRelease);
+    router.get('/ontology/types/:id', controller.getOntologyType);
+    router.get('/ontology/relations/:id', controller.getOntologyRelation);
     router.post('/ontology/validate', controller.validateOntology);
     router.post('/ontology/infer', controller.inferOntology);
     router.post('/ontology/impact', controller.impactOntology);
     router.post('/ontology/audit', controller.auditOntology);
     router.post('/ontology/graph/commit', controller.commitOntologyGraph);
+    router.post('/ontology/publications/authorize', controller.authorizeOntologyPublication);
 
     // Read (Graph SSOT only)
     router.get('/graph/entities', controller.listGraphEntities);
