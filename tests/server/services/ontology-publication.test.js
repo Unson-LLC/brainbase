@@ -58,6 +58,7 @@ describe('Ontology publication authority', () => {
         }, request());
         expect(receipt).toMatchObject({ signature_algorithm: 'ed25519', key_id: 'ontology-test-key' });
         expect(receipt.payload).toMatchObject({
+            schema_version: '1.0.0',
             actor_entity_id: 'person:applier',
             applier_entity_id: 'person:applier',
             proposer_entity_id: 'person:proposer',
@@ -66,6 +67,7 @@ describe('Ontology publication authority', () => {
             release_version: '1.0.0',
             impact_scope: { graph_scope: 'project:brainbase', migration_required: false }
         });
+        expect(receipt.payload.issued_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
         expect(verifyPublicationReceipt(receipt, publicKey.export({ type: 'spki', format: 'pem' }))).toBe(true);
     });
 

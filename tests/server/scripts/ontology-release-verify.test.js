@@ -6,7 +6,7 @@ import path from 'node:path';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { canonicalJson, sha256 } from '../../../server/services/ontology-publication.js';
 import { publishOntologyRelease, replacePublicationOutputs } from '../../../scripts/ontology-release-publish.js';
-import { verifyOntologyHistory } from '../../../scripts/ontology-release-verify.js';
+import { verifyOntologyHistory, verifyOntologyRelease } from '../../../scripts/ontology-release-verify.js';
 import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
 import { OntologyRegistry } from '../../../server/services/ontology-registry.js';
 
@@ -62,6 +62,8 @@ function publicationRepository({ publish = true, receiptOverrides = {}, privateK
 
     const receipt = {
         payload: {
+            schema_version: '1.0.0',
+            issued_at: '2026-08-02T00:00:00.000Z',
             release_version: entry.version,
             release_digest: entry.content_digest,
             source_commit_sha: sourceCommit,
@@ -98,7 +100,7 @@ function publicationRepository({ publish = true, receiptOverrides = {}, privateK
     return { rootDir, sourceCommit, publicationCommit: git(rootDir, ['rev-parse', 'HEAD']), releasePath: path.join(configDir, 'releases/1.0.0.json') };
 }
 
-function lifecycleRepository() {
+function lifecycleRepository({ includeRuntime = false } = {}) {
     const rootDir = mkdtempSync(path.join(tmpdir(), 'ontology-lifecycle-'));
     temporaryDirectories.push(rootDir);
     git(rootDir, ['init']);
@@ -123,6 +125,10 @@ function lifecycleRepository() {
     index.current = null;
     index.releases[0].content_digest = sha256(releaseBytes);
     writeJson(indexPath, index);
+    if (includeRuntime) {
+        cpSync(path.join(projectRoot, 'server'), path.join(rootDir, 'server'), { recursive: true });
+        cpSync(path.join(projectRoot, 'scripts'), path.join(rootDir, 'scripts'), { recursive: true });
+    }
     git(rootDir, ['add', '.']);
     git(rootDir, ['commit', '-m', 'approved source']);
     return { rootDir, release, entry: index.releases[0], sourceCommit: git(rootDir, ['rev-parse', 'HEAD']) };
@@ -171,6 +177,20 @@ describe('ontology release Git history verification', () => {
         })).toThrow(/governance binding mismatch/);
     });
 
+    it.each([
+        ['schema_version', '9.9.9'],
+        ['issued_at', 'not-an-iso-timestamp']
+    ])('rejects a validly signed receipt with invalid %s contract metadata', (field, value) => {
+        const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+        const fixture = publicationRepository({ receiptOverrides: { [field]: value }, privateKey });
+        expect(() => verifyOntologyHistory({
+            rootDir: fixture.rootDir,
+            base: fixture.sourceCommit,
+            head: fixture.publicationCommit,
+            publicKeyPem: publicKey.export({ type: 'spki', format: 'pem' }).toString()
+        })).toThrow(/contract mismatch/);
+    });
+
     it('sends Decision, scope, and applier bindings from release governance', async () => {
         const fixture = publicationRepository({ publish: false });
         const { privateKey, publicKey } = generateKeyPairSync('ed25519');
@@ -187,6 +207,8 @@ describe('ontology release Git history verification', () => {
             fetchImpl: async (url, options) => {
                 observedRequest = { url, options, body: JSON.parse(options.body) };
                 const payload = {
+                    schema_version: '1.0.0',
+                    issued_at: '2026-08-02T00:00:00.000Z',
                     actor_entity_id: 'person:applier',
                     applier_entity_id: 'person:applier',
                     proposer_entity_id: 'person:proposer',
@@ -273,6 +295,8 @@ describe('ontology release Git history verification', () => {
             fetchImpl: async (_url, options) => {
                 const requestBody = JSON.parse(options.body);
                 const payload = {
+                    schema_version: '1.0.0',
+                    issued_at: '2026-08-02T00:00:00.000Z',
                     actor_entity_id: 'person:applier',
                     applier_entity_id: 'person:applier',
                     proposer_entity_id: 'person:proposer',
@@ -321,6 +345,58 @@ describe('ontology release Git history verification', () => {
                 sensitivity: 'internal'
             }
         )).rejects.toMatchObject({ code: 'ONTOLOGY_VALIDATION_FAILED' });
+    });
+
+    it('rejects invalid signed contract metadata on the current-only verification path', async () => {
+        const fixture = lifecycleRepository({ includeRuntime: true });
+        const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+        const publicKeyPem = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+        await publishOntologyRelease({
+            rootDir: fixture.rootDir,
+            version: '1.0.0',
+            decisionId: 'decision:ontology-v1',
+            env: {
+                BRAINBASE_GRAPH_API_URL: 'https://graph.example.test',
+                BRAINBASE_GRAPH_API_TOKEN: 'secret-token',
+                ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY: publicKeyPem
+            },
+            fetchImpl: async () => {
+                const payload = {
+                    schema_version: '1.0.0',
+                    issued_at: '2026-08-02T00:00:00.000Z',
+                    actor_entity_id: 'person:applier',
+                    applier_entity_id: 'person:applier',
+                    proposer_entity_id: 'person:proposer',
+                    decider_entity_id: 'person:decider',
+                    decision_id: 'decision:ontology-v1',
+                    release_digest: fixture.entry.content_digest,
+                    release_version: '1.0.0',
+                    scope_entity_id: 'project:brainbase',
+                    impact_scope: fixture.release.impact_scope,
+                    source_commit_sha: fixture.sourceCommit
+                };
+                return {
+                    ok: true,
+                    json: async () => ({
+                        payload,
+                        signature_algorithm: 'ed25519',
+                        signature: sign(null, Buffer.from(canonicalJson(payload)), privateKey).toString('base64'),
+                        key_id: 'test-key'
+                    })
+                };
+            }
+        });
+        const receiptPath = path.join(fixture.rootDir, 'config/ontology/publications/1.0.0.receipt.json');
+        const receipt = JSON.parse(readFileSync(receiptPath, 'utf8'));
+        receipt.payload.issued_at = 'invalid';
+        receipt.signature = sign(null, Buffer.from(canonicalJson(receipt.payload)), privateKey).toString('base64');
+        writeJson(receiptPath, receipt);
+        const indexPath = path.join(fixture.rootDir, 'config/ontology/index.json');
+        const index = JSON.parse(readFileSync(indexPath, 'utf8'));
+        index.releases[0].receipt_digest = sha256(readFileSync(receiptPath));
+        writeJson(indexPath, index);
+
+        expect(() => verifyOntologyRelease({ rootDir: fixture.rootDir, publicKeyPem })).toThrow(/contract mismatch: issued_at/);
     });
 
     it('fails closed on authority network and incomplete-response failures without publishing outputs', async () => {

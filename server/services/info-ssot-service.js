@@ -5,7 +5,7 @@ import { logger } from '../utils/logger.js';
 import { buildScopedMemoryResult } from './memory-scope-policy.js';
 import { OntologyError } from './ontology-kernel.js';
 import { OntologyRegistry } from './ontology-registry.js';
-import { canonicalJson } from './ontology-publication.js';
+import { canonicalJson, ONTOLOGY_PUBLICATION_RECEIPT_SCHEMA_VERSION } from './ontology-publication.js';
 
 const ROLE_RANK = {
     member: 1,
@@ -361,6 +361,8 @@ export class InfoSSOTService {
                 });
             }
             const payload = {
+                schema_version: ONTOLOGY_PUBLICATION_RECEIPT_SCHEMA_VERSION,
+                issued_at: new Date().toISOString(),
                 actor_entity_id: access.personId,
                 applier_entity_id: access.personId,
                 proposer_entity_id: input.proposer_entity_id,

@@ -3,7 +3,12 @@ import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileS
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { canonicalJson, sha256, verifyPublicationReceipt } from '../server/services/ontology-publication.js';
+import {
+    canonicalJson,
+    ONTOLOGY_PUBLICATION_RECEIPT_SCHEMA_VERSION,
+    sha256,
+    verifyPublicationReceipt
+} from '../server/services/ontology-publication.js';
 
 function required(env, name) {
     const value = env[name];
@@ -115,6 +120,7 @@ export async function publishOntologyRelease({
     if (!response.ok) throw new Error(`authority denied (${response.status}): ${receipt.code || receipt.error || 'unknown error'}`);
     if (!verifyPublicationReceipt(receipt, required(env, 'ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY'))) throw new Error('authority returned an unverifiable receipt');
     const expectedReceiptBinding = {
+        schema_version: ONTOLOGY_PUBLICATION_RECEIPT_SCHEMA_VERSION,
         release_version: version,
         source_commit_sha: sourceCommit,
         release_digest: entry.content_digest,

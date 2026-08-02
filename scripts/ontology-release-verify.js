@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { sha256, verifyPublicationReceipt } from '../server/services/ontology-publication.js';
+import { publicationReceiptContractErrors, sha256, verifyPublicationReceipt } from '../server/services/ontology-publication.js';
 import { verifyWriterInventory } from './ontology-writer-inventory.js';
 
 function fail(message) {
@@ -82,6 +82,11 @@ function assertReceiptGovernance(receipt, release, label) {
     }
 }
 
+function assertReceiptContract(receipt, label) {
+    const errors = publicationReceiptContractErrors(receipt);
+    if (errors.length) throw new Error(`${label} contract mismatch: ${errors.join(', ')}`);
+}
+
 export function verifyOntologyHistory({ rootDir, publicKeyPem = '', base, head }) {
     for (const ref of [base, head]) execFileSync('git', ['cat-file', '-e', `${ref}^{commit}`], { cwd: rootDir, stdio: 'ignore' });
     const indexPath = 'config/ontology/index.json';
@@ -149,6 +154,7 @@ export function verifyOntologyHistory({ rootDir, publicKeyPem = '', base, head }
         if (sha256(receiptBytes) !== entry.receipt_digest) throw new Error(`published receipt digest mismatch: ${entry.version}`);
         const receipt = JSON.parse(receiptBytes.toString('utf8'));
         const release = JSON.parse(sourceRelease.toString('utf8'));
+        assertReceiptContract(receipt, `published receipt ${entry.version}`);
         if (receipt.payload.source_commit_sha !== entry.source_commit_sha
             || receipt.payload.release_version !== entry.version
             || receipt.payload.release_digest !== entry.content_digest) {
@@ -192,6 +198,7 @@ export function verifyOntologyRelease({ rootDir, publicKeyPem = '', base = null,
         const receiptBytes = readFileSync(path.resolve(configDir, entry.receipt_path));
         if (sha256(receiptBytes) !== entry.receipt_digest) throw new Error(`receipt digest mismatch: ${index.current}`);
         const receipt = JSON.parse(receiptBytes.toString('utf8'));
+        assertReceiptContract(receipt, `receipt ${index.current}`);
         if (!verifyPublicationReceipt(receipt, publicKeyPem)) throw new Error(`receipt signature is invalid: ${index.current}`);
         if (receipt.payload.release_version !== entry.version
             || receipt.payload.release_digest !== entry.content_digest

@@ -1,5 +1,7 @@
 import { createHash, verify } from 'node:crypto';
 
+export const ONTOLOGY_PUBLICATION_RECEIPT_SCHEMA_VERSION = '1.0.0';
+
 export function sha256(bytes) {
     return createHash('sha256').update(bytes).digest('hex');
 }
@@ -16,10 +18,26 @@ export function canonicalJson(value) {
     return JSON.stringify(canonicalize(value));
 }
 
+export function publicationReceiptContractErrors(receipt) {
+    const errors = [];
+    if (receipt?.payload?.schema_version !== ONTOLOGY_PUBLICATION_RECEIPT_SCHEMA_VERSION) {
+        errors.push('schema_version');
+    }
+    const issuedAt = receipt?.payload?.issued_at;
+    if (typeof issuedAt !== 'string'
+        || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(issuedAt)
+        || Number.isNaN(Date.parse(issuedAt))
+        || new Date(issuedAt).toISOString() !== issuedAt) {
+        errors.push('issued_at');
+    }
+    return errors;
+}
+
 export function verifyPublicationReceipt(receipt, publicKeyPem) {
     if (receipt?.signature_algorithm !== 'ed25519' || !receipt?.payload || !receipt?.signature || !receipt?.key_id) {
         return false;
     }
+    if (publicationReceiptContractErrors(receipt).length) return false;
     return verify(
         null,
         Buffer.from(canonicalJson(receipt.payload)),
