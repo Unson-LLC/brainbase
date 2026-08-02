@@ -73,11 +73,31 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 - 既存の分離writeは登録型・relation・endpointをguardし、必須relation強制はatomic commitへ移行する。既存ownerなしentity作成契約はv1で即時破壊しない。
 - manifestはpublic ID、storage type、visibility、aliasを明示し、ADR-007とMCP projectionの差をcontract testで固定する。
 
+#### Legacy write surface matrix
+
+| 経路 | entity / storage type | relation | v1の扱い | pre-fixを落とすfixture |
+|---|---|---|---|---|
+| `POST /graph/entities`、`POST /graph/edges` | manifest登録型 | `depends_on`を含む登録relation | 型・relation・endpoint guard。ownerなしapp単体は互換維持 | unknown type/relationは400、ownerなしappとapp間`depends_on`は201 |
+| `POST /decisions` | `decision` | `belongs_to_project`、`owned_by`、`member_of` | 専用transactionを維持し、出力語彙をmanifest contract testで拘束 | 作成成功と3 relationの登録一致 |
+| `POST /raci` | public `raci` / storage `raci_assignment` | `belongs_to_project`、`assigned_to`、`member_of` | projectionと専用transactionを維持 | public/storage aliasと3 relationの登録一致 |
+| `POST /glossary` | `glossary_term` | `belongs_to_project` | 専用path維持 | type/relationのmanifest登録一致 |
+| `POST /kpi` | `kpi` | `belongs_to_project` | `internal`型として専用path維持 | type/relationのmanifest登録一致 |
+| `POST /initiative` | `initiative` | `belongs_to_project`、`owned_by`、`member_of` | `internal`型として専用path維持 | typeと3 relationのmanifest登録一致 |
+| `POST /ai/query` | `ai_query` | `belongs_to_project`、`requested_by`、`member_of` | `internal`型として専用path維持 | typeと3 relationのmanifest登録一致 |
+| `POST /ai/decision-log` | `ai_decision` | `belongs_to_project`、`made_by`、`references`、`member_of` | `internal`型として専用path維持 | typeと4 relationのmanifest登録一致 |
+| `POST /events` | Graph entityなし | なし | Ontology guard非該当。event tableの既存契約を維持 | Graph entity/edgeが増えない既存service test |
+| `scripts/info-ssot-migrate-codex.js` | legacy migration inventory | 上記compatibility relation | v1 runtime guardの対象外。manifest inventory verifierを必須化し、未知値をfailする | script内type/relation literalが全てmanifest分類済み |
+| その他のdirect migration/upsert script | migration固有型 | migration固有relation | runtime API非該当。自動実行せず後続guard移行、inventory auditでは`deferred`を明示 | inventory reportにscript、値、deferred理由が出る |
+
+専用pathはv1でkernelを直接呼ばないが、manifest contract testが上表の出力語彙を拘束する。silent bypassではなく、未登録値はtest/verify gateのfindingにする。
+
 ### ONT-008 Release governance
 
 - releaseは`proposed`、`approved`、`active`、`retired`の状態を持つ。
 - proposer、decider、applierのGraph entity ID、RACI scope、根拠Decision IDを持つ。
 - 対象scopeのAccountable承認と適用証跡がないreleaseはcurrent indexへ公開できない。
+- current indexは`ontology:publish`だけが生成し、対象HEAD、release SHA-256、Graph RACI、根拠Decision、applierを検証する。Graph/authorityを確認できない場合は公開を失敗させる。
+- `ontology:verify`はbase refと比較し、publisher証跡のないcurrent変更、既公開versionの変更・削除・version再利用を拒否する。
 
 ## テスト計画
 
@@ -89,7 +109,12 @@ Graph factの意味、検証、推論、変更解釈をversionedな決定的契�
 6. API/service integration: readback、dry-run、atomic rollback、分離write互換、structured error、access contextを検証する。
 7. audit contract: scope、pagination完走、partial/DB failureの`unverified`を検証する。
 8. release/history contract: current/version/as-of解決、未知version、RACI publication gateを検証する。
-9. compatibility matrix: ownerなしapp、`depends_on`、専用Decision/RACI write、public/storage alias、既存relationをfixture化する。
+9. compatibility matrix: 上表の全route/scriptについて、ownerなしapp、`depends_on`、専用write、public/storage alias、登録語彙または明示deferredをfixture化する。
+10. publication integrity: 手動index変更、authority未確認、release digest差し替え、過去release削除、version再利用を失敗させる。
+
+## Clause ID正本
+
+VibePro accepted Specが付与する`C-*`、`INV-*`、`S-*`をclause ID正本とし、`ONT-*`はrequirement IDとして使う。tracked JSONとaccepted Specのclause IDは同一に保つ。
 
 ## 完了境界
 

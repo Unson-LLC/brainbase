@@ -20,6 +20,7 @@ created_at: 2026-08-02
 - `server/services/info-ssot-service.js`
 - `server/controllers/info-ssot-controller.js`
 - `server/routes/info-ssot.js`
+- `scripts/ontology-release-publish.js`と`scripts/ontology-release-verify.js`
 - `mcp/brainbase/src/indexer/ontology.ts`
 - 対応するunit/service/route contract tests
 
@@ -28,8 +29,8 @@ created_at: 2026-08-02
 1. manifestとkernelのcontract testを失敗させる。
 2. 型・関係・制約の検証を実装する。
 3. atomic entity+edge commit、bounded DB-backed audit、Decision推論、変更impact/history contractを実装する。
-4. current/version/as-of readback、RACI publication gate、汎用write guardへ接続する。
-5. ownerなしapp、`depends_on`、専用Decision/RACI、partial audit、public/storage aliasの回帰matrixを実装する。
+4. current/version/as-of readback、HEAD/digest/Graph RACI/Decisionを検証する唯一のpublisher、base比較verify gate、汎用write guardへ接続する。
+5. ownerなしapp、`depends_on`、Decision/RACI/Glossary/KPI/Initiative/AI Query/AI Decision Log、migration script inventory、partial audit、public/storage aliasの回帰matrixを実装する。
 6. MCP型projection互換性、対象test、typecheck、VibePro Gateを検証する。
 
 ## 非対象・後続

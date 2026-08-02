@@ -7,49 +7,49 @@
   "architecture_ref": "docs/architecture/ADR-021-brainbase-ontology-kernel.md",
   "clauses": [
     {
-      "id": "ONT-001",
+      "id": "C-005",
       "type": "contract",
       "statement": "Immutable Ontology releases and every definition are machine-readable by stable ID and resolvable by current, version, or as-of; invalid manifests fail loudly.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "current Ontology version and definitions are readable" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     },
     {
-      "id": "ONT-002",
+      "id": "C-002",
       "type": "contract",
       "statement": "Unknown entity types, relation types, and disallowed relation endpoints are rejected with rule-ID violations before generic Graph persistence.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "invalid relations are rejected before canonical Graph persistence" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     },
     {
-      "id": "ONT-003",
+      "id": "INV-003",
       "type": "invariant",
       "statement": "Atomic commits prevent Apps without an owner organization and active Decisions without a decider or scope; incomplete DB audits are unverified, never zero violations.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "shared semantic constraints and dry-run audit" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     },
     {
-      "id": "ONT-004",
+      "id": "S-001",
       "type": "scenario",
       "statement": "Only an explicit effective supersedes edge resolves a current Decision; unrelated active Decisions remain a conflict with traceable evidence.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "Decision supersession is reproducible" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     },
     {
-      "id": "ONT-005",
+      "id": "C-006",
       "type": "contract",
       "statement": "Ontology evolution follows SemVer, preserves immutable historical releases and canonical identity, and resolves past facts by recorded version or as-of time.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "versioned evolution and history interpretation" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     },
     {
-      "id": "ONT-006",
+      "id": "C-007",
       "type": "contract",
       "statement": "Info SSOT callers with a valid access context can read current or historical definitions, dry-run, run bounded DB audits, atomically commit aggregates, infer decisions, and analyze impact.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "API or MCP readback" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     },
     {
-      "id": "ONT-007",
+      "id": "INV-002",
       "type": "invariant",
       "statement": "The MCP Core and Extension type projection remains compatible and existing Graph facts are not automatically modified.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "Core and Extension compatibility" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
     },
     {
-      "id": "ONT-008",
+      "id": "INV-004",
       "type": "invariant",
       "statement": "Only an Ontology release approved by the accountable Graph RACI actor and applied with evidence can become canonical active.",
       "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "Ontology release governance is linked to RACI" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
@@ -131,9 +131,24 @@
       "shall": [
         "Releases transition proposed, approved, active, and retired",
         "Proposer, decider, and applier identities plus RACI scope and decision evidence are recorded",
-        "An unapproved release cannot become current"
+        "An unapproved release cannot become current",
+        "The sole publisher validates HEAD, content digest, Graph RACI, decision evidence, and applier identity",
+        "The verification gate rejects manual current changes, modified or deleted published releases, and reused versions"
       ]
     }
+  ],
+  "legacy_write_surface_matrix": [
+    { "path": "POST /graph/entities and /graph/edges", "types": ["manifest_registered"], "relations": ["depends_on", "manifest_registered"], "v1": "generic_guard_with_ownerless_app_split_write_compatibility" },
+    { "path": "POST /decisions", "types": ["decision"], "relations": ["belongs_to_project", "owned_by", "member_of"], "v1": "specialized_path_manifest_contract" },
+    { "path": "POST /raci", "types": ["raci", "raci_assignment"], "relations": ["belongs_to_project", "assigned_to", "member_of"], "v1": "public_storage_projection_contract" },
+    { "path": "POST /glossary", "types": ["glossary_term"], "relations": ["belongs_to_project"], "v1": "specialized_path_manifest_contract" },
+    { "path": "POST /kpi", "types": ["kpi"], "relations": ["belongs_to_project"], "v1": "internal_type_manifest_contract" },
+    { "path": "POST /initiative", "types": ["initiative"], "relations": ["belongs_to_project", "owned_by", "member_of"], "v1": "internal_type_manifest_contract" },
+    { "path": "POST /ai/query", "types": ["ai_query"], "relations": ["belongs_to_project", "requested_by", "member_of"], "v1": "internal_type_manifest_contract" },
+    { "path": "POST /ai/decision-log", "types": ["ai_decision"], "relations": ["belongs_to_project", "made_by", "references", "member_of"], "v1": "internal_type_manifest_contract" },
+    { "path": "POST /events", "types": [], "relations": [], "v1": "not_applicable_no_graph_write" },
+    { "path": "scripts/info-ssot-migrate-codex.js", "types": ["migration_inventory"], "relations": ["compatibility_inventory"], "v1": "inventory_verify_only" },
+    { "path": "other direct migration scripts", "types": ["migration_specific"], "relations": ["migration_specific"], "v1": "deferred_with_inventory_finding" }
   ],
   "test_plan": [
     "manifest-contract",
@@ -145,6 +160,7 @@
     "bounded-db-audit",
     "historical-release-resolution",
     "raci-publication-gate",
-    "legacy-write-compatibility-matrix"
+    "legacy-write-compatibility-matrix",
+    "publication-integrity"
   ]
 }
