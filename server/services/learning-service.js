@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { ulid } from 'ulid';
 import { logger } from '../utils/logger.js';
+import { OntologyError } from './ontology-kernel.js';
 import { OntologyRegistry } from './ontology-registry.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -995,26 +996,42 @@ export class LearningService {
         if (candidate.redaction_status === 'needs_redaction') {
             throw new Error('memory candidate requires redaction before graph promotion');
         }
-
-        const entityType = mapMemoryCandidateGraphType(candidate);
-        const guard = this.ontologyRegistry.hasCurrent()
-            ? { guard_status: 'active_current', ontology_version: this.ontologyRegistry.resolve().kernel.version }
-            : { guard_status: 'inactive_no_current', ontology_version: null };
-        const vocabularyRelease = this.ontologyRegistry.resolve({ version: '1.0.0' });
-        vocabularyRelease.kernel.getType(entityType);
+        const actorPersonId = normalizeOptionalString(options.actor_person_id || options.actorPersonId);
+        const access = options.access;
+        if (!actorPersonId || !access) {
+            throw Object.assign(new Error('authenticated promotion access is required'), { status: 403 });
+        }
         const projectCode = normalizeOptionalString(candidate.project_code);
-        const projectId = projectCode ? `prj_${projectCode.replace(/[^a-zA-Z0-9_]+/g, '_').toLowerCase()}` : null;
-        if (projectCode) {
-            await this.pool.query(
-                `INSERT INTO projects (id, code, name)
-                 VALUES ($1,$2,$3)
-                 ON CONFLICT (code) DO NOTHING`,
-                [projectId, projectCode, projectCode]
-            );
+        const role = normalizeOptionalString(access.role)?.toLowerCase();
+        const authorizedOwner = normalizeOptionalString(candidate.recommended_owner_person_id || candidate.owner_person_id);
+        if (!authorizedOwner) {
+            throw Object.assign(new Error('approved promotion authority is required'), { status: 403 });
+        }
+        if (projectCode && role !== 'ceo' && !toArray(access.projectCodes).includes(projectCode)) {
+            throw Object.assign(new Error(`promotion project access denied: ${projectCode}`), { status: 403 });
+        }
+        if (!['gm', 'ceo'].includes(role) && actorPersonId !== authorizedOwner) {
+            throw Object.assign(new Error('promotion owner authority denied'), { status: 403 });
         }
 
+        const entityType = mapMemoryCandidateGraphType(candidate);
+        const currentRelease = this.ontologyRegistry.hasCurrent()
+            ? this.ontologyRegistry.resolve()
+            : null;
+        const guard = currentRelease
+            ? { guard_status: 'active_current', ontology_version: currentRelease.kernel.version }
+            : { guard_status: 'inactive_no_current', ontology_version: null };
+        const vocabularyRelease = currentRelease || this.ontologyRegistry.resolve({ version: '1.0.0' });
+        vocabularyRelease.kernel.getType(entityType);
+
         const graphEntityId = `mem_${candidate.id}`;
+        const semanticMemory = candidate.memory
+            && typeof candidate.memory === 'object'
+            && !Array.isArray(candidate.memory)
+            ? candidate.memory
+            : {};
         const payload = {
+            ...semanticMemory,
             memory_candidate_id: candidate.id,
             subject_type: candidate.subject_type,
             subject_id: candidate.subject_id,
@@ -1035,7 +1052,38 @@ export class LearningService {
             promoted_at: new Date().toISOString()
         };
 
-        await this.pool.query(
+        if (currentRelease) {
+            const validation = currentRelease.kernel.validateEntity({
+                id: graphEntityId,
+                type: entityType,
+                payload
+            });
+            if (!validation.valid) {
+                throw new OntologyError(
+                    'ONTOLOGY_VALIDATION_FAILED',
+                    'Graph write violates the current ontology',
+                    {
+                        ontology_version: validation.ontology_version,
+                        violations: validation.violations
+                    }
+                );
+            }
+        }
+
+        const projectId = projectCode ? `prj_${projectCode.replace(/[^a-zA-Z0-9_]+/g, '_').toLowerCase()}` : null;
+        const client = await this.pool.connect();
+        try {
+            await client.query('BEGIN');
+            if (projectCode) {
+                await client.query(
+                `INSERT INTO projects (id, code, name)
+                 VALUES ($1,$2,$3)
+                 ON CONFLICT (code) DO NOTHING`,
+                [projectId, projectCode, projectCode]
+                );
+            }
+
+            await client.query(
             `INSERT INTO graph_entities (
                 id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at
             ) VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
@@ -1055,25 +1103,32 @@ export class LearningService {
                 candidate.role_min,
                 candidate.sensitivity
             ]
-        );
+            );
 
-        const transition = await this._transitionMemoryCandidate(candidate, {
-            expectedStatuses: Array.from(MEMORY_APPROVED_FOR_GRAPH_STATUSES),
-            nextStatus: 'promoted_to_graph',
-            actor_person_id: options.actor_person_id || options.actorPersonId,
-            decision_owner_person_id: options.decision_owner_person_id || options.decisionOwnerPersonId || candidate.recommended_owner_person_id || candidate.owner_person_id,
-            decision_reason: options.reason || options.decision_reason || 'promoted_to_graph'
-        });
+            const transition = await this._transitionMemoryCandidate(candidate, {
+                expectedStatuses: Array.from(MEMORY_APPROVED_FOR_GRAPH_STATUSES),
+                nextStatus: 'promoted_to_graph',
+                actor_person_id: actorPersonId,
+                decision_owner_person_id: authorizedOwner,
+                decision_reason: options.reason || options.decision_reason || 'promoted_to_graph'
+            }, client);
+            await client.query('COMMIT');
 
-        return {
-            ...transition,
-            ...guard,
-            graph_entity: {
-                id: graphEntityId,
-                entity_type: entityType,
-                payload
-            }
-        };
+            return {
+                ...transition,
+                ...guard,
+                graph_entity: {
+                    id: graphEntityId,
+                    entity_type: entityType,
+                    payload
+                }
+            };
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
     }
 
     async listPromotions({ status, pillar, apply_mode } = {}) {
@@ -1460,7 +1515,7 @@ export class LearningService {
         decision_owner_person_id = null,
         decision_reason = '',
         requires_approval = undefined
-    }) {
+    }, queryable = this.pool) {
         if (!MEMORY_PROMOTION_STATUSES.has(nextStatus)) {
             throw new Error('next promotion status is invalid');
         }
@@ -1474,15 +1529,19 @@ export class LearningService {
             ? requires_approval
             : candidate.requires_approval;
 
-        await this.pool.query(
+        const updateResult = await queryable.query(
             `UPDATE memory_candidates
              SET promotion_status = $2,
                  requires_approval = $3,
                  updated_at = NOW()
-             WHERE id = $1`,
-            [candidate.id, nextStatus, nextRequiresApproval]
+             WHERE id = $1
+               AND promotion_status = $4`,
+            [candidate.id, nextStatus, nextRequiresApproval, previousStatus]
         );
-        await this.pool.query(
+        if (updateResult.rowCount !== 1) {
+            throw new Error('memory candidate changed during transition');
+        }
+        await queryable.query(
             `INSERT INTO memory_candidate_audit_logs (
                 id, candidate_id, actor_person_id, decision_owner_person_id,
                 decision_reason, previous_status, next_status, evidence_ids, created_at

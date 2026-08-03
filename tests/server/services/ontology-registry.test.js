@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -6,9 +6,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { canonicalJson, sha256 } from '../../../server/services/ontology-publication.js';
 import { OntologyRegistry } from '../../../server/services/ontology-registry.js';
+import { createProposedOntologyFixture } from '../../helpers/ontology-test-fixtures.js';
 
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const proposedFixture = createProposedOntologyFixture(sourceRoot);
+const rootDir = proposedFixture.rootDir;
 const temporaryDirectories = [];
+
+afterAll(() => proposedFixture.cleanup());
 
 afterEach(() => {
     for (const directory of temporaryDirectories.splice(0)) rmSync(directory, { recursive: true, force: true });
@@ -90,6 +95,21 @@ function signedRegistryFixture({ current = null, status = 'proposed', mutateEntr
 }
 
 describe('OntologyRegistry', () => {
+    it('resolves the active repository release with the distributed public trust anchor', () => {
+        const previousPublicKey = process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+        delete process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+        try {
+            const registry = new OntologyRegistry({ rootDir: sourceRoot });
+            expect(registry.resolve()).toMatchObject({
+                entry: { version: '1.0.0', status: 'active' },
+                kernel: { status: 'active' }
+            });
+        } finally {
+            if (previousPublicKey === undefined) delete process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+            else process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY = previousPublicKey;
+        }
+    });
+
     it('loads the immutable proposed release and verifies its digest', () => {
         const registry = new OntologyRegistry({ rootDir });
         const release = registry.resolve({ version: '1.0.0' });

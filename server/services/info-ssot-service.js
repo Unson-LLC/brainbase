@@ -130,7 +130,6 @@ export class InfoSSOTService {
             const contextIds = [...new Set(contextEntities
                 .map((item) => item?.id)
                 .filter((id) => id && id !== entity.id))];
-            let persistedContextEntities = [];
             if (contextIds.length) {
                 const contextResult = await client.query(
                     `SELECT id, entity_type, payload
@@ -161,17 +160,20 @@ export class InfoSSOTService {
                         mismatches: typeMismatches
                     });
                 }
-                persistedContextEntities = contextIds.map((id) => {
-                    const row = persistedById.get(id);
-                    return {
-                        id: row.id,
-                        type: row.entity_type,
-                        payload: typeof row.payload === 'string' ? JSON.parse(row.payload) : (row.payload || {})
-                    };
-                });
             }
-            const snapshot = { entities: [entity, ...persistedContextEntities], edges };
-            this.assertOntologyValid(kernel.validateSnapshot(snapshot));
+            await this.validateGraphMutation(client, {
+                entityOverrides: [{
+                    id: entity.id,
+                    type: entity.type || entity.entity_type,
+                    payload: entity.payload || {}
+                }],
+                edgeOverrides: edges.map((edge) => ({
+                    from_id: edge.from_id,
+                    to_id: edge.to_id,
+                    rel_type: edge.relation || edge.rel_type
+                })),
+                validationEntityIds: [entity.id]
+            });
             const projectId = await this.ensureProject(client, {
                 projectCode: input.projectCode,
                 projectName: input.projectName
@@ -192,7 +194,8 @@ export class InfoSSOTService {
                     projectId,
                     payload: edge.payload || {},
                     roleMin,
-                    sensitivity
+                    sensitivity,
+                    aggregatePrevalidated: true
                 });
             }
             return {
@@ -394,6 +397,7 @@ export class InfoSSOTService {
                     AND scoped.rel_type IN ('belongs_to', 'belongs_to_project', 'accountable_for')
                     AND scoped.to_id = $4
                  WHERE r.entity_type IN ('raci', 'raci_assignment')
+                   AND COALESCE(r.payload->>'lane', '') = required.lane
                    AND CASE required.role_code
                        WHEN 'R' THEN COALESCE(r.payload->>'role_code', r.payload->>'role') IN ('R', 'responsible', 'Responsible')
                        WHEN 'A' THEN COALESCE(r.payload->>'role_code', r.payload->>'role') IN ('A', 'accountable', 'Accountable')
@@ -448,11 +452,103 @@ export class InfoSSOTService {
         }
     }
 
+    async validateGraphMutation(client, {
+        entityOverrides = [],
+        edgeOverride = null,
+        edgeOverrides = [],
+        validationEntityIds = []
+    }) {
+        if (!this.ontologyRegistry.hasCurrent()) return;
+        const mutationEdges = [
+            ...edgeOverrides,
+            ...(edgeOverride ? [edgeOverride] : [])
+        ];
+        const targetIds = Array.from(new Set([
+            ...validationEntityIds,
+            ...entityOverrides.map((entity) => entity.id),
+            ...mutationEdges.flatMap((edge) => [edge.from_id, edge.to_id])
+        ].filter(Boolean))).sort();
+        // Row locks cannot serialize two transactions that are both creating
+        // the same previously absent entity. Lock the logical aggregate keys
+        // first so the later transaction re-reads the committed edge set.
+        for (const targetId of targetIds) {
+            await client.query(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                [`ontology-aggregate:${targetId}`]
+            );
+        }
+        // Serialize mutations that share an endpoint before reading its current
+        // edges, so concurrent cardinality checks cannot both observe stale data.
+        await client.query(
+            `SELECT id
+             FROM graph_entities
+             WHERE id = ANY($1::text[])
+             ORDER BY id
+             FOR UPDATE`,
+            [targetIds]
+        );
+        const edgeResult = await client.query(
+            `SELECT id, from_id, to_id, rel_type
+             FROM graph_edges
+             WHERE from_id = ANY($1::text[]) OR to_id = ANY($1::text[])`,
+            [targetIds]
+        );
+        const edges = edgeResult.rows.map((edge) => ({ ...edge, relation: edge.rel_type }));
+        for (const mutationEdge of mutationEdges) {
+            const existingIndex = edges.findIndex((edge) => edge.from_id === mutationEdge.from_id
+                && edge.to_id === mutationEdge.to_id
+                && edge.rel_type === mutationEdge.rel_type);
+            if (existingIndex >= 0) {
+                edges[existingIndex] = { ...edges[existingIndex], ...mutationEdge, relation: mutationEdge.rel_type };
+            } else {
+                edges.push({ ...mutationEdge, relation: mutationEdge.rel_type });
+            }
+        }
+        const entityIds = Array.from(new Set([
+            ...targetIds,
+            ...edges.flatMap((edge) => [edge.from_id, edge.to_id])
+        ]));
+        const entityResult = await client.query(
+            `SELECT id, entity_type, payload
+             FROM graph_entities
+             WHERE id = ANY($1::text[])
+             ORDER BY id
+             FOR UPDATE`,
+            [entityIds]
+        );
+        const entities = new Map(entityResult.rows.map((entity) => [entity.id, {
+            id: entity.id,
+            type: entity.entity_type,
+            payload: entity.payload || {}
+        }]));
+        for (const entity of entityOverrides) entities.set(entity.id, entity);
+        const missingEndpointIds = entityIds.filter((id) => !entities.has(id));
+        if (missingEndpointIds.length) {
+            throw new OntologyError('ONTOLOGY_EDGE_ENDPOINT_NOT_FOUND', 'Graph edge endpoints must exist and be visible', {
+                missing_endpoint_ids: missingEndpointIds
+            });
+        }
+        const { kernel } = this.ontologyRegistry.resolve();
+        this.assertOntologyValid(kernel.validateSnapshot({
+            entities: Array.from(entities.values()),
+            edges,
+            validation_entity_ids: validationEntityIds,
+            complete: true
+        }));
+    }
+
     generateId(prefix) {
         return `${prefix}_${ulid()}`;
     }
 
     async upsertGraphEntity(client, { id, entityType, projectId, payload, roleMin, sensitivity }) {
+        if (this.ontologyRegistry.hasCurrent()) {
+            const { kernel } = this.ontologyRegistry.resolve();
+            this.assertOntologyValid(kernel.validateEntity(
+                { id, type: entityType, payload: payload || {} },
+                { deferRequiredRelations: true }
+            ));
+        }
         await client.query(
             `INSERT INTO graph_entities (
                 id,
@@ -483,7 +579,23 @@ export class InfoSSOTService {
         );
     }
 
-    async upsertGraphEdge(client, { fromId, toId, relType, projectId, payload, roleMin, sensitivity }) {
+    async upsertGraphEdge(client, {
+        fromId,
+        toId,
+        relType,
+        projectId,
+        payload,
+        roleMin,
+        sensitivity,
+        aggregatePrevalidated = false
+    }) {
+        if (this.ontologyRegistry.hasCurrent() && !aggregatePrevalidated) {
+            await this.validateGraphMutation(client, { edgeOverride: {
+                from_id: fromId,
+                to_id: toId,
+                rel_type: relType
+            }, validationEntityIds: [fromId, toId] });
+        }
         const edgeId = this.generateId('edg');
         await client.query(
             `INSERT INTO graph_edges (
@@ -1151,12 +1263,14 @@ export class InfoSSOTService {
         }
         if (legacy.length === 1) {
             const id = legacy[0].id;
-            await client.query(
-                `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
-                 VALUES ($1, 'person', NULL, $2::jsonb, 'member', 'internal', NOW(), NOW())
-                 ON CONFLICT (id) DO NOTHING`,
-                [id, JSON.stringify({ name: trimmed })]
-            );
+            await this.upsertGraphEntity(client, {
+                id,
+                entityType: 'person',
+                projectId: null,
+                payload: { name: trimmed },
+                roleMin: 'member',
+                sensitivity: 'internal'
+            });
             return id;
         }
 
@@ -1165,12 +1279,14 @@ export class InfoSSOTService {
             'INSERT INTO people (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
             [id, trimmed]
         );
-        await client.query(
-            `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
-             VALUES ($1, 'person', NULL, $2::jsonb, 'member', 'internal', NOW(), NOW())
-             ON CONFLICT (id) DO NOTHING`,
-            [id, JSON.stringify({ name: trimmed })]
-        );
+        await this.upsertGraphEntity(client, {
+            id,
+            entityType: 'person',
+            projectId: null,
+            payload: { name: trimmed },
+            roleMin: 'member',
+            sensitivity: 'internal'
+        });
         return id;
     }
 
@@ -1275,11 +1391,18 @@ export class InfoSSOTService {
         const guard = this.getOntologyGuard();
         if (guard.guard_status === 'active_current') {
             const { kernel } = this.ontologyRegistry.resolve();
-            this.assertOntologyValid(kernel.validateEntity({ id, type: entityType, payload: payload || {} }));
+            this.assertOntologyValid(kernel.validateEntity(
+                { id, type: entityType, payload: payload || {} },
+                { deferRequiredRelations: true }
+            ));
         }
 
         return this.withAccessContext(access, async (client) => {
             const projectId = await this.ensureProject(client, { projectCode, projectName });
+            await this.validateGraphMutation(client, {
+                entityOverrides: [{ id, type: entityType, payload: payload || {} }],
+                validationEntityIds: [id]
+            });
             await this.upsertGraphEntity(client, {
                 id,
                 entityType,
@@ -1314,28 +1437,6 @@ export class InfoSSOTService {
 
         const guard = this.getOntologyGuard();
         return this.withAccessContext(access, async (client) => {
-            if (guard.guard_status === 'active_current') {
-                const endpointResult = await client.query(
-                    `SELECT id, entity_type
-                     FROM graph_entities
-                     WHERE id = ANY($1::text[])`,
-                    [[fromId, toId]]
-                );
-                const endpointTypes = new Map(endpointResult.rows.map((row) => [row.id, row.entity_type]));
-                if (!endpointTypes.has(fromId) || !endpointTypes.has(toId)) {
-                    throw new OntologyError('ONTOLOGY_EDGE_ENDPOINT_NOT_FOUND', 'Graph edge endpoints must exist and be visible', {
-                        missing_endpoint_ids: [fromId, toId].filter((id) => !endpointTypes.has(id))
-                    });
-                }
-                const { kernel } = this.ontologyRegistry.resolve();
-                this.assertOntologyValid(kernel.validateEdge({
-                    from_id: fromId,
-                    to_id: toId,
-                    relation: relType,
-                    from_type: endpointTypes.get(fromId),
-                    to_type: endpointTypes.get(toId)
-                }));
-            }
             const projectId = await this.ensureProject(client, { projectCode, projectName });
             await this.upsertGraphEdge(client, {
                 fromId,
@@ -1426,6 +1527,31 @@ export class InfoSSOTService {
 
             const eventId = this.generateId('evt');
             const decisionId = this.generateId('dec');
+            const decidedAt = input.decidedAt || new Date().toISOString();
+            const status = input.status || 'decided';
+            const decisionPayload = {
+                title: input.title,
+                decision_domain: this.resolveDecisionDomain(input) || null,
+                decided_at: decidedAt,
+                status
+            };
+
+            if (guard.guard_status === 'active_current') {
+                const { kernel } = this.ontologyRegistry.resolve();
+                this.assertOntologyValid(kernel.validateSnapshot({
+                    entities: [
+                        { id: decisionId, type: 'decision', payload: decisionPayload },
+                        { id: projectId, type: 'project', payload: {} },
+                        { id: ownerPersonId, type: 'person', payload: {} }
+                    ],
+                    edges: [
+                        { from_id: decisionId, to_id: projectId, relation: 'belongs_to_project' },
+                        { from_id: decisionId, to_id: ownerPersonId, relation: 'owned_by' },
+                        { from_id: ownerPersonId, to_id: projectId, relation: 'member_of' }
+                    ],
+                    complete: true
+                }));
+            }
 
             await client.query(
                 `INSERT INTO events (
@@ -1454,7 +1580,7 @@ export class InfoSSOTService {
                         chosen: input.chosen || {},
                         reason: input.reason || ''
                     }),
-                    input.decidedAt || new Date().toISOString(),
+                    decidedAt,
                     input.source || 'manual',
                     input.confidence ?? 1,
                     roleMin,
@@ -1487,8 +1613,8 @@ export class InfoSSOTService {
                     JSON.stringify(input.options || []),
                     JSON.stringify(input.chosen || {}),
                     input.reason || '',
-                    input.decidedAt || new Date().toISOString(),
-                    input.status || 'decided',
+                    decidedAt,
+                    status,
                     roleMin,
                     sensitivity,
                     eventId
@@ -1499,12 +1625,7 @@ export class InfoSSOTService {
                 id: decisionId,
                 entityType: 'decision',
                 projectId,
-                payload: {
-                    title: input.title,
-                    decision_domain: this.resolveDecisionDomain(input) || null,
-                    decided_at: input.decidedAt || new Date().toISOString(),
-                    status: input.status || 'decided'
-                },
+                payload: decisionPayload,
                 roleMin,
                 sensitivity
             });
@@ -1516,7 +1637,8 @@ export class InfoSSOTService {
                 projectId,
                 payload: {},
                 roleMin,
-                sensitivity
+                sensitivity,
+                aggregatePrevalidated: true
             });
 
             await this.upsertGraphEdge(client, {
@@ -1526,7 +1648,8 @@ export class InfoSSOTService {
                 projectId,
                 payload: {},
                 roleMin,
-                sensitivity
+                sensitivity,
+                aggregatePrevalidated: true
             });
 
             await this.upsertGraphEdge(client, {
@@ -1536,7 +1659,8 @@ export class InfoSSOTService {
                 projectId,
                 payload: {},
                 roleMin: 'member',
-                sensitivity: 'internal'
+                sensitivity: 'internal',
+                aggregatePrevalidated: true
             });
 
             return { decision_id: decisionId, event_id: eventId, ...guard };

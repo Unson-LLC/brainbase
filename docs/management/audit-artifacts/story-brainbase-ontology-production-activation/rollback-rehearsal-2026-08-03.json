@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0.0",
+  "story_id": "story-brainbase-ontology-production-activation",
+  "recorded_at": "2026-08-02T21:45:33Z",
+  "checkout": "independent detached git worktree",
+  "candidate_head_sha": "2a38a3f9befe54537c0f909b3fe33f5eb7032a83",
+  "source_commit_sha": "ef12ffabd109d75d2a55d3802daa44f2160aa333",
+  "publication_commit_sha": "e794299c5f19f8d46747a39422420b68176ed14b",
+  "commands": [
+    "git worktree add --detach <temporary-path> 2a38a3f9befe54537c0f909b3fe33f5eb7032a83",
+    "git revert --no-commit e794299c5f19f8d46747a39422420b68176ed14b",
+    "test ! -e config/ontology/publications/1.0.0.receipt.json",
+    "npm run ontology:verify"
+  ],
+  "result": {
+    "current": null,
+    "release_count": 1,
+    "release_status": "proposed",
+    "receipt_path": null,
+    "receipt_absent": true,
+    "ontology_verify_exit_code": 0,
+    "cleanup": "pass"
+  },
+  "graph_mutation": false,
+  "production_runtime_mutation": false,
+  "gate": "pass"
+}

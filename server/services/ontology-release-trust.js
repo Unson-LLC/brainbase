@@ -1,4 +1,4 @@
-import { readFileSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import {
     canonicalJson,
@@ -31,7 +31,35 @@ function isContained(parent, child) {
     return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
 }
 
-export function verifyPublishedReceipt({ configDir, entry = {}, manifest, publicKeyPem = '' }) {
+export function loadTrustedPublicKeys(configDir) {
+    const trustStorePath = path.join(configDir, 'trusted-public-keys.json');
+    if (!existsSync(trustStorePath)) return {};
+
+    const trustStore = JSON.parse(readFileSync(trustStorePath, 'utf8'));
+    if (trustStore.schema_version !== '1.0.0'
+        || !trustStore.keys
+        || Array.isArray(trustStore.keys)
+        || typeof trustStore.keys !== 'object') {
+        throw new Error('Ontology trusted public keys must use the 1.0.0 key map schema');
+    }
+    for (const [keyId, key] of Object.entries(trustStore.keys)) {
+        if (!keyId
+            || key?.algorithm !== 'ed25519'
+            || typeof key.public_key_pem !== 'string'
+            || !key.public_key_pem.includes('-----BEGIN PUBLIC KEY-----')) {
+            throw new Error(`Invalid ontology trusted public key: ${keyId || '<empty>'}`);
+        }
+    }
+    return trustStore.keys;
+}
+
+export function verifyPublishedReceipt({
+    configDir,
+    entry = {},
+    manifest,
+    publicKeyPem = '',
+    trustedPublicKeys = {}
+}) {
     if (!hasCompleteReceiptMetadata(entry)) {
         return invalid(hasReceiptMetadata(entry) ? 'incomplete_metadata' : 'missing_metadata');
     }
@@ -71,11 +99,12 @@ export function verifyPublishedReceipt({ configDir, entry = {}, manifest, public
     if (contractErrors.length) {
         return invalid('contract_mismatch', { fields: contractErrors });
     }
-    if (!publicKeyPem) {
+    const trustedPublicKeyPem = publicKeyPem || trustedPublicKeys[receipt.key_id]?.public_key_pem || '';
+    if (!trustedPublicKeyPem) {
         return invalid('public_key_unavailable');
     }
     try {
-        if (!verifyPublicationReceipt(receipt, publicKeyPem)) {
+        if (!verifyPublicationReceipt(receipt, trustedPublicKeyPem)) {
             return invalid('signature_invalid');
         }
     } catch {

@@ -1,0 +1,31 @@
+{
+  "payload": {
+    "schema_version": "1.0.0",
+    "issued_at": "2026-08-02T20:00:59.863Z",
+    "actor_entity_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+    "applier_entity_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+    "proposer_entity_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+    "decider_entity_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+    "impact_scope": {
+      "graph_scope": "project:brainbase",
+      "affected_apis": [
+        "/api/info/ontology/*",
+        "/api/info/graph/*"
+      ],
+      "affected_agents": [
+        "brainbase-graph-agent",
+        "brainbase-mcp"
+      ],
+      "migration_required": true,
+      "verification": "production_shadow_audited_zero_residuals"
+    },
+    "decision_id": "dec_ontology_1_0_0_activation_20260803",
+    "release_digest": "9d794651151e77c543f00160d705d55c11b4af7e4388114da6923cb567970db4",
+    "release_version": "1.0.0",
+    "scope_entity_id": "prj_01KGCS8CAJKKDWACPNK1E5WX8H",
+    "source_commit_sha": "ef12ffabd109d75d2a55d3802daa44f2160aa333"
+  },
+  "signature_algorithm": "ed25519",
+  "signature": "D3A8aVjWoACvp6X50YCXpIElNH6dNd9u8RFRBiAiabksemrVszbSagEgFvqQTzxfp4BmcZl22h+z1GYe0Y7bBA==",
+  "key_id": "brainbase-ontology-production-2026-08-03"
+}

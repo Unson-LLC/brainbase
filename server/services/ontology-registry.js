@@ -5,6 +5,7 @@ import { OntologyError, OntologyKernel } from './ontology-kernel.js';
 import {
     hasCompleteReceiptMetadata,
     hasReceiptMetadata,
+    loadTrustedPublicKeys,
     verifyPublishedReceipt
 } from './ontology-release-trust.js';
 
@@ -35,6 +36,11 @@ export class OntologyRegistry {
         this.configDir = path.resolve(rootDir, configDir);
         this.releasesDir = path.resolve(this.configDir, 'releases');
         this.publicKeyPem = publicKeyPem;
+        try {
+            this.trustedPublicKeys = loadTrustedPublicKeys(this.configDir);
+        } catch (error) {
+            throw new OntologyError('ONTOLOGY_MANIFEST_INVALID', error.message);
+        }
         this.index = parseJson(readFileSync(path.join(this.configDir, 'index.json')), 'ontology index');
         if (!Array.isArray(this.index.releases)) {
             throw new OntologyError('ONTOLOGY_MANIFEST_INVALID', 'Ontology index releases must be an array');
@@ -101,7 +107,8 @@ export class OntologyRegistry {
             configDir: this.configDir,
             entry,
             manifest,
-            publicKeyPem: this.publicKeyPem
+            publicKeyPem: this.publicKeyPem,
+            trustedPublicKeys: this.trustedPublicKeys
         });
         const claimsPublication = this.index.current === entry.version
             || entry.status === 'retired'

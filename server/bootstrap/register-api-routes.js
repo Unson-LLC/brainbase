@@ -165,7 +165,9 @@ export function registerApiRoutes(app, {
         requireAuth(authService, { allowInsecureHeaders: false }),
         createInfoSSOTRouter(infoSSOTService)
     );
-    app.use('/api/learning', createLearningRouter(learningService, learningHealthService));
+    app.use('/api/learning', createLearningRouter(learningService, learningHealthService, {
+        promoteToGraphAuthGuard: requireAuth(authService, { allowInsecureHeaders: false })
+    }));
     app.use('/api/companion', createCompanionRouter({
         replyDraftService: new ReplyDraftService({
             infoSSOTService,
