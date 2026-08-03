@@ -22,6 +22,17 @@ flowchart LR
 ```
 
 ```mermaid
+stateDiagram-v2
+    [*] --> Prepared
+    Prepared --> Published: 監査・authority・署名・rollback演習合格
+    Published --> Merged: VibePro GateとCI合格
+    Merged --> Active: merged SHAをdeployしreadback合格
+    Active --> RolledBack: runtimeまたは監査不一致
+    Published --> Prepared: publication artifactをrevert
+    RolledBack --> Prepared: current nullを検証
+```
+
+```mermaid
 flowchart LR
     T1["誤ったGraph修復"] --> S1["precondition差異で停止"]
     T2["未承認actor"] --> S2["Decision / RACI照合で停止"]
@@ -63,3 +74,9 @@ merge後の本番runtimeでversion指定とcurrent指定のdigestが一致し、
 - rollback: publication前のartifactへ戻して再起動し、`current: null`とverify合格を確認する。Graph修復とauthority factは保持する。
 
 support ownerとrollback decision ownerも佐藤圭吾とする。これらの本番証跡が揃う前は「公開commit作成済み」「merge済み」「deploy済み」「本番有効化完了」を別状態として報告する。
+
+## S-001 Production activation scenario
+
+- Given: release `1.0.0`のGraph監査、公開authority、署名receipt、rollback演習が合格している。
+- When: review済みの同一HEADをCI、merge、本番runtimeへdeployする。
+- Then: `current`とversion指定APIのdigest、署名、稼働SHA、health、journal、完全Graph監査が一致する場合だけactiveと判定し、不一致なら直前artifactへrollbackする。

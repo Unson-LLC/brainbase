@@ -52,6 +52,14 @@ BrainbaseのGraph運用責任者として、Ontology 1.0.0を実データ・権�
 - [x] publication commitを戻して`current: null`へ復旧する演習を独立checkoutで行い、`ontology:verify`が合格する。
 - [ ] VibePro Gate、CI、merge、production deploy後のcurrent readbackとGraph auditが合格して初めて完了とする。
 
+## 明示シナリオ
+
+### Scenario: 検証済みreleaseだけを本番currentとして有効化する
+
+- Given: Ontology 1.0.0の完全Graph監査、Decision/RACI、署名receipt、rollback演習がすべて合格している。
+- When: 同じreview済みHEADをCI、merge、本番deployへ進める。
+- Then: 本番runtimeのversion/current digest、署名、health、journal、DB-backed完全監査が一致した場合だけ有効化完了とし、いずれかが不一致なら直前artifactへrollbackする。
+
 ## 停止条件
 
 署名鍵、actor binding、Decision/RACI、0 violation監査、rollback演習、VibePro Gate、CIのいずれかが未確認または不合格なら、`current`を変更せずNo-Goとする。
