@@ -1,4 +1,3 @@
-import { loadPersonalOs } from './ssot.js';
 import type { DecisionRecord, PersonalOs } from './types.js';
 
 export const ONTOLOGY_VERSION = '1.0.0' as const;
@@ -188,35 +187,6 @@ export function auditOntology(
   return completeAudit(os, ontologyVersion, violations);
 }
 
-export async function auditPersonalOsDirectory(
-  dataDir: string,
-  options: { ontologyVersion?: OntologyVersion } = {}
-): Promise<PersonalOsOntologyAudit> {
-  const ontologyVersion = resolveOntologyVersion(options.ontologyVersion);
-  try {
-    return auditOntology(await loadPersonalOs(dataDir), { ontologyVersion });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      status: 'unverified',
-      ontologyVersion,
-      violationCount: null,
-      violations: [],
-      counts: null,
-      coverage: {
-        complete: false,
-        unavailableSources: canonicalSourcesFromError(message)
-      },
-      issues: [{
-        ruleId: 'ONT-AUDIT-SOURCE-UNAVAILABLE',
-        severity: 'error',
-        path: dataDir,
-        message
-      }]
-    };
-  }
-}
-
 export function assertOntologyValid(os: PersonalOs): void {
   const result = auditOntology(os);
   const errors = result.violations.filter((violation) => violation.severity === 'error');
@@ -243,6 +213,29 @@ export interface DecisionInferenceResult {
   evidence: DecisionInferenceEvidence[];
   explanations: string[];
   violations: OntologyViolation[];
+}
+
+export function inferPersonalOs(
+  os: PersonalOs,
+  options: { asOf?: string; ontologyVersion?: OntologyVersion } = {}
+): DecisionInferenceResult {
+  const ontologyVersion = resolveOntologyVersion(options.ontologyVersion);
+  const audit = auditOntology(os, { ontologyVersion });
+  const errors = audit.violations.filter((violation) => violation.severity === 'error');
+  if (errors.length > 0) {
+    return {
+      status: 'invalid',
+      ontologyVersion,
+      asOf: options.asOf ?? new Date().toISOString(),
+      activeDecisionIds: [],
+      supersededDecisionIds: [],
+      conflicts: [],
+      evidence: [],
+      explanations: ['Inference was not performed because the complete Personal OS snapshot is invalid.'],
+      violations: errors
+    };
+  }
+  return inferDecisions(os.decisions, { ...options, ontologyVersion });
 }
 
 export function inferDecisions(
@@ -517,12 +510,6 @@ function auditDecisionSupersession(decisions: DecisionRecord[], violations: Onto
       message: `Decision supersession cycle includes ${id}.`
     });
   }
-}
-
-function canonicalSourcesFromError(message: string): string[] {
-  const sources = ['graph.json', 'relationships.json', 'personal-kg.jsonl', 'decisions.jsonl'];
-  const matched = sources.filter((source) => message.includes(source));
-  return matched.length > 0 ? matched : sources;
 }
 
 function deepFreeze<T>(value: T): T {

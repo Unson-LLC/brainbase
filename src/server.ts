@@ -3,7 +3,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { resolveDataDir } from './paths.js';
-import { auditPersonalOsDirectory, getOntologyImpact, inferDecisions, portableOntology, resolveOntologyVersion } from './ontology.js';
+import { auditPersonalOsDirectory } from './ontology-ssot.js';
+import { getOntologyImpact, inferPersonalOs, portableOntology, resolveOntologyVersion } from './ontology.js';
 import { loadPersonalOs } from './ssot.js';
 import { getContext, listEntities, onboardingStatus, searchAll, searchPersonalKg } from './tools.js';
 
@@ -151,7 +152,7 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
     case 'onboarding_status':
       return onboardingStatus(os);
     case 'infer_decisions':
-      return inferDecisions(os.decisions, {
+      return inferPersonalOs(os, {
         asOf: args.asOf,
         ontologyVersion: resolveOntologyVersion(args.ontologyVersion)
       });

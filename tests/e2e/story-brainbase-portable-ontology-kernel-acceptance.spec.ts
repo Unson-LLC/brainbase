@@ -4,11 +4,12 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runCli } from '../../src/cli.js';
 import {
-  auditPersonalOsDirectory,
   inferDecisions,
   portableOntology
 } from '../../src/ontology.js';
-import { toolDefinitions } from '../../src/server.js';
+import { auditPersonalOsDirectory } from '../../src/ontology-ssot.js';
+import { callBrainbaseTool, toolDefinitions } from '../../src/server.js';
+import { createFixturePersonalOs } from '../fixtures.js';
 
 const dirs: string[] = [];
 
@@ -78,6 +79,21 @@ describe('story-brainbase-portable-ontology-kernel acceptance', () => {
       coverage: { complete: false }
     });
     expect(await readFile(graphPath, 'utf8'), 'story-brainbase-portable-ontology-kernel ac:10 audits never auto-fix, delete, or mutate canonical user data').toBe(malformedBefore);
+
+    const invalidSnapshotDir = await tempDir();
+    await createFixturePersonalOs(invalidSnapshotDir);
+    const invalidGraphPath = join(invalidSnapshotDir, 'graph.json');
+    const invalidGraph = JSON.parse(await readFile(invalidGraphPath, 'utf8'));
+    invalidGraph.entities.push({ ...invalidGraph.entities[0] });
+    await writeFile(invalidGraphPath, `${JSON.stringify(invalidGraph, null, 2)}\n`, 'utf8');
+    expect(await callBrainbaseTool('infer_decisions', {
+      dataDir: invalidSnapshotDir,
+      asOf: '2026-08-03T00:00:00.000Z'
+    }), 'story-brainbase-portable-ontology-kernel ac:5 suppresses inference whenever the complete canonical snapshot has an ontology error').toMatchObject({
+      status: 'invalid',
+      activeDecisionIds: [],
+      violations: [expect.objectContaining({ ruleId: 'ONT-ENTITY-ID-UNIQUE' })]
+    });
 
     const inference = inferDecisions([
       { id: 'old', title: 'Old', decision: 'Manual deploy', topic: 'deploy' },

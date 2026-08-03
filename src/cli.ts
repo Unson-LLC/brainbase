@@ -5,7 +5,8 @@ import { delimiter, dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appendDecisions, appendPersonalKg, initializePersonalOs, loadPersonalOs, saveGraph, saveRelationships } from './ssot.js';
 import { resolveDataDir } from './paths.js';
-import { assertOntologyValid, auditPersonalOsDirectory, portableOntology, resolveOntologyVersion } from './ontology.js';
+import { auditPersonalOsDirectory } from './ontology-ssot.js';
+import { assertOntologyValid, portableOntology, resolveOntologyVersion } from './ontology.js';
 import { onboardingStatus } from './tools.js';
 import { buildCandidateDrafts, parseOnboardingFormat, renderAgentProtocol, renderCandidateDrafts, renderConnectorRecommendations, renderLocalOnboardingPlan, renderSourceDiagnosis, renderValueDemo } from './onboarding.js';
 import {

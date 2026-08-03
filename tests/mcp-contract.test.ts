@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -193,6 +193,27 @@ describe('MCP contract', () => {
     await expect(callBrainbaseTool('ontology_impact', { fromVersion: '0.0.0' })).resolves.toMatchObject({
       toVersion: '1.0.0',
       supported: true
+    });
+  });
+
+  it('C-6 suppresses decision inference when another canonical snapshot surface is invalid', async () => {
+    const dataDir = await fixtureDir();
+    const graphPath = join(dataDir, 'graph.json');
+    const graph = JSON.parse(await readFile(graphPath, 'utf8'));
+    graph.entities.push({ ...graph.entities[0] });
+    await writeFile(graphPath, `${JSON.stringify(graph, null, 2)}\n`, 'utf8');
+
+    await expect(callBrainbaseTool('audit_ontology', { dataDir })).resolves.toMatchObject({
+      status: 'complete',
+      violations: [expect.objectContaining({ ruleId: 'ONT-ENTITY-ID-UNIQUE' })]
+    });
+    await expect(callBrainbaseTool('infer_decisions', {
+      dataDir,
+      asOf: '2026-08-03T00:00:00.000Z'
+    })).resolves.toMatchObject({
+      status: 'invalid',
+      activeDecisionIds: [],
+      violations: [expect.objectContaining({ ruleId: 'ONT-ENTITY-ID-UNIQUE' })]
     });
   });
 });
