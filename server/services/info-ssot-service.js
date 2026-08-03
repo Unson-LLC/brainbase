@@ -130,7 +130,6 @@ export class InfoSSOTService {
             const contextIds = [...new Set(contextEntities
                 .map((item) => item?.id)
                 .filter((id) => id && id !== entity.id))];
-            let persistedContextEntities = [];
             if (contextIds.length) {
                 const contextResult = await client.query(
                     `SELECT id, entity_type, payload
@@ -161,17 +160,20 @@ export class InfoSSOTService {
                         mismatches: typeMismatches
                     });
                 }
-                persistedContextEntities = contextIds.map((id) => {
-                    const row = persistedById.get(id);
-                    return {
-                        id: row.id,
-                        type: row.entity_type,
-                        payload: typeof row.payload === 'string' ? JSON.parse(row.payload) : (row.payload || {})
-                    };
-                });
             }
-            const snapshot = { entities: [entity, ...persistedContextEntities], edges };
-            this.assertOntologyValid(kernel.validateSnapshot(snapshot));
+            await this.validateGraphMutation(client, {
+                entityOverrides: [{
+                    id: entity.id,
+                    type: entity.type || entity.entity_type,
+                    payload: entity.payload || {}
+                }],
+                edgeOverrides: edges.map((edge) => ({
+                    from_id: edge.from_id,
+                    to_id: edge.to_id,
+                    rel_type: edge.relation || edge.rel_type
+                })),
+                validationEntityIds: [entity.id]
+            });
             const projectId = await this.ensureProject(client, {
                 projectCode: input.projectCode,
                 projectName: input.projectName
@@ -450,13 +452,21 @@ export class InfoSSOTService {
         }
     }
 
-    async validateGraphMutation(client, { entityOverrides = [], edgeOverride = null, validationEntityIds = [] }) {
+    async validateGraphMutation(client, {
+        entityOverrides = [],
+        edgeOverride = null,
+        edgeOverrides = [],
+        validationEntityIds = []
+    }) {
         if (!this.ontologyRegistry.hasCurrent()) return;
+        const mutationEdges = [
+            ...edgeOverrides,
+            ...(edgeOverride ? [edgeOverride] : [])
+        ];
         const targetIds = Array.from(new Set([
             ...validationEntityIds,
             ...entityOverrides.map((entity) => entity.id),
-            edgeOverride?.from_id,
-            edgeOverride?.to_id
+            ...mutationEdges.flatMap((edge) => [edge.from_id, edge.to_id])
         ].filter(Boolean)));
         // Serialize mutations that share an endpoint before reading its current
         // edges, so concurrent cardinality checks cannot both observe stale data.
@@ -475,12 +485,15 @@ export class InfoSSOTService {
             [targetIds]
         );
         const edges = edgeResult.rows.map((edge) => ({ ...edge, relation: edge.rel_type }));
-        if (edgeOverride) {
-            const existingIndex = edges.findIndex((edge) => edge.from_id === edgeOverride.from_id
-                && edge.to_id === edgeOverride.to_id
-                && edge.rel_type === edgeOverride.rel_type);
-            if (existingIndex >= 0) edges[existingIndex] = { ...edges[existingIndex], ...edgeOverride, relation: edgeOverride.rel_type };
-            else edges.push({ ...edgeOverride, relation: edgeOverride.rel_type });
+        for (const mutationEdge of mutationEdges) {
+            const existingIndex = edges.findIndex((edge) => edge.from_id === mutationEdge.from_id
+                && edge.to_id === mutationEdge.to_id
+                && edge.rel_type === mutationEdge.rel_type);
+            if (existingIndex >= 0) {
+                edges[existingIndex] = { ...edges[existingIndex], ...mutationEdge, relation: mutationEdge.rel_type };
+            } else {
+                edges.push({ ...mutationEdge, relation: mutationEdge.rel_type });
+            }
         }
         const entityIds = Array.from(new Set([
             ...targetIds,

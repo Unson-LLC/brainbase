@@ -264,6 +264,54 @@ describe('InfoSSOTService ontology API', () => {
         expect(statements).toContain('COMMIT');
     });
 
+    it('rolls back a canonical commit that conflicts with a persisted cardinality edge', async () => {
+        const statements = [];
+        const client = {
+            query: async (sql) => {
+                const text = String(sql);
+                statements.push(text);
+                if (text.includes('FROM graph_edges')) {
+                    return { rows: [{
+                        id: 'edge:existing-owner',
+                        from_id: 'app:existing',
+                        to_id: 'org:first-owner',
+                        rel_type: 'owned_by'
+                    }] };
+                }
+                if (text.includes('FROM graph_entities')) {
+                    return { rows: [
+                        { id: 'app:existing', entity_type: 'app', payload: {} },
+                        { id: 'org:first-owner', entity_type: 'org', payload: {} },
+                        { id: 'org:second-owner', entity_type: 'org', payload: {} }
+                    ] };
+                }
+                if (text.includes('SELECT id FROM projects')) return { rows: [{ id: 'project:brainbase' }] };
+                return { rows: [] };
+            },
+            release: () => {}
+        };
+        const service = new InfoSSOTService({
+            ontologyRegistry: activeRegistry(),
+            pool: { connect: async () => client }
+        });
+
+        await expect(service.commitOntologyGraph(
+            { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] },
+            {
+                projectCode: 'brainbase',
+                roleMin: 'member',
+                sensitivity: 'internal',
+                entity: { id: 'app:existing', type: 'app', payload: {} },
+                contextEntities: [{ id: 'org:second-owner', type: 'org' }],
+                edges: [{ from_id: 'app:existing', to_id: 'org:second-owner', relation: 'owned_by' }]
+            }
+        )).rejects.toMatchObject({ code: 'ONTOLOGY_VALIDATION_FAILED' });
+        expect(statements).toContain('ROLLBACK');
+        expect(statements).not.toContain('COMMIT');
+        expect(statements.some((sql) => sql.includes('INSERT INTO graph_entities'))).toBe(false);
+        expect(statements.some((sql) => sql.includes('INSERT INTO graph_edges'))).toBe(false);
+    });
+
     it('resolves stored endpoint types before guarding an existing edge write', async () => {
         const writes = [];
         const client = {
