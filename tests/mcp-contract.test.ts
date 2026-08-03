@@ -46,7 +46,11 @@ describe('MCP contract', () => {
       'list_entities',
       'search',
       'search_personal_kg',
-      'onboarding_status'
+      'onboarding_status',
+      'get_ontology',
+      'audit_ontology',
+      'infer_decisions',
+      'ontology_impact'
     ]);
   });
 
@@ -61,7 +65,11 @@ describe('MCP contract', () => {
         'list_entities',
         'search',
         'search_personal_kg',
-        'onboarding_status'
+        'onboarding_status',
+        'get_ontology',
+        'audit_ontology',
+        'infer_decisions',
+        'ontology_impact'
       ]);
     } finally {
       await client.close();
@@ -145,6 +153,20 @@ describe('MCP contract', () => {
     await expect(callBrainbaseTool('onboarding_status', { dataDir })).resolves.toMatchObject({
       connected: true,
       backend: 'local'
+    });
+    await expect(callBrainbaseTool('get_ontology')).resolves.toMatchObject({ version: '1.0.0' });
+    await expect(callBrainbaseTool('audit_ontology', { dataDir })).resolves.toMatchObject({
+      status: 'complete',
+      ontologyVersion: '1.0.0',
+      violationCount: 0
+    });
+    await expect(callBrainbaseTool('infer_decisions', { dataDir, asOf: '2026-08-03T00:00:00.000Z' })).resolves.toMatchObject({
+      ontologyVersion: '1.0.0',
+      activeDecisionIds: ['decision-local-only']
+    });
+    await expect(callBrainbaseTool('ontology_impact', { fromVersion: '0.0.0' })).resolves.toMatchObject({
+      toVersion: '1.0.0',
+      supported: true
     });
   });
 });

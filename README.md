@@ -4,6 +4,8 @@ Brainbase is a local-first MCP server for handing your personal source of truth 
 
 The v1 value is narrow by design: create a canonical local SSOT for yourself, your work, relationships, and decisions, then expose it through MCP tools that Codex, Claude, and CodeCode can call.
 
+Ontology 1.0.0 adds a portable semantic contract on top of those local files. It defines types, relation vocabulary, validation constraints, deterministic decision inference, and version-evolution guidance without requiring a hosted Brainbase service.
+
 This repository does not include the internal Brainbase UI, session runtime, xterm transport, workflow mission control, social operations, hosted backend, Infisical setup, or Unson internal data. Those belong in the internal `brainbase-unson` system.
 
 ## Manual
@@ -302,6 +304,23 @@ BRAINBASE_PERSONAL_OS_DIR=/path/to/personal-os brainbase-mcp
 - `search`: searches canonical Graph and Personal KG data.
 - `search_personal_kg`: searches owner-local Personal KG only.
 - `onboarding_status`: reports seeded areas, first value demo readiness, missing setup, and local connection status.
+- `get_ontology`: returns the immutable bundled Ontology 1.0.0 release without reading Personal OS files.
+- `audit_ontology`: audits canonical local files and distinguishes verified violations from unavailable input.
+- `infer_decisions`: derives active, superseded, and conflicting decisions from explicit rules.
+- `ontology_impact`: explains compatibility, migration, and rollback from an earlier ontology version.
+
+## Portable Ontology 1.0.0
+
+Inspect the semantic contract and audit your local canonical files:
+
+```bash
+brainbase ontology:show
+brainbase ontology:audit
+```
+
+`ontology:audit` exits non-zero when an error-level violation exists or when a canonical file cannot be verified. It never reports an unavailable or malformed source as zero violations. Warnings, such as a relationship whose person is not yet present in the Graph, remain visible but do not block approved writes.
+
+Decision evolution is opt-in and backward-compatible. Existing decision rows remain valid. New rows may add `topic`, `supersedes`, and `effectiveAt`; only an explicit `supersedes` reference makes an older decision inactive. Multiple active decisions with the same explicit `topic` are reported as a conflict instead of being silently resolved.
 
 ## CLI
 
@@ -327,6 +346,8 @@ brainbase onboard:apply --from <candidate-file> --select <id> --write
 brainbase onboard:projects --name "Current project" --goal "What this project should achieve"
 brainbase onboard:routines --target codex --cwd /path/to/brainbase
 brainbase onboard:skills --target codex
+brainbase ontology:show
+brainbase ontology:audit
 brainbase doctor
 ```
 
@@ -423,7 +444,7 @@ Keep or pin the internal `brainbase-unson` system when you need:
 - Legacy Graph API MCP tools such as `get_entity`.
 - VibePro runtime or internal 31013 operation surfaces.
 
-The v1 MCP tool surface is intentionally limited to `get_context`, `list_entities`, `search`, `search_personal_kg`, and `onboarding_status`.
+The v1 MCP surface contains the five original context/onboarding tools plus the additive Ontology 1.0.0 tools: `get_ontology`, `audit_ontology`, `infer_decisions`, and `ontology_impact`.
 
 ## Hosted Backends
 

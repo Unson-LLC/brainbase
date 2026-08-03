@@ -79,12 +79,16 @@ describe('brainbase-mcp-only story acceptance', () => {
     expect(await pathExists(join(repoRoot, 'server.js')), 'brainbase-mcp-only ac:2 The repository contains no browser UI, session dashboard, xterm transport, launchd runtime, workflow mission control, SNS operation flow, hosted backend implementation, or Unson internal data.').toBe(false);
     await expect(pathExists(join(repoRoot, 'public'))).resolves.toBe(false);
     await expect(pathExists(join(repoRoot, 'ui-islands'))).resolves.toBe(false);
-    expect(toolDefinitions.map((tool) => tool.name), 'brainbase-mcp-only ac:3 The v1 MCP tool surface is fixed to get_context, list_entities, search, search_personal_kg, and onboarding_status.').toEqual([
+    expect(toolDefinitions.map((tool) => tool.name), 'brainbase-mcp-only ac:3 Original context tools remain available and Ontology 1.0.0 is additive.').toEqual([
       'get_context',
       'list_entities',
       'search',
       'search_personal_kg',
-      'onboarding_status'
+      'onboarding_status',
+      'get_ontology',
+      'audit_ontology',
+      'infer_decisions',
+      'ontology_impact'
     ]);
     expect(defaultDataDir(), 'brainbase-mcp-only ac:4 The default local SSOT directory is ~/.brainbase/personal-os/, overridable with BRAINBASE_PERSONAL_OS_DIR.').toContain('.brainbase/personal-os');
     expect(codexOutput.stdout(), 'brainbase-mcp-only ac:4 The default local SSOT directory is ~/.brainbase/personal-os/, overridable with BRAINBASE_PERSONAL_OS_DIR.').toContain('BRAINBASE_PERSONAL_OS_DIR');

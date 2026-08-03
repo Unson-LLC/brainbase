@@ -10,7 +10,7 @@ The v1 product value is giving an individual a local personal SSOT that AI tools
 
 1. The root package is `@unson/brainbase-mcp`, with `brainbase-mcp` for stdio MCP and `brainbase` for onboarding CLI.
 2. The repository contains no browser UI, session dashboard, xterm transport, launchd runtime, workflow mission control, SNS operation flow, hosted backend implementation, or Unson internal data.
-3. The v1 MCP tool surface is fixed to `get_context`, `list_entities`, `search`, `search_personal_kg`, and `onboarding_status`.
+3. The original v1 context/onboarding MCP surface is `get_context`, `list_entities`, `search`, `search_personal_kg`, and `onboarding_status`; versioned public capabilities may add tools without changing those contracts.
 4. The default local SSOT directory is `~/.brainbase/personal-os/`, overridable with `BRAINBASE_PERSONAL_OS_DIR`.
 5. The canonical local SSOT files are `graph.json`, `personal-kg.jsonl`, `relationships.json`, and `decisions.jsonl`.
 6. Raw notes, logs, and meeting transcripts can exist under `sources/`, but MCP responses prefer canonical SSOT data.

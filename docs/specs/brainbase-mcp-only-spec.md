@@ -18,7 +18,7 @@ Replace `Unson-LLC/brainbase` with a UI-free, local-first MCP package that lets 
 - C-3: Root scripts are limited to `build`, `test`, `start`, `doctor`, `onboard:init`, `onboard:seed`, and `onboard:install`.
 - C-4: The default data directory is `~/.brainbase/personal-os/`, overridable through `BRAINBASE_PERSONAL_OS_DIR`.
 - C-5: Canonical local SSOT files are `graph.json`, `personal-kg.jsonl`, `relationships.json`, and `decisions.jsonl`.
-- C-6: v1 MCP tools are exactly `get_context`, `list_entities`, `search`, `search_personal_kg`, and `onboarding_status`.
+- C-6: The original v1 context/onboarding tools remain `get_context`, `list_entities`, `search`, `search_personal_kg`, and `onboarding_status`; additive versioned capabilities may add tools without changing those contracts.
 
 ## Scenarios
 

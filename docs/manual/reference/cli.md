@@ -57,6 +57,20 @@ npm run doctor
 npm run start
 ```
 
+## Ontology
+
+| コマンド | 役割 | 正本への書き込み |
+| --- | --- | --- |
+| `ontology:show` | 同梱のOntology 1.0.0全体をJSONで表示する | しない |
+| `ontology:audit` | ローカル正本の意味制約を監査する | しない |
+
+```bash
+node dist/cli.js ontology:show
+node dist/cli.js ontology:audit --dir /path/to/personal-os
+```
+
+`ontology:audit` はerror違反または監査不能のときに非0で終了します。監査不能の場合は `status: "unverified"` と `violationCount: null` を返します。
+
 すべての引数は次で確認できます。
 
 ```bash
