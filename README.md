@@ -316,9 +316,11 @@ Inspect the semantic contract and audit your local canonical files:
 ```bash
 brainbase ontology:show
 brainbase ontology:audit
+brainbase ontology:audit --ontology-version 0.0.0
 ```
 
 `ontology:audit` exits non-zero when an error-level violation exists or when a canonical file cannot be verified. It never reports an unavailable or malformed source as zero violations. Warnings, such as a relationship whose person is not yet present in the Graph, remain visible but do not block approved writes.
+Use `--ontology-version 0.0.0` to interpret a pre-kernel snapshot without retroactively applying 1.0.0 semantic rules. The selected version is included in audit and inference results; unsupported versions fail explicitly.
 
 Decision evolution is opt-in and backward-compatible. Existing decision rows remain valid. New rows may add `topic`, `supersedes`, and `effectiveAt`; only an explicit `supersedes` reference makes an older decision inactive. Multiple active decisions with the same explicit `topic` are reported as a conflict instead of being silently resolved.
 

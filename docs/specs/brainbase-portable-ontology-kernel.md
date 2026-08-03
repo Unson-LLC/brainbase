@@ -14,8 +14,8 @@ Ontology release `1.0.0`は次を一つのobjectとして返す。
 MCPに次のread-only toolsを追加する。
 
 - `get_ontology`: active release全体を返す。Personal OSの読取を要求しない。
-- `audit_ontology`: local SSOTを意味監査し、`complete|unverified`、violations、counts、Ontology versionを返す。
-- `infer_decisions`: current/superseded/conflictsと、version、as-of、evidence、説明を返す。
+- `audit_ontology`: local SSOTを意味監査し、`complete|unverified`、violations、counts、解釈に用いたOntology versionを返す。`ontologyVersion`で`0.0.0|1.0.0`を選択でき、未対応versionは拒否する。
+- `infer_decisions`: current/superseded/conflictsと、version、as-of、evidence、説明を返す。`0.0.0`では1.0.0の意味規則を過去へ遡及適用しない。
 - `ontology_impact`: `fromVersion`からactive versionまでのcompatibility、変更、migration、rollbackを返す。
 
 CLIに`ontology:show`と`ontology:audit`を追加する。JSONを標準出力へ返し、`ontology:audit`は監査不能またはerror violationがある場合に非0終了する。

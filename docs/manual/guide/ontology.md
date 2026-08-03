@@ -23,6 +23,7 @@ Ontologyを有効にしても、データが外部へ送信されたり、自動
 ```bash
 brainbase ontology:show
 brainbase ontology:audit
+brainbase ontology:audit --ontology-version 0.0.0
 ```
 
 監査結果の読み方:
@@ -31,6 +32,8 @@ brainbase ontology:audit
 - `complete` + warning: 読取は完了したが、確認すべき意味上の不整合がある
 - `complete` + error: 読取は完了したが、書込みを止める制約違反がある
 - `unverified` + `violationCount: null`: ファイル欠損や破損で監査できない。0件ではない
+
+`--ontology-version`を省略すると1.0.0で監査します。`0.0.0`はOntology Kernel導入前のlegacy解釈を表し、canonical fileの形式は検証しますが、1.0.0で追加された意味制約を過去へ遡及適用しません。これにより、監査・推論結果に「どのversionの意味で読んだか」が必ず残ります。未対応versionは推測せず拒否します。
 
 ## Decisionの変更を表す
 

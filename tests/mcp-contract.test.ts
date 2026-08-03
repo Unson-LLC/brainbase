@@ -164,6 +164,25 @@ describe('MCP contract', () => {
       ontologyVersion: '1.0.0',
       activeDecisionIds: ['decision-local-only']
     });
+    await expect(callBrainbaseTool('audit_ontology', {
+      dataDir,
+      ontologyVersion: '0.0.0'
+    })).resolves.toMatchObject({
+      status: 'complete',
+      ontologyVersion: '0.0.0'
+    });
+    await expect(callBrainbaseTool('infer_decisions', {
+      dataDir,
+      asOf: '2026-08-03T00:00:00.000Z',
+      ontologyVersion: '0.0.0'
+    })).resolves.toMatchObject({
+      ontologyVersion: '0.0.0',
+      evidence: []
+    });
+    await expect(callBrainbaseTool('audit_ontology', {
+      dataDir,
+      ontologyVersion: '9.9.9'
+    })).rejects.toThrow(/Unsupported ontology version/);
     await expect(callBrainbaseTool('ontology_impact', { fromVersion: '0.0.0' })).resolves.toMatchObject({
       toVersion: '1.0.0',
       supported: true

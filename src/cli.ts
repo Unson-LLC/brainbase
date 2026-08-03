@@ -5,7 +5,7 @@ import { delimiter, dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appendDecisions, appendPersonalKg, initializePersonalOs, loadPersonalOs, saveGraph, saveRelationships } from './ssot.js';
 import { resolveDataDir } from './paths.js';
-import { assertOntologyValid, auditPersonalOsDirectory, portableOntology } from './ontology.js';
+import { assertOntologyValid, auditPersonalOsDirectory, portableOntology, resolveOntologyVersion } from './ontology.js';
 import { onboardingStatus } from './tools.js';
 import { buildCandidateDrafts, parseOnboardingFormat, renderAgentProtocol, renderCandidateDrafts, renderConnectorRecommendations, renderLocalOnboardingPlan, renderSourceDiagnosis, renderValueDemo } from './onboarding.js';
 import {
@@ -887,7 +887,8 @@ function writeError(io: CliIo, text: string): void {
 
 async function ontologyAudit(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const dataDir = resolveDataDir(first(parsed, 'dir'));
-  const result = await auditPersonalOsDirectory(dataDir);
+  const ontologyVersion = resolveOntologyVersion(first(parsed, 'ontology-version'));
+  const result = await auditPersonalOsDirectory(dataDir, { ontologyVersion });
   write(io, `${JSON.stringify(result, null, 2)}\n`);
   if (result.status === 'unverified') {
     return 1;
@@ -923,7 +924,7 @@ function usage(): string {
   brainbase onboard:routines --target codex|claude [--routines ohayo,oyasumi,retro] [--ohayo-hour n] [--oyasumi-hour n] [--retro-dow MON-SUN] [--retro-hour n] [--cwd path] [--out path] [--format markdown|json]
   brainbase onboard:skills --target codex|claude|portable [--skills id,id] [--out dir] [--format markdown|json]
   brainbase ontology:show
-  brainbase ontology:audit [--dir path]
+  brainbase ontology:audit [--dir path] [--ontology-version 0.0.0|1.0.0]
   brainbase doctor [--dir path]
 `;
 }

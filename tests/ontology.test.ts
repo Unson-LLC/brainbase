@@ -159,4 +159,41 @@ describe('portable ontology kernel', () => {
       decisionIds: ['decision-a', 'decision-b']
     });
   });
+
+  it('O-7 interprets a historical snapshot with the rules of its recorded ontology version', () => {
+    const decisions: DecisionRecord[] = [
+      { id: 'decision-old', title: 'Old', decision: 'Manual deploy', topic: 'deployment' },
+      {
+        id: 'decision-new',
+        title: 'New',
+        decision: 'Automated deploy',
+        topic: 'deployment',
+        supersedes: ['decision-old']
+      }
+    ];
+
+    const historicalAudit = auditOntology(personalOs({ decisions }), { ontologyVersion: '0.0.0' });
+    const historicalInference = inferDecisions(decisions, {
+      asOf: '2026-08-03T00:00:00.000Z',
+      ontologyVersion: '0.0.0'
+    });
+    const currentInference = inferDecisions(decisions, {
+      asOf: '2026-08-03T00:00:00.000Z',
+      ontologyVersion: '1.0.0'
+    });
+
+    expect(historicalAudit.ontologyVersion).toBe('0.0.0');
+    expect(historicalInference).toMatchObject({
+      ontologyVersion: '0.0.0',
+      activeDecisionIds: ['decision-old', 'decision-new'],
+      supersededDecisionIds: [],
+      evidence: []
+    });
+    expect(historicalInference.explanations.join(' ')).toContain('0.0.0');
+    expect(currentInference).toMatchObject({
+      ontologyVersion: '1.0.0',
+      activeDecisionIds: ['decision-new'],
+      supersededDecisionIds: ['decision-old']
+    });
+  });
 });

@@ -3,7 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { resolveDataDir } from './paths.js';
-import { auditPersonalOsDirectory, getOntologyImpact, inferDecisions, portableOntology } from './ontology.js';
+import { auditPersonalOsDirectory, getOntologyImpact, inferDecisions, portableOntology, resolveOntologyVersion } from './ontology.js';
 import { loadPersonalOs } from './ssot.js';
 import { getContext, listEntities, onboardingStatus, searchAll, searchPersonalKg } from './tools.js';
 
@@ -13,6 +13,7 @@ const argsSchema = z.object({
   limit: z.number().int().positive().max(50).optional(),
   type: z.enum(['person', 'org', 'project', 'relationship', 'decision']).optional(),
   fromVersion: z.string().optional(),
+  ontologyVersion: z.string().optional(),
   asOf: z.string().datetime().optional()
 });
 
@@ -84,11 +85,12 @@ export const toolDefinitions = [
   },
   {
     name: 'audit_ontology',
-    description: 'Audit local canonical Personal OS files against the active ontology release.',
+    description: 'Audit local canonical Personal OS files using the active or recorded historical ontology semantics.',
     inputSchema: {
       type: 'object',
       properties: {
-        dataDir: { type: 'string' }
+        dataDir: { type: 'string' },
+        ontologyVersion: { enum: ['0.0.0', '1.0.0'] }
       }
     }
   },
@@ -99,7 +101,8 @@ export const toolDefinitions = [
       type: 'object',
       properties: {
         dataDir: { type: 'string' },
-        asOf: { type: 'string', format: 'date-time' }
+        asOf: { type: 'string', format: 'date-time' },
+        ontologyVersion: { enum: ['0.0.0', '1.0.0'] }
       }
     }
   },
@@ -123,7 +126,7 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
     case 'get_ontology':
       return portableOntology;
     case 'audit_ontology':
-      return auditPersonalOsDirectory(dataDir);
+      return auditPersonalOsDirectory(dataDir, { ontologyVersion: resolveOntologyVersion(args.ontologyVersion) });
     case 'ontology_impact':
       return getOntologyImpact(args.fromVersion);
   }
@@ -148,7 +151,10 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
     case 'onboarding_status':
       return onboardingStatus(os);
     case 'infer_decisions':
-      return inferDecisions(os.decisions, { asOf: args.asOf });
+      return inferDecisions(os.decisions, {
+        asOf: args.asOf,
+        ontologyVersion: resolveOntologyVersion(args.ontologyVersion)
+      });
     default:
       throw new Error(`Unknown tool: ${name}`);
   }

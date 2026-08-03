@@ -67,9 +67,11 @@ npm run start
 ```bash
 node dist/cli.js ontology:show
 node dist/cli.js ontology:audit --dir /path/to/personal-os
+node dist/cli.js ontology:audit --dir /path/to/personal-os --ontology-version 0.0.0
 ```
 
 `ontology:audit` はerror違反または監査不能のときに非0で終了します。監査不能の場合は `status: "unverified"` と `violationCount: null` を返します。
+`--ontology-version`でsnapshotに記録された意味versionを指定できます。未指定は`1.0.0`、Kernel導入前のlegacy解釈は`0.0.0`です。未対応versionは拒否します。
 
 すべての引数は次で確認できます。
 

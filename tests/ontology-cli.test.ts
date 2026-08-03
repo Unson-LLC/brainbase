@@ -64,6 +64,21 @@ describe('ontology CLI', () => {
     }));
   });
 
+  it('O-7 ontology:audit records the requested historical interpretation version', async () => {
+    const dir = await fixtureDir();
+    const output = capture();
+
+    const code = await runCli([
+      'ontology:audit', '--dir', dir, '--ontology-version', '0.0.0'
+    ], output.io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(output.stdout())).toMatchObject({
+      status: 'complete',
+      ontologyVersion: '0.0.0'
+    });
+  });
+
   it('O-6 rejects an invalid proposed seed before the first canonical write', async () => {
     const dir = await fixtureDir();
     const duplicateDecisions = [
@@ -80,4 +95,63 @@ describe('ontology CLI', () => {
     expect(output.stderr()).toContain('ONT-DECISION-ID-UNIQUE');
     await expect(readFile(join(dir, 'graph.json'), 'utf8')).resolves.toBe(graphBefore);
   });
+
+  it('O-6 rejects an invalid project write without changing any canonical file', async () => {
+    const dir = await fixtureDir();
+    await writeDuplicateDecisions(dir);
+    const before = await canonicalSnapshot(dir);
+    const output = capture();
+
+    const code = await runCli([
+      'onboard:projects', '--dir', dir, '--name', 'Blocked project', '--write'
+    ], output.io);
+
+    expect(code).toBe(1);
+    expect(output.stderr()).toContain('ONT-DECISION-ID-UNIQUE');
+    await expect(canonicalSnapshot(dir)).resolves.toEqual(before);
+  });
+
+  it('O-6 rejects an invalid candidate apply without changing any canonical file', async () => {
+    const dir = await fixtureDir();
+    await writeDuplicateDecisions(dir);
+    const candidatePath = join(dir, 'candidate.json');
+    await writeFile(candidatePath, JSON.stringify({
+      candidates: [{
+        id: 'person-new',
+        kind: 'person',
+        payload: { name: 'New person' },
+        provenance: { count: 1, sources: ['test'] },
+        source: 'source-extraction',
+        promoted: false
+      }]
+    }));
+    const before = await canonicalSnapshot(dir);
+    const output = capture();
+
+    const code = await runCli([
+      'onboard:apply', '--dir', dir, '--from', candidatePath, '--all', '--write'
+    ], output.io);
+
+    expect(code).toBe(1);
+    expect(output.stderr()).toContain('ONT-DECISION-ID-UNIQUE');
+    await expect(canonicalSnapshot(dir)).resolves.toEqual(before);
+  });
 });
+
+async function writeDuplicateDecisions(dir: string): Promise<void> {
+  const duplicateDecisions = [
+    { id: 'duplicate', title: 'A', decision: 'Use A' },
+    { id: 'duplicate', title: 'B', decision: 'Use B' }
+  ];
+  await writeFile(
+    join(dir, 'decisions.jsonl'),
+    `${duplicateDecisions.map((row) => JSON.stringify(row)).join('\n')}\n`
+  );
+}
+
+async function canonicalSnapshot(dir: string): Promise<Record<string, string>> {
+  const files = ['graph.json', 'relationships.json', 'personal-kg.jsonl', 'decisions.jsonl'];
+  return Object.fromEntries(await Promise.all(
+    files.map(async (file) => [file, await readFile(join(dir, file), 'utf8')] as const)
+  ));
+}

@@ -2,6 +2,8 @@ import { loadPersonalOs } from './ssot.js';
 import type { DecisionRecord, PersonalOs } from './types.js';
 
 export const ONTOLOGY_VERSION = '1.0.0' as const;
+export const SUPPORTED_ONTOLOGY_VERSIONS = ['0.0.0', ONTOLOGY_VERSION] as const;
+export type OntologyVersion = typeof SUPPORTED_ONTOLOGY_VERSIONS[number];
 
 export type OntologySeverity = 'error' | 'warning';
 
@@ -14,7 +16,7 @@ export interface OntologyViolation {
 
 export interface OntologyAuditResult {
   status: 'complete';
-  ontologyVersion: typeof ONTOLOGY_VERSION;
+  ontologyVersion: OntologyVersion;
   violationCount: number;
   violations: OntologyViolation[];
   counts: {
@@ -32,7 +34,7 @@ export interface OntologyAuditResult {
 
 export interface UnverifiedOntologyAuditResult {
   status: 'unverified';
-  ontologyVersion: typeof ONTOLOGY_VERSION;
+  ontologyVersion: OntologyVersion;
   violationCount: null;
   violations: [];
   counts: null;
@@ -111,8 +113,19 @@ const release = {
 
 export const portableOntology = deepFreeze(release);
 
-export function auditOntology(os: PersonalOs): OntologyAuditResult {
+export function auditOntology(
+  os: PersonalOs,
+  options: { ontologyVersion?: OntologyVersion } = {}
+): OntologyAuditResult {
+  const ontologyVersion = resolveOntologyVersion(options.ontologyVersion);
   const violations: OntologyViolation[] = [];
+
+  // 0.0.0 names the pre-kernel legacy semantics. Canonical shape validation is
+  // still performed by the SSOT reader, but no 1.0.0 semantic rules are
+  // projected backward onto historical snapshots.
+  if (ontologyVersion === '0.0.0') {
+    return completeAudit(os, ontologyVersion, violations);
+  }
 
   auditDuplicateIds(
     os.graph.entities,
@@ -152,30 +165,21 @@ export function auditOntology(os: PersonalOs): OntologyAuditResult {
 
   auditDecisionSupersession(os.decisions, violations);
 
-  return {
-    status: 'complete',
-    ontologyVersion: ONTOLOGY_VERSION,
-    violationCount: violations.length,
-    violations,
-    counts: {
-      entities: os.graph.entities.length,
-      relationships: os.relationships.relationships.length,
-      personalKg: os.personalKg.length,
-      decisions: os.decisions.length
-    },
-    coverage: { complete: true, unavailableSources: [] },
-    issues: []
-  };
+  return completeAudit(os, ontologyVersion, violations);
 }
 
-export async function auditPersonalOsDirectory(dataDir: string): Promise<PersonalOsOntologyAudit> {
+export async function auditPersonalOsDirectory(
+  dataDir: string,
+  options: { ontologyVersion?: OntologyVersion } = {}
+): Promise<PersonalOsOntologyAudit> {
+  const ontologyVersion = resolveOntologyVersion(options.ontologyVersion);
   try {
-    return auditOntology(await loadPersonalOs(dataDir));
+    return auditOntology(await loadPersonalOs(dataDir), { ontologyVersion });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return {
       status: 'unverified',
-      ontologyVersion: ONTOLOGY_VERSION,
+      ontologyVersion,
       violationCount: null,
       violations: [],
       counts: null,
@@ -203,7 +207,7 @@ export function assertOntologyValid(os: PersonalOs): void {
 
 export interface DecisionInferenceResult {
   status: 'empty' | 'resolved' | 'conflict' | 'invalid';
-  ontologyVersion: typeof ONTOLOGY_VERSION;
+  ontologyVersion: OntologyVersion;
   asOf: string;
   activeDecisionIds: string[];
   supersededDecisionIds: string[];
@@ -215,10 +219,27 @@ export interface DecisionInferenceResult {
 
 export function inferDecisions(
   decisions: DecisionRecord[],
-  options: { asOf?: string } = {}
+  options: { asOf?: string; ontologyVersion?: OntologyVersion } = {}
 ): DecisionInferenceResult {
+  const ontologyVersion = resolveOntologyVersion(options.ontologyVersion);
   const asOf = options.asOf ?? new Date().toISOString();
   const effectiveDecisions = decisions.filter((decision) => !decision.effectiveAt || decision.effectiveAt <= asOf);
+
+  if (ontologyVersion === '0.0.0') {
+    return {
+      status: decisions.length === 0 ? 'empty' : 'resolved',
+      ontologyVersion,
+      asOf,
+      activeDecisionIds: effectiveDecisions.map((decision) => decision.id),
+      supersededDecisionIds: [],
+      conflicts: [],
+      evidence: [],
+      explanations: [
+        'Ontology 0.0.0 is the pre-kernel legacy interpretation; 1.0.0 supersession and conflict rules were not applied.'
+      ],
+      violations: []
+    };
+  }
   const violations: OntologyViolation[] = [];
   auditDuplicateIds(
     effectiveDecisions,
@@ -232,7 +253,7 @@ export function inferDecisions(
   if (violations.some((violation) => violation.severity === 'error')) {
     return {
       status: 'invalid',
-      ontologyVersion: ONTOLOGY_VERSION,
+      ontologyVersion,
       asOf,
       activeDecisionIds: [],
       supersededDecisionIds: [],
@@ -272,7 +293,7 @@ export function inferDecisions(
 
   return {
     status: decisions.length === 0 ? 'empty' : conflicts.length > 0 ? 'conflict' : 'resolved',
-    ontologyVersion: ONTOLOGY_VERSION,
+    ontologyVersion,
     asOf,
     activeDecisionIds: active.map((decision) => decision.id),
     supersededDecisionIds: effectiveDecisions.filter((decision) => superseded.has(decision.id)).map((decision) => decision.id),
@@ -344,6 +365,37 @@ function auditDuplicateIds(
     }
     seen.add(record.id);
   });
+}
+
+function completeAudit(
+  os: PersonalOs,
+  ontologyVersion: OntologyVersion,
+  violations: OntologyViolation[]
+): OntologyAuditResult {
+  return {
+    status: 'complete',
+    ontologyVersion,
+    violationCount: violations.length,
+    violations,
+    counts: {
+      entities: os.graph.entities.length,
+      relationships: os.relationships.relationships.length,
+      personalKg: os.personalKg.length,
+      decisions: os.decisions.length
+    },
+    coverage: { complete: true, unavailableSources: [] },
+    issues: []
+  };
+}
+
+export function resolveOntologyVersion(version: string | undefined): OntologyVersion {
+  const requested = version ?? ONTOLOGY_VERSION;
+  if (!SUPPORTED_ONTOLOGY_VERSIONS.includes(requested as OntologyVersion)) {
+    throw new Error(
+      `Unsupported ontology version ${JSON.stringify(requested)}. Supported versions: ${SUPPORTED_ONTOLOGY_VERSIONS.join(', ')}.`
+    );
+  }
+  return requested as OntologyVersion;
 }
 
 function auditDecisionSupersession(decisions: DecisionRecord[], violations: OntologyViolation[]): void {

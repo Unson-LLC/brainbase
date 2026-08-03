@@ -92,6 +92,17 @@ describe('story-brainbase-portable-ontology-kernel acceptance', () => {
       migration: expect.any(String),
       rollback: expect.any(String)
     });
+    expect(inferDecisions([
+      { id: 'old', title: 'Old', decision: 'Manual deploy', topic: 'deploy' },
+      { id: 'new', title: 'New', decision: 'Automated deploy', topic: 'deploy', supersedes: ['old'] }
+    ], {
+      asOf: '2026-08-03T00:00:00.000Z',
+      ontologyVersion: '0.0.0'
+    }), 'story-brainbase-portable-ontology-kernel ac:7 interprets historical SSOT using the rules recorded for that ontology version').toMatchObject({
+      ontologyVersion: '0.0.0',
+      activeDecisionIds: ['old', 'new'],
+      supersededDecisionIds: []
+    });
     expect(toolDefinitions.map((tool) => tool.name), 'story-brainbase-portable-ontology-kernel ac:8 keeps the original five tools while adding ontology capabilities').toEqual([
       'get_context',
       'list_entities',

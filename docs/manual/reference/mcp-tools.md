@@ -82,17 +82,27 @@ mcp__brainbase__audit_ontology({})
 
 正本を全件読めた場合だけ `status: "complete"` になります。欠損や壊れたファイルがある場合は `status: "unverified"`、`violationCount: null` を返し、0件とは扱いません。
 
+過去snapshotを当時の意味で読む場合は、記録されたversionを指定します。
+
+```ts
+mcp__brainbase__audit_ontology({
+  ontologyVersion: "0.0.0"
+})
+```
+
 ## infer_decisions
 
 Decisionの明示的な `supersedes` から、有効、置換済み、競合を導出します。
 
 ```ts
 mcp__brainbase__infer_decisions({
-  asOf: "2026-08-03T00:00:00.000Z"
+  asOf: "2026-08-03T00:00:00.000Z",
+  ontologyVersion: "1.0.0"
 })
 ```
 
 同じ `topic` の有効Decisionが複数ある場合は、勝手に優先順位を付けず競合として返します。
+`ontologyVersion: "0.0.0"`では、1.0.0で追加されたsupersession・conflict推論を過去へ遡及適用せず、そのversionを結果に記録します。
 
 ## ontology_impact
 
