@@ -1,0 +1,296 @@
+import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+
+type Dependencies = {
+  apiUrl: string;
+  configuredProjectCodes?: string[];
+  tokenManager: { getToken(): Promise<string> };
+  fetch?: typeof globalThis.fetch;
+};
+
+type ToolResult = {
+  status: 'ok' | 'error' | 'unavailable';
+  scope: { project_codes: string[] };
+  data?: unknown;
+  error?: { code: string; message: string; http_status?: number };
+};
+
+const sourceMode = { type: 'string', enum: ['mcp', 'drive', 'gmail', 'local_folder', 'single_document'] } as const;
+const reviewReasonMaxLength = 500;
+const commonProject = { project_code: { type: 'string', description: 'Authenticated Brainbase project code' } };
+const sourceReceiptSchema = {
+  type: 'object',
+  properties: {
+    mode: sourceMode,
+    collection_status: { type: 'string', enum: ['collected'] },
+    source_id: { type: 'string' },
+    evidence_ref: { type: 'string' },
+    content_hash: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
+    permission_snapshot: {
+      type: 'object',
+      properties: {
+        visibility: { type: 'string' },
+        collected_by: { type: 'string' },
+        provider: { type: 'string' },
+        connection_id: { type: 'string' },
+        grant_id: { type: 'string' },
+        account_id: { type: 'string' },
+        folder_id: { type: 'string' },
+        project_code: { type: 'string' },
+        role_min: { type: 'string' },
+        sensitivity: { type: 'string' },
+        scope: { type: 'string' },
+        scopes: { type: 'array', items: { type: 'string' }, maxItems: 50 },
+        roles: { type: 'array', items: { type: 'string' }, maxItems: 50 },
+        clearance: { type: 'array', items: { type: 'string' }, maxItems: 50 },
+        authorized_at: { type: 'string' },
+        expires_at: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
+  },
+  required: ['mode', 'collection_status', 'source_id', 'evidence_ref', 'content_hash', 'permission_snapshot'],
+  additionalProperties: false,
+} as const;
+const candidateSchema = {
+  type: 'object',
+  properties: {
+    fact: { type: 'string' },
+    observation_class: { type: 'string', enum: ['observed', 'inferred'] },
+    subject_type: { type: 'string' },
+    evidence_id: { type: 'string' },
+  },
+  required: ['fact', 'observation_class', 'subject_type', 'evidence_id'],
+  additionalProperties: false,
+} as const;
+
+const secretAssignment = /(?:^|[?&#;,\s])(?:access[_-]?token|refresh[_-]?token|id[_-]?token|oauth[_-]?token|api[_-]?key|private[_-]?key|client[_-]?secret|secret|password|credential|authorization|cookie)(?:%[^=:\s&#;,]*)?\s*(?:=|:)\s*[^\s&#;,]+/i;
+const secretValue = /(?:^|\s)Bearer\s+[A-Za-z0-9._~+/-]+=*|\bsk-[A-Za-z0-9_-]{16,}\b/;
+const uriUserinfo = /^[a-z][a-z0-9+.-]*:\/\/[^/?#\s]*:[^@/?#\s]+@/i;
+const secretDecodeLimit = 8;
+const secretFieldNames = new Set([
+  'accesstoken', 'refreshtoken', 'idtoken', 'oauthtoken', 'apikey',
+  'privatekey', 'clientsecret', 'secret', 'password', 'credential',
+  'credentials', 'authorization', 'cookie',
+]);
+
+function decodeSecretInspectionPass(value: string): string {
+  return value
+    .replaceAll('+', ' ')
+    .replace(/%([0-9a-f]{2})/gi, (_match, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)))
+    .trim();
+}
+
+function containsSecretLikeValue(value: unknown): boolean {
+  if (typeof value === 'string') {
+    let candidate = value.trim();
+    for (let pass = 0; pass < secretDecodeLimit; pass += 1) {
+      if (secretValue.test(candidate) || secretAssignment.test(candidate) || uriUserinfo.test(candidate)) return true;
+      const decoded = decodeSecretInspectionPass(candidate);
+      if (decoded === candidate) return false;
+      candidate = decoded;
+    }
+    return true;
+  }
+  if (Array.isArray(value)) return value.some(containsSecretLikeValue);
+  if (!value || typeof value !== 'object') return false;
+  return Object.entries(value as Record<string, unknown>).some(([key, nestedValue]) => {
+    const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return secretFieldNames.has(normalizedKey) || containsSecretLikeValue(nestedValue);
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isSuccessfulResponseFor(name: string, payload: unknown): boolean {
+  if (!isRecord(payload)) return false;
+  if (name === 'brainbase_onboarding_review') {
+    return isRecord(payload.candidate)
+      && typeof payload.candidate.id === 'string'
+      && typeof payload.candidate.promotion_status === 'string'
+      && (payload.graph_entity_id === null || typeof payload.graph_entity_id === 'string');
+  }
+  return typeof payload.id === 'string' && typeof payload.status === 'string';
+}
+
+export const onboardingTools: Tool[] = [
+  {
+    name: 'brainbase_onboarding_start',
+    description: 'Start the 10-minute onboarding flow. Prefer an already connected MCP, Drive, Gmail, or allowlisted local folder; use single_document only as fallback.',
+    inputSchema: {
+      type: 'object',
+      properties: { ...commonProject, value_target: { type: 'string' }, source_mode: sourceMode },
+      required: ['project_code', 'value_target', 'source_mode'],
+    },
+  },
+  {
+    name: 'brainbase_onboarding_get',
+    description: 'Read an onboarding run and its review-safe candidate projection.',
+    inputSchema: { type: 'object', properties: { ...commonProject, run_id: { type: 'string' } }, required: ['project_code', 'run_id'] },
+  },
+  {
+    name: 'brainbase_onboarding_ingest',
+    description: 'Submit a bounded source receipt and short evidence-bound facts. Never submit connector credentials or raw source bodies.',
+    inputSchema: {
+      type: 'object',
+      properties: { ...commonProject, run_id: { type: 'string' }, source: sourceReceiptSchema, candidates: { type: 'array', items: candidateSchema } },
+      required: ['project_code', 'run_id', 'source', 'candidates'],
+    },
+  },
+  {
+    name: 'brainbase_onboarding_review',
+    description: 'Approve an observed candidate for Graph promotion or reject a candidate. Inferred candidates cannot be approved.',
+    inputSchema: {
+      type: 'object',
+      properties: { ...commonProject, run_id: { type: 'string' }, candidate_id: { type: 'string' }, decision: { type: 'string', enum: ['approve', 'reject'] }, reason: { type: 'string', minLength: 1, maxLength: reviewReasonMaxLength } },
+      required: ['project_code', 'run_id', 'candidate_id', 'decision'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'brainbase_onboarding_first_value',
+    description: 'Record a Graph-grounded answer receipt or the human useful/not_useful review without storing the answer body.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...commonProject,
+        run_id: { type: 'string' },
+        action: { type: 'string', enum: ['record', 'review'] },
+        answer_hash: { type: 'string' },
+        used_graph_entity_ids: { type: 'array', items: { type: 'string' } },
+        missing_context: { type: 'array', items: { type: 'string' } },
+        verdict: { type: 'string', enum: ['useful', 'not_useful'] },
+      },
+      required: ['project_code', 'run_id', 'action'],
+      allOf: [
+        { if: { properties: { action: { const: 'record' } } }, then: { required: ['answer_hash', 'used_graph_entity_ids'] } },
+        { if: { properties: { action: { const: 'review' } } }, then: { required: ['verdict'] } },
+      ],
+    },
+  },
+];
+
+function decodeProjectCodes(token: string): string[] {
+  const parts = token.split('.');
+  if (parts.length < 2) throw new Error('invalid access token');
+  const claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as Record<string, unknown>;
+  const raw = Array.isArray(claims.projectCodes) ? claims.projectCodes : Array.isArray(claims.project_codes) ? claims.project_codes : [];
+  return raw.filter((value): value is string => typeof value === 'string');
+}
+
+function errorResult(status: 'error' | 'unavailable', code: string, message: string, scope: string[], httpStatus?: number): ToolResult {
+  return { status, scope: { project_codes: scope }, error: { code, message, ...(httpStatus ? { http_status: httpStatus } : {}) } };
+}
+
+function requestFor(name: string, args: Record<string, unknown>, baseUrl: string): { url: string; method: string; body?: unknown } {
+  const runId = encodeURIComponent(String(args.run_id || ''));
+  if (name === 'brainbase_onboarding_start') {
+    return { url: `${baseUrl}/api/onboarding/runs`, method: 'POST', body: { project_code: args.project_code, value_target: args.value_target, source_mode: args.source_mode } };
+  }
+  if (name === 'brainbase_onboarding_get') return { url: `${baseUrl}/api/onboarding/runs/${runId}`, method: 'GET' };
+  if (name === 'brainbase_onboarding_ingest') return { url: `${baseUrl}/api/onboarding/runs/${runId}/sources`, method: 'POST', body: { source: args.source, candidates: args.candidates } };
+  if (name === 'brainbase_onboarding_review') {
+    return { url: `${baseUrl}/api/onboarding/runs/${runId}/candidates/${encodeURIComponent(String(args.candidate_id || ''))}/review`, method: 'POST', body: { decision: args.decision, reason: args.reason } };
+  }
+  const reviewing = args.action === 'review';
+  return {
+    url: `${baseUrl}/api/onboarding/runs/${runId}/first-value${reviewing ? '/review' : ''}`,
+    method: 'POST',
+    body: reviewing
+      ? { verdict: args.verdict }
+      : { answer_hash: args.answer_hash, used_graph_entity_ids: args.used_graph_entity_ids, missing_context: args.missing_context },
+  };
+}
+
+export async function handleOnboardingToolCall(name: string, args: Record<string, unknown>, dependencies: Dependencies): Promise<ToolResult | null> {
+  if (!onboardingTools.some((tool) => tool.name === name)) return null;
+  let token: string;
+  try {
+    token = await dependencies.tokenManager.getToken();
+  } catch (error) {
+    return errorResult('unavailable', 'brainbase_auth_unavailable', error instanceof Error ? error.message : String(error), []);
+  }
+  let claimsScope: string[];
+  try {
+    claimsScope = decodeProjectCodes(token);
+  } catch (error) {
+    return errorResult('error', 'brainbase_auth_context_invalid', error instanceof Error ? error.message : String(error), []);
+  }
+  const configured = dependencies.configuredProjectCodes;
+  const scope = configured?.length ? claimsScope.filter((code) => configured.includes(code)) : claimsScope;
+  const requestedProject = typeof args.project_code === 'string' ? args.project_code : '';
+  if (!requestedProject || !scope.includes(requestedProject)) {
+    return errorResult('error', 'brainbase_project_not_accessible', `project '${requestedProject}' is not accessible`, scope);
+  }
+  if (name === 'brainbase_onboarding_ingest' && containsSecretLikeValue({ source: args.source, candidates: args.candidates })) {
+    return errorResult('error', 'brainbase_onboarding_input_invalid', 'secret-like values are not accepted by onboarding ingest', scope);
+  }
+  if (name === 'brainbase_onboarding_review' && args.reason !== undefined) {
+    const reason = args.reason;
+    if (typeof reason !== 'string' || reason.trim().length === 0 || reason.length > reviewReasonMaxLength || containsSecretLikeValue(reason)) {
+      return errorResult('error', 'brainbase_onboarding_input_invalid', `review reason must be 1..${reviewReasonMaxLength} characters and contain no secret-like value`, scope);
+    }
+  }
+  if (name === 'brainbase_onboarding_first_value') {
+    if (args.action === 'record' && (typeof args.answer_hash !== 'string' || !Array.isArray(args.used_graph_entity_ids))) {
+      return errorResult('error', 'brainbase_onboarding_input_invalid', 'record requires answer_hash and used_graph_entity_ids', scope);
+    }
+    if (args.action === 'review' && !['useful', 'not_useful'].includes(String(args.verdict || ''))) {
+      return errorResult('error', 'brainbase_onboarding_input_invalid', 'review requires a useful or not_useful verdict', scope);
+    }
+    if (!['record', 'review'].includes(String(args.action || ''))) {
+      return errorResult('error', 'brainbase_onboarding_input_invalid', 'action must be record or review', scope);
+    }
+  }
+  const request = requestFor(name, args, dependencies.apiUrl.replace(/\/+$/, ''));
+  let response: Response;
+  try {
+    response = await (dependencies.fetch || globalThis.fetch)(request.url, {
+      method: request.method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-brainbase-projects': scope.join(','),
+        ...(request.body ? { 'content-type': 'application/json' } : {}),
+      },
+      ...(request.body ? { body: JSON.stringify(request.body) } : {}),
+    });
+  } catch (error) {
+    return errorResult('unavailable', 'brainbase_api_unavailable', error instanceof Error ? error.message : String(error), scope);
+  }
+  let payload: unknown = null;
+  let payloadParsed = false;
+  try {
+    payload = await response.json();
+    payloadParsed = true;
+  } catch {
+    payload = null;
+  }
+  const credentialBearingPayload = payloadParsed && containsSecretLikeValue(payload);
+  if (!response.ok) {
+    const unavailable = response.status >= 500;
+    if (credentialBearingPayload) {
+      return errorResult(
+        unavailable ? 'unavailable' : 'error',
+        unavailable ? 'brainbase_api_unavailable' : 'brainbase_api_response_invalid',
+        unavailable ? 'Brainbase API is unavailable' : 'Brainbase API returned credential-bearing data',
+        scope,
+        response.status,
+      );
+    }
+    const message = typeof (payload as { error?: { message?: unknown } })?.error?.message === 'string'
+      ? String((payload as { error: { message: string } }).error.message)
+      : `${response.status} ${response.statusText}`.trim();
+    return errorResult(unavailable ? 'unavailable' : 'error', unavailable ? 'brainbase_api_unavailable' : 'brainbase_api_error', message, scope, response.status);
+  }
+  if (credentialBearingPayload) {
+    return errorResult('error', 'brainbase_api_response_invalid', 'Brainbase API returned credential-bearing data', scope, response.status);
+  }
+  if (response.status !== 204 && !payloadParsed) {
+    return errorResult('error', 'brainbase_api_response_invalid', 'Brainbase API returned malformed JSON', scope, response.status);
+  }
+  if (response.status !== 204 && !isSuccessfulResponseFor(name, payload)) {
+    return errorResult('error', 'brainbase_api_response_invalid', 'Brainbase API returned an invalid onboarding response', scope, response.status);
+  }
+  return { status: 'ok', scope: { project_codes: scope }, data: payload };
+}

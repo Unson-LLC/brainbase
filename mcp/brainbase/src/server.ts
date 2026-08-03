@@ -39,6 +39,7 @@ import {
   handleControlPlaneToolCall,
 } from './tools/control-plane-tools.js';
 import { taskTools, handleTaskToolCall } from './tools/task-tools.js';
+import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-tools.js';
 
 // Global index. Runtime lookups rebuild and atomically swap this snapshot.
 let entityIndex: EntityIndex;
@@ -59,6 +60,20 @@ let globalTokenManager: TokenManager;
 let globalGraphSource: GraphAPISource | null = null;
 let defaultProjectCode = 'brainbase';
 let configuredProjectCodes: string[] | undefined;
+
+type OnboardingDispatchDependencies = Parameters<typeof handleOnboardingToolCall>[2];
+
+async function dispatchOnboardingToolCall(
+  name: string,
+  args: Record<string, unknown>,
+  dependencies?: OnboardingDispatchDependencies,
+) {
+  return handleOnboardingToolCall(name, args, dependencies ?? {
+    apiUrl: brainbaseApiUrl,
+    configuredProjectCodes,
+    tokenManager: globalTokenManager,
+  });
+}
 
 async function refreshEntityIndex(): Promise<void> {
   if (!indexRefreshEnabled) return;
@@ -881,7 +896,8 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
 }
 
 export const __testing = {
-  tools: [...tools, ...controlPlaneTools, ...taskTools],
+  tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...taskTools],
+  dispatchOnboardingToolCall,
   setEntityIndex(index: EntityIndex): void {
     entityIndex = index;
   },
@@ -1005,7 +1021,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: [...tools, ...controlPlaneTools, ...taskTools, ...meshTools] };
+    return { tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...taskTools, ...meshTools] };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -1018,18 +1034,23 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         configuredProjectCodes,
         tokenManager: globalTokenManager,
       });
+      const onboardingResult = controlPlaneResult
+        ? null
+        : await dispatchOnboardingToolCall(name, toolArgs);
       // Each extension handler returns null for unknown tool names.
-      const taskResult = controlPlaneResult
+      const taskResult = controlPlaneResult || onboardingResult
         ? null
         : await handleTaskToolCall(name, toolArgs, {
             apiUrl: taskApiUrl,
             token: taskApiToken,
           });
-      const meshResult = controlPlaneResult || taskResult
+      const meshResult = controlPlaneResult || onboardingResult || taskResult
         ? null
         : await handleMeshToolCall(name, toolArgs, brainbaseApiUrl);
       const result = controlPlaneResult
         ? JSON.stringify(controlPlaneResult, null, 2)
+        : onboardingResult
+          ? JSON.stringify(onboardingResult, null, 2)
         : taskResult
           ? JSON.stringify(taskResult, null, 2)
           : meshResult ?? await handleToolCall(name, toolArgs);

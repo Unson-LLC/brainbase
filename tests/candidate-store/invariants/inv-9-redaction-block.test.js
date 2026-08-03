@@ -19,4 +19,24 @@ describe('candidate-store INV-9: needs_redaction blocks promote', () => {
         expect(stored.promotion_status).toBe('candidate');
         expect(result.auto).toBeFalsy();
     });
+
+    it('INV-9: needs_redaction候補は手動承認でもGraphへ書かない', async () => {
+        const graphWrites = [];
+        const { service } = makeService({
+            graphWriter: {
+                async createEntity(payload) {
+                    graphWrites.push(payload);
+                    return { id: 'graph_pii_leak' };
+                }
+            }
+        });
+        const result = await service.createCandidate(baseDraft({
+            body: '連絡先は 090-1234-5678',
+            recommended_subject_type: 'person'
+        }));
+
+        await expect(service.approveCandidate(result.candidate.id, approver()))
+            .rejects.toMatchObject({ code: 'candidate_redaction_required', statusCode: 409 });
+        expect(graphWrites).toHaveLength(0);
+    });
 });

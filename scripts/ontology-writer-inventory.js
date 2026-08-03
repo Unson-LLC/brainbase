@@ -8,6 +8,7 @@ const SELF = 'scripts/ontology-writer-inventory.js';
 const WRITE_PATTERNS = [
     new RegExp(`(?:INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\s+graph_${'(?:entities|edges)'}`, 'i'),
     new RegExp(`${'upsert' + 'Graph'}(?:Entity|Edge)`),
+    new RegExp(`createOrUpdate${'Graph'}(?:Entity|Edge)`),
     new RegExp(`/api/info/graph/${'(?:entities|edges)'}`)
 ];
 const NON_VOCABULARY_LITERALS = new Set(['all', 'entity', 'string', 'unknown']);

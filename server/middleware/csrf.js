@@ -159,6 +159,17 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Onboarding MCP calls are non-cookie service requests. The mounted route still
+        // verifies the bearer token and project scope with requireAuth; this exemption
+        // only avoids requiring a browser CSRF session that the MCP client cannot hold.
+        if (
+            req.path?.startsWith('/api/onboarding/')
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
+            return next();
+        }
+
         const tokenHeader = req.headers?.['x-csrf-token'];
         const sessionHeader = req.headers?.['x-session-id'];
         const token = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;

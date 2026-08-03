@@ -237,6 +237,8 @@ export class InMemoryCandidateRepository {
         let rows = all.filter((r) => {
             if (filter.id && r.id !== filter.id) return false;
             if (filter.owner_person_id && r.owner_person_id !== filter.owner_person_id) return false;
+            if (filter.source_system && r.source_system !== filter.source_system) return false;
+            if (filter.source_event_prefix && !r.source_event_ids.some((eventId) => eventId.startsWith(filter.source_event_prefix))) return false;
             if (filter.promotion_status && r.promotion_status !== filter.promotion_status) return false;
             if (filter.cognitive_type && r.cognitive_type !== filter.cognitive_type) return false;
             return true;
@@ -418,6 +420,11 @@ export class PgCandidateRepository {
         };
         if (filter.id) add('id = ?', filter.id);
         if (filter.owner_person_id) add('owner_person_id = ?', filter.owner_person_id);
+        if (filter.source_system) add('source_system = ?', filter.source_system);
+        if (filter.source_event_prefix) add(
+            'EXISTS (SELECT 1 FROM jsonb_array_elements_text(source_event_ids) AS source_event(event_id) WHERE starts_with(event_id, ?))',
+            filter.source_event_prefix
+        );
         if (filter.promotion_status) add('promotion_status = ?', filter.promotion_status);
         if (filter.cognitive_type) add('cognitive_type = ?', filter.cognitive_type);
         const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';

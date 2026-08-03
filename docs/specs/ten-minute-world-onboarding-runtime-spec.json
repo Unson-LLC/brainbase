@@ -1,0 +1,221 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-ten-minute-world-onboarding-runtime",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "delivery_boundary": {
+    "implemented": "Authenticated bounded source receipt through Candidate Store, Promotion Gate, Graph SSOT, first-value receipt, and human answer review.",
+    "excluded": "Connector discovery, provider authorization, bounded content retrieval, and Agent Skill binding into onboarding MCP tools.",
+    "blocking_dependency": {
+      "story_id": "story-ten-minute-world-onboarding",
+      "acceptance_criteria": [
+        "AC-001",
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-005",
+        "AC-006"
+      ],
+      "status": "host_entry_blocked",
+      "required_delivery": "A separate host-entry PR must bind callable MCP, Drive, Gmail, local-folder, and single-document fallback inputs to the onboarding MCP tools."
+    }
+  },
+  "diagrams": [
+    {
+      "kind": "flow",
+      "title": "10-minute onboarding runtime flow",
+      "format": "mermaid",
+      "source": "flowchart LR\n  Host[Host entry: separate blocked delivery slice] -.-> Receipt[Bounded source receipt]\n  Receipt --> Candidate[Candidate Store]\n  Candidate --> Review[Human review]\n  Review --> Gate[Promotion Gate]\n  Gate --> Graph[Graph SSOT]\n  Graph --> Value[First-value answer]\n  Value --> Verdict[Useful review]"
+    },
+    {
+      "kind": "threat_model",
+      "title": "Connector authority and evidence boundary",
+      "format": "mermaid",
+      "source": "flowchart LR\n  Provider[Drive Gmail MCP Local: separate blocked delivery slice] -.->|credentials remain in host| Host[Host connector]\n  Host -.->|future bounded pointer hash permission snapshot| API[Onboarding API]\n  API --> Ledger[Run ledger]\n  API --> Candidate[Candidate Store]\n  Candidate -->|observed plus approval only| Graph[Graph SSOT]\n  Raw[Raw body or secret] -. rejected .-> API"
+    }
+  ],
+  "clauses": [
+    {
+      "id": "RT-INV-001",
+      "type": "invariant",
+      "statement": "runはentity正本ではなく、Graph SSOTを代替しない。",
+      "rationale": "RT-AC-003。runは収集・review・回答評価の進行記録であり、組織事実の正本ではない。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 2}]},
+      "confidence": 0.98,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "active ontology境界"}]}
+    },
+    {
+      "id": "RT-INV-002",
+      "type": "invariant",
+      "statement": "connector credential、token、raw source body、answer本文をrun ledgerへ保存しない。",
+      "rationale": "RT-AC-002。接続authorityとraw本文をhost側へ留め、run ledgerはpointerとhashだけを保持する。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 1}]},
+      "confidence": 0.98,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "raw本文を保存せず"}]}
+    },
+    {
+      "id": "RT-INV-003",
+      "type": "invariant",
+      "statement": "candidateはsource receipt、evidence ID、permission snapshot、owner/project scopeを持つ。",
+      "rationale": "RT-AC-003。Candidate StoreがGraph昇格前の証拠・権限・所有者境界を保持する。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 2}]},
+      "confidence": 0.99,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "双方向provenance"}]}
+    },
+    {
+      "id": "RT-INV-004",
+      "type": "invariant",
+      "statement": "`observation_class=inferred` はGraphへ昇格できない。",
+      "rationale": "RT-AC-004。推論を人が観測した事実として正本へ昇格しない。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 3}]},
+      "confidence": 0.99,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "inferred candidate"}]}
+    },
+    {
+      "id": "RT-INV-005",
+      "type": "invariant",
+      "statement": "Graph writeはrequest actorのaccessを使ったPromotion Gate経由だけで行う。",
+      "rationale": "RT-AC-003, RT-AC-004。承認者の認可文脈を失わず、Promotion Gate以外のGraph書き込みを許さない。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 2}, {"kind": "acceptance_criteria", "index": 3}]},
+      "confidence": 0.99,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "request actor"}]}
+    },
+    {
+      "id": "RT-INV-006",
+      "type": "invariant",
+      "statement": "first-value receiptは同一runでpromoted済みGraph IDだけを参照する。",
+      "rationale": "RT-AC-006。回答評価を未承認または別runのGraph事実で水増ししない。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 5}]},
+      "confidence": 0.99,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "未昇格Graph ID"}]}
+    },
+    {
+      "id": "RT-INV-007",
+      "type": "invariant",
+      "statement": "`first_value_answer_reviewed`はuseful/not_usefulの人の判定後だけ成立する。",
+      "rationale": "RT-AC-007。回答生成だけを成功とせず、人の価値判定を完了条件にする。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 6}]},
+      "confidence": 0.99,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "useful完了"}]}
+    },
+    {
+      "id": "RT-INV-008",
+      "type": "invariant",
+      "statement": "source collection失敗、Graph unavailable、権限拒否を空データや成功に変換しない。",
+      "rationale": "RT-AC-008, RT-AC-009。availability、空結果、拒否を区別し、未確認を成功へ変換しない。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 7}, {"kind": "acceptance_criteria", "index": 8}]},
+      "confidence": 0.99,
+      "verifiable_by": {"test_pattern": [{"file_glob": "mcp/brainbase/tests/tools/onboarding-tools.test.ts", "must_cover": "unavailable"}]}
+    },
+    {
+      "id": "RT-INV-009",
+      "type": "invariant",
+      "statement": "runの取得とmutationはproject scopeだけでなくowner本人に限定し、同一projectの別actorを拒否する。",
+      "rationale": "RT-AC-001, RT-AC-009。project membershipだけでは別利用者のオンボーディングrunを操作できない。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 0}, {"kind": "acceptance_criteria", "index": 8}]},
+      "confidence": 0.99,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "別owner"}]}
+    },
+    {
+      "id": "RT-INV-010",
+      "type": "invariant",
+      "statement": "Graph昇格はGraph entity payloadの`derived_from_candidate_id`とCandidate Storeの`promoted_graph_entity_id`で双方向provenanceを保持し、cross-store IDをGraph edge endpointとして使わない。Graph障害、candidate最終化失敗、run ledger失敗後もapprovedまたはpromoted candidateから同じGraph IDへ安全に再結合できる。",
+      "rationale": "RT-AC-003, RT-AC-004。異なる永続化境界のprovenanceと再試行可能性を両立する。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 2}, {"kind": "acceptance_criteria", "index": 3}]},
+      "confidence": 0.99,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "cross-store edge"}, {"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "既存Graph IDへ再結合"}]}
+    },
+    {
+      "id": "RT-INV-011",
+      "type": "invariant",
+      "statement": "`first_value_answer_reviewed`はterminalであり、source追加、candidate review、first-value上書きで過去状態へ戻さない。",
+      "rationale": "RT-AC-007。確定した価値判定と時間receiptを後続mutationから保護する。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 6}]},
+      "confidence": 0.99,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "完了runを再度変更できず"}]}
+    },
+    {
+      "id": "RT-INV-012",
+      "type": "invariant",
+      "statement": "`permission_snapshot`は秘密値を持たないallowlist fieldだけを受理し、8KiB以内のscalarまたはbounded string arrayに限定する。",
+      "rationale": "RT-AC-002, RT-AC-003。証拠の認可文脈を残しつつcredentialの永続化を防ぐ。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 1}, {"kind": "acceptance_criteria", "index": 2}]},
+      "confidence": 0.99,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "権限・content hash"}]}
+    },
+    {
+      "id": "RT-INV-013",
+      "type": "invariant",
+      "statement": "source batchは全candidateをwrite前に検証し、deterministic candidate IDで途中失敗後の同一payload再試行を回復する。",
+      "rationale": "RT-AC-003。partial writeを不可視の孤児や再試行deadlockにしない。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 2}]},
+      "confidence": 0.99,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "全件事前検証"}, {"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "同じbatchをidempotent"}]}
+    },
+    {
+      "id": "RT-INV-014",
+      "type": "invariant",
+      "statement": "同一runの`source_id`はreceipt identityに対してimmutableであり、hash、permission、evidence pointerの別版はcandidate write前に409で拒否する。",
+      "rationale": "RT-AC-002。run projectionとCandidate Storeで同一source provenanceの版を一致させる。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 1}]},
+      "confidence": 0.99,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "同一source_idへの別receipt版"}]}
+    },
+    {
+      "id": "RT-INV-015",
+      "type": "invariant",
+      "statement": "production JSON run ledgerのcold-start loadは同一processで単一化し、readは初回loadと進行中mutationの完了を待つ。mutationはread-modify-writeからatomic file replacementまで直列化し、再起動直後を含む同時API requestでsource receiptまたはworkflow stateを失わない。JSON repositoryはsingle-writer processに限定する。",
+      "rationale": "RT-AC-002, RT-AC-007。再起動直後や同時requestでもreceiptとworkflow stateを失わない。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 1}, {"kind": "acceptance_criteria", "index": 6}]},
+      "confidence": 0.99,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "同時更新を直列化"}]}
+    },
+    {
+      "id": "RT-INV-016",
+      "type": "invariant",
+      "statement": "approve/rejectのreview reasonは1..500文字かつsecret-like値を含まない場合だけ受理し、検証失敗時はCandidate Store、監査event、Graph、run stateを変更しない。",
+      "rationale": "RT-AC-003, RT-AC-004。caller-controlled rationaleからcredentialを永続化せず、invalid reviewを部分mutationにしない。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 2}, {"kind": "acceptance_criteria", "index": 3}]},
+      "confidence": 0.99,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "不正reasonをmutation前に拒否"}, {"file_glob": "tests/integration/onboarding-routes.test.js", "must_cover": "secret reasonをmutation前に400"}, {"file_glob": "mcp/brainbase/tests/tools/onboarding-tools.test.ts", "must_cover": "過長reasonをapprove/rejectともfetch前に拒否"}]}
+    },
+    {
+      "id": "RT-INV-017",
+      "type": "invariant",
+      "statement": "JSON run ledgerは`onboarding_runs.v1`だけを読み書きする。欠落または未知のschema versionは503でfail-closedにし、version skew中の旧/新processが既存ledgerを黙って変換・上書きしない。",
+      "rationale": "RT-AC-002, RT-AC-008。deployまたはrollback時のversion skewでreceiptを破壊せず、未知schemaを成功として扱わない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1
+          },
+          {
+            "kind": "acceptance_criteria",
+            "index": 7
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/onboarding-runtime-service.test.js",
+            "must_cover": "version skewをfail-closed"
+          }
+        ]
+      }
+    },
+    {
+      "id": "RT-SCENARIO-001",
+      "type": "scenario",
+      "statement": "The onboarding workflow state transitions from initialized to source_ready, candidates_ready, promotion_reviewed, first_value_ready, and first_value_answer_reviewed; retry or resume may continue an interrupted non-terminal state, while the terminal reviewed state cannot roll back.",
+      "rationale": "RT-AC-001 through RT-AC-009 require an explicit workflow state and transition contract for replay, recovery, and terminal-state safety.",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 0}, {"kind": "acceptance_criteria", "index": 8}]},
+      "confidence": 0.99,
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/onboarding-runtime-service.test.js", "must_cover": "source_ready"}, {"file_glob": "tests/e2e/story-ten-minute-world-onboarding-runtime-flow.spec.ts", "must_cover": "first_value_answer_reviewed"}]}
+    }
+  ]
+}

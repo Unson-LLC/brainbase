@@ -10,6 +10,7 @@ import { createAuthRouter } from '../routes/auth.js';
 import { createInfoSSOTRouter } from '../routes/info-ssot.js';
 import { createLearningRouter } from '../routes/learning.js';
 import { createCandidateStoreRouter } from '../routes/candidate-store.js';
+import { createOnboardingRouter } from '../routes/onboarding.js';
 import { createCompanionRouter } from '../routes/companion.js';
 import { createExternalRunnerRouter } from '../routes/external-runner.js';
 import { createRunReceiptRouter } from '../routes/run-receipts.js';
@@ -95,6 +96,14 @@ function createSnsAccountProvider() {
     });
 }
 
+export function registerOnboardingApiRoute(app, { authService, onboardingRuntimeService }) {
+    app.use(
+        '/api/onboarding',
+        requireAuth(authService, { allowInsecureHeaders: false }),
+        createOnboardingRouter({ service: onboardingRuntimeService })
+    );
+}
+
 export function registerApiRoutes(app, {
     configParser,
     configService,
@@ -109,6 +118,7 @@ export function registerApiRoutes(app, {
     learningService,
     learningHealthService,
     candidateRepository,
+    onboardingRuntimeService,
     wikiService,
     tokenUsageService,
     agentControlCatalogService,
@@ -187,6 +197,7 @@ export function registerApiRoutes(app, {
         infoSSOTService,
         candidateRepository
     })));
+    registerOnboardingApiRoute(app, { authService, onboardingRuntimeService });
     if (candidateRepository) {
         // cross-repo source (mana / salestailor / zeims / SNS) からの
         // Raw Ledger envelope 受信。 STR-006 / ADR-010 で確定した

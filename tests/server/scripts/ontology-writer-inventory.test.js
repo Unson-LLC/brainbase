@@ -43,6 +43,14 @@ describe('ontology writer inventory vocabulary contract', () => {
         expect(verifyWriterInventory({ rootDir })).toMatchObject({ writer_count: 1 });
     });
 
+    it('classifies indirect writers that call the guarded InfoSSOT methods', () => {
+        const rootDir = fixture({
+            source: "infoSSOTService.createOrUpdateGraphEntity(access, { entityType: 'org' });",
+            vocabulary: { types: ['org'], relations: [] }
+        });
+        expect(verifyWriterInventory({ rootDir })).toMatchObject({ writer_count: 1 });
+    });
+
     it('fails when a classified writer adds an unknown or undeclared vocabulary literal', () => {
         const unknownRoot = fixture({
             source: "upsertGraphEntity({ entityType: 'unregistered_type' });",

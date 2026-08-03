@@ -22,6 +22,10 @@ import { GoogleCalendarService } from '../services/google-calendar-service.js';
 import { LearningService } from '../services/learning-service.js';
 import { LearningHealthService } from '../services/learning-health-service.js';
 import { PgCandidateRepository } from '../services/candidate-store/candidate-repository.js';
+import {
+    JsonFileOnboardingRunRepository,
+    OnboardingRuntimeService
+} from '../services/onboarding/onboarding-runtime-service.js';
 import { WikiService } from '../services/wiki-service.js';
 import { TokenUsageService } from '../services/token-usage-service.js';
 import { ExternalRunnerIngestService } from '../services/external-runner/ingest-service.js';
@@ -172,6 +176,15 @@ export function createCoreServices({
     const candidateRepository = infoSSOTService.pool
         ? new PgCandidateRepository({ pool: infoSSOTService.pool })
         : null;
+    const onboardingRuntimeService = candidateRepository
+        ? new OnboardingRuntimeService({
+            repository: new JsonFileOnboardingRunRepository({
+                filePath: path.join(varDir, 'onboarding-runs.json')
+            }),
+            candidateRepository,
+            infoSSOTService
+        })
+        : null;
     const externalRunnerIngestService = new ExternalRunnerIngestService({
         workflowRepository,
         candidateRepository
@@ -207,6 +220,7 @@ export function createCoreServices({
         learningService,
         learningHealthService,
         candidateRepository,
+        onboardingRuntimeService,
         tokenUsageService,
         ...automationRuntime,
         meetingSourceMcpSyncService,
