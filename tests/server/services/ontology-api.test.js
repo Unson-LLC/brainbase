@@ -387,7 +387,8 @@ describe('InfoSSOTService ontology API', () => {
                     return {
                         rows: (params[0] || []).map((id) => ({
                             id,
-                            entity_type: id.startsWith('dec_') ? 'decision' : id.startsWith('person:') ? 'person' : 'project'
+                            entity_type: id.startsWith('dec_') ? 'decision' : id.startsWith('person:') ? 'person' : 'project',
+                            payload: id.startsWith('dec_') ? { status: 'decided' } : {}
                         }))
                     };
                 }

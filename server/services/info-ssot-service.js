@@ -192,7 +192,8 @@ export class InfoSSOTService {
                     projectId,
                     payload: edge.payload || {},
                     roleMin,
-                    sensitivity
+                    sensitivity,
+                    aggregatePrevalidated: true
                 });
             }
             return {
@@ -556,8 +557,17 @@ export class InfoSSOTService {
         );
     }
 
-    async upsertGraphEdge(client, { fromId, toId, relType, projectId, payload, roleMin, sensitivity }) {
-        if (this.ontologyRegistry.hasCurrent()) {
+    async upsertGraphEdge(client, {
+        fromId,
+        toId,
+        relType,
+        projectId,
+        payload,
+        roleMin,
+        sensitivity,
+        aggregatePrevalidated = false
+    }) {
+        if (this.ontologyRegistry.hasCurrent() && !aggregatePrevalidated) {
             await this.validateGraphMutation(client, { edgeOverride: {
                 from_id: fromId,
                 to_id: toId,
@@ -1605,7 +1615,8 @@ export class InfoSSOTService {
                 projectId,
                 payload: {},
                 roleMin,
-                sensitivity
+                sensitivity,
+                aggregatePrevalidated: true
             });
 
             await this.upsertGraphEdge(client, {
@@ -1615,7 +1626,8 @@ export class InfoSSOTService {
                 projectId,
                 payload: {},
                 roleMin,
-                sensitivity
+                sensitivity,
+                aggregatePrevalidated: true
             });
 
             await this.upsertGraphEdge(client, {
@@ -1625,7 +1637,8 @@ export class InfoSSOTService {
                 projectId,
                 payload: {},
                 roleMin: 'member',
-                sensitivity: 'internal'
+                sensitivity: 'internal',
+                aggregatePrevalidated: true
             });
 
             return { decision_id: decisionId, event_id: eventId, ...guard };
