@@ -3,10 +3,10 @@ import { constants } from 'node:fs';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { delimiter, dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { appendDecisions, appendPersonalKg, initializePersonalOs, loadPersonalOs, saveGraph, saveRelationships } from './ssot.js';
+import { initializePersonalOs, loadPersonalOs, mutatePersonalOs } from './ssot.js';
 import { resolveDataDir } from './paths.js';
 import { auditPersonalOsDirectory } from './ontology-ssot.js';
-import { assertOntologyValid, portableOntology, resolveOntologyVersion } from './ontology.js';
+import { portableOntology, resolveOntologyVersion } from './ontology.js';
 import { onboardingStatus } from './tools.js';
 import { buildCandidateDrafts, parseOnboardingFormat, renderAgentProtocol, renderCandidateDrafts, renderConnectorRecommendations, renderLocalOnboardingPlan, renderSourceDiagnosis, renderValueDemo } from './onboarding.js';
 import {
@@ -128,107 +128,105 @@ async function onboardInit(parsed: ParsedArgs, io: CliIo): Promise<number> {
 async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const dataDir = resolveDataDir(first(parsed, 'dir'));
   await initializePersonalOs(dataDir);
-  const os = await loadPersonalOs(dataDir);
-  const now = new Date().toISOString();
   const name = first(parsed, 'name');
-  const personalEntries: PersonalKgEntry[] = [];
-  const decisions: DecisionRecord[] = [];
-  const relationships: RelationshipRecord[] = [...os.relationships.relationships];
-  const graphEntities: GraphEntity[] = [...os.graph.entities];
-
-  if (name) {
-    os.graph.owner = { ...os.graph.owner, name };
-    upsertGraphEntity(graphEntities, {
-      id: 'self',
-      type: 'person',
-      name,
-      summary: 'Owner of this local Brainbase Personal OS.',
-      tags: ['self']
-    });
-    personalEntries.push({
-      id: `self-${Date.now()}`,
-      type: 'self',
-      text: `I am ${name}.`,
-      tags: ['self'],
-      updatedAt: now
-    });
-  }
-
-  for (const value of parsed.values.get('value') ?? []) {
-    personalEntries.push({
-      id: `value-${hash(value)}`,
-      type: 'value',
-      text: value,
-      tags: ['onboarding'],
-      updatedAt: now
-    });
-  }
-
-  for (const project of parsed.values.get('project') ?? []) {
-    upsertGraphEntity(graphEntities, {
-      id: `project-${hash(project)}`,
-      type: 'project',
-      name: project,
-      summary: 'Seeded during Brainbase onboarding.',
-      tags: ['work']
-    });
-    personalEntries.push({
-      id: `work-${hash(project)}`,
-      type: 'work',
-      text: project,
-      tags: ['work'],
-      updatedAt: now
-    });
-  }
-
-  for (const value of parsed.values.get('decision-principle') ?? []) {
-    decisions.push({
-      id: `decision-${hash(value)}`,
-      title: 'Seeded decision principle',
-      decision: value,
-      tags: ['principle', 'onboarding'],
-      updatedAt: now
-    });
-  }
-
-  for (const encoded of parsed.values.get('relationship') ?? []) {
-    const [person, role, context] = encoded.split('|').map((part) => part.trim());
-    if (!person || !context) {
-      throw new Error('relationship must be "person|role|context" or "person||context"');
-    }
-    relationships.push({
-      id: `relationship-${hash(encoded)}`,
-      person,
-      role: role || undefined,
-      context,
-      tags: ['relationship'],
-      updatedAt: now
-    });
-    upsertGraphEntity(graphEntities, {
-      id: `person-${hash(person)}`,
-      type: 'person',
-      name: person,
-      summary: context,
-      tags: ['relationship']
-    });
-  }
-
-  if (!parsed.flags.has('non-interactive') && personalEntries.length === 0 && decisions.length === 0 && relationships.length === os.relationships.relationships.length) {
+  const hasSeedValues = Boolean(name)
+    || ['value', 'project', 'decision-principle', 'relationship'].some((key) => (parsed.values.get(key)?.length ?? 0) > 0);
+  if (!parsed.flags.has('non-interactive') && !hasSeedValues) {
     write(io, 'No seed values provided. Use --name, --value, --project, --decision-principle, or --relationship.\n');
     return 1;
   }
 
-  const proposed = proposedPersonalOs(os, {
-    graph: { ...os.graph, entities: graphEntities },
-    relationships: { version: 1, relationships },
-    personalKg: [...os.personalKg, ...personalEntries],
-    decisions: [...os.decisions, ...decisions]
+  await mutatePersonalOs(dataDir, (os) => {
+    const now = new Date().toISOString();
+    const personalEntries: PersonalKgEntry[] = [];
+    const decisions: DecisionRecord[] = [];
+    const relationships: RelationshipRecord[] = [...os.relationships.relationships];
+    const graphEntities: GraphEntity[] = [...os.graph.entities];
+
+    if (name) {
+      os.graph.owner = { ...os.graph.owner, name };
+      upsertGraphEntity(graphEntities, {
+        id: 'self',
+        type: 'person',
+        name,
+        summary: 'Owner of this local Brainbase Personal OS.',
+        tags: ['self']
+      });
+      personalEntries.push({
+        id: `self-${Date.now()}`,
+        type: 'self',
+        text: `I am ${name}.`,
+        tags: ['self'],
+        updatedAt: now
+      });
+    }
+
+    for (const value of parsed.values.get('value') ?? []) {
+      personalEntries.push({
+        id: `value-${hash(value)}`,
+        type: 'value',
+        text: value,
+        tags: ['onboarding'],
+        updatedAt: now
+      });
+    }
+
+    for (const project of parsed.values.get('project') ?? []) {
+      upsertGraphEntity(graphEntities, {
+        id: `project-${hash(project)}`,
+        type: 'project',
+        name: project,
+        summary: 'Seeded during Brainbase onboarding.',
+        tags: ['work']
+      });
+      personalEntries.push({
+        id: `work-${hash(project)}`,
+        type: 'work',
+        text: project,
+        tags: ['work'],
+        updatedAt: now
+      });
+    }
+
+    for (const value of parsed.values.get('decision-principle') ?? []) {
+      decisions.push({
+        id: `decision-${hash(value)}`,
+        title: 'Seeded decision principle',
+        decision: value,
+        tags: ['principle', 'onboarding'],
+        updatedAt: now
+      });
+    }
+
+    for (const encoded of parsed.values.get('relationship') ?? []) {
+      const [person, role, context] = encoded.split('|').map((part) => part.trim());
+      if (!person || !context) {
+        throw new Error('relationship must be "person|role|context" or "person||context"');
+      }
+      relationships.push({
+        id: `relationship-${hash(encoded)}`,
+        person,
+        role: role || undefined,
+        context,
+        tags: ['relationship'],
+        updatedAt: now
+      });
+      upsertGraphEntity(graphEntities, {
+        id: `person-${hash(person)}`,
+        type: 'person',
+        name: person,
+        summary: context,
+        tags: ['relationship']
+      });
+    }
+
+    return proposedPersonalOs(os, {
+      graph: { ...os.graph, entities: graphEntities },
+      relationships: { version: 1, relationships },
+      personalKg: [...os.personalKg, ...personalEntries],
+      decisions: [...os.decisions, ...decisions]
+    });
   });
-  assertOntologyValid(proposed);
-  await saveGraph(dataDir, proposed.graph);
-  await saveRelationships(dataDir, proposed.relationships);
-  await appendPersonalKg(dataDir, personalEntries);
-  await appendDecisions(dataDir, decisions);
   write(io, `Seeded Brainbase Personal OS at ${dataDir}\n`);
   return 0;
 }
@@ -430,29 +428,24 @@ async function onboardProjects(parsed: ParsedArgs, io: CliIo): Promise<number> {
 }
 
 async function applyProjectRegistrationPlan(dataDir: string, plan: ProjectRegistrationPlan): Promise<void> {
-  const os = await loadPersonalOs(dataDir);
-  const graphEntities = [...os.graph.entities];
-  for (const entity of plan.writes.graphEntities) {
-    upsertGraphEntity(graphEntities, entity);
-  }
-  const relationships = [...os.relationships.relationships];
-  for (const relationship of plan.writes.relationships) {
-    if (!relationships.some((existing) => existing.id === relationship.id)) {
-      relationships.push(relationship);
+  await mutatePersonalOs(dataDir, (os) => {
+    const graphEntities = [...os.graph.entities];
+    for (const entity of plan.writes.graphEntities) {
+      upsertGraphEntity(graphEntities, entity);
     }
-  }
-
-  const proposed = proposedPersonalOs(os, {
-    graph: { ...os.graph, entities: graphEntities },
-    relationships: { version: 1, relationships },
-    personalKg: [...os.personalKg, ...plan.writes.personalKg],
-    decisions: [...os.decisions, ...plan.writes.decisions]
+    const relationships = [...os.relationships.relationships];
+    for (const relationship of plan.writes.relationships) {
+      if (!relationships.some((existing) => existing.id === relationship.id)) {
+        relationships.push(relationship);
+      }
+    }
+    return proposedPersonalOs(os, {
+      graph: { ...os.graph, entities: graphEntities },
+      relationships: { version: 1, relationships },
+      personalKg: [...os.personalKg, ...plan.writes.personalKg],
+      decisions: [...os.decisions, ...plan.writes.decisions]
+    });
   });
-  assertOntologyValid(proposed);
-  await saveGraph(dataDir, proposed.graph);
-  await saveRelationships(dataDir, proposed.relationships);
-  await appendPersonalKg(dataDir, plan.writes.personalKg);
-  await appendDecisions(dataDir, plan.writes.decisions);
 }
 
 async function onboardImport(parsed: ParsedArgs, io: CliIo): Promise<number> {
@@ -535,29 +528,38 @@ async function onboardApply(parsed: ParsedArgs, io: CliIo): Promise<number> {
     throw new Error('onboard:apply requires --select <id> (repeatable) or --all to choose which candidates to promote.');
   }
 
-  const os = await loadPersonalOs(dataDir);
   const now = new Date().toISOString();
-  const result = planApply(candidates, { ids: selectedIds, all }, {
-    graphEntities: [...os.graph.entities],
-    relationships: [...os.relationships.relationships],
-    personalKg: os.personalKg,
-    decisions: os.decisions,
-    ownerName: os.graph.owner?.name
-  }, now);
-
   const willWrite = parsed.flags.has('write');
+  let result: ApplyResult | undefined;
   if (willWrite) {
-    const proposed = proposedPersonalOs(os, {
-      graph: { ...os.graph, owner: result.ownerName ? { ...os.graph.owner, name: result.ownerName } : os.graph.owner, entities: result.graphEntities },
-      relationships: { version: 1, relationships: result.relationships },
-      personalKg: [...os.personalKg, ...result.personalKgAdditions],
-      decisions: [...os.decisions, ...result.decisionAdditions]
+    await mutatePersonalOs(dataDir, (os) => {
+      result = planApply(candidates, { ids: selectedIds, all }, {
+        graphEntities: [...os.graph.entities],
+        relationships: [...os.relationships.relationships],
+        personalKg: os.personalKg,
+        decisions: os.decisions,
+        ownerName: os.graph.owner?.name
+      }, now);
+      return proposedPersonalOs(os, {
+        graph: { ...os.graph, owner: result.ownerName ? { ...os.graph.owner, name: result.ownerName } : os.graph.owner, entities: result.graphEntities },
+        relationships: { version: 1, relationships: result.relationships },
+        personalKg: [...os.personalKg, ...result.personalKgAdditions],
+        decisions: [...os.decisions, ...result.decisionAdditions]
+      });
     });
-    assertOntologyValid(proposed);
-    await saveGraph(dataDir, proposed.graph);
-    await saveRelationships(dataDir, proposed.relationships);
-    await appendPersonalKg(dataDir, result.personalKgAdditions);
-    await appendDecisions(dataDir, result.decisionAdditions);
+  } else {
+    const os = await loadPersonalOs(dataDir);
+    result = planApply(candidates, { ids: selectedIds, all }, {
+      graphEntities: [...os.graph.entities],
+      relationships: [...os.relationships.relationships],
+      personalKg: os.personalKg,
+      decisions: os.decisions,
+      ownerName: os.graph.owner?.name
+    }, now);
+  }
+
+  if (!result) {
+    throw new Error('Failed to compute onboarding apply result.');
   }
 
   if (format === 'json') {
