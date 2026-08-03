@@ -1,0 +1,465 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-judgment-axis-noise-precedent-ledger-v1",
+  "entries": [
+    {
+      "fingerprint": "scope_reviewability|changed_files:20|graphify:related_files|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-compatibility",
+      "decision_id": "decision-1785692739792-6e131674",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "Review ownerはOntology kernel/API/audit runner/contract tests/Story-ADR-Specを一貫して確認する。対象外はactivation、Graphデータ修復、publication governance、receipt signing。本番互換性とNo-Go境界を同一判断としてレビュー可能。",
+      "artifact": null,
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:20",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T18:03:45.531Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:21|graphify:related_files|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-compatibility",
+      "decision_id": "decision-1785692739792-6e131674",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "Review ownerはOntology kernel/API/audit runner/contract tests/Story-ADR-Specを一貫して確認する。対象外はactivation、Graphデータ修復、publication governance、receipt signing。本番互換性とNo-Go境界を同一判断としてレビュー可能。",
+      "artifact": null,
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:21",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T18:14:54.850Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:64|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-compatibility",
+      "decision_id": "decision-1785696067589-1c51d2ee",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "scope_reviewed: current 21-file diff is one atomic production-compatibility contract spanning kernel, registry/API, read-only audit, tests, Story/ADR/Spec. review_owner_map: runtime_contract reviewer /root/ontology_compat_gate_review inspected the entire changed surface and found it coherent. Activation, Graph repair, governance publication, and signing remain explicitly excluded and NO_GO; splitting would sever implementation from acceptance evidence.",
+      "artifact": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/transcript-runtime-contract-560f7212.json",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:64",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T18:44:20.314Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:93|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-compatibility",
+      "decision_id": "decision-1785696067589-1c51d2ee",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "scope_reviewed: current 21-file diff is one atomic production-compatibility contract spanning kernel, registry/API, read-only audit, tests, Story/ADR/Spec. review_owner_map: runtime_contract reviewer /root/ontology_compat_gate_review inspected the entire changed surface and found it coherent. Activation, Graph repair, governance publication, and signing remain explicitly excluded and NO_GO; splitting would sever implementation from acceptance evidence.",
+      "artifact": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/transcript-runtime-contract-560f7212.json",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:93"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T19:13:03.881Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "release_ops|changed_path:release_ops",
+      "axis": "release_ops",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705311225-ce95bcd9",
+      "source": "gate:judgment_axis_release_ops",
+      "reason": "Spec A-006とArchitecture運用責任節にdeploy、readback、audit、observability、support、rollback、owner、member操作不要を明記。post-deploy証跡が欠ければ有効化完了にしない",
+      "artifact": "docs/specs/brainbase-ontology-production-activation.md",
+      "activation_candidates": [
+        "changed_path:release_ops"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T21:24:02.918Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:27|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:27",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T21:24:02.918Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:188|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:188",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T21:35:48.470Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:28|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:28",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T21:36:04.782Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:36|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:36",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T22:00:12.532Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:38|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:38",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T22:39:02.952Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:39|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:39",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T22:53:11.878Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:194|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:194",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T22:58:17.605Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:43|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:43",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T23:20:13.003Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:44|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:44",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T23:29:47.160Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:46|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:46",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T23:52:30.428Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:47|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:47",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T23:55:59.621Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:202|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:202",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-03T00:21:19.952Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:204|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:204",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-03T00:35:05.304Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:51|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:51",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-03T00:40:43.157Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:52|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:52",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-03T00:51:13.558Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "rollback_sensitive|changed_surface:rollback_or_rollout",
+      "axis": "rollback_sensitive",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785725244093-73462958",
+      "source": "gate:judgment_axis_rollback_sensitive",
+      "reason": "独立checkoutのupgrade/downgrade rehearsal、current=null/proposed/receipt absentへの復元、release verifier成功を現HEADで確認。本番rollback readbackはデプロイ後Done evidenceとして別に必須とする。",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/rollback-rehearsal-2026-08-03.json",
+      "activation_candidates": [
+        "changed_surface:rollback_or_rollout"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-03T02:47:44.946Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "rollback_sensitive",
+      "axis": "rollback_sensitive",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785725244093-73462958",
+      "source": "gate:judgment_axis_rollback_sensitive",
+      "reason": "独立checkoutのupgrade/downgrade rehearsal、current=null/proposed/receipt absentへの復元、release verifier成功を現HEADで確認。本番rollback readbackはデプロイ後Done evidenceとして別に必須とする。",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/rollback-rehearsal-2026-08-03.json",
+      "activation_candidates": [],
+      "activation_precision_status": "no_signal",
+      "recorded_at": "2026-08-03T03:13:05.658Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "release_ops",
+      "axis": "release_ops",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705311225-ce95bcd9",
+      "source": "gate:judgment_axis_release_ops",
+      "reason": "Spec A-006とArchitecture運用責任節にdeploy、readback、audit、observability、support、rollback、owner、member操作不要を明記。post-deploy証跡が欠ければ有効化完了にしない",
+      "artifact": "docs/specs/brainbase-ontology-production-activation.md",
+      "activation_candidates": [],
+      "activation_precision_status": "no_signal",
+      "recorded_at": "2026-08-03T03:13:05.658Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [],
+      "activation_precision_status": "no_signal",
+      "recorded_at": "2026-08-03T03:13:05.658Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "public_contract|file_group:contract_docs|pr_route:docs_only|text:public_contract",
+      "axis": "public_contract",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785729191082-742ac35d",
+      "source": "gate:judgment_axis_public_contract",
+      "reason": "Current HEAD changes only the Story completion checkbox/frontmatter and a non-secret audit JSON. There is no code, API, CLI, configuration, response-format, or PR contract change. The current-head E2E contract test passes all 3 scenarios, integration passes 58 checks, and independent judgment marked axis:public_contract judged_sound.",
+      "artifact": "tests/e2e/story-brainbase-ontology-production-activation-contract.spec.ts",
+      "activation_candidates": [
+        "pr_route:docs_only",
+        "file_group:contract_docs",
+        "text:public_contract"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-03T03:53:23.556Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "public_contract|file_group:contract_docs|pr_route:config_or_agent_policy|text:public_contract",
+      "axis": "public_contract",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785729191082-742ac35d",
+      "source": "gate:judgment_axis_public_contract",
+      "reason": "Current HEAD changes only the Story completion checkbox/frontmatter and a non-secret audit JSON. There is no code, API, CLI, configuration, response-format, or PR contract change. The current-head E2E contract test passes all 3 scenarios, integration passes 58 checks, and independent judgment marked axis:public_contract judged_sound.",
+      "artifact": "tests/e2e/story-brainbase-ontology-production-activation-contract.spec.ts",
+      "activation_candidates": [
+        "pr_route:config_or_agent_policy",
+        "file_group:contract_docs",
+        "text:public_contract"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-03T03:53:57.946Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:210|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "decision_id": "decision-1785705310676-c475421e",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:210",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-03T03:53:57.946Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    }
+  ]
+}

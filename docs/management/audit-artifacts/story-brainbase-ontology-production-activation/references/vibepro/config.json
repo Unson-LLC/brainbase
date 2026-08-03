@@ -1,0 +1,193 @@
+{
+  "schema_version": "0.1.0",
+  "tool": "vibepro",
+  "workspace": ".vibepro",
+  "output": {
+    "language": "ja"
+  },
+  "execution": {
+    "managed_worktree": "preferred"
+  },
+  "budgets": {
+    "pr_artifact_bytes": 16384,
+    "delivery_efficiency": {
+      "max_elapsed_ms": null,
+      "max_observed_work_ms": null,
+      "max_active_wait_ms": null,
+      "max_tool_wait_ms": null,
+      "max_total_tokens": null,
+      "max_fresh_input_tokens": 5000000,
+      "max_cost_usd": null,
+      "max_subagent_count": 12,
+      "max_agent_consumption_ms": null,
+      "max_repair_batches": 3,
+      "max_expensive_verification_count": 2,
+      "max_review_dispatches_by_role": {
+        "unit_integration": 2,
+        "e2e_ux": 2,
+        "gate_coverage": 2,
+        "gate_evidence": 2,
+        "judgment": 2
+      },
+      "require_known_attribution": false
+    },
+    "delivery_efficiency_by_story": {
+      "story-brainbase-ontology-production-activation": {
+        "max_subagent_count": 30,
+        "max_expensive_verification_count": 3,
+        "max_review_dispatches_by_role": {
+          "unit_integration": 2,
+          "e2e_ux": 2,
+          "gate_coverage": 2,
+          "gate_evidence": 14,
+          "judgment": 8
+        },
+        "amendment_reason": "User approved all recommended actions on 2026-08-03. A judgment review found that rebasing invalidated signed publication ancestry, so the branch was rebuilt with a lineage-preserving merge. Permit only the replacement strict-HEAD gate, architecture/runtime consistency, and judgment checks required for that repair; quality gates remain mandatory and no activation waiver is granted."
+      },
+      "story-brainbase-ontology-production-compatibility": {
+        "max_subagent_count": 18,
+        "max_expensive_verification_count": 2,
+        "max_review_dispatches_by_role": {
+          "unit_integration": 4,
+          "e2e_ux": 4,
+          "gate_coverage": 4,
+          "gate_evidence": 2,
+          "judgment": 2
+        },
+        "amendment_reason": "User authorized safe fixes on 2026-08-03. Add exactly one further unit_integration, gate_coverage, and e2e_ux current-HEAD re-review after the final Spec and inspection-evidence reconciliation; this does not waive quality gates, authorize inferred Graph writes, or authorize ontology activation."
+      }
+    }
+  },
+  "brainbase": {
+    "stories": [
+      {
+        "story_id": "story-vibepro-diagnosis-commercialization-roadmap",
+        "title": "M1: VibePro 診断→商用化ロードマップ",
+        "ssot": "NocoDB",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null
+      },
+      {
+        "story_id": "story-brainbase-ontology-production-compatibility",
+        "title": "本番GraphとOntology 1.0.0の互換性を確立する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "quarter",
+        "view": "business",
+        "period": "2026-08",
+        "started_at": "2026-08-03",
+        "due_at": null,
+        "category": "product",
+        "derived_by": "vibepro-story-derive"
+      },
+      {
+        "story_id": "story-product-auth-account-access",
+        "title": "認証とアカウント利用開始を成立させる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "quarter",
+        "view": "business",
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "category": "product",
+        "derived_by": "vibepro-story-derive"
+      },
+      {
+        "story_id": "story-product-notification",
+        "title": "通知体験を安定化する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "quarter",
+        "view": "business",
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "category": "product",
+        "derived_by": "vibepro-story-derive"
+      },
+      {
+        "story_id": "story-product-onboarding",
+        "title": "オンボーディング体験を安定化する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "quarter",
+        "view": "business",
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "category": "product",
+        "derived_by": "vibepro-story-derive"
+      },
+      {
+        "story_id": "story-architecture-data-access",
+        "title": "データアクセスと永続化境界を整理する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "month",
+        "view": "dev",
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "category": "architecture",
+        "derived_by": "vibepro-story-derive"
+      },
+      {
+        "story_id": "story-security-api-trust-boundary",
+        "title": "APIと外部連携の信頼境界を固める",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "sprint",
+        "view": "dev",
+        "period": "2026-08",
+        "started_at": "2026-08-03",
+        "due_at": null,
+        "category": "security",
+        "derived_by": "vibepro-story-derive"
+      },
+      {
+        "story_id": "story-quality-test-ci-readiness",
+        "title": "テストとCIを開発ゲートとして整える",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "month",
+        "view": "dev",
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "category": "quality",
+        "derived_by": "vibepro-story-derive"
+      },
+      {
+        "story_id": "story-docs-story-ssot-recovery",
+        "title": "要求とStoryの正本を復元する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "month",
+        "view": "dev",
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "category": "docs",
+        "derived_by": "vibepro-story-derive"
+      },
+      {
+        "story_id": "story-brainbase-ontology-production-activation",
+        "title": "Ontology 1.0.0を本番で安全に有効化する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "quarter",
+        "view": "business",
+        "period": "2026-08",
+        "started_at": "2026-08-03",
+        "due_at": null,
+        "category": "product",
+        "derived_by": "vibepro-story-derive"
+      }
+    ],
+    "current_story_id": "story-brainbase-ontology-production-activation"
+  }
+}

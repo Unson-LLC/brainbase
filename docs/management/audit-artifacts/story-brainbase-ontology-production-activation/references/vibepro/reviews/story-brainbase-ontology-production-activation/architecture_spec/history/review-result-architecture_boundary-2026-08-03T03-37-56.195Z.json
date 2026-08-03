@@ -1,0 +1,142 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-ontology-production-activation",
+  "stage": "architecture_spec",
+  "role": "architecture_boundary",
+  "status": "pass",
+  "summary": "Current HEADのdocs-only完了記録は既存Architecture/Spec境界と整合し、新規ADR不要",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Story、Architecture、Spec、completion JSON、contract E2Eを独立確認。実効状態SSOT、runtime topology、DB/API/authority境界に変更なし",
+    "evidence": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/production-activation-completion-2026-08-03.json",
+    "inputs": [
+      "docs/management/stories/active/story-brainbase-ontology-production-activation.md",
+      "docs/architecture/story-brainbase-ontology-production-activation.md",
+      "docs/specs/brainbase-ontology-production-activation.md",
+      "tests/e2e/story-brainbase-ontology-production-activation-contract.spec.ts"
+    ]
+  },
+  "judgment_delta": [
+    "completion JSONが実効状態SSOTを重複する懸念 -> merge/running SHAに固定した不変監査証跡であり、署名receiptとindexの権威を変更しないためpass"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-ontology-production-completion",
+    "actual_root": "/private/tmp/brainbase-ontology-production-completion",
+    "expected_root": null,
+    "expected_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+    "current_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-ontology-production-completion",
+      "actual_root": "/private/tmp/brainbase-ontology-production-completion",
+      "expected_root": null,
+      "expected_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+      "current_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-03T03:37:56.195Z",
+  "git_context": {
+    "head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+    "current_branch": "codex/ontology-production-activation-completion",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-03T03:37:56.184Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "replace stale prior architecture review with independent current HEAD inspection"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+    "surface_files": [
+      {
+        "path": "docs/architecture/story-brainbase-ontology-production-activation.md",
+        "sha256": "644c2f8c1249ae49082f362b237cbf13bce90dcb7e95ba02821a410a345ca1d4",
+        "size": 2802
+      },
+      {
+        "path": "docs/management/stories/active/story-brainbase-ontology-production-activation.md",
+        "sha256": "a6478c57b12d121f840d4157c5a60fd6039b56dc7d773def3fa71327f45e2741",
+        "size": 7044
+      },
+      {
+        "path": "docs/specs/brainbase-ontology-production-activation.md",
+        "sha256": "ad76ffd205e7bfbb3c3cc89b110880c51f6a8ed4a6a93e7c0b1a30dda7932300",
+        "size": 5094
+      },
+      {
+        "path": "tests/e2e/story-brainbase-ontology-production-activation-contract.spec.ts",
+        "sha256": "2532c211212ea6c1ce31a3517b1a40c0b9f7f8a0b12b74912c99dd6f394f0274",
+        "size": 2515
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "b1955ee143a5b40d236db895f46638286924ea7c6b37d8265ee491475060400c"
+  },
+  "source_fingerprint": "d28155e1a1cdc6373a60edef97b45d19e13c1d83e4b35bb8281aac569e521368",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/closure_architecture_review",
+    "agent_role": null,
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "cost_tier": "medium",
+    "thread_id": "/root/closure_architecture_review",
+    "session_id": "closure-architecture-bf4b887",
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-brainbase-ontology-production-activation/architecture_spec/replacement-transcript-bf4b887.md",
+    "request_artifact": ".vibepro/reviews/story-brainbase-ontology-production-activation/architecture_spec/review-request-architecture_boundary.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-brainbase-ontology-production-activation/architecture_spec/replacement-transcript-bf4b887.md",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "closure-architecture-bf4b887",
+      "implementation_session_id": "root-ontology-production-completion",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

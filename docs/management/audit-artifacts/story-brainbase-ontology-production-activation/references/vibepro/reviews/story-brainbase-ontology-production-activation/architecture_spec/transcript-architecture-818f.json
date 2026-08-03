@@ -1,0 +1,34 @@
+{
+  "status": "needs_changes",
+  "summary": "署名付きOntology 1.0.0の公開、信頼ストア、authority binding、rollback設計は整合しているが、active Ontologyを迂回する本番Graph書き込み経路が1つ残る。",
+  "findings": [
+    {
+      "id": "architecture-learning-promotion-bypasses-active-ontology-validation",
+      "severity": "high",
+      "location": "server/services/learning-service.js:986",
+      "detail": "promoteMemoryCandidateToGraph() はcurrent/type確認後にgraph_entitiesへ直接upsertし、OntologyKernel validationを通らない。",
+      "required_change": "promotionを共通Ontology validation boundaryへ通し、active current時に不正entityが永続化前に拒否されるテストを追加する。"
+    }
+  ],
+  "inspection_inputs": [
+    "docs/management/stories/active/story-brainbase-ontology-production-activation.md",
+    "docs/architecture/story-brainbase-ontology-production-activation.md",
+    "docs/specs/brainbase-ontology-production-activation.md",
+    "server/services/ontology-release-trust.js",
+    "server/services/ontology-registry.js",
+    "server/services/info-ssot-service.js",
+    "server/services/learning-service.js",
+    "scripts/ontology-remediate-production-1.0.0.js",
+    "scripts/ontology-establish-publication-authority-1.0.0.js",
+    "scripts/ontology-release-publish.js",
+    "scripts/ontology-release-verify.js",
+    "config/ontology/index.json",
+    "config/ontology/publications/1.0.0.receipt.json",
+    "config/ontology/trusted-public-keys.json",
+    "config/ontology/writer-inventory.json",
+    "tests/server/services/learning-service.test.js",
+    ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+    ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json"
+  ],
+  "judgment_delta": "主要activation/rollback境界はpass相当だが、inventory済みdirect Graph writerのvalidation bypassによりneeds_changes。"
+}

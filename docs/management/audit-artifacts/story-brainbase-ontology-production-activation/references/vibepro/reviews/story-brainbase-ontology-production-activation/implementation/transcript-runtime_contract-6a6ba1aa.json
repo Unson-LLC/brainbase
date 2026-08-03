@@ -1,0 +1,39 @@
+{
+  "status": "block",
+  "head": "6a6ba1aa83af60323e7bd6cf5ed2ce30103e287a",
+  "summary": "Core ontology guards and signed trust passed targeted inspection, but Learning Graph promotion was mounted without authentication and accepted caller-supplied actor identity.",
+  "inspection_summary": "Story, Architecture, Spec, InfoSSOT, Learning, publication trust, rollback evidence, production evidence and VibePro Gate were inspected read-only. Eight targeted suites passed 140 tests on the frozen clean HEAD.",
+  "inspection_evidence": "server/bootstrap/register-api-routes.js; server/routes/learning.js; server/controllers/learning-controller.js; server/services/learning-service.js; server/services/info-ssot-service.js; server/services/ontology-registry.js; server/services/ontology-release-trust.js; targeted 8 suites / 140 tests",
+  "inspection_inputs": [
+    "docs/management/stories/active/story-brainbase-ontology-production-activation.md",
+    "docs/architecture/story-brainbase-ontology-production-activation.md",
+    "docs/specs/brainbase-ontology-production-activation.md",
+    "server/bootstrap/register-api-routes.js",
+    "server/routes/learning.js",
+    "server/controllers/learning-controller.js",
+    "server/services/learning-service.js",
+    "server/services/info-ssot-service.js",
+    "server/services/ontology-registry.js",
+    "server/services/ontology-release-trust.js",
+    "tests/server/routes/learning.test.js",
+    "docs/management/audit-artifacts/brainbase-ontology-production-activation/premerge-production-readback-2026-08-03.json"
+  ],
+  "judgment_delta": "Potentially passable after writer guards -> block because direct path inspection proved unauthenticated Graph mutation and spoofable actor provenance.",
+  "findings": [
+    {
+      "severity": "critical",
+      "id": "learning-graph-promotion-auth-boundary",
+      "detail": "POST /api/learning/memory-candidates/:id/promote-to-graph reached the writer without credentials and passed req.body actor identity through."
+    },
+    {
+      "severity": "high",
+      "id": "exact-head-production-activation-evidence",
+      "detail": "Merge, deploy and production readback remain follow-up release evidence."
+    },
+    {
+      "severity": "medium",
+      "id": "learning-promotion-atomicity",
+      "detail": "Graph insert and candidate transition are not one explicit transaction."
+    }
+  ]
+}

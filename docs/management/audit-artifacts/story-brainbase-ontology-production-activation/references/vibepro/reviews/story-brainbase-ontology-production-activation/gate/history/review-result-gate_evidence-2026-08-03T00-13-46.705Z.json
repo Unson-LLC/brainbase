@@ -1,0 +1,142 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-ontology-production-activation",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "block",
+  "summary": "Exact HEAD 21100f535 is blocked: public canonical graph commit can add a conflicting persisted cardinality edge because it validates only caller input.",
+  "findings": [
+    {
+      "severity": "critical",
+      "id": "aggregate-prevalidation-public-commit-cardinality-bypass",
+      "detail": "Public canonical commit skips DB-aware existing-edge validation and can persist a second owned_by edge."
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Exact clean HEAD inspected after the Decision regression fix. Decision and generic standalone edge paths are sound; a stateful public commit reproduction committed a conflict with zero DB-aware edge reads.",
+    "evidence": "HEAD 21100f53544917d12d848b5493ea5473ead1e4d6 clean; committed=true edgeWrites=1 dbAwareEdgeReads=0",
+    "inputs": [
+      "server/services/info-ssot-service.js",
+      "tests/server/services/ontology-api.test.js",
+      "config/ontology/brainbase-ontology.v1.json"
+    ]
+  },
+  "judgment_delta": [
+    "Decision regression fixed -> release still blocked because public updates do not validate the locked canonical aggregate"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+    "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+    "expected_root": null,
+    "expected_head_sha": "21100f53544917d12d848b5493ea5473ead1e4d6",
+    "current_head_sha": "21100f53544917d12d848b5493ea5473ead1e4d6",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+      "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+      "expected_root": null,
+      "expected_head_sha": "21100f53544917d12d848b5493ea5473ead1e4d6",
+      "current_head_sha": "21100f53544917d12d848b5493ea5473ead1e4d6",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-03T00:13:46.705Z",
+  "git_context": {
+    "head_sha": "21100f53544917d12d848b5493ea5473ead1e4d6",
+    "current_branch": "codex/ontology-1-0-0-activation",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-03T00:13:46.695Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "replacement exact HEAD gate review after Decision regression fix"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "21100f53544917d12d848b5493ea5473ead1e4d6",
+    "surface_files": [
+      {
+        "path": "config/ontology/brainbase-ontology.v1.json",
+        "sha256": "9d794651151e77c543f00160d705d55c11b4af7e4388114da6923cb567970db4",
+        "size": 31585
+      },
+      {
+        "path": "server/services/info-ssot-service.js",
+        "sha256": "9bdb65e6a3652ac39c4112c9061db8dde5425fbc09b173687433e79710db012c",
+        "size": 111257
+      },
+      {
+        "path": "tests/server/services/ontology-api.test.js",
+        "sha256": "0707d9b24a0b1dff8efacd4fe4745c37573f94de11de42d913265ca392d1d30a",
+        "size": 20732
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "d34ef86784c1eec8a6018c9e55c3365f33267cdd601c0f9a58b762565452f92f"
+  },
+  "source_fingerprint": "427fa66abfa33df5e6df1c2b6abc704f53907c34c0a6e9729836aea75402f02e",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "ontology_gate_replacement_21100f",
+    "agent_role": null,
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": "/root/ontology_gate_replacement_21100f",
+    "session_id": "/root/ontology_gate_replacement_21100f",
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-brainbase-ontology-production-activation/gate/transcript-gate_evidence-21100f.json",
+    "request_artifact": ".vibepro/reviews/story-brainbase-ontology-production-activation/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-brainbase-ontology-production-activation/gate/close-gate_evidence-21100f.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/ontology_gate_replacement_21100f",
+      "implementation_session_id": "/root",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

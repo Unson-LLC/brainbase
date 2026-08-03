@@ -1,0 +1,10 @@
+{
+  "agent_id": "ontology_final_b9601df",
+  "agent_thread_id": "/root/ontology_final_b9601df",
+  "head_sha": "b9601df16b108234a8e5d932292a9e1629a30a1f",
+  "status": "block",
+  "finding_id": "aggregate-prevalidation-absent-row-lock-gap",
+  "worktree_clean": true,
+  "files_edited_by_reviewer": [],
+  "review_completed": true
+}
