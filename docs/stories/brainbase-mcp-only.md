@@ -1,3 +1,7 @@
+---
+vibepro_story_id: story-brainbase-portable-ontology-kernel
+---
+
 # Brainbase Personal Onboarding Kit MCP-only Repo
 
 ## Background

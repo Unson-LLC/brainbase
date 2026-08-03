@@ -70,6 +70,20 @@ Zodによる既存file schema validationは形式検証として維持し、こ�
 
 `onboard:seed`、`onboard:apply --write`、`onboard:projects --write`は、既存snapshotへ予定追加を反映したin-memory snapshotを作り、最初のfile write前にauditする。error violationがあれば全fileを未変更のまま拒否する。
 
+## Threat Model
+
+```mermaid
+flowchart LR
+  U["User-approved local SSOT"] --> R["Schema reader"]
+  R -->|"malformed or unavailable"| X["unverified / no write"]
+  R -->|"valid shape"| K["Portable Ontology Kernel"]
+  K -->|"error violation"| B["reject before first write"]
+  K -->|"complete"| A["MCP / CLI result"]
+  H["Hosted or internal systems"] -. "not trusted or required" .-> K
+```
+
+Trust boundaryはローカルcanonical fileのreaderとpure kernelの間に置く。入力欠損、重複ID、循環supersessionを正常扱いせず、外部network、secret、内部Graphからruleやfactを注入しない。Ontology contractはpackage内のversion付き定数であり、利用者データを含めない。
+
 ## Test Cases
 
 1. release取得で5領域、version/effective/migration/rollbackが揃う。

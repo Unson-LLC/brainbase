@@ -77,6 +77,41 @@ agentが未登録の関係、または許可されていない型同士の関係
 - OSS標準Ontologyは公開・再利用可能な意味契約だけを持ち、個人固有の値やUnson内部語彙を含めない。
 - agentは新しい型や関係を提案できるが、利用者の承認なしにcanonical factまたはactive ruleへ昇格させない。
 
+## Engineering Judgment Spine
+
+### Current reality
+
+既存OSSはcanonical local SSOTの形式検証とread-only MCPを持つが、型・関係・意思決定を横断する意味検証、明示supersession推論、Ontology version影響確認は持たない。旧MCP 5 toolsと既存record schemaは公開契約として稼働している。
+
+### Invariants
+
+- canonical factは引き続き利用者承認済みのローカルPersonal OSだけに置く。
+- 既存MCP tool、既存Decision record、既存onboarding flowの互換性を壊さない。
+- malformedまたは読取不能なsourceを「違反0件」として扱わない。
+
+### Boundaries
+
+Ontology Kernelは公開語彙・純粋な検証・推論を担い、hosted Graph、社内Decision/RACI、secret、個人データを参照しない。CLI/MCPはkernelのadapterであり、独自の意味規則を持たない。
+
+### Failure modes
+
+- schema failure: malformed canonical fileは`unverified`としてfail loudし、writeを開始しない。
+- provider failure: 外部providerを必要としないため、ローカルfile以外の障害をkernelへ持ち込まない。
+- evidence lifecycle regression: testまたはreviewが現在HEADに結びつかない場合、PR完了証拠として再利用しない。
+- semantic conflict: 明示supersessionのない同topic Decisionは勝手に順位付けせずconflictとして返す。
+
+### Done evidence
+
+10件の受け入れ条件をtargeted unit、MCP/CLI integration、MCP stdio E2E、full suite、typecheck、package buildで検証し、現在HEADにstrict bindingする。公開contract変更はREADME・manual・既存MCP-only Story/Specにも反映し、1つのreviewableなOntology capability変更として扱う。
+
+### Public contract judgment
+
+変更はadditiveである。既存5 toolsと既存record inputは維持し、新toolとoptional Decision fieldsだけを追加する。破壊的な自動migrationや暗黙のnetwork dependencyは追加しない。
+
+### Scope reviewability judgment
+
+kernel、adapter、pre-write guard、tests、公開manualは同じ意味契約を構成し、分割するとcontractと検証が別PRになって一時的不整合を作るため一つのPRに束ねる。READMEとpackage scriptsもこの公開contractと再現可能なGateに直接必要である。
+
 ## スコープ外
 
 - hosted Graph APIや社内運用runtimeの移植
