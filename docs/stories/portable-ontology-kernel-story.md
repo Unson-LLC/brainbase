@@ -71,6 +71,7 @@ agentが未登録の関係、または許可されていない型同士の関係
 
 ## 意味境界
 
+- このStoryは`brainbase-mcp-only.md`のv1ローンチ時点の「5 tools固定」を、既存5 toolsの互換性を維持したadditive capabilityへ更新する。旧Story本文は当時の受け入れ基準として保持し、現在の公開tool surfaceは本Story・Spec・READMEを正とする。
 - Ontologyは利用者の事実そのものではなく、その事実の意味と利用規則である。
 - 利用者が承認した個人・仕事・関係性・意思決定は、引き続きローカルPersonal OSが正本である。
 - raw sourceとcandidateは、利用者が承認してcanonical SSOTへ昇格するまで事実として扱わない。
@@ -102,7 +103,7 @@ Ontology Kernelは公開語彙・純粋な検証・推論を担い、hosted Grap
 
 ### Done evidence
 
-10件の受け入れ条件をtargeted unit、MCP/CLI integration、MCP stdio E2E、full suite、typecheck、package buildで検証し、現在HEADにstrict bindingする。公開contract変更はREADME・manual・既存MCP-only Story/Specにも反映し、1つのreviewableなOntology capability変更として扱う。
+10件の受け入れ条件をtargeted unit、MCP/CLI integration、MCP stdio E2E、full suite、typecheck、package buildで検証し、現在HEADにstrict bindingする。公開contract変更はREADME・manual・既存MCP-only Specへ反映し、旧Storyとのsupersession境界は本Storyに記録して、1つのreviewableなOntology capability変更として扱う。
 
 ### Public contract judgment
 
