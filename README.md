@@ -324,7 +324,7 @@ Use `--ontology-version 0.0.0` to interpret a pre-kernel snapshot without retroa
 
 Decision evolution is opt-in, read-compatible, and write-gated. Existing decision rows remain readable. New rows may add `topic`, `supersedes`, and `effectiveAt`; only an explicit `supersedes` reference makes an older decision inactive. Multiple active decisions with the same explicit `topic` are reported as a conflict instead of being silently resolved.
 
-Before enabling 1.0.0 writes, back up the Personal OS directory and run the read-only `brainbase ontology:audit --ontology-version 1.0.0`. Existing rows remain readable, but error-level semantic violations must be reviewed before `onboard:seed`, `onboard:projects --write`, or `onboard:apply --write` can change canonical files. Rollback means reinstalling the last known working `@unson/brainbase-mcp` package version and, only if reviewed repairs changed canonical files, restoring the pre-upgrade backup.
+Before enabling 1.0.0 writes, back up the Personal OS directory, capture the current MCP client configuration and launch command, and run the read-only `brainbase ontology:audit --ontology-version 1.0.0`. Existing rows remain readable, but error-level semantic violations must be reviewed before `onboard:seed`, `onboard:projects --write`, or `onboard:apply --write` can change canonical files. For the first npm release, rollback means running `npm uninstall -g @unson/brainbase-mcp`, restoring the captured MCP client configuration and launch command, and restarting the client. For later upgrades, reinstall the last known working package version instead. Restore the pre-upgrade Personal OS backup only if reviewed repairs changed canonical files.
 
 ## CLI
 

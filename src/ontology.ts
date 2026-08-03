@@ -91,13 +91,13 @@ const release = {
     },
     constraints: {
       rules: [
-        { id: 'ONT-ENTITY-ID-UNIQUE', severity: 'error' },
-        { id: 'ONT-RELATIONSHIP-ID-UNIQUE', severity: 'error' },
-        { id: 'ONT-DECISION-ID-UNIQUE', severity: 'error' },
-        { id: 'ONT-RELATIONSHIP-PERSON-RESOLVES', severity: 'warning' },
-        { id: 'ONT-DECISION-SUPERSEDES-EXISTS', severity: 'error' },
-        { id: 'ONT-DECISION-SUPERSEDES-SELF', severity: 'error' },
-        { id: 'ONT-DECISION-SUPERSEDES-CYCLE', severity: 'error' }
+        { id: 'ONT-ENTITY-ID-UNIQUE', severity: 'error', meaning: 'Graph entity IDs must be unique.' },
+        { id: 'ONT-RELATIONSHIP-ID-UNIQUE', severity: 'error', meaning: 'Relationship IDs must be unique.' },
+        { id: 'ONT-DECISION-ID-UNIQUE', severity: 'error', meaning: 'Decision IDs must be unique.' },
+        { id: 'ONT-RELATIONSHIP-PERSON-RESOLVES', severity: 'warning', meaning: 'A relationship person should resolve to a canonical person entity by name.' },
+        { id: 'ONT-DECISION-SUPERSEDES-EXISTS', severity: 'error', meaning: 'A supersedes reference must resolve to an existing decision.' },
+        { id: 'ONT-DECISION-SUPERSEDES-SELF', severity: 'error', meaning: 'A decision must not supersede itself.' },
+        { id: 'ONT-DECISION-SUPERSEDES-CYCLE', severity: 'error', meaning: 'Decision supersession edges must not form a cycle.' }
       ]
     },
     inference: {

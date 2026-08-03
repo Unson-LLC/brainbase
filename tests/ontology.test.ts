@@ -53,6 +53,18 @@ describe('portable ontology kernel', () => {
     }));
     expect(portableOntology.domains.relations.vocabulary.length).toBeGreaterThan(0);
     expect(portableOntology.domains.constraints.rules.length).toBeGreaterThan(0);
+    expect(portableOntology.domains.constraints.rules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'ONT-ENTITY-ID-UNIQUE',
+          severity: 'error',
+          meaning: expect.stringContaining('unique')
+        })
+      ])
+    );
+    for (const rule of portableOntology.domains.constraints.rules) {
+      expect(rule.meaning.trim().length).toBeGreaterThan(0);
+    }
     expect(portableOntology.domains.inference.rules.length).toBeGreaterThan(0);
     expect(portableOntology.domains.evolution.compatibility.length).toBeGreaterThan(0);
     expect(Object.isFrozen(portableOntology)).toBe(true);
