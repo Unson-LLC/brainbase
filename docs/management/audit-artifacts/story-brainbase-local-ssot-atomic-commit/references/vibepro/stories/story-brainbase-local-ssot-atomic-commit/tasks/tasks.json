@@ -1,0 +1,1535 @@
+{
+  "schema_version": "0.1.0",
+  "generated_at": "2026-08-03T12:23:49.306Z",
+  "story": {
+    "story_id": "story-brainbase-local-ssot-atomic-commit",
+    "title": "OSS Local SSOT Atomic Commit",
+    "ssot": "local",
+    "status": "active",
+    "horizon": "quarter",
+    "view": "business",
+    "period": null,
+    "category": "product"
+  },
+  "source_run": {
+    "run_id": "2026-08-03T110152Z",
+    "gate_status": "pass",
+    "source_plan_generated_at": "2026-08-03T11:09:09.457Z"
+  },
+  "scope_boundary": {
+    "schema_version": "0.1.0",
+    "declared": true,
+    "allowed_paths": [
+      "src/ssot.ts",
+      "src/cli.ts",
+      "tests/ssot-atomic.test.ts",
+      "tests/ssot.test.ts",
+      "tests/cli.test.ts",
+      "docs/**",
+      "README.md",
+      ".gitignore",
+      ".vibepro/config.json"
+    ],
+    "source": "cli_declared",
+    "recorded_at": "2026-08-03T12:23:49.309Z"
+  },
+  "tasks": [
+    {
+      "id": "story-brainbase-local-ssot-atomic-commit-spec-recovery",
+      "source_type": "story_plan_candidate",
+      "source_id": "story-brainbase-local-ssot-atomic-commit-spec-recovery",
+      "finding_id": null,
+      "title": "Spec正本を復元する",
+      "priority": "medium",
+      "status": "todo",
+      "order": 10,
+      "execution_policy": "proposal_only",
+      "mutates_repository": false,
+      "target_count": 2,
+      "target_files": [
+        "src/ontology-ssot.ts",
+        "src/ssot.ts"
+      ],
+      "target_routes": [],
+      "target_groups": [],
+      "read_first_files": [
+        {
+          "file": "src/ontology-ssot.ts",
+          "reason": "Story story-brainbase-local-ssot-atomic-commit の根拠コード"
+        },
+        {
+          "file": "src/ssot.ts",
+          "reason": "Story story-brainbase-local-ssot-atomic-commit の根拠コード"
+        },
+        {
+          "file": "src/cli.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        },
+        {
+          "file": "src/ontology.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        },
+        {
+          "file": "src/server.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        },
+        {
+          "file": "src/types.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        },
+        {
+          "file": "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        },
+        {
+          "file": "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        },
+        {
+          "file": "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        },
+        {
+          "file": "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        }
+      ],
+      "recommended_strategy": {
+        "id": "spec-recovery",
+        "reason": "コードから逆算したStoryの受け入れ基準をSpec正本として確定し、Storyとリンクする"
+      },
+      "implementation_steps": [
+        {
+          "id": "review-meaning",
+          "title": "Story意味づけを確認する",
+          "detail": "derived.meaning の価値仮説、根拠、反証、不足情報を確認する"
+        },
+        {
+          "id": "recover-spec",
+          "title": "Spec草案を復元する",
+          "detail": "source_recovery.drafts のspec草案を読み、コード由来条件と人間が確定すべき条件を分ける"
+        },
+        {
+          "id": "link-source",
+          "title": "StoryとSpecをリンクする",
+          "detail": "Story frontmatterまたは本文にSpec参照を残し、Requirement Gateが正本として読めるようにする"
+        },
+        {
+          "id": "rerun-gate",
+          "title": "Requirement Gateを再実行する",
+          "detail": "vibepro pr prepare または diagnose でSpec Sourceが拾われるか確認する"
+        }
+      ],
+      "acceptance_criteria": [
+        "missing_spec が残る理由を確認済みにする",
+        "Storyのwho/problem/outcomeが人間レビュー済みになる",
+        "Spec草案の受け入れ基準がコード分岐と対応する",
+        "必要なら仕様書またはNocoDB Storyを作る"
+      ],
+      "source_recovery": {
+        "status": "needs_recovery",
+        "graph_context": {
+          "matched_route_count": 0,
+          "target_file_count": 2,
+          "matched_file_count": 2,
+          "matched_files": [
+            "src/ontology-ssot.ts",
+            "src/ssot.ts"
+          ],
+          "unmatched_files": [],
+          "matched_node_count": 17,
+          "affected_communities": [
+            {
+              "id": 4,
+              "route_count": 0,
+              "file_count": 1,
+              "node_count": 13,
+              "edge_count": 58
+            },
+            {
+              "id": 3,
+              "route_count": 0,
+              "file_count": 1,
+              "node_count": 3,
+              "edge_count": 17
+            },
+            {
+              "id": 1,
+              "route_count": 0,
+              "file_count": 1,
+              "node_count": 1,
+              "edge_count": 19
+            }
+          ],
+          "hub_nodes": [
+            {
+              "id": "src_cli_ts",
+              "label": "cli.ts",
+              "source_file": "src/cli.ts",
+              "community": 1,
+              "degree": 68
+            },
+            {
+              "id": "src_ssot_ts",
+              "label": "ssot.ts",
+              "source_file": "src/ssot.ts",
+              "community": 4,
+              "degree": 27
+            },
+            {
+              "id": "src_cli_onboardapply",
+              "label": "onboardApply()",
+              "source_file": "src/cli.ts",
+              "community": 4,
+              "degree": 18
+            },
+            {
+              "id": "src_ontology_ts",
+              "label": "ontology.ts",
+              "source_file": "src/ontology.ts",
+              "community": 3,
+              "degree": 16
+            },
+            {
+              "id": "src_cli_onboardseed",
+              "label": "onboardSeed()",
+              "source_file": "src/cli.ts",
+              "community": 4,
+              "degree": 15
+            }
+          ],
+          "related_files": [
+            "src/cli.ts",
+            "src/ontology.ts",
+            "src/server.ts",
+            "src/types.ts",
+            "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+            "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+            "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+            "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+          ],
+          "related_edge_count": 77,
+          "impact_score": 0.1081,
+          "community_span": 3,
+          "cross_community": true
+        },
+        "sources": {
+          "story": {
+            "status": "implicit",
+            "refs": []
+          },
+          "spec": {
+            "status": "needs_recovery",
+            "refs": []
+          },
+          "architecture": {
+            "status": "implicit",
+            "refs": [],
+            "signals": []
+          }
+        },
+        "drafts": [
+          {
+            "kind": "spec",
+            "status": "draft_from_code",
+            "suggested_path": "docs/specs/brainbase-local-ssot-atomic-commit.md",
+            "title": "OSS Local SSOT Atomic Commit Spec",
+            "must_include": [
+              "対象ユーザー: 関係者",
+              "課題: 対象Storyの課題が文書から十分に特定できていない。",
+              "成功状態: 実装対象が仕様書名ではなく価値単位で判断できる。",
+              "受け入れ基準: 利用者が明確である",
+              "受け入れ基準: 成果が明確である",
+              "受け入れ基準: 根拠文書と不明点が分かれている"
+            ],
+            "evidence_files": [
+              "src/cli.ts",
+              "src/ontology.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+              "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+              "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+              "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts",
+              "src/ssot.ts"
+            ],
+            "graph_evidence": {
+              "matched_files": [
+                "src/ontology-ssot.ts",
+                "src/ssot.ts"
+              ],
+              "related_files": [
+                "src/cli.ts",
+                "src/ontology.ts",
+                "src/server.ts",
+                "src/types.ts",
+                "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+                "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+                "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+                "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+              ],
+              "hub_nodes": [
+                {
+                  "id": "src_cli_ts",
+                  "label": "cli.ts",
+                  "source_file": "src/cli.ts",
+                  "community": 1,
+                  "degree": 68
+                },
+                {
+                  "id": "src_ssot_ts",
+                  "label": "ssot.ts",
+                  "source_file": "src/ssot.ts",
+                  "community": 4,
+                  "degree": 27
+                },
+                {
+                  "id": "src_cli_onboardapply",
+                  "label": "onboardApply()",
+                  "source_file": "src/cli.ts",
+                  "community": 4,
+                  "degree": 18
+                },
+                {
+                  "id": "src_ontology_ts",
+                  "label": "ontology.ts",
+                  "source_file": "src/ontology.ts",
+                  "community": 3,
+                  "degree": 16
+                },
+                {
+                  "id": "src_cli_onboardseed",
+                  "label": "onboardSeed()",
+                  "source_file": "src/cli.ts",
+                  "community": 4,
+                  "degree": 15
+                }
+              ],
+              "affected_communities": [
+                {
+                  "id": 4,
+                  "route_count": 0,
+                  "file_count": 1,
+                  "node_count": 13,
+                  "edge_count": 58
+                },
+                {
+                  "id": 3,
+                  "route_count": 0,
+                  "file_count": 1,
+                  "node_count": 3,
+                  "edge_count": 17
+                },
+                {
+                  "id": 1,
+                  "route_count": 0,
+                  "file_count": 1,
+                  "node_count": 1,
+                  "edge_count": 19
+                }
+              ],
+              "related_edge_count": 77,
+              "impact_score": 0.1081,
+              "cross_community": true
+            },
+            "unresolved_questions": [
+              "このSpecをStory正本から確定できるか",
+              "コードから逆算した条件のうち、意図ではなく偶然の実装はどれか",
+              "Graphify上の関連ファイルも同じ受け入れ基準に含めるべきか",
+              "成功指標または運用上の完了条件は何か"
+            ]
+          }
+        ],
+        "checks": [
+          "Storyのwho/problem/outcomeが人間レビュー済みか",
+          "Specの受け入れ基準がコード分岐と対応しているか",
+          "Architecture/ADRの境界判断がGraphと変更範囲に対応しているか"
+        ]
+      },
+      "recovery_drafts": [
+        {
+          "kind": "spec",
+          "status": "draft_from_code",
+          "suggested_path": "docs/specs/brainbase-local-ssot-atomic-commit.md",
+          "title": "OSS Local SSOT Atomic Commit Spec",
+          "must_include": [
+            "対象ユーザー: 関係者",
+            "課題: 対象Storyの課題が文書から十分に特定できていない。",
+            "成功状態: 実装対象が仕様書名ではなく価値単位で判断できる。",
+            "受け入れ基準: 利用者が明確である",
+            "受け入れ基準: 成果が明確である",
+            "受け入れ基準: 根拠文書と不明点が分かれている"
+          ],
+          "evidence_files": [
+            "src/cli.ts",
+            "src/ontology.ts",
+            "src/server.ts",
+            "src/types.ts",
+            "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+            "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+            "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+            "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts",
+            "src/ssot.ts"
+          ],
+          "graph_evidence": {
+            "matched_files": [
+              "src/ontology-ssot.ts",
+              "src/ssot.ts"
+            ],
+            "related_files": [
+              "src/cli.ts",
+              "src/ontology.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+              "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+              "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+              "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+            ],
+            "hub_nodes": [
+              {
+                "id": "src_cli_ts",
+                "label": "cli.ts",
+                "source_file": "src/cli.ts",
+                "community": 1,
+                "degree": 68
+              },
+              {
+                "id": "src_ssot_ts",
+                "label": "ssot.ts",
+                "source_file": "src/ssot.ts",
+                "community": 4,
+                "degree": 27
+              },
+              {
+                "id": "src_cli_onboardapply",
+                "label": "onboardApply()",
+                "source_file": "src/cli.ts",
+                "community": 4,
+                "degree": 18
+              },
+              {
+                "id": "src_ontology_ts",
+                "label": "ontology.ts",
+                "source_file": "src/ontology.ts",
+                "community": 3,
+                "degree": 16
+              },
+              {
+                "id": "src_cli_onboardseed",
+                "label": "onboardSeed()",
+                "source_file": "src/cli.ts",
+                "community": 4,
+                "degree": 15
+              }
+            ],
+            "affected_communities": [
+              {
+                "id": 4,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 13,
+                "edge_count": 58
+              },
+              {
+                "id": 3,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 3,
+                "edge_count": 17
+              },
+              {
+                "id": 1,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 1,
+                "edge_count": 19
+              }
+            ],
+            "related_edge_count": 77,
+            "impact_score": 0.1081,
+            "cross_community": true
+          },
+          "unresolved_questions": [
+            "このSpecをStory正本から確定できるか",
+            "コードから逆算した条件のうち、意図ではなく偶然の実装はどれか",
+            "Graphify上の関連ファイルも同じ受け入れ基準に含めるべきか",
+            "成功指標または運用上の完了条件は何か"
+          ]
+        }
+      ],
+      "source_alignment_findings": [],
+      "graph_context": {
+        "matched_route_count": 0,
+        "target_file_count": 2,
+        "matched_file_count": 2,
+        "matched_files": [
+          "src/ontology-ssot.ts",
+          "src/ssot.ts"
+        ],
+        "unmatched_files": [],
+        "matched_node_count": 17,
+        "affected_communities": [
+          {
+            "id": 4,
+            "route_count": 0,
+            "file_count": 1,
+            "node_count": 13,
+            "edge_count": 58
+          },
+          {
+            "id": 3,
+            "route_count": 0,
+            "file_count": 1,
+            "node_count": 3,
+            "edge_count": 17
+          },
+          {
+            "id": 1,
+            "route_count": 0,
+            "file_count": 1,
+            "node_count": 1,
+            "edge_count": 19
+          }
+        ],
+        "hub_nodes": [
+          {
+            "id": "src_cli_ts",
+            "label": "cli.ts",
+            "source_file": "src/cli.ts",
+            "community": 1,
+            "degree": 68
+          },
+          {
+            "id": "src_ssot_ts",
+            "label": "ssot.ts",
+            "source_file": "src/ssot.ts",
+            "community": 4,
+            "degree": 27
+          },
+          {
+            "id": "src_cli_onboardapply",
+            "label": "onboardApply()",
+            "source_file": "src/cli.ts",
+            "community": 4,
+            "degree": 18
+          },
+          {
+            "id": "src_ontology_ts",
+            "label": "ontology.ts",
+            "source_file": "src/ontology.ts",
+            "community": 3,
+            "degree": 16
+          },
+          {
+            "id": "src_cli_onboardseed",
+            "label": "onboardSeed()",
+            "source_file": "src/cli.ts",
+            "community": 4,
+            "degree": 15
+          }
+        ],
+        "related_files": [
+          "src/cli.ts",
+          "src/ontology.ts",
+          "src/server.ts",
+          "src/types.ts",
+          "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+          "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+          "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+          "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+        ],
+        "related_edge_count": 77,
+        "impact_score": 0.1081,
+        "community_span": 3,
+        "cross_community": true
+      },
+      "pre_fix_briefing": null
+    },
+    {
+      "id": "story-brainbase-local-ssot-atomic-commit-kpi-period",
+      "source_type": "story_plan_candidate",
+      "source_id": "story-brainbase-local-ssot-atomic-commit-kpi-period",
+      "finding_id": null,
+      "title": "KPIとPeriodを確定する",
+      "priority": "medium",
+      "status": "todo",
+      "order": 20,
+      "execution_policy": "proposal_only",
+      "mutates_repository": false,
+      "target_count": 2,
+      "target_files": [
+        "src/ontology-ssot.ts",
+        "src/ssot.ts"
+      ],
+      "target_routes": [],
+      "target_groups": [],
+      "read_first_files": [
+        {
+          "file": "src/ontology-ssot.ts",
+          "reason": "Story story-brainbase-local-ssot-atomic-commit の根拠コード"
+        },
+        {
+          "file": "src/ssot.ts",
+          "reason": "Story story-brainbase-local-ssot-atomic-commit の根拠コード"
+        },
+        {
+          "file": "src/cli.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        },
+        {
+          "file": "src/ontology.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        },
+        {
+          "file": "src/server.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        },
+        {
+          "file": "src/types.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        },
+        {
+          "file": "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        },
+        {
+          "file": "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        },
+        {
+          "file": "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        },
+        {
+          "file": "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts",
+          "reason": "Graphifyで対象Storyの周辺依存として検出"
+        }
+      ],
+      "recommended_strategy": {
+        "id": "kpi-period",
+        "reason": "biz価値と実行期をNocoDB同期可能な形にする"
+      },
+      "implementation_steps": [
+        {
+          "id": "define-kpi",
+          "title": "KPIを決める",
+          "detail": "Storyの成果を測る指標または観測観点を1つ以上決める"
+        },
+        {
+          "id": "define-period",
+          "title": "Periodを決める",
+          "detail": "NocoDB同期可能な実行期を確定するか、未定として扱う判断を残す"
+        }
+      ],
+      "acceptance_criteria": [
+        "主要KPIまたは効果測定観点が1つ以上ある",
+        "Periodを確定するか未定として扱う判断がある",
+        "優先度の根拠が残る"
+      ],
+      "source_recovery": null,
+      "recovery_drafts": [],
+      "source_alignment_findings": [],
+      "graph_context": {
+        "matched_route_count": 0,
+        "target_file_count": 2,
+        "matched_file_count": 2,
+        "matched_files": [
+          "src/ontology-ssot.ts",
+          "src/ssot.ts"
+        ],
+        "unmatched_files": [],
+        "matched_node_count": 17,
+        "affected_communities": [
+          {
+            "id": 4,
+            "route_count": 0,
+            "file_count": 1,
+            "node_count": 13,
+            "edge_count": 58
+          },
+          {
+            "id": 3,
+            "route_count": 0,
+            "file_count": 1,
+            "node_count": 3,
+            "edge_count": 17
+          },
+          {
+            "id": 1,
+            "route_count": 0,
+            "file_count": 1,
+            "node_count": 1,
+            "edge_count": 19
+          }
+        ],
+        "hub_nodes": [
+          {
+            "id": "src_cli_ts",
+            "label": "cli.ts",
+            "source_file": "src/cli.ts",
+            "community": 1,
+            "degree": 68
+          },
+          {
+            "id": "src_ssot_ts",
+            "label": "ssot.ts",
+            "source_file": "src/ssot.ts",
+            "community": 4,
+            "degree": 27
+          },
+          {
+            "id": "src_cli_onboardapply",
+            "label": "onboardApply()",
+            "source_file": "src/cli.ts",
+            "community": 4,
+            "degree": 18
+          },
+          {
+            "id": "src_ontology_ts",
+            "label": "ontology.ts",
+            "source_file": "src/ontology.ts",
+            "community": 3,
+            "degree": 16
+          },
+          {
+            "id": "src_cli_onboardseed",
+            "label": "onboardSeed()",
+            "source_file": "src/cli.ts",
+            "community": 4,
+            "degree": 15
+          }
+        ],
+        "related_files": [
+          "src/cli.ts",
+          "src/ontology.ts",
+          "src/server.ts",
+          "src/types.ts",
+          "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+          "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+          "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+          "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+        ],
+        "related_edge_count": 77,
+        "impact_score": 0.1081,
+        "community_span": 3,
+        "cross_community": true
+      },
+      "pre_fix_briefing": null
+    },
+    {
+      "id": "story-brainbase-local-ssot-atomic-commit-source-alignment-review",
+      "source_type": "source_alignment_finding",
+      "source_id": "story-brainbase-local-ssot-atomic-commit-source-alignment-review",
+      "finding_id": null,
+      "title": "Story/Spec/ADR不整合をレビューする",
+      "priority": "high",
+      "status": "todo",
+      "order": 30,
+      "execution_policy": "proposal_only",
+      "mutates_repository": false,
+      "target_count": 10,
+      "target_files": [
+        "src/ontology-ssot.ts",
+        "src/ssot.ts",
+        "src/cli.ts",
+        "src/ontology.ts",
+        "src/server.ts",
+        "src/types.ts",
+        "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+        "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+        "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+        "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+      ],
+      "target_routes": [],
+      "target_groups": [],
+      "read_first_files": [
+        {
+          "file": "src/ontology-ssot.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        },
+        {
+          "file": "src/ssot.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        },
+        {
+          "file": "src/cli.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        },
+        {
+          "file": "src/ontology.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        },
+        {
+          "file": "src/server.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        },
+        {
+          "file": "src/types.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        },
+        {
+          "file": "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        },
+        {
+          "file": "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        }
+      ],
+      "recommended_strategy": {
+        "id": "source-alignment-review",
+        "reason": "コードとしては正しいUIやAPIでも、ユーザーが本当に達成したい成果とずれている可能性がある。"
+      },
+      "implementation_steps": [
+        {
+          "id": "read-sources",
+          "title": "正本を読む",
+          "detail": "Story、Spec、Architecture/ADRの参照を読み、要件・受け入れ基準・境界判断を並べる"
+        },
+        {
+          "id": "read-graph",
+          "title": "Graph影響範囲を読む",
+          "detail": "Graphifyのmatched/related/hub/communityを読み、実際の影響範囲を確認する"
+        },
+        {
+          "id": "classify-mismatch",
+          "title": "不整合を分類する",
+          "detail": "Storyが誤り、Specが誤り、ADRが不足、コードが意図外のどれかを判定する"
+        },
+        {
+          "id": "record-outcome",
+          "title": "判断を記録する",
+          "detail": "修正する場合はタスク化し、正しい場合はレビュー済み理由を正本またはPR本文へ残す"
+        }
+      ],
+      "acceptance_criteria": [
+        "各潜在バグ候補について、Story/Spec/ADR/コードのどれを修正するか判断している",
+        "Graphifyのhub/communityを読んだ上で影響範囲を説明できる",
+        "要件が正しい場合はレビュー済み理由を正本またはPR本文に残している"
+      ],
+      "source_recovery": null,
+      "recovery_drafts": [],
+      "source_alignment_findings": [
+        {
+          "id": "story-brainbase-local-ssot-atomic-commit-business_context_gap",
+          "story_id": "story-brainbase-local-ssot-atomic-commit",
+          "title": "OSS Local SSOT Atomic Commit",
+          "type": "business_context_gap",
+          "severity": "high",
+          "reason": "Storyの事業/利用文脈が未確定。",
+          "potential_bug": "コードとしては正しいUIやAPIでも、ユーザーが本当に達成したい成果とずれている可能性がある。",
+          "recommended_review": "対象ユーザー、利用場面、成功状態をStory正本に明記してからSpecを承認する。",
+          "evidence": {
+            "story_source_status": "implicit",
+            "spec_status": "needs_recovery",
+            "architecture_status": "implicit",
+            "source_type": "config_story",
+            "confidence": "medium",
+            "open_questions": [
+              "period",
+              "business_context",
+              "business_metric"
+            ],
+            "story_contract": {
+              "status": "ready",
+              "story_type": "new_capability",
+              "unresolved_checks": []
+            },
+            "docs": [],
+            "files": [
+              "src/ontology-ssot.ts",
+              "src/ssot.ts",
+              "src/cli.ts",
+              "src/ontology.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+              "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+              "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+              "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+            ],
+            "open_question": "business_context"
+          },
+          "refs": {
+            "story": [],
+            "spec": [],
+            "architecture": []
+          },
+          "graph": {
+            "matched_files": [
+              "src/ontology-ssot.ts",
+              "src/ssot.ts"
+            ],
+            "related_files": [
+              "src/cli.ts",
+              "src/ontology.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+              "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+              "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+              "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+            ],
+            "hub_nodes": [
+              {
+                "id": "src_cli_ts",
+                "label": "cli.ts",
+                "source_file": "src/cli.ts",
+                "community": 1,
+                "degree": 68
+              },
+              {
+                "id": "src_ssot_ts",
+                "label": "ssot.ts",
+                "source_file": "src/ssot.ts",
+                "community": 4,
+                "degree": 27
+              },
+              {
+                "id": "src_cli_onboardapply",
+                "label": "onboardApply()",
+                "source_file": "src/cli.ts",
+                "community": 4,
+                "degree": 18
+              },
+              {
+                "id": "src_ontology_ts",
+                "label": "ontology.ts",
+                "source_file": "src/ontology.ts",
+                "community": 3,
+                "degree": 16
+              },
+              {
+                "id": "src_cli_onboardseed",
+                "label": "onboardSeed()",
+                "source_file": "src/cli.ts",
+                "community": 4,
+                "degree": 15
+              }
+            ],
+            "affected_communities": [
+              {
+                "id": 4,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 13,
+                "edge_count": 58
+              },
+              {
+                "id": 3,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 3,
+                "edge_count": 17
+              },
+              {
+                "id": 1,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 1,
+                "edge_count": 19
+              }
+            ],
+            "related_edge_count": 77,
+            "impact_score": 0.1081,
+            "cross_community": true
+          },
+          "execution_policy": "proposal_only",
+          "mutates_repository": false
+        },
+        {
+          "id": "story-brainbase-local-ssot-atomic-commit-cross_community_without_architecture",
+          "story_id": "story-brainbase-local-ssot-atomic-commit",
+          "title": "OSS Local SSOT Atomic Commit",
+          "type": "cross_community_without_architecture",
+          "severity": "high",
+          "reason": "Graphify上で複数communityに跨るが、Architecture/ADR正本が未確定。",
+          "potential_bug": "局所変更のつもりで責務境界を跨ぎ、別flowや共有serviceの挙動を壊す可能性がある。",
+          "recommended_review": "hub/related fileを先に読み、ADRが必要な境界変更か、Storyをflow単位に分割すべきか判断する。",
+          "evidence": {
+            "story_source_status": "implicit",
+            "spec_status": "needs_recovery",
+            "architecture_status": "implicit",
+            "source_type": "config_story",
+            "confidence": "medium",
+            "open_questions": [
+              "period",
+              "business_context",
+              "business_metric"
+            ],
+            "story_contract": {
+              "status": "ready",
+              "story_type": "new_capability",
+              "unresolved_checks": []
+            },
+            "docs": [],
+            "files": [
+              "src/ontology-ssot.ts",
+              "src/ssot.ts",
+              "src/cli.ts",
+              "src/ontology.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+              "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+              "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+              "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+            ]
+          },
+          "refs": {
+            "story": [],
+            "spec": [],
+            "architecture": []
+          },
+          "graph": {
+            "matched_files": [
+              "src/ontology-ssot.ts",
+              "src/ssot.ts"
+            ],
+            "related_files": [
+              "src/cli.ts",
+              "src/ontology.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+              "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+              "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+              "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+            ],
+            "hub_nodes": [
+              {
+                "id": "src_cli_ts",
+                "label": "cli.ts",
+                "source_file": "src/cli.ts",
+                "community": 1,
+                "degree": 68
+              },
+              {
+                "id": "src_ssot_ts",
+                "label": "ssot.ts",
+                "source_file": "src/ssot.ts",
+                "community": 4,
+                "degree": 27
+              },
+              {
+                "id": "src_cli_onboardapply",
+                "label": "onboardApply()",
+                "source_file": "src/cli.ts",
+                "community": 4,
+                "degree": 18
+              },
+              {
+                "id": "src_ontology_ts",
+                "label": "ontology.ts",
+                "source_file": "src/ontology.ts",
+                "community": 3,
+                "degree": 16
+              },
+              {
+                "id": "src_cli_onboardseed",
+                "label": "onboardSeed()",
+                "source_file": "src/cli.ts",
+                "community": 4,
+                "degree": 15
+              }
+            ],
+            "affected_communities": [
+              {
+                "id": 4,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 13,
+                "edge_count": 58
+              },
+              {
+                "id": 3,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 3,
+                "edge_count": 17
+              },
+              {
+                "id": 1,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 1,
+                "edge_count": 19
+              }
+            ],
+            "related_edge_count": 77,
+            "impact_score": 0.1081,
+            "cross_community": true
+          },
+          "execution_policy": "proposal_only",
+          "mutates_repository": false
+        },
+        {
+          "id": "story-brainbase-local-ssot-atomic-commit-high_graph_impact_unreviewed_source",
+          "story_id": "story-brainbase-local-ssot-atomic-commit",
+          "title": "OSS Local SSOT Atomic Commit",
+          "type": "high_graph_impact_unreviewed_source",
+          "severity": "high",
+          "reason": "Graphifyの影響度が高いが、Story正本が人間レビュー済みではない。",
+          "potential_bug": "大きな影響範囲を持つ実装を、コード由来の仮説だけで正しい要件として扱う可能性がある。",
+          "recommended_review": "変更前にStory正本をレビューし、影響範囲に含まれる各flowが同じ受け入れ基準でよいか確認する。",
+          "evidence": {
+            "story_source_status": "implicit",
+            "spec_status": "needs_recovery",
+            "architecture_status": "implicit",
+            "source_type": "config_story",
+            "confidence": "medium",
+            "open_questions": [
+              "period",
+              "business_context",
+              "business_metric"
+            ],
+            "story_contract": {
+              "status": "ready",
+              "story_type": "new_capability",
+              "unresolved_checks": []
+            },
+            "docs": [],
+            "files": [
+              "src/ontology-ssot.ts",
+              "src/ssot.ts",
+              "src/cli.ts",
+              "src/ontology.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+              "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+              "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+              "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+            ]
+          },
+          "refs": {
+            "story": [],
+            "spec": [],
+            "architecture": []
+          },
+          "graph": {
+            "matched_files": [
+              "src/ontology-ssot.ts",
+              "src/ssot.ts"
+            ],
+            "related_files": [
+              "src/cli.ts",
+              "src/ontology.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+              "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+              "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+              "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+            ],
+            "hub_nodes": [
+              {
+                "id": "src_cli_ts",
+                "label": "cli.ts",
+                "source_file": "src/cli.ts",
+                "community": 1,
+                "degree": 68
+              },
+              {
+                "id": "src_ssot_ts",
+                "label": "ssot.ts",
+                "source_file": "src/ssot.ts",
+                "community": 4,
+                "degree": 27
+              },
+              {
+                "id": "src_cli_onboardapply",
+                "label": "onboardApply()",
+                "source_file": "src/cli.ts",
+                "community": 4,
+                "degree": 18
+              },
+              {
+                "id": "src_ontology_ts",
+                "label": "ontology.ts",
+                "source_file": "src/ontology.ts",
+                "community": 3,
+                "degree": 16
+              },
+              {
+                "id": "src_cli_onboardseed",
+                "label": "onboardSeed()",
+                "source_file": "src/cli.ts",
+                "community": 4,
+                "degree": 15
+              }
+            ],
+            "affected_communities": [
+              {
+                "id": 4,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 13,
+                "edge_count": 58
+              },
+              {
+                "id": 3,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 3,
+                "edge_count": 17
+              },
+              {
+                "id": 1,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 1,
+                "edge_count": 19
+              }
+            ],
+            "related_edge_count": 77,
+            "impact_score": 0.1081,
+            "cross_community": true
+          },
+          "execution_policy": "proposal_only",
+          "mutates_repository": false
+        },
+        {
+          "id": "story-brainbase-local-ssot-atomic-commit-missing_spec_source",
+          "story_id": "story-brainbase-local-ssot-atomic-commit",
+          "title": "OSS Local SSOT Atomic Commit",
+          "type": "missing_spec_source",
+          "severity": "high",
+          "reason": "Spec正本が未復元のため、受け入れ基準がコード由来の仮説に留まっている。",
+          "potential_bug": "実装上の分岐や表示が、そのまま本来の要件だと誤認されている可能性がある。",
+          "recommended_review": "Spec草案を作り、コード由来条件と人間が承認する受け入れ基準を分ける。",
+          "evidence": {
+            "story_source_status": "implicit",
+            "spec_status": "needs_recovery",
+            "architecture_status": "implicit",
+            "source_type": "config_story",
+            "confidence": "medium",
+            "open_questions": [
+              "period",
+              "business_context",
+              "business_metric"
+            ],
+            "story_contract": {
+              "status": "ready",
+              "story_type": "new_capability",
+              "unresolved_checks": []
+            },
+            "docs": [],
+            "files": [
+              "src/ontology-ssot.ts",
+              "src/ssot.ts",
+              "src/cli.ts",
+              "src/ontology.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+              "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+              "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+              "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+            ]
+          },
+          "refs": {
+            "story": [],
+            "spec": [],
+            "architecture": []
+          },
+          "graph": {
+            "matched_files": [
+              "src/ontology-ssot.ts",
+              "src/ssot.ts"
+            ],
+            "related_files": [
+              "src/cli.ts",
+              "src/ontology.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+              "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+              "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+              "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+            ],
+            "hub_nodes": [
+              {
+                "id": "src_cli_ts",
+                "label": "cli.ts",
+                "source_file": "src/cli.ts",
+                "community": 1,
+                "degree": 68
+              },
+              {
+                "id": "src_ssot_ts",
+                "label": "ssot.ts",
+                "source_file": "src/ssot.ts",
+                "community": 4,
+                "degree": 27
+              },
+              {
+                "id": "src_cli_onboardapply",
+                "label": "onboardApply()",
+                "source_file": "src/cli.ts",
+                "community": 4,
+                "degree": 18
+              },
+              {
+                "id": "src_ontology_ts",
+                "label": "ontology.ts",
+                "source_file": "src/ontology.ts",
+                "community": 3,
+                "degree": 16
+              },
+              {
+                "id": "src_cli_onboardseed",
+                "label": "onboardSeed()",
+                "source_file": "src/cli.ts",
+                "community": 4,
+                "degree": 15
+              }
+            ],
+            "affected_communities": [
+              {
+                "id": 4,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 13,
+                "edge_count": 58
+              },
+              {
+                "id": 3,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 3,
+                "edge_count": 17
+              },
+              {
+                "id": 1,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 1,
+                "edge_count": 19
+              }
+            ],
+            "related_edge_count": 77,
+            "impact_score": 0.1081,
+            "cross_community": true
+          },
+          "execution_policy": "proposal_only",
+          "mutates_repository": false
+        },
+        {
+          "id": "story-brainbase-local-ssot-atomic-commit-business_metric_gap",
+          "story_id": "story-brainbase-local-ssot-atomic-commit",
+          "title": "OSS Local SSOT Atomic Commit",
+          "type": "business_metric_gap",
+          "severity": "medium",
+          "reason": "Storyの成功指標または観測観点が未確定。",
+          "potential_bug": "受け入れ基準を満たしても、プロダクト上の改善を検知できない可能性がある。",
+          "recommended_review": "少なくとも1つのKPI、ログ、運用確認観点をSpecまたはStoryへ紐づける。",
+          "evidence": {
+            "story_source_status": "implicit",
+            "spec_status": "needs_recovery",
+            "architecture_status": "implicit",
+            "source_type": "config_story",
+            "confidence": "medium",
+            "open_questions": [
+              "period",
+              "business_context",
+              "business_metric"
+            ],
+            "story_contract": {
+              "status": "ready",
+              "story_type": "new_capability",
+              "unresolved_checks": []
+            },
+            "docs": [],
+            "files": [
+              "src/ontology-ssot.ts",
+              "src/ssot.ts",
+              "src/cli.ts",
+              "src/ontology.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+              "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+              "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+              "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+            ],
+            "open_question": "business_metric"
+          },
+          "refs": {
+            "story": [],
+            "spec": [],
+            "architecture": []
+          },
+          "graph": {
+            "matched_files": [
+              "src/ontology-ssot.ts",
+              "src/ssot.ts"
+            ],
+            "related_files": [
+              "src/cli.ts",
+              "src/ontology.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+              "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+              "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+              "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+            ],
+            "hub_nodes": [
+              {
+                "id": "src_cli_ts",
+                "label": "cli.ts",
+                "source_file": "src/cli.ts",
+                "community": 1,
+                "degree": 68
+              },
+              {
+                "id": "src_ssot_ts",
+                "label": "ssot.ts",
+                "source_file": "src/ssot.ts",
+                "community": 4,
+                "degree": 27
+              },
+              {
+                "id": "src_cli_onboardapply",
+                "label": "onboardApply()",
+                "source_file": "src/cli.ts",
+                "community": 4,
+                "degree": 18
+              },
+              {
+                "id": "src_ontology_ts",
+                "label": "ontology.ts",
+                "source_file": "src/ontology.ts",
+                "community": 3,
+                "degree": 16
+              },
+              {
+                "id": "src_cli_onboardseed",
+                "label": "onboardSeed()",
+                "source_file": "src/cli.ts",
+                "community": 4,
+                "degree": 15
+              }
+            ],
+            "affected_communities": [
+              {
+                "id": 4,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 13,
+                "edge_count": 58
+              },
+              {
+                "id": 3,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 3,
+                "edge_count": 17
+              },
+              {
+                "id": 1,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 1,
+                "edge_count": 19
+              }
+            ],
+            "related_edge_count": 77,
+            "impact_score": 0.1081,
+            "cross_community": true
+          },
+          "execution_policy": "proposal_only",
+          "mutates_repository": false
+        }
+      ],
+      "graph_context": {
+        "matched_route_count": 0,
+        "target_file_count": 2,
+        "matched_file_count": 2,
+        "matched_files": [
+          "src/ontology-ssot.ts",
+          "src/ssot.ts"
+        ],
+        "unmatched_files": [],
+        "matched_node_count": 17,
+        "affected_communities": [
+          {
+            "id": 4,
+            "route_count": 0,
+            "file_count": 1,
+            "node_count": 13,
+            "edge_count": 58
+          },
+          {
+            "id": 3,
+            "route_count": 0,
+            "file_count": 1,
+            "node_count": 3,
+            "edge_count": 17
+          },
+          {
+            "id": 1,
+            "route_count": 0,
+            "file_count": 1,
+            "node_count": 1,
+            "edge_count": 19
+          }
+        ],
+        "hub_nodes": [
+          {
+            "id": "src_cli_ts",
+            "label": "cli.ts",
+            "source_file": "src/cli.ts",
+            "community": 1,
+            "degree": 68
+          },
+          {
+            "id": "src_ssot_ts",
+            "label": "ssot.ts",
+            "source_file": "src/ssot.ts",
+            "community": 4,
+            "degree": 27
+          },
+          {
+            "id": "src_cli_onboardapply",
+            "label": "onboardApply()",
+            "source_file": "src/cli.ts",
+            "community": 4,
+            "degree": 18
+          },
+          {
+            "id": "src_ontology_ts",
+            "label": "ontology.ts",
+            "source_file": "src/ontology.ts",
+            "community": 3,
+            "degree": 16
+          },
+          {
+            "id": "src_cli_onboardseed",
+            "label": "onboardSeed()",
+            "source_file": "src/cli.ts",
+            "community": 4,
+            "degree": 15
+          }
+        ],
+        "related_files": [
+          "src/cli.ts",
+          "src/ontology.ts",
+          "src/server.ts",
+          "src/types.ts",
+          "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+          "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+          "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+          "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+        ],
+        "related_edge_count": 77,
+        "impact_score": 0.1081,
+        "community_span": 3,
+        "cross_community": true
+      },
+      "pre_fix_briefing": null
+    }
+  ]
+}

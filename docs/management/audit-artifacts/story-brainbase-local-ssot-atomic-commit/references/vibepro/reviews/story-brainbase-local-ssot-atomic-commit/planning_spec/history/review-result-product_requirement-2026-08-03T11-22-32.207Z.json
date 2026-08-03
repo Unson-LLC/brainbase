@@ -1,0 +1,163 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "stage": "planning_spec",
+  "role": "product_requirement",
+  "status": "needs_changes",
+  "summary": "初期化経路、surface別error契約、保証境界とAC別testをSpecへ追加する必要がある",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "product-requirement-initialize-boundary",
+      "detail": "initializePersonalOsを同じlock/recovery境界へ含めてrace testを追加する"
+    },
+    {
+      "severity": "medium",
+      "id": "product-requirement-surface-error-contract",
+      "detail": "通常readはrejectしontology auditはunverifiedへ変換する契約を明記する"
+    },
+    {
+      "severity": "medium",
+      "id": "product-requirement-path-test-matrix",
+      "detail": "lock分岐、3 writer、MCP、初期化raceのtest matrixを追加する"
+    },
+    {
+      "severity": "medium",
+      "id": "product-requirement-user-doc-surface",
+      "detail": "raw readerが保証外であることを公開READMEへ記載する"
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Story・Spec・ADRと現行SSOT writer/reader/MCP audit/testsを照合した",
+    "evidence": "docs/specs/local-ssot-atomic-commit.md; src/ssot.ts; src/ontology-ssot.ts",
+    "inputs": [
+      "docs/stories/local-ssot-atomic-commit-story.md",
+      "docs/specs/local-ssot-atomic-commit.md",
+      "src/ssot.ts",
+      "src/ontology-ssot.ts"
+    ]
+  },
+  "judgment_delta": [
+    "主要protocolは実装可能 -> 初期化とsurface contractが未定義のためneeds_changes"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "expected_root": null,
+    "expected_head_sha": "fb7c880417aedc62391ef72f63d5bdfd69c26726",
+    "current_head_sha": "fb7c880417aedc62391ef72f63d5bdfd69c26726",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "expected_root": null,
+      "expected_head_sha": "fb7c880417aedc62391ef72f63d5bdfd69c26726",
+      "current_head_sha": "fb7c880417aedc62391ef72f63d5bdfd69c26726",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-03T11:22:32.207Z",
+  "git_context": {
+    "head_sha": "fb7c880417aedc62391ef72f63d5bdfd69c26726",
+    "current_branch": "codex/oss-local-ssot-atomic-commit",
+    "dirty": true,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "3f9ef7571623bd4c4a4dd4437c00857ecaa341eb59ffec7dd29b8f2725915871",
+    "user_status_fingerprint_hash": "3f9ef7571623bd4c4a4dd4437c00857ecaa341eb59ffec7dd29b8f2725915871",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-03T11:22:32.195Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 4 file(s)",
+    "recorded_head_sha": "fb7c880417aedc62391ef72f63d5bdfd69c26726",
+    "surface_files": [
+      {
+        "path": "docs/specs/local-ssot-atomic-commit.md",
+        "sha256": "f590c68ba9b0b3125c2a0dba547b6b680818384445835df13b3c9e1242e7bee2",
+        "size": 2504
+      },
+      {
+        "path": "docs/stories/local-ssot-atomic-commit-story.md",
+        "sha256": "f196d17d41ef581bd06126a426f516a3871b6445307e9de48b6f9da7db898ea2",
+        "size": 3168
+      },
+      {
+        "path": "src/ontology-ssot.ts",
+        "sha256": "f0be2ef5cc13337b56b8a5ff908918db77c6beb9fe21b6f860a5e0e91d0f300b",
+        "size": 1278
+      },
+      {
+        "path": "src/ssot.ts",
+        "sha256": "7da3e7858cd7107524cba1b111293fccfa301573707976fda013617ad5bcca32",
+        "size": 7006
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "f93ea070772e8ea9c02403015009f37e5a4d2b9414a6bfd1d1d9c868283a5b2f"
+  },
+  "source_fingerprint": "7c260d1b36ce125c3a92d985ca76d54d19d76036e8cc445189315e8ccae402a3",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "ps_product_req_v2",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ps_product_req_v2",
+    "session_id": "ps_product_req_v2",
+    "tool_call_id": null,
+    "transcript_artifact": null,
+    "request_artifact": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-request-product_requirement.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "subagent final result received and agent shut down",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "ps_product_req_v2",
+      "implementation_session_id": "root",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

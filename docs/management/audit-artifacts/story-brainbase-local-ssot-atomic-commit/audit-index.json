@@ -1,0 +1,460 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "source": "execute_merge",
+  "generated_at": "2026-08-03T14:03:41.280Z",
+  "evidence_depth": "standard",
+  "budget_status": "within_budget",
+  "cost_summary": {
+    "schema_version": "0.1.0",
+    "evidence_depth": "standard",
+    "risk_profile": "high",
+    "trigger_signals": [
+      "merge_warning",
+      "gate:gate:managed_worktree:needs_review"
+    ],
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...c6a83ad52bb31431a9b2936961f69c143b87352f",
+    "diff_stats_refs": {
+      "base_ref": "origin/develop",
+      "head_ref": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "base_sha": "16b32602dccda9cb1b34741a52f6aa7b68eba86b",
+      "head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "merge_commit_sha": "16b32602dccda9cb1b34741a52f6aa7b68eba86b",
+      "base_authority": "base_branch"
+    },
+    "diff_stats_collected_at": "2026-08-03T14:03:40.510Z",
+    "diff_stats_reason": null,
+    "artifact_lines": 2186,
+    "changed_lines": {
+      "status": "available",
+      "total_changed_lines": 1542,
+      "unknown_file_count": 0,
+      "buckets": {
+        "src": {
+          "files": 2,
+          "changed_lines": 631,
+          "unknown_files": 0,
+          "paths": [
+            "src/cli.ts",
+            "src/ssot.ts"
+          ]
+        },
+        "test": {
+          "files": 3,
+          "changed_lines": 490,
+          "unknown_files": 0,
+          "paths": [
+            "tests/helpers/ssot-writer.ts",
+            "tests/ssot-atomic.test.ts",
+            "tests/ssot.test.ts"
+          ]
+        },
+        "story_spec_architecture_docs": {
+          "files": 3,
+          "changed_lines": 244,
+          "unknown_files": 0,
+          "paths": [
+            "docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md",
+            "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+            "docs/specs/local-ssot-atomic-commit.md"
+          ]
+        },
+        "audit_artifacts": {
+          "files": 0,
+          "changed_lines": 0,
+          "unknown_files": 0,
+          "paths": []
+        },
+        "other": {
+          "files": 6,
+          "changed_lines": 177,
+          "unknown_files": 0,
+          "paths": [
+            "README.md",
+            "docs/management/decisions/2026-08-03-budget-override-story-brainbase-local-ssot-atomic-commit-2936ac09.md",
+            "docs/management/decisions/2026-08-03-budget-override-story-brainbase-local-ssot-atomic-commit-42b4a1d8.md",
+            "docs/management/decisions/2026-08-03-budget-override-story-brainbase-local-ssot-atomic-commit-9635041d.md",
+            "docs/management/decisions/2026-08-03-budget-override-story-brainbase-local-ssot-atomic-commit-e473c930.md",
+            "docs/stories/local-ssot-atomic-commit-story.md"
+          ]
+        }
+      },
+      "source": "git diff --numstat origin/develop...c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "refs": {
+        "base_ref": "origin/develop",
+        "head_ref": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+        "base_sha": "16b32602dccda9cb1b34741a52f6aa7b68eba86b",
+        "head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+        "merge_commit_sha": "16b32602dccda9cb1b34741a52f6aa7b68eba86b",
+        "base_authority": "base_branch"
+      },
+      "collected_at": "2026-08-03T14:03:40.510Z",
+      "reason": null
+    },
+    "change_surface": {
+      "schema_version": "0.1.0",
+      "status": "product_change",
+      "reason": "product_code_paths_changed",
+      "source": "diff_line_stats",
+      "evaluated_path_count": 14,
+      "product_code_path_count": 5,
+      "docs_path_count": 9,
+      "evidence_artifact_path_count": 0,
+      "unknown_path_count": 0,
+      "product_code_changed_lines": 1121,
+      "docs_changed_lines": 421,
+      "sample_product_code_paths": [
+        "src/cli.ts",
+        "src/ssot.ts",
+        "tests/helpers/ssot-writer.ts",
+        "tests/ssot-atomic.test.ts",
+        "tests/ssot.test.ts"
+      ],
+      "sample_unknown_paths": [],
+      "sample_evidence_artifact_paths": []
+    },
+    "product_changed_lines": 1542,
+    "product_changed_lines_status": "available",
+    "product_changed_lines_reason": null,
+    "product_code_changed_lines": 1121,
+    "product_code_changed_lines_status": "available",
+    "product_code_changed_lines_reason": null,
+    "artifact_code_ratio": 1.418,
+    "artifact_code_ratio_reason": null,
+    "budget": {
+      "profile": "high",
+      "risk_profile_basis": "high",
+      "canonical_artifact_lines": 1500,
+      "effective_canonical_artifact_lines": 4626,
+      "artifact_code_ratio": 3,
+      "line_budget_ratio": 3
+    },
+    "budget_scope": "implementation",
+    "token_accounting": {
+      "status": "unavailable",
+      "total_tokens": null,
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_input_tokens": null,
+      "source": null,
+      "window": null,
+      "reason": "session token logs were not provided to canonical audit promotion"
+    },
+    "elapsed_time_accounting": {
+      "status": "unavailable",
+      "elapsed_ms": null,
+      "started_at": null,
+      "finished_at": null,
+      "source": null,
+      "window": null,
+      "reason": "elapsed-time logs were not provided to canonical audit promotion"
+    },
+    "budget_status": "within_budget",
+    "budget_exceeded_reasons": [],
+    "implementation_budget_status": "within_budget",
+    "docs_only_budget_status": "not_applicable",
+    "replay_bundle": {
+      "compressed_bytes": 5520,
+      "expanded_bytes": 33812,
+      "expanded_line_count": 857,
+      "persisted_line_count": 1
+    },
+    "raw_source_artifact_lines": 50445,
+    "raw_source_artifact_code_ratio": 32.714,
+    "artifact_lines_source": "persisted_canonical_compact"
+  },
+  "pr_prepare": {
+    "present": true,
+    "created_at": "2026-08-03T13:55:10.850Z",
+    "gate_status": {
+      "ready_for_pr_create": true,
+      "overall_status": "ready_for_review",
+      "fast_lane": false,
+      "critical_unresolved_gate_count": 0
+    }
+  },
+  "evidence_reuse": {
+    "present": true,
+    "created_at": "2026-08-03T13:55:10.850Z",
+    "status": "hit",
+    "evidence_key": "evk_c0152a56ecfd6868d44e0a23d733fa67",
+    "verification_summary_fingerprint": "sha256:2b5d64db5bb955e96477ce3f5a56a5b2ebd2a21158b2dff355a517d72e198de0",
+    "verification_evidence_updated_at": "2026-08-03T13:16:42.047Z",
+    "verification_command_timestamps": [
+      {
+        "kind": "e2e",
+        "executed_at": "2026-08-03T13:16:41.788Z",
+        "git_recorded_at": "2026-08-03T13:16:42.038Z"
+      },
+      {
+        "kind": "build",
+        "executed_at": "2026-08-03T12:55:31.431Z",
+        "git_recorded_at": "2026-08-03T12:55:31.676Z"
+      },
+      {
+        "kind": "unit",
+        "executed_at": "2026-08-03T12:55:29.693Z",
+        "git_recorded_at": "2026-08-03T12:55:29.938Z"
+      }
+    ],
+    "stale_reason_count": 0,
+    "full_evidence_status": "reused",
+    "full_evidence_generation_count": 1,
+    "full_evidence_generation_count_scope": "same_evidence_key",
+    "full_evidence_same_key_generation_count": 1,
+    "full_evidence_cumulative_generation_count": 30
+  },
+  "pr_create": {
+    "present": true,
+    "created_at": "2026-08-03T13:55:10.901Z",
+    "status": "updated_existing_pr",
+    "pr_url": "https://github.com/Unson-LLC/brainbase/pull/439",
+    "gate_override_allowed": false
+  },
+  "pr_merge": {
+    "present": true,
+    "summary": {
+      "status": "merged_externally",
+      "base": "develop",
+      "delivery": {
+        "status": "merged_externally",
+        "source": "github_pr",
+        "pr_url": "https://github.com/Unson-LLC/brainbase/pull/439",
+        "merge_commit_sha": "16b32602dccda9cb1b34741a52f6aa7b68eba86b",
+        "merged_at": "2026-08-03T14:03:17Z"
+      },
+      "reconciliation": {
+        "status": "reconciled",
+        "reasons": [],
+        "evaluated_at": "2026-08-03T14:03:41.203Z",
+        "head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f"
+      },
+      "decision_outcome_binding": {
+        "status": "bound",
+        "reason": "all_local_decision_outcomes_bound_to_canonical_ledger",
+        "expected_entry_count": 67,
+        "promoted_count": 67,
+        "duplicate_count": 0,
+        "persistence_status": null
+      },
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/439",
+      "merge_commit_sha": "16b32602dccda9cb1b34741a52f6aa7b68eba86b",
+      "merged_at": "2026-08-03T14:03:17Z",
+      "current_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "diff_stats_status": "available",
+      "diff_stats_source": "git diff --numstat origin/develop...c6a83ad52bb31431a9b2936961f69c143b87352f"
+    }
+  },
+  "gate_dag": {
+    "present": false,
+    "overall_status": null,
+    "node_count": 0,
+    "blocking_count": 0
+  },
+  "senior_gap_judgment": {
+    "present": true,
+    "status": null,
+    "gap_count": 1,
+    "blocking_gap_count": 0,
+    "residual_risk_count": 0,
+    "followup_count": 0
+  },
+  "traceability": {
+    "present": true,
+    "lifecycle": "merged",
+    "coverage_summary": {
+      "clause_count": 14,
+      "acceptance_criteria_count": 12,
+      "scenario_clause_count": 2,
+      "mapped_count": 14,
+      "weakly_mapped_count": 0,
+      "unmapped_count": 0,
+      "scenario_lineage": {
+        "status": "mapped",
+        "story_scenario_ids": [],
+        "mapped_story_scenario_ids": [],
+        "missing_story_scenario_ids": [],
+        "unknown_story_scenario_ids": []
+      },
+      "examples": []
+    }
+  },
+  "verification": {
+    "present": true,
+    "command_count": 3,
+    "pass_count": 3,
+    "fail_count": 0
+  },
+  "review": {
+    "summary_count": 4,
+    "result_count": 10,
+    "pass_count": 10,
+    "block_count": 0,
+    "stale_count": 0
+  },
+  "handoff_replay_status": "blocked",
+  "handoff_replay_unresolved_reference_count": 2,
+  "missing_artifacts": [],
+  "raw_artifact_count": 38,
+  "automation_value_audit": {
+    "schema_version": "0.1.0",
+    "artifact_kind": "vibepro_automation_value_audit",
+    "story_id": "story-brainbase-local-ssot-atomic-commit",
+    "generated_at": "2026-08-03T14:03:41.280Z",
+    "status": "partial",
+    "purpose": "daily_automation_input",
+    "sources": {
+      "canonical_audit": true,
+      "cost_summary": true,
+      "pr_lifecycle": true,
+      "verification": true,
+      "review": true,
+      "senior_gap_judgment": true
+    },
+    "merge_context": {
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/439",
+      "merge_status": "merged_externally",
+      "delivery": {
+        "status": "merged_externally",
+        "source": "github_pr",
+        "pr_url": "https://github.com/Unson-LLC/brainbase/pull/439",
+        "merge_commit_sha": "16b32602dccda9cb1b34741a52f6aa7b68eba86b",
+        "merged_at": "2026-08-03T14:03:17Z"
+      },
+      "reconciliation": {
+        "status": "reconciled",
+        "reasons": [],
+        "evaluated_at": "2026-08-03T14:03:41.203Z",
+        "head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f"
+      },
+      "decision_outcome_binding": {
+        "status": "bound",
+        "reason": "all_local_decision_outcomes_bound_to_canonical_ledger",
+        "expected_entry_count": 67,
+        "promoted_count": 67,
+        "duplicate_count": 0,
+        "persistence_status": null
+      },
+      "merge_commit_sha": "16b32602dccda9cb1b34741a52f6aa7b68eba86b",
+      "merged_at": "2026-08-03T14:03:17Z"
+    },
+    "allocation": {
+      "changed_lines_status": "available",
+      "total_changed_lines": 1542,
+      "implementation_changed_lines": 631,
+      "verification_and_docs_changed_lines": 734,
+      "audit_evidence_changed_lines": 734,
+      "buckets": {
+        "src": 631,
+        "test": 490,
+        "story_spec_architecture_docs": 244,
+        "audit_artifacts": 0,
+        "other": 177
+      }
+    },
+    "ratios": {
+      "test_to_src": 0.777,
+      "story_spec_architecture_to_src": 0.387,
+      "audit_artifacts_to_src": 0,
+      "automation_evidence_to_src": 1.163,
+      "artifact_lines_to_product_changed_lines": 1.418
+    },
+    "session_cost": {
+      "token_status": "unavailable",
+      "total_tokens": null,
+      "token_source": null,
+      "token_window": null,
+      "elapsed_status": "unavailable",
+      "elapsed_ms": null,
+      "elapsed_source": null,
+      "elapsed_window": null
+    },
+    "value_signal_inputs": {
+      "budget_status": "within_budget",
+      "budget_exceeded_reasons": [],
+      "evidence_depth": "standard",
+      "verification_pass_count": 3,
+      "verification_fail_count": 0,
+      "review_result_count": 10,
+      "review_pass_count": 10,
+      "review_block_count": 0,
+      "senior_gap_status": null,
+      "senior_gap_residual_risk_count": 0,
+      "evidence_reuse_status": "hit",
+      "evidence_reuse_stale_reason_count": 0,
+      "traceability_lifecycle": "merged",
+      "handoff_replay_status": "blocked",
+      "handoff_replay_unresolved_reference_count": 2,
+      "missing_artifact_count": 0
+    },
+    "cost_controls": {
+      "status": "action_required",
+      "budget_status": "within_budget",
+      "artifact_code_ratio": 1.418,
+      "automation_evidence_to_src": 1.163,
+      "budget_exceeded_reasons": [],
+      "canonical_artifact_lines": 2186,
+      "product_changed_lines": 1542,
+      "evidence_depth": "standard",
+      "recommended_evidence_depth": "standard",
+      "recommendations": [
+        {
+          "id": "collect_runtime_cost_before_merge",
+          "action": "run execute merge with --session-id <id>|auto and --automation-memory <path>, or set VIBEPRO_SESSION_ID/CODEX_SESSION_ID and VIBEPRO_AUTOMATION_MEMORY",
+          "reason": "daily automation cannot judge time/token efficiency without measured session cost"
+        }
+      ]
+    },
+    "findings": [
+      {
+        "id": "session_cost_unavailable",
+        "severity": "needs_context",
+        "reason": "token or elapsed-time accounting is not available in canonical audit summary",
+        "token_status": "unavailable",
+        "elapsed_status": "unavailable"
+      },
+      {
+        "id": "canonical_handoff_replay_blocked",
+        "severity": "review_needed",
+        "reason": "canonical audit references cannot be fully replayed by another engineer or agent",
+        "unresolved_reference_count": 2
+      }
+    ]
+  },
+  "replay_bundle": {
+    "schema_version": "0.1.0",
+    "path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+    "compression": "gzip",
+    "media_type": "application/json",
+    "content_hash": "sha256:d6eb4689e803bcff6f8e1c881144771edad463c9a81cfbb6ef354e7663af17ef",
+    "compressed_hash": "sha256:ddd4d483b9ec64ff152ee255b0c983b840fc27eaccf20984ae1d7fd5cca2a49d",
+    "expanded_bytes": 33812,
+    "compressed_bytes": 5520,
+    "expanded_line_count": 857,
+    "persisted_line_count": 1,
+    "included_artifact_kinds": [
+      "decision_index",
+      "decision_outcome_ledger",
+      "evidence_plan",
+      "evidence_reuse",
+      "pr_create",
+      "pr_merge",
+      "pr_prepare",
+      "review_lifecycle",
+      "review_request",
+      "review_result",
+      "review_summary",
+      "senior_gap_judgment",
+      "traceability",
+      "verification_evidence"
+    ],
+    "replay_command": "vibepro audit replay . --story-id story-brainbase-local-ssot-atomic-commit",
+    "cost": {
+      "compressed_bytes": 5520,
+      "expanded_bytes": 33812,
+      "expanded_line_count": 857,
+      "persisted_line_count": 1
+    }
+  }
+}

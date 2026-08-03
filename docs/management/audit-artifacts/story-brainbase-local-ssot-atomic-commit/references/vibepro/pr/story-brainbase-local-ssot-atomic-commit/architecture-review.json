@@ -1,0 +1,62 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "created_at": "2026-08-03T13:55:10.850Z",
+  "status": "satisfied",
+  "required": true,
+  "architecture_decision": "ADRあり (docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md, docs/architecture/story-brainbase-local-ssot-atomic-commit.md)",
+  "source_artifacts": {
+    "story": "docs/stories/local-ssot-atomic-commit-story.md",
+    "review_cockpit": null,
+    "gate_dag": null
+  },
+  "gates": {
+    "architecture": {
+      "status": "satisfied",
+      "reason": "ADRあり (docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md, docs/architecture/story-brainbase-local-ssot-atomic-commit.md)"
+    },
+    "spec": {
+      "status": "present",
+      "reason": "explicit Spec docs are present (docs/specs/local-ssot-atomic-commit.md)"
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-08-03T13:55:09.948Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.2",
+      "root": "/Users/ksato/.local/share/vibepro-cli"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/share/vibepro-cli/bin/vibepro.js",
+      "runtime_module": "/Users/ksato/.local/share/vibepro-cli/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "37418424323eb8574168ca026f40d7dde93004d5",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "35834070b9ac0841d3bac55884874ef6f9b4df6b",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M src/canonical-persistence.js",
+        " M src/merge-manager.js",
+        " M src/outcome-manager.js",
+        " M src/pr-manager.js",
+        " M src/validation-sequencing.js",
+        " M src/visual-verifier.js",
+        " M test/canonical-persistence.test.js",
+        " M test/vibepro-cli.test.js"
+      ]
+    }
+  },
+  "review_record": {
+    "approved": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

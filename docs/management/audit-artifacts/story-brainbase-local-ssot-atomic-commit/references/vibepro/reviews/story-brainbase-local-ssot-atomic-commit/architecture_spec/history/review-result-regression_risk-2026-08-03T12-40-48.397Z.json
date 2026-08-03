@@ -1,0 +1,160 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "stage": "architecture_spec",
+  "role": "regression_risk",
+  "status": "pass",
+  "summary": "No regression blocker; legacy complete stores and CLI/MCP contracts remain compatible while supported access uses aggregate locking and recovery.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Traced Story through runtime and all public write/read paths; checked removed helpers, legacy compatibility, failure recovery, contention and audit fallback; reran exact-head tests/build/diff hygiene.",
+    "evidence": "HEAD 7ac clean; targeted 13 and full 148 tests pass; build and diff-check pass; all CLI writers call mutatePersonalOs and normal MCP reads call loadPersonalOs.",
+    "inputs": [
+      "docs/stories/local-ssot-atomic-commit-story.md",
+      "docs/specs/local-ssot-atomic-commit.md",
+      "src/ssot.ts",
+      "src/cli.ts",
+      "src/server.ts",
+      "tests/ssot-atomic.test.ts",
+      "tests/ssot.test.ts"
+    ]
+  },
+  "judgment_delta": [
+    "Compatibility and concurrency regression concern -> pass because legacy fixtures, separate-process contention, recovery branches, CLI/MCP contract tests and full suite pass at exact HEAD."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "expected_root": null,
+    "expected_head_sha": "7acafb87fc62716900050acd112a16012d8530ff",
+    "current_head_sha": "7acafb87fc62716900050acd112a16012d8530ff",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "expected_root": null,
+      "expected_head_sha": "7acafb87fc62716900050acd112a16012d8530ff",
+      "current_head_sha": "7acafb87fc62716900050acd112a16012d8530ff",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-03T12:40:48.397Z",
+  "git_context": {
+    "head_sha": "7acafb87fc62716900050acd112a16012d8530ff",
+    "current_branch": "codex/oss-local-ssot-atomic-commit",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-03T12:40:48.387Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "exact final scoped HEAD review after unrelated gitignore change was removed"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "7acafb87fc62716900050acd112a16012d8530ff",
+    "surface_files": [
+      {
+        "path": "docs/specs/local-ssot-atomic-commit.md",
+        "sha256": "deedf4aa38778fccb2c252f1e8dd51a3d1e6e1e5b7cf51cb38168d399bb1ecb9",
+        "size": 6286
+      },
+      {
+        "path": "docs/stories/local-ssot-atomic-commit-story.md",
+        "sha256": "9dc1ec0cac2b9ecc3d15a111c42c607b1851b6a38cfb3698500aa45f056e2fbc",
+        "size": 3932
+      },
+      {
+        "path": "src/cli.ts",
+        "sha256": "b560c7dfdecf033c1ee05fcbdceca914d3cb5dab634c5236988dc7e17f2bcb05",
+        "size": 35755
+      },
+      {
+        "path": "src/server.ts",
+        "sha256": "dfab1a0306ab3ecc2dd4b5cbb3ef03dcbdf7a723a48db0dfd3d45e739c63f1e2",
+        "size": 5803
+      },
+      {
+        "path": "src/ssot.ts",
+        "sha256": "1cfc2ab40dd870847b34c9c90794398e01fa1e7fbcc156ebf7bf88f5172eb8d9",
+        "size": 16300
+      },
+      {
+        "path": "tests/ssot-atomic.test.ts",
+        "sha256": "ae7c8569bf401bdf6862ab502b56ef8852d9c06dd82f42ecb9ee17ffdafa0151",
+        "size": 12531
+      },
+      {
+        "path": "tests/ssot.test.ts",
+        "sha256": "931d1b61cd657f2845839f1ebe53b81f0210d4d010799cd322cb5849c3e18038",
+        "size": 11317
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "ab02b44326197d7966605ef358dc262993f2151e23e0df28e9e9819385d4013e"
+  },
+  "source_fingerprint": "d35eaacaabd8530f088d53395922f09ff6760293ffe82fad530f3efa602bcfad",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "ps_product_req_v2_final",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ps_product_req_v2",
+    "session_id": "final-7ac-regression",
+    "tool_call_id": null,
+    "transcript_artifact": "../../../root/ps_product_req_v2:final-7ac-regression",
+    "request_artifact": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-request-regression_risk.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "subagent final result for exact HEAD 7ac with no findings",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "final-7ac-regression",
+      "implementation_session_id": "root-oss-local-ssot-atomic",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

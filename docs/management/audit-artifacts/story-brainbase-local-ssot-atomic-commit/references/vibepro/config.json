@@ -1,0 +1,101 @@
+{
+  "schema_version": "0.1.0",
+  "tool": "vibepro",
+  "workspace": ".vibepro",
+  "output": {
+    "language": "ja"
+  },
+  "execution": {
+    "managed_worktree": "preferred"
+  },
+  "budgets": {
+    "pr_artifact_bytes": 16384,
+    "delivery_efficiency": {
+      "max_subagent_count": 20
+    },
+    "delivery_efficiency_by_story": {
+      "story-brainbase-local-ssot-atomic-commit": {
+        "max_subagent_count": 80,
+        "amendment_reason": "Sato authorized all recommended remediations. Permit replacement reviews made stale by scope cleanup plus current-HEAD planning, implementation, adjudication, and PR-final reviews needed to reach PR-ready; quality gates remain mandatory and no merge or publication waiver is granted."
+      }
+    }
+  },
+  "brainbase": {
+    "stories": [
+      {
+        "story_id": "story-vibepro-diagnosis-commercialization-roadmap",
+        "title": "M1: VibePro 診断→商用化ロードマップ",
+        "ssot": "NocoDB",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null
+      },
+      {
+        "story_id": "story-brainbase-local-ssot-atomic-commit",
+        "title": "OSS Local SSOT Atomic Commit",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null
+      },
+      {
+        "story_id": "story-product-auth-account-access",
+        "title": "認証とアカウント利用開始を成立させる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "quarter",
+        "view": "business",
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "category": "product",
+        "derived_by": "vibepro-story-derive"
+      },
+      {
+        "story_id": "story-product-onboarding",
+        "title": "オンボーディング体験を安定化する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "quarter",
+        "view": "business",
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "category": "product",
+        "derived_by": "vibepro-story-derive"
+      },
+      {
+        "story_id": "story-quality-test-ci-readiness",
+        "title": "テストとCIを開発ゲートとして整える",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "month",
+        "view": "dev",
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "category": "quality",
+        "derived_by": "vibepro-story-derive"
+      },
+      {
+        "story_id": "story-docs-story-ssot-recovery",
+        "title": "要求とStoryの正本を復元する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "month",
+        "view": "dev",
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "category": "docs",
+        "derived_by": "vibepro-story-derive"
+      }
+    ],
+    "current_story_id": "story-brainbase-local-ssot-atomic-commit"
+  }
+}

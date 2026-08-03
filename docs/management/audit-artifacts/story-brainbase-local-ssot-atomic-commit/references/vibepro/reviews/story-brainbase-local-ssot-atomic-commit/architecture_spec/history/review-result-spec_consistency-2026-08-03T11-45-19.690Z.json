@@ -1,0 +1,156 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "stage": "architecture_spec",
+  "role": "spec_consistency",
+  "status": "needs_changes",
+  "summary": "Canonical documents agree, but generated VibePro architecture still carries the obsolete recovery and validation contract.",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "generated-architecture-draft-stale-contract",
+      "detail": "Regenerate generated Architecture and refresh readiness against current contract."
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Compared current canonical Story ADR Architecture and prose/machine Specs with generated architecture/readiness and source/test call sites.",
+    "evidence": "HEAD 9bef4816; generated draft says all uncommitted rollback and caller validation while canonical contract distinguishes initialization roll-forward and aggregate-owned validation.",
+    "inputs": [
+      ".vibepro/architecture/story-brainbase-local-ssot-atomic-commit/draft.md",
+      ".vibepro/architecture/story-brainbase-local-ssot-atomic-commit/architecture-readiness.json",
+      "docs/stories/local-ssot-atomic-commit-story.md",
+      "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+      "docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md",
+      "docs/specs/local-ssot-atomic-commit.md",
+      "src/ssot.ts"
+    ]
+  },
+  "judgment_delta": [
+    "Canonical recovery and raw-reader contracts are aligned -> generated Architecture remains inconsistent, so needs_changes."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "expected_root": null,
+    "expected_head_sha": "9bef4816faa8094c447309b0be28624b156d217b",
+    "current_head_sha": "9bef4816faa8094c447309b0be28624b156d217b",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "expected_root": null,
+      "expected_head_sha": "9bef4816faa8094c447309b0be28624b156d217b",
+      "current_head_sha": "9bef4816faa8094c447309b0be28624b156d217b",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-03T11:45:19.690Z",
+  "git_context": {
+    "head_sha": "9bef4816faa8094c447309b0be28624b156d217b",
+    "current_branch": "codex/oss-local-ssot-atomic-commit",
+    "dirty": true,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "3f9ef7571623bd4c4a4dd4437c00857ecaa341eb59ffec7dd29b8f2725915871",
+    "user_status_fingerprint_hash": "3f9ef7571623bd4c4a4dd4437c00857ecaa341eb59ffec7dd29b8f2725915871",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-03T11:45:19.680Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 5 file(s)",
+    "recorded_head_sha": "9bef4816faa8094c447309b0be28624b156d217b",
+    "surface_files": [
+      {
+        "path": "docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md",
+        "sha256": "d29ee7677a35e70a89046432f11c2beefe122d9f273afe7dcc256c27f4ee4d4e",
+        "size": 4043
+      },
+      {
+        "path": "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+        "sha256": "c954884cfcd46dd49127b10c4045dd2bb2f487b4e29329c0d12175c559da1ba4",
+        "size": 5415
+      },
+      {
+        "path": "docs/specs/local-ssot-atomic-commit.md",
+        "sha256": "fae5c23f687743e130614a9560900830ef2ec6963a7d482d34a152cbdcc05255",
+        "size": 4722
+      },
+      {
+        "path": "docs/stories/local-ssot-atomic-commit-story.md",
+        "sha256": "9dc1ec0cac2b9ecc3d15a111c42c607b1851b6a38cfb3698500aa45f056e2fbc",
+        "size": 3932
+      },
+      {
+        "path": "src/ssot.ts",
+        "sha256": "7da3e7858cd7107524cba1b111293fccfa301573707976fda013617ad5bcca32",
+        "size": 7006
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "8b4299a7937912477e77484e712d8c0e2c42e034c3477e3d9c7343844ad70442"
+  },
+  "source_fingerprint": "0cc96c68a161b5dfed141d3e2522a4a866a6d225f91310f77fe00c181de26d5a",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "ps_spec_consistency_v2",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ps_spec_consistency_v2",
+    "session_id": "ps_spec_consistency_v2-turn5",
+    "tool_call_id": null,
+    "transcript_artifact": "collaboration:/root/ps_spec_consistency_v2 final at 2026-08-03T11:42",
+    "request_artifact": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-request-spec_consistency.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "Completed independent specification consistency review at HEAD 9bef4816.",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "ps_spec_consistency_v2-turn5",
+      "implementation_session_id": "root-oss-atomic",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

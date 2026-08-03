@@ -1,0 +1,11 @@
+
+ RUN  v4.1.8 /private/tmp/brainbase-oss-atomic-worktree
+
+
+ Test Files  1 passed (1)
+      Tests  17 passed (17)
+   Start at  21:55:28
+   Duration  773ms (transform 77ms, setup 0ms, import 99ms, tests 610ms, environment 0ms)
+
+(node:13168) Warning: Failed to clean up committed SSOT transaction /var/folders/36/r4ggny5d7nqclz7vpc2hphgr0000gp/T/brainbase-atomic-fxP5xd/.brainbase-transaction-072b6b9c-754c-40a5-affc-047afcee5ea5: Injected committed SSOT transaction cleanup failure
+(Use `node --trace-warnings ...` to show where the warning was created)

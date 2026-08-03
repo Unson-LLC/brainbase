@@ -1,0 +1,93 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-review-surface-violations-v1",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "append_only": true,
+  "updated_at": "2026-08-03T12:46:55.474Z",
+  "entries": [
+    {
+      "schema_version": "0.1.0",
+      "violation_id": "rsv-b76320d9679c0cb8",
+      "story_id": "story-brainbase-local-ssot-atomic-commit",
+      "kind": "review_surface_mutated_during_review",
+      "evidence_class": "violation",
+      "changed_fields": [
+        "surface_digest"
+      ],
+      "started": {
+        "head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+        "surface_digest": "3f9ef7571623bd4c4a4dd4437c00857ecaa341eb59ffec7dd29b8f2725915871"
+      },
+      "closed": {
+        "head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+        "surface_digest": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574"
+      },
+      "stage": "architecture_spec",
+      "role": "architecture_boundary",
+      "lifecycle_id": "945c0ca3-250e-4e59-9f4b-cc6c6bb08952",
+      "agent_system": "codex",
+      "agent_id": "arch48",
+      "started_at": "2026-08-03T12:43:54.290Z",
+      "close_reason": "completed",
+      "close_evidence": "exact final HEAD 48fc pass; scoped blobs unchanged, architecture ready, targeted/full/build/diff checks pass; no findings",
+      "detected_by": "review close",
+      "recorded_at": "2026-08-03T12:45:17.415Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "violation_id": "rsv-60917a047be47569",
+      "story_id": "story-brainbase-local-ssot-atomic-commit",
+      "kind": "review_surface_mutated_during_review",
+      "evidence_class": "violation",
+      "changed_fields": [
+        "surface_digest"
+      ],
+      "started": {
+        "head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+        "surface_digest": "3f9ef7571623bd4c4a4dd4437c00857ecaa341eb59ffec7dd29b8f2725915871"
+      },
+      "closed": {
+        "head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+        "surface_digest": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574"
+      },
+      "stage": "architecture_spec",
+      "role": "regression_risk",
+      "lifecycle_id": "b15f6e92-ab30-49b1-827c-2cc97efa5d8c",
+      "agent_system": "codex",
+      "agent_id": "regression48",
+      "started_at": "2026-08-03T12:43:55.511Z",
+      "close_reason": "completed",
+      "close_evidence": "exact final HEAD 48fc regression PASS; only budget approval doc added; targeted/full/build/diff-check pass; no findings",
+      "detected_by": "review close",
+      "recorded_at": "2026-08-03T12:45:50.511Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "violation_id": "rsv-fa2cb8f279327193",
+      "story_id": "story-brainbase-local-ssot-atomic-commit",
+      "kind": "review_surface_mutated_during_review",
+      "evidence_class": "violation",
+      "changed_fields": [
+        "surface_digest"
+      ],
+      "started": {
+        "head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+        "surface_digest": "3f9ef7571623bd4c4a4dd4437c00857ecaa341eb59ffec7dd29b8f2725915871"
+      },
+      "closed": {
+        "head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+        "surface_digest": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574"
+      },
+      "stage": "architecture_spec",
+      "role": "spec_consistency",
+      "lifecycle_id": "06a1b5c7-3dc9-4d50-bc58-1210eec82a5d",
+      "agent_system": "codex",
+      "agent_id": "spec48",
+      "started_at": "2026-08-03T12:43:54.842Z",
+      "close_reason": "completed",
+      "close_evidence": "exact final HEAD 48fc spec consistency PASS; targeted/build strict-head; no findings",
+      "detected_by": "review close",
+      "recorded_at": "2026-08-03T12:46:55.474Z"
+    }
+  ]
+}

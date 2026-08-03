@@ -1,0 +1,136 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "stage": "implementation",
+  "role": "runtime_contract",
+  "status": "pass",
+  "summary": "pause hookはdefault inertで初回競合、legacy移行、durability、recovery、lock契約に退行なし",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "pauseは明示envと通常publicationに限定され、recoveryには適用されない。追加fixtureと全回帰を実装とtestで確認した",
+    "evidence": "HEAD d4b17aac; focused 45 tests、full 148 tests、build、diff check passed",
+    "inputs": [
+      "src/ssot.ts",
+      "tests/ssot-atomic.test.ts",
+      "tests/ssot.test.ts"
+    ]
+  },
+  "judgment_delta": [
+    "新しいdeterministic pause hookのdefaultとrecovery非影響を確認し、runtime contract passを維持"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "expected_root": null,
+    "expected_head_sha": "d4b17aac36a58980038de0a4d5447a68fdbeded4",
+    "current_head_sha": "d4b17aac36a58980038de0a4d5447a68fdbeded4",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "expected_root": null,
+      "expected_head_sha": "d4b17aac36a58980038de0a4d5447a68fdbeded4",
+      "current_head_sha": "d4b17aac36a58980038de0a4d5447a68fdbeded4",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-03T12:20:10.085Z",
+  "git_context": {
+    "head_sha": "d4b17aac36a58980038de0a4d5447a68fdbeded4",
+    "current_branch": "codex/oss-local-ssot-atomic-commit",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-03T12:20:10.070Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "Final runtime review is bound to current committed HEAD after remediation"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "d4b17aac36a58980038de0a4d5447a68fdbeded4",
+    "surface_files": [
+      {
+        "path": "src/ssot.ts",
+        "sha256": "1cfc2ab40dd870847b34c9c90794398e01fa1e7fbcc156ebf7bf88f5172eb8d9",
+        "size": 16300
+      },
+      {
+        "path": "tests/ssot-atomic.test.ts",
+        "sha256": "ae7c8569bf401bdf6862ab502b56ef8852d9c06dd82f42ecb9ee17ffdafa0151",
+        "size": 12531
+      },
+      {
+        "path": "tests/ssot.test.ts",
+        "sha256": "931d1b61cd657f2845839f1ebe53b81f0210d4d010799cd322cb5849c3e18038",
+        "size": 11317
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "8f0c66a083c01ce759d94799e53ebdfc48b537b3e5cd93d3e6032ef4bf53acf5"
+  },
+  "source_fingerprint": "fccf3b9bba5f0c957414edbf782ce04e85ce65076c815d6649722882a9e26e9d",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "ps_spec_consistency_v2",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ps_spec_consistency_v2",
+    "session_id": "ps_spec_consistency_v2-implementation-v3",
+    "tool_call_id": null,
+    "transcript_artifact": null,
+    "request_artifact": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-request-runtime_contract.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "Codex subagent /root/ps_spec_consistency_v2 completed final read-only review at HEAD d4b17aac",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "ps_spec_consistency_v2-implementation-v3",
+      "implementation_session_id": "root-implementation",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

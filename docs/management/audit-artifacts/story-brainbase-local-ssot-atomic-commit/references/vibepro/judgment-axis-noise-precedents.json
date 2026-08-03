@@ -1,0 +1,91 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-judgment-axis-noise-precedent-ledger-v1",
+  "entries": [
+    {
+      "fingerprint": "scope_reviewability|changed_files:1040|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-local-ssot-atomic-commit",
+      "decision_id": "decision-1785759986955-11e744f1",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "This is one cohesive atomic storage contract; splitting would separate runtime behavior from its public and failure contracts. Merge and npm publication remain separate maintainer decisions.",
+      "artifact": "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:1040",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-03T12:31:11.697Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-local-ssot-atomic-commit",
+      "decision_id": "decision-1785759986955-11e744f1",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "This is one cohesive atomic storage contract; splitting would separate runtime behavior from its public and failure contracts. Merge and npm publication remain separate maintainer decisions.",
+      "artifact": "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-03T12:32:13.909Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|graphify:related_files",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-local-ssot-atomic-commit",
+      "decision_id": "decision-1785759986955-11e744f1",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "This is one cohesive atomic storage contract; splitting would separate runtime behavior from its public and failure contracts. Merge and npm publication remain separate maintainer decisions.",
+      "artifact": "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+      "activation_candidates": [
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-03T12:35:37.455Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:1041|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-local-ssot-atomic-commit",
+      "decision_id": "decision-1785759986955-11e744f1",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "This is one cohesive atomic storage contract; splitting would separate runtime behavior from its public and failure contracts. Merge and npm publication remain separate maintainer decisions.",
+      "artifact": "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:1041",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-03T13:17:11.639Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:145|graphify:related_files|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-local-ssot-atomic-commit",
+      "decision_id": "decision-1785759986955-11e744f1",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "This is one cohesive atomic storage contract; splitting would separate runtime behavior from its public and failure contracts. Merge and npm publication remain separate maintainer decisions.",
+      "artifact": "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:145",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-03T13:19:30.097Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    }
+  ]
+}

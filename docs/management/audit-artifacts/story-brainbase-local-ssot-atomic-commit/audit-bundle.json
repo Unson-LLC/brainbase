@@ -1,0 +1,1699 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "source": "execute_merge",
+  "promoted_at": "2026-08-03T14:03:41.280Z",
+  "canonical_dir": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit",
+  "source_workspace_dir": ".vibepro",
+  "audit_index_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-index.json",
+  "decision_summary_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/decision-summary.md",
+  "artifact_policy": {
+    "scope": "compact_manifest_only",
+    "evidence_depth": "standard",
+    "compacted": true,
+    "persisted_for_main_audit": true,
+    "why_compacted": [],
+    "excludes": [
+      "duplicated decision index body",
+      "duplicated cost summary body",
+      "full PR lifecycle JSON",
+      "full review lifecycle JSON",
+      "HTML reports",
+      "raw logs",
+      "dispatch scratch artifacts",
+      "temporary execution state"
+    ]
+  },
+  "evidence_depth": "standard",
+  "cost_summary_ref": {
+    "source": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-index.json",
+    "pointer": "/cost_summary"
+  },
+  "automation_value_audit_ref": {
+    "source": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-index.json",
+    "pointer": "/automation_value_audit"
+  },
+  "replay_bundle": {
+    "schema_version": "0.1.0",
+    "path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+    "compression": "gzip",
+    "media_type": "application/json",
+    "content_hash": "sha256:d6eb4689e803bcff6f8e1c881144771edad463c9a81cfbb6ef354e7663af17ef",
+    "compressed_hash": "sha256:ddd4d483b9ec64ff152ee255b0c983b840fc27eaccf20984ae1d7fd5cca2a49d",
+    "expanded_bytes": 33812,
+    "compressed_bytes": 5520,
+    "expanded_line_count": 857,
+    "persisted_line_count": 1,
+    "included_artifact_kinds": [
+      "decision_index",
+      "decision_outcome_ledger",
+      "evidence_plan",
+      "evidence_reuse",
+      "pr_create",
+      "pr_merge",
+      "pr_prepare",
+      "review_lifecycle",
+      "review_request",
+      "review_result",
+      "review_summary",
+      "senior_gap_judgment",
+      "traceability",
+      "verification_evidence"
+    ],
+    "replay_command": "vibepro audit replay . --story-id story-brainbase-local-ssot-atomic-commit",
+    "cost": {
+      "compressed_bytes": 5520,
+      "expanded_bytes": 33812,
+      "expanded_line_count": 857,
+      "persisted_line_count": 1
+    }
+  },
+  "merge": {
+    "status": "merged_externally",
+    "base": "develop",
+    "delivery": {
+      "status": "merged_externally",
+      "source": "github_pr",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/439",
+      "merge_commit_sha": "16b32602dccda9cb1b34741a52f6aa7b68eba86b",
+      "merged_at": "2026-08-03T14:03:17Z"
+    },
+    "reconciliation": {
+      "status": "reconciled",
+      "reasons": [],
+      "evaluated_at": "2026-08-03T14:03:41.203Z",
+      "head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f"
+    },
+    "decision_outcome_binding": {
+      "status": "bound",
+      "reason": "all_local_decision_outcomes_bound_to_canonical_ledger",
+      "expected_entry_count": 67,
+      "promoted_count": 67,
+      "duplicate_count": 0,
+      "persistence_status": null
+    },
+    "pr_url": "https://github.com/Unson-LLC/brainbase/pull/439",
+    "merge_commit_sha": "16b32602dccda9cb1b34741a52f6aa7b68eba86b",
+    "merged_at": "2026-08-03T14:03:17Z",
+    "current_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...c6a83ad52bb31431a9b2936961f69c143b87352f"
+  },
+  "handoff_replay_status": "blocked",
+  "handoff_replay": {
+    "status": "blocked",
+    "resolved_reference_count": 122,
+    "copied_reference_count": 92,
+    "unresolved_reference_count": 2,
+    "replay_bundle": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+    "replay_command": "vibepro audit replay . --story-id story-brainbase-local-ssot-atomic-commit"
+  },
+  "artifacts": [
+    {
+      "kind": "audit_index",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-index.json"
+    },
+    {
+      "kind": "decision_summary",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/decision-summary.md"
+    },
+    {
+      "kind": "compressed_replay_bundle",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "compression": "gzip",
+      "content_hash": "sha256:d6eb4689e803bcff6f8e1c881144771edad463c9a81cfbb6ef354e7663af17ef"
+    }
+  ],
+  "raw_artifact_manifest": [
+    {
+      "kind": "evidence_reuse",
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/evidence-reuse.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:85a7151a5afdfb7313d80caaf8684218428e44dd1eb55cf57900a675b5aaf10f",
+      "audit_digest": "sha256:85a7151a5afdfb7313d80caaf8684218428e44dd1eb55cf57900a675b5aaf10f",
+      "line_count": 918,
+      "raw_line_count": 918,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "decision_outcome_ledger",
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-outcome-ledger.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:c1a68cd3586e3d88f9bc8c0dc3c98cdd30978bea341d8fabfe526e36cbc84b59",
+      "audit_digest": "sha256:c1a68cd3586e3d88f9bc8c0dc3c98cdd30978bea341d8fabfe526e36cbc84b59",
+      "line_count": 1020,
+      "raw_line_count": 1020,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "pr_prepare",
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-prepare.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:bceeba23673e865b09819ba53023c223997b4b18edcf137ee202a73bf9cfa478",
+      "audit_digest": "sha256:761dff2a448759d2e4ba12e31c5b8bbc58ad6a2c055534b3bc22d8578b81bc23",
+      "line_count": 16820,
+      "raw_line_count": 30936,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_prepare.diagnostics.progress_snapshots",
+        "pr_prepare.pr_context.full_gate_dag",
+        "pr_prepare.pr_context.design_ssot_full_registry_inventory",
+        "pr_prepare.pr_context.inactive_judgment_axis_details",
+        "pr_prepare.duplicated_child_artifacts",
+        "design_ssot.unregistered_docs_full_inventory",
+        "design_ssot.registered_docs_full_inventory",
+        "responsibility_authority.full_registry_entries",
+        "requirement_consistency.verbose_code_scenarios",
+        "engineering_judgment.inactive_axis_details",
+        "engineering_judgment.verbose_matched_evidence",
+        "verification.raw_command_output",
+        "senior_gap_judgment.verbose_supporting_context",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "pr_create",
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-create.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:7b1872793f2a72ccc26da4b2c7e2587fde5cdc3138a77260ba67cd30bf13b955",
+      "audit_digest": "sha256:7867f06bbc68e6bb936392f8b9c59cd0cfabddf32216a7a7b1d0b09b17766697",
+      "line_count": 2508,
+      "raw_line_count": 5451,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "senior_gap_judgment",
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/senior-gap-judgment.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:89214d331e494623ae60054ba55df0dd58a5f2a1276cd5090275c23dafd113bd",
+      "audit_digest": "sha256:dcdc27ecfb5d3b8c8d7ff75872fed1bfed1c1ee24d9ea9d5b451d8806ab7bb91",
+      "line_count": 14,
+      "raw_line_count": 495,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "senior_gap_judgment.verbose_supporting_context"
+      ]
+    },
+    {
+      "kind": "pr_merge",
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-merge.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:e15267121a749c2232e71d0a5aabebeccc2862d0f89ddc6f79ea61de83dd4569",
+      "audit_digest": "sha256:48cd730da3cfe062a4825181faffd8745d19b2f2c5b9549e7083ec1dd6ba4f71",
+      "line_count": 2505,
+      "raw_line_count": 5574,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects",
+        "pr_merge.canonical_audit",
+        "pr_merge.roi_ledger_promotion"
+      ]
+    },
+    {
+      "kind": "traceability",
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/traceability.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:2f51d19c47112dac91b8647bd00ff1bd01e46d4a903892f200671ea02ea6e842",
+      "audit_digest": "sha256:2f51d19c47112dac91b8647bd00ff1bd01e46d4a903892f200671ea02ea6e842",
+      "line_count": 547,
+      "raw_line_count": 547,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "verification_evidence",
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:52a656c8e203cf64d6d4e613e732ed19b49051dd871d209c5aeaad6124f2a1ae",
+      "audit_digest": "sha256:413f66721f60eb423417bf34ff12c0482cc535be211dd8e3224f330a1ae00fab",
+      "line_count": 57,
+      "raw_line_count": 912,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "verification.raw_command_output"
+      ]
+    },
+    {
+      "kind": "evidence_plan",
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/evidence-plan.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:af70187144b0895641d2a0ebe8fc6094db065011279a662c642d365e3546bfd7",
+      "audit_digest": "sha256:af70187144b0895641d2a0ebe8fc6094db065011279a662c642d365e3546bfd7",
+      "line_count": 975,
+      "raw_line_count": 975,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "decision_index",
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-index.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:65bd1daf53b8d4bee9978d13fef475dc0a85dd96d6d5f8ec9da574db3312d99e",
+      "audit_digest": "sha256:65bd1daf53b8d4bee9978d13fef475dc0a85dd96d6d5f8ec9da574db3312d99e",
+      "line_count": 993,
+      "raw_line_count": 993,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:f8130962623b1c321813056096a887ad3e5e2dff03a64adbc7068d4da005b053",
+      "audit_digest": "sha256:f8130962623b1c321813056096a887ad3e5e2dff03a64adbc7068d4da005b053",
+      "line_count": 3455,
+      "raw_line_count": 3455,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-request-architecture_boundary.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:cae284412c56fc35c9f904d0b1afb2567a2aaae7d60c9ab0b3b5902615bd303a",
+      "audit_digest": "sha256:cae284412c56fc35c9f904d0b1afb2567a2aaae7d60c9ab0b3b5902615bd303a",
+      "line_count": 155,
+      "raw_line_count": 155,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-request-regression_risk.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:bf056398df7890336794c189354fd9beac7566449c16c4e9e7ef2c81af80656c",
+      "audit_digest": "sha256:bf056398df7890336794c189354fd9beac7566449c16c4e9e7ef2c81af80656c",
+      "line_count": 155,
+      "raw_line_count": 155,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-request-spec_consistency.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:d5b919cc2b39e2935636ada89705dd1725b6b97f230a11f14fdfec76ce3d4b45",
+      "audit_digest": "sha256:d5b919cc2b39e2935636ada89705dd1725b6b97f230a11f14fdfec76ce3d4b45",
+      "line_count": 155,
+      "raw_line_count": 155,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-result-architecture_boundary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:15ddbf841b718de9ec7d9daf9017c3d7c2cbe6c280d657cb99092b4c5d843fdd",
+      "audit_digest": "sha256:15ddbf841b718de9ec7d9daf9017c3d7c2cbe6c280d657cb99092b4c5d843fdd",
+      "line_count": 167,
+      "raw_line_count": 167,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-result-regression_risk.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:016043cf025bc369df7b78592100bec22a408bed0fba32285182f00ea9fd7e29",
+      "audit_digest": "sha256:016043cf025bc369df7b78592100bec22a408bed0fba32285182f00ea9fd7e29",
+      "line_count": 185,
+      "raw_line_count": 185,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-result-spec_consistency.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:94c21f5e53de907ce74b4ec12c995271b92282040ece4f34e2cfe4de3be56b81",
+      "audit_digest": "sha256:94c21f5e53de907ce74b4ec12c995271b92282040ece4f34e2cfe4de3be56b81",
+      "line_count": 179,
+      "raw_line_count": 179,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:58f99454348e2e41360988c6a1d83a2e9d385626ae1f59a584d055faf7d553ad",
+      "audit_digest": "sha256:58f99454348e2e41360988c6a1d83a2e9d385626ae1f59a584d055faf7d553ad",
+      "line_count": 4426,
+      "raw_line_count": 4426,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/gate/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:1eda70725952e887ba63308c30bc7b8d2b2d9f5014564db4a9f9b5ba51a316d7",
+      "audit_digest": "sha256:1eda70725952e887ba63308c30bc7b8d2b2d9f5014564db4a9f9b5ba51a316d7",
+      "line_count": 170,
+      "raw_line_count": 170,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/gate/review-request-gate_evidence.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:e7b610adabcba8cf4cee96ef538ca32f050e3e22651827512cb75b504bbd7072",
+      "audit_digest": "sha256:e7b610adabcba8cf4cee96ef538ca32f050e3e22651827512cb75b504bbd7072",
+      "line_count": 152,
+      "raw_line_count": 152,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/gate/review-result-gate_evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:7fab6e55ed70a1e56a36cfdcfb2c3eb46379ed17951df234c9c0e2007e8fd8b0",
+      "audit_digest": "sha256:7fab6e55ed70a1e56a36cfdcfb2c3eb46379ed17951df234c9c0e2007e8fd8b0",
+      "line_count": 155,
+      "raw_line_count": 155,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/gate/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:6612a26b31eb6ec1d3e00a36e57e9922ed0721718367f000f9e1a3c006c8b01c",
+      "audit_digest": "sha256:6612a26b31eb6ec1d3e00a36e57e9922ed0721718367f000f9e1a3c006c8b01c",
+      "line_count": 492,
+      "raw_line_count": 492,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:e70263637f77b7d25806ea805f390c502cada5be9258c747adf34dffc06d9539",
+      "audit_digest": "sha256:e70263637f77b7d25806ea805f390c502cada5be9258c747adf34dffc06d9539",
+      "line_count": 2287,
+      "raw_line_count": 2287,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-request-code_spec_alignment.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:2fd294e62ecc2a1645204cb2ce59959c7aa80daed6c868fc55ae778daf8c3387",
+      "audit_digest": "sha256:2fd294e62ecc2a1645204cb2ce59959c7aa80daed6c868fc55ae778daf8c3387",
+      "line_count": 152,
+      "raw_line_count": 152,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-request-runtime_contract.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:e35633eb45ada7fe8bddf41f910b963bd158d24837f1f8710d52a00869f717d5",
+      "audit_digest": "sha256:e35633eb45ada7fe8bddf41f910b963bd158d24837f1f8710d52a00869f717d5",
+      "line_count": 152,
+      "raw_line_count": 152,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-request-ux_completion.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:8d94fc9237942fa375c4bdf4f337b0d32c382ba39fe59cdd4261720f30e8a972",
+      "audit_digest": "sha256:8d94fc9237942fa375c4bdf4f337b0d32c382ba39fe59cdd4261720f30e8a972",
+      "line_count": 152,
+      "raw_line_count": 152,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-result-code_spec_alignment.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:3863175597b69c2228170f8babe1ed6829711511825941b28b68caadb3fa5a15",
+      "audit_digest": "sha256:3863175597b69c2228170f8babe1ed6829711511825941b28b68caadb3fa5a15",
+      "line_count": 167,
+      "raw_line_count": 167,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-result-runtime_contract.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:3b2dc682321e4cef53565d57621768c0acde95558cc9f2b9cc5eb3ff26785b20",
+      "audit_digest": "sha256:3b2dc682321e4cef53565d57621768c0acde95558cc9f2b9cc5eb3ff26785b20",
+      "line_count": 161,
+      "raw_line_count": 161,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-result-ux_completion.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:bf9336a08ab49d89cf22fe0c2d67ae204426435a9c5d213983530bb29ab0841d",
+      "audit_digest": "sha256:bf9336a08ab49d89cf22fe0c2d67ae204426435a9c5d213983530bb29ab0841d",
+      "line_count": 173,
+      "raw_line_count": 173,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:3e2b76aff0b891ca29e359b6fde18e79393a54997629be45d094d9d41dc75054",
+      "audit_digest": "sha256:3e2b76aff0b891ca29e359b6fde18e79393a54997629be45d094d9d41dc75054",
+      "line_count": 3219,
+      "raw_line_count": 3219,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:bfb49e7090a90684c13a2c441d823929094f656eb9af88053b860d7161f1f3d5",
+      "audit_digest": "sha256:bfb49e7090a90684c13a2c441d823929094f656eb9af88053b860d7161f1f3d5",
+      "line_count": 2937,
+      "raw_line_count": 2937,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-request-architecture_boundary.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:36581e4ba56f1fe56175c25594d3bb3d4e40ccae7d03b44ffd2f182e4d64858f",
+      "audit_digest": "sha256:36581e4ba56f1fe56175c25594d3bb3d4e40ccae7d03b44ffd2f182e4d64858f",
+      "line_count": 152,
+      "raw_line_count": 152,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-request-product_requirement.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:b4f42fa2b5b638a9f4d25d260d47b13fc4538d1e3e78bad2708b9e99d3c9b5bc",
+      "audit_digest": "sha256:b4f42fa2b5b638a9f4d25d260d47b13fc4538d1e3e78bad2708b9e99d3c9b5bc",
+      "line_count": 152,
+      "raw_line_count": 152,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-request-spec_consistency.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:5990949d8b799a5d56af34dbaeaaeddaf2904d740f7421cd18059fc116ce2ea8",
+      "audit_digest": "sha256:5990949d8b799a5d56af34dbaeaaeddaf2904d740f7421cd18059fc116ce2ea8",
+      "line_count": 152,
+      "raw_line_count": 152,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-result-architecture_boundary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:ec062f597322f88473b0fc194a3a47f400a46838db6f9cda59d192642421e5e7",
+      "audit_digest": "sha256:ec062f597322f88473b0fc194a3a47f400a46838db6f9cda59d192642421e5e7",
+      "line_count": 155,
+      "raw_line_count": 155,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-result-product_requirement.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:9afdeb21dde6974a109afe5ea459d1196340f26f77ac520b1e2760a437acb1a7",
+      "audit_digest": "sha256:9afdeb21dde6974a109afe5ea459d1196340f26f77ac520b1e2760a437acb1a7",
+      "line_count": 173,
+      "raw_line_count": 173,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-result-spec_consistency.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:e278a2e928a0a26dd9c47bd58a71cdd6c18c3fe52c3bc464a8f39caeaf2b0032",
+      "audit_digest": "sha256:e278a2e928a0a26dd9c47bd58a71cdd6c18c3fe52c3bc464a8f39caeaf2b0032",
+      "line_count": 167,
+      "raw_line_count": 167,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/audit-replay-bundle.json.gz",
+      "digest": "sha256:a969c93d7a1ee3fc9d670ea5260f9d98d88fac3b2fe372613d558e67289be9f5",
+      "audit_digest": "sha256:a969c93d7a1ee3fc9d670ea5260f9d98d88fac3b2fe372613d558e67289be9f5",
+      "line_count": 3891,
+      "raw_line_count": 3891,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    }
+  ],
+  "missing_artifacts": [],
+  "resolved_references": [
+    {
+      "source": ".vibepro/adjudication/story-brainbase-local-ssot-atomic-commit/adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/adjudication/story-brainbase-local-ssot-atomic-commit/adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/adjudication/story-brainbase-local-ssot-atomic-commit/judgment-adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/adjudication/story-brainbase-local-ssot-atomic-commit/judgment-adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/architecture/story-brainbase-local-ssot-atomic-commit/draft.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/architecture/story-brainbase-local-ssot-atomic-commit/draft.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/config.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/config.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/evidence.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/static-site-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/static-site-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/graphify/graph.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/graphify/graph.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/judgment-axis-noise-precedents.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/judgment-axis-noise-precedents.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/pr/decision-index.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-index.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-index.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-outcome-ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/pr/decision-outcome-ledger.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-records.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-records.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/pr/evidence-plan.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/evidence-plan.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/evidence-plan.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/evidence-reuse.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/pr/evidence-reuse.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/evidence-reuse.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/evidence-reuse.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-create.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/pr/pr-create.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-merge.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/pr/pr-merge.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-prepare.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/pr/pr-prepare.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/ref-topology.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/ref-topology.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/senior-gap-judgment.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/pr/senior-gap-judgment.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/traceability.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/pr/traceability.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/pr/verification-evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/build.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/build.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/build.log",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/build.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/e2e.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/e2e.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/e2e.log",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/e2e.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/unit.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/unit.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/unit.log",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/unit.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T11-45-07.862Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T11-45-07.862Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T11-48-51.525Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T11-48-51.525Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T12-40-09.207Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T12-40-09.207Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T12-45-17.953Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T12-45-17.953Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T12-59-32.331Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T12-59-32.331Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T11-48-51.517Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T11-48-51.517Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T12-40-48.397Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T12-40-48.397Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T12-45-51.053Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T12-45-51.053Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T13-00-56.174Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T13-00-56.174Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T11-45-19.690Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T11-45-19.690Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T11-48-51.523Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T11-48-51.523Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T12-40-22.784Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T12-40-22.784Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T12-46-56.069Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T12-46-56.069Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T12-59-45.055Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T12-59-45.055Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-request-architecture_boundary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/architecture_spec/review-request-architecture_boundary.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-request-regression_risk.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/architecture_spec/review-request-regression_risk.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-request-spec_consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/architecture_spec/review-request-spec_consistency.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-result-architecture_boundary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/architecture_spec/review-result-architecture_boundary.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-result-regression_risk.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/architecture_spec/review-result-regression_risk.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-result-spec_consistency.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/architecture_spec/review-result-spec_consistency.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/gate/history/review-result-gate_evidence-2026-08-03T13-11-57.209Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/gate/history/review-result-gate_evidence-2026-08-03T13-11-57.209Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/gate/review-request-gate_evidence.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/gate/review-request-gate_evidence.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/gate/review-result-gate_evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/gate/review-result-gate_evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T12-03-05.112Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T12-03-05.112Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T12-11-59.858Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T12-11-59.858Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T12-20-09.073Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T12-20-09.073Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T13-08-07.807Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T13-08-07.807Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-03-05.714Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-03-05.714Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-12-00.587Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-12-00.587Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-20-10.085Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-20-10.085Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-52-16.896Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-52-16.896Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T13-07-45.636Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T13-07-45.636Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-ux_completion-2026-08-03T12-12-25.781Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-ux_completion-2026-08-03T12-12-25.781Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-ux_completion-2026-08-03T12-20-11.115Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-ux_completion-2026-08-03T12-20-11.115Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-ux_completion-2026-08-03T13-08-08.893Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-ux_completion-2026-08-03T13-08-08.893Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-request-code_spec_alignment.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/implementation/review-request-code_spec_alignment.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-request-runtime_contract.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/implementation/review-request-runtime_contract.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-request-ux_completion.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/implementation/review-request-ux_completion.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-result-code_spec_alignment.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/implementation/review-result-code_spec_alignment.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-result-runtime_contract.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/implementation/review-result-runtime_contract.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-result-ux_completion.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/implementation/review-result-ux_completion.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-22-33.472Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-22-33.472Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-28-33.683Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-28-33.683Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-34-59.350Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-34-59.350Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-39-21.956Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-39-21.956Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T12-49-30.103Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T12-49-30.103Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T13-03-49.382Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T13-03-49.382Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-22-32.207Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-22-32.207Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-28-33.012Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-28-33.012Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-34-58.707Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-34-58.707Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-39-21.390Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-39-21.390Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T12-49-58.626Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T12-49-58.626Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T13-04-04.084Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T13-04-04.084Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-22-34.216Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-22-34.216Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-28-34.344Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-28-34.344Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-35-00.202Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-35-00.202Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-39-22.604Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-39-22.604Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T12-49-31.290Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T12-49-31.290Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T13-04-49.609Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T13-04-49.609Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-request-architecture_boundary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/planning_spec/review-request-architecture_boundary.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-request-product_requirement.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/planning_spec/review-request-product_requirement.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-request-spec_consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/planning_spec/review-request-spec_consistency.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-result-architecture_boundary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/planning_spec/review-result-architecture_boundary.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-result-product_requirement.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/planning_spec/review-result-product_requirement.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-result-spec_consistency.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/reviews/planning_spec/review-result-spec_consistency.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/surface-violations.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/surface-violations.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-brainbase-local-ssot-atomic-commit/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/stories/story-brainbase-local-ssot-atomic-commit/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-brainbase-local-ssot-atomic-commit/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/stories/story-brainbase-local-ssot-atomic-commit/tasks/tasks.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/validation-sequencing/story-brainbase-local-ssot-atomic-commit/state.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/validation-sequencing/story-brainbase-local-ssot-atomic-commit/state.json",
+      "resolution": "copied_reference"
+    }
+  ],
+  "copied_references": [
+    {
+      "source": ".vibepro/adjudication/story-brainbase-local-ssot-atomic-commit/adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/adjudication/story-brainbase-local-ssot-atomic-commit/adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/adjudication/story-brainbase-local-ssot-atomic-commit/judgment-adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/adjudication/story-brainbase-local-ssot-atomic-commit/judgment-adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/architecture/story-brainbase-local-ssot-atomic-commit/draft.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/architecture/story-brainbase-local-ssot-atomic-commit/draft.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/config.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/config.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/evidence.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/static-site-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/static-site-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-03T110152Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/diagnostics/2026-08-03T110152Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/graphify/graph.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/graphify/graph.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/judgment-axis-noise-precedents.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/judgment-axis-noise-precedents.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-index.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-index.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-records.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-records.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/evidence-plan.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/evidence-plan.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/evidence-reuse.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/evidence-reuse.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/ref-topology.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/ref-topology.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/build.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/build.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/build.log",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/build.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/e2e.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/e2e.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/e2e.log",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/e2e.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/unit.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/unit.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/unit.log",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/unit.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T11-45-07.862Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T11-45-07.862Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T11-48-51.525Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T11-48-51.525Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T12-40-09.207Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T12-40-09.207Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T12-45-17.953Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T12-45-17.953Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T12-59-32.331Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-architecture_boundary-2026-08-03T12-59-32.331Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T11-48-51.517Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T11-48-51.517Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T12-40-48.397Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T12-40-48.397Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T12-45-51.053Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T12-45-51.053Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T13-00-56.174Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-regression_risk-2026-08-03T13-00-56.174Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T11-45-19.690Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T11-45-19.690Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T11-48-51.523Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T11-48-51.523Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T12-40-22.784Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T12-40-22.784Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T12-46-56.069Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T12-46-56.069Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T12-59-45.055Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/history/review-result-spec_consistency-2026-08-03T12-59-45.055Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/gate/history/review-result-gate_evidence-2026-08-03T13-11-57.209Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/gate/history/review-result-gate_evidence-2026-08-03T13-11-57.209Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T12-03-05.112Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T12-03-05.112Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T12-11-59.858Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T12-11-59.858Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T12-20-09.073Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T12-20-09.073Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T13-08-07.807Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-code_spec_alignment-2026-08-03T13-08-07.807Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-03-05.714Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-03-05.714Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-12-00.587Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-12-00.587Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-20-10.085Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-20-10.085Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-52-16.896Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T12-52-16.896Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T13-07-45.636Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-runtime_contract-2026-08-03T13-07-45.636Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-ux_completion-2026-08-03T12-12-25.781Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-ux_completion-2026-08-03T12-12-25.781Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-ux_completion-2026-08-03T12-20-11.115Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-ux_completion-2026-08-03T12-20-11.115Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-ux_completion-2026-08-03T13-08-08.893Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/history/review-result-ux_completion-2026-08-03T13-08-08.893Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-22-33.472Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-22-33.472Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-28-33.683Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-28-33.683Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-34-59.350Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-34-59.350Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-39-21.956Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T11-39-21.956Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T12-49-30.103Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T12-49-30.103Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T13-03-49.382Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-architecture_boundary-2026-08-03T13-03-49.382Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-22-32.207Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-22-32.207Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-28-33.012Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-28-33.012Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-34-58.707Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-34-58.707Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-39-21.390Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T11-39-21.390Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T12-49-58.626Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T12-49-58.626Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T13-04-04.084Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-product_requirement-2026-08-03T13-04-04.084Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-22-34.216Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-22-34.216Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-28-34.344Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-28-34.344Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-35-00.202Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-35-00.202Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-39-22.604Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T11-39-22.604Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T12-49-31.290Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T12-49-31.290Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T13-04-49.609Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/history/review-result-spec_consistency-2026-08-03T13-04-49.609Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/surface-violations.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/reviews/story-brainbase-local-ssot-atomic-commit/surface-violations.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-brainbase-local-ssot-atomic-commit/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/stories/story-brainbase-local-ssot-atomic-commit/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-brainbase-local-ssot-atomic-commit/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/stories/story-brainbase-local-ssot-atomic-commit/tasks/tasks.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/validation-sequencing/story-brainbase-local-ssot-atomic-commit/state.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-local-ssot-atomic-commit/references/vibepro/validation-sequencing/story-brainbase-local-ssot-atomic-commit/state.json",
+      "resolution": "copied_reference"
+    }
+  ],
+  "unresolved_references": [
+    {
+      "source": ".vibepro/uiux/story-brainbase-local-ssot-atomic-commit/ia-flow-map.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-brainbase-local-ssot-atomic-commit/responsive-a11y-matrix.json",
+      "reason": "source_missing"
+    }
+  ]
+}

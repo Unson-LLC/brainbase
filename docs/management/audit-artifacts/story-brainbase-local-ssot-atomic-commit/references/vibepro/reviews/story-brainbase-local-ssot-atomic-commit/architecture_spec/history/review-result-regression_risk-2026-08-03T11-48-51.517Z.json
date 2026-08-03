@@ -1,0 +1,160 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "stage": "architecture_spec",
+  "role": "regression_risk",
+  "status": "pass",
+  "summary": "Regression plan distinguishes pre-fix behavior for atomicity recovery locking writers and read failure, and preserves legacy/full-suite behavior.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Inspected regenerated Architecture, canonical documents, actual SSOT CLI MCP audit sources, writer/read inventory, package scripts and tests.",
+    "evidence": "HEAD 9bef4816; cases 1-8 fail pre-fix by contract; cases 9-10 preserve legacy and full suite.",
+    "inputs": [
+      "docs/specs/local-ssot-atomic-commit.md",
+      "src/ssot.ts",
+      "src/cli.ts",
+      "src/server.ts",
+      "src/ontology-ssot.ts",
+      "tests/ssot.test.ts",
+      "tests/cli.test.ts"
+    ]
+  },
+  "judgment_delta": [
+    "Potential happy-path-only coverage -> separate-process concurrency, residue modes, lock-owner variants, all three writers and read/audit split provide pre-fix-failing oracles, so pass."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "expected_root": null,
+    "expected_head_sha": "9bef4816faa8094c447309b0be28624b156d217b",
+    "current_head_sha": "9bef4816faa8094c447309b0be28624b156d217b",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "expected_root": null,
+      "expected_head_sha": "9bef4816faa8094c447309b0be28624b156d217b",
+      "current_head_sha": "9bef4816faa8094c447309b0be28624b156d217b",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-03T11:48:51.517Z",
+  "git_context": {
+    "head_sha": "9bef4816faa8094c447309b0be28624b156d217b",
+    "current_branch": "codex/oss-local-ssot-atomic-commit",
+    "dirty": true,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "3f9ef7571623bd4c4a4dd4437c00857ecaa341eb59ffec7dd29b8f2725915871",
+    "user_status_fingerprint_hash": "3f9ef7571623bd4c4a4dd4437c00857ecaa341eb59ffec7dd29b8f2725915871",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-03T11:48:51.500Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 7 file(s)",
+    "recorded_head_sha": "9bef4816faa8094c447309b0be28624b156d217b",
+    "surface_files": [
+      {
+        "path": "docs/specs/local-ssot-atomic-commit.md",
+        "sha256": "fae5c23f687743e130614a9560900830ef2ec6963a7d482d34a152cbdcc05255",
+        "size": 4722
+      },
+      {
+        "path": "src/cli.ts",
+        "sha256": "91e8e6b231ec3d89539ace80b173bb91ed31f93286c2f6001dddc99dc2be2a0b",
+        "size": 35835
+      },
+      {
+        "path": "src/ontology-ssot.ts",
+        "sha256": "f0be2ef5cc13337b56b8a5ff908918db77c6beb9fe21b6f860a5e0e91d0f300b",
+        "size": 1278
+      },
+      {
+        "path": "src/server.ts",
+        "sha256": "dfab1a0306ab3ecc2dd4b5cbb3ef03dcbdf7a723a48db0dfd3d45e739c63f1e2",
+        "size": 5803
+      },
+      {
+        "path": "src/ssot.ts",
+        "sha256": "7da3e7858cd7107524cba1b111293fccfa301573707976fda013617ad5bcca32",
+        "size": 7006
+      },
+      {
+        "path": "tests/cli.test.ts",
+        "sha256": "137aaeb0a0d36162a5048969ed548dfdbe79519c3444ad2d07fcb7f6de0bbed9",
+        "size": 33114
+      },
+      {
+        "path": "tests/ssot.test.ts",
+        "sha256": "6d16ace7bb2b26a1c138237c194c88d602f9552c190d65c15ddc89277aa9f216",
+        "size": 4580
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "1b7f47eb114a1aa16c73399da12b5977f8e9aeee17fca50bcf155a25deb7a747"
+  },
+  "source_fingerprint": "b1cb4a5506eefc80cfe93fa9a94c7b2d0a37f48ce41fbe92981e24798c9f154d",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "ps_product_req_v2",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ps_product_req_v2",
+    "session_id": "ps-regression-turn6",
+    "tool_call_id": null,
+    "transcript_artifact": "collaboration:/root/ps_product_req_v2 regression review",
+    "request_artifact": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/architecture_spec/review-request-regression_risk.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "Completed independent regression risk review.",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "ps-regression-turn6",
+      "implementation_session_id": "root-oss-atomic",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

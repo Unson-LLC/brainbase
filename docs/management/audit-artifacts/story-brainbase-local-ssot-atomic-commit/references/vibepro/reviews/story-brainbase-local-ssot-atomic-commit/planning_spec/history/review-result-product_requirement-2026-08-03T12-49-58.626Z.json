@@ -1,0 +1,148 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "stage": "planning_spec",
+  "role": "product_requirement",
+  "status": "pass",
+  "summary": "Requirements are complete, coherent and testable for the supported atomic aggregate scope.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Reviewed planning request, Story, design, Spec, approval governance, atomic/legacy tests, traceability and exact-head evidence.",
+    "evidence": "12 ACs plus scenarios; no unmapped clauses; targeted13/full148/build/diff-check pass; approval grants review capacity only.",
+    "inputs": [
+      "docs/stories/local-ssot-atomic-commit-story.md",
+      "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+      "docs/specs/local-ssot-atomic-commit.md",
+      "tests/ssot-atomic.test.ts",
+      "tests/ssot.test.ts"
+    ]
+  },
+  "judgment_delta": [
+    "Implementation-centric and recovery ambiguity concerns -> pass because user value, mode-specific recovery, supported paths, exclusions and deterministic oracles are explicit."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "expected_root": null,
+    "expected_head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+    "current_head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "expected_root": null,
+      "expected_head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "current_head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-03T12:49:58.626Z",
+  "git_context": {
+    "head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+    "current_branch": "codex/oss-local-ssot-atomic-commit",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-03T12:49:58.617Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "exact final planning HEAD"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+    "surface_files": [
+      {
+        "path": "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+        "sha256": "d9330938d977517b5c4d48587b657e4b74a4cd0276b1fa0ee4a93effe70260b3",
+        "size": 7961
+      },
+      {
+        "path": "docs/specs/local-ssot-atomic-commit.md",
+        "sha256": "deedf4aa38778fccb2c252f1e8dd51a3d1e6e1e5b7cf51cb38168d399bb1ecb9",
+        "size": 6286
+      },
+      {
+        "path": "docs/stories/local-ssot-atomic-commit-story.md",
+        "sha256": "9dc1ec0cac2b9ecc3d15a111c42c607b1851b6a38cfb3698500aa45f056e2fbc",
+        "size": 3932
+      },
+      {
+        "path": "tests/ssot-atomic.test.ts",
+        "sha256": "ae7c8569bf401bdf6862ab502b56ef8852d9c06dd82f42ecb9ee17ffdafa0151",
+        "size": 12531
+      },
+      {
+        "path": "tests/ssot.test.ts",
+        "sha256": "931d1b61cd657f2845839f1ebe53b81f0210d4d010799cd322cb5849c3e18038",
+        "size": 11317
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "c00bf6dfa06d5f4e91023211c147459e06a0e8e01c4103e8c1f73dbd14eea49c"
+  },
+  "source_fingerprint": "9bda4b17d0d92dc0821e4594f73a4ea9d819c9a5159601cfc7141e6c7610858e",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "plan-product48",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ps_product_req_v2",
+    "session_id": "plan-product-48fc",
+    "tool_call_id": null,
+    "transcript_artifact": "../../../root/ps_product_req_v2:plan-product-48fc",
+    "request_artifact": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-request-product_requirement.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "subagent PASS; no findings",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "plan-product-48fc",
+      "implementation_session_id": "root-oss-local-ssot-atomic",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

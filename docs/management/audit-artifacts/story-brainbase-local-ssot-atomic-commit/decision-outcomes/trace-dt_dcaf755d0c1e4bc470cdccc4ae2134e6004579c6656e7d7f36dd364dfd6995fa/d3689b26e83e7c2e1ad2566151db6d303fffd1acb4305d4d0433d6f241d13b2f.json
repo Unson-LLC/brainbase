@@ -1,0 +1,101 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "ledger_path": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-outcome-ledger.json",
+  "selector": {
+    "decision_trace_id": "dt_dcaf755d0c1e4bc470cdccc4ae2134e6004579c6656e7d7f36dd364dfd6995fa"
+  },
+  "parent_revision_fingerprint": "899863dc3dbe678c66c872c8b4aad62970f9c312454ee121c51bf1954a201451",
+  "revision_fingerprint": "d3689b26e83e7c2e1ad2566151db6d303fffd1acb4305d4d0433d6f241d13b2f",
+  "trace": {
+    "decision_trace_id": "dt_dcaf755d0c1e4bc470cdccc4ae2134e6004579c6656e7d7f36dd364dfd6995fa",
+    "collision_group": null,
+    "trace_source_ref": "tsr_e56831495b7ff992e6fd09a21dee4318787441df29ab191926eacc4c764d4fe8",
+    "normalized_subject_key": "gate:review_surface_integrity:rsv-b76320d9679c0cb8",
+    "source_identity": {
+      "source_kind": "decision_record",
+      "source_ref": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-records.json",
+      "native_id": "decision-1785761753361-b9f6436d",
+      "digest": "408a8efe273f29aade1ffacbd5c90e51ee508c388386ea9500f37ccfd0cffe01",
+      "multiplicity": 1
+    },
+    "evidence_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+    "parent_revision_fingerprint": "899863dc3dbe678c66c872c8b4aad62970f9c312454ee121c51bf1954a201451",
+    "revision_fingerprint": "d3689b26e83e7c2e1ad2566151db6d303fffd1acb4305d4d0433d6f241d13b2f",
+    "observation_identity": null,
+    "observation_read_aliases": [
+      {
+        "trace_selector": {
+          "decision_trace_id": "dt_dcaf755d0c1e4bc470cdccc4ae2134e6004579c6656e7d7f36dd364dfd6995fa"
+        },
+        "parent_revision_fingerprint": "b60fbe143048e709dd029a84a1a2083e5bd5c645921f5e613e50600ebc41ec56"
+      }
+    ],
+    "trace_status": "partial",
+    "missing_reason": "observation_missing",
+    "finding": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "gate": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "detector": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "disposition": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "decision": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "behavior_delta": {
+      "status": "not_observed",
+      "before": null,
+      "after": null,
+      "change_refs": [],
+      "verification_refs": [],
+      "verification_sources": [],
+      "missing_reason": "explicit_behavior_delta_missing",
+      "excluded_sources": []
+    },
+    "delivery": {
+      "status": "merged",
+      "pr": {
+        "number": 439,
+        "url": "https://github.com/Unson-LLC/brainbase/pull/439",
+        "state": "MERGED"
+      },
+      "merge": {
+        "sha": "16b32602dccda9cb1b34741a52f6aa7b68eba86b",
+        "status": "merged_externally",
+        "merged_at": "2026-08-03T14:03:17Z"
+      },
+      "source_ref": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-merge.json"
+    },
+    "downstream_outcome": {
+      "status": "not_observed",
+      "value": null,
+      "reason": null,
+      "source_ref": null,
+      "missing_reason": "observation_missing"
+    },
+    "eligible_outcome_sources": {
+      "total_count": 0,
+      "returned_count": 0,
+      "omitted_count": 0,
+      "truncated": false,
+      "entries": []
+    },
+    "source_errors": []
+  }
+}

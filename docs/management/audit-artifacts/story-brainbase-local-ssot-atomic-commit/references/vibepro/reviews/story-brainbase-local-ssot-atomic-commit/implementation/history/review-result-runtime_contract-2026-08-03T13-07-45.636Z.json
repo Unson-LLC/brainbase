@@ -1,0 +1,160 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "stage": "implementation",
+  "role": "runtime_contract",
+  "status": "pass",
+  "summary": "CLI, MCP, recovery and error contracts remain compatible at final HEAD.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Checked writer routing and exit behavior, MCP error propagation, audit unverified mapping, corrupt transaction retention, rollback retry and canonical contract.",
+    "evidence": "Exact-head focused 17/17, full 152/152, build and diff-check pass; clean worktree.",
+    "inputs": [
+      "src/ssot.ts",
+      "src/cli.ts",
+      "src/server.ts",
+      "src/ontology-ssot.ts",
+      "tests/ssot-atomic.test.ts",
+      "tests/ssot.test.ts",
+      "tests/cli.test.ts"
+    ]
+  },
+  "judgment_delta": [
+    "Silent deletion or false success concern -> negative tests prove residue retention, original error propagation and next-access recovery; no public contract regression."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "expected_root": null,
+    "expected_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+    "current_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "expected_root": null,
+      "expected_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "current_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-03T13:07:45.636Z",
+  "git_context": {
+    "head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+    "current_branch": "codex/oss-local-ssot-atomic-commit",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-03T13:07:45.625Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "Final implementation HEAD runtime contract review"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+    "surface_files": [
+      {
+        "path": "src/cli.ts",
+        "sha256": "b560c7dfdecf033c1ee05fcbdceca914d3cb5dab634c5236988dc7e17f2bcb05",
+        "size": 35755
+      },
+      {
+        "path": "src/ontology-ssot.ts",
+        "sha256": "f0be2ef5cc13337b56b8a5ff908918db77c6beb9fe21b6f860a5e0e91d0f300b",
+        "size": 1278
+      },
+      {
+        "path": "src/server.ts",
+        "sha256": "dfab1a0306ab3ecc2dd4b5cbb3ef03dcbdf7a723a48db0dfd3d45e739c63f1e2",
+        "size": 5803
+      },
+      {
+        "path": "src/ssot.ts",
+        "sha256": "d2ad08cacb2f9207355d8dbeb9e9b300dd645502ae61d6f6ef8700bc02b6df5f",
+        "size": 16451
+      },
+      {
+        "path": "tests/cli.test.ts",
+        "sha256": "137aaeb0a0d36162a5048969ed548dfdbe79519c3444ad2d07fcb7f6de0bbed9",
+        "size": 33114
+      },
+      {
+        "path": "tests/ssot-atomic.test.ts",
+        "sha256": "d3094f75b616eca469f12d3ce84eee1c2deb9066acdacb5ec892f2b59b1b7683",
+        "size": 15439
+      },
+      {
+        "path": "tests/ssot.test.ts",
+        "sha256": "931d1b61cd657f2845839f1ebe53b81f0210d4d010799cd322cb5849c3e18038",
+        "size": 11317
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "33ce52f28ae1e16df9ddbeff2c36bc54b52c2e471a3a21e9b4cb575ca26a5478"
+  },
+  "source_fingerprint": "f96adcd64a779456d8d7f02177014337a7087985374e874f3ae818eda435334b",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "implruntimec6",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ps_arch_boundary_v2",
+    "session_id": "impl-runtime-c6",
+    "tool_call_id": null,
+    "transcript_artifact": "../../../root/ps_arch_boundary_v2:impl-runtime-c6",
+    "request_artifact": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-request-runtime_contract.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "Fresh PASS exact c6a83ad; no findings",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "impl-runtime-c6",
+      "implementation_session_id": "root-oss-local-ssot-atomic",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

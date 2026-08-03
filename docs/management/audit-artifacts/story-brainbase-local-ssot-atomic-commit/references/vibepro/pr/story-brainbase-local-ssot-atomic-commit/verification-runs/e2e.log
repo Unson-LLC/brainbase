@@ -1,0 +1,15 @@
+
+> @unson/brainbase-mcp@0.1.0 test:e2e
+> vitest run tests/e2e/brainbase-mcp-only-acceptance.spec.ts tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts tests/ssot-atomic.test.ts tests/ssot.test.ts tests/ontology-cli.test.ts tests/mcp-contract.test.ts tests/e2e/onboarding-project-registration-acceptance.spec.ts tests/e2e/onboarding-source-import-extract-acceptance.spec.ts
+
+
+ RUN  v4.1.8 /private/tmp/brainbase-oss-atomic-worktree
+
+
+ Test Files  8 passed (8)
+      Tests  50 passed (50)
+   Start at  22:16:40
+   Duration  1.17s (transform 889ms, setup 0ms, import 1.61s, tests 2.90s, environment 0ms)
+
+(node:23271) Warning: Failed to clean up committed SSOT transaction /var/folders/36/r4ggny5d7nqclz7vpc2hphgr0000gp/T/brainbase-atomic-h6OgfL/.brainbase-transaction-056e38aa-197c-4d67-8fea-99f8061986f0: Injected committed SSOT transaction cleanup failure
+(Use `node --trace-warnings ...` to show where the warning was created)

@@ -1,0 +1,169 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "created_at": "2026-08-03T13:55:10.850Z",
+  "recommended_decision": "split_pr",
+  "recommendation_reason": "Gate DAG is ready_for_review with 0 unresolved evidence item(s). Split Plan is split_recommended with strategy split_by_lane_then_prepare. Scope is reviewable; recommended strategy is current_branch_pr.",
+  "accepted_current_story_lineage": [],
+  "source_artifacts": {
+    "review_cockpit": null,
+    "architecture_review": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/architecture-review.json",
+    "pr_body": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/pr-body.md",
+    "gate_dag": null,
+    "split_plan": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/split-plan.json",
+    "decision_records": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/decision-records.json",
+    "visual_qa": []
+  },
+  "evidence_summary": {
+    "architecture": {
+      "status": "satisfied",
+      "required": true,
+      "reason": "ADRあり (docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md, docs/architecture/story-brainbase-local-ssot-atomic-commit.md)"
+    },
+    "spec": {
+      "status": "present",
+      "required": true,
+      "reason": "explicit Spec docs are present (docs/specs/local-ssot-atomic-commit.md)"
+    },
+    "decision_records": {
+      "total": 11,
+      "open": 0,
+      "by_type": {
+        "needs_review": 11
+      },
+      "by_status": {
+        "accepted": 11
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+          "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+          "expected_root": null,
+          "expected_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+          "current_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+          "managed_worktree": null
+        }
+      ],
+      "latest": {
+        "schema_version": "0.1.0",
+        "decision_id": "decision-1785761754360-9736621c",
+        "story_id": "story-brainbase-local-ssot-atomic-commit",
+        "type": "needs_review",
+        "status": "accepted",
+        "source": "gate:review_surface_integrity:rsv-fa2cb8f279327193",
+        "source_status": null,
+        "summary": "Reviewer inspected exact HEAD 48fc tracked Story, architecture, spec, runtime, and tests; only transient local VibePro/.gitignore bookkeeping changed during lifecycle.",
+        "reason": "HEAD did not move and inspected tracked blobs were unchanged. The transient worktree surface was restored and fresh strict-head reviews are being rerun on final c6a83ad52.",
+        "reviewer": "Sato-approved recommended path",
+        "artifact": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/surface-violations.json",
+        "verification_evidence_summary": {
+          "count": 2,
+          "entries": [
+            {
+              "path": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/build.json",
+              "type": "build",
+              "result": "pass"
+            },
+            {
+              "path": ".vibepro/pr/story-brainbase-local-ssot-atomic-commit/verification-runs/unit.json",
+              "type": "unit",
+              "result": "pass"
+            }
+          ]
+        },
+        "budget_approval": null,
+        "secret_exposure": null,
+        "redaction": {
+          "applied": false,
+          "hit_count": 0
+        },
+        "warnings": [
+          {
+            "id": "managed_worktree_locality",
+            "status": "needs_review",
+            "mode": "preferred",
+            "required": false,
+            "command_name": "decision record",
+            "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+            "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+            "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+            "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+            "expected_root": null,
+            "expected_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+            "current_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+            "managed_worktree": null
+          }
+        ],
+        "git_context": {
+          "head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+          "current_branch": "codex/oss-local-ssot-atomic-commit",
+          "dirty": false,
+          "status_fingerprint": "",
+          "recorded_at": "2026-08-03T12:55:54.357Z"
+        },
+        "recorded_at": "2026-08-03T12:55:54.360Z"
+      }
+    },
+    "visual_qa": null,
+    "completion_quality": {
+      "status": "ready_for_human_acceptance",
+      "e2e_experience_reach_rate": null,
+      "final_20_auto_closure_rate": null,
+      "visual_qa_pass_rate": null,
+      "required_evidence_count": 0
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-08-03T13:55:09.948Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.2",
+      "root": "/Users/ksato/.local/share/vibepro-cli"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/share/vibepro-cli/bin/vibepro.js",
+      "runtime_module": "/Users/ksato/.local/share/vibepro-cli/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "37418424323eb8574168ca026f40d7dde93004d5",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "35834070b9ac0841d3bac55884874ef6f9b4df6b",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M src/canonical-persistence.js",
+        " M src/merge-manager.js",
+        " M src/outcome-manager.js",
+        " M src/pr-manager.js",
+        " M src/validation-sequencing.js",
+        " M src/visual-verifier.js",
+        " M test/canonical-persistence.test.js",
+        " M test/vibepro-cli.test.js"
+      ]
+    }
+  },
+  "decision_options": [
+    "proceed",
+    "split_pr",
+    "add_evidence",
+    "waive_with_reason",
+    "block"
+  ],
+  "review_record": {
+    "selected_decision": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

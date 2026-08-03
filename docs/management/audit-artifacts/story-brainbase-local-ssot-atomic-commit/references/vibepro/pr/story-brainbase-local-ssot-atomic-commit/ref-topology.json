@@ -1,0 +1,51 @@
+{
+  "schema_version": "0.1.0",
+  "fetch_performed": false,
+  "remotes": [
+    {
+      "name": "origin",
+      "url": "https://github.com/Unson-LLC/brainbase.git"
+    }
+  ],
+  "refs": {
+    "base_ref": "origin/develop",
+    "head_ref": "HEAD",
+    "current_branch": "codex/oss-local-ssot-atomic-commit",
+    "base_sha": "9d705c7f9e9e70be70c179aa26b41400fe8bb7bf",
+    "head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+    "merge_base_sha": "9d705c7f9e9e70be70c179aa26b41400fe8bb7bf"
+  },
+  "base_selection": {
+    "ref": "origin/develop",
+    "explicit": true,
+    "rule": "cli_option"
+  },
+  "branches": [
+    {
+      "branch": "codex/oss-local-ssot-atomic-commit",
+      "local_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "remotes": {
+        "origin": "c6a83ad52bb31431a9b2936961f69c143b87352f"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    },
+    {
+      "branch": "develop",
+      "local_sha": null,
+      "remotes": {
+        "origin": "9d705c7f9e9e70be70c179aa26b41400fe8bb7bf"
+      },
+      "divergence": {
+        "local_vs_remote": false,
+        "remote_disagreement": false
+      }
+    }
+  ],
+  "divergence_flags": {
+    "head_contains_base": true,
+    "branch_divergence_detected": false
+  }
+}

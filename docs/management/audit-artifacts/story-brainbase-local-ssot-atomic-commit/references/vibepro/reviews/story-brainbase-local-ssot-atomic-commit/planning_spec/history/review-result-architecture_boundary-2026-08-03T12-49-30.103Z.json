@@ -1,0 +1,142 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "stage": "planning_spec",
+  "role": "architecture_boundary",
+  "status": "pass",
+  "summary": "Planning architecture boundaries, dependencies, exclusions and recovery semantics are coherent.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Reviewed Story, Architecture, ADR, Spec and README boundary disclosure at exact final HEAD.",
+    "evidence": "Same-host lock, aggregate API, recovery states, raw/network/power-loss exclusions and all public paths align; clean tree.",
+    "inputs": [
+      "docs/stories/local-ssot-atomic-commit-story.md",
+      "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+      "docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md",
+      "docs/specs/local-ssot-atomic-commit.md"
+    ]
+  },
+  "judgment_delta": [
+    "Boundary ambiguity concern -> pass because responsibilities, recovery state machine, exclusions and path coverage are explicit and aligned."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "expected_root": null,
+    "expected_head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+    "current_head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "expected_root": null,
+      "expected_head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "current_head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-03T12:49:30.103Z",
+  "git_context": {
+    "head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+    "current_branch": "codex/oss-local-ssot-atomic-commit",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-03T12:49:30.094Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "exact final planning HEAD"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+    "surface_files": [
+      {
+        "path": "docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md",
+        "sha256": "d29ee7677a35e70a89046432f11c2beefe122d9f273afe7dcc256c27f4ee4d4e",
+        "size": 4043
+      },
+      {
+        "path": "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+        "sha256": "d9330938d977517b5c4d48587b657e4b74a4cd0276b1fa0ee4a93effe70260b3",
+        "size": 7961
+      },
+      {
+        "path": "docs/specs/local-ssot-atomic-commit.md",
+        "sha256": "deedf4aa38778fccb2c252f1e8dd51a3d1e6e1e5b7cf51cb38168d399bb1ecb9",
+        "size": 6286
+      },
+      {
+        "path": "docs/stories/local-ssot-atomic-commit-story.md",
+        "sha256": "9dc1ec0cac2b9ecc3d15a111c42c607b1851b6a38cfb3698500aa45f056e2fbc",
+        "size": 3932
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "4d6bea8eaf5472e632778e5e56dd69a7b764993c104155f9d57f5f1ad15f6d4f"
+  },
+  "source_fingerprint": "063114cbe5fc0bdbf725c918a66737e8bed7103b95e712847da7f69c55af54d2",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "plan-arch48",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ps_arch_boundary_v2",
+    "session_id": "plan-arch-48fc",
+    "tool_call_id": null,
+    "transcript_artifact": "../../../root/ps_arch_boundary_v2:plan-arch-48fc",
+    "request_artifact": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-request-architecture_boundary.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "subagent PASS; no findings",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "plan-arch-48fc",
+      "implementation_session_id": "root-oss-local-ssot-atomic",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

@@ -1,0 +1,513 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-design-ssot-reconciliation-v1",
+  "workflow": "design-ssot-reconcile",
+  "status": "not_applicable",
+  "generated_at": "2026-08-03T13:55:10.577Z",
+  "registry_sources": [],
+  "changed_paths": [
+    "README.md",
+    "docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md",
+    "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+    "docs/management/decisions/2026-08-03-budget-override-story-brainbase-local-ssot-atomic-commit-2936ac09.md",
+    "docs/management/decisions/2026-08-03-budget-override-story-brainbase-local-ssot-atomic-commit-42b4a1d8.md",
+    "docs/management/decisions/2026-08-03-budget-override-story-brainbase-local-ssot-atomic-commit-9635041d.md",
+    "docs/management/decisions/2026-08-03-budget-override-story-brainbase-local-ssot-atomic-commit-e473c930.md",
+    "docs/specs/local-ssot-atomic-commit.md",
+    "docs/stories/local-ssot-atomic-commit-story.md",
+    "src/cli.ts",
+    "src/ssot.ts",
+    "tests/helpers/ssot-writer.ts",
+    "tests/ssot-atomic.test.ts",
+    "tests/ssot.test.ts"
+  ],
+  "summary": {
+    "registry_source_count": 0,
+    "design_root_count": 0,
+    "changed_design_root_count": 0,
+    "changed_child_count": 0,
+    "missing_required_child_count": 0,
+    "stale_child_count": 0,
+    "frontmatter_gap_count": 0,
+    "coverage_gap_count": 0,
+    "contradiction_count": 0,
+    "action_item_count": 0
+  },
+  "coverage": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-design-ssot-coverage-v1",
+    "workflow": "design-ssot-coverage",
+    "status": "not_applicable",
+    "generated_at": "2026-08-03T13:55:10.577Z",
+    "registry_sources": [],
+    "changed_paths": [
+      "README.md",
+      "docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md",
+      "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+      "docs/management/decisions/2026-08-03-budget-override-story-brainbase-local-ssot-atomic-commit-2936ac09.md",
+      "docs/management/decisions/2026-08-03-budget-override-story-brainbase-local-ssot-atomic-commit-42b4a1d8.md",
+      "docs/management/decisions/2026-08-03-budget-override-story-brainbase-local-ssot-atomic-commit-9635041d.md",
+      "docs/management/decisions/2026-08-03-budget-override-story-brainbase-local-ssot-atomic-commit-e473c930.md",
+      "docs/specs/local-ssot-atomic-commit.md",
+      "docs/stories/local-ssot-atomic-commit-story.md",
+      "src/cli.ts",
+      "src/ssot.ts",
+      "tests/helpers/ssot-writer.ts",
+      "tests/ssot-atomic.test.ts",
+      "tests/ssot.test.ts"
+    ],
+    "summary": {
+      "registry_source_count": 0,
+      "design_root_count": 0,
+      "total_design_doc_count": 40,
+      "registered_root_count": 0,
+      "registered_child_count": 0,
+      "registered_doc_count": 0,
+      "unregistered_doc_count": 40,
+      "changed_design_doc_count": 4,
+      "changed_unregistered_design_doc_count": 4,
+      "parent_design_declared_count": 0
+    },
+    "registered_docs": [],
+    "unregistered_docs": [
+      {
+        "path": "docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md",
+        "kind": "adr",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/agent-assisted-source-onboarding.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/guided-first-run-onboarding.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/onboarding-project-registration.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/onboarding-routine-registration.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/onboarding-skills-installer.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/onboarding-source-import-extract.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/otawara-gws-local-onboarding.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/source-diagnosis-candidates-onboarding.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/story-brainbase-portable-ontology-kernel.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/value-first-onboarding.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/agent-assisted-source-onboarding-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/brainbase-mcp-only-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/brainbase-portable-ontology-kernel.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/guided-first-run-onboarding.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/local-ssot-atomic-commit.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/onboarding-first-value-experience-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/onboarding-operationalization-next-actions-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/onboarding-project-registration-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/onboarding-routine-registration-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/onboarding-skills-installer-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/onboarding-source-import-extract-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/otawara-gws-local-onboarding-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/source-diagnosis-candidates-onboarding-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/value-first-onboarding-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/agent-assisted-source-onboarding.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/brainbase-mcp-only.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/guided-first-run-onboarding.md",
+        "kind": "story",
+        "title": "Brainbase初回オンボーディングを日本語ガイドで一括開始する",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/local-ssot-atomic-commit-story.md",
+        "kind": "story",
+        "title": "並行更新でもローカルSSOTを一つの整合した状態として保存する",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/onboarding-first-value-experience.md",
+        "kind": "story",
+        "title": "Onboarding first value experience output",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/onboarding-operationalization-next-actions.md",
+        "kind": "story",
+        "title": "Onboarding operationalization next actions",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/onboarding-project-registration.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/onboarding-routine-registration.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/onboarding-skills-installer.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/onboarding-source-import-extract.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/otawara-gws-local-onboarding.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/portable-ontology-kernel-story.md",
+        "kind": "story",
+        "title": "ローカルSSOTを同じ意味で検証・推論できるPortable Ontology Kernel",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/source-diagnosis-candidates-onboarding.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/value-first-onboarding.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      }
+    ],
+    "changed_docs": [
+      {
+        "path": "docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md",
+        "kind": "adr",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/local-ssot-atomic-commit.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/local-ssot-atomic-commit-story.md",
+        "kind": "story",
+        "title": "並行更新でもローカルSSOTを一つの整合した状態として保存する",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      }
+    ],
+    "unregistered_changed_docs": [
+      {
+        "path": "docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md",
+        "kind": "adr",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/local-ssot-atomic-commit.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/local-ssot-atomic-commit-story.md",
+        "kind": "story",
+        "title": "並行更新でもローカルSSOTを一つの整合した状態として保存する",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      }
+    ]
+  },
+  "design_roots": [],
+  "action_items": []
+}

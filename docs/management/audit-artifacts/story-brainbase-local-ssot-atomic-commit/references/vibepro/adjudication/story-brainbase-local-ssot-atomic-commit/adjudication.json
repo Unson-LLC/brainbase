@@ -1,0 +1,392 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-evidence-adjudication-v1",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "updated_at": "2026-08-03T13:05:09.230Z",
+  "verdicts": [
+    {
+      "clause_id": "AC-12",
+      "verdict": "demonstrated",
+      "reason": "Exact HEAD passed targeted 17 tests, full 22 files/152 tests, independent-process coverage, build and diff-check.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "acc6",
+        "session_ref": "/root/atomic_commit_test_design:ac-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-local-ssot-atomic-commit",
+        "task_id": null,
+        "acceptance_criteria": [
+          "canonical writeはプロセス間排他の中で`load → mutate → ontology validation → publish`を実行する。",
+          "`initializePersonalOs`による4 canonical filesの初回作成も、同じlockとrecovery境界を使う。",
+          "2つの別プロセスによる並行writeでlost updateが発生しない。",
+          "通常mutationのpublish途中の失敗は4ファイルすべてを完全な`previous`へrollbackし、登録済み初期化のpublish途中の失敗は完全な`next`へroll forwardする。",
+          "process crashでtransaction残骸が残っても、次のBrainbase read/writeは通常mutationを完全な`previous` aggregateへrollbackし、初期化を完全な`next` aggregateへroll forwardする。",
+          "active writerのlockは奪わず、回復不能またはlock timeoutはfail loudする。",
+          "`onboard:seed`、`onboard:projects --write`、`onboard:apply --write`が同じatomic commit境界を使う。",
+          "個別fileの低水準write helperをpublic APIにせず、canonical aggregate writeがatomicityとOntology guardを迂回できない。",
+          "既存の4 canonical file名・schema・MCP read contractを維持する。",
+          "通常のCLI/MCP readはlock・recovery errorをrejectし、`audit_ontology`は既存contractどおり`status: unverified`として返す。",
+          "Brainbase API/CLIを経由しないraw fileの同時直接readはatomic保証外であることを文書化する。",
+          "targeted test、別process concurrency test、full test、buildで現在HEADを検証する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "dc097f2b4096d4f7a5c5d5c23a87003247dae1820aab07aa0ada0bc2ec4678ad",
+      "recorded_at": "2026-08-03T13:05:09.227Z"
+    },
+    {
+      "clause_id": "AC-11",
+      "verdict": "demonstrated",
+      "reason": "README explicitly excludes concurrent raw filesystem readers from atomic consistency guarantees.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "acc6",
+        "session_ref": "/root/atomic_commit_test_design:ac-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-local-ssot-atomic-commit",
+        "task_id": null,
+        "acceptance_criteria": [
+          "canonical writeはプロセス間排他の中で`load → mutate → ontology validation → publish`を実行する。",
+          "`initializePersonalOs`による4 canonical filesの初回作成も、同じlockとrecovery境界を使う。",
+          "2つの別プロセスによる並行writeでlost updateが発生しない。",
+          "通常mutationのpublish途中の失敗は4ファイルすべてを完全な`previous`へrollbackし、登録済み初期化のpublish途中の失敗は完全な`next`へroll forwardする。",
+          "process crashでtransaction残骸が残っても、次のBrainbase read/writeは通常mutationを完全な`previous` aggregateへrollbackし、初期化を完全な`next` aggregateへroll forwardする。",
+          "active writerのlockは奪わず、回復不能またはlock timeoutはfail loudする。",
+          "`onboard:seed`、`onboard:projects --write`、`onboard:apply --write`が同じatomic commit境界を使う。",
+          "個別fileの低水準write helperをpublic APIにせず、canonical aggregate writeがatomicityとOntology guardを迂回できない。",
+          "既存の4 canonical file名・schema・MCP read contractを維持する。",
+          "通常のCLI/MCP readはlock・recovery errorをrejectし、`audit_ontology`は既存contractどおり`status: unverified`として返す。",
+          "Brainbase API/CLIを経由しないraw fileの同時直接readはatomic保証外であることを文書化する。",
+          "targeted test、別process concurrency test、full test、buildで現在HEADを検証する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "dc097f2b4096d4f7a5c5d5c23a87003247dae1820aab07aa0ada0bc2ec4678ad",
+      "recorded_at": "2026-08-03T13:05:08.915Z"
+    },
+    {
+      "clause_id": "AC-10",
+      "verdict": "demonstrated",
+      "reason": "CLI and normal MCP reads reject load/recovery errors; audit_ontology returns unverified for unavailable source.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "acc6",
+        "session_ref": "/root/atomic_commit_test_design:ac-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-local-ssot-atomic-commit",
+        "task_id": null,
+        "acceptance_criteria": [
+          "canonical writeはプロセス間排他の中で`load → mutate → ontology validation → publish`を実行する。",
+          "`initializePersonalOs`による4 canonical filesの初回作成も、同じlockとrecovery境界を使う。",
+          "2つの別プロセスによる並行writeでlost updateが発生しない。",
+          "通常mutationのpublish途中の失敗は4ファイルすべてを完全な`previous`へrollbackし、登録済み初期化のpublish途中の失敗は完全な`next`へroll forwardする。",
+          "process crashでtransaction残骸が残っても、次のBrainbase read/writeは通常mutationを完全な`previous` aggregateへrollbackし、初期化を完全な`next` aggregateへroll forwardする。",
+          "active writerのlockは奪わず、回復不能またはlock timeoutはfail loudする。",
+          "`onboard:seed`、`onboard:projects --write`、`onboard:apply --write`が同じatomic commit境界を使う。",
+          "個別fileの低水準write helperをpublic APIにせず、canonical aggregate writeがatomicityとOntology guardを迂回できない。",
+          "既存の4 canonical file名・schema・MCP read contractを維持する。",
+          "通常のCLI/MCP readはlock・recovery errorをrejectし、`audit_ontology`は既存contractどおり`status: unverified`として返す。",
+          "Brainbase API/CLIを経由しないraw fileの同時直接readはatomic保証外であることを文書化する。",
+          "targeted test、別process concurrency test、full test、buildで現在HEADを検証する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "dc097f2b4096d4f7a5c5d5c23a87003247dae1820aab07aa0ada0bc2ec4678ad",
+      "recorded_at": "2026-08-03T13:05:08.623Z"
+    },
+    {
+      "clause_id": "AC-9",
+      "verdict": "demonstrated",
+      "reason": "Canonical names, serializers, schema, legacy aggregate shape and MCP read contract remain compatible.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "acc6",
+        "session_ref": "/root/atomic_commit_test_design:ac-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-local-ssot-atomic-commit",
+        "task_id": null,
+        "acceptance_criteria": [
+          "canonical writeはプロセス間排他の中で`load → mutate → ontology validation → publish`を実行する。",
+          "`initializePersonalOs`による4 canonical filesの初回作成も、同じlockとrecovery境界を使う。",
+          "2つの別プロセスによる並行writeでlost updateが発生しない。",
+          "通常mutationのpublish途中の失敗は4ファイルすべてを完全な`previous`へrollbackし、登録済み初期化のpublish途中の失敗は完全な`next`へroll forwardする。",
+          "process crashでtransaction残骸が残っても、次のBrainbase read/writeは通常mutationを完全な`previous` aggregateへrollbackし、初期化を完全な`next` aggregateへroll forwardする。",
+          "active writerのlockは奪わず、回復不能またはlock timeoutはfail loudする。",
+          "`onboard:seed`、`onboard:projects --write`、`onboard:apply --write`が同じatomic commit境界を使う。",
+          "個別fileの低水準write helperをpublic APIにせず、canonical aggregate writeがatomicityとOntology guardを迂回できない。",
+          "既存の4 canonical file名・schema・MCP read contractを維持する。",
+          "通常のCLI/MCP readはlock・recovery errorをrejectし、`audit_ontology`は既存contractどおり`status: unverified`として返す。",
+          "Brainbase API/CLIを経由しないraw fileの同時直接readはatomic保証外であることを文書化する。",
+          "targeted test、別process concurrency test、full test、buildで現在HEADを検証する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "dc097f2b4096d4f7a5c5d5c23a87003247dae1820aab07aa0ada0bc2ec4678ad",
+      "recorded_at": "2026-08-03T13:05:08.291Z"
+    },
+    {
+      "clause_id": "AC-8",
+      "verdict": "demonstrated",
+      "reason": "Public storage writes are limited to validated aggregate operations; low-level aggregate/publish helpers are not exported.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "acc6",
+        "session_ref": "/root/atomic_commit_test_design:ac-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-local-ssot-atomic-commit",
+        "task_id": null,
+        "acceptance_criteria": [
+          "canonical writeはプロセス間排他の中で`load → mutate → ontology validation → publish`を実行する。",
+          "`initializePersonalOs`による4 canonical filesの初回作成も、同じlockとrecovery境界を使う。",
+          "2つの別プロセスによる並行writeでlost updateが発生しない。",
+          "通常mutationのpublish途中の失敗は4ファイルすべてを完全な`previous`へrollbackし、登録済み初期化のpublish途中の失敗は完全な`next`へroll forwardする。",
+          "process crashでtransaction残骸が残っても、次のBrainbase read/writeは通常mutationを完全な`previous` aggregateへrollbackし、初期化を完全な`next` aggregateへroll forwardする。",
+          "active writerのlockは奪わず、回復不能またはlock timeoutはfail loudする。",
+          "`onboard:seed`、`onboard:projects --write`、`onboard:apply --write`が同じatomic commit境界を使う。",
+          "個別fileの低水準write helperをpublic APIにせず、canonical aggregate writeがatomicityとOntology guardを迂回できない。",
+          "既存の4 canonical file名・schema・MCP read contractを維持する。",
+          "通常のCLI/MCP readはlock・recovery errorをrejectし、`audit_ontology`は既存contractどおり`status: unverified`として返す。",
+          "Brainbase API/CLIを経由しないraw fileの同時直接readはatomic保証外であることを文書化する。",
+          "targeted test、別process concurrency test、full test、buildで現在HEADを検証する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "dc097f2b4096d4f7a5c5d5c23a87003247dae1820aab07aa0ada0bc2ec4678ad",
+      "recorded_at": "2026-08-03T13:05:08.013Z"
+    },
+    {
+      "clause_id": "AC-7",
+      "verdict": "demonstrated",
+      "reason": "seed, projects --write and apply --write all use mutatePersonalOs and preserve concurrent updates.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "acc6",
+        "session_ref": "/root/atomic_commit_test_design:ac-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-local-ssot-atomic-commit",
+        "task_id": null,
+        "acceptance_criteria": [
+          "canonical writeはプロセス間排他の中で`load → mutate → ontology validation → publish`を実行する。",
+          "`initializePersonalOs`による4 canonical filesの初回作成も、同じlockとrecovery境界を使う。",
+          "2つの別プロセスによる並行writeでlost updateが発生しない。",
+          "通常mutationのpublish途中の失敗は4ファイルすべてを完全な`previous`へrollbackし、登録済み初期化のpublish途中の失敗は完全な`next`へroll forwardする。",
+          "process crashでtransaction残骸が残っても、次のBrainbase read/writeは通常mutationを完全な`previous` aggregateへrollbackし、初期化を完全な`next` aggregateへroll forwardする。",
+          "active writerのlockは奪わず、回復不能またはlock timeoutはfail loudする。",
+          "`onboard:seed`、`onboard:projects --write`、`onboard:apply --write`が同じatomic commit境界を使う。",
+          "個別fileの低水準write helperをpublic APIにせず、canonical aggregate writeがatomicityとOntology guardを迂回できない。",
+          "既存の4 canonical file名・schema・MCP read contractを維持する。",
+          "通常のCLI/MCP readはlock・recovery errorをrejectし、`audit_ontology`は既存contractどおり`status: unverified`として返す。",
+          "Brainbase API/CLIを経由しないraw fileの同時直接readはatomic保証外であることを文書化する。",
+          "targeted test、別process concurrency test、full test、buildで現在HEADを検証する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "dc097f2b4096d4f7a5c5d5c23a87003247dae1820aab07aa0ada0bc2ec4678ad",
+      "recorded_at": "2026-08-03T13:05:07.677Z"
+    },
+    {
+      "clause_id": "AC-6",
+      "verdict": "demonstrated",
+      "reason": "Live, foreign and incomplete locks are not stolen; dead same-host locks alone are isolated; malformed or failed recovery rejects loudly.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "acc6",
+        "session_ref": "/root/atomic_commit_test_design:ac-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-local-ssot-atomic-commit",
+        "task_id": null,
+        "acceptance_criteria": [
+          "canonical writeはプロセス間排他の中で`load → mutate → ontology validation → publish`を実行する。",
+          "`initializePersonalOs`による4 canonical filesの初回作成も、同じlockとrecovery境界を使う。",
+          "2つの別プロセスによる並行writeでlost updateが発生しない。",
+          "通常mutationのpublish途中の失敗は4ファイルすべてを完全な`previous`へrollbackし、登録済み初期化のpublish途中の失敗は完全な`next`へroll forwardする。",
+          "process crashでtransaction残骸が残っても、次のBrainbase read/writeは通常mutationを完全な`previous` aggregateへrollbackし、初期化を完全な`next` aggregateへroll forwardする。",
+          "active writerのlockは奪わず、回復不能またはlock timeoutはfail loudする。",
+          "`onboard:seed`、`onboard:projects --write`、`onboard:apply --write`が同じatomic commit境界を使う。",
+          "個別fileの低水準write helperをpublic APIにせず、canonical aggregate writeがatomicityとOntology guardを迂回できない。",
+          "既存の4 canonical file名・schema・MCP read contractを維持する。",
+          "通常のCLI/MCP readはlock・recovery errorをrejectし、`audit_ontology`は既存contractどおり`status: unverified`として返す。",
+          "Brainbase API/CLIを経由しないraw fileの同時直接readはatomic保証外であることを文書化する。",
+          "targeted test、別process concurrency test、full test、buildで現在HEADを検証する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "dc097f2b4096d4f7a5c5d5c23a87003247dae1820aab07aa0ada0bc2ec4678ad",
+      "recorded_at": "2026-08-03T13:05:07.306Z"
+    },
+    {
+      "clause_id": "AC-5",
+      "verdict": "demonstrated",
+      "reason": "Reads and writes recover first; unfinished mutation/init and retained rollback-failure transaction retry are directly tested.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "acc6",
+        "session_ref": "/root/atomic_commit_test_design:ac-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-local-ssot-atomic-commit",
+        "task_id": null,
+        "acceptance_criteria": [
+          "canonical writeはプロセス間排他の中で`load → mutate → ontology validation → publish`を実行する。",
+          "`initializePersonalOs`による4 canonical filesの初回作成も、同じlockとrecovery境界を使う。",
+          "2つの別プロセスによる並行writeでlost updateが発生しない。",
+          "通常mutationのpublish途中の失敗は4ファイルすべてを完全な`previous`へrollbackし、登録済み初期化のpublish途中の失敗は完全な`next`へroll forwardする。",
+          "process crashでtransaction残骸が残っても、次のBrainbase read/writeは通常mutationを完全な`previous` aggregateへrollbackし、初期化を完全な`next` aggregateへroll forwardする。",
+          "active writerのlockは奪わず、回復不能またはlock timeoutはfail loudする。",
+          "`onboard:seed`、`onboard:projects --write`、`onboard:apply --write`が同じatomic commit境界を使う。",
+          "個別fileの低水準write helperをpublic APIにせず、canonical aggregate writeがatomicityとOntology guardを迂回できない。",
+          "既存の4 canonical file名・schema・MCP read contractを維持する。",
+          "通常のCLI/MCP readはlock・recovery errorをrejectし、`audit_ontology`は既存contractどおり`status: unverified`として返す。",
+          "Brainbase API/CLIを経由しないraw fileの同時直接readはatomic保証外であることを文書化する。",
+          "targeted test、別process concurrency test、full test、buildで現在HEADを検証する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "dc097f2b4096d4f7a5c5d5c23a87003247dae1820aab07aa0ada0bc2ec4678ad",
+      "recorded_at": "2026-08-03T13:05:06.890Z"
+    },
+    {
+      "clause_id": "AC-4",
+      "verdict": "demonstrated",
+      "reason": "Mutation publish failure restores all four previous files; registered initialization partial state rolls forward to the complete next snapshot.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "acc6",
+        "session_ref": "/root/atomic_commit_test_design:ac-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-local-ssot-atomic-commit",
+        "task_id": null,
+        "acceptance_criteria": [
+          "canonical writeはプロセス間排他の中で`load → mutate → ontology validation → publish`を実行する。",
+          "`initializePersonalOs`による4 canonical filesの初回作成も、同じlockとrecovery境界を使う。",
+          "2つの別プロセスによる並行writeでlost updateが発生しない。",
+          "通常mutationのpublish途中の失敗は4ファイルすべてを完全な`previous`へrollbackし、登録済み初期化のpublish途中の失敗は完全な`next`へroll forwardする。",
+          "process crashでtransaction残骸が残っても、次のBrainbase read/writeは通常mutationを完全な`previous` aggregateへrollbackし、初期化を完全な`next` aggregateへroll forwardする。",
+          "active writerのlockは奪わず、回復不能またはlock timeoutはfail loudする。",
+          "`onboard:seed`、`onboard:projects --write`、`onboard:apply --write`が同じatomic commit境界を使う。",
+          "個別fileの低水準write helperをpublic APIにせず、canonical aggregate writeがatomicityとOntology guardを迂回できない。",
+          "既存の4 canonical file名・schema・MCP read contractを維持する。",
+          "通常のCLI/MCP readはlock・recovery errorをrejectし、`audit_ontology`は既存contractどおり`status: unverified`として返す。",
+          "Brainbase API/CLIを経由しないraw fileの同時直接readはatomic保証外であることを文書化する。",
+          "targeted test、別process concurrency test、full test、buildで現在HEADを検証する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "dc097f2b4096d4f7a5c5d5c23a87003247dae1820aab07aa0ada0bc2ec4678ad",
+      "recorded_at": "2026-08-03T13:05:06.653Z"
+    },
+    {
+      "clause_id": "AC-3",
+      "verdict": "demonstrated",
+      "reason": "Two independent Node processes update the same SSOT concurrently and both updates remain.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "acc6",
+        "session_ref": "/root/atomic_commit_test_design:ac-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-local-ssot-atomic-commit",
+        "task_id": null,
+        "acceptance_criteria": [
+          "canonical writeはプロセス間排他の中で`load → mutate → ontology validation → publish`を実行する。",
+          "`initializePersonalOs`による4 canonical filesの初回作成も、同じlockとrecovery境界を使う。",
+          "2つの別プロセスによる並行writeでlost updateが発生しない。",
+          "通常mutationのpublish途中の失敗は4ファイルすべてを完全な`previous`へrollbackし、登録済み初期化のpublish途中の失敗は完全な`next`へroll forwardする。",
+          "process crashでtransaction残骸が残っても、次のBrainbase read/writeは通常mutationを完全な`previous` aggregateへrollbackし、初期化を完全な`next` aggregateへroll forwardする。",
+          "active writerのlockは奪わず、回復不能またはlock timeoutはfail loudする。",
+          "`onboard:seed`、`onboard:projects --write`、`onboard:apply --write`が同じatomic commit境界を使う。",
+          "個別fileの低水準write helperをpublic APIにせず、canonical aggregate writeがatomicityとOntology guardを迂回できない。",
+          "既存の4 canonical file名・schema・MCP read contractを維持する。",
+          "通常のCLI/MCP readはlock・recovery errorをrejectし、`audit_ontology`は既存contractどおり`status: unverified`として返す。",
+          "Brainbase API/CLIを経由しないraw fileの同時直接readはatomic保証外であることを文書化する。",
+          "targeted test、別process concurrency test、full test、buildで現在HEADを検証する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "dc097f2b4096d4f7a5c5d5c23a87003247dae1820aab07aa0ada0bc2ec4678ad",
+      "recorded_at": "2026-08-03T13:05:06.363Z"
+    },
+    {
+      "clause_id": "AC-2",
+      "verdict": "demonstrated",
+      "reason": "initializePersonalOs uses the same lock, recovery and aggregate commit boundary; concurrent initialization and reader/writer waiting are tested.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "acc6",
+        "session_ref": "/root/atomic_commit_test_design:ac-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-local-ssot-atomic-commit",
+        "task_id": null,
+        "acceptance_criteria": [
+          "canonical writeはプロセス間排他の中で`load → mutate → ontology validation → publish`を実行する。",
+          "`initializePersonalOs`による4 canonical filesの初回作成も、同じlockとrecovery境界を使う。",
+          "2つの別プロセスによる並行writeでlost updateが発生しない。",
+          "通常mutationのpublish途中の失敗は4ファイルすべてを完全な`previous`へrollbackし、登録済み初期化のpublish途中の失敗は完全な`next`へroll forwardする。",
+          "process crashでtransaction残骸が残っても、次のBrainbase read/writeは通常mutationを完全な`previous` aggregateへrollbackし、初期化を完全な`next` aggregateへroll forwardする。",
+          "active writerのlockは奪わず、回復不能またはlock timeoutはfail loudする。",
+          "`onboard:seed`、`onboard:projects --write`、`onboard:apply --write`が同じatomic commit境界を使う。",
+          "個別fileの低水準write helperをpublic APIにせず、canonical aggregate writeがatomicityとOntology guardを迂回できない。",
+          "既存の4 canonical file名・schema・MCP read contractを維持する。",
+          "通常のCLI/MCP readはlock・recovery errorをrejectし、`audit_ontology`は既存contractどおり`status: unverified`として返す。",
+          "Brainbase API/CLIを経由しないraw fileの同時直接readはatomic保証外であることを文書化する。",
+          "targeted test、別process concurrency test、full test、buildで現在HEADを検証する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "dc097f2b4096d4f7a5c5d5c23a87003247dae1820aab07aa0ada0bc2ec4678ad",
+      "recorded_at": "2026-08-03T13:05:06.126Z"
+    },
+    {
+      "clause_id": "AC-1",
+      "verdict": "demonstrated",
+      "reason": "mutatePersonalOs performs recovery, load, mutation, ontology validation and aggregate publish under one process lock; invalid aggregate leaves canonical files unchanged.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "acc6",
+        "session_ref": "/root/atomic_commit_test_design:ac-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-local-ssot-atomic-commit",
+        "task_id": null,
+        "acceptance_criteria": [
+          "canonical writeはプロセス間排他の中で`load → mutate → ontology validation → publish`を実行する。",
+          "`initializePersonalOs`による4 canonical filesの初回作成も、同じlockとrecovery境界を使う。",
+          "2つの別プロセスによる並行writeでlost updateが発生しない。",
+          "通常mutationのpublish途中の失敗は4ファイルすべてを完全な`previous`へrollbackし、登録済み初期化のpublish途中の失敗は完全な`next`へroll forwardする。",
+          "process crashでtransaction残骸が残っても、次のBrainbase read/writeは通常mutationを完全な`previous` aggregateへrollbackし、初期化を完全な`next` aggregateへroll forwardする。",
+          "active writerのlockは奪わず、回復不能またはlock timeoutはfail loudする。",
+          "`onboard:seed`、`onboard:projects --write`、`onboard:apply --write`が同じatomic commit境界を使う。",
+          "個別fileの低水準write helperをpublic APIにせず、canonical aggregate writeがatomicityとOntology guardを迂回できない。",
+          "既存の4 canonical file名・schema・MCP read contractを維持する。",
+          "通常のCLI/MCP readはlock・recovery errorをrejectし、`audit_ontology`は既存contractどおり`status: unverified`として返す。",
+          "Brainbase API/CLIを経由しないraw fileの同時直接readはatomic保証外であることを文書化する。",
+          "targeted test、別process concurrency test、full test、buildで現在HEADを検証する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "dc097f2b4096d4f7a5c5d5c23a87003247dae1820aab07aa0ada0bc2ec4678ad",
+      "recorded_at": "2026-08-03T13:05:05.876Z"
+    }
+  ]
+}

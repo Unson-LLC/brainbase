@@ -1,0 +1,166 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "stage": "implementation",
+  "role": "code_spec_alignment",
+  "status": "pass",
+  "summary": "Atomic commit, lock, recovery, validation and CLI/MCP integration align with Story, Architecture and Spec.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Covered initialize/load/mutate, PREPARED/COMMITTED recovery, rollback/rollforward, malformed transaction, retry, cleanup warning and all CLI writers.",
+    "evidence": "Exact-head targeted 17/17, full 152/152, build pass; current VibePro verification key is fresh.",
+    "inputs": [
+      "docs/stories/local-ssot-atomic-commit-story.md",
+      "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+      "docs/specs/local-ssot-atomic-commit.md",
+      "src/ssot.ts",
+      "src/cli.ts",
+      "tests/ssot-atomic.test.ts",
+      "tests/ssot.test.ts",
+      "tests/ontology-cli.test.ts"
+    ]
+  },
+  "judgment_delta": [
+    "Prior recovery-negative coverage gap -> four direct branch fixtures now prove fail-loud, transaction retention and retry outcomes."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "expected_root": null,
+    "expected_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+    "current_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "expected_root": null,
+      "expected_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "current_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-03T13:08:07.807Z",
+  "git_context": {
+    "head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+    "current_branch": "codex/oss-local-ssot-atomic-commit",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-03T13:08:07.795Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "Final implementation HEAD code-spec review"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+    "surface_files": [
+      {
+        "path": "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+        "sha256": "d9330938d977517b5c4d48587b657e4b74a4cd0276b1fa0ee4a93effe70260b3",
+        "size": 7961
+      },
+      {
+        "path": "docs/specs/local-ssot-atomic-commit.md",
+        "sha256": "deedf4aa38778fccb2c252f1e8dd51a3d1e6e1e5b7cf51cb38168d399bb1ecb9",
+        "size": 6286
+      },
+      {
+        "path": "docs/stories/local-ssot-atomic-commit-story.md",
+        "sha256": "9dc1ec0cac2b9ecc3d15a111c42c607b1851b6a38cfb3698500aa45f056e2fbc",
+        "size": 3932
+      },
+      {
+        "path": "src/cli.ts",
+        "sha256": "b560c7dfdecf033c1ee05fcbdceca914d3cb5dab634c5236988dc7e17f2bcb05",
+        "size": 35755
+      },
+      {
+        "path": "src/ssot.ts",
+        "sha256": "d2ad08cacb2f9207355d8dbeb9e9b300dd645502ae61d6f6ef8700bc02b6df5f",
+        "size": 16451
+      },
+      {
+        "path": "tests/ontology-cli.test.ts",
+        "sha256": "99169c2a666116760227cf8c0907f7e72d9d2e3ecfc9a8ad93d7b8e03719bdbe",
+        "size": 5369
+      },
+      {
+        "path": "tests/ssot-atomic.test.ts",
+        "sha256": "d3094f75b616eca469f12d3ce84eee1c2deb9066acdacb5ec892f2b59b1b7683",
+        "size": 15439
+      },
+      {
+        "path": "tests/ssot.test.ts",
+        "sha256": "931d1b61cd657f2845839f1ebe53b81f0210d4d010799cd322cb5849c3e18038",
+        "size": 11317
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "34c295589ee0ed508f5110051f055523aaf5c5e4695ee6fe25b0650ac2c5eb79"
+  },
+  "source_fingerprint": "3ce37d9f746d95d61a6de69b0d05f6349c90b17f24e2c966324599fbf4d2400b",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "implcodec6",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ps_spec_consistency_v2",
+    "session_id": "impl-code-c6",
+    "tool_call_id": null,
+    "transcript_artifact": "../../../root/ps_spec_consistency_v2:impl-code-c6",
+    "request_artifact": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/implementation/review-request-code_spec_alignment.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "Fresh PASS exact c6a83ad; no findings",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "impl-code-c6",
+      "implementation_session_id": "root-oss-local-ssot-atomic",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

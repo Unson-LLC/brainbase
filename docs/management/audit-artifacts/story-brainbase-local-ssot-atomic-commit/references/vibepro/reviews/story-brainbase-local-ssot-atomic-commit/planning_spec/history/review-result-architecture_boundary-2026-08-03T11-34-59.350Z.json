@@ -1,0 +1,148 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "stage": "planning_spec",
+  "role": "architecture_boundary",
+  "status": "needs_changes",
+  "summary": "One generic rollback statement still conflicts with initialization roll-forward; scope it to normal mutations in Story, ADR, and test oracle.",
+  "findings": [
+    {
+      "severity": "medium",
+      "id": "spec-init-recovery-semantics-still-conflict",
+      "detail": "Story publish-failure AC and ADR publication-failure paragraph remain generic although registered initialization has no previous snapshot; scope rollback to normal mutation and explicitly test initialization roll-forward."
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Inspected Story, Architecture, ADR, prose/machine Specs, README, and actual SSOT/CLI/MCP/audit call sites; raw-reader boundary and retained-next design are otherwise resolved.",
+    "evidence": "HEAD 366a449b112b64ff0069535689e2671555394866; Story lines 33-44; ADR lines 31-55",
+    "inputs": [
+      "docs/stories/local-ssot-atomic-commit-story.md",
+      "docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md",
+      "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+      "docs/specs/local-ssot-atomic-commit.md"
+    ]
+  },
+  "judgment_delta": [
+    "expected full alignment -> one remaining generic failure statement requires mode-specific wording"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+    "expected_root": null,
+    "expected_head_sha": "366a449b112b64ff0069535689e2671555394866",
+    "current_head_sha": "366a449b112b64ff0069535689e2671555394866",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "actual_root": "/private/tmp/brainbase-oss-atomic-worktree",
+      "expected_root": null,
+      "expected_head_sha": "366a449b112b64ff0069535689e2671555394866",
+      "current_head_sha": "366a449b112b64ff0069535689e2671555394866",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-03T11:34:59.350Z",
+  "git_context": {
+    "head_sha": "366a449b112b64ff0069535689e2671555394866",
+    "current_branch": "codex/oss-local-ssot-atomic-commit",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-03T11:34:59.342Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 4 file(s)",
+    "recorded_head_sha": "366a449b112b64ff0069535689e2671555394866",
+    "surface_files": [
+      {
+        "path": "docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md",
+        "sha256": "34b2f4a484d6fc9f6b62a5b4210275d213c4de362bf8f8510dbc5a81103742ce",
+        "size": 3907
+      },
+      {
+        "path": "docs/architecture/story-brainbase-local-ssot-atomic-commit.md",
+        "sha256": "c954884cfcd46dd49127b10c4045dd2bb2f487b4e29329c0d12175c559da1ba4",
+        "size": 5415
+      },
+      {
+        "path": "docs/specs/local-ssot-atomic-commit.md",
+        "sha256": "dae2749b5c03e184201ca4ceb157c0a3b0d5caf459dcaf5b3d91bc47c13b014c",
+        "size": 4636
+      },
+      {
+        "path": "docs/stories/local-ssot-atomic-commit-story.md",
+        "sha256": "7ff09b6fbaeb09fc4f19329ad12e8c157e057c37d2c027825dcad3a886a2f4cc",
+        "size": 3826
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "530a94a74f3d020cb9446fff06fe8ef9fdac572a1aa4319847051870daf40a7e"
+  },
+  "source_fingerprint": "ada721562c83d680d9cab444e265f350922eb6728cf220f7bd323265a26ff1c6",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "ps_arch_boundary_v2",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ps_arch_boundary_v2",
+    "session_id": "ps_arch_boundary_v2-turn3",
+    "tool_call_id": null,
+    "transcript_artifact": null,
+    "request_artifact": ".vibepro/reviews/story-brainbase-local-ssot-atomic-commit/planning_spec/review-request-architecture_boundary.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "subagent result received and session interrupted by coordinator",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "ps_arch_boundary_v2-turn3",
+      "implementation_session_id": "root",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

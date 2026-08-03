@@ -1,0 +1,550 @@
+{
+  "schema_version": "0.2.0",
+  "model": "vibepro-judgment-dag-adjudication-v2",
+  "story_id": "story-brainbase-local-ssot-atomic-commit",
+  "updated_at": "2026-08-03T13:13:27.689Z",
+  "events": [
+    {
+      "event_id": "d4641d40-3024-40dc-91b8-682fe032d7bc",
+      "type": "verdict",
+      "item_id": "spine:intent",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Story identifies independent four-file write risk and defines a concrete aggregate lock, validation, recovery and verification outcome.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ps_spec_consistency_v2",
+        "session_ref": "/root/ps_spec_consistency_v2:judgment-48fc"
+      },
+      "head_commit": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "recorded_at": "2026-08-03T12:44:54.760Z"
+    },
+    {
+      "event_id": "785cc1e1-910e-4f45-9592-9889f9ec8af4",
+      "type": "verdict",
+      "item_id": "spine:current_reality",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Baseline and source evidence accurately describe the legacy independent-write reality; classifier request for stronger runtime baseline evidence is reasonable.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ps_spec_consistency_v2",
+        "session_ref": "/root/ps_spec_consistency_v2:judgment-48fc"
+      },
+      "head_commit": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "recorded_at": "2026-08-03T12:44:54.925Z"
+    },
+    {
+      "event_id": "9f783e17-9d03-41b8-9148-192ceb652d23",
+      "type": "verdict",
+      "item_id": "spine:invariants",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Complete aggregate, ontology validation, rollback, roll-forward and COMMITTED success invariants align across Spec, code and negative tests.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ps_spec_consistency_v2",
+        "session_ref": "/root/ps_spec_consistency_v2:judgment-48fc"
+      },
+      "head_commit": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "recorded_at": "2026-08-03T12:44:55.069Z"
+    },
+    {
+      "event_id": "db7dbe79-1000-4634-be94-ab009b54efb1",
+      "type": "verdict",
+      "item_id": "spine:boundaries",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Same-host process-crash scope, raw-reader exclusion, network filesystem and power-loss exclusions align across Architecture, Spec, README and runtime.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ps_spec_consistency_v2",
+        "session_ref": "/root/ps_spec_consistency_v2:judgment-48fc"
+      },
+      "head_commit": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "recorded_at": "2026-08-03T12:44:55.216Z"
+    },
+    {
+      "event_id": "f127d6ce-f148-4eb1-978b-691a9a74fe92",
+      "type": "verdict",
+      "item_id": "spine:failure_modes",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Crash, stale lock, incomplete transaction, unavailable canonical input and legacy compatibility failure modes are explicit and tested; classifier evidence caution is reasonable.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ps_spec_consistency_v2",
+        "session_ref": "/root/ps_spec_consistency_v2:judgment-48fc"
+      },
+      "head_commit": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "recorded_at": "2026-08-03T12:44:55.364Z"
+    },
+    {
+      "event_id": "fe109cce-e58a-41f0-8c6f-5246bf8cfd66",
+      "type": "verdict",
+      "item_id": "spine:done_evidence",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Focused, full-suite, build and independent reviews define completion; classifier demand for lifecycle-bound evidence is reasonable.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ps_spec_consistency_v2",
+        "session_ref": "/root/ps_spec_consistency_v2:judgment-48fc"
+      },
+      "head_commit": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "recorded_at": "2026-08-03T12:44:55.510Z"
+    },
+    {
+      "event_id": "1dc04f82-49e0-4270-91a3-6c63880a2bcf",
+      "type": "verdict",
+      "item_id": "axis:public_contract",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Canonical filenames, shapes and CLI/MCP read behavior are reviewed; classifier caution about removed deep-import low-level helpers is a valid public-contract concern.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ps_spec_consistency_v2",
+        "session_ref": "/root/ps_spec_consistency_v2:judgment-48fc"
+      },
+      "head_commit": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "recorded_at": "2026-08-03T12:44:55.658Z"
+    },
+    {
+      "event_id": "7a320cf7-f86e-4941-bae3-bbbf9166818b",
+      "type": "verdict",
+      "item_id": "axis:scope_reviewability",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "The implementation, public contract, tests, design docs and audit approvals form one cohesive atomic-storage review unit.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ps_spec_consistency_v2",
+        "session_ref": "/root/ps_spec_consistency_v2:judgment-48fc"
+      },
+      "head_commit": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "recorded_at": "2026-08-03T12:44:55.806Z"
+    },
+    {
+      "event_id": "92d800c9-b980-4b2d-9489-4bb0c177db7a",
+      "type": "verdict",
+      "item_id": "failure_mode:provider_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "No external provider, API or network dependency is introduced by the local filesystem transaction path.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ps_spec_consistency_v2",
+        "session_ref": "/root/ps_spec_consistency_v2:judgment-48fc"
+      },
+      "head_commit": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "recorded_at": "2026-08-03T12:44:55.955Z"
+    },
+    {
+      "event_id": "25ae3532-e158-4e5b-9cc1-7f4d9263791f",
+      "type": "verdict",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Product changes do not modify VibePro gate, review, or evidence lifecycle implementation.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ps_spec_consistency_v2",
+        "session_ref": "/root/ps_spec_consistency_v2:judgment-48fc"
+      },
+      "head_commit": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "recorded_at": "2026-08-03T12:44:56.097Z"
+    },
+    {
+      "event_id": "a33c0b74-65bc-4020-b0c4-405a3ee7ec63",
+      "type": "verdict",
+      "item_id": "failure_mode:timeout",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "Classifier says not_required, but the change introduces lock timeout behavior and tests live foreign and incomplete lock timeout paths.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ps_spec_consistency_v2",
+        "session_ref": "/root/ps_spec_consistency_v2:judgment-48fc"
+      },
+      "head_commit": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "recorded_at": "2026-08-03T12:45:05.779Z"
+    },
+    {
+      "event_id": "3f1e8fda-813f-4a96-bb33-df71c1b02dec",
+      "type": "verdict",
+      "item_id": "failure_mode:parse_failure",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "Classifier says not_required, but transaction metadata and canonical JSON/JSONL parsing determine recovery and read success.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ps_spec_consistency_v2",
+        "session_ref": "/root/ps_spec_consistency_v2:judgment-48fc"
+      },
+      "head_commit": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "recorded_at": "2026-08-03T12:45:05.919Z"
+    },
+    {
+      "event_id": "72783970-4e68-4b5a-9e1b-fb4c2e7f43be",
+      "type": "verdict",
+      "item_id": "failure_mode:schema_failure",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "Classifier says not_required, but aggregate schema and ontology validation before publish are central to this change and have negative tests.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "ps_spec_consistency_v2",
+        "session_ref": "/root/ps_spec_consistency_v2:judgment-48fc"
+      },
+      "head_commit": "48fc70986537f73eb5c95ce4b3a5f9a919533b42",
+      "recorded_at": "2026-08-03T12:45:06.061Z"
+    },
+    {
+      "event_id": "9a945bf5-1e74-4abf-b588-3b1eed789d2b",
+      "type": "verdict",
+      "item_id": "spine:intent",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Story intent, ACs, implementation and tests consistently target lost-update and partial-aggregate prevention.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:08:37.297Z"
+    },
+    {
+      "event_id": "1b32c68e-2c4b-49a0-9ff8-d57669150b34",
+      "type": "verdict",
+      "item_id": "spine:current_reality",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Needs-evidence classification is safely conservative because old independent-write reality is documented but not mechanically bound to the requested focused evidence type.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:08:37.519Z"
+    },
+    {
+      "event_id": "def561d2-e7d3-4c49-9ad5-c13b90876a23",
+      "type": "verdict",
+      "item_id": "spine:invariants",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Canonical format, ontology guard, locked read-modify-publish and fail-loud recovery are explicit and tested.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:08:37.746Z"
+    },
+    {
+      "event_id": "dc7d252b-91e7-472e-a3f0-730679b137e4",
+      "type": "verdict",
+      "item_id": "spine:boundaries",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Same-host lock, coordinated readers, raw readers and transaction success boundaries are explicit and tested.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:08:37.969Z"
+    },
+    {
+      "event_id": "b9602b07-c5d2-486a-9953-04c3c3329d3f",
+      "type": "verdict",
+      "item_id": "spine:failure_modes",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Classifier correctly withholds completion because requested replay and scenario evidence types were not mechanically present.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:08:38.190Z"
+    },
+    {
+      "event_id": "c16e0395-56b0-4fdd-aaa1-c3cc5c76b04c",
+      "type": "verdict",
+      "item_id": "spine:done_evidence",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Targeted, full and build evidence exists, while workflow-specific replay evidence remains a valid distinct requirement.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:08:38.414Z"
+    },
+    {
+      "event_id": "4ac32f28-db8e-4f2f-9175-b64449b068cf",
+      "type": "verdict",
+      "item_id": "axis:public_contract",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Four filenames, JSON/JSONL shape, MCP contract and legacy data remain verified.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:08:38.672Z"
+    },
+    {
+      "event_id": "772caf87-72f2-4f96-83cb-663da39112c8",
+      "type": "verdict",
+      "item_id": "axis:scope_reviewability",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Change stays focused on atomic storage, CLI migration, public boundary documentation and direct fixtures.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:08:38.902Z"
+    },
+    {
+      "event_id": "4637666c-c377-4616-9bd0-cad42417f0e9",
+      "type": "verdict",
+      "item_id": "failure_mode:timeout",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "Not-required premise is false because lock deadline, retry, timeout errors and timeout fixtures are changed behavior.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:08:39.131Z"
+    },
+    {
+      "event_id": "0a81f334-a02e-485a-9948-76b5ffeb95d3",
+      "type": "verdict",
+      "item_id": "failure_mode:parse_failure",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "Not-required premise is false because recovery and canonical load parse metadata and JSON/JSONL, with malformed input fixtures.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:08:39.367Z"
+    },
+    {
+      "event_id": "d57f170c-bc63-4ff0-843d-e77c124abdbc",
+      "type": "verdict",
+      "item_id": "failure_mode:schema_failure",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "Not-required premise is false because schema and ontology validation plus invalid snapshot and aggregate fixtures are central.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:08:39.591Z"
+    },
+    {
+      "event_id": "a0f9f069-b41a-4514-99fd-8d7ef2606dba",
+      "type": "verdict",
+      "item_id": "failure_mode:provider_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Atomic SSOT path adds no external provider, API or network dependency.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:08:39.819Z"
+    },
+    {
+      "event_id": "db473509-6547-4e75-99d6-addc84064c8a",
+      "type": "verdict",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Runtime change does not modify Gate, review or evidence lifecycle implementation.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:08:40.054Z"
+    },
+    {
+      "event_id": "3257f5d7-1fca-4844-b01a-9e6fd639e5f1",
+      "type": "premise_correction",
+      "item_id": "failure_mode:timeout",
+      "corrects_verdict_id": "4637666c-c377-4616-9bd0-cad42417f0e9",
+      "wrong_premise": "The change does not require timeout evidence.",
+      "corrected_premise": "The change introduces lock timeout, retry and deadline behavior, so timeout evidence is required.",
+      "reason": "Classifier marked timeout not_required despite changed timeout behavior.",
+      "replacement_evidence": [
+        {
+          "artifact": "src/ssot.ts",
+          "sha256": "d2ad08cacb2f9207355d8dbeb9e9b300dd645502ae61d6f6ef8700bc02b6df5f"
+        },
+        {
+          "artifact": "tests/ssot.test.ts",
+          "sha256": "931d1b61cd657f2845839f1ebe53b81f0210d4d010799cd322cb5849c3e18038"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:12:20.180Z"
+    },
+    {
+      "event_id": "eb2af3a4-e43b-4346-9f64-3fe4e6618a0b",
+      "type": "premise_correction",
+      "item_id": "failure_mode:parse_failure",
+      "corrects_verdict_id": "0a81f334-a02e-485a-9948-76b5ffeb95d3",
+      "wrong_premise": "The change does not require parse-failure evidence.",
+      "corrected_premise": "Recovery metadata and canonical JSON/JSONL parsing are part of the changed read/recovery boundary, so parse-failure evidence is required.",
+      "reason": "Classifier marked parse failure not_required despite changed parsing and malformed-input paths.",
+      "replacement_evidence": [
+        {
+          "artifact": "src/ssot.ts",
+          "sha256": "d2ad08cacb2f9207355d8dbeb9e9b300dd645502ae61d6f6ef8700bc02b6df5f"
+        },
+        {
+          "artifact": "tests/ssot-atomic.test.ts",
+          "sha256": "d3094f75b616eca469f12d3ce84eee1c2deb9066acdacb5ec892f2b59b1b7683"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:12:20.427Z"
+    },
+    {
+      "event_id": "2263a264-a65f-4fa1-8451-d93593f50c11",
+      "type": "premise_correction",
+      "item_id": "failure_mode:schema_failure",
+      "corrects_verdict_id": "d57f170c-bc63-4ff0-843d-e77c124abdbc",
+      "wrong_premise": "The change does not require schema-failure evidence.",
+      "corrected_premise": "Aggregate schema and Ontology validation are central commit/recovery guards, so schema-failure evidence is required.",
+      "reason": "Classifier marked schema failure not_required despite changed validation boundaries and invalid-data fixtures.",
+      "replacement_evidence": [
+        {
+          "artifact": "src/ssot.ts",
+          "sha256": "d2ad08cacb2f9207355d8dbeb9e9b300dd645502ae61d6f6ef8700bc02b6df5f"
+        },
+        {
+          "artifact": "tests/ontology-cli.test.ts",
+          "sha256": "99169c2a666116760227cf8c0907f7e72d9d2e3ecfc9a8ad93d7b8e03719bdbe"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "judgmentc6",
+        "session_ref": "/root/atomic_commit_test_design:judgment-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:12:20.684Z"
+    },
+    {
+      "event_id": "c99747c6-60e6-4737-8cfa-6f441ae4a8d4",
+      "type": "verdict",
+      "item_id": "failure_mode:timeout",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "3257f5d7-1fca-4844-b01a-9e6fd639e5f1",
+      "reason": "Corrected requirement is sound: configurable retry, deadline and timeout behavior refuses live, foreign and malformed-owner lock theft, with timeout propagation tests.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "rejudgec6",
+        "session_ref": "/root/ps_arch_boundary_v2:rejudge-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:13:27.230Z"
+    },
+    {
+      "event_id": "e2cf43ab-dca0-47b2-8073-5395feb2fcd1",
+      "type": "verdict",
+      "item_id": "failure_mode:parse_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "eb2af3a4-e43b-4346-9f64-3fe4e6618a0b",
+      "reason": "Corrected requirement is sound: recovery metadata and canonical JSON/JSONL parsing fail loudly, and malformed registered metadata is retained for repair.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "rejudgec6",
+        "session_ref": "/root/ps_arch_boundary_v2:rejudge-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:13:27.453Z"
+    },
+    {
+      "event_id": "93f17d74-c02d-49dd-bb15-4d20e181ff8c",
+      "type": "verdict",
+      "item_id": "failure_mode:schema_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "2263a264-a65f-4fa1-8451-d93593f50c11",
+      "reason": "Corrected requirement is sound: Zod and ontology validation gate staging and publish; invalid CLI writes leave canonical state unchanged.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "rejudgec6",
+        "session_ref": "/root/ps_arch_boundary_v2:rejudge-c6"
+      },
+      "head_commit": "c6a83ad52bb31431a9b2936961f69c143b87352f",
+      "recorded_at": "2026-08-03T13:13:27.678Z"
+    }
+  ]
+}
