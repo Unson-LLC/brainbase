@@ -467,7 +467,16 @@ export class InfoSSOTService {
             ...validationEntityIds,
             ...entityOverrides.map((entity) => entity.id),
             ...mutationEdges.flatMap((edge) => [edge.from_id, edge.to_id])
-        ].filter(Boolean)));
+        ].filter(Boolean))).sort();
+        // Row locks cannot serialize two transactions that are both creating
+        // the same previously absent entity. Lock the logical aggregate keys
+        // first so the later transaction re-reads the committed edge set.
+        for (const targetId of targetIds) {
+            await client.query(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                [`ontology-aggregate:${targetId}`]
+            );
+        }
         // Serialize mutations that share an endpoint before reading its current
         // edges, so concurrent cardinality checks cannot both observe stale data.
         await client.query(

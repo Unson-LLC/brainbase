@@ -312,6 +312,49 @@ describe('InfoSSOTService ontology API', () => {
         expect(statements.some((sql) => sql.includes('INSERT INTO graph_edges'))).toBe(false);
     });
 
+    it('locks every canonical aggregate target in deterministic order before reading edges', async () => {
+        const calls = [];
+        const client = {
+            query: async (sql, params = []) => {
+                const text = String(sql);
+                calls.push({ text, params });
+                if (text.includes('FROM graph_entities')) {
+                    return { rows: [
+                        { id: 'org:z-owner', entity_type: 'org', payload: {} },
+                        { id: 'app:new-concurrent', entity_type: 'app', payload: {} }
+                    ] };
+                }
+                if (text.includes('SELECT id FROM projects')) return { rows: [{ id: 'project:brainbase' }] };
+                return { rows: [] };
+            },
+            release: () => {}
+        };
+        const service = new InfoSSOTService({
+            ontologyRegistry: activeRegistry(),
+            pool: { connect: async () => client }
+        });
+
+        await service.commitOntologyGraph(
+            { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] },
+            {
+                projectCode: 'brainbase',
+                roleMin: 'member',
+                sensitivity: 'internal',
+                entity: { id: 'app:new-concurrent', type: 'app', payload: {} },
+                contextEntities: [{ id: 'org:z-owner', type: 'org' }],
+                edges: [{ from_id: 'app:new-concurrent', to_id: 'org:z-owner', relation: 'owned_by' }]
+            }
+        );
+
+        const lockCalls = calls.filter(({ text }) => text.includes('pg_advisory_xact_lock'));
+        expect(lockCalls.map(({ params }) => params[0])).toEqual([
+            'ontology-aggregate:app:new-concurrent',
+            'ontology-aggregate:org:z-owner'
+        ]);
+        const firstEdgeRead = calls.findIndex(({ text }) => text.includes('FROM graph_edges'));
+        expect(firstEdgeRead).toBeGreaterThan(calls.lastIndexOf(lockCalls.at(-1)));
+    });
+
     it('resolves stored endpoint types before guarding an existing edge write', async () => {
         const writes = [];
         const client = {
