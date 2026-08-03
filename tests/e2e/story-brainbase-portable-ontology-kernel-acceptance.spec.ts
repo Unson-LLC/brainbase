@@ -95,7 +95,7 @@ describe('story-brainbase-portable-ontology-kernel acceptance', () => {
       { id: 'choice-a', title: 'Choice A', decision: 'Use A', topic: 'runtime' },
       { id: 'choice-b', title: 'Choice B', decision: 'Use B', topic: 'runtime' }
     ], { asOf: '2026-08-03T00:00:00.000Z' });
-    expect(conflictInference.evidence, 'story-brainbase-portable-ontology-kernel ac:6 traces conflicts to the applied ontology rule').toContainEqual({
+    expect(conflictInference.evidence, 'story-brainbase-portable-ontology-kernel ac:5 returns a conflict when no explicit supersession exists').toContainEqual({
       ruleId: 'ONT-INFER-SAME-TOPIC-CONFLICT',
       topic: 'runtime',
       decisionIds: ['choice-a', 'choice-b']
