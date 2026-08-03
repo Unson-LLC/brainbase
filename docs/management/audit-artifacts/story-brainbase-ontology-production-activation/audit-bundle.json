@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "story_id": "story-brainbase-ontology-production-activation",
   "source": "execute_merge",
-  "promoted_at": "2026-08-03T04:14:08.701Z",
+  "promoted_at": "2026-08-03T04:14:15.351Z",
   "canonical_dir": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation",
   "source_workspace_dir": ".vibepro",
   "audit_index_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/audit-index.json",
@@ -40,11 +40,11 @@
     "path": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/audit-replay-bundle.json.gz",
     "compression": "gzip",
     "media_type": "application/json",
-    "content_hash": "sha256:14482bf388968be8941c1032664136d99cbb1573679a6124ce47a6591fc69ebf",
-    "compressed_hash": "sha256:5633620dc8e3dd9cc11658d827fa846fb0f1dbda5b18143b3f116cf11563319a",
-    "expanded_bytes": 24707,
-    "compressed_bytes": 4201,
-    "expanded_line_count": 636,
+    "content_hash": "sha256:f7abd2b8bbdbe9e126fdd8a474ebf7ed2f467fe8b4fa9df7401516f04385bcd4",
+    "compressed_hash": "sha256:b7c2d1aee1cfaebbfcdc3e0ee5d1018598315a23f0984cb29e3ac63245601b3e",
+    "expanded_bytes": 23761,
+    "compressed_bytes": 4087,
+    "expanded_line_count": 616,
     "persisted_line_count": 1,
     "included_artifact_kinds": [
       "decision_index",
@@ -63,9 +63,9 @@
     ],
     "replay_command": "vibepro audit replay . --story-id story-brainbase-ontology-production-activation",
     "cost": {
-      "compressed_bytes": 4201,
-      "expanded_bytes": 24707,
-      "expanded_line_count": 636,
+      "compressed_bytes": 4087,
+      "expanded_bytes": 23761,
+      "expanded_line_count": 616,
       "persisted_line_count": 1
     }
   },
@@ -80,27 +80,17 @@
       "merged_at": "2026-08-03T04:06:35Z"
     },
     "reconciliation": {
-      "status": "reconciliation_required",
-      "reasons": [
-        "decision_outcome_binding_failed"
-      ],
-      "evaluated_at": "2026-08-03T04:14:08.690Z",
+      "status": "reconciled",
+      "reasons": [],
+      "evaluated_at": "2026-08-03T04:14:15.341Z",
       "head_sha": "5f1a34f615520fed59d3d1f691c279560343508d"
     },
-    "reconciliation_action": {
-      "status": "required",
-      "reason": "decision_outcome_binding_failed",
-      "commands": [
-        "vibepro pr prepare . --story-id story-brainbase-ontology-production-activation --base develop",
-        "vibepro execute merge . --story-id story-brainbase-ontology-production-activation --base develop --pr https://github.com/Unson-LLC/brainbase-unson/pull/1116"
-      ]
-    },
     "decision_outcome_binding": {
-      "status": "failed",
-      "reason": "central_ledger_parse_failed",
+      "status": "bound",
+      "reason": "all_local_decision_outcomes_bound_to_canonical_ledger",
       "expected_entry_count": 99,
       "promoted_count": 0,
-      "duplicate_count": 0,
+      "duplicate_count": 99,
       "persistence_status": null
     },
     "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1116",
@@ -115,7 +105,7 @@
     "status": "blocked",
     "resolved_reference_count": 115,
     "copied_reference_count": 102,
-    "unresolved_reference_count": 11,
+    "unresolved_reference_count": 12,
     "replay_bundle": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/audit-replay-bundle.json.gz",
     "replay_command": "vibepro audit replay . --story-id story-brainbase-ontology-production-activation"
   },
@@ -132,7 +122,7 @@
       "kind": "compressed_replay_bundle",
       "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/audit-replay-bundle.json.gz",
       "compression": "gzip",
-      "content_hash": "sha256:14482bf388968be8941c1032664136d99cbb1573679a6124ce47a6591fc69ebf"
+      "content_hash": "sha256:f7abd2b8bbdbe9e126fdd8a474ebf7ed2f467fe8b4fa9df7401516f04385bcd4"
     }
   ],
   "raw_artifact_manifest": [
@@ -222,10 +212,10 @@
       "source": ".vibepro/pr/story-brainbase-ontology-production-activation/pr-merge.json",
       "persisted": "compressed",
       "compressed_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/audit-replay-bundle.json.gz",
-      "digest": "sha256:d3b5291e90278c20e1c871c1f5eabb100949e40207f6f1ad318b830afcf2c1f9",
-      "audit_digest": "sha256:5cb1031349e8eb439347d31ad2dc52942106ce30ab5a39ab98f84efc8ea53624",
-      "line_count": 3369,
-      "raw_line_count": 12231,
+      "digest": "sha256:cbb35f1e314f141b6cd7f00bf4edb13b2a8ecb96a953f419d90319c7fe1964df",
+      "audit_digest": "sha256:f5fc9982351c757e5e27670f2936b821b94f69244ba41fe5650a2f45575cd449",
+      "line_count": 3358,
+      "raw_line_count": 12229,
       "audit_scope": "judgment_evidence_v1",
       "excluded_from_audit": [
         "pr_lifecycle.full_gate_dag",
@@ -1559,6 +1549,10 @@
   "unresolved_references": [
     {
       "source": ".vibepro/adjudication/story-brainbase-ontology-production-activation/adjudication.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/artifacts/worktree-service-git-migration-e2e-vitest.json",
       "reason": "source_missing"
     },
     {
