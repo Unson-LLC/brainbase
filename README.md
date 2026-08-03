@@ -280,6 +280,8 @@ It contains the canonical local SSOT:
 - `relationships.json`: relationship context that should survive across tools.
 - `decisions.jsonl`: decision records and principles.
 - `sources/`: optional raw notes, logs, mail, calendar, drive, and task exports. MCP tools prefer canonical files over these raw materials.
+
+Brainbase CLI and MCP readers coordinate canonical updates with a local process lock and recover interrupted multi-file writes before reading. Code that opens the four canonical files directly does not participate in that lock, so concurrent raw filesystem reads are outside the atomic consistency guarantee. Use the Brainbase CLI or MCP tools when another Brainbase process may be writing.
 - `candidates/`: staging area for extracted facts before user approval.
 - `schemas/`: generated schema references for the local files.
 

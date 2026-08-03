@@ -1,8 +1,28 @@
-import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { constants } from 'node:fs';
+import { access, copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { assertOntologyValid } from './ontology.js';
 import { emptyGraph, emptyRelationships, schemaTemplates } from './templates.js';
 import type { DecisionRecord, GraphFile, PersonalKgEntry, PersonalOs, RelationshipsFile } from './types.js';
+
+const canonicalFiles = ['graph.json', 'relationships.json', 'personal-kg.jsonl', 'decisions.jsonl'] as const;
+const lockName = '.brainbase-ssot.lock';
+const stagingPrefix = '.brainbase-staging-';
+const transactionPrefix = '.brainbase-transaction-';
+
+interface LockOwner {
+  token: string;
+  pid: number;
+  hostname: string;
+}
+
+interface TransactionMetadata {
+  version: 1;
+  mode: 'initialization' | 'mutation';
+}
 
 const graphEntitySchema = z.object({
   id: z.string().min(1),
@@ -59,76 +79,294 @@ const decisionSchema: z.ZodType<DecisionRecord> = z.object({
 
 export async function initializePersonalOs(dataDir: string): Promise<void> {
   await mkdir(dataDir, { recursive: true });
-  await mkdir(join(dataDir, 'sources'), { recursive: true });
-  await mkdir(join(dataDir, 'sources', 'gmail'), { recursive: true });
-  await mkdir(join(dataDir, 'sources', 'calendar'), { recursive: true });
-  await mkdir(join(dataDir, 'sources', 'drive'), { recursive: true });
-  await mkdir(join(dataDir, 'sources', 'tasks'), { recursive: true });
-  await mkdir(join(dataDir, 'candidates'), { recursive: true });
-  await mkdir(join(dataDir, 'schemas'), { recursive: true });
-  await writeJsonIfMissing(join(dataDir, 'graph.json'), emptyGraph);
-  await writeJsonIfMissing(join(dataDir, 'relationships.json'), emptyRelationships);
-  await writeTextIfMissing(join(dataDir, 'personal-kg.jsonl'), '');
-  await writeTextIfMissing(join(dataDir, 'decisions.jsonl'), '');
+  await withSsotLock(dataDir, async () => {
+    await recoverTransactions(dataDir);
+    const present = await canonicalPresence(dataDir);
+    if (present.length === canonicalFiles.length) {
+      await ensureAncillaryDirectories(dataDir);
+      return;
+    }
+    if (present.length > 0) {
+      throw new Error(`Partial canonical SSOT set in ${dataDir}: found ${present.join(', ')}`);
+    }
 
-  for (const [fileName, schema] of Object.entries(schemaTemplates)) {
-    await writeJsonIfMissing(join(dataDir, 'schemas', fileName), schema);
-  }
+    await ensureAncillaryDirectories(dataDir);
+    await commitAggregate(dataDir, {
+      dataDir,
+      graph: emptyGraph,
+      relationships: emptyRelationships,
+      personalKg: [],
+      decisions: [],
+      sourceCount: 0
+    }, 'initialization');
+  });
 }
 
 export async function loadPersonalOs(dataDir: string): Promise<PersonalOs> {
+  return withSsotLock(dataDir, async () => {
+    await recoverTransactions(dataDir);
+    assertCompleteCanonicalSet(dataDir, await canonicalPresence(dataDir));
+    return loadPersonalOsUnlocked(dataDir);
+  });
+}
+
+export async function mutatePersonalOs(
+  dataDir: string,
+  mutator: (current: PersonalOs) => PersonalOs | Promise<PersonalOs>
+): Promise<PersonalOs> {
+  return withSsotLock(dataDir, async () => {
+    await recoverTransactions(dataDir);
+    assertCompleteCanonicalSet(dataDir, await canonicalPresence(dataDir));
+    const current = await loadPersonalOsUnlocked(dataDir);
+    const next = await mutator(current);
+    const normalized = { ...next, dataDir, sourceCount: current.sourceCount };
+    validateAggregate(normalized);
+    await commitAggregate(dataDir, normalized, 'mutation');
+    return normalized;
+  });
+}
+
+async function loadPersonalOsUnlocked(dataDir: string): Promise<PersonalOs> {
   const graph = graphSchema.parse(await readJson(join(dataDir, 'graph.json')));
   const relationships = relationshipsSchema.parse(await readJson(join(dataDir, 'relationships.json')));
   const personalKg = await readJsonl(join(dataDir, 'personal-kg.jsonl'), personalKgSchema, 'personal-kg.jsonl');
   const decisions = await readJsonl(join(dataDir, 'decisions.jsonl'), decisionSchema, 'decisions.jsonl');
   const sourceCount = await countSources(dataDir);
-
-  return {
-    dataDir,
-    graph,
-    personalKg,
-    relationships,
-    decisions,
-    sourceCount
-  };
+  return { dataDir, graph, personalKg, relationships, decisions, sourceCount };
 }
 
-export async function saveGraph(dataDir: string, graph: GraphFile): Promise<void> {
-  graphSchema.parse(graph);
-  await writeFile(join(dataDir, 'graph.json'), `${JSON.stringify(graph, null, 2)}\n`);
-}
+async function commitAggregate(dataDir: string, next: PersonalOs, mode: TransactionMetadata['mode']): Promise<void> {
+  validateAggregate(next);
+  const id = randomUUID();
+  const stagingDir = join(dataDir, `${stagingPrefix}${id}`);
+  const transactionDir = join(dataDir, `${transactionPrefix}${id}`);
+  const nextDir = join(stagingDir, 'next');
+  const previousDir = join(stagingDir, 'previous');
 
-export async function saveRelationships(dataDir: string, relationships: RelationshipsFile): Promise<void> {
-  relationshipsSchema.parse(relationships);
-  await writeFile(join(dataDir, 'relationships.json'), `${JSON.stringify(relationships, null, 2)}\n`);
-}
-
-export async function appendPersonalKg(dataDir: string, entries: PersonalKgEntry[]): Promise<void> {
-  for (const entry of entries) {
-    personalKgSchema.parse(entry);
+  await mkdir(nextDir, { recursive: true });
+  await writeAggregate(nextDir, next);
+  if (mode === 'mutation') {
+    await mkdir(previousDir, { recursive: true });
+    await copyCanonicalSet(dataDir, previousDir);
   }
-  if (entries.length === 0) {
+  const metadata: TransactionMetadata = { version: 1, mode };
+  await writeFile(join(stagingDir, 'transaction.json'), `${JSON.stringify(metadata, null, 2)}\n`);
+  await writeFile(join(stagingDir, 'PREPARED'), '');
+  await rename(stagingDir, transactionDir);
+
+  try {
+    await publishCanonicalSet(dataDir, join(transactionDir, 'next'), id, true);
+    await writeFile(join(transactionDir, 'COMMITTED'), '');
+  } catch (error) {
+    await recoverTransaction(dataDir, transactionDir).catch(() => undefined);
+    throw error;
+  }
+
+  await cleanupCommittedTransaction(transactionDir);
+}
+
+async function cleanupCommittedTransaction(transactionDir: string): Promise<void> {
+  try {
+    if (process.env.BRAINBASE_SSOT_FAIL_COMMITTED_CLEANUP === '1') {
+      throw new Error('Injected committed SSOT transaction cleanup failure');
+    }
+    await rm(transactionDir, { recursive: true, force: true });
+  } catch (error) {
+    warnCleanupFailure(`committed SSOT transaction ${transactionDir}`, error);
+  }
+}
+
+async function recoverTransactions(dataDir: string): Promise<void> {
+  const entries = await readdir(dataDir);
+  for (const entry of entries.filter((value) => value.startsWith(stagingPrefix)).sort()) {
+    await rm(join(dataDir, entry), { recursive: true, force: true });
+  }
+  for (const entry of entries.filter((value) => value.startsWith(transactionPrefix)).sort()) {
+    await recoverTransaction(dataDir, join(dataDir, entry));
+  }
+}
+
+async function recoverTransaction(dataDir: string, transactionDir: string): Promise<void> {
+  if (await exists(join(transactionDir, 'COMMITTED'))) {
+    await rm(transactionDir, { recursive: true, force: true });
     return;
   }
-  await writeFile(
-    join(dataDir, 'personal-kg.jsonl'),
-    `${entries.map((entry) => JSON.stringify(entry)).join('\n')}\n`,
-    { flag: 'a' }
-  );
+  if (!(await exists(join(transactionDir, 'PREPARED')))) {
+    throw new Error(`Incomplete registered SSOT transaction ${transactionDir}`);
+  }
+  const metadata = await readTransactionMetadata(transactionDir);
+  const retainedDir = join(transactionDir, metadata.mode === 'initialization' ? 'next' : 'previous');
+  assertCompleteCanonicalSet(retainedDir, await canonicalPresence(retainedDir));
+  if (process.env.BRAINBASE_SSOT_FAIL_RECOVERY === '1') {
+    throw new Error(`Injected SSOT transaction recovery failure for ${transactionDir}`);
+  }
+  await publishCanonicalSet(dataDir, retainedDir, `recovery-${randomUUID()}`, false);
+  await rm(transactionDir, { recursive: true, force: true });
 }
 
-export async function appendDecisions(dataDir: string, decisions: DecisionRecord[]): Promise<void> {
-  for (const decision of decisions) {
-    decisionSchema.parse(decision);
+async function publishCanonicalSet(dataDir: string, retainedDir: string, token: string, allowInjectedFailure: boolean): Promise<void> {
+  let published = 0;
+  const failAfter = Number.parseInt(process.env.BRAINBASE_SSOT_FAIL_AFTER_PUBLISH ?? '', 10);
+  const pauseAfterPublishMs = parsePositiveInteger(process.env.BRAINBASE_SSOT_PAUSE_AFTER_PUBLISH_MS, 0);
+  for (const fileName of canonicalFiles) {
+    const temporary = join(dataDir, `.brainbase-${fileName}-${token}.tmp`);
+    await copyFile(join(retainedDir, fileName), temporary);
+    await rename(temporary, join(dataDir, fileName));
+    published += 1;
+    if (allowInjectedFailure && pauseAfterPublishMs > 0) {
+      await delay(pauseAfterPublishMs);
+    }
+    if (allowInjectedFailure && Number.isFinite(failAfter) && published === failAfter) {
+      throw new Error(`Injected SSOT publish failure after ${published} file(s)`);
+    }
   }
-  if (decisions.length === 0) {
-    return;
+}
+
+async function writeAggregate(targetDir: string, os: PersonalOs): Promise<void> {
+  await writeFile(join(targetDir, 'graph.json'), `${JSON.stringify(os.graph, null, 2)}\n`);
+  await writeFile(join(targetDir, 'relationships.json'), `${JSON.stringify(os.relationships, null, 2)}\n`);
+  await writeFile(join(targetDir, 'personal-kg.jsonl'), serializeJsonl(os.personalKg));
+  await writeFile(join(targetDir, 'decisions.jsonl'), serializeJsonl(os.decisions));
+}
+
+function validateAggregate(os: PersonalOs): void {
+  graphSchema.parse(os.graph);
+  relationshipsSchema.parse(os.relationships);
+  os.personalKg.forEach((entry) => personalKgSchema.parse(entry));
+  os.decisions.forEach((decision) => decisionSchema.parse(decision));
+  assertOntologyValid(os);
+}
+
+function serializeJsonl(values: unknown[]): string {
+  return values.length === 0 ? '' : `${values.map((value) => JSON.stringify(value)).join('\n')}\n`;
+}
+
+async function copyCanonicalSet(sourceDir: string, targetDir: string): Promise<void> {
+  for (const fileName of canonicalFiles) {
+    await copyFile(join(sourceDir, fileName), join(targetDir, fileName));
   }
-  await writeFile(
-    join(dataDir, 'decisions.jsonl'),
-    `${decisions.map((decision) => JSON.stringify(decision)).join('\n')}\n`,
-    { flag: 'a' }
-  );
+}
+
+async function ensureAncillaryDirectories(dataDir: string): Promise<void> {
+  for (const relative of ['sources', 'sources/gmail', 'sources/calendar', 'sources/drive', 'sources/tasks', 'candidates', 'schemas']) {
+    await mkdir(join(dataDir, relative), { recursive: true });
+  }
+  for (const [fileName, schema] of Object.entries(schemaTemplates)) {
+    await writeFile(join(dataDir, 'schemas', fileName), `${JSON.stringify(schema, null, 2)}\n`, { flag: 'wx' }).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'EEXIST') throw error;
+    });
+  }
+}
+
+async function withSsotLock<T>(dataDir: string, operation: () => Promise<T>): Promise<T> {
+  await mkdir(dataDir, { recursive: true });
+  const owner = await acquireLock(dataDir);
+  try {
+    return await operation();
+  } finally {
+    await releaseLock(dataDir, owner).catch((error) => {
+      warnCleanupFailure(`canonical SSOT lock ${join(dataDir, lockName)}`, error);
+    });
+  }
+}
+
+async function acquireLock(dataDir: string): Promise<LockOwner> {
+  const lockDir = join(dataDir, lockName);
+  const timeoutMs = parsePositiveInteger(process.env.BRAINBASE_SSOT_LOCK_TIMEOUT_MS, 5_000);
+  const retryMs = parsePositiveInteger(process.env.BRAINBASE_SSOT_LOCK_RETRY_MS, 20);
+  const deadline = Date.now() + timeoutMs;
+  const owner: LockOwner = { token: randomUUID(), pid: process.pid, hostname: hostname() };
+
+  while (true) {
+    try {
+      await mkdir(lockDir);
+      await writeFile(join(lockDir, 'owner.json'), `${JSON.stringify(owner)}\n`, { flag: 'wx' });
+      return owner;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'EEXIST') {
+        await rm(lockDir, { recursive: true, force: true }).catch(() => undefined);
+        throw error;
+      }
+      await quarantineDeadSameHostLock(dataDir, lockDir);
+      if (Date.now() >= deadline) {
+        throw new Error(`Timed out waiting for canonical SSOT lock ${lockDir}`);
+      }
+      await delay(retryMs);
+    }
+  }
+}
+
+async function quarantineDeadSameHostLock(dataDir: string, lockDir: string): Promise<void> {
+  const current = await readLockOwner(lockDir);
+  if (!current || current.hostname !== hostname() || isProcessAlive(current.pid)) return;
+  const quarantine = join(dataDir, `.brainbase-ssot-lock-stale-${randomUUID()}`);
+  try {
+    await rename(lockDir, quarantine);
+    await rm(quarantine, { recursive: true, force: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+}
+
+async function releaseLock(dataDir: string, owner: LockOwner): Promise<void> {
+  const lockDir = join(dataDir, lockName);
+  const current = await readLockOwner(lockDir);
+  if (current?.token === owner.token) {
+    await rm(lockDir, { recursive: true, force: true });
+  }
+}
+
+async function readLockOwner(lockDir: string): Promise<LockOwner | undefined> {
+  try {
+    const value = JSON.parse(await readFile(join(lockDir, 'owner.json'), 'utf8')) as Partial<LockOwner>;
+    if (typeof value.token === 'string' && typeof value.pid === 'number' && typeof value.hostname === 'string') {
+      return value as LockOwner;
+    }
+  } catch {
+    // Missing or malformed owner metadata is never safe to steal.
+  }
+  return undefined;
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== 'ESRCH';
+  }
+}
+
+async function canonicalPresence(dataDir: string): Promise<string[]> {
+  const result: string[] = [];
+  for (const fileName of canonicalFiles) {
+    if (await exists(join(dataDir, fileName))) result.push(fileName);
+  }
+  return result;
+}
+
+function assertCompleteCanonicalSet(dataDir: string, present: string[]): void {
+  if (present.length !== canonicalFiles.length) {
+    throw new Error(`Partial canonical SSOT set in ${dataDir}: found ${present.join(', ') || 'none'}`);
+  }
+}
+
+async function readTransactionMetadata(transactionDir: string): Promise<TransactionMetadata> {
+  const value = await readJson(join(transactionDir, 'transaction.json')) as Partial<TransactionMetadata>;
+  if (value.version !== 1 || (value.mode !== 'initialization' && value.mode !== 'mutation')) {
+    throw new Error(`Invalid registered SSOT transaction metadata in ${transactionDir}`);
+  }
+  return value as TransactionMetadata;
+}
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path, constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function readJson(filePath: string): Promise<unknown> {
@@ -146,7 +384,6 @@ async function readJsonl<T>(filePath: string, schema: z.ZodType<T>, label: strin
   } catch (error) {
     throw new Error(`Failed to read canonical SSOT file ${filePath}: ${formatError(error)}`);
   }
-
   const rows = content.split('\n').map((line) => line.trim()).filter(Boolean);
   return rows.map((line, index) => {
     try {
@@ -167,10 +404,7 @@ async function countSourceFiles(sourceDir: string): Promise<number> {
     const counts = await Promise.all(entries.filter((entry) => !entry.startsWith('.')).map(async (entry) => {
       const entryPath = join(sourceDir, entry);
       const entryStat = await stat(entryPath);
-      if (entryStat.isDirectory()) {
-        return countSourceFiles(entryPath);
-      }
-      return entryStat.isFile() ? 1 : 0;
+      return entryStat.isDirectory() ? countSourceFiles(entryPath) : entryStat.isFile() ? 1 : 0;
     }));
     return counts.reduce((sum, count) => sum + count, 0);
   } catch {
@@ -178,22 +412,19 @@ async function countSourceFiles(sourceDir: string): Promise<number> {
   }
 }
 
-async function writeJsonIfMissing(filePath: string, value: unknown): Promise<void> {
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, { flag: 'wx' }).catch((error: NodeJS.ErrnoException) => {
-    if (error.code !== 'EEXIST') {
-      throw error;
-    }
-  });
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-async function writeTextIfMissing(filePath: string, value: string): Promise<void> {
-  await writeFile(filePath, value, { flag: 'wx' }).catch((error: NodeJS.ErrnoException) => {
-    if (error.code !== 'EEXIST') {
-      throw error;
-    }
-  });
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function warnCleanupFailure(resource: string, error: unknown): void {
+  process.emitWarning(`Failed to clean up ${resource}: ${formatError(error)}`);
 }
