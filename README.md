@@ -320,9 +320,11 @@ brainbase ontology:audit --ontology-version 0.0.0
 ```
 
 `ontology:audit` exits non-zero when an error-level violation exists or when a canonical file cannot be verified. It never reports an unavailable or malformed source as zero violations. Warnings, such as a relationship whose person is not yet present in the Graph, remain visible but do not block approved writes.
-Use `--ontology-version 0.0.0` to interpret a pre-kernel snapshot without retroactively applying 1.0.0 semantic rules. The selected version is included in audit and inference results; unsupported versions fail explicitly.
+Use `--ontology-version 0.0.0` to interpret a pre-kernel snapshot without retroactively applying the 1.0.0 `effectiveAt`, supersession, conflict, or validation rules. The selected version is included in audit and inference results; unsupported versions fail explicitly.
 
-Decision evolution is opt-in and backward-compatible. Existing decision rows remain valid. New rows may add `topic`, `supersedes`, and `effectiveAt`; only an explicit `supersedes` reference makes an older decision inactive. Multiple active decisions with the same explicit `topic` are reported as a conflict instead of being silently resolved.
+Decision evolution is opt-in, read-compatible, and write-gated. Existing decision rows remain readable. New rows may add `topic`, `supersedes`, and `effectiveAt`; only an explicit `supersedes` reference makes an older decision inactive. Multiple active decisions with the same explicit `topic` are reported as a conflict instead of being silently resolved.
+
+Before enabling 1.0.0 writes, back up the Personal OS directory and run the read-only `brainbase ontology:audit --ontology-version 1.0.0`. Existing rows remain readable, but error-level semantic violations must be reviewed before `onboard:seed`, `onboard:projects --write`, or `onboard:apply --write` can change canonical files. Rollback means reinstalling the last known working `@unson/brainbase-mcp` package version and, only if reviewed repairs changed canonical files, restoring the pre-upgrade backup.
 
 ## CLI
 

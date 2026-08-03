@@ -83,6 +83,9 @@ export const schemaTemplates: Record<string, unknown> = {
       title: { type: 'string', minLength: 1 },
       decision: { type: 'string', minLength: 1 },
       rationale: { type: 'string' },
+      topic: { type: 'string', minLength: 1 },
+      supersedes: { type: 'array', items: { type: 'string', minLength: 1 } },
+      effectiveAt: { type: 'string', format: 'date-time' },
       tags: { type: 'array', items: { type: 'string' } },
       updatedAt: { type: 'string' }
     }

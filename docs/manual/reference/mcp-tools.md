@@ -102,7 +102,7 @@ mcp__brainbase__infer_decisions({
 ```
 
 同じ `topic` の有効Decisionが複数ある場合は、勝手に優先順位を付けず競合として返します。
-`ontologyVersion: "0.0.0"`では、1.0.0で追加されたsupersession・conflict推論を過去へ遡及適用せず、そのversionを結果に記録します。
+`ontologyVersion: "0.0.0"`では、1.0.0で追加された`effectiveAt`、supersession、conflict推論を過去へ遡及適用せず、そのversionを結果に記録します。
 
 ## ontology_impact
 

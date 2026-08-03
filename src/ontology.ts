@@ -50,7 +50,7 @@ export type PersonalOsOntologyAudit = OntologyAuditResult | UnverifiedOntologyAu
 const release = {
   version: ONTOLOGY_VERSION,
   effectiveAt: '2026-08-03T00:00:00.000Z',
-  compatibility: 'backward-compatible',
+  compatibility: 'read-compatible-write-gated',
   name: 'Brainbase Portable Ontology Kernel',
   description: 'A local-first semantic contract for Brainbase Personal OS data.',
   domains: {
@@ -98,13 +98,13 @@ const release = {
         {
           fromVersion: '0.0.0',
           toVersion: ONTOLOGY_VERSION,
-          level: 'backward-compatible',
+          level: 'read-compatible-write-gated',
           changes: [
             'Adds a versioned public semantic contract.',
             'Adds optional topic, supersedes, and effectiveAt decision fields.'
           ],
-          migration: 'No migration is required. Existing canonical Personal OS files remain readable.',
-          rollback: 'Stop using the additive ontology commands and optional decision fields.'
+          migration: 'Before enabling 1.0.0 writes, back up the Personal OS directory and run ontology:audit with ontology version 1.0.0. Existing files remain readable, but error violations must be reviewed and repaired before a canonical write.',
+          rollback: 'Reinstall the last known working @unson/brainbase-mcp package version and restore the pre-upgrade Personal OS backup if any reviewed repair changed canonical files. Merely avoiding ontology commands does not disable the write guards.'
         }
       ]
     }
@@ -223,23 +223,22 @@ export function inferDecisions(
 ): DecisionInferenceResult {
   const ontologyVersion = resolveOntologyVersion(options.ontologyVersion);
   const asOf = options.asOf ?? new Date().toISOString();
-  const effectiveDecisions = decisions.filter((decision) => !decision.effectiveAt || decision.effectiveAt <= asOf);
-
   if (ontologyVersion === '0.0.0') {
     return {
       status: decisions.length === 0 ? 'empty' : 'resolved',
       ontologyVersion,
       asOf,
-      activeDecisionIds: effectiveDecisions.map((decision) => decision.id),
+      activeDecisionIds: decisions.map((decision) => decision.id),
       supersededDecisionIds: [],
       conflicts: [],
       evidence: [],
       explanations: [
-        'Ontology 0.0.0 is the pre-kernel legacy interpretation; 1.0.0 supersession and conflict rules were not applied.'
+        'Ontology 0.0.0 is the pre-kernel legacy interpretation; 1.0.0 effectiveAt, supersession, and conflict rules were not applied.'
       ],
       violations: []
     };
   }
+  const effectiveDecisions = decisions.filter((decision) => !decision.effectiveAt || decision.effectiveAt <= asOf);
   const violations: OntologyViolation[] = [];
   auditDuplicateIds(
     effectiveDecisions,

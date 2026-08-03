@@ -65,6 +65,12 @@ describe('local SSOT loader', () => {
     expect(personalKgSchema.properties.text.minLength).toBe(1);
     expect(decisionSchema.required).toEqual(['id', 'title', 'decision']);
     expect(decisionSchema.properties.title.minLength).toBe(1);
+    expect(decisionSchema.properties.topic).toEqual({ type: 'string', minLength: 1 });
+    expect(decisionSchema.properties.supersedes).toEqual({
+      type: 'array',
+      items: { type: 'string', minLength: 1 }
+    });
+    expect(decisionSchema.properties.effectiveAt).toEqual({ type: 'string', format: 'date-time' });
   });
 
   it('INV-2 AP-2 loads canonical Personal KG even when raw sources disagree', async () => {

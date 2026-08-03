@@ -88,7 +88,7 @@ describe('story-brainbase-portable-ontology-kernel acceptance', () => {
     expect(inference.explanations.length).toBeGreaterThan(0);
 
     expect(portableOntology.domains.evolution.compatibility[0], 'story-brainbase-portable-ontology-kernel ac:7 publishes compatibility, migration, and rollback guidance').toMatchObject({
-      level: 'backward-compatible',
+      level: 'read-compatible-write-gated',
       migration: expect.any(String),
       rollback: expect.any(String)
     });

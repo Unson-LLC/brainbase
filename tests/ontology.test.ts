@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertOntologyValid,
   auditOntology,
+  getOntologyImpact,
   inferDecisions,
   portableOntology
 } from '../src/ontology.js';
@@ -34,7 +35,7 @@ describe('portable ontology kernel', () => {
   it('O-1 exposes the immutable 1.0.0 release with all five domains', () => {
     expect(portableOntology.version).toBe('1.0.0');
     expect(portableOntology.effectiveAt).toBe('2026-08-03T00:00:00.000Z');
-    expect(portableOntology.compatibility).toBe('backward-compatible');
+    expect(portableOntology.compatibility).toBe('read-compatible-write-gated');
     expect(Object.keys(portableOntology.domains)).toEqual([
       'types',
       'relations',
@@ -169,6 +170,12 @@ describe('portable ontology kernel', () => {
         decision: 'Automated deploy',
         topic: 'deployment',
         supersedes: ['decision-old']
+      },
+      {
+        id: 'decision-future',
+        title: 'Future',
+        decision: 'Future policy',
+        effectiveAt: '2027-01-01T00:00:00.000Z'
       }
     ];
 
@@ -185,7 +192,7 @@ describe('portable ontology kernel', () => {
     expect(historicalAudit.ontologyVersion).toBe('0.0.0');
     expect(historicalInference).toMatchObject({
       ontologyVersion: '0.0.0',
-      activeDecisionIds: ['decision-old', 'decision-new'],
+      activeDecisionIds: ['decision-old', 'decision-new', 'decision-future'],
       supersededDecisionIds: [],
       evidence: []
     });
@@ -195,5 +202,26 @@ describe('portable ontology kernel', () => {
       activeDecisionIds: ['decision-new'],
       supersededDecisionIds: ['decision-old']
     });
+  });
+
+  it('O-7 exposes a safe upgrade and actual package rollback path for legacy semantic violations', () => {
+    const legacySnapshot = personalOs({
+      decisions: [
+        { id: 'duplicate', title: 'Legacy A', decision: 'A' },
+        { id: 'duplicate', title: 'Legacy B', decision: 'B' }
+      ]
+    });
+
+    expect(auditOntology(legacySnapshot, { ontologyVersion: '0.0.0' }).violationCount).toBe(0);
+    expect(auditOntology(legacySnapshot, { ontologyVersion: '1.0.0' }).violations).toContainEqual(
+      expect.objectContaining({ ruleId: 'ONT-DECISION-ID-UNIQUE', severity: 'error' })
+    );
+
+    const impact = getOntologyImpact('0.0.0');
+    expect(impact.compatibility).toBe('read-compatible-write-gated');
+    expect(impact.migration).toContain('back up');
+    expect(impact.migration).toContain('ontology:audit');
+    expect(impact.rollback).toContain('@unson/brainbase-mcp');
+    expect(impact.rollback).toContain('restore');
   });
 });

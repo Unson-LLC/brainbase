@@ -33,7 +33,18 @@ brainbase ontology:audit --ontology-version 0.0.0
 - `complete` + error: 読取は完了したが、書込みを止める制約違反がある
 - `unverified` + `violationCount: null`: ファイル欠損や破損で監査できない。0件ではない
 
-`--ontology-version`を省略すると1.0.0で監査します。`0.0.0`はOntology Kernel導入前のlegacy解釈を表し、canonical fileの形式は検証しますが、1.0.0で追加された意味制約を過去へ遡及適用しません。これにより、監査・推論結果に「どのversionの意味で読んだか」が必ず残ります。未対応versionは推測せず拒否します。
+`--ontology-version`を省略すると1.0.0で監査します。`0.0.0`はOntology Kernel導入前のlegacy解釈を表し、canonical fileの形式は検証しますが、1.0.0で追加された`effectiveAt`、supersession、conflict、意味制約を過去へ遡及適用しません。これにより、監査・推論結果に「どのversionの意味で読んだか」が必ず残ります。未対応versionは推測せず拒否します。
+
+## 0.0.0から1.0.0へ更新する
+
+1. `~/.brainbase/personal-os/`を別の場所へバックアップする。
+2. 書込みを伴わない`brainbase ontology:audit --ontology-version 1.0.0`を実行する。
+3. `error`があればupgrade後の書込みを始めず、rule IDとpathを確認する。重複IDや不正なsupersessionは、自動修復せず、バックアップを残したまま利用者が正しいrecordを選んで修正する。
+4. `complete`かつerrorが0件になってから、`onboard:seed`、`onboard:projects --write`、`onboard:apply --write`を使う。
+
+互換性は「既存recordを読める」という意味では保たれますが、1.0.0のcanonical writeは1.0.0監査がerrorなしであることを条件にします。既存の意味違反を黙って温存して書き足すことはしません。
+
+rollbackが必要な場合は、upgrade前に記録した直前の`@unson/brainbase-mcp` package versionを再インストールします。監査後に利用者がcanonical fileを修正した場合だけ、必要に応じてupgrade前バックアップも復元します。Ontology commandを使わないだけでは、1.0.0で追加されたpre-write guardは無効になりません。
 
 ## Decisionの変更を表す
 
