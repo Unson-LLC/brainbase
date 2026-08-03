@@ -54,7 +54,7 @@ BrainbaseのGraph運用責任者として、Ontology 1.0.0を実データ・権�
 
 ## 明示シナリオ
 
-### Scenario: 検証済みreleaseだけを本番currentとして有効化する
+### Scenario S-001: 検証済みreleaseだけを本番currentとして有効化する
 
 - Given: Ontology 1.0.0の完全Graph監査、Decision/RACI、署名receipt、rollback演習がすべて合格している。
 - When: 同じreview済みHEADをCI、merge、本番deployへ進める。
@@ -71,3 +71,27 @@ BrainbaseのGraph運用責任者として、Ontology 1.0.0を実データ・権�
 - compatibility: 既存readとlegacy response契約を維持し、canonical writeだけをactive Ontologyへfail closedで結合する
 - completion evidence: merged SHA、service health、API digest一致、署名receipt、完全Graph audit 0件、restart後ログ
 - rollback target: 初回release直前の`current: null` artifact。Graph修復とgovernance factは保持する
+
+## Release note
+
+- Ontology 1.0.0をBrainbase Graphのcurrent releaseとして有効化し、canonical writeへ型・関係・制約・推論・変更履歴の検証を適用する。
+- 既存read契約とlegacy write responseは維持する。利用者による移行操作は不要である。
+
+## Rollout plan
+
+1. VibePro GateとCIが同一HEADで合格したことを確認し、そのHEADを`develop`へmergeする。
+2. merge済みSHAを本番serviceへdeployし、serviceの稼働SHAをreadbackする。
+3. health、起動後journal、version/current APIのdigest、Ed25519 receipt、DB-backed完全Graph監査を順に確認する。
+4. 全項目が一致した場合だけ有効化完了とする。不一致があれば直ちにRollback instructionへ進む。
+
+## Observability evidence
+
+- owner-visible evidenceは、稼働SHA、systemd service status、restart以降のjournal、health response、version/current responseとdigest、receipt署名検証結果、`collection_complete: true`かつ0 violationのGraph監査結果で構成する。
+- authoritative signalは、Git trust storeで検証された署名receiptと、そのreceiptが指すcurrent index digestである。HTTP 200やprocess稼働だけを有効化成功とは扱わない。
+
+## Rollback instruction
+
+1. 稼働SHA、digest、署名、health、journal、完全Graph監査のいずれかが不一致なら、直前の本番artifact SHAへserviceを戻して再起動する。
+2. current publicationは初回release直前の`current: null`へ戻し、`npm run ontology:verify`で復旧を確認する。
+3. Graph修復、Decision、RACI、監査履歴は削除せず保持する。
+4. rollback後もhealth、journal、current readbackを再確認し、未確認項目が残る場合は有効化を再開しない。
