@@ -36,7 +36,7 @@
     "onboard:install": "node dist/cli.js onboard:install"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.13.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "zod": "^3.25.56"
   },
   "devDependencies": {

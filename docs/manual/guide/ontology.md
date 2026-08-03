@@ -44,7 +44,15 @@ brainbase ontology:audit --ontology-version 0.0.0
 
 互換性は「既存recordを読める」という意味では保たれますが、1.0.0のcanonical writeは1.0.0監査がerrorなしであることを条件にします。既存の意味違反を黙って温存して書き足すことはしません。
 
-rollbackが必要な場合は、upgrade前に記録した直前の`@unson/brainbase-mcp` package versionを再インストールします。監査後に利用者がcanonical fileを修正した場合だけ、必要に応じてupgrade前バックアップも復元します。Ontology commandを使わないだけでは、1.0.0で追加されたpre-write guardは無効になりません。
+### 初回公開時のrollback
+
+`@unson/brainbase-mcp`の初回npm公開には、再インストールできる旧package versionがありません。導入前に、現在利用しているMCP client設定ファイルをコピーし、Brainbaseを起動しているcommandも記録してください。問題が起きた場合は次の順に戻します。
+
+1. `npm uninstall -g @unson/brainbase-mcp`で初回公開packageを取り除く。
+2. 退避したMCP client設定と従来の起動commandを復元する。
+3. MCP clientを再起動し、従来のBrainbase接続を確認する。
+
+既存packageからupgradeする将来のreleaseでは、upgrade前に記録した直前のversionを再インストールします。いずれも、監査後に利用者がcanonical fileを修正した場合だけ、必要に応じてupgrade前の`~/.brainbase/personal-os/`バックアップも復元します。Ontology commandを使わないだけでは、1.0.0で追加されたpre-write guardは無効になりません。
 
 ## Decisionの変更を表す
 

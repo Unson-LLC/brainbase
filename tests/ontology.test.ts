@@ -264,6 +264,8 @@ describe('portable ontology kernel', () => {
     expect(impact.migration).toContain('back up');
     expect(impact.migration).toContain('ontology:audit');
     expect(impact.rollback).toContain('@unson/brainbase-mcp');
+    expect(impact.rollback).toContain('npm uninstall -g');
+    expect(impact.rollback).toContain('MCP client configuration');
     expect(impact.rollback).toContain('restore');
   });
 });

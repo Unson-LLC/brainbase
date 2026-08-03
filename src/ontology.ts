@@ -123,7 +123,7 @@ const release = {
             'Adds optional topic, supersedes, and effectiveAt decision fields.'
           ],
           migration: 'Before enabling 1.0.0 writes, back up the Personal OS directory and run ontology:audit with ontology version 1.0.0. Existing files remain readable, but error violations must be reviewed and repaired before a canonical write.',
-          rollback: 'Reinstall the last known working @unson/brainbase-mcp package version and restore the pre-upgrade Personal OS backup if any reviewed repair changed canonical files. Merely avoiding ontology commands does not disable the write guards.'
+          rollback: 'For the first npm release, run npm uninstall -g @unson/brainbase-mcp, restore the MCP client configuration and launch command captured before rollout, and restart the client. For later upgrades, reinstall the recorded last known working package version. Restore the pre-upgrade Personal OS backup only if a reviewed repair changed canonical files. Merely avoiding ontology commands does not disable the write guards.'
         }
       ]
     }

@@ -71,7 +71,9 @@ Zodによる既存file schema validationは形式検証として維持し、こ�
 
 `onboard:seed`、`onboard:apply --write`、`onboard:projects --write`は、既存snapshotへ予定追加を反映したin-memory snapshotを作り、最初のfile write前にauditする。error violationがあれば全fileを未変更のまま拒否する。
 
-0.0.0からの更新時は、canonical directoryのbackupと1.0.0 read-only auditを先に行う。既存recordは読取互換だが、canonical writeは1.0.0 auditがerrorなしであることを条件とする。rollbackは直前のpackage versionの再インストールを含み、canonical fileを修正済みの場合だけbackupを復元する。
+0.0.0からの更新時は、canonical directoryのbackupと1.0.0 read-only auditを先に行う。既存recordは読取互換だが、canonical writeは1.0.0 auditがerrorなしであることを条件とする。
+
+初回npm公開には再インストールできる旧package versionが存在しないため、rollout前に現在のMCP client設定と起動commandを退避する。問題が起きた場合は`npm uninstall -g @unson/brainbase-mcp`で初回公開packageを取り除き、退避した設定と起動commandへ戻してclientを再起動する。既存packageからのupgradeでは直前のversionを記録し、そのversionを再インストールする。どちらの場合も、監査後に利用者がcanonical fileを修正した場合だけbackupを復元する。
 
 ## Threat Model
 
@@ -100,4 +102,6 @@ Trust boundaryはローカルcanonical fileのreaderとpure kernelの間に置�
 - Targeted Vitest: ontology pure kernel、MCP contract、CLI audit、pre-write guard。
 - Full Vitest suite。
 - TypeScript build。
+- `npm audit --omit=dev`でproduction dependencyが0 vulnerabilitiesであること。
+- `npm pack --dry-run --json`で公開artifactの内容を確認すること。
 - VibePro strict-head unit/typecheck/integration/e2e evidence。
