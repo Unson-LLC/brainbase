@@ -82,4 +82,19 @@ describe('local SSOT loader', () => {
     expect(os.personalKg.map((entry) => entry.text).join('\n')).toContain('canonical Personal KG wins');
     expect(os.personalKg.map((entry) => entry.text).join('\n')).not.toContain('Remote hosted server should be preferred');
   });
+
+  it('accepts RFC 3339 offsets in canonical decision effectiveAt values', async () => {
+    const dir = await tempDir();
+    await initializePersonalOs(dir);
+    await writeFile(join(dir, 'decisions.jsonl'), `${JSON.stringify({
+      id: 'decision-offset',
+      title: 'Offset timestamp',
+      decision: 'Accept RFC 3339 offsets',
+      effectiveAt: '2026-08-03T09:00:00+09:00'
+    })}\n`);
+
+    await expect(loadPersonalOs(dir)).resolves.toMatchObject({
+      decisions: [expect.objectContaining({ effectiveAt: '2026-08-03T09:00:00+09:00' })]
+    });
+  });
 });

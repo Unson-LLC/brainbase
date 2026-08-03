@@ -1,5 +1,7 @@
 # Brainbase Personal Onboarding Kit MCP-only Repo
 
+> Historical launch Story. Its original five-tool baseline remains supported; additive, versioned capabilities are governed by later Stories such as `portable-ontology-kernel-story.md`.
+
 ## Background
 
 `Unson-LLC/brainbase` is the external distribution repository for Brainbase Personal Onboarding Kit. The internal UI, session runtime, workflow operation, 31013 runtime, SNS operations, and Unson-specific data remain in `brainbase-unson`.
@@ -10,7 +12,7 @@ The v1 product value is giving an individual a local personal SSOT that AI tools
 
 1. The root package is `@unson/brainbase-mcp`, with `brainbase-mcp` for stdio MCP and `brainbase` for onboarding CLI.
 2. The repository contains no browser UI, session dashboard, xterm transport, launchd runtime, workflow mission control, SNS operation flow, hosted backend implementation, or Unson internal data.
-3. The v1 MCP tool surface is fixed to `get_context`, `list_entities`, `search`, `search_personal_kg`, and `onboarding_status`.
+3. The original v1 MCP baseline is `get_context`, `list_entities`, `search`, `search_personal_kg`, and `onboarding_status`. Later versioned Stories may add tools without removing or changing these five contracts.
 4. The default local SSOT directory is `~/.brainbase/personal-os/`, overridable with `BRAINBASE_PERSONAL_OS_DIR`.
 5. The canonical local SSOT files are `graph.json`, `personal-kg.jsonl`, `relationships.json`, and `decisions.jsonl`.
 6. Raw notes, logs, and meeting transcripts can exist under `sources/`, but MCP responses prefer canonical SSOT data.

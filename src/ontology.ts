@@ -266,7 +266,30 @@ export function inferDecisions(
       violations: []
     };
   }
-  const effectiveDecisions = decisions.filter((decision) => !decision.effectiveAt || decision.effectiveAt <= asOf);
+  const asOfInstant = Date.parse(asOf);
+  if (Number.isNaN(asOfInstant)) {
+    return {
+      status: 'invalid',
+      ontologyVersion,
+      asOf,
+      activeDecisionIds: [],
+      supersededDecisionIds: [],
+      conflicts: [],
+      evidence: [],
+      explanations: ['Inference was not performed because asOf is not a valid ISO date-time.'],
+      violations: [{
+        ruleId: 'ONT-INFERENCE-AS-OF-DATETIME',
+        severity: 'error',
+        path: 'asOf',
+        message: `asOf must be a valid ISO date-time. Received: ${asOf}.`
+      }]
+    };
+  }
+  const effectiveDecisions = decisions.filter((decision) => {
+    if (!decision.effectiveAt) return true;
+    const effectiveInstant = Date.parse(decision.effectiveAt);
+    return !Number.isNaN(effectiveInstant) && effectiveInstant <= asOfInstant;
+  });
   const violations: OntologyViolation[] = [];
   auditDuplicateIds(
     effectiveDecisions,

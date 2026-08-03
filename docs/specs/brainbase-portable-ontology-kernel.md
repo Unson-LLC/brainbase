@@ -26,7 +26,7 @@ CLIに`ontology:show`と`ontology:audit`を追加する。JSONを標準出力へ
 
 - `topic?: string`: 競合判定単位。
 - `supersedes?: string[]`: 明示的に置き換えるDecision ID。
-- `effectiveAt?: string`: 意思決定が有効になるISO datetime。
+- `effectiveAt?: string`: 意思決定が有効になるRFC 3339 date-time。`Z`とUTC offsetの両方を受理し、推論時は文字列順ではなく同一の時刻軸へ正規化して比較する。
 
 既存fieldだけのrecordは引き続きvalidである。
 `onboard:init`が生成する`schemas/decisions.schema.json`も、この3 optional fieldをruntime schemaと同じ形で公開する。

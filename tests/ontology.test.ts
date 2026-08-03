@@ -153,6 +153,36 @@ describe('portable ontology kernel', () => {
     expect(result.explanations.join(' ')).toContain('decision-new');
   });
 
+  it('O-4 normalizes RFC 3339 offsets before comparing effective instants', () => {
+    const result = inferDecisions([
+      {
+        id: 'decision-offset-future',
+        title: 'Offset future',
+        decision: 'Not active yet',
+        effectiveAt: '2026-08-02T23:30:00-02:00'
+      },
+      {
+        id: 'decision-offset-active',
+        title: 'Offset active',
+        decision: 'Already active',
+        effectiveAt: '2026-08-03T09:00:00+09:00'
+      }
+    ], { asOf: '2026-08-03T00:00:00Z' });
+
+    expect(result.activeDecisionIds).toEqual(['decision-offset-active']);
+    expect(result.activeDecisionIds).not.toContain('decision-offset-future');
+  });
+
+  it('O-4 fails explicitly when direct callers provide an invalid as-of value', () => {
+    const result = inferDecisions([], { asOf: 'not-a-date' });
+
+    expect(result).toMatchObject({
+      status: 'invalid',
+      activeDecisionIds: [],
+      violations: [expect.objectContaining({ ruleId: 'ONT-INFERENCE-AS-OF-DATETIME', path: 'asOf' })]
+    });
+  });
+
   it('O-5 keeps legacy decisions readable and reports same-topic ambiguity as a conflict', () => {
     const result = inferDecisions([
       { id: 'legacy', title: 'Legacy', decision: 'Still readable' },

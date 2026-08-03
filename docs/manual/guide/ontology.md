@@ -61,4 +61,6 @@ rollbackが必要な場合は、upgrade前に記録した直前の`@unson/brainb
 }
 ```
 
+`effectiveAt`と推論の`asOf`はRFC 3339 date-timeです。`Z`だけでなく`+09:00`などのUTC offsetも利用でき、比較は表記上の文字列順ではなく実際の時刻で行われます。
+
 同じ `topic` のDecisionが複数あっても、`supersedes` がなければBrainbaseは勝手に一方を採用しません。競合として返し、人が関係を確定できる状態を保ちます。

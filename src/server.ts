@@ -14,7 +14,7 @@ const argsSchema = z.object({
   type: z.enum(['person', 'org', 'project', 'relationship', 'decision']).optional(),
   fromVersion: z.string().optional(),
   ontologyVersion: z.string().optional(),
-  asOf: z.string().datetime().optional()
+  asOf: z.string().datetime({ offset: true }).optional()
 });
 
 export const toolDefinitions = [

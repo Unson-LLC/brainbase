@@ -164,6 +164,13 @@ describe('MCP contract', () => {
       ontologyVersion: '1.0.0',
       activeDecisionIds: ['decision-local-only']
     });
+    await expect(callBrainbaseTool('infer_decisions', {
+      dataDir,
+      asOf: '2026-08-03T09:00:00+09:00'
+    })).resolves.toMatchObject({
+      ontologyVersion: '1.0.0',
+      asOf: '2026-08-03T09:00:00+09:00'
+    });
     await expect(callBrainbaseTool('audit_ontology', {
       dataDir,
       ontologyVersion: '0.0.0'

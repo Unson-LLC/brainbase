@@ -1,5 +1,7 @@
 # Brainbase MCP-only Personal Onboarding Kit Spec
 
+> Historical launch baseline. Additive, versioned capabilities may extend its scripts and MCP tools while preserving the contracts below.
+
 ## Story
 
 Replace `Unson-LLC/brainbase` with a UI-free, local-first MCP package that lets an individual create a personal SSOT and expose it to Codex, Claude, and CodeCode.
@@ -15,7 +17,7 @@ Replace `Unson-LLC/brainbase` with a UI-free, local-first MCP package that lets 
 
 - C-1: The root package name is `@unson/brainbase-mcp`.
 - C-2: The MCP binary is `brainbase-mcp`; the onboarding CLI binary is `brainbase`.
-- C-3: Root scripts are limited to `build`, `test`, `start`, `doctor`, `onboard:init`, `onboard:seed`, and `onboard:install`.
+- C-3: The launch scripts `build`, `test`, `start`, `doctor`, `onboard:init`, `onboard:seed`, and `onboard:install` remain supported. Additive test, documentation, and versioned-capability scripts may be introduced without changing those contracts.
 - C-4: The default data directory is `~/.brainbase/personal-os/`, overridable through `BRAINBASE_PERSONAL_OS_DIR`.
 - C-5: Canonical local SSOT files are `graph.json`, `personal-kg.jsonl`, `relationships.json`, and `decisions.jsonl`.
 - C-6: The original v1 context/onboarding tools remain `get_context`, `list_entities`, `search`, `search_personal_kg`, and `onboarding_status`; additive versioned capabilities may add tools without changing those contracts.
