@@ -56,11 +56,31 @@ const release = {
   domains: {
     types: {
       concepts: [
-        { id: 'person', meaning: 'A human represented in the local Graph.' },
-        { id: 'org', meaning: 'An organization represented in the local Graph.' },
-        { id: 'project', meaning: 'A bounded body of work represented in the local Graph.' },
-        { id: 'relationship', meaning: 'A contextual connection to a person.' },
-        { id: 'decision', meaning: 'A durable choice that may explicitly supersede another choice.' }
+        {
+          id: 'person',
+          meaning: 'A human represented in the local Graph.',
+          usageConditions: ['Use only for a human identity approved for the canonical local SSOT.']
+        },
+        {
+          id: 'org',
+          meaning: 'An organization represented in the local Graph.',
+          usageConditions: ['Use for a named organizational actor, not for a project or product.']
+        },
+        {
+          id: 'project',
+          meaning: 'A bounded body of work represented in the local Graph.',
+          usageConditions: ['Use when the entity has a bounded work objective; do not use it as an organization alias.']
+        },
+        {
+          id: 'relationship',
+          meaning: 'A contextual connection to a person.',
+          usageConditions: ['The person field must resolve to a canonical person entity by name.']
+        },
+        {
+          id: 'decision',
+          meaning: 'A durable choice that may explicitly supersede another choice.',
+          usageConditions: ['Use for an explicit durable choice; replacement requires a supersedes Decision ID.']
+        }
       ]
     },
     relations: {
@@ -201,8 +221,16 @@ export function assertOntologyValid(os: PersonalOs): void {
   const result = auditOntology(os);
   const errors = result.violations.filter((violation) => violation.severity === 'error');
   if (errors.length > 0) {
-    throw new Error(`Ontology validation failed: ${errors.map((error) => `${error.ruleId} at ${error.path}`).join('; ')}`);
+    throw new Error(`Ontology validation failed: ${errors.map((error) => `${error.ruleId} at ${error.path}: ${error.message}`).join('; ')}`);
   }
+}
+
+export interface DecisionInferenceEvidence {
+  ruleId: string;
+  sourceDecisionId?: string;
+  targetDecisionId?: string;
+  topic?: string;
+  decisionIds?: string[];
 }
 
 export interface DecisionInferenceResult {
@@ -212,7 +240,7 @@ export interface DecisionInferenceResult {
   activeDecisionIds: string[];
   supersededDecisionIds: string[];
   conflicts: Array<{ topic: string; decisionIds: string[] }>;
-  evidence: Array<{ sourceDecisionId: string; targetDecisionId: string; ruleId: string }>;
+  evidence: DecisionInferenceEvidence[];
   explanations: string[];
   violations: OntologyViolation[];
 }
@@ -289,6 +317,11 @@ export function inferDecisions(
   const conflicts = [...topicGroups.entries()]
     .filter(([, ids]) => ids.length > 1)
     .map(([topic, decisionIds]) => ({ topic, decisionIds }));
+  evidence.push(...conflicts.map((conflict) => ({
+    ruleId: 'ONT-INFER-SAME-TOPIC-CONFLICT',
+    topic: conflict.topic,
+    decisionIds: conflict.decisionIds
+  })));
 
   return {
     status: decisions.length === 0 ? 'empty' : conflicts.length > 0 ? 'conflict' : 'resolved',
@@ -299,7 +332,9 @@ export function inferDecisions(
     conflicts,
     evidence,
     explanations: [
-      ...evidence.map((item) => `${item.sourceDecisionId} explicitly supersedes ${item.targetDecisionId}.`),
+      ...evidence
+        .filter((item) => item.ruleId === 'ONT-INFER-EXPLICIT-SUPERSESSION')
+        .map((item) => `${item.sourceDecisionId} explicitly supersedes ${item.targetDecisionId}.`),
       ...conflicts.map((conflict) => `Topic ${JSON.stringify(conflict.topic)} has multiple active decisions: ${conflict.decisionIds.join(', ')}.`),
       ...active.filter((decision) => !decision.topic).map((decision) => `${decision.id} has no topic and remains an independent legacy decision.`)
     ],

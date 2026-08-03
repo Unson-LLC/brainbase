@@ -5,7 +5,7 @@
 Ontology release `1.0.0`は次を一つのobjectとして返す。
 
 - `version`, `effectiveAt`, `compatibility`
-- `domains.types`: OSS canonical recordsの型と意味
+- `domains.types`: OSS canonical recordsの型、意味、機械可読な利用条件
 - `domains.relations`: 許可された関係語彙とdomain/range
 - `domains.constraints`: stable rule ID、severity、説明
 - `domains.inference`: 明示supersessionとtopic conflictの規則

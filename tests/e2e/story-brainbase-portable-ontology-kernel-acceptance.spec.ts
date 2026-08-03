@@ -57,8 +57,12 @@ describe('story-brainbase-portable-ontology-kernel acceptance', () => {
       'inference',
       'evolution'
     ]);
-    expect(portableOntology.domains.types.concepts, 'story-brainbase-portable-ontology-kernel ac:2 gives every public type an explicit meaning').toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: 'person', meaning: expect.any(String) })])
+    expect(portableOntology.domains.types.concepts, 'story-brainbase-portable-ontology-kernel ac:2 gives every public type an explicit meaning and usage conditions').toEqual(
+      expect.arrayContaining([expect.objectContaining({
+        id: 'project',
+        meaning: expect.any(String),
+        usageConditions: expect.arrayContaining([expect.any(String)])
+      })])
     );
 
     const completeAudit = await auditPersonalOsDirectory(dir);
@@ -86,6 +90,16 @@ describe('story-brainbase-portable-ontology-kernel acceptance', () => {
       evidence: [expect.objectContaining({ ruleId: 'ONT-INFER-EXPLICIT-SUPERSESSION' })]
     });
     expect(inference.explanations.length).toBeGreaterThan(0);
+
+    const conflictInference = inferDecisions([
+      { id: 'choice-a', title: 'Choice A', decision: 'Use A', topic: 'runtime' },
+      { id: 'choice-b', title: 'Choice B', decision: 'Use B', topic: 'runtime' }
+    ], { asOf: '2026-08-03T00:00:00.000Z' });
+    expect(conflictInference.evidence, 'story-brainbase-portable-ontology-kernel ac:6 traces conflicts to the applied ontology rule').toContainEqual({
+      ruleId: 'ONT-INFER-SAME-TOPIC-CONFLICT',
+      topic: 'runtime',
+      decisionIds: ['choice-a', 'choice-b']
+    });
 
     expect(portableOntology.domains.evolution.compatibility[0], 'story-brainbase-portable-ontology-kernel ac:7 publishes compatibility, migration, and rollback guidance').toMatchObject({
       level: 'read-compatible-write-gated',

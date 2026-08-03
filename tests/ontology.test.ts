@@ -46,6 +46,11 @@ describe('portable ontology kernel', () => {
     expect(portableOntology.domains.types.concepts.map((concept) => concept.id)).toEqual(
       expect.arrayContaining(['person', 'project', 'relationship', 'decision'])
     );
+    expect(portableOntology.domains.types.concepts).toContainEqual(expect.objectContaining({
+      id: 'project',
+      meaning: expect.stringContaining('bounded body of work'),
+      usageConditions: expect.arrayContaining([expect.stringContaining('bounded work objective')])
+    }));
     expect(portableOntology.domains.relations.vocabulary.length).toBeGreaterThan(0);
     expect(portableOntology.domains.constraints.rules.length).toBeGreaterThan(0);
     expect(portableOntology.domains.inference.rules.length).toBeGreaterThan(0);
@@ -96,7 +101,9 @@ describe('portable ontology kernel', () => {
     });
     const before = structuredClone(os);
 
-    expect(() => assertOntologyValid(os)).toThrow(/ONT-DECISION-ID-UNIQUE/);
+    expect(() => assertOntologyValid(os)).toThrow(
+      /ONT-DECISION-ID-UNIQUE at decisions\[1\]\.id: Decision IDs must be unique\. Duplicate: decision-1\./
+    );
     expect(os).toEqual(before);
   });
 
@@ -156,6 +163,11 @@ describe('portable ontology kernel', () => {
     expect(result.status).toBe('conflict');
     expect(result.activeDecisionIds).toEqual(expect.arrayContaining(['legacy', 'decision-a', 'decision-b']));
     expect(result.conflicts).toContainEqual({
+      topic: 'deployment',
+      decisionIds: ['decision-a', 'decision-b']
+    });
+    expect(result.evidence).toContainEqual({
+      ruleId: 'ONT-INFER-SAME-TOPIC-CONFLICT',
       topic: 'deployment',
       decisionIds: ['decision-a', 'decision-b']
     });
