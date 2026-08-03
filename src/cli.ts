@@ -5,6 +5,8 @@ import { delimiter, dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appendDecisions, appendPersonalKg, initializePersonalOs, loadPersonalOs, saveGraph, saveRelationships } from './ssot.js';
 import { resolveDataDir } from './paths.js';
+import { auditPersonalOsDirectory } from './ontology-ssot.js';
+import { assertOntologyValid, portableOntology, resolveOntologyVersion } from './ontology.js';
 import { onboardingStatus } from './tools.js';
 import { buildCandidateDrafts, parseOnboardingFormat, renderAgentProtocol, renderCandidateDrafts, renderConnectorRecommendations, renderLocalOnboardingPlan, renderSourceDiagnosis, renderValueDemo } from './onboarding.js';
 import {
@@ -44,7 +46,7 @@ import {
   type ProjectRegistrationPlan
 } from './projects.js';
 import { renderGuidedFirstRun, type GuidedTarget } from './guided-onboarding.js';
-import type { DecisionRecord, GraphEntity, PersonalKgEntry, RelationshipRecord } from './types.js';
+import type { DecisionRecord, GraphEntity, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
 interface CliIo {
   stdout?: { write(chunk: string): unknown };
@@ -96,6 +98,11 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await onboardRoutines(parsed, io);
       case 'onboard:skills':
         return await onboardSkills(parsed, io);
+      case 'ontology:show':
+        write(io, `${JSON.stringify(portableOntology, null, 2)}\n`);
+        return 0;
+      case 'ontology:audit':
+        return await ontologyAudit(parsed, io);
       case 'doctor':
         return await doctor(parsed, io);
       case 'mcp':
@@ -211,8 +218,15 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
     return 1;
   }
 
-  await saveGraph(dataDir, { ...os.graph, entities: graphEntities });
-  await saveRelationships(dataDir, { version: 1, relationships });
+  const proposed = proposedPersonalOs(os, {
+    graph: { ...os.graph, entities: graphEntities },
+    relationships: { version: 1, relationships },
+    personalKg: [...os.personalKg, ...personalEntries],
+    decisions: [...os.decisions, ...decisions]
+  });
+  assertOntologyValid(proposed);
+  await saveGraph(dataDir, proposed.graph);
+  await saveRelationships(dataDir, proposed.relationships);
   await appendPersonalKg(dataDir, personalEntries);
   await appendDecisions(dataDir, decisions);
   write(io, `Seeded Brainbase Personal OS at ${dataDir}\n`);
@@ -428,8 +442,15 @@ async function applyProjectRegistrationPlan(dataDir: string, plan: ProjectRegist
     }
   }
 
-  await saveGraph(dataDir, { ...os.graph, entities: graphEntities });
-  await saveRelationships(dataDir, { version: 1, relationships });
+  const proposed = proposedPersonalOs(os, {
+    graph: { ...os.graph, entities: graphEntities },
+    relationships: { version: 1, relationships },
+    personalKg: [...os.personalKg, ...plan.writes.personalKg],
+    decisions: [...os.decisions, ...plan.writes.decisions]
+  });
+  assertOntologyValid(proposed);
+  await saveGraph(dataDir, proposed.graph);
+  await saveRelationships(dataDir, proposed.relationships);
   await appendPersonalKg(dataDir, plan.writes.personalKg);
   await appendDecisions(dataDir, plan.writes.decisions);
 }
@@ -526,8 +547,15 @@ async function onboardApply(parsed: ParsedArgs, io: CliIo): Promise<number> {
 
   const willWrite = parsed.flags.has('write');
   if (willWrite) {
-    await saveGraph(dataDir, { ...os.graph, owner: result.ownerName ? { ...os.graph.owner, name: result.ownerName } : os.graph.owner, entities: result.graphEntities });
-    await saveRelationships(dataDir, { version: 1, relationships: result.relationships });
+    const proposed = proposedPersonalOs(os, {
+      graph: { ...os.graph, owner: result.ownerName ? { ...os.graph.owner, name: result.ownerName } : os.graph.owner, entities: result.graphEntities },
+      relationships: { version: 1, relationships: result.relationships },
+      personalKg: [...os.personalKg, ...result.personalKgAdditions],
+      decisions: [...os.decisions, ...result.decisionAdditions]
+    });
+    assertOntologyValid(proposed);
+    await saveGraph(dataDir, proposed.graph);
+    await saveRelationships(dataDir, proposed.relationships);
     await appendPersonalKg(dataDir, result.personalKgAdditions);
     await appendDecisions(dataDir, result.decisionAdditions);
   }
@@ -858,6 +886,24 @@ function writeError(io: CliIo, text: string): void {
   io.stderr?.write(text);
 }
 
+async function ontologyAudit(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const dataDir = resolveDataDir(first(parsed, 'dir'));
+  const ontologyVersion = resolveOntologyVersion(first(parsed, 'ontology-version'));
+  const result = await auditPersonalOsDirectory(dataDir, { ontologyVersion });
+  write(io, `${JSON.stringify(result, null, 2)}\n`);
+  if (result.status === 'unverified') {
+    return 1;
+  }
+  return result.violations.some((violation) => violation.severity === 'error') ? 1 : 0;
+}
+
+function proposedPersonalOs(
+  os: PersonalOs,
+  proposed: Pick<PersonalOs, 'graph' | 'relationships' | 'personalKg' | 'decisions'>
+): PersonalOs {
+  return { ...os, ...proposed };
+}
+
 function usage(): string {
   return `Usage:
   brainbase-mcp
@@ -878,6 +924,8 @@ function usage(): string {
   brainbase onboard:apply --from path [--select id] [--all] [--write] [--dir path] [--format markdown|json]
   brainbase onboard:routines --target codex|claude [--routines ohayo,oyasumi,retro] [--ohayo-hour n] [--oyasumi-hour n] [--retro-dow MON-SUN] [--retro-hour n] [--cwd path] [--out path] [--format markdown|json]
   brainbase onboard:skills --target codex|claude|portable [--skills id,id] [--out dir] [--format markdown|json]
+  brainbase ontology:show
+  brainbase ontology:audit [--dir path] [--ontology-version 0.0.0|1.0.0]
   brainbase doctor [--dir path]
 `;
 }

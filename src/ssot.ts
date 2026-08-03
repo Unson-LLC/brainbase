@@ -49,6 +49,9 @@ const decisionSchema: z.ZodType<DecisionRecord> = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   decision: z.string().min(1),
+  topic: z.string().min(1).optional(),
+  supersedes: z.array(z.string().min(1)).optional(),
+  effectiveAt: z.string().datetime({ offset: true }).optional(),
   rationale: z.string().optional(),
   tags: z.array(z.string()).optional(),
   updatedAt: z.string().optional()

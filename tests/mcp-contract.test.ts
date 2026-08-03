@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -46,7 +46,11 @@ describe('MCP contract', () => {
       'list_entities',
       'search',
       'search_personal_kg',
-      'onboarding_status'
+      'onboarding_status',
+      'get_ontology',
+      'audit_ontology',
+      'infer_decisions',
+      'ontology_impact'
     ]);
   });
 
@@ -61,7 +65,11 @@ describe('MCP contract', () => {
         'list_entities',
         'search',
         'search_personal_kg',
-        'onboarding_status'
+        'onboarding_status',
+        'get_ontology',
+        'audit_ontology',
+        'infer_decisions',
+        'ontology_impact'
       ]);
     } finally {
       await client.close();
@@ -145,6 +153,67 @@ describe('MCP contract', () => {
     await expect(callBrainbaseTool('onboarding_status', { dataDir })).resolves.toMatchObject({
       connected: true,
       backend: 'local'
+    });
+    await expect(callBrainbaseTool('get_ontology')).resolves.toMatchObject({ version: '1.0.0' });
+    await expect(callBrainbaseTool('audit_ontology', { dataDir })).resolves.toMatchObject({
+      status: 'complete',
+      ontologyVersion: '1.0.0',
+      violationCount: 0
+    });
+    await expect(callBrainbaseTool('infer_decisions', { dataDir, asOf: '2026-08-03T00:00:00.000Z' })).resolves.toMatchObject({
+      ontologyVersion: '1.0.0',
+      activeDecisionIds: ['decision-local-only']
+    });
+    await expect(callBrainbaseTool('infer_decisions', {
+      dataDir,
+      asOf: '2026-08-03T09:00:00+09:00'
+    })).resolves.toMatchObject({
+      ontologyVersion: '1.0.0',
+      asOf: '2026-08-03T09:00:00+09:00'
+    });
+    await expect(callBrainbaseTool('audit_ontology', {
+      dataDir,
+      ontologyVersion: '0.0.0'
+    })).resolves.toMatchObject({
+      status: 'complete',
+      ontologyVersion: '0.0.0'
+    });
+    await expect(callBrainbaseTool('infer_decisions', {
+      dataDir,
+      asOf: '2026-08-03T00:00:00.000Z',
+      ontologyVersion: '0.0.0'
+    })).resolves.toMatchObject({
+      ontologyVersion: '0.0.0',
+      evidence: []
+    });
+    await expect(callBrainbaseTool('audit_ontology', {
+      dataDir,
+      ontologyVersion: '9.9.9'
+    })).rejects.toThrow(/Unsupported ontology version/);
+    await expect(callBrainbaseTool('ontology_impact', { fromVersion: '0.0.0' })).resolves.toMatchObject({
+      toVersion: '1.0.0',
+      supported: true
+    });
+  });
+
+  it('C-6 suppresses decision inference when another canonical snapshot surface is invalid', async () => {
+    const dataDir = await fixtureDir();
+    const graphPath = join(dataDir, 'graph.json');
+    const graph = JSON.parse(await readFile(graphPath, 'utf8'));
+    graph.entities.push({ ...graph.entities[0] });
+    await writeFile(graphPath, `${JSON.stringify(graph, null, 2)}\n`, 'utf8');
+
+    await expect(callBrainbaseTool('audit_ontology', { dataDir })).resolves.toMatchObject({
+      status: 'complete',
+      violations: [expect.objectContaining({ ruleId: 'ONT-ENTITY-ID-UNIQUE' })]
+    });
+    await expect(callBrainbaseTool('infer_decisions', {
+      dataDir,
+      asOf: '2026-08-03T00:00:00.000Z'
+    })).resolves.toMatchObject({
+      status: 'invalid',
+      activeDecisionIds: [],
+      violations: [expect.objectContaining({ ruleId: 'ONT-ENTITY-ID-UNIQUE' })]
     });
   });
 });

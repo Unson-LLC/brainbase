@@ -22,6 +22,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
+    "test:integration": "vitest run tests/mcp-contract.test.ts tests/ontology-cli.test.ts",
+    "test:e2e": "vitest run tests/e2e/brainbase-mcp-only-acceptance.spec.ts tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
@@ -34,7 +36,7 @@
     "onboard:install": "node dist/cli.js onboard:install"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.13.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "zod": "^3.25.56"
   },
   "devDependencies": {

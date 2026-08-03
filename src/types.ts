@@ -45,6 +45,9 @@ export interface DecisionRecord {
   id: string;
   title: string;
   decision: string;
+  topic?: string;
+  supersedes?: string[];
+  effectiveAt?: string;
   rationale?: string;
   tags?: string[];
   updatedAt?: string;

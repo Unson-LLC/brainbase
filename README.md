@@ -4,6 +4,8 @@ Brainbase is a local-first MCP server for handing your personal source of truth 
 
 The v1 value is narrow by design: create a canonical local SSOT for yourself, your work, relationships, and decisions, then expose it through MCP tools that Codex, Claude, and CodeCode can call.
 
+Ontology 1.0.0 adds a portable semantic contract on top of those local files. It defines types, relation vocabulary, validation constraints, deterministic decision inference, and version-evolution guidance without requiring a hosted Brainbase service.
+
 This repository does not include the internal Brainbase UI, session runtime, xterm transport, workflow mission control, social operations, hosted backend, Infisical setup, or Unson internal data. Those belong in the internal `brainbase-unson` system.
 
 ## Manual
@@ -302,6 +304,27 @@ BRAINBASE_PERSONAL_OS_DIR=/path/to/personal-os brainbase-mcp
 - `search`: searches canonical Graph and Personal KG data.
 - `search_personal_kg`: searches owner-local Personal KG only.
 - `onboarding_status`: reports seeded areas, first value demo readiness, missing setup, and local connection status.
+- `get_ontology`: returns the immutable bundled Ontology 1.0.0 release without reading Personal OS files.
+- `audit_ontology`: audits canonical local files and distinguishes verified violations from unavailable input.
+- `infer_decisions`: derives active, superseded, and conflicting decisions from explicit rules.
+- `ontology_impact`: explains compatibility, migration, and rollback from an earlier ontology version.
+
+## Portable Ontology 1.0.0
+
+Inspect the semantic contract and audit your local canonical files:
+
+```bash
+brainbase ontology:show
+brainbase ontology:audit
+brainbase ontology:audit --ontology-version 0.0.0
+```
+
+`ontology:audit` exits non-zero when an error-level violation exists or when a canonical file cannot be verified. It never reports an unavailable or malformed source as zero violations. Warnings, such as a relationship whose person is not yet present in the Graph, remain visible but do not block approved writes.
+Use `--ontology-version 0.0.0` to interpret a pre-kernel snapshot without retroactively applying the 1.0.0 `effectiveAt`, supersession, conflict, or validation rules. The selected version is included in audit and inference results; unsupported versions fail explicitly.
+
+Decision evolution is opt-in, read-compatible, and write-gated. Existing decision rows remain readable. New rows may add `topic`, `supersedes`, and `effectiveAt`; only an explicit `supersedes` reference makes an older decision inactive. Multiple active decisions with the same explicit `topic` are reported as a conflict instead of being silently resolved.
+
+Before enabling 1.0.0 writes, back up the Personal OS directory, capture the current MCP client configuration and launch command, and run the read-only `brainbase ontology:audit --ontology-version 1.0.0`. Existing rows remain readable, but error-level semantic violations must be reviewed before `onboard:seed`, `onboard:projects --write`, or `onboard:apply --write` can change canonical files. For the first npm release, rollback means running `npm uninstall -g @unson/brainbase-mcp`, restoring the captured MCP client configuration and launch command, and restarting the client. For later upgrades, reinstall the last known working package version instead. Restore the pre-upgrade Personal OS backup only if reviewed repairs changed canonical files.
 
 ## CLI
 
@@ -327,6 +350,8 @@ brainbase onboard:apply --from <candidate-file> --select <id> --write
 brainbase onboard:projects --name "Current project" --goal "What this project should achieve"
 brainbase onboard:routines --target codex --cwd /path/to/brainbase
 brainbase onboard:skills --target codex
+brainbase ontology:show
+brainbase ontology:audit
 brainbase doctor
 ```
 
@@ -423,7 +448,7 @@ Keep or pin the internal `brainbase-unson` system when you need:
 - Legacy Graph API MCP tools such as `get_entity`.
 - VibePro runtime or internal 31013 operation surfaces.
 
-The v1 MCP tool surface is intentionally limited to `get_context`, `list_entities`, `search`, `search_personal_kg`, and `onboarding_status`.
+The v1 MCP surface contains the five original context/onboarding tools plus the additive Ontology 1.0.0 tools: `get_ontology`, `audit_ontology`, `infer_decisions`, and `ontology_impact`.
 
 ## Hosted Backends
 
