@@ -22,6 +22,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
+    "test:integration": "vitest run tests/mcp-contract.test.ts tests/ontology-cli.test.ts",
+    "test:e2e": "vitest run tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
