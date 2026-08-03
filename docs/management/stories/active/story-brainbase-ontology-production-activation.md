@@ -4,6 +4,7 @@ title: Ontology 1.0.0を本番で安全に有効化する
 status: active
 period: 2026-08
 architecture: docs/architecture/story-brainbase-ontology-production-activation.md
+reason: 本番反映済み実装の完了状態と監査証跡だけを追記するdocs-only変更であり、既存のOntology Kernelアーキテクチャ、責務境界、互換契約、rollback計画を変更しないため。
 spec: docs/specs/brainbase-ontology-production-activation.md
 ---
 
@@ -50,7 +51,9 @@ BrainbaseのGraph運用責任者として、Ontology 1.0.0を実データ・権�
 - [x] Ed25519秘密鍵はInfisical productionだけに保存し、repositoryやログへ出さない。公開鍵とkey IDでreceiptを検証できる。
 - [x] publisherだけが`current`、receipt、compatibility viewを変更し、source commitの直接の子をpublication commitとする。
 - [x] publication commitを戻して`current: null`へ復旧する演習を独立checkoutで行い、`ontology:verify`が合格する。
-- [ ] VibePro Gate、CI、merge、production deploy後のcurrent readbackとGraph auditが合格して初めて完了とする。
+- [x] VibePro Gate、CI、merge、production deploy後のcurrent readbackとGraph auditが合格して初めて完了とする。
+
+完了証跡: `docs/management/audit-artifacts/story-brainbase-ontology-production-activation/production-activation-completion-2026-08-03.json`
 
 ## 明示シナリオ
 
