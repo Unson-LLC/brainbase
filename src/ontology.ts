@@ -333,6 +333,8 @@ export function inferDecisions(
   const conflicts = [...topicGroups.entries()]
     .filter(([, ids]) => ids.length > 1)
     .map(([topic, decisionIds]) => ({ topic, decisionIds }));
+  const conflictedDecisionIds = new Set(conflicts.flatMap((conflict) => conflict.decisionIds));
+  const current = active.filter((decision) => !conflictedDecisionIds.has(decision.id));
   evidence.push(...conflicts.map((conflict) => ({
     ruleId: 'ONT-INFER-SAME-TOPIC-CONFLICT',
     topic: conflict.topic,
@@ -343,7 +345,7 @@ export function inferDecisions(
     status: decisions.length === 0 ? 'empty' : conflicts.length > 0 ? 'conflict' : 'resolved',
     ontologyVersion,
     asOf,
-    activeDecisionIds: active.map((decision) => decision.id),
+    activeDecisionIds: current.map((decision) => decision.id),
     supersededDecisionIds: effectiveDecisions.filter((decision) => superseded.has(decision.id)).map((decision) => decision.id),
     conflicts,
     evidence,
@@ -351,7 +353,7 @@ export function inferDecisions(
       ...evidence
         .filter((item) => item.ruleId === 'ONT-INFER-EXPLICIT-SUPERSESSION')
         .map((item) => `${item.sourceDecisionId} explicitly supersedes ${item.targetDecisionId}.`),
-      ...conflicts.map((conflict) => `Topic ${JSON.stringify(conflict.topic)} has multiple active decisions: ${conflict.decisionIds.join(', ')}.`),
+      ...conflicts.map((conflict) => `Topic ${JSON.stringify(conflict.topic)} has multiple current candidates, so none is active: ${conflict.decisionIds.join(', ')}.`),
       ...active.filter((decision) => !decision.topic).map((decision) => `${decision.id} has no topic and remains an independent legacy decision.`)
     ],
     violations

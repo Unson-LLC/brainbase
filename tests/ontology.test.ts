@@ -203,7 +203,8 @@ describe('portable ontology kernel', () => {
     ], { asOf: '2026-08-03T00:00:00.000Z' });
 
     expect(result.status).toBe('conflict');
-    expect(result.activeDecisionIds).toEqual(expect.arrayContaining(['legacy', 'decision-a', 'decision-b']));
+    expect(result.activeDecisionIds).toEqual(['legacy']);
+    expect(result.activeDecisionIds).not.toEqual(expect.arrayContaining(['decision-a', 'decision-b']));
     expect(result.conflicts).toContainEqual({
       topic: 'deployment',
       decisionIds: ['decision-a', 'decision-b']

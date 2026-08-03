@@ -111,6 +111,7 @@ describe('story-brainbase-portable-ontology-kernel acceptance', () => {
       { id: 'choice-a', title: 'Choice A', decision: 'Use A', topic: 'runtime' },
       { id: 'choice-b', title: 'Choice B', decision: 'Use B', topic: 'runtime' }
     ], { asOf: '2026-08-03T00:00:00.000Z' });
+    expect(conflictInference.activeDecisionIds, 'story-brainbase-portable-ontology-kernel ac:5 conflicting decisions are not exposed as current').toEqual([]);
     expect(conflictInference.evidence, 'story-brainbase-portable-ontology-kernel ac:5 明示的な置き換え根拠がある意思決定だけを現在有効として導出し、根拠がなければ競合を返す。').toContainEqual({
       ruleId: 'ONT-INFER-SAME-TOPIC-CONFLICT',
       topic: 'runtime',
