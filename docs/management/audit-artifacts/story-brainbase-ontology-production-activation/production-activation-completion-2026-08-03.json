@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0.0",
+  "story_id": "story-brainbase-ontology-production-activation",
+  "environment": "production",
+  "deployed_at": "2026-08-03T03:07:24Z",
+  "merge": {
+    "pull_request": "https://github.com/Unson-LLC/brainbase-unson/pull/1115",
+    "merged_sha": "3701d1b9ab31b00f613a71b61f699b343222b871",
+    "production_running_sha": "3701d1b9ab31b00f613a71b61f699b343222b871"
+  },
+  "service": {
+    "unit": "brainbase-ssot.service",
+    "active_state": "active",
+    "sub_state": "running",
+    "health": "healthy",
+    "restart_entered_at": "2026-08-03T03:07:24Z",
+    "restart_journal_line_count": 20,
+    "ontology_registry_signature_database_error_count": 0
+  },
+  "publication": {
+    "current": "1.0.0",
+    "effective_status": "active",
+    "release_digest": "9d794651151e77c543f00160d705d55c11b4af7e4388114da6923cb567970db4",
+    "version_and_current_digest_match": true,
+    "receipt_signature_verified": true,
+    "verification_command": "npm run ontology:verify"
+  },
+  "graph_audit": {
+    "transaction": "READ ONLY",
+    "collection_complete": true,
+    "verification": "verified",
+    "valid": true,
+    "entity_count": 7410,
+    "edge_count": 6716,
+    "completed_cursor_count": 15,
+    "violation_count": 0,
+    "snapshot_digest": "d214052c01cda1924126239e45c68f5b582c292e62a1d7cdb5468ca9d9121211"
+  },
+  "rollback": {
+    "required": false,
+    "previous_sha": "12502fb0d1c04e7f9c4f070ed9683de4f88f886e",
+    "backup_branch": "ops/lightsail-pre-ontology-production-activation-20260803T0310Z"
+  },
+  "evidence_boundary": {
+    "merge": "confirmed",
+    "deployed_runtime": "confirmed",
+    "graph_audit": "confirmed",
+    "customer_outcome": "no separate user-journey measurement was required for this server-side ontology activation"
+  },
+  "activation_complete": true
+}
