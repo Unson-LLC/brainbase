@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "story_id": "story-brainbase-ontology-production-activation",
   "source": "execute_merge",
-  "generated_at": "2026-08-03T04:13:06.703Z",
+  "generated_at": "2026-08-03T04:13:13.729Z",
   "evidence_depth": "standard",
   "budget_status": "exceeded",
   "cost_summary": {
@@ -25,7 +25,7 @@
     },
     "diff_stats_collected_at": "2026-08-03T04:13:06.431Z",
     "diff_stats_reason": null,
-    "artifact_lines": 2126,
+    "artifact_lines": 2127,
     "changed_lines": {
       "status": "available",
       "total_changed_lines": 56,
@@ -102,7 +102,7 @@
     "product_code_changed_lines": 0,
     "product_code_changed_lines_status": "available",
     "product_code_changed_lines_reason": "docs_only",
-    "artifact_code_ratio": 425.2,
+    "artifact_code_ratio": 425.4,
     "artifact_code_ratio_reason": null,
     "budget": {
       "profile": "docs_only",
@@ -139,13 +139,13 @@
     "implementation_budget_status": "not_applicable",
     "docs_only_budget_status": "exceeded",
     "replay_bundle": {
-      "compressed_bytes": 4224,
-      "expanded_bytes": 24729,
-      "expanded_line_count": 638,
+      "compressed_bytes": 4213,
+      "expanded_bytes": 24691,
+      "expanded_line_count": 636,
       "persisted_line_count": 1
     },
-    "raw_source_artifact_lines": 44764,
-    "raw_source_artifact_code_ratio": 8952.8,
+    "raw_source_artifact_lines": 44763,
+    "raw_source_artifact_code_ratio": 8952.6,
     "artifact_lines_source": "persisted_canonical_compact"
   },
   "pr_prepare": {
@@ -216,10 +216,9 @@
       "reconciliation": {
         "status": "reconciliation_required",
         "reasons": [
-          "dirty_worktree",
-          "decision_outcome_binding_failed"
+          "dirty_worktree"
         ],
-        "evaluated_at": "2026-08-03T04:13:06.690Z",
+        "evaluated_at": "2026-08-03T04:13:13.700Z",
         "head_sha": "5f1a34f615520fed59d3d1f691c279560343508d"
       },
       "reconciliation_action": {
@@ -231,10 +230,10 @@
         ]
       },
       "decision_outcome_binding": {
-        "status": "failed",
-        "reason": "central_ledger_parse_failed",
+        "status": "bound",
+        "reason": "all_local_decision_outcomes_bound_to_canonical_ledger",
         "expected_entry_count": 99,
-        "promoted_count": 0,
+        "promoted_count": 99,
         "duplicate_count": 0,
         "persistence_status": null
       },
@@ -294,14 +293,14 @@
     "stale_count": 3
   },
   "handoff_replay_status": "blocked",
-  "handoff_replay_unresolved_reference_count": 11,
+  "handoff_replay_unresolved_reference_count": 12,
   "missing_artifacts": [],
   "raw_artifact_count": 25,
   "automation_value_audit": {
     "schema_version": "0.1.0",
     "artifact_kind": "vibepro_automation_value_audit",
     "story_id": "story-brainbase-ontology-production-activation",
-    "generated_at": "2026-08-03T04:13:06.703Z",
+    "generated_at": "2026-08-03T04:13:13.729Z",
     "status": "needs_evidence",
     "purpose": "daily_automation_input",
     "sources": {
@@ -325,17 +324,16 @@
       "reconciliation": {
         "status": "reconciliation_required",
         "reasons": [
-          "dirty_worktree",
-          "decision_outcome_binding_failed"
+          "dirty_worktree"
         ],
-        "evaluated_at": "2026-08-03T04:13:06.690Z",
+        "evaluated_at": "2026-08-03T04:13:13.700Z",
         "head_sha": "5f1a34f615520fed59d3d1f691c279560343508d"
       },
       "decision_outcome_binding": {
-        "status": "failed",
-        "reason": "central_ledger_parse_failed",
+        "status": "bound",
+        "reason": "all_local_decision_outcomes_bound_to_canonical_ledger",
         "expected_entry_count": 99,
-        "promoted_count": 0,
+        "promoted_count": 99,
         "duplicate_count": 0,
         "persistence_status": null
       },
@@ -361,7 +359,7 @@
       "story_spec_architecture_to_src": null,
       "audit_artifacts_to_src": null,
       "automation_evidence_to_src": null,
-      "artifact_lines_to_product_changed_lines": 425.2
+      "artifact_lines_to_product_changed_lines": 425.4
     },
     "session_cost": {
       "token_status": "unavailable",
@@ -390,18 +388,18 @@
       "evidence_reuse_stale_reason_count": 0,
       "traceability_lifecycle": "merged",
       "handoff_replay_status": "blocked",
-      "handoff_replay_unresolved_reference_count": 11,
+      "handoff_replay_unresolved_reference_count": 12,
       "missing_artifact_count": 0
     },
     "cost_controls": {
       "status": "action_required",
       "budget_status": "exceeded",
-      "artifact_code_ratio": 425.2,
+      "artifact_code_ratio": 425.4,
       "automation_evidence_to_src": null,
       "budget_exceeded_reasons": [
         "canonical_artifact_lines_exceeded"
       ],
-      "canonical_artifact_lines": 2126,
+      "canonical_artifact_lines": 2127,
       "product_changed_lines": 5,
       "evidence_depth": "standard",
       "recommended_evidence_depth": "summary",
@@ -433,13 +431,13 @@
         "budget_exceeded_reasons": [
           "canonical_artifact_lines_exceeded"
         ],
-        "artifact_code_ratio": 425.2
+        "artifact_code_ratio": 425.4
       },
       {
         "id": "canonical_handoff_replay_blocked",
         "severity": "review_needed",
         "reason": "canonical audit references cannot be fully replayed by another engineer or agent",
-        "unresolved_reference_count": 11
+        "unresolved_reference_count": 12
       },
       {
         "id": "no_src_changed_lines",
@@ -458,11 +456,11 @@
     "path": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/audit-replay-bundle.json.gz",
     "compression": "gzip",
     "media_type": "application/json",
-    "content_hash": "sha256:02e08ba17009509aac64425e2dc324f4718033515b8c1ea938baa3a8e7c0ccb6",
-    "compressed_hash": "sha256:d99ccc8186ae9a7d4d770e4b38127106344c239d0086a84edb88ca7fcf037e7b",
-    "expanded_bytes": 24729,
-    "compressed_bytes": 4224,
-    "expanded_line_count": 638,
+    "content_hash": "sha256:b5a0a8bb05abecb246e18d8bb2127e0d221d48ae114c2b03b18d1bc770dbaa42",
+    "compressed_hash": "sha256:111edbf995b9b91f66e60edd00f5caa3e08b0ca327279f7fc8271a408dc14334",
+    "expanded_bytes": 24691,
+    "compressed_bytes": 4213,
+    "expanded_line_count": 636,
     "persisted_line_count": 1,
     "included_artifact_kinds": [
       "decision_index",
@@ -481,9 +479,9 @@
     ],
     "replay_command": "vibepro audit replay . --story-id story-brainbase-ontology-production-activation",
     "cost": {
-      "compressed_bytes": 4224,
-      "expanded_bytes": 24729,
-      "expanded_line_count": 638,
+      "compressed_bytes": 4213,
+      "expanded_bytes": 24691,
+      "expanded_line_count": 636,
       "persisted_line_count": 1
     }
   }
