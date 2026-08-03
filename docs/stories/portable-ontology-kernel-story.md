@@ -56,7 +56,7 @@ agentが未登録の関係、または許可されていない型同士の関係
 
 型や関係の意味が更新された場合、利用者とcontributorは、どのversionがいつ有効か、既存のローカルSSOTへどのような影響があるか、過去の事実をどのversionで読んだかを追跡できる。
 
-## 受け入れ条件
+## 受け入れ基準
 
 - [ ] 型・関係・制約・推論・変更ルールの5領域を、一つのversion付き契約として取得できる。
 - [ ] `person`、`project`、`relationship`、`decision`などOSSのcanonical local SSOTに存在する概念の意味と利用条件を確認できる。
