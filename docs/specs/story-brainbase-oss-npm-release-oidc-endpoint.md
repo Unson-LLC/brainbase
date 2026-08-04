@@ -49,3 +49,5 @@ stateDiagram-v2
 ## Release operations
 
 この診断をdevelopへmerge後、`gh workflow run npm-publish.yml --repo Unson-LLC/brainbase --ref develop -f release_ref=develop`で診断runを実行する。boolean vectorとnpm metadata不存在を保存し、原因修正PRではworkflowの診断フラグを削除してから公開を再実行する。
+
+初回公開前のregistry証跡は対象versionの不存在を確認する。公開成功後は`npm view`のdist integrityとgitHeadをreview済みdefault-branch commitへ照合し、不一致または未確認を成功として扱わない。

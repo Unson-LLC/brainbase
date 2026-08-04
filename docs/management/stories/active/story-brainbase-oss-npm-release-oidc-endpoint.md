@@ -50,11 +50,12 @@ OSS maintainerは、OIDC URL、path、query、token、userinfo値をログへ出
 - [ ] 通常モードのendpointおよびclaim認可条件を変更しない。
 - [ ] diagnostic flagはworkflow内の固定値とし、dispatch入力として公開しない。
 - [ ] focused unit、workflow、release validation、E2E、buildを現在HEADで成功させる。
+- [ ] 初回公開前の責任契約は対象versionのregistry不存在を要求し、公開後はdist integrityとimmutable gitHead一致を要求する。
 
 ## 境界
 
 - npm token、npm organization、GitHub repository設定は変更しない。
-- 通常モードの認可条件、artifact contract、registry mutation順序は変更しない。
+- 通常モードの認可条件、artifact contract、registry mutation順序は変更しない。責任契約のregistry証跡だけを公開段階別に明確化する。
 - このPRのworkflow変更は診断フラグの固定だけに限定し、診断run後の原因修正PRで必ず解除する。
 
 ## Failure modes

@@ -94,6 +94,17 @@
         "test_refs": [{"file": "tests/npm-release.test.ts", "case": "reports only fixed OIDC diagnostic booleans"}]
       },
       "confidence": 1
+    },
+    {
+      "id": "OIDC-REGISTRY-001",
+      "type": "contract",
+      "statement": "Registry state evidence is phase-aware: the target version must be absent before initial publication, and published dist integrity plus immutable gitHead must match after publication.",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 6}],
+        "code_refs": [{"file": "docs/responsibility-authority/npm-publication.json", "anchor": "brainbase_oss_npm_publication"}],
+        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "treats only npm 404 as unpublished"}]
+      },
+      "confidence": 1
     }
   ]
 }

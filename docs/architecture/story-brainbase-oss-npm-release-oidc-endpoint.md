@@ -8,6 +8,8 @@
 
 この変更は[ADR-story-brainbase-oss-npm-release.md](ADR-story-brainbase-oss-npm-release.md)の「GitHub発行OIDC tokenとreview済みworkflow/refを完全一致させる」決定を変更しない。通常モードのendpoint predicate、audience、repository、run ID、workflow ref、ref claim検証、package単位serialization、tarball proof、registry mutation順序はそのまま維持するため、新しいADRは作成しない。
 
+初回公開では公開済みdistがまだ存在しないため、責任契約のregistry証跡はphase-awareとする。公開前は対象versionの不存在をcurrent evidenceとして要求し、公開成功後はdist integrityとimmutable gitHeadの一致を要求する。これは公開後検証を免除せず、PR前に達成不能だった循環依存だけを解消する。
+
 ## Trust boundary
 
 - 診断classifierは現行predicateと同じURL parser、hostname正規表現、raw authority colon式を使うが、認可判断には流用しない。
