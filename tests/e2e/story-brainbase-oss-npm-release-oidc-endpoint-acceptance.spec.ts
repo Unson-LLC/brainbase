@@ -35,8 +35,8 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
       'utf8'
     );
     const publishJob = workflow.slice(workflow.indexOf('  publish:'));
-    expect(publishJob).toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC: 'true'/u);
-    expect(workflow).not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC:[\s\S]*github\.event\.inputs/u);
+    expect(publishJob, 'ac-5 keeps activation out of the diagnostic implementation PR').not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC/u);
+    expect(workflow, 'ac-5 never exposes diagnostic activation as a dispatch input').not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC:[\s\S]*github\.event\.inputs/u);
 
     const endpoint = 'https://user-sentinel:password-sentinel@pipelinesghubeus4.actions.githubusercontent.com:8443/private-path?secret=query-sentinel';
     const request = vi.fn();
@@ -50,7 +50,7 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
       normalized_nondefault_port: true
     };
 
-    expect(classifyOidcEndpoint(endpoint)).toEqual(expected);
+    expect(classifyOidcEndpoint(endpoint), 'ac-1 emits the fixed boolean classification').toEqual(expected);
 
     let message = '';
     try {
@@ -63,8 +63,8 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
       message = error instanceof Error ? error.message : String(error);
     }
 
-    expect(message).toBe(`GitHub Actions OIDC diagnostic ${JSON.stringify(expected)}`);
-    expect(request).not.toHaveBeenCalled();
+    expect(message, 'ac-6 keeps the release diagnostic deterministic').toBe(`GitHub Actions OIDC diagnostic ${JSON.stringify(expected)}`);
+    expect(request, 'ac-3 stops before the OIDC token request').not.toHaveBeenCalled();
     for (const sentinel of [
       'private-path',
       'query-sentinel',
@@ -72,7 +72,7 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
       'password-sentinel',
       'token-sentinel'
     ]) {
-      expect(message).not.toContain(sentinel);
+      expect(message, 'ac-2 excludes endpoint and credential values').not.toContain(sentinel);
     }
   });
 
@@ -84,7 +84,7 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
     await expect(assertSerializedPublicationContext(
       publicationContext,
       acceptedRequest
-    )).resolves.toBeUndefined();
+    ), 'ac-4 preserves accepted publication context').resolves.toBeUndefined();
     expect(acceptedRequest).toHaveBeenCalledOnce();
 
     const wrongClaimsRequest = vi.fn().mockResolvedValue({
@@ -94,7 +94,7 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
     await expect(assertSerializedPublicationContext(
       publicationContext,
       wrongClaimsRequest
-    )).rejects.toThrow(/OIDC claims do not match/u);
+    ), 'ac-4 preserves rejected claim mismatches').rejects.toThrow(/OIDC claims do not match/u);
   });
 
   it('S-003 rejects a malformed endpoint before any token request', async () => {
@@ -122,7 +122,7 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
     const publication = contract.responsibilities.find(
       (responsibility) => responsibility.id === 'brainbase_oss_npm_publication'
     );
-    expect(publication.required_evidence).toContain('registry_state_verified_for_release_phase');
+    expect(publication.required_evidence, 'ac-7 requires phase-aware registry evidence').toContain('registry_state_verified_for_release_phase');
     expect(publication.unknown_policy).toMatch(/Before an initial publication, registry evidence must prove the target version is absent/u);
     expect(publication.unknown_policy).toMatch(/after publication, it must prove dist integrity and immutable gitHead/u);
   });
