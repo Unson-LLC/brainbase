@@ -19,6 +19,9 @@ const forbiddenArtifactPatterns = [
   /mission-control/i,
   /codex-app-server/i
 ];
+const allowedWorkflowFiles = new Set([
+  '.github/workflows/npm-publish.yml'
+]);
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -43,6 +46,7 @@ async function packFiles(): Promise<string[]> {
 function forbiddenMatches(files: string[]): string[] {
   return files.filter((file) => (
     !file.startsWith('docs/manual/public/')
+    && !allowedWorkflowFiles.has(file)
     && forbiddenArtifactPatterns.some((pattern) => pattern.test(file))
   ));
 }
@@ -67,6 +71,13 @@ describe('MCP-only repository hygiene', () => {
 
     const trackedFiles = await gitTrackedFiles();
     expect(forbiddenMatches(trackedFiles)).toEqual([]);
+  });
+
+  it('AP-1 limits the workflow exception to the npm publication workflow', () => {
+    expect(forbiddenMatches(['.github/workflows/npm-publish.yml'])).toEqual([]);
+    expect(forbiddenMatches(['.github/workflows/xterm.yml'])).toEqual([
+      '.github/workflows/xterm.yml'
+    ]);
   });
 
   it('INV-1 keeps hosted backend and secret managers out of v1 dependencies', async () => {

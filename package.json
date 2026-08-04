@@ -4,6 +4,10 @@
   "description": "Local-first Brainbase MCP server and personal onboarding kit.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Unson-LLC/brainbase.git"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -22,7 +26,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "test:integration": "vitest run tests/mcp-contract.test.ts tests/ontology-cli.test.ts",
+    "test:integration": "vitest run tests/mcp-contract.test.ts tests/ontology-cli.test.ts tests/npm-release-validation.integration.test.ts",
     "test:e2e": "vitest run tests/e2e/brainbase-mcp-only-acceptance.spec.ts tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
@@ -33,11 +37,18 @@
     "onboard:start": "node dist/cli.js onboard:start",
     "onboard:seed": "node dist/cli.js onboard:seed",
     "onboard:demo": "node dist/cli.js onboard:demo",
-    "onboard:install": "node dist/cli.js onboard:install"
+    "onboard:install": "node dist/cli.js onboard:install",
+    "release:plan": "node scripts/npm-release.mjs plan",
+    "release:validate": "node scripts/npm-release.mjs validate",
+    "release:publish": "node scripts/npm-release.mjs publish",
+    "release:verify": "node scripts/npm-release.mjs verify"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "zod": "^3.25.56"
+  },
+  "overrides": {
+    "ip-address": "^10.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.29",

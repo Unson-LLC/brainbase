@@ -473,8 +473,19 @@ npm test
 npm pack --dry-run
 ```
 
-Scoped package publication is configured as public. After verification, publish with:
+### Maintainer release operation
+
+Scoped package publication is configured as public. Configure the repository Actions secret `NPM_TOKEN`, then normally publish a version-bumped merge from the reviewed `develop` history. The merge trigger plans the version delta automatically. For the first `0.1.0` publication or recovery, dispatch the same package-wide serialized workflow from the GitHub CLI. `NPM_TOKEN` must be authorized to publish `@unson/brainbase-mcp`.
 
 ```bash
-npm publish --access public
+RELEASE_REF="${RELEASE_REF:-develop}"
+gh workflow run npm-publish.yml --repo Unson-LLC/brainbase --ref develop -f release_ref="$RELEASE_REF"
 ```
+
+Direct local `release:publish` is rejected because it would bypass the package-wide Actions concurrency queue. The CLI requires a runner-issued GitHub OIDC attestation for the exact upstream workflow on `refs/heads/develop` and the current run, so caller-set Actions environment variables or the same workflow path on another ref are not sufficient. Local `release:plan`, `release:validate`, and `release:verify` remain available for credential-free diagnosis; all registry mutation goes through the workflow above.
+
+The validation CLI rejects dirty checkouts and commits outside the trusted ref, then runs build, test, production dependency audit, creates the real tarball without an npm credential, and stamps its manifest with the exact reviewed `gitHead` before hashing it. Publication requires the matching proof, rechecks both SHA-256 and npm-compatible SHA-512 integrity, publishes that same tarball with lifecycle scripts disabled, and compares registry `dist.integrity` with the validated artifact. It is idempotent: it publishes an absent version, or verifies that an existing immutable version has the same Git commit and bytes. It also reconciles the appropriate npm dist-tag. The workflow runs validation in a read-only job with no OIDC or npm credential, then transfers the immutable artifact to a separately permissioned publication job with npm provenance. The publish CLI requires the upstream GitHub Actions context and the workflow serialization marker, so supported mutation paths share one package queue. Its manual `release_ref` input is restricted to commits reachable from `develop` and is used for the first publication or recovery. `release:verify` is read-only and fails if metadata or dist-tags do not match.
+
+Publication is complete only after the Actions `validate` and `publish` jobs pass and the npm registry reports the expected version, `gitHead`, `dist.integrity`, and dist-tag; a green workflow or GitHub Release alone is insufficient. If `NPM_TOKEN` is absent or the workflow is disabled, read-only local CLI operations still work, but the npm release remains incomplete.
+
+npm versions are immutable. Before publication, fix the cause and rerun the same reviewed ref. After a faulty publication, deprecate that version, keep users on the last known-good pinned version, and release a reviewed version bump; never overwrite the published bytes. Any manual dist-tag rollback requires a separate registry metadata and support review.

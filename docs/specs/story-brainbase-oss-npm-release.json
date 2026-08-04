@@ -1,0 +1,225 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-oss-npm-release",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "diagrams": [
+    {
+      "id": "npm-release-flow",
+      "kind": "flow",
+      "title": "Reviewed npm release flow",
+      "mermaid": "flowchart LR\n  merge[\"Reviewed develop commit\"] --> resolve[\"Resolve immutable SHA\"]\n  resolve --> trust[\"Develop ancestry and package identity\"]\n  trust --> validate[\"Read-only validation job hashes tarball\"]\n  validate --> publish[\"Separate OIDC-enabled publish job\"]\n  publish --> metadata[\"gitHead integrity and dist-tag verification\"]\n  metadata --> release[\"GitHub Release\"]"
+    },
+    {
+      "id": "npm-release-state",
+      "kind": "state",
+      "title": "Release state transitions",
+      "mermaid": "stateDiagram-v2\n  [*] --> Planned\n  Planned --> Validated: build test audit pack\n  Validated --> Published: absent version\n  Validated --> Reconciled: matching version and bytes\n  Published --> Reconciled: registry integrity converged\n  Reconciled --> Released: GitHub Release verified\n  Planned --> Failed: trust or validation failure\n  Validated --> Failed: digest or registry mismatch"
+    },
+    {
+      "id": "npm-release-threat-model",
+      "kind": "threat_model",
+      "title": "Credential and artifact trust boundaries",
+      "mermaid": "flowchart TD\n  untrusted[\"PR and package scripts\"] --> readonly[\"Validation job: contents read only\"]\n  readonly --> artifact[\"SHA-256 and SHA-512 bound artifact\"]\n  artifact --> privileged[\"Publish job: OIDC and NPM_TOKEN\"]\n  privileged --> registry[\"npm registry dist.integrity\"]\n  attacker[\"Wrong ref or altered artifact\"] --> reject[\"Fail before registry or tag mutation\"]"
+    }
+  ],
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "An npm version is successful only when its registry gitHead equals the requested full release commit SHA.",
+      "rationale": "npm versions are immutable and a same-version different-commit collision must fail loud.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 2, "text_snippet": "異なるcommitに結び付いた同一versionを成功扱いしない" }],
+        "code_refs": [{ "file": "scripts/npm-release.mjs", "anchor": "assertPublishedMetadata" }],
+        "test_refs": [{ "file": "tests/npm-release.test.ts", "case": "rejects immutable version collisions" }]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [{ "file_glob": "scripts/npm-release.mjs", "must_contain": "published versions are immutable" }],
+        "test_pattern": [{ "file_glob": "tests/npm-release.test.ts", "must_cover": "immutable version collisions" }]
+      }
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "Only npm 404 means a package version is absent; authentication and registry failures remain failures.",
+      "rationale": "Treating an unavailable registry as absence can cause an unsafe duplicate publish attempt.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 1, "text_snippet": "未公開versionだけを公開" }],
+        "code_refs": [{ "file": "scripts/npm-release.mjs", "anchor": "readNpmMetadata" }],
+        "test_refs": [{ "file": "tests/npm-release.test.ts", "case": "treats only npm 404 as unpublished" }]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [{ "file_glob": "scripts/npm-release.mjs", "must_contain": "E404" }],
+        "test_pattern": [{ "file_glob": "tests/npm-release.test.ts", "must_cover": "only npm 404" }]
+      }
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "The workflow validates and publishes an immutable merged or manually selected commit, not a moving branch checkout.",
+      "rationale": "Build, test, publication, and npm gitHead evidence must refer to one commit.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 4, "text_snippet": "merge commitをdetached checkout" }],
+        "code_refs": [{ "file": ".github/workflows/npm-publish.yml", "anchor": "Check out immutable release commit" }],
+        "test_refs": [{ "file": "tests/npm-release-workflow.test.ts", "case": "binds validation and publish to the merged commit" }]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [{ "file_glob": ".github/workflows/npm-publish.yml", "must_contain": "git checkout --detach" }],
+        "test_pattern": [{ "file_glob": "tests/npm-release-workflow.test.ts", "must_cover": "merged commit" }]
+      }
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "The npm credential is injected only from GitHub Secret NPM_TOKEN at publication time and is never committed.",
+      "rationale": "Package publication credentials must remain outside source and workflow logs.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 5, "text_snippet": "公開jobだけへGitHub SecretとOIDCを許可" }],
+        "code_refs": [{ "file": ".github/workflows/npm-publish.yml", "anchor": "NODE_AUTH_TOKEN" }],
+        "test_refs": [{ "file": "tests/npm-release-workflow.test.ts", "case": "binds validation and publish to the merged commit" }]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [{ "file_glob": ".github/workflows/npm-publish.yml", "must_contain": "secrets.NPM_TOKEN" }],
+        "test_pattern": [{ "file_glob": "tests/npm-release-workflow.test.ts", "must_cover": "NODE_AUTH_TOKEN" }]
+      }
+    },
+    {
+      "id": "INV-005",
+      "type": "invariant",
+      "statement": "Plan, validation, publication, and verification are authorized only for @unson/brainbase-mcp.",
+      "rationale": "A reviewed package rename must not redirect the publication credential to another npm package.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 5, "text_snippet": "公開jobだけへGitHub SecretとOIDCを許可" }],
+        "code_refs": [{ "file": "scripts/npm-release.mjs", "anchor": "EXPECTED_PACKAGE_NAME" }],
+        "test_refs": [{ "file": "tests/npm-release.test.ts", "case": "fixes publication authority" }]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "INV-006",
+      "type": "invariant",
+      "statement": "A release commit must be reachable from the trusted default branch and the publication checkout must be clean.",
+      "rationale": "The packed artifact must be attributable to the reviewed commit recorded as npm gitHead.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 4, "text_snippet": "merge commit" }],
+        "code_refs": [{ "file": "scripts/npm-release.mjs", "anchor": "assertCleanCheckout" }],
+        "test_refs": [{ "file": "tests/npm-release.test.ts", "case": "rejects a dirty checkout" }]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "INV-007",
+      "type": "invariant",
+      "statement": "Build, test, audit, and real tarball creation run in a read-only job without OIDC or an npm credential; publication requires matching SHA-256 and SHA-512 proof and registry dist.integrity.",
+      "rationale": "Untrusted validation children must not inherit any public package mutation capability, and publication must prove the registry received the reviewed bytes.",
+      "origin": {
+        "story_refs": [
+          { "kind": "acceptance_criteria", "index": 5, "text_snippet": "検証jobはread-onlyかつOIDC/npm credentialなし" },
+          { "kind": "acceptance_criteria", "index": 6, "text_snippet": "検証jobと実行tarball proofはnpm公開トークンなしで再現" }
+        ],
+        "code_refs": [
+          { "file": ".github/workflows/npm-publish.yml", "anchor": "Validate release without publication credential" },
+          { "file": "scripts/npm-release.mjs", "anchor": "assertPublishedMetadata" }
+        ],
+        "test_refs": [
+          { "file": "tests/npm-release-workflow.test.ts", "case": "keeps OIDC unavailable until validation" },
+          { "file": "tests/npm-release.test.ts", "case": "rejects registry bytes that differ" }
+        ]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "INV-008",
+      "type": "invariant",
+      "statement": "Verification reads npm metadata and dist-tags but never publishes or changes a dist-tag.",
+      "rationale": "Audits must be safe to repeat without public registry mutation.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 8, "text_snippet": "公開完了はnpm metadataのversion、gitHead、dist.integrity、dist-tagで証明" }],
+        "code_refs": [{ "file": "scripts/npm-release.mjs", "anchor": "verifyNpmRelease" }],
+        "test_refs": [{ "file": "tests/npm-release.test.ts", "case": "keeps verify read-only" }]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "INV-009",
+      "type": "invariant",
+      "statement": "An absent version is first published under a commit-bound non-consumer staging tag; the consumer tag changes only after version, gitHead, and integrity converge, and the staging tag is then removed.",
+      "rationale": "Unverified or partially converged package bytes must never become the default consumer selection.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 8, "text_snippet": "version、gitHead、dist.integrity、dist-tagで証明" }],
+        "code_refs": [
+          { "file": "scripts/npm-release.mjs", "anchor": "releaseStagingTag" },
+          { "file": "scripts/npm-release.mjs", "anchor": "reconcileNpmRelease" }
+        ],
+        "test_refs": [
+          { "file": "tests/npm-release.test.ts", "case": "uses a commit-bound non-consumer tag" },
+          { "file": "tests/npm-release.test.ts", "case": "publishes an absent version once and retries metadata to convergence" },
+          { "file": "tests/npm-release.test.ts", "case": "does not reconcile a dist-tag when registry metadata never converges" }
+        ]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "INV-010",
+      "type": "invariant",
+      "statement": "Consumer dist-tags move only forward; publication requires a runner-issued GitHub OIDC attestation for the package-wide upstream Actions workflow on refs/heads/develop and the current run, and a current-tag SemVer guard prevents an older release from rolling a tag back.",
+      "rationale": "A local queue bypass or stale versions snapshot must not overwrite a newer consumer selection.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 3, "text_snippet": "stableとprereleaseに適切なnpm dist-tag" }],
+        "code_refs": [
+          { "file": "scripts/npm-release.mjs", "anchor": "reconcileDistTag" },
+          { "file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext" },
+          { "file": ".github/workflows/npm-publish.yml", "anchor": "concurrency" }
+        ],
+        "test_refs": [
+          { "file": "tests/npm-release.test.ts", "case": "does not roll back a dist-tag advanced by a concurrent release" },
+          { "file": "tests/npm-release.test.ts", "case": "rejects caller-spoofed context without a runner-issued OIDC attestation" },
+          { "file": "tests/npm-release.test.ts", "case": "accepts a runner-issued attestation for the exact upstream workflow and run" },
+          { "file": "tests/npm-release-workflow.test.ts", "case": "serializes every publication attempt for the package" }
+        ]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "INV-011",
+      "type": "invariant",
+      "statement": "The packed manifest repository identifies the public Unson-LLC/brainbase source repository used for npm provenance.",
+      "rationale": "npm provenance must bind the package to the reviewed public source repository rather than an internal or missing repository identity.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 4, "text_snippet": "pack確認後に公開" }],
+        "code_refs": [
+          { "file": "package.json", "anchor": "repository" },
+          { "file": ".github/workflows/npm-publish.yml", "anchor": "--provenance" }
+        ],
+        "test_refs": [
+          { "file": "tests/npm-release-workflow.test.ts", "case": "binds validation and publish to the merged commit" },
+          { "file": "tests/npm-release-validation.integration.test.ts", "case": "audits production dependencies and hashes a real tarball without publication credentials" }
+        ]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "A manual workflow dispatch can publish or reconcile the package version at a selected release ref.",
+      "rationale": "The first 0.1.0 publication has no preceding version bump and failed runs need an idempotent recovery path.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 7, "text_snippet": "初回・復旧は手動dispatch" }],
+        "code_refs": [{ "file": ".github/workflows/npm-publish.yml", "anchor": "workflow_dispatch" }],
+        "test_refs": [{ "file": "tests/npm-release-workflow.test.ts", "case": "supports manual recovery" }]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [{ "file_glob": ".github/workflows/npm-publish.yml", "must_contain": "release_ref" }],
+        "test_pattern": [{ "file_glob": "tests/npm-release-workflow.test.ts", "must_cover": "manual recovery" }]
+      }
+    }
+  ]
+}

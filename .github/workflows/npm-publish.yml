@@ -1,0 +1,157 @@
+name: Publish npm package
+
+on:
+  pull_request_target:
+    types:
+      - closed
+  workflow_dispatch:
+    inputs:
+      release_ref:
+        description: Git ref to publish and reconcile
+        required: true
+        default: develop
+
+concurrency:
+  group: npm-publish-unson-brainbase-mcp
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  validate:
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'develop') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      release_required: ${{ steps.target.outputs.release_required }}
+      package_name: ${{ steps.target.outputs.package_name }}
+      version: ${{ steps.target.outputs.version }}
+      sha: ${{ steps.target.outputs.sha }}
+    steps:
+      - name: Check out trusted release tooling
+        uses: actions/checkout@v7
+        with:
+          ref: develop
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Resolve release target
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          RELEASE_REF: ${{ inputs.release_ref }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request_target" ]; then
+            node scripts/npm-release.mjs plan --before "$BASE_SHA" --after "$MERGE_SHA"
+          else
+            RELEASE_SHA=$(git rev-parse "$RELEASE_REF")
+            git merge-base --is-ancestor "$RELEASE_SHA" origin/develop || {
+              echo "release_ref must resolve to a commit reachable from origin/develop" >&2
+              exit 1
+            }
+            VERSION=$(git show "$RELEASE_SHA:package.json" | node -e "let data=''; process.stdin.on('data', chunk => data += chunk); process.stdin.on('end', () => process.stdout.write(JSON.parse(data).version));")
+            PACKAGE_NAME=$(git show "$RELEASE_SHA:package.json" | node -e "let data=''; process.stdin.on('data', chunk => data += chunk); process.stdin.on('end', () => process.stdout.write(JSON.parse(data).name));")
+            test "$PACKAGE_NAME" = "@unson/brainbase-mcp"
+            {
+              echo "release_required=true"
+              echo "package_name=$PACKAGE_NAME"
+              echo "version=$VERSION"
+              echo "sha=$RELEASE_SHA"
+            } >> "$GITHUB_OUTPUT"
+          fi
+      - name: Check out immutable release commit
+        if: ${{ steps.target.outputs.release_required == 'true' }}
+        env:
+          RELEASE_SHA: ${{ steps.target.outputs.sha }}
+        run: git checkout --detach "$RELEASE_SHA"
+      - name: Install release dependencies
+        if: ${{ steps.target.outputs.release_required == 'true' }}
+        run: npm ci
+      - name: Validate release without publication credential
+        if: ${{ steps.target.outputs.release_required == 'true' }}
+        run: >-
+          node scripts/npm-release.mjs validate
+          --version "${{ steps.target.outputs.version }}"
+          --sha "${{ steps.target.outputs.sha }}"
+          --trusted-ref origin/develop
+          --proof-file "$RUNNER_TEMP/npm-release-validation.json"
+      - name: Transfer validated release artifact
+        if: ${{ steps.target.outputs.release_required == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-release-${{ steps.target.outputs.sha }}
+          path: |
+            ${{ runner.temp }}/npm-release-validation.json
+            ${{ runner.temp }}/unson-brainbase-mcp-${{ steps.target.outputs.version }}.tgz
+          if-no-files-found: error
+          retention-days: 1
+      - name: Record skipped release
+        if: ${{ steps.target.outputs.release_required != 'true' }}
+        run: echo "npm publish skipped because package version did not increase" >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    needs: validate
+    if: ${{ needs.validate.outputs.release_required == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Check out trusted release tooling
+        uses: actions/checkout@v7
+        with:
+          ref: develop
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Check out immutable release commit
+        env:
+          RELEASE_SHA: ${{ needs.validate.outputs.sha }}
+        run: git checkout --detach "$RELEASE_SHA"
+      - name: Restore validated release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-release-${{ needs.validate.outputs.sha }}
+          path: ${{ runner.temp }}/npm-release
+      - name: Publish and verify npm package
+        env:
+          BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.validate.outputs.version }}
+          RELEASE_SHA: ${{ needs.validate.outputs.sha }}
+        run: >-
+          node scripts/npm-release.mjs publish
+          --version "$VERSION"
+          --sha "$RELEASE_SHA"
+          --trusted-ref origin/develop
+          --proof-file "$RUNNER_TEMP/npm-release/npm-release-validation.json"
+          --tarball-file "$RUNNER_TEMP/npm-release/unson-brainbase-mcp-${VERSION}.tgz"
+          --provenance
+      - name: Create or verify GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.validate.outputs.version }}
+          RELEASE_SHA: ${{ needs.validate.outputs.sha }}
+        run: |
+          git fetch --tags --force
+          if TAG_SHA=$(git rev-parse -q --verify "refs/tags/v${VERSION}^{commit}"); then
+            test "$TAG_SHA" = "$RELEASE_SHA" || {
+              echo "v${VERSION} points to $TAG_SHA, expected $RELEASE_SHA" >&2
+              exit 1
+            }
+          fi
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            test -n "${TAG_SHA:-}"
+          else
+            gh release create "v${VERSION}" --target "$RELEASE_SHA" --title "Brainbase MCP ${VERSION}" --generate-notes
+          fi
