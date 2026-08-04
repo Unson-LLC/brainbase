@@ -16,14 +16,15 @@ related_tasks:
 pr_scope_strategy: atomic_single_pr
 pr_scope_reason: "The diagnostic implementation is already on develop; this atomic activation PR sets one fixed workflow flag and updates its E2E contract so one fail-closed production run can identify the rejecting predicate."
 pr_scope_review_facets:
-  - activation-contract
-  - release-operations
+  - repo-control
+  - requirements-ssot
   - e2e-gate
-  - rollback-observability
+  - misc-follow-up
 pr_scope_dependency_boundaries:
-  - activation-contract->e2e-gate
-  - activation-contract->release-operations
-  - release-operations->rollback-observability
+  - requirements-ssot->repo-control
+  - requirements-ssot->e2e-gate
+  - requirements-ssot->misc-follow-up
+  - repo-control->e2e-gate
 created_at: 2026-08-04
 updated_at: 2026-08-04
 ---
@@ -71,7 +72,7 @@ OSS maintainerは、OIDC URL、path、query、token、userinfo値をログへ出
 
 これらはfocused unit testのpositive/negative path、release validation、OSS E2E、buildで現在HEADに結び付ける。
 
-## Release note / operator action
+## User Action
 
 Release note: npm公開を止めているGitHub Actions OIDC endpoint判定について、秘密値を含まない固定boolean診断を追加する。利用者向けCLIやpackage API、通常の認可条件の変更はない。
 
