@@ -22,11 +22,11 @@ pr_scope_review_facets:
   - e2e-gate
   - misc-follow-up
 pr_scope_dependency_boundaries:
-  - requirements-ssot->runtime-behavior
-  - requirements-ssot->misc-follow-up
-  - runtime-behavior->repo-control
-  - runtime-behavior->e2e-gate
-  - repo-control->e2e-gate
+  - runtime-behavior->requirements-ssot
+  - repo-control->runtime-behavior
+  - e2e-gate->runtime-behavior
+  - e2e-gate->repo-control
+  - misc-follow-up->requirements-ssot
 created_at: 2026-08-04
 updated_at: 2026-08-04
 ---
