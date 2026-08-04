@@ -23,7 +23,7 @@ if (worktreeBefore !== '') {
   throw new Error('Prepublication evidence requires a clean worktree');
 }
 
-const audit = JSON.parse(run('npm', ['audit', '--json']));
+const audit = JSON.parse(run('npm', ['audit', '--omit=dev', '--json']));
 if (audit.metadata?.vulnerabilities?.total !== 0) {
   throw new Error('Production dependency audit reported vulnerabilities');
 }
