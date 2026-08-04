@@ -140,6 +140,15 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Candidate Store raw-ledger ingest is a machine-to-machine endpoint.
+        // The mounted route authenticates the exact raw request body with its
+        // source-specific HMAC, so a browser CSRF token is neither available nor
+        // part of this endpoint's trust boundary. Keep the exemption exact so
+        // other Candidate Store mutations remain protected by default.
+        if (req.method === 'POST' && req.path === '/api/candidate-store/raw-ledger') {
+            return next();
+        }
+
         // Brainbase Mac Companion is a native/server client API guarded by bearer,
         // service-token, or internal header auth. It cannot rely on browser CSRF tokens.
         if (req.path?.startsWith('/api/companion/')) {
