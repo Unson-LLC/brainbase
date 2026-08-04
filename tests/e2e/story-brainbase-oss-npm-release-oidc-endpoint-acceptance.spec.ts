@@ -106,11 +106,13 @@ describe('OSS npm release OIDC endpoint correction acceptance', () => {
 
   // story-brainbase-oss-npm-release-oidc-endpoint ac:6 executable workflow activation coverage
   it('AC-6 removes the diagnostic stop and pins a trusted-publishing capable npm CLI', async () => {
+    const acceptanceCriterion = 'workflowはnpm 11.5.1を使用し診断固定フラグを除去する';
     const workflow = await readFile(
       new URL('../../.github/workflows/npm-publish.yml', import.meta.url),
       'utf8'
     );
     const publishJob = workflow.slice(workflow.indexOf('  publish:'));
+    expect(acceptanceCriterion, 'ac-6 binds the executable assertions to the Story criterion').toContain('npm 11.5.1');
     expect(publishJob, 'ac-6 removes the temporary diagnostic stop from the publish job').not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC/u);
     expect(publishJob, 'ac-6 installs a trusted-publishing capable npm CLI').toMatch(/npm install --global npm@11\.5\.1/u);
   });
