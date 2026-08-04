@@ -427,6 +427,17 @@ function assertProofOutsideRepository(root, proofFile) {
   }
 }
 
+export function assertSerializedPublicationContext(environment = process.env) {
+  if (
+    environment.GITHUB_ACTIONS !== 'true' ||
+    environment.GITHUB_REPOSITORY !== 'Unson-LLC/brainbase' ||
+    !environment.GITHUB_RUN_ID ||
+    environment.BRAINBASE_NPM_PUBLISH_SERIALIZED !== 'true'
+  ) {
+    throw new Error('publish is restricted to the serialized GitHub Actions workflow; use `gh workflow run npm-publish.yml --ref develop -f release_ref=<ref>`');
+  }
+}
+
 async function main(args) {
   const [command, ...rest] = args;
   if (command === 'plan') {
@@ -471,6 +482,7 @@ async function main(args) {
     if (command === 'verify') {
       result = await verifyNpmRelease({ packageName: EXPECTED_PACKAGE_NAME, version, expectedSha });
     } else {
+      assertSerializedPublicationContext();
       const proofFile = option(rest, '--proof-file');
       if (!proofFile) throw new Error('publish requires --proof-file <validated-release-proof>');
       assertProofOutsideRepository(rootDefault, proofFile);

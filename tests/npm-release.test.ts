@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assertPublishedMetadata,
+  assertSerializedPublicationContext,
   commandFailureMessage,
   compareSemver,
   createReleaseArtifact,
@@ -21,6 +22,27 @@ import {
 } from '../scripts/npm-release.mjs';
 
 const temporaryRoots: string[] = [];
+
+describe('serialized publication context', () => {
+  it('rejects direct local publication outside the package workflow queue', () => {
+    expect(() => assertSerializedPublicationContext({})).toThrow(/serialized GitHub Actions workflow/u);
+    expect(() => assertSerializedPublicationContext({
+      GITHUB_ACTIONS: 'true',
+      GITHUB_REPOSITORY: 'attacker/fork',
+      GITHUB_RUN_ID: '123',
+      BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'
+    })).toThrow(/serialized GitHub Actions workflow/u);
+  });
+
+  it('accepts the explicitly serialized upstream Actions context', () => {
+    expect(() => assertSerializedPublicationContext({
+      GITHUB_ACTIONS: 'true',
+      GITHUB_REPOSITORY: 'Unson-LLC/brainbase',
+      GITHUB_RUN_ID: '123',
+      BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'
+    })).not.toThrow();
+  });
+});
 
 async function releaseRoot() {
   const root = await mkdtemp(path.join(tmpdir(), 'brainbase-npm-release-'));

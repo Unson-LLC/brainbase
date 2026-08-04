@@ -31,6 +31,9 @@ SHA-512 integrity, package identity, and commit.
 ancestry, cleanliness, and tarball digest checks before publishing that same
 tarball with package lifecycle scripts disabled. Registry `dist.integrity` must
 then equal the validated artifact integrity before any dist-tag reconciliation.
+The publish command additionally requires the upstream repository's GitHub
+Actions run context and an explicit serialization marker; direct local publish
+is rejected so every supported registry mutation shares one package queue.
 
 GitHub Actions puts validation in a read-only job without OIDC or npm
 credentials. The immutable tarball and proof cross into a separate publication
@@ -48,8 +51,8 @@ reports a mismatch and exits nonzero.
 
 - First publication and recovery remain available through manual dispatch.
 - Arbitrary branches and unreviewed commits cannot execute with the npm token.
-- A local publication must use the two-phase proof, name a trusted ref, and use
-  a clean checkout, satisfying the same validation contract as Actions.
+- Local plan, validation, and verification remain available, while publication
+  and recovery are dispatched from `gh` into the serialized Actions workflow.
 - Immutable version collisions fail without attempting an overwrite.
 - Verification can be used safely in audits because it does not mutate npm.
 
@@ -57,7 +60,7 @@ reports a mismatch and exits nonzero.
 
 - Allow any manual ref because dispatch is maintainer-only: a mistaken or
   compromised ref could still execute package lifecycle scripts with the token.
-- Validate only in the workflow: local CLI publication would bypass the safety
-  contract.
+- Allow direct local publication after validation: it would bypass the package
+  queue and reopen a dist-tag time-of-check/time-of-use rollback window.
 - Let verify repair tags: a command described as verification would have an
   unexpected public side effect.

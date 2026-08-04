@@ -2,7 +2,7 @@
 
 ## Decision
 
-`scripts/npm-release.mjs`をnpm公開の単一実行境界とする。ローカルのpackage scriptとGitHub Actionsは同じCLIを呼び、registryが未公開ならpublish、公開済みならimmutableな`version + gitHead`を照合する。
+`scripts/npm-release.mjs`をnpm公開の単一実行境界とする。plan、validate、verifyはローカル実行できるが、publishはpackage単位で直列化されたupstream GitHub Actions内だけを許可する。registryが未公開ならpublishし、公開済みならimmutableな`version + gitHead`を照合する。
 
 ## Flow
 
@@ -21,7 +21,7 @@
 - 公開artifactはPRの`merge_commit_sha`をdetached checkoutしてcredentialなしでbuild・packし、manifestの`gitHead`とdigestが一致した同一tarballだけを公開する。
 - 手動`release_ref`も`origin/develop`から到達可能なcommitだけを許可し、package名を`@unson/brainbase-mcp`へ固定する。
 - validation jobは`contents: read`だけを持ち、OIDCとnpm credentialを持たない。artifact/proofを短期Actions artifactでpublish jobへ渡す。
-- publish jobだけが`id-token: write`と`NODE_AUTH_TOKEN`を持つ。
+- publish jobだけが`id-token: write`と`NODE_AUTH_TOKEN`を持ち、CLIが要求するActions repository/run/serialization contextを設定する。
 - pull requestの任意scriptを、merge前の`pull_request_target`権限で実行しない。
 
 ## Failure semantics
@@ -31,7 +31,7 @@
 - 同一versionの`gitHead`不一致はimmutable collisionとしてfail loudする。
 - registry収束を確認できない場合、GitHub Releaseを作成しない。
 - registry `dist.integrity`が検証済みtarballのSHA-512 integrityと異なる場合、dist-tagを変更せず失敗する。
-- 未検証のpublishはcommit固有staging tagだけを変更し、consumer tagを直接指定しない。workflowはpackage単位で直列化し、CLIは変更直前に現在tagを再取得して同系列のより新しいversionを上書きしない。したがって古いversionの復旧、並行実行、metadata収束失敗でもconsumer tagを巻き戻さない。
+- 未検証のpublishはcommit固有staging tagだけを変更し、consumer tagを直接指定しない。CLIはupstream Actionsのpackage単位queue外からのpublishを拒否し、変更直前に現在tagを再取得して同系列のより新しいversionを上書きしない。したがって古いversionの復旧、並行実行、metadata収束失敗でもconsumer tagを巻き戻さない。
 - 再実行時は既存の正しいnpm versionを再publishせず、検証から継続する。
 - `verify`はregistryを変更せず、metadataまたはdist-tag不一致を非0で報告する。
 

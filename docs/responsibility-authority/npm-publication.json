@@ -31,12 +31,14 @@
         "symbols": [
           "reconcileNpmRelease",
           "verifyNpmRelease",
+          "assertSerializedPublicationContext",
           "assertTrustedCommit",
           "validateRelease"
         ],
         "risk_surfaces": [
           "public_package_publication",
           "credential_boundary",
+          "package_wide_publication_serialization",
           "immutable_release_metadata",
           "github_release_state"
         ]

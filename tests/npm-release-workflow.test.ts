@@ -27,6 +27,7 @@ describe('npm publish workflow', () => {
     expect(publishJob).toMatch(/actions\/download-artifact@v4/u);
     expect(publishJob).toMatch(/--tarball-file/u);
     expect(publishJob).toMatch(/node scripts\/npm-release\.mjs publish/u);
+    expect(publishJob).toMatch(/BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'/u);
     expect(publishJob).not.toMatch(/npm run release:publish/u);
   });
 
@@ -57,21 +58,13 @@ describe('npm publish workflow', () => {
     expect(concurrency).not.toMatch(/pull_request|release_ref|github\.event/u);
   });
 
-  it('documents a portable and isolated local recovery credential path', async () => {
+  it('documents CLI recovery through the serialized workflow', async () => {
     const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
     const operation = readme.slice(readme.indexOf('### Maintainer release operation'));
-    expect(operation).toMatch(/\(\n  set -euo pipefail/u);
-    expect(operation).toMatch(/trap 'rm -rf "\$RELEASE_DIR"' EXIT/u);
-    expect(operation).toMatch(/TRUSTED_REF="\$\{TRUSTED_REF:-origin\/develop\}"/u);
-    expect(operation).toMatch(/NPM_USERCONFIG="\$RELEASE_DIR\/npmrc"/u);
-    expect(operation).toMatch(/VALIDATION_NPM_USERCONFIG="\$RELEASE_DIR\/validation-user-npmrc"/u);
-    expect(operation).toMatch(/VALIDATION_NPM_GLOBALCONFIG="\$RELEASE_DIR\/validation-global-npmrc"/u);
-    expect(operation).toMatch(/\/\/registry\.npmjs\.org\/:_authToken=\$\{NODE_AUTH_TOKEN\}/u);
-    expect(operation).toMatch(/chmod 600 "\$NPM_USERCONFIG" "\$VALIDATION_NPM_USERCONFIG" "\$VALIDATION_NPM_GLOBALCONFIG"/u);
-    expect(operation).toMatch(/env -u NPM_TOKEN -u NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG="\$VALIDATION_NPM_USERCONFIG" NPM_CONFIG_GLOBALCONFIG="\$VALIDATION_NPM_GLOBALCONFIG" npm run release:validate/u);
-    expect(operation).toMatch(/NPM_CONFIG_USERCONFIG="\$NPM_USERCONFIG" NODE_AUTH_TOKEN="\$NPM_TOKEN" node scripts\/npm-release\.mjs publish/u);
-    expect(operation.indexOf('npm run release:validate')).toBeLessThan(operation.indexOf('NODE_AUTH_TOKEN="$NPM_TOKEN"'));
-    expect(operation.indexOf('trap \'rm -rf "$RELEASE_DIR"\' EXIT')).toBeLessThan(operation.indexOf('npm run release:validate'));
-    expect(operation.indexOf('npm run release:validate')).toBeLessThan(operation.indexOf('\n)'));
+    expect(operation).toMatch(/gh workflow run npm-publish\.yml/u);
+    expect(operation).toMatch(/--ref develop/u);
+    expect(operation).toMatch(/-f release_ref="\$RELEASE_REF"/u);
+    expect(operation).not.toMatch(/NODE_AUTH_TOKEN="\$NPM_TOKEN" node scripts\/npm-release\.mjs publish/u);
+    expect(operation).toMatch(/Direct local `release:publish` is rejected/u);
   });
 });

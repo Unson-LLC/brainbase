@@ -33,12 +33,12 @@ Brainbase OSSは`@unson/brainbase-mcp`として公開可能なpackage構成を�
 
 ## 誰が・何を・なぜ
 
-OSS maintainerは、merge済みのpackageをCLIまたはGitHub Actionsから同じ規則で公開し、公開済みversionが期待するmerge commitと一致することまで確認したい。これにより、mergeをreleaseと誤認せず、失敗した公開を安全に再実行できる。
+OSS maintainerは、merge済みのpackageをGitHub CLIからpackage単位で直列化されたActionsへdispatchし、公開済みversionが期待するmerge commitと一致することまで確認したい。これにより、mergeをreleaseと誤認せず、失敗した公開を安全に再実行できる。
 
 ## 受け入れ基準
 
 - [ ] `npm run release:plan`で2つのgit ref間のpackage version差分を判定できる。
-- [ ] `npm run release:publish`は未公開versionだけを公開し、公開済みなら同じ`gitHead`か検証する。
+- [ ] `npm run release:publish`は直列化されたupstream Actions内だけで未公開versionを公開し、公開済みなら同じ`gitHead`か検証する。ローカル直接実行は拒否する。
 - [ ] 異なるcommitに結び付いた同一versionを成功扱いしない。
 - [ ] stableとprereleaseに適切なnpm dist-tagを使い、registry収束を検証する。
 - [ ] GitHub Actionsはmerge commitをdetached checkoutし、build、test、production audit、pack確認後に公開する。
