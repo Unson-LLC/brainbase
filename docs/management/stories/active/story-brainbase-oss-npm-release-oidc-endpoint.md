@@ -14,12 +14,16 @@ related_tasks:
     task_ids:
       - story-brainbase-oss-npm-release-oidc-endpoint-source-alignment-review
 pr_scope_strategy: atomic_single_pr
-pr_scope_reason: "The hostname predicate and its positive and negative regression tests form one fail-closed trust-boundary correction."
+pr_scope_reason: "The fixed workflow flag, fail-closed diagnostic lane, responsibility contract, and their release-specific tests form one evidence-producing change; none is independently useful."
 pr_scope_review_facets:
   - requirements-ssot
   - runtime-behavior
+  - repo-control
+  - responsibility-authority
 pr_scope_dependency_boundaries:
   - requirements-ssot->runtime-behavior
+  - repo-control->runtime-behavior
+  - responsibility-authority->release-evidence
 created_at: 2026-08-04
 updated_at: 2026-08-04
 ---
