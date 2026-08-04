@@ -434,7 +434,7 @@ export interface ApplyResult {
   personalKgAdditions: PersonalKgEntry[];
   decisionAdditions: DecisionRecord[];
   ownerName?: string;
-  applied: { id: string; kind: string; summary: string }[];
+  applied: { id: string; kind: string; summary: string; canonicalIds: string[] }[];
   skipped: { id: string; reason: string }[];
 }
 
@@ -486,7 +486,7 @@ export function planApply(
         ownerName = name;
         upsertEntity(graphEntities, { id: 'self', type: 'person', name, summary: 'Owner of this local Brainbase Personal OS.', tags: ['self'] });
         personalKgAdditions.push({ id: `self-${stableHash(name)}`, type: 'self', text: `I am ${name}.`, tags: ['self'], source: candidate.id, updatedAt: now });
-        applied.push({ id: candidate.id, kind: candidate.kind, summary: name });
+        applied.push({ id: candidate.id, kind: candidate.kind, summary: name, canonicalIds: ['self', `self-${stableHash(name)}`] });
         break;
       }
       case 'person':
@@ -502,7 +502,14 @@ export function planApply(
         if (candidate.kind === 'relationship' && !relationships.some((relationship) => relationship.person === person && relationship.context === context)) {
           relationships.push({ id: `relationship-${stableHash(`${person}|${context}`)}`, person, role: role || undefined, context, tags: ['relationship'], updatedAt: now });
         }
-        applied.push({ id: candidate.id, kind: candidate.kind, summary: person });
+        applied.push({
+          id: candidate.id,
+          kind: candidate.kind,
+          summary: person,
+          canonicalIds: candidate.kind === 'relationship'
+            ? [`person-${stableHash(person)}`, `relationship-${stableHash(`${person}|${context}`)}`]
+            : [`person-${stableHash(person)}`]
+        });
         break;
       }
       case 'org': {
@@ -512,7 +519,7 @@ export function planApply(
           break;
         }
         upsertEntity(graphEntities, { id: `org-${stableHash(name)}`, type: 'org', name, summary: 'Imported from onboarding sources.', tags: ['org'] });
-        applied.push({ id: candidate.id, kind: candidate.kind, summary: name });
+        applied.push({ id: candidate.id, kind: candidate.kind, summary: name, canonicalIds: [`org-${stableHash(name)}`] });
         break;
       }
       case 'project': {
@@ -523,7 +530,7 @@ export function planApply(
         }
         upsertEntity(graphEntities, { id: `project-${stableHash(name)}`, type: 'project', name, summary: 'Imported from onboarding sources.', tags: ['work'] });
         personalKgAdditions.push({ id: `work-${stableHash(name)}`, type: 'work', text: name, tags: ['work'], source: candidate.id, updatedAt: now });
-        applied.push({ id: candidate.id, kind: candidate.kind, summary: name });
+        applied.push({ id: candidate.id, kind: candidate.kind, summary: name, canonicalIds: [`project-${stableHash(name)}`, `work-${stableHash(name)}`] });
         break;
       }
       case 'value': {
@@ -533,7 +540,7 @@ export function planApply(
           break;
         }
         personalKgAdditions.push({ id: `value-${stableHash(text)}`, type: 'value', text, tags: ['onboarding'], source: candidate.id, updatedAt: now });
-        applied.push({ id: candidate.id, kind: candidate.kind, summary: text });
+        applied.push({ id: candidate.id, kind: candidate.kind, summary: text, canonicalIds: [`value-${stableHash(text)}`] });
         break;
       }
       case 'next_action': {
@@ -543,7 +550,7 @@ export function planApply(
           break;
         }
         personalKgAdditions.push({ id: `next-action-${stableHash(text)}`, type: 'work', text, tags: ['next-action'], source: candidate.id, updatedAt: now });
-        applied.push({ id: candidate.id, kind: candidate.kind, summary: text });
+        applied.push({ id: candidate.id, kind: candidate.kind, summary: text, canonicalIds: [`next-action-${stableHash(text)}`] });
         break;
       }
       case 'decision': {
@@ -553,7 +560,7 @@ export function planApply(
           break;
         }
         decisionAdditions.push({ id: `decision-${stableHash(text)}`, title: 'Promoted decision principle', decision: text, tags: ['principle'], updatedAt: now });
-        applied.push({ id: candidate.id, kind: candidate.kind, summary: text });
+        applied.push({ id: candidate.id, kind: candidate.kind, summary: text, canonicalIds: [`decision-${stableHash(text)}`] });
         break;
       }
       default:

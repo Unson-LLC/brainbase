@@ -26,7 +26,7 @@ npm run onboard:install -- --target codex --output /tmp/brainbase-mcp.toml
 ## 新しいセッションで確認する
 
 1. MCPサーバー `brainbase` が起動している
-2. `get_context`、`list_entities`、`search`、`search_personal_kg`、`onboarding_status` が見える
+2. `get_context`、`list_entities`、`search`、`search_personal_kg`、`onboarding_status` と、必要に応じて5つの `brainbase_onboarding_*` toolが見える
 3. `onboarding_status` が登録済みと未設定の項目を返す
 4. `get_context` が自分、仕事、関係性の文脈を返す
 5. `search` が登録した人物とプロジェクトを見つける

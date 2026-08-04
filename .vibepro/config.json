@@ -1,0 +1,49 @@
+{
+  "schema_version": "0.1.0",
+  "tool": "vibepro",
+  "workspace": ".vibepro",
+  "output": {
+    "language": "ja"
+  },
+  "execution": {
+    "managed_worktree": "preferred"
+  },
+  "budgets": {
+    "pr_artifact_bytes": 16384,
+    "delivery_efficiency": {
+      "max_subagent_count": 20
+    },
+    "delivery_efficiency_by_story": {
+      "story-brainbase-portable-connected-world-onboarding": {
+        "max_subagent_count": 26,
+        "amendment_reason": "Sato explicitly approved the recommended increase from 20 to 26 for the three current-surface planning_spec reviews and up to three PR-final Gate reviews; quality gates remain mandatory and no merge or publication waiver is granted."
+      }
+    }
+  },
+  "brainbase": {
+    "stories": [
+      {
+        "story_id": "story-vibepro-diagnosis-commercialization-roadmap",
+        "title": "M1: VibePro 診断→商用化ロードマップ",
+        "ssot": "NocoDB",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null
+      },
+      {
+        "story_id": "story-brainbase-portable-connected-world-onboarding",
+        "title": "既存の仕事ソースから10分で自分の世界を立ち上げる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null
+      }
+    ],
+    "current_story_id": "story-brainbase-portable-connected-world-onboarding"
+  }
+}

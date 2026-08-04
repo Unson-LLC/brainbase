@@ -3,7 +3,7 @@ import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runCli } from '../src/cli.js';
-import { initializePersonalOs, loadPersonalOs, mutatePersonalOs } from '../src/ssot.js';
+import { initializePersonalOs, loadPersonalOs, mutatePersonalOs, mutatePersonalOsWithSidecar } from '../src/ssot.js';
 
 const canonicalFiles = ['graph.json', 'relationships.json', 'personal-kg.jsonl', 'decisions.jsonl'];
 const dirs: string[] = [];
@@ -25,6 +25,27 @@ afterEach(async () => {
 });
 
 describe('local SSOT atomic recovery', () => {
+  it('rejects sidecars that collide with canonical or transaction-managed paths', async () => {
+    const dir = await tempDir();
+    await initializePersonalOs(dir);
+    const before = await canonicalSnapshot(dir);
+
+    for (const sidecar of [
+      'graph.json', 'Graph.json', 'RELATIONSHIPS.JSON', '.BRAINBASE-SSOT.LOCK/owner.json',
+      '.brainbase-ssot.lock/owner.json', '.brainbase-staging-forged/value.json', '.brainbase-transaction-forged/value.json',
+      '.BRAINBASE-STAGING-forged/value.json', '.BRAINBASE-TRANSACTION-forged/value.json',
+      '..\\graph.json', 'C:\\tmp\\graph.json', '\\\\server\\share\\graph.json', '.brainbase-ssot.lock\\owner.json',
+      '.brainbase-staging-forged\\value.json', '.brainbase-transaction-forged\\value.json'
+    ]) {
+      await expect(mutatePersonalOsWithSidecar(dir, sidecar, (current) => ({
+        next: current,
+        sidecarContent: '{"corrupt":true}',
+        result: true
+      }))).rejects.toThrow(/Unsafe SSOT transaction sidecar path/);
+    }
+    await expect(canonicalSnapshot(dir)).resolves.toEqual(before);
+  });
+
   it('leaves the legacy four-file shape and no runtime residue after a normal mutation', async () => {
     const dir = await tempDir();
     await initializePersonalOs(dir);

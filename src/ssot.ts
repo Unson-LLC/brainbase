@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { access, copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { hostname } from 'node:os';
-import { join } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, win32 } from 'node:path';
 import { z } from 'zod';
 import { assertOntologyValid } from './ontology.js';
 import { emptyGraph, emptyRelationships, schemaTemplates } from './templates.js';
@@ -22,6 +22,12 @@ interface LockOwner {
 interface TransactionMetadata {
   version: 1;
   mode: 'initialization' | 'mutation';
+  sidecarFiles?: string[];
+}
+
+interface TransactionSidecar {
+  relativePath: string;
+  content: string;
 }
 
 const graphEntitySchema = z.object({
@@ -126,6 +132,24 @@ export async function mutatePersonalOs(
   });
 }
 
+export async function mutatePersonalOsWithSidecar<T>(
+  dataDir: string,
+  sidecarPath: string,
+  mutator: (current: PersonalOs) => { next: PersonalOs; sidecarContent: string; result: T } | Promise<{ next: PersonalOs; sidecarContent: string; result: T }>
+): Promise<T> {
+  assertSafeSidecarPath(sidecarPath);
+  return withSsotLock(dataDir, async () => {
+    await recoverTransactions(dataDir);
+    assertCompleteCanonicalSet(dataDir, await canonicalPresence(dataDir));
+    const current = await loadPersonalOsUnlocked(dataDir);
+    const mutation = await mutator(current);
+    const normalized = { ...mutation.next, dataDir, sourceCount: current.sourceCount };
+    validateAggregate(normalized);
+    await commitAggregate(dataDir, normalized, 'mutation', [{ relativePath: sidecarPath, content: mutation.sidecarContent }]);
+    return mutation.result;
+  });
+}
+
 async function loadPersonalOsUnlocked(dataDir: string): Promise<PersonalOs> {
   const graph = graphSchema.parse(await readJson(join(dataDir, 'graph.json')));
   const relationships = relationshipsSchema.parse(await readJson(join(dataDir, 'relationships.json')));
@@ -135,7 +159,12 @@ async function loadPersonalOsUnlocked(dataDir: string): Promise<PersonalOs> {
   return { dataDir, graph, personalKg, relationships, decisions, sourceCount };
 }
 
-async function commitAggregate(dataDir: string, next: PersonalOs, mode: TransactionMetadata['mode']): Promise<void> {
+async function commitAggregate(
+  dataDir: string,
+  next: PersonalOs,
+  mode: TransactionMetadata['mode'],
+  sidecars: TransactionSidecar[] = []
+): Promise<void> {
   validateAggregate(next);
   const id = randomUUID();
   const stagingDir = join(dataDir, `${stagingPrefix}${id}`);
@@ -145,17 +174,26 @@ async function commitAggregate(dataDir: string, next: PersonalOs, mode: Transact
 
   await mkdir(nextDir, { recursive: true });
   await writeAggregate(nextDir, next);
+  for (const sidecar of sidecars) {
+    assertSafeSidecarPath(sidecar.relativePath);
+    await mkdir(dirname(join(nextDir, sidecar.relativePath)), { recursive: true });
+    await writeFile(join(nextDir, sidecar.relativePath), sidecar.content, { mode: 0o600 });
+  }
   if (mode === 'mutation') {
     await mkdir(previousDir, { recursive: true });
     await copyCanonicalSet(dataDir, previousDir);
+    for (const sidecar of sidecars) {
+      await mkdir(dirname(join(previousDir, sidecar.relativePath)), { recursive: true });
+      await copyFile(join(dataDir, sidecar.relativePath), join(previousDir, sidecar.relativePath));
+    }
   }
-  const metadata: TransactionMetadata = { version: 1, mode };
+  const metadata: TransactionMetadata = { version: 1, mode, ...(sidecars.length > 0 ? { sidecarFiles: sidecars.map((item) => item.relativePath) } : {}) };
   await writeFile(join(stagingDir, 'transaction.json'), `${JSON.stringify(metadata, null, 2)}\n`);
   await writeFile(join(stagingDir, 'PREPARED'), '');
   await rename(stagingDir, transactionDir);
 
   try {
-    await publishCanonicalSet(dataDir, join(transactionDir, 'next'), id, true);
+    await publishCanonicalSet(dataDir, join(transactionDir, 'next'), id, true, metadata.sidecarFiles ?? []);
     await writeFile(join(transactionDir, 'COMMITTED'), '');
   } catch (error) {
     await recoverTransaction(dataDir, transactionDir).catch(() => undefined);
@@ -200,11 +238,17 @@ async function recoverTransaction(dataDir: string, transactionDir: string): Prom
   if (process.env.BRAINBASE_SSOT_FAIL_RECOVERY === '1') {
     throw new Error(`Injected SSOT transaction recovery failure for ${transactionDir}`);
   }
-  await publishCanonicalSet(dataDir, retainedDir, `recovery-${randomUUID()}`, false);
+  await publishCanonicalSet(dataDir, retainedDir, `recovery-${randomUUID()}`, false, metadata.sidecarFiles ?? []);
   await rm(transactionDir, { recursive: true, force: true });
 }
 
-async function publishCanonicalSet(dataDir: string, retainedDir: string, token: string, allowInjectedFailure: boolean): Promise<void> {
+async function publishCanonicalSet(
+  dataDir: string,
+  retainedDir: string,
+  token: string,
+  allowInjectedFailure: boolean,
+  sidecarFiles: string[] = []
+): Promise<void> {
   let published = 0;
   const failAfter = Number.parseInt(process.env.BRAINBASE_SSOT_FAIL_AFTER_PUBLISH ?? '', 10);
   const pauseAfterPublishMs = parsePositiveInteger(process.env.BRAINBASE_SSOT_PAUSE_AFTER_PUBLISH_MS, 0);
@@ -216,6 +260,18 @@ async function publishCanonicalSet(dataDir: string, retainedDir: string, token: 
     if (allowInjectedFailure && pauseAfterPublishMs > 0) {
       await delay(pauseAfterPublishMs);
     }
+    if (allowInjectedFailure && Number.isFinite(failAfter) && published === failAfter) {
+      throw new Error(`Injected SSOT publish failure after ${published} file(s)`);
+    }
+  }
+  for (const relativePath of sidecarFiles) {
+    assertSafeSidecarPath(relativePath);
+    const target = join(dataDir, relativePath);
+    await mkdir(dirname(target), { recursive: true });
+    const temporary = `${target}-${token}.tmp`;
+    await copyFile(join(retainedDir, relativePath), temporary);
+    await rename(temporary, target);
+    published += 1;
     if (allowInjectedFailure && Number.isFinite(failAfter) && published === failAfter) {
       throw new Error(`Injected SSOT publish failure after ${published} file(s)`);
     }
@@ -357,7 +413,33 @@ async function readTransactionMetadata(transactionDir: string): Promise<Transact
   if (value.version !== 1 || (value.mode !== 'initialization' && value.mode !== 'mutation')) {
     throw new Error(`Invalid registered SSOT transaction metadata in ${transactionDir}`);
   }
+  if (value.sidecarFiles !== undefined && (!Array.isArray(value.sidecarFiles) || value.sidecarFiles.some((path) => typeof path !== 'string'))) {
+    throw new Error(`Invalid registered SSOT transaction sidecars in ${transactionDir}`);
+  }
+  for (const path of value.sidecarFiles ?? []) assertSafeSidecarPath(path);
   return value as TransactionMetadata;
+}
+
+function assertSafeSidecarPath(relativePath: string): void {
+  const resolvedRoot = resolve('.');
+  const resolvedPath = resolve(resolvedRoot, relativePath);
+  const containment = relative(resolvedRoot, resolvedPath);
+  const caseFoldedPath = relativePath.toLocaleLowerCase('en-US');
+  const topLevel = caseFoldedPath.split('/')[0];
+  const collidesWithManagedPath = canonicalFiles.includes(caseFoldedPath as typeof canonicalFiles[number])
+    || topLevel === lockName.toLocaleLowerCase('en-US')
+    || topLevel.startsWith(stagingPrefix.toLocaleLowerCase('en-US'))
+    || topLevel.startsWith(transactionPrefix.toLocaleLowerCase('en-US'));
+  if (!relativePath
+    || relativePath.includes('\\')
+    || isAbsolute(relativePath)
+    || win32.isAbsolute(relativePath)
+    || containment === '..'
+    || containment.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`)
+    || relativePath.split('/').some((segment) => segment === '' || segment === '.' || segment === '..')
+    || collidesWithManagedPath) {
+    throw new Error(`Unsafe SSOT transaction sidecar path: ${relativePath}`);
+  }
 }
 
 async function exists(path: string): Promise<boolean> {
