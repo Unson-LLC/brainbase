@@ -437,7 +437,37 @@ function decodeJwtPayload(token) {
   }
 }
 
+export function classifyOidcEndpoint(rawEndpoint) {
+  const result = {
+    url_present: typeof rawEndpoint === 'string' && rawEndpoint.length > 0,
+    parse_ok: false,
+    protocol_https: false,
+    hostname_trusted: false,
+    raw_authority_colon: false,
+    userinfo_present: false,
+    normalized_nondefault_port: false
+  };
+  if (!result.url_present) return result;
+  try {
+    const endpoint = new URL(rawEndpoint);
+    const rawAuthority = rawEndpoint.match(/^https?:\/\/([^/?#]*)/iu)?.[1] ?? '';
+    result.parse_ok = true;
+    result.protocol_https = endpoint.protocol === 'https:';
+    result.hostname_trusted = /^pipelines[a-z0-9-]*\.actions\.githubusercontent\.com$/u.test(endpoint.hostname);
+    result.raw_authority_colon = rawAuthority.includes(':');
+    result.userinfo_present = Boolean(endpoint.username || endpoint.password);
+    result.normalized_nondefault_port = endpoint.port !== '';
+    return result;
+  } catch {
+    return result;
+  }
+}
+
 export async function assertSerializedPublicationContext(environment = process.env, request = fetch) {
+  if (environment.BRAINBASE_NPM_OIDC_DIAGNOSTIC === 'true') {
+    const classification = classifyOidcEndpoint(environment.ACTIONS_ID_TOKEN_REQUEST_URL);
+    throw new Error(`GitHub Actions OIDC diagnostic ${JSON.stringify(classification)}`);
+  }
   if (
     environment.GITHUB_ACTIONS !== 'true' ||
     environment.GITHUB_REPOSITORY !== 'Unson-LLC/brainbase' ||

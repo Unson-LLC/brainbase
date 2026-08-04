@@ -48,11 +48,11 @@
         "current_head_unit_and_e2e_tests",
         "production_dependency_audit",
         "real_tarball_sha256_and_sha512_integrity",
-        "registry_dist_integrity_match",
+        "registry_state_verified_for_release_phase",
         "validation_job_without_oidc_or_npm_credential",
         "independent_release_boundary_review"
       ],
-      "unknown_policy": "Missing npm credentials, package authority, registry availability, provenance, or immutable gitHead evidence is a failed or unverified release, never a successful publication. npm publication and GitHub Release creation require the reviewed default-branch commit and may not be inferred from a local build alone."
+      "unknown_policy": "Missing npm credentials, package authority, registry availability, provenance, or immutable gitHead evidence is a failed or unverified release, never a successful publication. Before an initial publication, registry evidence must prove the target version is absent; after publication, it must prove dist integrity and immutable gitHead match the reviewed default-branch commit. npm publication and GitHub Release creation may not be inferred from a local build alone."
     }
   ]
 }
