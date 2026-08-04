@@ -19,11 +19,13 @@ pr_scope_review_facets:
   - requirements-ssot
   - runtime-behavior
   - repo-control
-  - responsibility-authority
+  - e2e-gate
+  - misc-follow-up
 pr_scope_dependency_boundaries:
   - requirements-ssot->runtime-behavior
-  - repo-control->runtime-behavior
-  - responsibility-authority->release-evidence
+  - runtime-behavior->repo-control
+  - runtime-behavior->e2e-gate
+  - runtime-behavior->misc-follow-up
 created_at: 2026-08-04
 updated_at: 2026-08-04
 ---
