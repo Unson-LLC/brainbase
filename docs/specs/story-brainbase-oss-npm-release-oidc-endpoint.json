@@ -17,6 +17,13 @@
       "kind": "threat_model",
       "title": "OIDC diagnostic data boundary",
       "mermaid": "flowchart TD\n  endpoint[\"Runner endpoint\"] --> classifier[\"Existing predicate observations\"]\n  classifier --> safe[\"Fixed booleans only\"]\n  endpoint --> secret[\"URL path query token and userinfo values\"]\n  secret --> blocked[\"Never logged\"]\n  safe --> stop[\"Dedicated error before request\"]\n  stop --> followup[\"Evidence-bound correction\"]"
+    },
+    {
+      "id": "oidc-diagnostic-state",
+      "kind": "state",
+      "title": "OIDC publication diagnostic state",
+      "entities": ["Diagnostic mode", "classifier", "follow-up correction"],
+      "mermaid": "stateDiagram-v2\n  [*] --> PublishReady\n  PublishReady --> DiagnosticEnabled\n  DiagnosticEnabled --> Classified\n  Classified --> StoppedBeforeTokenRequest\n  StoppedBeforeTokenRequest --> EvidenceRecorded\n  EvidenceRecorded --> FollowUpPrepared\n  FollowUpPrepared --> PublicationRetried\n  PublicationRetried --> [*]"
     }
   ],
   "clauses": [

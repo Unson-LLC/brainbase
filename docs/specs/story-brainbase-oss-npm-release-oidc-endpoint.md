@@ -32,6 +32,20 @@ URL全文、hostname値、raw authority、path、query、request token、usernam
 - `tests/npm-release-workflow.test.ts`: validation/publish job boundaryとworkflow state。
 - `npm run test:e2e`、`npm run build`: repository regression evidence。
 
+## State diagram
+
+```mermaid
+stateDiagram-v2
+  [*] --> PublishReady
+  PublishReady --> DiagnosticEnabled
+  DiagnosticEnabled --> Classified
+  Classified --> StoppedBeforeTokenRequest
+  StoppedBeforeTokenRequest --> EvidenceRecorded
+  EvidenceRecorded --> FollowUpPrepared
+  FollowUpPrepared --> PublicationRetried
+  PublicationRetried --> [*]
+```
+
 ## Release operations
 
 この診断をdevelopへmerge後、`gh workflow run npm-publish.yml --repo Unson-LLC/brainbase --ref develop -f release_ref=develop`で診断runを実行する。boolean vectorとnpm metadata不存在を保存し、原因修正PRではworkflowの診断フラグを削除してから公開を再実行する。
