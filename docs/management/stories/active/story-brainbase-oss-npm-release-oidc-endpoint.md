@@ -14,16 +14,14 @@ related_tasks:
     task_ids:
       - story-brainbase-oss-npm-release-oidc-endpoint-source-alignment-review
 pr_scope_strategy: atomic_single_pr
-pr_scope_reason: "The fixed workflow flag, fail-closed diagnostic lane, responsibility contract, and their release-specific tests form one evidence-producing change; none is independently useful."
+pr_scope_reason: "This PR prepares the fail-closed diagnostic lane and phase-aware publication evidence without changing the release workflow; a follow-up activation PR sets the fixed workflow flag."
 pr_scope_review_facets:
   - requirements-ssot
   - runtime-behavior
-  - repo-control
   - e2e-gate
   - misc-follow-up
 pr_scope_dependency_boundaries:
   - requirements-ssot->runtime-behavior
-  - runtime-behavior->repo-control
   - runtime-behavior->e2e-gate
   - runtime-behavior->misc-follow-up
 created_at: 2026-08-04
@@ -38,7 +36,7 @@ regional hostname対応をmergeした後の再実行run `30884874181`も、`GitH
 
 ## Current reality
 
-失敗run `30884874181`ではimmutable commitのvalidationまで成功し、publish jobがtoken取得前のendpoint authority判定で停止した。現行実装はregional hostnameを許可する一方、raw authority内のcolonを一律拒否するため明示的`:443`も拒否するが、実runの入力は未確認である。次のPRは認可条件を変更せず、固定booleanだけを出す診断モードで失敗predicateを確定する。
+失敗run `30884874181`ではimmutable commitのvalidationまで成功し、publish jobがtoken取得前のendpoint authority判定で停止した。現行実装はregional hostnameを許可する一方、raw authority内のcolonを一律拒否するため明示的`:443`も拒否するが、実runの入力は未確認である。このPRは認可条件を変更せず、固定booleanだけを出す診断モードを準備する。workflowでの有効化は、診断機構のmerge後に続く小さなactivation PRで行う。
 
 ## 誰が・何を・なぜ
 
@@ -54,7 +52,7 @@ OSS maintainerは、OIDC URL、path、query、token、userinfo値をログへ出
 - [ ] URL全文、path、query、OIDC request token、username、passwordの値を出力しない。
 - [ ] 診断モードはOIDC requestより前に専用errorで必ず停止し、npm registry mutationへ進まない。
 - [ ] 通常モードのendpointおよびclaim認可条件を変更しない。
-- [ ] diagnostic flagはworkflow内の固定値とし、dispatch入力として公開しない。
+- [ ] diagnostic flagはdispatch入力として公開せず、follow-up activation PRでworkflow内の固定値としてのみ有効化できる。
 - [ ] focused unit、workflow、release validation、E2E、buildを現在HEADで成功させる。
 - [ ] 初回公開前の責任契約は対象versionのregistry不存在を要求し、公開後はdist integrityとimmutable gitHead一致を要求する。
 
@@ -62,7 +60,7 @@ OSS maintainerは、OIDC URL、path、query、token、userinfo値をログへ出
 
 - npm token、npm organization、GitHub repository設定は変更しない。
 - 通常モードの認可条件、artifact contract、registry mutation順序は変更しない。責任契約のregistry証跡だけを公開段階別に明確化する。
-- このPRのworkflow変更は診断フラグの固定だけに限定し、診断run後の原因修正PRで必ず解除する。
+- このPRではworkflowを変更しない。診断機構のmerge後、follow-up activation PRで固定フラグだけを設定し、診断run後の原因修正PRで必ず解除する。
 
 ## Failure modes
 
@@ -77,10 +75,10 @@ OSS maintainerは、OIDC URL、path、query、token、userinfo値をログへ出
 
 Release note: npm公開を止めているGitHub Actions OIDC endpoint判定について、秘密値を含まない固定boolean診断を追加する。利用者向けCLIやpackage API、通常の認可条件の変更はない。
 
-merge後のoperator actionは、`develop`を`release_ref`に指定して`npm-publish.yml`を手動dispatchし、固定boolean vectorを保存すること。`raw_authority_colon=true`かつ`normalized_nondefault_port=false`で他条件が正常なら、明示的default portを許可する最小修正へ進む。それ以外は失敗predicateに対応する入力契約を再調査する。
+このPRのmerge後は、固定フラグだけを設定するactivation PRをmergeする。その後、`develop`を`release_ref`に指定して`npm-publish.yml`を手動dispatchし、固定boolean vectorを保存する。`raw_authority_colon=true`かつ`normalized_nondefault_port=false`で他条件が正常なら、明示的default portを許可する最小修正へ進む。それ以外は失敗predicateに対応する入力契約を再調査する。
 
 Rollback instruction: 公開前に問題が見つかった場合はhotfix commitをrevertしてworkflowを再実行しない。公開後のnpm versionはimmutableなので削除や上書きをせず、修正版を新しいforward versionとして公開する。
 
 ## Done evidence
 
-現在HEADに結び付いたunit、integration、E2E、buildと独立レビューでマージ可否を決める。merge後は元Story `story-brainbase-oss-npm-release` のAC-9としてnpm metadataとGitHub Releaseを検証する。
+現在HEADに結び付いたunit、integration、E2E、buildと独立レビューでこの診断機構のマージ可否を決める。follow-up activation PRと原因修正PRのmerge後、元Story `story-brainbase-oss-npm-release` のAC-9としてnpm metadataとGitHub Releaseを検証する。

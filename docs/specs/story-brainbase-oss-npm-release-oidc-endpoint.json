@@ -36,7 +36,7 @@
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
         "test_refs": [
           {"file": "tests/npm-release.test.ts", "case": "reports only fixed OIDC diagnostic booleans"},
-          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "replays the fixed workflow diagnostic through the runtime stop boundary"}
+          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "replays the activation contract through the runtime stop boundary"}
         ]
       },
       "confidence": 1
@@ -68,13 +68,13 @@
     {
       "id": "OIDC-OPS-001",
       "type": "contract",
-      "statement": "After this diagnostic is merged, an operator reruns the workflow for develop, records the fixed boolean vector, and uses only that evidence for the follow-up correction.",
+      "statement": "After this diagnostic is merged, a follow-up activation PR sets the non-dispatch workflow flag; an operator then reruns develop, records the fixed boolean vector, and uses only that evidence for the correction.",
       "origin": {
         "story_refs": [{"kind": "background", "index": 0}],
         "code_refs": [{"file": ".github/workflows/npm-publish.yml", "anchor": "workflow_dispatch"}],
         "test_refs": [
           {"file": "tests/npm-release.test.ts", "case": "reports only fixed OIDC diagnostic booleans"},
-          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "replays the fixed workflow diagnostic through the runtime stop boundary"}
+          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "replays the activation contract through the runtime stop boundary"}
         ]
       },
       "confidence": 1
@@ -93,7 +93,7 @@
     {
       "id": "OIDC-SCOPE-001",
       "type": "contract",
-      "statement": "The implementation surface is limited to the diagnostic classifier, fixed workflow flag, focused tests, and Story, Architecture, and Spec traceability artifacts.",
+      "statement": "This PR is limited to the diagnostic classifier, phase-aware publication evidence, focused tests, and Story, Architecture, and Spec traceability artifacts; workflow activation is deferred to a follow-up PR.",
       "origin": {
         "story_refs": [{"kind": "acceptance_criteria", "index": 4}],
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "classifyOidcEndpoint"}],

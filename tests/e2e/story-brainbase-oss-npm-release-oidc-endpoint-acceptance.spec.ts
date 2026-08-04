@@ -29,7 +29,7 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
     ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'runner-issued-request-token'
   };
 
-  it('AC-1 AC-2 AC-3 AC-5 AC-6 S-003 replays the fixed workflow diagnostic through the runtime stop boundary', async () => {
+  it('AC-1 AC-2 AC-3 AC-5 AC-6 S-003 replays the activation contract through the runtime stop boundary', async () => {
     const workflow = await readFile(
       new URL('../../.github/workflows/npm-publish.yml', import.meta.url),
       'utf8'

@@ -30,7 +30,7 @@ URL全文、hostname値、raw authority、path、query、request token、usernam
 - `tests/npm-release.test.ts`: 固定boolean完全一致、機密sentinel非包含、request未呼出、通常モードの既存positive/negative cases。
 - `tests/npm-release-validation.integration.test.ts`: credential-free validationと公開前failure semantics。
 - `tests/npm-release-workflow.test.ts`: validation/publish job boundaryとworkflow state。
-- `tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts`: 固定workflow flagからruntime classifier、秘密値非露出、OIDC request前停止までを一つのrelease-specific flowとして再生する。
+- `tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts`: dispatch入力を増やさないactivation契約からruntime classifier、秘密値非露出、OIDC request前停止までを一つのrelease-specific flowとして再生する。
 - `npm run test:integration:release-evidence`: cleanな同一HEAD上でproduction dependency audit、実tarballのSHA-256/SHA-512、npm integrity、対象versionのregistry E404を一回のintegration実行として記録する。
 - `npm run test:e2e`、`npm run build`: release-specific flowを含むrepository regression evidence。
 
@@ -50,6 +50,6 @@ stateDiagram-v2
 
 ## Release operations
 
-この診断をdevelopへmerge後、`gh workflow run npm-publish.yml --repo Unson-LLC/brainbase --ref develop -f release_ref=develop`で診断runを実行する。boolean vectorとnpm metadata不存在を保存し、原因修正PRではworkflowの診断フラグを削除してから公開を再実行する。
+この診断をdevelopへmerge後、follow-up activation PRで`BRAINBASE_NPM_OIDC_DIAGNOSTIC=true`をworkflow固定値として設定する。activation PRのmerge後、`gh workflow run npm-publish.yml --repo Unson-LLC/brainbase --ref develop -f release_ref=develop`で診断runを実行する。boolean vectorとnpm metadata不存在を保存し、原因修正PRではworkflowの診断フラグを削除してから公開を再実行する。
 
 初回公開前のregistry証跡は対象versionの不存在を確認する。公開成功後は`npm view`のdist integrityとgitHeadをreview済みdefault-branch commitへ照合し、不一致または未確認を成功として扱わない。
