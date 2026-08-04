@@ -31,6 +31,7 @@ URL全文、hostname値、raw authority、path、query、request token、usernam
 - `tests/npm-release-validation.integration.test.ts`: credential-free validationと公開前failure semantics。
 - `tests/npm-release-workflow.test.ts`: validation/publish job boundaryとworkflow state。
 - `tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint.spec.ts`: 固定workflow flagからruntime classifier、秘密値非露出、OIDC request前停止までを一つのrelease-specific flowとして再生する。
+- `npm run test:release-evidence`: cleanな同一HEAD上でproduction dependency audit、実tarballのSHA-256/SHA-512、npm integrity、対象versionのregistry E404を一回の実行として記録する。
 - `npm run test:e2e`、`npm run build`: release-specific flowを含むrepository regression evidence。
 
 ## State diagram
