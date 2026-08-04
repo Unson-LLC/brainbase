@@ -8,7 +8,7 @@
 
 1. protocolが`https:`である。
 2. hostnameが`^pipelines[a-z0-9-]*\.actions\.githubusercontent\.com$`へ完全一致する。
-3. port、username、passwordが空である。
+3. raw authorityに明示的なportがなく、username、passwordが空である。WHATWG URLが`:443`を既定portとして正規化しても、入力に明示されていれば拒否する。
 4. 取得したJWTのaudience、repository、run ID、workflow ref、ref claimが期待値へ一致する。
 
 どれか1つでも不一致なら`OIDC endpoint is not trusted`または既存のclaim-specific errorで失敗し、npm commandを実行しない。
@@ -21,6 +21,7 @@
 | `https://pipelinesghubeus4.actions.githubusercontent.com/token` | allow endpoint, then validate claims |
 | `https://pipelines.actions.githubusercontent.com.attacker.example/token` | reject before token request |
 | `http://pipelines.actions.githubusercontent.com/token` | reject |
+| `https://pipelines.actions.githubusercontent.com:443/token` | reject before token request |
 | `https://user@pipelines.actions.githubusercontent.com/token` | reject |
 
 ## Verification

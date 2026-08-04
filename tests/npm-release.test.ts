@@ -97,10 +97,29 @@ describe('serialized publication context', () => {
   });
 
   it('rejects lookalike OIDC endpoint suffixes', async () => {
+    const request = vi.fn();
     await expect(assertSerializedPublicationContext({
       ...context,
       ACTIONS_ID_TOKEN_REQUEST_URL: 'https://pipelines.actions.githubusercontent.com.attacker.example/token'
-    }, vi.fn())).rejects.toThrow(/OIDC endpoint is not trusted/u);
+    }, request)).rejects.toThrow(/OIDC endpoint is not trusted/u);
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['malformed URL', 'not-a-url'],
+    ['HTTP', 'http://pipelines.actions.githubusercontent.com/token'],
+    ['explicit default port', 'https://pipelines.actions.githubusercontent.com:443/token'],
+    ['explicit default port with uppercase scheme', 'HTTPS://pipelines.actions.githubusercontent.com:443/token'],
+    ['explicit non-default port', 'https://pipelines.actions.githubusercontent.com:8443/token'],
+    ['username', 'https://user@pipelines.actions.githubusercontent.com/token'],
+    ['username and password', 'https://user:password@pipelines.actions.githubusercontent.com/token']
+  ])('rejects %s OIDC endpoints before token retrieval', async (_label, endpoint) => {
+    const request = vi.fn();
+    await expect(assertSerializedPublicationContext({
+      ...context,
+      ACTIONS_ID_TOKEN_REQUEST_URL: endpoint
+    }, request)).rejects.toThrow(/OIDC endpoint is not trusted/u);
+    expect(request).not.toHaveBeenCalled();
   });
 
   it('rejects an attestation for a different run', async () => {

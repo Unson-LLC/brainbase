@@ -10,13 +10,13 @@
       "id": "oidc-endpoint-flow",
       "kind": "flow",
       "title": "OIDC endpoint validation flow",
-      "mermaid": "flowchart LR\n  endpoint[\"GitHub Actions OIDC endpoint\"] --> parse[\"Parse URL\"]\n  parse --> transport[\"Require HTTPS and empty userinfo and port\"]\n  transport --> host[\"Match canonical or regional pipelines host\"]\n  host --> claims[\"Verify audience repository run workflow and ref claims\"]\n  claims --> token[\"Retrieve runner-issued OIDC token\"]\n  token --> publish[\"Continue guarded npm publication\"]"
+      "mermaid": "flowchart LR\n  endpoint[\"GitHub Actions OIDC request endpoint\"] --> parse[\"Parse URL and raw authority\"]\n  parse --> transport[\"Require HTTPS and no explicit userinfo or port\"]\n  transport --> host[\"Match canonical or regional pipelines host\"]\n  host --> token[\"Retrieve runner-issued OIDC token\"]\n  token --> claims[\"Verify audience repository run workflow and ref claims\"]\n  claims --> publish[\"Continue guarded npm publication\"]"
     },
     {
       "id": "oidc-endpoint-threat-model",
       "kind": "threat_model",
       "title": "OIDC endpoint authority boundary",
-      "mermaid": "flowchart TD\n  canonical[\"token.actions.githubusercontent.com\"] --> trusted[\"Trusted authority\"]\n  regional[\"pipelines regional host under actions.githubusercontent.com\"] --> trusted\n  suffix[\"Lookalike suffix or subdomain\"] --> reject[\"Fail before token retrieval\"]\n  malformed[\"HTTP port or userinfo\"] --> reject\n  trusted --> claims[\"Existing claim verification unchanged\"]\n  claims --> release[\"Release authority\"]"
+      "mermaid": "flowchart TD\n  canonical[\"pipelines.actions.githubusercontent.com request host\"] --> trusted[\"Trusted request authority\"]\n  regional[\"pipelines regional host under actions.githubusercontent.com\"] --> trusted\n  suffix[\"Lookalike suffix or subdomain\"] --> reject[\"Fail before token retrieval\"]\n  malformed[\"Malformed URL HTTP explicit port or userinfo\"] --> reject\n  trusted --> token[\"Retrieve token from GitHub request endpoint\"]\n  token --> claims[\"Verify token issuer and existing claims unchanged\"]\n  claims --> release[\"Release authority\"]"
     }
   ],
   "clauses": [
@@ -38,7 +38,10 @@
       "origin": {
         "story_refs": [{"kind": "acceptance_criteria", "index": 2}],
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
-        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "rejects lookalike OIDC endpoint suffixes"}]
+        "test_refs": [
+          {"file": "tests/npm-release.test.ts", "case": "rejects lookalike OIDC endpoint suffixes"},
+          {"file": "tests/npm-release.test.ts", "case": "rejects explicit default port OIDC endpoints before token retrieval"}
+        ]
       },
       "confidence": 1
     },

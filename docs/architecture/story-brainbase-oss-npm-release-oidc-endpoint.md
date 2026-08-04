@@ -12,7 +12,7 @@
 
 - URL protocolは`https:`のみ。
 - hostname全体を`^pipelines[a-z0-9-]*\.actions\.githubusercontent\.com$`へ一致させる。
-- port、username、passwordを拒否する。
+- raw authorityに明示されたport（`:443`を含む）と、username、passwordを拒否する。
 - token responseと全OIDC claimは既存ロジックで検証する。
 
 ## Failure and rollback

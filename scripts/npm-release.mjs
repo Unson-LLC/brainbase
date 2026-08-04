@@ -448,12 +448,18 @@ export async function assertSerializedPublicationContext(environment = process.e
   ) {
     throw new Error('publish is restricted to the serialized GitHub Actions workflow; use `gh workflow run npm-publish.yml --ref develop -f release_ref=<ref>`');
   }
-  const oidcUrl = new URL(environment.ACTIONS_ID_TOKEN_REQUEST_URL);
+  let oidcUrl;
+  try {
+    oidcUrl = new URL(environment.ACTIONS_ID_TOKEN_REQUEST_URL);
+  } catch {
+    throw new Error('GitHub Actions OIDC endpoint is not trusted');
+  }
+  const rawAuthority = environment.ACTIONS_ID_TOKEN_REQUEST_URL.match(/^https?:\/\/([^/?#]*)/iu)?.[1] ?? '';
   const trustedOidcHostname = /^pipelines[a-z0-9-]*\.actions\.githubusercontent\.com$/u;
   if (
     oidcUrl.protocol !== 'https:' ||
     !trustedOidcHostname.test(oidcUrl.hostname) ||
-    oidcUrl.port ||
+    rawAuthority.includes(':') ||
     oidcUrl.username ||
     oidcUrl.password
   ) {
