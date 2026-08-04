@@ -6,7 +6,7 @@ import {
   classifyOidcEndpoint
 } from '../../scripts/npm-release.mjs';
 
-describe('OSS npm release OIDC diagnostic acceptance', () => {
+describe('OSS npm release OIDC endpoint correction acceptance', () => {
   function oidcToken(overrides = {}) {
     const header = Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url');
     const payload = Buffer.from(JSON.stringify({
@@ -169,5 +169,18 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
     expect(publication.required_evidence, 'ac-8 requires phase-aware registry evidence').toContain('registry_state_verified_for_release_phase');
     expect(publication.unknown_policy, 'ac-8 requires target-version absence before initial publication').toMatch(/Before an initial publication, registry evidence must prove the target version is absent/u);
     expect(publication.unknown_policy, 'ac-8 requires dist integrity and immutable gitHead after publication').toMatch(/after publication, it must prove dist integrity and immutable gitHead/u);
+  });
+
+  it('AC-8 keeps the maintainer runbook aligned with the enabled publication path', async () => {
+    const readme = await readFile(
+      new URL('../../README.md', import.meta.url),
+      'utf8'
+    );
+    const releaseOperation = readme.slice(readme.indexOf('### Maintainer release operation'));
+    expect(releaseOperation, 'ac-8 removes the retired diagnostic-only operation').not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC/u);
+    expect(releaseOperation, 'ac-8 requires one evidence-bound dispatch').toMatch(/Dispatch the reviewed ref once/u);
+    expect(releaseOperation, 'ac-8 requires registry verification').toMatch(/`gitHead`, `dist\.integrity`, and dist-tag/u);
+    expect(releaseOperation, 'ac-8 requires GitHub Release target verification').toMatch(/GitHub Release targets the reviewed release commit/u);
+    expect(releaseOperation, 'ac-8 preserves immutable-version recovery').toMatch(/treat that version as immutable/u);
   });
 });
