@@ -55,6 +55,9 @@ reports a mismatch and exits nonzero.
   and recovery are dispatched from `gh` into the serialized Actions workflow.
 - Immutable version collisions fail without attempting an overwrite.
 - Verification can be used safely in audits because it does not mutate npm.
+- The publish CLI requests a GitHub-issued OIDC token from the runner endpoint
+  and checks its repository, run, audience, and workflow claims. Caller-set
+  environment markers alone are not publication authority.
 
 ## Rejected alternatives
 

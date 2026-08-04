@@ -24,23 +24,68 @@ import {
 const temporaryRoots: string[] = [];
 
 describe('serialized publication context', () => {
-  it('rejects direct local publication outside the package workflow queue', () => {
-    expect(() => assertSerializedPublicationContext({})).toThrow(/serialized GitHub Actions workflow/u);
-    expect(() => assertSerializedPublicationContext({
+  const context = {
+    GITHUB_ACTIONS: 'true',
+    GITHUB_REPOSITORY: 'Unson-LLC/brainbase',
+    GITHUB_RUN_ID: '123',
+    BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true',
+    ACTIONS_ID_TOKEN_REQUEST_URL: 'https://pipelines.actions.githubusercontent.com/token',
+    ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'runner-issued-request-token'
+  };
+
+  function oidcToken(overrides = {}) {
+    const header = Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({
+      aud: 'brainbase-npm-publish',
+      repository: 'Unson-LLC/brainbase',
+      run_id: '123',
+      workflow_ref: 'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/develop',
+      ...overrides
+    })).toString('base64url');
+    return `${header}.${payload}.test-signature`;
+  }
+
+  it('rejects direct local publication outside the package workflow queue', async () => {
+    await expect(assertSerializedPublicationContext({})).rejects.toThrow(/serialized GitHub Actions workflow/u);
+    await expect(assertSerializedPublicationContext({
       GITHUB_ACTIONS: 'true',
       GITHUB_REPOSITORY: 'attacker/fork',
       GITHUB_RUN_ID: '123',
       BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'
-    })).toThrow(/serialized GitHub Actions workflow/u);
+    })).rejects.toThrow(/serialized GitHub Actions workflow/u);
   });
 
-  it('accepts the explicitly serialized upstream Actions context', () => {
-    expect(() => assertSerializedPublicationContext({
-      GITHUB_ACTIONS: 'true',
-      GITHUB_REPOSITORY: 'Unson-LLC/brainbase',
-      GITHUB_RUN_ID: '123',
-      BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'
-    })).not.toThrow();
+  it('rejects caller-spoofed context without a runner-issued OIDC attestation', async () => {
+    await expect(assertSerializedPublicationContext({
+      ...context,
+      ACTIONS_ID_TOKEN_REQUEST_URL: 'https://attacker.example/token'
+    }, vi.fn())).rejects.toThrow(/OIDC endpoint is not trusted/u);
+
+    const denied = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+    await expect(assertSerializedPublicationContext(context, denied)).rejects.toThrow(/OIDC attestation failed/u);
+  });
+
+  it('accepts a runner-issued attestation for the exact upstream workflow and run', async () => {
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ value: oidcToken() })
+    });
+    await expect(assertSerializedPublicationContext(context, request)).resolves.toBeUndefined();
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({ hostname: 'pipelines.actions.githubusercontent.com' }),
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer runner-issued-request-token' },
+        redirect: 'error'
+      })
+    );
+  });
+
+  it('rejects an attestation for a different run or workflow', async () => {
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ value: oidcToken({ run_id: '999' }) })
+    });
+    await expect(assertSerializedPublicationContext(context, request)).rejects.toThrow(/OIDC claims do not match/u);
   });
 });
 

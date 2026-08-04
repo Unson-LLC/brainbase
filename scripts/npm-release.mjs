@@ -427,14 +427,55 @@ function assertProofOutsideRepository(root, proofFile) {
   }
 }
 
-export function assertSerializedPublicationContext(environment = process.env) {
+function decodeJwtPayload(token) {
+  const segments = token.split('.');
+  if (segments.length !== 3) throw new Error('GitHub Actions OIDC response is not a JWT');
+  try {
+    return JSON.parse(Buffer.from(segments[1], 'base64url').toString('utf8'));
+  } catch {
+    throw new Error('GitHub Actions OIDC JWT payload is invalid');
+  }
+}
+
+export async function assertSerializedPublicationContext(environment = process.env, request = fetch) {
   if (
     environment.GITHUB_ACTIONS !== 'true' ||
     environment.GITHUB_REPOSITORY !== 'Unson-LLC/brainbase' ||
     !environment.GITHUB_RUN_ID ||
-    environment.BRAINBASE_NPM_PUBLISH_SERIALIZED !== 'true'
+    environment.BRAINBASE_NPM_PUBLISH_SERIALIZED !== 'true' ||
+    !environment.ACTIONS_ID_TOKEN_REQUEST_URL ||
+    !environment.ACTIONS_ID_TOKEN_REQUEST_TOKEN
   ) {
     throw new Error('publish is restricted to the serialized GitHub Actions workflow; use `gh workflow run npm-publish.yml --ref develop -f release_ref=<ref>`');
+  }
+  const oidcUrl = new URL(environment.ACTIONS_ID_TOKEN_REQUEST_URL);
+  if (
+    oidcUrl.protocol !== 'https:' ||
+    oidcUrl.hostname !== 'pipelines.actions.githubusercontent.com' ||
+    oidcUrl.port ||
+    oidcUrl.username ||
+    oidcUrl.password
+  ) {
+    throw new Error('GitHub Actions OIDC endpoint is not trusted');
+  }
+  const audience = 'brainbase-npm-publish';
+  oidcUrl.searchParams.set('audience', audience);
+  const response = await request(oidcUrl, {
+    headers: { Authorization: `Bearer ${environment.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` },
+    redirect: 'error'
+  });
+  if (!response.ok) throw new Error(`GitHub Actions OIDC attestation failed with HTTP ${response.status}`);
+  const body = await response.json();
+  if (!body || typeof body.value !== 'string') throw new Error('GitHub Actions OIDC response did not contain a token');
+  const claims = decodeJwtPayload(body.value);
+  if (
+    claims.aud !== audience ||
+    claims.repository !== environment.GITHUB_REPOSITORY ||
+    String(claims.run_id) !== String(environment.GITHUB_RUN_ID) ||
+    typeof claims.workflow_ref !== 'string' ||
+    !claims.workflow_ref.startsWith('Unson-LLC/brainbase/.github/workflows/npm-publish.yml@')
+  ) {
+    throw new Error('GitHub Actions OIDC claims do not match the serialized npm publication workflow');
   }
 }
 
@@ -482,7 +523,7 @@ async function main(args) {
     if (command === 'verify') {
       result = await verifyNpmRelease({ packageName: EXPECTED_PACKAGE_NAME, version, expectedSha });
     } else {
-      assertSerializedPublicationContext();
+      await assertSerializedPublicationContext();
       const proofFile = option(rest, '--proof-file');
       if (!proofFile) throw new Error('publish requires --proof-file <validated-release-proof>');
       assertProofOutsideRepository(rootDefault, proofFile);

@@ -169,7 +169,7 @@
     {
       "id": "INV-010",
       "type": "invariant",
-      "statement": "Consumer dist-tags move only forward; publication is restricted to the package-wide upstream Actions queue, and a current-tag SemVer guard prevents an older release from rolling a tag back.",
+      "statement": "Consumer dist-tags move only forward; publication requires a runner-issued GitHub OIDC attestation for the package-wide upstream Actions workflow and run, and a current-tag SemVer guard prevents an older release from rolling a tag back.",
       "rationale": "A local queue bypass or stale versions snapshot must not overwrite a newer consumer selection.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 3, "text_snippet": "stableとprereleaseに適切なnpm dist-tag" }],
@@ -180,7 +180,8 @@
         ],
         "test_refs": [
           { "file": "tests/npm-release.test.ts", "case": "does not roll back a dist-tag advanced by a concurrent release" },
-          { "file": "tests/npm-release.test.ts", "case": "rejects direct local publication outside the package workflow queue" },
+          { "file": "tests/npm-release.test.ts", "case": "rejects caller-spoofed context without a runner-issued OIDC attestation" },
+          { "file": "tests/npm-release.test.ts", "case": "accepts a runner-issued attestation for the exact upstream workflow and run" },
           { "file": "tests/npm-release-workflow.test.ts", "case": "serializes every publication attempt for the package" }
         ]
       },

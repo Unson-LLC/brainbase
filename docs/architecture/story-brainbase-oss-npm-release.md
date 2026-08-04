@@ -26,7 +26,7 @@
 
 ## Failure semantics
 
-- npm credentialなし、scope権限なし、2FA拒否は公開失敗として終了する。
+- npm credentialなし、scope権限なし、2FA拒否、またはGitHub runner OIDC attestation不成立は公開失敗として終了する。Actionsを名乗る環境変数だけでは公開境界を通過できない。
 - registry 404だけを未公開として扱い、timeout、401、5xxを未公開へ読み替えない。
 - 同一versionの`gitHead`不一致はimmutable collisionとしてfail loudする。
 - registry収束を確認できない場合、GitHub Releaseを作成しない。
