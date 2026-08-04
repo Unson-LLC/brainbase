@@ -30,6 +30,7 @@ describe('OSS npm release OIDC endpoint correction acceptance', () => {
     ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'runner-issued-request-token'
   };
 
+  // story-brainbase-oss-npm-release-oidc-endpoint ac:1 ac:2 ac:3 executable diagnostic boundary coverage
   it('AC-1 AC-2 AC-3 S-003 replays the evidence-bound diagnostic through the runtime stop boundary', async () => {
     const endpoint = 'https://user-sentinel:password-sentinel@pipelinesghubeus4.actions.githubusercontent.com:8443/private-path?secret=query-sentinel';
     const request = vi.fn();
@@ -69,6 +70,7 @@ describe('OSS npm release OIDC endpoint correction acceptance', () => {
     }
   });
 
+  // story-brainbase-oss-npm-release-oidc-endpoint ac:4 executable authorization boundary coverage
   it('AC-4 preserves the normal authorization and exact workflow claims', async () => {
     const acceptedRequest = vi.fn().mockResolvedValue({
       ok: true,
@@ -90,6 +92,7 @@ describe('OSS npm release OIDC endpoint correction acceptance', () => {
     ), 'ac-4 preserves rejected claim mismatches').rejects.toThrow(/OIDC claims do not match/u);
   });
 
+  // story-brainbase-oss-npm-release-oidc-endpoint ac:5 executable issuer coverage
   it('AC-5 rejects a token whose issuer is not the official GitHub Actions issuer', async () => {
     const wrongIssuerRequest = vi.fn().mockResolvedValue({
       ok: true,
@@ -101,6 +104,7 @@ describe('OSS npm release OIDC endpoint correction acceptance', () => {
     ), 'ac-5 binds the token issuer to GitHub Actions').rejects.toThrow(/OIDC claims do not match/u);
   });
 
+  // story-brainbase-oss-npm-release-oidc-endpoint ac:6 executable workflow activation coverage
   it('AC-6 removes the diagnostic stop and pins a trusted-publishing capable npm CLI', async () => {
     const workflow = await readFile(
       new URL('../../.github/workflows/npm-publish.yml', import.meta.url),
@@ -111,6 +115,7 @@ describe('OSS npm release OIDC endpoint correction acceptance', () => {
     expect(publishJob, 'ac-6 installs a trusted-publishing capable npm CLI').toMatch(/npm install --global npm@11\.5\.1/u);
   });
 
+  // story-brainbase-oss-npm-release-oidc-endpoint ac:4 executable endpoint allow-and-deny coverage
   it('AC-4 accepts the observed GitHub-hosted endpoint class and rejects suffix lookalikes', async () => {
     const acceptedRequest = vi.fn().mockResolvedValue({
       ok: true,
@@ -160,6 +165,7 @@ describe('OSS npm release OIDC endpoint correction acceptance', () => {
     expect(request).not.toHaveBeenCalled();
   });
 
+  // story-brainbase-oss-npm-release-oidc-endpoint ac:7 executable validation-lane coverage
   it('AC-7 keeps every focused release validation command executable', async () => {
     const packageJson = JSON.parse(await readFile(
       new URL('../../package.json', import.meta.url),
@@ -171,6 +177,7 @@ describe('OSS npm release OIDC endpoint correction acceptance', () => {
     expect(packageJson.scripts.build, 'ac-7 keeps the TypeScript build validation').toBe('tsc -p tsconfig.json');
   });
 
+  // story-brainbase-oss-npm-release-oidc-endpoint ac:8 executable phase-aware registry contract coverage
   it('AC-8 S-004 requires absence before initial publication and immutable evidence after it', async () => {
     const contract = JSON.parse(await readFile(
       new URL('../../docs/responsibility-authority/npm-publication.json', import.meta.url),

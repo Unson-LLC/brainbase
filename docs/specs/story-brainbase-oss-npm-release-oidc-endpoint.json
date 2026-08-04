@@ -132,7 +132,7 @@
     {
       "id": "OIDC-REGISTRY-001",
       "type": "contract",
-      "statement": "Registry state evidence is phase-aware: the target version must be absent before initial publication, and published dist integrity plus immutable gitHead must match after publication.",
+      "statement": "Registry evidence is phase-aware: prove target-version absence before initial publication and bind a fail-closed post-publication verifier for dist integrity plus immutable gitHead; observe the live match only after delivery.",
       "origin": {
         "story_refs": [{"kind": "acceptance_criteria", "index": 7}],
         "code_refs": [{"file": "docs/responsibility-authority/npm-publication.json", "anchor": "brainbase_oss_npm_publication"}],

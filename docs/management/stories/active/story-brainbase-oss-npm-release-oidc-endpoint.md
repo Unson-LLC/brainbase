@@ -58,7 +58,7 @@ OSS maintainerは、実測で確認したGitHub Actions提供endpoint classを�
 - [ ] OIDC tokenのissuerを公式`https://token.actions.githubusercontent.com`へ固定し、既存claim検証を維持する。
 - [ ] 固定diagnostic flagを削除し、publish jobでnpm CLI `11.5.1`を使う。
 - [ ] focused unit、workflow、release validation、E2E、buildを現在HEADで成功させる。
-- [ ] 初回公開前の責任契約は対象versionのregistry不存在を要求し、公開後はdist integrityとimmutable gitHead一致を要求する。
+- [ ] 初回公開前は対象versionのregistry不存在を実証し、公開後にdist integrityとimmutable gitHeadを照合して不一致を失敗にする検証経路を固定する。
 
 ## 境界
 
@@ -77,11 +77,21 @@ OSS maintainerは、実測で確認したGitHub Actions提供endpoint classを�
 
 ## User Action
 
-Release note: production診断で特定したGitHub Actions OIDC hostname判定を修正し、公式issuer検証とnpm Trusted Publishing対応CLIを追加する。利用者向けpackage APIの変更はない。
+### Release note
+
+production診断で特定したGitHub Actions OIDC hostname判定を修正し、公式issuer検証とnpm Trusted Publishing対応CLIを追加する。利用者向けpackage APIの変更はない。
+
+### Operator action
 
 このcorrection PRのmerge後、release ownerは`develop`を`release_ref`に指定して`npm-publish.yml`を一度だけ手動dispatchする。成功時は`@unson/brainbase-mcp@0.1.0`のversion、gitHead、dist integrity、dist-tagとGitHub Release `v0.1.0`のtarget commitを照合する。失敗時は同じrunを証拠として、公開済みversionの有無を確認してから再調査する。
 
-Rollback instruction: endpoint判定またはclaim検証に問題があればcorrection commitをrevertし、workflowを再実行せず公開停止を維持する。公開後のnpm versionはimmutableなので削除や上書きをせず、修正版を新しいforward versionとして公開する。
+### Observability evidence
+
+GitHub Actionsのvalidation/publish job結果、npm registryの`version`・`gitHead`・`dist.integrity`・dist-tag、GitHub Releaseのtag・target commitをrelease ownerが確認できる証拠とする。未確認または不一致は成功にしない。
+
+### Rollback instruction
+
+endpoint判定またはclaim検証に問題があればcorrection commitをrevertし、workflowを再実行せず公開停止を維持する。公開後のnpm versionはimmutableなので削除や上書きをせず、修正版を新しいforward versionとして公開する。
 
 ## Done evidence
 

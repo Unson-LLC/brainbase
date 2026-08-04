@@ -54,4 +54,4 @@ stateDiagram-v2
 
 correction PRはworkflowの固定診断フラグを削除し、npm CLI `11.5.1`を導入する。merge後、release ownerは`gh workflow run npm-publish.yml --repo Unson-LLC/brainbase --ref develop -f release_ref=develop`を一度だけ実行する。成功時はnpm metadataのdist integrityとgitHead、dist-tag、GitHub Release targetを照合する。失敗時はrun URLと公開済みversionの有無を保存し、重複公開を避けて再調査する。
 
-初回公開前のregistry証跡は対象versionの不存在を確認する。公開成功後は`npm view`のdist integrityとgitHeadをreview済みdefault-branch commitへ照合し、不一致または未確認を成功として扱わない。
+初回公開前のregistry証跡は対象versionの不存在を確認する。PR前には、公開成功後に`npm view`のdist integrityとgitHeadをreview済みdefault-branch commitへ照合し、不一致または未確認を成功として扱わない検証経路を固定する。実registryの一致は公開後のdelivery outcomeとして別途観測する。
