@@ -147,6 +147,17 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
     expect(request).not.toHaveBeenCalled();
   });
 
+  it('AC-7 keeps every focused release validation command executable', async () => {
+    const packageJson = JSON.parse(await readFile(
+      new URL('../../package.json', import.meta.url),
+      'utf8'
+    ));
+    expect(packageJson.scripts.test, 'ac-7 keeps the unit and workflow suite').toBe('vitest run');
+    expect(packageJson.scripts['test:integration'], 'ac-7 keeps release integration validation').toContain('tests/npm-release-validation.integration.test.ts');
+    expect(packageJson.scripts['test:e2e'], 'ac-7 keeps the E2E runner available for the focused Story file').toMatch(/^vitest run /u);
+    expect(packageJson.scripts.build, 'ac-7 keeps the TypeScript build validation').toBe('tsc -p tsconfig.json');
+  });
+
   it('AC-8 S-004 requires absence before initial publication and immutable evidence after it', async () => {
     const contract = JSON.parse(await readFile(
       new URL('../../docs/responsibility-authority/npm-publication.json', import.meta.url),
