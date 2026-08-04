@@ -480,6 +480,17 @@ describe('npm release CLI', () => {
     expect(execute).toHaveBeenCalledWith('npm', ['dist-tag', 'add', '@unson/brainbase-mcp@0.2.0-beta.3', 'beta'], '.');
   });
 
+  it('does not roll back a dist-tag advanced by a concurrent release', async () => {
+    const execute = vi.fn((_command: string, args: string[]) => {
+      if (args.includes('versions')) return JSON.stringify(['0.2.0-beta.1', '0.2.0-beta.2', '0.2.0-beta.3']);
+      if (args.includes('dist-tags')) return JSON.stringify({ beta: '0.2.0-beta.4' });
+      return '';
+    });
+    const result = await reconcileDistTag('@unson/brainbase-mcp', '0.2.0-beta.2', '.', execute);
+    expect(result).toEqual({ tag: 'beta', version: '0.2.0-beta.4' });
+    expect(execute.mock.calls.some(([, args]) => args[0] === 'dist-tag')).toBe(false);
+  });
+
   it('keeps verify read-only and fails on a dist-tag mismatch', async () => {
     const { root, sha } = await releaseRoot();
     const execute = vi.fn((_command: string, args: string[]) => {

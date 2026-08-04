@@ -50,6 +50,13 @@ describe('npm publish workflow', () => {
     expect(workflow).toMatch(/npm-release-\$\{\{ needs\.validate\.outputs\.sha \}\}/u);
   });
 
+  it('serializes every publication attempt for the package', async () => {
+    const workflow = await readFile(new URL('../.github/workflows/npm-publish.yml', import.meta.url), 'utf8');
+    expect(workflow).toMatch(/concurrency:\n  group: npm-publish-unson-brainbase-mcp\n  cancel-in-progress: false/u);
+    const concurrency = workflow.slice(workflow.indexOf('concurrency:'), workflow.indexOf('permissions: {}'));
+    expect(concurrency).not.toMatch(/pull_request|release_ref|github\.event/u);
+  });
+
   it('documents a portable and isolated local recovery credential path', async () => {
     const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
     const operation = readme.slice(readme.indexOf('### Maintainer release operation'));

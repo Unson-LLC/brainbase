@@ -12,7 +12,7 @@ on:
         default: develop
 
 concurrency:
-  group: npm-publish-${{ github.event.pull_request.number || inputs.release_ref }}
+  group: npm-publish-unson-brainbase-mcp
   cancel-in-progress: false
 
 permissions: {}

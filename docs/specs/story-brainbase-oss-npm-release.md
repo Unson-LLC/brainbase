@@ -38,7 +38,7 @@ npm run release:validate -- --version <semver> --sha <full-commit-sha> --trusted
 npm run release:publish -- --version <semver> --sha <full-commit-sha> --trusted-ref <default-branch-ref> --proof-file <validated-proof> [--provenance]
 ```
 
-現在の固定package name/version、cleanなgit HEAD、trusted ref到達性、validation proofとtarballの両digestを再照合する。未公開versionだけ同じtarballを`npm publish <tarball> --ignore-scripts --access public --tag release-<commit>`で非consumer staging tagへ公開する。registry `dist.integrity`がproofのSHA-512 integrityと一致した後だけconsumer tagを同系列の最大versionへ前進させ、staging tagを除去する。`--provenance`はGitHub Actionsなどnpmが対応するtrusted CI環境でのみ渡す。
+現在の固定package name/version、cleanなgit HEAD、trusted ref到達性、validation proofとtarballの両digestを再照合する。未公開versionだけ同じtarballを`npm publish <tarball> --ignore-scripts --access public --tag release-<commit>`で非consumer staging tagへ公開する。registry `dist.integrity`がproofのSHA-512 integrityと一致した後だけconsumer tagを同系列の最大versionへ前進させ、staging tagを除去する。workflowはpackage単位で公開処理を直列化し、CLIも変更直前に現在tagを再取得して、既に新しい同系列versionへ進んだtagを巻き戻さない。`--provenance`はGitHub Actionsなどnpmが対応するtrusted CI環境でのみ渡す。
 
 ### Verify
 
@@ -107,6 +107,8 @@ version据え置きやdowngradeが自動公開されないことはplan unit tes
 12. 最終tarball manifestの`gitHead`が期待SHAと一致しなければproofを生成しない。
 13. registry `dist.integrity`がvalidation proofと異なる場合はdist-tag変更前に失敗する。
 14. validation jobにはOIDCとnpm credentialがなく、publish jobだけが両方を持つ。
+15. 並行releaseでconsumer dist-tagが既に新しいversionへ進んでいる場合は変更しない。
+16. workflow concurrencyはPR番号やrelease refではなくpackage単位で全公開処理を直列化する。
 
 ## State diagram
 

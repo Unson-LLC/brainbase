@@ -171,7 +171,11 @@ export async function reconcileDistTag(packageName, version, root, execute = run
   const desired = eligible.at(-1);
   if (!desired) throw new Error(`No published version is eligible for npm dist-tag ${tag}`);
   const currentTags = JSON.parse(execute('npm', ['view', packageName, 'dist-tags', '--json'], root));
-  if (currentTags[tag] !== desired) {
+  const current = currentTags[tag];
+  if (current && npmDistTag(current) === tag && compareSemver(current, desired) >= 0) {
+    return { tag, version: current };
+  }
+  if (current !== desired) {
     execute('npm', ['dist-tag', 'add', `${packageName}@${desired}`, tag], root);
   }
   return { tag, version: desired };

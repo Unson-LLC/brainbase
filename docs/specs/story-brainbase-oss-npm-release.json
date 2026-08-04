@@ -80,7 +80,7 @@
       "statement": "The npm credential is injected only from GitHub Secret NPM_TOKEN at publication time and is never committed.",
       "rationale": "Package publication credentials must remain outside source and workflow logs.",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "index": 5, "text_snippet": "GitHub Secretから実行時注入" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 5, "text_snippet": "公開jobだけへGitHub SecretとOIDCを許可" }],
         "code_refs": [{ "file": ".github/workflows/npm-publish.yml", "anchor": "NODE_AUTH_TOKEN" }],
         "test_refs": [{ "file": "tests/npm-release-workflow.test.ts", "case": "binds validation and publish to the merged commit" }]
       },
@@ -96,7 +96,7 @@
       "statement": "Plan, validation, publication, and verification are authorized only for @unson/brainbase-mcp.",
       "rationale": "A reviewed package rename must not redirect the publication credential to another npm package.",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "index": 5, "text_snippet": "公開権限境界" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 5, "text_snippet": "公開jobだけへGitHub SecretとOIDCを許可" }],
         "code_refs": [{ "file": "scripts/npm-release.mjs", "anchor": "EXPECTED_PACKAGE_NAME" }],
         "test_refs": [{ "file": "tests/npm-release.test.ts", "case": "fixes publication authority" }]
       },
@@ -120,7 +120,10 @@
       "statement": "Build, test, audit, and real tarball creation run in a read-only job without OIDC or an npm credential; publication requires matching SHA-256 and SHA-512 proof and registry dist.integrity.",
       "rationale": "Untrusted validation children must not inherit any public package mutation capability, and publication must prove the registry received the reviewed bytes.",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "index": 5, "text_snippet": "実行時注入" }],
+        "story_refs": [
+          { "kind": "acceptance_criteria", "index": 5, "text_snippet": "検証jobはread-onlyかつOIDC/npm credentialなし" },
+          { "kind": "acceptance_criteria", "index": 6, "text_snippet": "検証jobと実行tarball proofはnpm公開トークンなしで再現" }
+        ],
         "code_refs": [
           { "file": ".github/workflows/npm-publish.yml", "anchor": "Validate release without publication credential" },
           { "file": "scripts/npm-release.mjs", "anchor": "assertPublishedMetadata" }
@@ -138,9 +141,64 @@
       "statement": "Verification reads npm metadata and dist-tags but never publishes or changes a dist-tag.",
       "rationale": "Audits must be safe to repeat without public registry mutation.",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "index": 2, "text_snippet": "照合" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 8, "text_snippet": "公開完了はnpm metadataのversion、gitHead、dist.integrity、dist-tagで証明" }],
         "code_refs": [{ "file": "scripts/npm-release.mjs", "anchor": "verifyNpmRelease" }],
         "test_refs": [{ "file": "tests/npm-release.test.ts", "case": "keeps verify read-only" }]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "INV-009",
+      "type": "invariant",
+      "statement": "An absent version is first published under a commit-bound non-consumer staging tag; the consumer tag changes only after version, gitHead, and integrity converge, and the staging tag is then removed.",
+      "rationale": "Unverified or partially converged package bytes must never become the default consumer selection.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 8, "text_snippet": "version、gitHead、dist.integrity、dist-tagで証明" }],
+        "code_refs": [
+          { "file": "scripts/npm-release.mjs", "anchor": "releaseStagingTag" },
+          { "file": "scripts/npm-release.mjs", "anchor": "reconcileNpmRelease" }
+        ],
+        "test_refs": [
+          { "file": "tests/npm-release.test.ts", "case": "uses a commit-bound non-consumer tag" },
+          { "file": "tests/npm-release.test.ts", "case": "publishes an absent version once and retries metadata to convergence" },
+          { "file": "tests/npm-release.test.ts", "case": "does not reconcile a dist-tag when registry metadata never converges" }
+        ]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "INV-010",
+      "type": "invariant",
+      "statement": "Consumer dist-tags move only forward; package-wide workflow serialization and a current-tag SemVer guard prevent an older concurrent release from rolling a tag back.",
+      "rationale": "A stale versions snapshot must not overwrite a newer consumer selection.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 3, "text_snippet": "stableとprereleaseに適切なnpm dist-tag" }],
+        "code_refs": [
+          { "file": "scripts/npm-release.mjs", "anchor": "reconcileDistTag" },
+          { "file": ".github/workflows/npm-publish.yml", "anchor": "concurrency" }
+        ],
+        "test_refs": [
+          { "file": "tests/npm-release.test.ts", "case": "does not roll back a dist-tag advanced by a concurrent release" },
+          { "file": "tests/npm-release-workflow.test.ts", "case": "serializes every publication attempt for the package" }
+        ]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "INV-011",
+      "type": "invariant",
+      "statement": "The packed manifest repository identifies the public Unson-LLC/brainbase source repository used for npm provenance.",
+      "rationale": "npm provenance must bind the package to the reviewed public source repository rather than an internal or missing repository identity.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 4, "text_snippet": "pack確認後に公開" }],
+        "code_refs": [
+          { "file": "package.json", "anchor": "repository" },
+          { "file": ".github/workflows/npm-publish.yml", "anchor": "--provenance" }
+        ],
+        "test_refs": [
+          { "file": "tests/npm-release-workflow.test.ts", "case": "binds validation and publish to the merged commit" },
+          { "file": "tests/npm-release-validation.integration.test.ts", "case": "audits production dependencies and hashes a real tarball without publication credentials" }
+        ]
       },
       "confidence": 1
     },
@@ -150,7 +208,7 @@
       "statement": "A manual workflow dispatch can publish or reconcile the package version at a selected release ref.",
       "rationale": "The first 0.1.0 publication has no preceding version bump and failed runs need an idempotent recovery path.",
       "origin": {
-        "story_refs": [{ "kind": "acceptance_criteria", "index": 6, "text_snippet": "初回・復旧は手動dispatch" }],
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 7, "text_snippet": "初回・復旧は手動dispatch" }],
         "code_refs": [{ "file": ".github/workflows/npm-publish.yml", "anchor": "workflow_dispatch" }],
         "test_refs": [{ "file": "tests/npm-release-workflow.test.ts", "case": "supports manual recovery" }]
       },
