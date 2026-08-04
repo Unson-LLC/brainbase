@@ -126,6 +126,7 @@ jobs:
       - name: Publish and verify npm package
         env:
           BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'
+          BRAINBASE_NPM_OIDC_DIAGNOSTIC: 'true'
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ needs.validate.outputs.version }}
           RELEASE_SHA: ${{ needs.validate.outputs.sha }}

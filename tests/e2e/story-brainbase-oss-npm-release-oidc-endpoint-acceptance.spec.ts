@@ -35,7 +35,7 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
       'utf8'
     );
     const publishJob = workflow.slice(workflow.indexOf('  publish:'));
-    expect(publishJob, 'ac-5 keeps activation out of the diagnostic implementation PR').not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC/u);
+    expect(publishJob, 'ac-5 activates the diagnostic only as a fixed publish-job value').toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC:\s*'true'/u);
     expect(workflow, 'ac-5 never exposes diagnostic activation as a dispatch input').not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC:[\s\S]*github\.event\.inputs/u);
 
     const endpoint = 'https://user-sentinel:password-sentinel@pipelinesghubeus4.actions.githubusercontent.com:8443/private-path?secret=query-sentinel';

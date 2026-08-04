@@ -475,6 +475,8 @@ npm pack --dry-run
 
 ### Maintainer release operation
 
+Temporary diagnostic state: while `BRAINBASE_NPM_OIDC_DIAGNOSTIC` is fixed to `true` in `npm-publish.yml`, every publish attempt intentionally stops before requesting an OIDC token or mutating npm. The release owner should dispatch `develop` once, retain the run URL and fixed boolean diagnostic vector, then remove the flag in the evidence-bound endpoint correction before retrying publication. If the diagnostic output or stop boundary is unsafe, revert the activation commit and do not rerun it. No npm version or GitHub Release is created by the diagnostic run.
+
 Scoped package publication is configured as public. Configure the repository Actions secret `NPM_TOKEN`, then normally publish a version-bumped merge from the reviewed `develop` history. The merge trigger plans the version delta automatically. For the first `0.1.0` publication or recovery, dispatch the same package-wide serialized workflow from the GitHub CLI. `NPM_TOKEN` must be authorized to publish `@unson/brainbase-mcp`.
 
 ```bash

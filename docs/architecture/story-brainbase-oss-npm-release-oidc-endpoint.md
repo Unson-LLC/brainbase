@@ -2,7 +2,7 @@
 
 ## Decision
 
-現行の`assertSerializedPublicationContext`認可ロジックを変更せず、`BRAINBASE_NPM_OIDC_DIAGNOSTIC=true`のときだけendpointの固定boolean分類を出してOIDC request前に停止する診断laneを追加する。このPRではworkflowを変更せず、診断機構のmerge後に続くactivation PRがフラグをworkflow固定値として設定する。dispatch入力にはしない。
+現行の`assertSerializedPublicationContext`認可ロジックを変更せず、`BRAINBASE_NPM_OIDC_DIAGNOSTIC=true`のときだけendpointの固定boolean分類を出してOIDC request前に停止する診断laneを使う。診断実装は`develop`へmerge済みであり、このactivation PRはフラグをworkflow固定値として設定する。dispatch入力にはしないため、任意のcallerが診断状態を切り替えることはできない。
 
 ## Existing architecture retained
 
@@ -19,4 +19,4 @@
 
 ## Failure and rollback
 
-activation PR後の診断runは常にOIDC request前でfail closedする。boolean vectorを取得後、原因修正PRでworkflowの診断フラグを削除する。問題があればactivation commitをrevertし、公開workflowを停止したまま再調査する。この変更だけではnpm versionは作成されない。
+activation PR後の診断runは常にOIDC request前でfail closedし、merge triggerを含むpublish attemptも一時的に同じ停止境界へ入る。release ownerは一度だけmanual dispatchし、boolean vectorとrun URLを保存する。取得後は原因修正PRでworkflowの診断フラグを削除し、その通常モード検証後にpublicationを再実行する。問題があればactivation commitをrevertし、公開workflowを停止したまま再調査する。この変更だけではnpm versionもGitHub Releaseも作成されない。

@@ -68,7 +68,7 @@
     {
       "id": "OIDC-OPS-001",
       "type": "contract",
-      "statement": "After this diagnostic is merged, a follow-up activation PR sets the non-dispatch workflow flag; an operator then reruns develop, records the fixed boolean vector, and uses only that evidence for the correction.",
+      "statement": "This activation PR sets the non-dispatch workflow flag; the release owner then dispatches develop once, records the fixed boolean vector and run URL, and removes the flag in the evidence-bound correction before retrying publication.",
       "origin": {
         "story_refs": [{"kind": "background", "index": 0}],
         "code_refs": [{"file": ".github/workflows/npm-publish.yml", "anchor": "workflow_dispatch"}],
@@ -93,7 +93,7 @@
     {
       "id": "OIDC-SCOPE-001",
       "type": "contract",
-      "statement": "This PR is limited to the diagnostic classifier, phase-aware publication evidence, focused tests, and Story, Architecture, and Spec traceability artifacts; workflow activation is deferred to a follow-up PR.",
+      "statement": "This atomic activation PR is limited to the fixed workflow diagnostic flag, its E2E contract, and synchronized operator-facing Story, Architecture, Spec, and README surfaces.",
       "origin": {
         "story_refs": [{"kind": "acceptance_criteria", "index": 4}],
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "classifyOidcEndpoint"}],
