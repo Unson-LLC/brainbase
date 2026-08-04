@@ -40,6 +40,7 @@ describe('serialized publication context', () => {
       repository: 'Unson-LLC/brainbase',
       run_id: '123',
       workflow_ref: 'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/develop',
+      ref: 'refs/heads/develop',
       ...overrides
     })).toString('base64url');
     return `${header}.${payload}.test-signature`;
@@ -80,10 +81,21 @@ describe('serialized publication context', () => {
     );
   });
 
-  it('rejects an attestation for a different run or workflow', async () => {
+  it('rejects an attestation for a different run', async () => {
     const request = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ value: oidcToken({ run_id: '999' }) })
+    });
+    await expect(assertSerializedPublicationContext(context, request)).rejects.toThrow(/OIDC claims do not match/u);
+  });
+
+  it('rejects the same workflow path from a non-develop ref', async () => {
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ value: oidcToken({
+        workflow_ref: 'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/unreviewed-release-branch',
+        ref: 'refs/heads/unreviewed-release-branch'
+      }) })
     });
     await expect(assertSerializedPublicationContext(context, request)).rejects.toThrow(/OIDC claims do not match/u);
   });

@@ -169,7 +169,7 @@
     {
       "id": "INV-010",
       "type": "invariant",
-      "statement": "Consumer dist-tags move only forward; publication requires a runner-issued GitHub OIDC attestation for the package-wide upstream Actions workflow and run, and a current-tag SemVer guard prevents an older release from rolling a tag back.",
+      "statement": "Consumer dist-tags move only forward; publication requires a runner-issued GitHub OIDC attestation for the package-wide upstream Actions workflow on refs/heads/develop and the current run, and a current-tag SemVer guard prevents an older release from rolling a tag back.",
       "rationale": "A local queue bypass or stale versions snapshot must not overwrite a newer consumer selection.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 3, "text_snippet": "stableとprereleaseに適切なnpm dist-tag" }],

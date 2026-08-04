@@ -468,12 +468,13 @@ export async function assertSerializedPublicationContext(environment = process.e
   const body = await response.json();
   if (!body || typeof body.value !== 'string') throw new Error('GitHub Actions OIDC response did not contain a token');
   const claims = decodeJwtPayload(body.value);
+  const trustedWorkflowRef = 'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/develop';
   if (
     claims.aud !== audience ||
     claims.repository !== environment.GITHUB_REPOSITORY ||
     String(claims.run_id) !== String(environment.GITHUB_RUN_ID) ||
-    typeof claims.workflow_ref !== 'string' ||
-    !claims.workflow_ref.startsWith('Unson-LLC/brainbase/.github/workflows/npm-publish.yml@')
+    claims.workflow_ref !== trustedWorkflowRef ||
+    claims.ref !== 'refs/heads/develop'
   ) {
     throw new Error('GitHub Actions OIDC claims do not match the serialized npm publication workflow');
   }

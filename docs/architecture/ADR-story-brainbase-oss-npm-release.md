@@ -56,8 +56,9 @@ reports a mismatch and exits nonzero.
 - Immutable version collisions fail without attempting an overwrite.
 - Verification can be used safely in audits because it does not mutate npm.
 - The publish CLI requests a GitHub-issued OIDC token from the runner endpoint
-  and checks its repository, run, audience, and workflow claims. Caller-set
-  environment markers alone are not publication authority.
+  and checks its repository, run, audience, workflow ref, and ref claims. The
+  workflow and ref must exactly identify the reviewed `develop` definition;
+  caller-set markers or the same workflow path on another ref have no authority.
 
 ## Rejected alternatives
 
