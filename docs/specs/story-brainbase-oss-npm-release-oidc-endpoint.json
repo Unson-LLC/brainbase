@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-oss-npm-release-oidc-endpoint",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "implementation_correction"
+  },
+  "clauses": [
+    {
+      "id": "OIDC-ENDPOINT-001",
+      "type": "invariant",
+      "statement": "Only canonical or regional pipelines hosts under the exact actions.githubusercontent.com suffix are trusted.",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 0}],
+        "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
+        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "accepts GitHub-hosted runner regional OIDC endpoints"}]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "OIDC-ENDPOINT-002",
+      "type": "scenario",
+      "statement": "Lookalike suffixes and malformed authority components fail before token retrieval or registry mutation.",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 2}],
+        "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
+        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "rejects lookalike OIDC endpoint suffixes"}]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "OIDC-CLAIMS-001",
+      "type": "invariant",
+      "statement": "Endpoint acceptance does not relax audience, repository, run, workflow ref, or ref claim verification.",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 3}],
+        "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
+        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "rejects an attestation for a different run"}]
+      },
+      "confidence": 1
+    }
+  ]
+}
