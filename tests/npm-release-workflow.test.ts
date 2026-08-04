@@ -4,12 +4,17 @@ import { describe, expect, it } from 'vitest';
 describe('npm publish workflow', () => {
   it('binds validation and publish to the merged commit', async () => {
     const workflow = await readFile(new URL('../.github/workflows/npm-publish.yml', import.meta.url), 'utf8');
+    const packageManifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
     expect(workflow).toMatch(/pull_request_target:/u);
     expect(workflow).toMatch(/github\.event\.pull_request\.merge_commit_sha/u);
     expect(workflow).toMatch(/git checkout --detach/u);
     expect(workflow).toMatch(/--trusted-ref origin\/develop/u);
     expect(workflow).toMatch(/NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/u);
     expect(workflow).toMatch(/--provenance/u);
+    expect(packageManifest.repository).toEqual({
+      type: 'git',
+      url: 'git+https://github.com/Unson-LLC/brainbase.git'
+    });
     const validationJob = workflow.slice(workflow.indexOf('  validate:'), workflow.indexOf('  publish:'));
     const publishJob = workflow.slice(workflow.indexOf('  publish:'));
     expect(validationJob).toMatch(/contents: read/u);

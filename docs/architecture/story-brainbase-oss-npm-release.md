@@ -10,9 +10,9 @@
 2. `validate`: credentialなしで固定package名・version・clean HEAD・trusted default-branch到達性を照合し、build、test、production dependency auditを完了する。
 3. `validate`は実tarballをrepository外へ生成し、manifestへreviewed commitを`gitHead`として刻印した後、その最終tarballのSHA-256、SHA-512 integrity、package identity、commitをvalidation proofへ束縛する。
 4. `publish`: proof、package identity、HEAD、ancestry、cleanliness、両digestを再照合する。
-5. registryにversionがなければ、検証済みtarballを`--ignore-scripts`で選択したdist-tagへ公開する。
+5. registryにversionがなければ、検証済みtarballを`--ignore-scripts`でcommit固有の非consumer staging tagへ公開する。
 6. registry metadataが収束するまでbounded retryする。
-7. `version`、`gitHead`、registry `dist.integrity`を照合し、対象tagを同系列の最大versionへ収束させる。
+7. `version`、`gitHead`、registry `dist.integrity`を照合し、対象consumer tagを同系列の最大versionへ収束させてからstaging tagを除去する。
 8. npm成功後だけGitHub Releaseを作成または照合する。
 
 ## Trust boundaries
@@ -31,6 +31,7 @@
 - 同一versionの`gitHead`不一致はimmutable collisionとしてfail loudする。
 - registry収束を確認できない場合、GitHub Releaseを作成しない。
 - registry `dist.integrity`が検証済みtarballのSHA-512 integrityと異なる場合、dist-tagを変更せず失敗する。
+- 未検証のpublishはcommit固有staging tagだけを変更し、consumer tagを直接指定しない。したがって古いversionの復旧やmetadata収束失敗でもconsumer tagを巻き戻さない。
 - 再実行時は既存の正しいnpm versionを再publishせず、検証から継続する。
 - `verify`はregistryを変更せず、metadataまたはdist-tag不一致を非0で報告する。
 

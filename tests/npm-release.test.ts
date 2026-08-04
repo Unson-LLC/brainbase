@@ -11,6 +11,7 @@ import {
   compareSemver,
   createReleaseArtifact,
   npmDistTag,
+  releaseStagingTag,
   planRelease,
   readNpmMetadata,
   reconcileDistTag,
@@ -65,6 +66,11 @@ describe('npm release CLI', () => {
     expect(npmDistTag('0.2.0-1.0')).toBe('next');
     expect(npmDistTag('1.0.0-v1')).toBe('next');
     expect(npmDistTag('1.0.0-x.1')).toBe('next');
+  });
+
+  it('uses a commit-bound non-consumer tag while publication is unverified', () => {
+    expect(releaseStagingTag('0123456789abcdef0123456789abcdef01234567')).toBe('release-0123456789ab');
+    expect(() => releaseStagingTag('short-sha')).toThrow(/full lowercase git SHA/u);
   });
 
   it('compares stable and prerelease versions', () => {
@@ -126,6 +132,7 @@ describe('npm release CLI', () => {
       .mockResolvedValueOnce({ version: '0.1.0', gitHead: sha, 'dist.integrity': proof.tarballIntegrity });
     const execute = vi.fn((command: string, args: string[]) => {
       if (command === 'git' && args[0] === 'merge-base') return '';
+      if (command === 'npm' && args.includes('dist-tags')) return JSON.stringify({ [`release-${sha.slice(0, 12)}`]: '0.1.0' });
       return '';
     });
     const reconcileTag = vi.fn().mockResolvedValue({ tag: 'latest', version: '0.1.0' });
@@ -142,8 +149,9 @@ describe('npm release CLI', () => {
       reconcileTag
     });
 
-    expect(execute).toHaveBeenCalledWith('npm', ['publish', proof.tarballPath, '--ignore-scripts', '--access', 'public', '--tag', 'latest'], root);
+    expect(execute).toHaveBeenCalledWith('npm', ['publish', proof.tarballPath, '--ignore-scripts', '--access', 'public', '--tag', `release-${sha.slice(0, 12)}`], root);
     expect(metadata).toHaveBeenCalledTimes(3);
+    expect(execute).toHaveBeenCalledWith('npm', ['dist-tag', 'rm', '@unson/brainbase-mcp', `release-${sha.slice(0, 12)}`], root);
     expect(result.gitHead).toBe(sha);
   });
 
@@ -157,6 +165,7 @@ describe('npm release CLI', () => {
       .mockResolvedValueOnce({ version: '0.1.0', gitHead: sha, 'dist.integrity': proof.tarballIntegrity });
     const execute = vi.fn((command: string, args: string[]) => command === 'git' && args[0] === 'merge-base' ? '' : '');
     const reconcileTag = vi.fn().mockResolvedValue({ tag: 'latest', version: '0.1.0' });
+    const cleanupStagingTag = vi.fn().mockResolvedValue(undefined);
 
     await reconcileNpmRelease({
       root,
@@ -168,7 +177,8 @@ describe('npm release CLI', () => {
       execute,
       delay: async () => undefined,
       validationProof: proof,
-      reconcileTag
+      reconcileTag,
+      cleanupStagingTag
     });
 
     expect(metadata).toHaveBeenCalledTimes(4);
@@ -179,6 +189,7 @@ describe('npm release CLI', () => {
     const { root, sha } = await releaseRoot();
     const proof = await releaseProof(sha);
     const reconcileTag = vi.fn();
+    const cleanupStagingTag = vi.fn();
     const metadata = vi.fn()
       .mockResolvedValueOnce(null)
       .mockResolvedValue({ version: '0.1.0', gitHead: sha });
@@ -193,11 +204,13 @@ describe('npm release CLI', () => {
       execute: vi.fn((command: string, args: string[]) => command === 'git' && args[0] === 'merge-base' ? '' : ''),
       delay: async () => undefined,
       validationProof: proof,
-      reconcileTag
+      reconcileTag,
+      cleanupStagingTag
     })).rejects.toThrow(/registry integrity does not match/u);
 
     expect(metadata).toHaveBeenCalledTimes(7);
     expect(reconcileTag).not.toHaveBeenCalled();
+    expect(cleanupStagingTag).not.toHaveBeenCalled();
   });
 
   it('does not republish an existing version with the same gitHead', async () => {
@@ -216,7 +229,8 @@ describe('npm release CLI', () => {
       metadata: vi.fn().mockResolvedValue({ version: '0.1.0', gitHead: sha, 'dist.integrity': proof.tarballIntegrity }),
       execute,
       validationProof: proof,
-      reconcileTag: vi.fn().mockResolvedValue({ tag: 'latest', version: '0.1.0' })
+      reconcileTag: vi.fn().mockResolvedValue({ tag: 'latest', version: '0.1.0' }),
+      cleanupStagingTag: vi.fn().mockResolvedValue(undefined)
     });
     expect(execute.mock.calls.some(([, args]) => args[0] === 'publish')).toBe(false);
   });

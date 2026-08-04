@@ -52,7 +52,11 @@ describe('npm release validation evidence', () => {
     expect(manifest).toMatchObject({
       name: '@unson/brainbase-mcp',
       version: currentVersion,
-      gitHead: sha
+      gitHead: sha,
+      repository: {
+        type: 'git',
+        url: 'git+https://github.com/Unson-LLC/brainbase.git'
+      }
     });
   });
 });

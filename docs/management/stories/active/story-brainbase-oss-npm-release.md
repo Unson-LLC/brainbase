@@ -43,6 +43,7 @@ OSS maintainerは、merge済みのpackageをCLIまたはGitHub Actionsから同�
 - [ ] stableとprereleaseに適切なnpm dist-tagを使い、registry収束を検証する。
 - [ ] GitHub Actionsはmerge commitをdetached checkoutし、build、test、production audit、pack確認後に公開する。
 - [ ] Actionsの検証jobはread-onlyかつOIDC/npm credentialなしで実行し、公開jobだけへGitHub SecretとOIDCを許可する。
+- [ ] 検証jobと実行tarball proofはnpm公開トークン、publication権限、registry mutationなしで再現できる。production auditが使うread-only vulnerability metadata取得はこの境界に含めない。
 - [ ] version変更を伴うdevelop向けPR mergeは自動公開され、初回・復旧は手動dispatchできる。
 - [ ] 公開完了はnpm metadataのversion、gitHead、`dist.integrity`、dist-tagで証明する。
 

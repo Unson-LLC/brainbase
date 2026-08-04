@@ -60,6 +60,11 @@ export function npmDistTag(version) {
   return /^[a-z][a-z0-9._-]*$/u.test(candidate) && !looksLikeSemverRange ? candidate : 'next';
 }
 
+export function releaseStagingTag(expectedSha) {
+  if (!/^[0-9a-f]{40}$/u.test(expectedSha)) throw new Error('release staging tag requires a full lowercase git SHA');
+  return `release-${expectedSha.slice(0, 12)}`;
+}
+
 export function planRelease(beforeVersion, afterVersion) {
   return {
     releaseRequired: compareSemver(afterVersion, beforeVersion) > 0,
@@ -170,6 +175,12 @@ export async function reconcileDistTag(packageName, version, root, execute = run
     execute('npm', ['dist-tag', 'add', `${packageName}@${desired}`, tag], root);
   }
   return { tag, version: desired };
+}
+
+async function removeReleaseStagingTag(packageName, version, expectedSha, root, execute = run) {
+  const tag = releaseStagingTag(expectedSha);
+  const currentTags = JSON.parse(execute('npm', ['view', packageName, 'dist-tags', '--json'], root));
+  if (currentTags[tag] === version) execute('npm', ['dist-tag', 'rm', packageName, tag], root);
 }
 
 function expectedDistTag(packageName, version, root, execute = run) {
@@ -326,7 +337,8 @@ export async function reconcileNpmRelease({
   execute = run,
   delay = wait,
   validationProof,
-  reconcileTag = reconcileDistTag
+  reconcileTag = reconcileDistTag,
+  cleanupStagingTag = removeReleaseStagingTag
 }) {
   if (packageName !== EXPECTED_PACKAGE_NAME) {
     throw new Error(`publication authority is fixed to ${EXPECTED_PACKAGE_NAME}`);
@@ -345,7 +357,7 @@ export async function reconcileNpmRelease({
   if (published) {
     assertPublishedMetadata(published, packageName, version, expectedSha, validationProof.tarballIntegrity);
   } else {
-    const args = ['publish', validationProof.tarballPath, '--ignore-scripts', '--access', 'public', '--tag', npmDistTag(version)];
+    const args = ['publish', validationProof.tarballPath, '--ignore-scripts', '--access', 'public', '--tag', releaseStagingTag(expectedSha)];
     if (provenance) args.push('--provenance');
     execute('npm', args, root);
     published = await retry(async () => {
@@ -356,6 +368,7 @@ export async function reconcileNpmRelease({
     }, 6, delay);
   }
   const distTag = await reconcileTag(packageName, version, root, execute);
+  await cleanupStagingTag(packageName, version, expectedSha, root, execute);
   return {
     packageName,
     version,

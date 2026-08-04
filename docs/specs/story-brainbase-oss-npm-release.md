@@ -30,13 +30,15 @@ npm run release:validate -- --version <semver> --sha <full-commit-sha> --trusted
 
 固定package name、version、cleanなgit HEADを引数へ照合し、HEADがtrusted refの履歴内にあることを確認する。build、test、`npm audit --omit=dev`を完了し、repository外で最終tarballのmanifestへ期待SHAを`gitHead`として刻印する。そのmanifestを再展開してpackage name・version・gitHeadを照合し、検証後もcheckoutがcleanな場合だけ、最終tarball SHA-256・SHA-512 integrity・package identity・commitを束縛したproofを書く。このフェーズをOIDCとnpm credentialを持たないjobで実行する。
 
+ここでいうcredential-free validationは、npm公開トークン、publication権限、package metadata参照、dist-tag mutationを必要としないことを指す。production auditのread-only vulnerability metadata取得は依存関係の安全性検査であり、publication registry境界には含めない。
+
 ### Publish
 
 ```bash
 npm run release:publish -- --version <semver> --sha <full-commit-sha> --trusted-ref <default-branch-ref> --proof-file <validated-proof> [--provenance]
 ```
 
-現在の固定package name/version、cleanなgit HEAD、trusted ref到達性、validation proofとtarballの両digestを再照合する。未公開versionだけ同じtarballを`npm publish <tarball> --ignore-scripts --access public --tag <tag>`で公開する。registry `dist.integrity`がproofのSHA-512 integrityと一致するまで成功扱いしない。`--provenance`はGitHub Actionsなどnpmが対応するtrusted CI環境でのみ渡す。
+現在の固定package name/version、cleanなgit HEAD、trusted ref到達性、validation proofとtarballの両digestを再照合する。未公開versionだけ同じtarballを`npm publish <tarball> --ignore-scripts --access public --tag release-<commit>`で非consumer staging tagへ公開する。registry `dist.integrity`がproofのSHA-512 integrityと一致した後だけconsumer tagを同系列の最大versionへ前進させ、staging tagを除去する。`--provenance`はGitHub Actionsなどnpmが対応するtrusted CI環境でのみ渡す。
 
 ### Verify
 
@@ -85,7 +87,7 @@ npm metadataの`version`と`gitHead`、期待するdist-tagをread-onlyで検証
 
 ### Rollback and recovery
 
-npmの公開versionはimmutableであり、同一versionのbytesを上書きしない。公開前の異常はworkflowを停止し、原因を修正して同じcommitの手動dispatchを再実行する。公開後に不具合が判明した場合は対象versionをdeprecateし、修正とversion bumpを別PRでreviewして新versionを公開する。利用者はそれまで既知の正常versionをpinする。dist-tagを過去versionへ自動的に巻き戻さず、手動変更する場合はregistry metadataとsupport告知を同時にreviewする。
+npmの公開versionはimmutableであり、同一versionのbytesを上書きしない。公開前の異常はworkflowを停止し、原因を修正して同じcommitの手動dispatchを再実行する。公開後に不具合が判明した場合は対象versionをdeprecateし、修正とversion bumpを別PRでreviewして新versionを公開する。利用者はそれまで既知の正常versionをpinする。未検証tarballはcommit固有の非consumer staging tagへ公開し、consumer dist-tagを過去versionへ自動的に巻き戻さない。手動変更する場合はregistry metadataとsupport告知を同時にreviewする。
 
 version据え置きやdowngradeが自動公開されないことはplan unit testで確認する。不具合versionの上書きではなく、version bump後のvalidate→publish→verifyの全経路を再実行することをdowngrade/upgrade検証の標準とする。
 
