@@ -36,7 +36,7 @@
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
         "test_refs": [
           {"file": "tests/npm-release.test.ts", "case": "reports only fixed OIDC diagnostic booleans"},
-          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "AC-1 AC-2 AC-3 AC-5 AC-6 S-003 replays the evidence-bound correction through the runtime authorization boundary"}
+          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "AC-1 AC-2 AC-3 S-003 replays the evidence-bound diagnostic through the runtime stop boundary"}
         ]
       },
       "confidence": 1
@@ -67,7 +67,8 @@
         "test_refs": [
           {"file": "tests/npm-release.test.ts", "case": "accepts GitHub-hosted runner OIDC endpoints without a pipelines prefix"},
           {"file": "tests/npm-release.test.ts", "case": "rejects lookalike OIDC endpoint suffixes"},
-          {"file": "tests/npm-release.test.ts", "case": "rejects an attestation from a different issuer"}
+          {"file": "tests/npm-release.test.ts", "case": "rejects an attestation from a different issuer"},
+          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "AC-5 rejects a token whose issuer is not the official GitHub Actions issuer"}
         ]
       },
       "confidence": 1
@@ -82,6 +83,7 @@
         "test_refs": [
           {"file": "tests/npm-release.test.ts", "case": "reports only fixed OIDC diagnostic booleans"},
           {"file": "tests/npm-release-workflow.test.ts", "case": "binds validation and publish to the merged commit"},
+          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "AC-6 removes the diagnostic stop and pins a trusted-publishing capable npm CLI"},
           {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "AC-8 keeps the maintainer runbook aligned with the enabled publication path"}
         ]
       },

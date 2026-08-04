@@ -30,15 +30,7 @@ describe('OSS npm release OIDC endpoint correction acceptance', () => {
     ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'runner-issued-request-token'
   };
 
-  it('AC-1 AC-2 AC-3 AC-5 AC-6 S-003 replays the evidence-bound correction through the runtime authorization boundary', async () => {
-    const workflow = await readFile(
-      new URL('../../.github/workflows/npm-publish.yml', import.meta.url),
-      'utf8'
-    );
-    const publishJob = workflow.slice(workflow.indexOf('  publish:'));
-    expect(publishJob, 'ac-5 removes the temporary diagnostic stop from the publish job').not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC/u);
-    expect(publishJob, 'ac-6 installs a trusted-publishing capable npm CLI').toMatch(/npm install --global npm@11\.5\.1/u);
-
+  it('AC-1 AC-2 AC-3 S-003 replays the evidence-bound diagnostic through the runtime stop boundary', async () => {
     const endpoint = 'https://user-sentinel:password-sentinel@pipelinesghubeus4.actions.githubusercontent.com:8443/private-path?secret=query-sentinel';
     const request = vi.fn();
     const expected = {
@@ -64,7 +56,7 @@ describe('OSS npm release OIDC endpoint correction acceptance', () => {
       message = error instanceof Error ? error.message : String(error);
     }
 
-    expect(message, 'ac-6 keeps the release diagnostic deterministic').toBe(`GitHub Actions OIDC diagnostic ${JSON.stringify(expected)}`);
+    expect(message, 'ac-1 keeps the release diagnostic deterministic').toBe(`GitHub Actions OIDC diagnostic ${JSON.stringify(expected)}`);
     expect(request, 'ac-3 stops before the OIDC token request').not.toHaveBeenCalled();
     for (const sentinel of [
       'private-path',
@@ -96,6 +88,27 @@ describe('OSS npm release OIDC endpoint correction acceptance', () => {
       publicationContext,
       wrongClaimsRequest
     ), 'ac-4 preserves rejected claim mismatches').rejects.toThrow(/OIDC claims do not match/u);
+  });
+
+  it('AC-5 rejects a token whose issuer is not the official GitHub Actions issuer', async () => {
+    const wrongIssuerRequest = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ value: oidcToken({ iss: 'https://issuer.attacker.example' }) })
+    });
+    await expect(assertSerializedPublicationContext(
+      publicationContext,
+      wrongIssuerRequest
+    ), 'ac-5 binds the token issuer to GitHub Actions').rejects.toThrow(/OIDC claims do not match/u);
+  });
+
+  it('AC-6 removes the diagnostic stop and pins a trusted-publishing capable npm CLI', async () => {
+    const workflow = await readFile(
+      new URL('../../.github/workflows/npm-publish.yml', import.meta.url),
+      'utf8'
+    );
+    const publishJob = workflow.slice(workflow.indexOf('  publish:'));
+    expect(publishJob, 'ac-6 removes the temporary diagnostic stop from the publish job').not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC/u);
+    expect(publishJob, 'ac-6 installs a trusted-publishing capable npm CLI').toMatch(/npm install --global npm@11\.5\.1/u);
   });
 
   it('AC-4 accepts the observed GitHub-hosted endpoint class and rejects suffix lookalikes', async () => {
