@@ -1,0 +1,93 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-oss-npm-release-oidc-endpoint",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "implementation_correction"
+  },
+  "diagrams": [
+    {
+      "id": "oidc-endpoint-flow",
+      "kind": "flow",
+      "title": "OIDC endpoint validation flow",
+      "mermaid": "flowchart LR\n  endpoint[\"GitHub Actions OIDC request endpoint\"] --> parse[\"Parse URL and raw authority\"]\n  parse --> transport[\"Require HTTPS and no explicit userinfo or port\"]\n  transport --> host[\"Match canonical or regional pipelines host\"]\n  host --> token[\"Retrieve runner-issued OIDC token\"]\n  token --> claims[\"Verify audience repository run workflow and ref claims\"]\n  claims --> publish[\"Continue guarded npm publication\"]"
+    },
+    {
+      "id": "oidc-endpoint-threat-model",
+      "kind": "threat_model",
+      "title": "OIDC endpoint authority boundary",
+      "mermaid": "flowchart TD\n  canonical[\"pipelines.actions.githubusercontent.com request host\"] --> trusted[\"Trusted request authority\"]\n  regional[\"pipelines regional host under actions.githubusercontent.com\"] --> trusted\n  suffix[\"Lookalike suffix or subdomain\"] --> reject[\"Fail before token retrieval\"]\n  malformed[\"Malformed URL HTTP explicit port or userinfo\"] --> reject\n  trusted --> token[\"Retrieve token from GitHub request endpoint\"]\n  token --> claims[\"Verify token issuer and existing claims unchanged\"]\n  claims --> release[\"Release authority\"]"
+    }
+  ],
+  "clauses": [
+    {
+      "id": "OIDC-ENDPOINT-001",
+      "type": "invariant",
+      "statement": "Only canonical or regional pipelines hosts under the exact actions.githubusercontent.com suffix are trusted.",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 0}],
+        "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
+        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "accepts GitHub-hosted runner regional OIDC endpoints"}]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "OIDC-ENDPOINT-002",
+      "type": "scenario",
+      "statement": "Lookalike suffixes and malformed authority components fail before token retrieval or registry mutation.",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 2}],
+        "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
+        "test_refs": [
+          {"file": "tests/npm-release.test.ts", "case": "rejects lookalike OIDC endpoint suffixes"},
+          {"file": "tests/npm-release.test.ts", "case": "rejects explicit default port OIDC endpoints before token retrieval"}
+        ]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "OIDC-CLAIMS-001",
+      "type": "invariant",
+      "statement": "Endpoint acceptance does not relax audience, repository, run, workflow ref, or ref claim verification.",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 3}],
+        "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
+        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "rejects an attestation for a different run"}]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "OIDC-OPS-001",
+      "type": "contract",
+      "statement": "After this hotfix is merged, an operator reruns the npm publish workflow for develop and verifies both the workflow log and npm registry metadata; publication is not a pre-merge gate for this hotfix.",
+      "origin": {
+        "story_refs": [{"kind": "background", "index": 0}],
+        "code_refs": [{"file": ".github/workflows/npm-publish.yml", "anchor": "workflow_dispatch"}],
+        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "accepts GitHub-hosted runner regional OIDC endpoints"}]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "OIDC-ROLLBACK-001",
+      "type": "scenario",
+      "statement": "If the broadened host matcher is found unsafe before publication, revert this hotfix and leave the registry unchanged; after publication, registry versions remain immutable and rollback is a new forward version rather than deletion.",
+      "origin": {
+        "story_refs": [{"kind": "policy", "index": 0}],
+        "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
+        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "rejects lookalike OIDC endpoint suffixes"}]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "OIDC-SCOPE-001",
+      "type": "contract",
+      "statement": "The implementation surface is limited to the OIDC authority matcher and its focused tests; the remaining changed files are Story, Architecture, and Spec traceability artifacts.",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 4}],
+        "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "trustedOidcHostname"}],
+        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "rejects lookalike OIDC endpoint suffixes"}]
+      },
+      "confidence": 1
+    }
+  ]
+}
