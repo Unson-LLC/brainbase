@@ -473,8 +473,33 @@ npm test
 npm pack --dry-run
 ```
 
-Scoped package publication is configured as public. After verification, publish with:
+### Maintainer release operation
+
+Scoped package publication is configured as public. Configure the repository Actions secret `NPM_TOKEN`, then normally publish a version-bumped merge from the reviewed `develop` history. The merge trigger plans the version delta automatically. For the first `0.1.0` publication or recovery, manually run the `Publish npm package` workflow with `release_ref=develop`. For local recovery from a checkout that is already contained in a trusted default-branch ref, use the standard OSS remote `origin` by default. Override `TRUSTED_REF` when your checkout uses another remote. `NPM_TOKEN` must be authorized to publish `@unson/brainbase-mcp`.
 
 ```bash
-npm publish --access public
+(
+  set -euo pipefail
+  : "${NPM_TOKEN:?NPM_TOKEN must be set}"
+  TRUSTED_REF="${TRUSTED_REF:-origin/develop}"
+  RELEASE_DIR="$(mktemp -d)"
+  trap 'rm -rf "$RELEASE_DIR"' EXIT
+  PROOF_FILE="$RELEASE_DIR/proof.json"
+  NPM_USERCONFIG="$RELEASE_DIR/npmrc"
+  VALIDATION_NPM_USERCONFIG="$RELEASE_DIR/validation-user-npmrc"
+  VALIDATION_NPM_GLOBALCONFIG="$RELEASE_DIR/validation-global-npmrc"
+  : > "$VALIDATION_NPM_USERCONFIG"
+  : > "$VALIDATION_NPM_GLOBALCONFIG"
+  printf '%s\n' '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' > "$NPM_USERCONFIG"
+  chmod 600 "$NPM_USERCONFIG" "$VALIDATION_NPM_USERCONFIG" "$VALIDATION_NPM_GLOBALCONFIG"
+
+  env -u NPM_TOKEN -u NODE_AUTH_TOKEN NPM_CONFIG_USERCONFIG="$VALIDATION_NPM_USERCONFIG" NPM_CONFIG_GLOBALCONFIG="$VALIDATION_NPM_GLOBALCONFIG" npm run release:validate -- --version "$(node -p "require('./package.json').version")" --sha "$(git rev-parse HEAD)" --trusted-ref "$TRUSTED_REF" --proof-file "$PROOF_FILE"
+  NPM_CONFIG_USERCONFIG="$NPM_USERCONFIG" NODE_AUTH_TOKEN="$NPM_TOKEN" node scripts/npm-release.mjs publish --version "$(node -p "require('./package.json').version")" --sha "$(git rev-parse HEAD)" --trusted-ref "$TRUSTED_REF" --proof-file "$PROOF_FILE"
+)
 ```
+
+The validation CLI rejects dirty checkouts and commits outside the trusted ref, then runs build, test, production dependency audit, creates the real tarball without an npm credential, and stamps its manifest with the exact reviewed `gitHead` before hashing it. Publication requires the matching proof, rechecks both SHA-256 and npm-compatible SHA-512 integrity, publishes that same tarball with lifecycle scripts disabled, and compares registry `dist.integrity` with the validated artifact. It is idempotent: it publishes an absent version, or verifies that an existing immutable version has the same Git commit and bytes. It also reconciles the appropriate npm dist-tag. The fail-fast subshell clears publication credentials and isolates npm configuration during validation; its local trap deletes the credential config, proof, and adjacent tarball immediately when the release operation completes or fails. The workflow runs validation in a read-only job with no OIDC or npm credential, then transfers the immutable artifact to a separately permissioned publication job with npm provenance. Its manual `release_ref` input is restricted to commits reachable from `develop` and is used for the first publication or recovery. `release:verify` is read-only and fails if metadata or dist-tags do not match.
+
+Publication is complete only after the Actions `validate` and `publish` jobs pass and the npm registry reports the expected version, `gitHead`, `dist.integrity`, and dist-tag; a green workflow or GitHub Release alone is insufficient. If `NPM_TOKEN` is absent or the workflow is disabled, the source and local CLI still work, but the npm release remains incomplete.
+
+npm versions are immutable. Before publication, fix the cause and rerun the same reviewed ref. After a faulty publication, deprecate that version, keep users on the last known-good pinned version, and release a reviewed version bump; never overwrite the published bytes. Any manual dist-tag rollback requires a separate registry metadata and support review.

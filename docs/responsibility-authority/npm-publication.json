@@ -1,0 +1,56 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-oss-npm-release",
+  "title": "Brainbase OSS npm Publication Authority",
+  "responsibilities": [
+    {
+      "id": "brainbase_oss_npm_publication",
+      "primary_authority": {
+        "kind": "architecture",
+        "ref": "docs/architecture/ADR-story-brainbase-oss-npm-release.md#decision"
+      },
+      "supporting_authority": [
+        {
+          "kind": "spec",
+          "ref": "docs/specs/story-brainbase-oss-npm-release.md"
+        },
+        {
+          "kind": "story",
+          "ref": "docs/management/stories/active/story-brainbase-oss-npm-release.md"
+        }
+      ],
+      "owned_surfaces": {
+        "paths": [
+          ".github/workflows/npm-publish.yml",
+          "scripts/npm-release.mjs",
+          "package.json",
+          "package-lock.json",
+          "tests/npm-release.test.ts",
+          "tests/npm-release-workflow.test.ts"
+        ],
+        "symbols": [
+          "reconcileNpmRelease",
+          "verifyNpmRelease",
+          "assertTrustedCommit",
+          "validateRelease"
+        ],
+        "risk_surfaces": [
+          "public_package_publication",
+          "credential_boundary",
+          "immutable_release_metadata",
+          "github_release_state"
+        ]
+      },
+      "required_evidence": [
+        "current_head_build",
+        "current_head_unit_and_e2e_tests",
+        "production_dependency_audit",
+        "real_tarball_sha256_and_sha512_integrity",
+        "registry_dist_integrity_match",
+        "validation_job_without_oidc_or_npm_credential",
+        "independent_release_boundary_review"
+      ],
+      "unknown_policy": "Missing npm credentials, package authority, registry availability, provenance, or immutable gitHead evidence is a failed or unverified release, never a successful publication. npm publication and GitHub Release creation require the reviewed default-branch commit and may not be inferred from a local build alone."
+    }
+  ]
+}
