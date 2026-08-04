@@ -37,6 +37,7 @@ describe('serialized publication context', () => {
   function oidcToken(overrides = {}) {
     const header = Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url');
     const payload = Buffer.from(JSON.stringify({
+      iss: 'https://token.actions.githubusercontent.com',
       aud: 'brainbase-npm-publish',
       repository: 'Unson-LLC/brainbase',
       run_id: '123',
@@ -51,6 +52,11 @@ describe('serialized publication context', () => {
     [
       'accepted canonical endpoint shape',
       'https://pipelines.actions.githubusercontent.com/private-path?secret=query-sentinel',
+      { url_present: true, parse_ok: true, protocol_https: true, hostname_trusted: true, raw_authority_colon: false, userinfo_present: false, normalized_nondefault_port: false }
+    ],
+    [
+      'non-pipelines GitHub-hosted runner endpoint',
+      'https://acghubeus2.actions.githubusercontent.com/private-path?secret=query-sentinel',
       { url_present: true, parse_ok: true, protocol_https: true, hostname_trusted: true, raw_authority_colon: false, userinfo_present: false, normalized_nondefault_port: false }
     ],
     [
@@ -147,6 +153,21 @@ describe('serialized publication context', () => {
     );
   });
 
+  it('accepts GitHub-hosted runner OIDC endpoints without a pipelines prefix', async () => {
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ value: oidcToken() })
+    });
+    await expect(assertSerializedPublicationContext({
+      ...context,
+      ACTIONS_ID_TOKEN_REQUEST_URL: 'https://acghubeus2.actions.githubusercontent.com/token'
+    }, request)).resolves.toBeUndefined();
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({ hostname: 'acghubeus2.actions.githubusercontent.com' }),
+      expect.any(Object)
+    );
+  });
+
   it('rejects lookalike OIDC endpoint suffixes', async () => {
     const request = vi.fn();
     await expect(assertSerializedPublicationContext({
@@ -177,6 +198,14 @@ describe('serialized publication context', () => {
     const request = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ value: oidcToken({ run_id: '999' }) })
+    });
+    await expect(assertSerializedPublicationContext(context, request)).rejects.toThrow(/OIDC claims do not match/u);
+  });
+
+  it('rejects an attestation from a different issuer', async () => {
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ value: oidcToken({ iss: 'https://attacker.example' }) })
     });
     await expect(assertSerializedPublicationContext(context, request)).rejects.toThrow(/OIDC claims do not match/u);
   });

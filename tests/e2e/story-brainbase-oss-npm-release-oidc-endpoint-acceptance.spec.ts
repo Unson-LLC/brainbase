@@ -10,6 +10,7 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
   function oidcToken(overrides = {}) {
     const header = Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url');
     const payload = Buffer.from(JSON.stringify({
+      iss: 'https://token.actions.githubusercontent.com',
       aud: 'brainbase-npm-publish',
       repository: 'Unson-LLC/brainbase',
       run_id: '123',
@@ -29,14 +30,14 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
     ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'runner-issued-request-token'
   };
 
-  it('AC-1 AC-2 AC-3 AC-5 AC-6 S-003 replays the activation contract through the runtime stop boundary', async () => {
+  it('AC-1 AC-2 AC-3 AC-5 AC-6 S-003 replays the evidence-bound correction through the runtime authorization boundary', async () => {
     const workflow = await readFile(
       new URL('../../.github/workflows/npm-publish.yml', import.meta.url),
       'utf8'
     );
     const publishJob = workflow.slice(workflow.indexOf('  publish:'));
-    expect(publishJob, 'ac-5 activates the diagnostic only as a fixed publish-job value').toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC:\s*'true'/u);
-    expect(workflow, 'ac-5 never exposes diagnostic activation as a dispatch input').not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC:[\s\S]*github\.event\.inputs/u);
+    expect(publishJob, 'ac-5 removes the temporary diagnostic stop from the publish job').not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC/u);
+    expect(publishJob, 'ac-6 installs a trusted-publishing capable npm CLI').toMatch(/npm install --global npm@11\.5\.1/u);
 
     const endpoint = 'https://user-sentinel:password-sentinel@pipelinesghubeus4.actions.githubusercontent.com:8443/private-path?secret=query-sentinel';
     const request = vi.fn();
@@ -95,6 +96,24 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
       publicationContext,
       wrongClaimsRequest
     ), 'ac-4 preserves rejected claim mismatches').rejects.toThrow(/OIDC claims do not match/u);
+  });
+
+  it('AC-4 accepts the observed GitHub-hosted endpoint class and rejects suffix lookalikes', async () => {
+    const acceptedRequest = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ value: oidcToken() })
+    });
+    await expect(assertSerializedPublicationContext({
+      ...publicationContext,
+      ACTIONS_ID_TOKEN_REQUEST_URL: 'https://acghubeus2.actions.githubusercontent.com/token'
+    }, acceptedRequest)).resolves.toBeUndefined();
+
+    const rejectedRequest = vi.fn();
+    await expect(assertSerializedPublicationContext({
+      ...publicationContext,
+      ACTIONS_ID_TOKEN_REQUEST_URL: 'https://acghubeus2.actions.githubusercontent.com.attacker.example/token'
+    }, rejectedRequest)).rejects.toThrow(/OIDC endpoint is not trusted/u);
+    expect(rejectedRequest).not.toHaveBeenCalled();
   });
 
   it('S-003 rejects a malformed endpoint before any token request', async () => {

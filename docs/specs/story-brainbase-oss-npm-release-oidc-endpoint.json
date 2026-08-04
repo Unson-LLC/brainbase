@@ -21,9 +21,9 @@
     {
       "id": "oidc-diagnostic-state",
       "kind": "state",
-      "title": "OIDC publication diagnostic state",
-      "entities": ["Diagnostic mode", "classifier", "follow-up correction"],
-      "mermaid": "stateDiagram-v2\n  [*] --> PublishReady\n  PublishReady --> DiagnosticEnabled\n  DiagnosticEnabled --> Classified\n  Classified --> StoppedBeforeTokenRequest\n  StoppedBeforeTokenRequest --> EvidenceRecorded\n  EvidenceRecorded --> FollowUpPrepared\n  FollowUpPrepared --> PublicationRetried\n  PublicationRetried --> [*]"
+      "title": "OIDC publication correction state",
+      "entities": ["Diagnostic evidence", "hostname correction", "publication retry"],
+      "mermaid": "stateDiagram-v2\n  [*] --> DiagnosticEvidenceRecorded\n  DiagnosticEvidenceRecorded --> HostnameBoundaryCorrected\n  HostnameBoundaryCorrected --> DiagnosticFlagRemoved\n  DiagnosticFlagRemoved --> PublicationRetried\n  PublicationRetried --> RegistryVerified\n  RegistryVerified --> [*]"
     }
   ],
   "clauses": [
@@ -57,7 +57,7 @@
     {
       "id": "OIDC-CLAIMS-001",
       "type": "invariant",
-      "statement": "Diagnostic mode does not change normal endpoint acceptance or audience, repository, run, workflow ref, or ref claim verification.",
+      "statement": "Normal mode accepts one-label GitHub-controlled actions.githubusercontent.com endpoints, rejects suffix lookalikes, userinfo, and explicit ports, and verifies issuer, audience, repository, run, workflow ref, and ref claims.",
       "origin": {
         "story_refs": [{"kind": "acceptance_criteria", "index": 3}],
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
@@ -68,7 +68,7 @@
     {
       "id": "OIDC-OPS-001",
       "type": "contract",
-      "statement": "This activation PR sets the non-dispatch workflow flag; the release owner then dispatches develop once, records the fixed boolean vector and run URL, and removes the flag in the evidence-bound correction before retrying publication.",
+      "statement": "Run 30893794741 identified hostname_trusted as the only failed predicate; this correction removes the fixed diagnostic flag, pins npm 11.5.1, and authorizes one publication retry followed by registry and GitHub Release verification.",
       "origin": {
         "story_refs": [{"kind": "background", "index": 0}],
         "code_refs": [{"file": ".github/workflows/npm-publish.yml", "anchor": "workflow_dispatch"}],
@@ -93,7 +93,7 @@
     {
       "id": "OIDC-SCOPE-001",
       "type": "contract",
-      "statement": "This atomic activation PR is limited to the fixed workflow diagnostic flag, its E2E contract, and synchronized operator-facing Story, Architecture, Spec, and README surfaces.",
+      "statement": "This atomic correction is limited to the GitHub-controlled endpoint hostname class, issuer verification, npm trusted-publishing CLI prerequisite, diagnostic flag removal, and synchronized Story, Architecture, Spec, and test surfaces.",
       "origin": {
         "story_refs": [{"kind": "acceptance_criteria", "index": 4}],
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "classifyOidcEndpoint"}],
