@@ -14,16 +14,18 @@ related_tasks:
     task_ids:
       - story-brainbase-oss-npm-release-oidc-endpoint-source-alignment-review
 pr_scope_strategy: atomic_single_pr
-pr_scope_reason: "Run 30893794741 proved that only the pipelines-prefixed hostname predicate rejected the runner endpoint; this atomic correction broadens the GitHub-controlled hostname class, pins the required npm CLI, and removes the temporary diagnostic stop."
+pr_scope_reason: "Run 30893794741 isolated the hostname predicate failure. The runtime trust-boundary correction, direct tests, release-evidence command, workflow enablement, acceptance replay, and operator runbook must land together so publication cannot be enabled before its validating runtime and evidence path."
 pr_scope_review_facets:
   - repo-control
   - requirements-ssot
+  - runtime-behavior
   - e2e-gate
   - misc-follow-up
 pr_scope_dependency_boundaries:
-  - requirements-ssot->repo-control
-  - requirements-ssot->e2e-gate
+  - requirements-ssot->runtime-behavior
   - requirements-ssot->misc-follow-up
+  - runtime-behavior->repo-control
+  - runtime-behavior->e2e-gate
   - repo-control->e2e-gate
 created_at: 2026-08-04
 updated_at: 2026-08-04

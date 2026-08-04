@@ -36,7 +36,7 @@
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
         "test_refs": [
           {"file": "tests/npm-release.test.ts", "case": "reports only fixed OIDC diagnostic booleans"},
-          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "replays the activation contract through the runtime stop boundary"}
+          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "AC-1 AC-2 AC-3 AC-5 AC-6 S-003 replays the evidence-bound correction through the runtime authorization boundary"}
         ]
       },
       "confidence": 1
@@ -46,7 +46,7 @@
       "type": "scenario",
       "statement": "Diagnostic output excludes URL, path, query, request token, and userinfo values while preserving the current predicate observations.",
       "origin": {
-        "story_refs": [{"kind": "acceptance_criteria", "index": 2}],
+        "story_refs": [{"kind": "acceptance_criteria", "index": 1}],
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
         "test_refs": [
           {"file": "tests/npm-release.test.ts", "case": "reports only fixed OIDC diagnostic booleans"}
@@ -59,9 +59,16 @@
       "type": "invariant",
       "statement": "Normal mode accepts one-label GitHub-controlled actions.githubusercontent.com endpoints, rejects suffix lookalikes, userinfo, and explicit ports, and verifies issuer, audience, repository, run, workflow ref, and ref claims.",
       "origin": {
-        "story_refs": [{"kind": "acceptance_criteria", "index": 3}],
+        "story_refs": [
+          {"kind": "acceptance_criteria", "index": 3},
+          {"kind": "acceptance_criteria", "index": 4}
+        ],
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
-        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "rejects an attestation for a different run"}]
+        "test_refs": [
+          {"file": "tests/npm-release.test.ts", "case": "accepts GitHub-hosted runner OIDC endpoints without a pipelines prefix"},
+          {"file": "tests/npm-release.test.ts", "case": "rejects lookalike OIDC endpoint suffixes"},
+          {"file": "tests/npm-release.test.ts", "case": "rejects an attestation from a different issuer"}
+        ]
       },
       "confidence": 1
     },
@@ -74,7 +81,8 @@
         "code_refs": [{"file": ".github/workflows/npm-publish.yml", "anchor": "workflow_dispatch"}],
         "test_refs": [
           {"file": "tests/npm-release.test.ts", "case": "reports only fixed OIDC diagnostic booleans"},
-          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "replays the activation contract through the runtime stop boundary"}
+          {"file": "tests/npm-release-workflow.test.ts", "case": "binds validation and publish to the merged commit"},
+          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "AC-8 keeps the maintainer runbook aligned with the enabled publication path"}
         ]
       },
       "confidence": 1
@@ -82,11 +90,15 @@
     {
       "id": "OIDC-ROLLBACK-001",
       "type": "scenario",
-      "statement": "If diagnostic output or stopping behavior is unsafe, revert this diagnostic and keep publication stopped; this change alone cannot create an npm version.",
+      "statement": "Before publication, revert the correction and keep the workflow stopped when endpoint or claim validation is unsafe; after publication, never overwrite the immutable version and publish a forward fix under a new version.",
       "origin": {
         "story_refs": [{"kind": "policy", "index": 0}],
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
-        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "rejects lookalike OIDC endpoint suffixes"}]
+        "test_refs": [
+          {"file": "tests/npm-release.test.ts", "case": "rejects lookalike OIDC endpoint suffixes"},
+          {"file": "tests/npm-release.test.ts", "case": "rejects immutable version collisions"},
+          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "AC-8 keeps the maintainer runbook aligned with the enabled publication path"}
+        ]
       },
       "confidence": 1
     },
@@ -95,9 +107,23 @@
       "type": "contract",
       "statement": "This atomic correction is limited to the GitHub-controlled endpoint hostname class, issuer verification, npm trusted-publishing CLI prerequisite, diagnostic flag removal, and synchronized Story, Architecture, Spec, and test surfaces.",
       "origin": {
-        "story_refs": [{"kind": "acceptance_criteria", "index": 4}],
-        "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "classifyOidcEndpoint"}],
-        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "reports only fixed OIDC diagnostic booleans"}]
+        "story_refs": [
+          {"kind": "acceptance_criteria", "index": 3},
+          {"kind": "acceptance_criteria", "index": 4},
+          {"kind": "acceptance_criteria", "index": 5},
+          {"kind": "acceptance_criteria", "index": 6}
+        ],
+        "code_refs": [
+          {"file": "scripts/npm-release.mjs", "anchor": "classifyOidcEndpoint"},
+          {"file": ".github/workflows/npm-publish.yml", "anchor": "publish"},
+          {"file": "package.json", "anchor": "test:integration:release-evidence"},
+          {"file": "README.md", "anchor": "Initial npm publication"}
+        ],
+        "test_refs": [
+          {"file": "tests/npm-release.test.ts", "case": "accepts GitHub-hosted runner OIDC endpoints without a pipelines prefix"},
+          {"file": "tests/npm-release-workflow.test.ts", "case": "binds validation and publish to the merged commit"},
+          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "AC-7 keeps every focused release validation command executable"}
+        ]
       },
       "confidence": 1
     },
@@ -106,9 +132,26 @@
       "type": "contract",
       "statement": "Registry state evidence is phase-aware: the target version must be absent before initial publication, and published dist integrity plus immutable gitHead must match after publication.",
       "origin": {
-        "story_refs": [{"kind": "acceptance_criteria", "index": 6}],
+        "story_refs": [{"kind": "acceptance_criteria", "index": 7}],
         "code_refs": [{"file": "docs/responsibility-authority/npm-publication.json", "anchor": "brainbase_oss_npm_publication"}],
         "test_refs": [{"file": "tests/npm-release.test.ts", "case": "treats only npm 404 as unpublished"}]
+      },
+      "confidence": 1
+    },
+    {
+      "id": "OIDC-EVIDENCE-001",
+      "type": "contract",
+      "statement": "The focused release-evidence command must remain executable and must bind production dependency audit, packed tarball hashes, target-version absence, and the clean current HEAD before publication is authorized.",
+      "origin": {
+        "story_refs": [
+          {"kind": "acceptance_criteria", "index": 6},
+          {"kind": "acceptance_criteria", "index": 7}
+        ],
+        "code_refs": [{"file": "package.json", "anchor": "test:integration:release-evidence"}],
+        "test_refs": [
+          {"file": "tests/npm-release-validation.integration.test.ts", "case": "audits production dependencies and hashes a real tarball without publication credentials"},
+          {"file": "tests/npm-prepublication-evidence.integration.test.ts", "case": "binds production audit, tarball hashes, and registry absence to the clean current HEAD"}
+        ]
       },
       "confidence": 1
     }
