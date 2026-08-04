@@ -10,11 +10,21 @@ import request from 'supertest';
 import { createHmac } from 'crypto';
 
 import { createCandidateStoreRouter } from '../../../server/routes/candidate-store.js';
+import { captureCandidateStoreRawBody } from '../../../server/middleware/candidate-store-hmac.js';
 import { InMemoryCandidateRepository } from '../../../server/services/candidate-store/candidate-repository.js';
 
-function makeApp({ allowedSources = ['salestailor_ops_refactor', 'mana_slack'] } = {}) {
+function makeApp({
+    allowedSources = ['salestailor_ops_refactor', 'mana_slack'],
+    upstreamJsonParser = false
+} = {}) {
     const candidateRepository = new InMemoryCandidateRepository();
     const app = express();
+    if (upstreamJsonParser) {
+        app.use(express.json({
+            limit: '10mb',
+            verify: captureCandidateStoreRawBody
+        }));
+    }
     app.use('/api/candidate-store', createCandidateStoreRouter({
         candidateRepository,
         allowedSources
@@ -82,6 +92,22 @@ describe('POST /api/candidate-store/raw-ledger', () => {
         expect(res.body.candidate_ids.length).toBeGreaterThan(0);
         const candidates = await candidateRepository.list({});
         expect(candidates.length).toBe(res.body.candidate_ids.length);
+    });
+
+    it('上位JSON parserが先にbodyを消費してもraw body HMACを検証できる', async () => {
+        const { app } = makeApp({ upstreamJsonParser: true });
+        const body = JSON.stringify(validEnvelope({ raw_event_id: 'raw_upstream_parser_001' }));
+        const sig = sign(SECRET, body);
+
+        const res = await request(app)
+            .post('/api/candidate-store/raw-ledger')
+            .set('Content-Type', 'application/json')
+            .set('x-cs-source', 'salestailor_ops_refactor')
+            .set('x-cs-signature', sig)
+            .send(body);
+
+        expect(res.status).toBe(202);
+        expect(res.body.raw_event_id).toBe('raw_upstream_parser_001');
     });
 
     it('HMAC 不一致 → 401', async () => {

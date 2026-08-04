@@ -33,6 +33,7 @@ import { BRAINBASE_CORS_OPTIONS } from './server/bootstrap/cors-options.js';
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
 import { requireAuth } from './server/middleware/auth.js';
 import { errorHandler } from './server/middleware/error-handler.js';
+import { captureCandidateStoreRawBody } from './server/middleware/candidate-store-hmac.js';
 import { adminNoCacheMiddleware } from './server/routes/admin-visualization.js';
 
 // Import mesh modules (optional, enabled when MESH_RELAY_URL is set)
@@ -332,7 +333,9 @@ if (canonicalTaskRuntime.ready) {
 app.use(cors(BRAINBASE_CORS_OPTIONS));
 
 // Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
-app.use(express.json({ limit: '10mb' }));
+// Preserve the exact Candidate Store ingest bytes here because this application-
+// level parser consumes the stream before the mounted Candidate Store router.
+app.use(express.json({ limit: '10mb', verify: captureCandidateStoreRawBody }));
 
 // Security Headers Middleware
 app.use((req, res, next) => {

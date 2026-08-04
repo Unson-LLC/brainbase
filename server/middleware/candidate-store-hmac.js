@@ -21,6 +21,18 @@ function envKeyFor(source) {
 }
 
 /**
+ * Express JSON-parser verify callback for the exact Candidate Store ingest path.
+ * The application-level parser runs before the mounted router in production, so
+ * it must preserve the original bytes before the request stream is consumed.
+ */
+export function captureCandidateStoreRawBody(req, _res, buf) {
+    const requestPath = String(req.originalUrl || req.url || req.path || '').split('?')[0];
+    if (req.method === 'POST' && requestPath === '/api/candidate-store/raw-ledger') {
+        req.rawBody = Buffer.from(buf);
+    }
+}
+
+/**
  * Express middleware. Reads `req.rawBody` (set by upstream JSON parser) and
  * validates HMAC signature against per-source secret.
  */
