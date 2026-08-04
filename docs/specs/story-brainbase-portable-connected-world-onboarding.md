@@ -12,6 +12,33 @@
 
 全toolは任意の`dataDir`を受け取り、指定がなければ既存のPersonal OS path resolutionを使う。
 
+## Flow diagram
+
+```mermaid
+flowchart LR
+  Inventory["Callable source inventory"] --> Start["start: warm, fallback, or blocked"]
+  Start --> Fetch["Host bounded fetch"]
+  Fetch --> Ingest["ingest receipt and candidates"]
+  Ingest --> Review["human approve, edit, reject, or merge"]
+  Review --> Atomic["Ontology validation and atomic SSOT plus ledger publish"]
+  Atomic --> Value["first-value hash and canonical IDs"]
+  Value --> Verdict["useful or not_useful review"]
+```
+
+## Threat-model diagram
+
+```mermaid
+flowchart LR
+  Untrusted["Untrusted connector output"] --> Schema["Strict shape, size, secret, and body rejection"]
+  Schema --> Permission["Inventory identity and permission subset check"]
+  Permission --> Candidate["Observed or inferred candidate ledger"]
+  Candidate --> Human["Explicit human review"]
+  Human --> Ontology["Ontology-valid deterministic promotion plan"]
+  Ontology --> Transaction["Locked recoverable canonical plus ledger transaction"]
+  Schema -->|"reject"| NoWrite["No ledger or canonical write"]
+  Human -->|"reject"| AuditOnly["Audit state only; no canonical ID"]
+```
+
 ## Source inventory contract
 
 sourceは`id`、`mode`、`status`、任意の`evidencePointer`、`permissionScope`、`detail`を持つ。modeは`mcp|drive|gmail|local_folder|single_document`、statusは`ready|waiting_for_authorization|unavailable|error|unconfirmed`に限定する。

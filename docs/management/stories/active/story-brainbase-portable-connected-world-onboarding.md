@@ -9,15 +9,35 @@ category: product
 spec: docs/specs/story-brainbase-portable-connected-world-onboarding.md
 architecture: docs/architecture/story-brainbase-portable-connected-world-onboarding.md
 business_metric: first-value review completion within 600 seconds of first ready source
+related_tasks:
+  - task_source: VibePro
+    task_ids:
+      - story-brainbase-portable-connected-world-onboarding-source-alignment-review
+pr_scope_strategy: atomic_single_pr
+pr_scope_reason: "The public MCP contract, bounded ledger, atomic SSOT sidecar, host Skill, security boundaries, documentation, and executable acceptance evidence form one user-visible onboarding capability; landing any lane alone would expose an incomplete or unverifiable workflow."
+pr_scope_review_facets:
+  - requirements-ssot
+  - runtime-behavior
+  - e2e-gate
+  - misc-follow-up
+pr_scope_dependency_boundaries:
+  - runtime-behavior->requirements-ssot
+  - e2e-gate->runtime-behavior
+  - misc-follow-up->requirements-ssot
+  - misc-follow-up->runtime-behavior
 created_at: 2026-08-04
 updated_at: 2026-08-04
 ---
 
 # 既存の仕事ソースから10分で自分の世界を立ち上げる
 
-## 背景
+## Current reality
 
 公開版Brainbaseには、手入力とファイルimportを中心にした個人オンボーディングはある。しかし、ホストエージェントが実際に呼び出せるMCP、Drive、Gmail、限定ローカルフォルダ、単一ドキュメントを棚卸しし、最小範囲の証拠候補を人間レビューへつなぎ、承認済み事実だけで最初の価値を返す一続きの実行契約はない。
+
+## Intent
+
+既存ソースの本文やsecretをBrainbaseへ保存せず、実在する接続、限定された取得範囲、候補ごとの根拠、人間の判断、Ontology-validな正本昇格を一続きにする。
 
 ## ユーザーストーリー
 
@@ -45,6 +65,20 @@ Brainbaseを初めて使う人として、既に接続できる仕事ソース�
 - 生データの自動収集や全アカウント・全フォルダscanは行わない。
 - candidateはcanonical memoryではない。人間の明示reviewなしに昇格しない。
 - ローカルMCP processと選択されたPersonal OS directoryをauthority境界とし、存在しない組織・project認証モデルを捏造しない。
+
+## Invariants
+
+- source本文・回答本文・credentialは永続化しない。
+- inferred候補を人間のeditなしにcanonical factへ昇格しない。
+- canonical 4ファイルとreview ledgerは同じrecovery可能なtransactionで更新する。
+- unavailable、error、unconfirmedをreadyや0件へ読み替えない。
+
+## Failure modes
+
+- connector認証待ち・timeout・未確認は明示状態としてrunに残す。
+- ledger schema、candidate identity、permission、canonical参照が壊れていれば全公開操作をfail loudする。
+- review batch内の1件でも不正ならcanonicalとledgerを変更しない。
+- transaction publishが途中失敗したらcanonicalとledgerを共に旧状態へ復旧する。
 
 ## Done evidence
 

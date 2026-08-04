@@ -6,7 +6,7 @@ Brainbase Personal Onboarding Kit now installs the MCP server, helps collect loc
 
 ## Acceptance Criteria
 
-- `brainbase onboard:skills` exposes the built-in public Brainbase skill set: `brainbase-personal-onboarding`, `brainbase-connected-world-onboarding`, `brainbase-source-import`, `brainbase-candidate-review`, and `brainbase-daily-routines`.
+- `brainbase onboard:skills` exposes the built-in public Brainbase skill set: `brainbase-personal-onboarding`, `brainbase-source-import`, `brainbase-candidate-review`, and `brainbase-daily-routines`.
 - The command targets the user's coding agent: `--target codex`, `--target claude`, or `--target portable` changes the recommended install paths while keeping skill content portable `SKILL.md`.
 - The command is dry-run by default: it prints a manifest and file contents, writes files only when `--out <dir>` is provided, and refuses to overwrite existing `SKILL.md` files.
 - `--skills <id,id>` can select a deterministic subset while rejecting unknown skill ids loudly.
