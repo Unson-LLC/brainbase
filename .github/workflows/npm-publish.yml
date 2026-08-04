@@ -114,6 +114,8 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+      - name: Install trusted-publishing npm CLI
+        run: npm install --global npm@11.5.1
       - name: Check out immutable release commit
         env:
           RELEASE_SHA: ${{ needs.validate.outputs.sha }}
@@ -126,7 +128,6 @@ jobs:
       - name: Publish and verify npm package
         env:
           BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'
-          BRAINBASE_NPM_OIDC_DIAGNOSTIC: 'true'
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ needs.validate.outputs.version }}
           RELEASE_SHA: ${{ needs.validate.outputs.sha }}

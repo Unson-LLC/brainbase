@@ -453,7 +453,7 @@ export function classifyOidcEndpoint(rawEndpoint) {
     const rawAuthority = rawEndpoint.match(/^https?:\/\/([^/?#]*)/iu)?.[1] ?? '';
     result.parse_ok = true;
     result.protocol_https = endpoint.protocol === 'https:';
-    result.hostname_trusted = /^pipelines[a-z0-9-]*\.actions\.githubusercontent\.com$/u.test(endpoint.hostname);
+    result.hostname_trusted = /^[a-z0-9-]+\.actions\.githubusercontent\.com$/u.test(endpoint.hostname);
     result.raw_authority_colon = rawAuthority.includes(':');
     result.userinfo_present = Boolean(endpoint.username || endpoint.password);
     result.normalized_nondefault_port = endpoint.port !== '';
@@ -485,7 +485,7 @@ export async function assertSerializedPublicationContext(environment = process.e
     throw new Error('GitHub Actions OIDC endpoint is not trusted');
   }
   const rawAuthority = environment.ACTIONS_ID_TOKEN_REQUEST_URL.match(/^https?:\/\/([^/?#]*)/iu)?.[1] ?? '';
-  const trustedOidcHostname = /^pipelines[a-z0-9-]*\.actions\.githubusercontent\.com$/u;
+  const trustedOidcHostname = /^[a-z0-9-]+\.actions\.githubusercontent\.com$/u;
   if (
     oidcUrl.protocol !== 'https:' ||
     !trustedOidcHostname.test(oidcUrl.hostname) ||
@@ -507,6 +507,7 @@ export async function assertSerializedPublicationContext(environment = process.e
   const claims = decodeJwtPayload(body.value);
   const trustedWorkflowRef = 'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/develop';
   if (
+    claims.iss !== 'https://token.actions.githubusercontent.com' ||
     claims.aud !== audience ||
     claims.repository !== environment.GITHUB_REPOSITORY ||
     String(claims.run_id) !== String(environment.GITHUB_RUN_ID) ||

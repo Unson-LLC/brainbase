@@ -1,4 +1,4 @@
-# GitHub Actions OIDC endpoint diagnosis Spec
+# GitHub Actions OIDC endpoint correction Spec
 
 ## Contract
 
@@ -14,7 +14,7 @@
 6. `userinfo_present`
 7. `normalized_nondefault_port`
 
-URL全文、hostname値、raw authority、path、query、request token、username、password値は含めない。classifierは現行predicateと同じ式で観測するが、通常モードの認可判断には使わない。診断モードはclassification後に必ず停止し、`request`を呼ばない。診断フラグがない通常モードの許可・拒否条件は変更しない。
+URL全文、hostname値、raw authority、path、query、request token、username、password値は含めない。classifierは認可predicateと同じ式で観測するが、通常モードの認可判断には使わない。診断モードはclassification後に必ず停止し、`request`を呼ばない。通常モードはHTTPSかつ単一label `*.actions.githubusercontent.com`を許可し、suffix lookalike、userinfo、明示portを拒否する。JWTはissuer `https://token.actions.githubusercontent.com`を含む既存claim完全一致を要求する。
 
 ## Examples
 
@@ -25,12 +25,14 @@ URL全文、hostname値、raw authority、path、query、request token、usernam
 | userinfo付きendpoint | `userinfo_present=true`; 値は出力しない |
 | malformed endpoint | `url_present=true`, `parse_ok=false`; 残りはfalse |
 
+診断run `30893794741`のproduction vectorは、URL、parse、HTTPS、authority、userinfo、portが正常でhostname predicateだけがfalseだった。correctionでは`pipelines` prefix依存を外し、GitHub管理domainの単一label境界へ合わせる。
+
 ## Verification
 
 - `tests/npm-release.test.ts`: 固定boolean完全一致、機密sentinel非包含、request未呼出、通常モードの既存positive/negative cases。
 - `tests/npm-release-validation.integration.test.ts`: credential-free validationと公開前failure semantics。
 - `tests/npm-release-workflow.test.ts`: validation/publish job boundaryとworkflow state。
-- `tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts`: dispatch入力を増やさないactivation契約からruntime classifier、秘密値非露出、OIDC request前停止までを一つのrelease-specific flowとして再生する。
+- `tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts`: 固定診断フラグ削除、非`pipelines` endpoint許可、suffix lookalike拒否、issuer完全一致、npm CLI要件をrelease-specific flowとして再生する。
 - `npm run test:integration:release-evidence`: cleanな同一HEAD上でproduction dependency audit、実tarballのSHA-256/SHA-512、npm integrity、対象versionのregistry E404を一回のintegration実行として記録する。
 - `npm run test:e2e`、`npm run build`: release-specific flowを含むrepository regression evidence。
 
@@ -50,6 +52,6 @@ stateDiagram-v2
 
 ## Release operations
 
-診断実装はdevelopへmerge済みであり、このactivation PRで`BRAINBASE_NPM_OIDC_DIAGNOSTIC=true`をworkflow固定値として設定する。merge後、release ownerは`gh workflow run npm-publish.yml --repo Unson-LLC/brainbase --ref develop -f release_ref=develop`を一度だけ実行する。期待結果はOIDC request前の専用診断errorであり、boolean vector、run URL、npm metadata不存在を保存する。固定フラグがある間はmerge triggerを含むpublicationが意図的に停止する。原因修正PRでは同じownerがworkflowの診断フラグを削除し、通常モード検証後に公開を再実行する。診断出力や停止境界が不正ならactivation commitをrevertし、再実行しない。
+correction PRはworkflowの固定診断フラグを削除し、npm CLI `11.5.1`を導入する。merge後、release ownerは`gh workflow run npm-publish.yml --repo Unson-LLC/brainbase --ref develop -f release_ref=develop`を一度だけ実行する。成功時はnpm metadataのdist integrityとgitHead、dist-tag、GitHub Release targetを照合する。失敗時はrun URLと公開済みversionの有無を保存し、重複公開を避けて再調査する。
 
-初回公開前のregistry証跡は対象versionの不存在を確認する。公開成功後は`npm view`のdist integrityとgitHeadをreview済みdefault-branch commitへ照合し、不一致または未確認を成功として扱わない。
+初回公開前のregistry証跡は対象versionの不存在を確認する。PR前には、公開成功後に`npm view`のdist integrityとgitHeadをreview済みdefault-branch commitへ照合し、不一致または未確認を成功として扱わない検証経路を固定する。実registryの一致は公開後のdelivery outcomeとして別途観測する。

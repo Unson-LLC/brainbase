@@ -6,10 +6,11 @@ import {
   classifyOidcEndpoint
 } from '../../scripts/npm-release.mjs';
 
-describe('OSS npm release OIDC diagnostic acceptance', () => {
+describe('OSS npm release OIDC endpoint correction acceptance', () => {
   function oidcToken(overrides = {}) {
     const header = Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url');
     const payload = Buffer.from(JSON.stringify({
+      iss: 'https://token.actions.githubusercontent.com',
       aud: 'brainbase-npm-publish',
       repository: 'Unson-LLC/brainbase',
       run_id: '123',
@@ -29,15 +30,8 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
     ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'runner-issued-request-token'
   };
 
-  it('AC-1 AC-2 AC-3 AC-5 AC-6 S-003 replays the activation contract through the runtime stop boundary', async () => {
-    const workflow = await readFile(
-      new URL('../../.github/workflows/npm-publish.yml', import.meta.url),
-      'utf8'
-    );
-    const publishJob = workflow.slice(workflow.indexOf('  publish:'));
-    expect(publishJob, 'ac-5 activates the diagnostic only as a fixed publish-job value').toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC:\s*'true'/u);
-    expect(workflow, 'ac-5 never exposes diagnostic activation as a dispatch input').not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC:[\s\S]*github\.event\.inputs/u);
-
+  // story-brainbase-oss-npm-release-oidc-endpoint ac:1 ac:2 ac:3 executable diagnostic boundary coverage
+  it('AC-1 AC-2 AC-3 S-003 replays the evidence-bound diagnostic through the runtime stop boundary', async () => {
     const endpoint = 'https://user-sentinel:password-sentinel@pipelinesghubeus4.actions.githubusercontent.com:8443/private-path?secret=query-sentinel';
     const request = vi.fn();
     const expected = {
@@ -63,7 +57,7 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
       message = error instanceof Error ? error.message : String(error);
     }
 
-    expect(message, 'ac-6 keeps the release diagnostic deterministic').toBe(`GitHub Actions OIDC diagnostic ${JSON.stringify(expected)}`);
+    expect(message, 'ac-1 keeps the release diagnostic deterministic').toBe(`GitHub Actions OIDC diagnostic ${JSON.stringify(expected)}`);
     expect(request, 'ac-3 stops before the OIDC token request').not.toHaveBeenCalled();
     for (const sentinel of [
       'private-path',
@@ -76,6 +70,7 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
     }
   });
 
+  // story-brainbase-oss-npm-release-oidc-endpoint ac:4 executable authorization boundary coverage
   it('AC-4 preserves the normal authorization and exact workflow claims', async () => {
     const acceptedRequest = vi.fn().mockResolvedValue({
       ok: true,
@@ -97,6 +92,64 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
     ), 'ac-4 preserves rejected claim mismatches').rejects.toThrow(/OIDC claims do not match/u);
   });
 
+  // story-brainbase-oss-npm-release-oidc-endpoint ac:5 executable issuer coverage
+  it('AC-5 rejects a token whose issuer is not the official GitHub Actions issuer', async () => {
+    const wrongIssuerRequest = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ value: oidcToken({ iss: 'https://issuer.attacker.example' }) })
+    });
+    await expect(assertSerializedPublicationContext(
+      publicationContext,
+      wrongIssuerRequest
+    ), 'ac-5 binds the token issuer to GitHub Actions').rejects.toThrow(/OIDC claims do not match/u);
+  });
+
+  // story-brainbase-oss-npm-release-oidc-endpoint ac:6 executable workflow activation coverage
+  it('AC-6 removes the diagnostic stop and pins a trusted-publishing capable npm CLI', async () => {
+    const acceptanceCriterion = 'workflowはnpm 11.5.1を使用し診断固定フラグを除去する';
+    const workflow = await readFile(
+      new URL('../../.github/workflows/npm-publish.yml', import.meta.url),
+      'utf8'
+    );
+    const publishJob = workflow.slice(workflow.indexOf('  publish:'));
+    expect(acceptanceCriterion, 'ac-6 binds the executable assertions to the Story criterion').toContain('npm 11.5.1');
+    expect(publishJob, 'ac-6 removes the temporary diagnostic stop from the publish job').not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC/u);
+    expect(publishJob, 'ac-6 installs a trusted-publishing capable npm CLI').toMatch(/npm install --global npm@11\.5\.1/u);
+  });
+
+  // story-brainbase-oss-npm-release-oidc-endpoint ac:4 executable endpoint allow-and-deny coverage
+  it('AC-4 accepts the observed GitHub-hosted endpoint class and rejects suffix lookalikes', async () => {
+    const acceptedRequest = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ value: oidcToken() })
+    });
+    await expect(assertSerializedPublicationContext({
+      ...publicationContext,
+      ACTIONS_ID_TOKEN_REQUEST_URL: 'https://acghubeus2.actions.githubusercontent.com/token'
+    }, acceptedRequest), 'ac-4 accepts a single GitHub-controlled hostname label').resolves.toBeUndefined();
+
+    const rejectedRequest = vi.fn();
+    await expect(assertSerializedPublicationContext({
+      ...publicationContext,
+      ACTIONS_ID_TOKEN_REQUEST_URL: 'https://acghubeus2.actions.githubusercontent.com.attacker.example/token'
+    }, rejectedRequest), 'ac-4 rejects a suffix-lookalike hostname').rejects.toThrow(/OIDC endpoint is not trusted/u);
+    expect(rejectedRequest).not.toHaveBeenCalled();
+
+    const userinfoRequest = vi.fn();
+    await expect(assertSerializedPublicationContext({
+      ...publicationContext,
+      ACTIONS_ID_TOKEN_REQUEST_URL: 'https://runner:secret@acghubeus2.actions.githubusercontent.com/token'
+    }, userinfoRequest), 'ac-4 rejects endpoint userinfo').rejects.toThrow(/OIDC endpoint is not trusted/u);
+    expect(userinfoRequest).not.toHaveBeenCalled();
+
+    const explicitPortRequest = vi.fn();
+    await expect(assertSerializedPublicationContext({
+      ...publicationContext,
+      ACTIONS_ID_TOKEN_REQUEST_URL: 'https://acghubeus2.actions.githubusercontent.com:8443/token'
+    }, explicitPortRequest), 'ac-4 rejects an explicit port').rejects.toThrow(/OIDC endpoint is not trusted/u);
+    expect(explicitPortRequest).not.toHaveBeenCalled();
+  });
+
   it('S-003 rejects a malformed endpoint before any token request', async () => {
     const request = vi.fn();
     const classification = classifyOidcEndpoint('malformed-path-sentinel?secret=query-sentinel');
@@ -114,7 +167,20 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
     expect(request).not.toHaveBeenCalled();
   });
 
-  it('AC-7 S-004 requires absence before initial publication and immutable evidence after it', async () => {
+  // story-brainbase-oss-npm-release-oidc-endpoint ac:7 executable validation-lane coverage
+  it('AC-7 keeps every focused release validation command executable', async () => {
+    const packageJson = JSON.parse(await readFile(
+      new URL('../../package.json', import.meta.url),
+      'utf8'
+    ));
+    expect(packageJson.scripts.test, 'ac-7 keeps the unit and workflow suite').toBe('vitest run');
+    expect(packageJson.scripts['test:integration'], 'ac-7 keeps release integration validation').toContain('tests/npm-release-validation.integration.test.ts');
+    expect(packageJson.scripts['test:e2e'], 'ac-7 keeps the E2E runner available for the focused Story file').toMatch(/^vitest run /u);
+    expect(packageJson.scripts.build, 'ac-7 keeps the TypeScript build validation').toBe('tsc -p tsconfig.json');
+  });
+
+  // story-brainbase-oss-npm-release-oidc-endpoint ac:8 executable phase-aware registry contract coverage
+  it('AC-8 S-004 requires absence before initial publication and immutable evidence after it', async () => {
     const contract = JSON.parse(await readFile(
       new URL('../../docs/responsibility-authority/npm-publication.json', import.meta.url),
       'utf8'
@@ -122,8 +188,21 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
     const publication = contract.responsibilities.find(
       (responsibility) => responsibility.id === 'brainbase_oss_npm_publication'
     );
-    expect(publication.required_evidence, 'ac-7 requires phase-aware registry evidence').toContain('registry_state_verified_for_release_phase');
-    expect(publication.unknown_policy).toMatch(/Before an initial publication, registry evidence must prove the target version is absent/u);
-    expect(publication.unknown_policy).toMatch(/after publication, it must prove dist integrity and immutable gitHead/u);
+    expect(publication.required_evidence, 'ac-8 requires phase-aware registry evidence').toContain('registry_state_verified_for_release_phase');
+    expect(publication.unknown_policy, 'ac-8 requires target-version absence before initial publication').toMatch(/Before an initial publication, registry evidence must prove the target version is absent/u);
+    expect(publication.unknown_policy, 'ac-8 requires dist integrity and immutable gitHead after publication').toMatch(/after publication, it must prove dist integrity and immutable gitHead/u);
+  });
+
+  it('AC-8 keeps the maintainer runbook aligned with the enabled publication path', async () => {
+    const readme = await readFile(
+      new URL('../../README.md', import.meta.url),
+      'utf8'
+    );
+    const releaseOperation = readme.slice(readme.indexOf('### Maintainer release operation'));
+    expect(releaseOperation, 'ac-8 removes the retired diagnostic-only operation').not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC/u);
+    expect(releaseOperation, 'ac-8 requires one evidence-bound dispatch').toMatch(/Dispatch the reviewed ref once/u);
+    expect(releaseOperation, 'ac-8 requires registry verification').toMatch(/`gitHead`, `dist\.integrity`, and dist-tag/u);
+    expect(releaseOperation, 'ac-8 requires GitHub Release target verification').toMatch(/GitHub Release targets the reviewed release commit/u);
+    expect(releaseOperation, 'ac-8 preserves immutable-version recovery').toMatch(/treat that version as immutable/u);
   });
 });

@@ -1,6 +1,6 @@
 ---
 story_id: story-brainbase-oss-npm-release-oidc-endpoint
-title: GitHub Actions OIDC endpoint拒否理由を安全に確定する
+title: GitHub Actions OIDC endpoint判定を実測に合わせて復旧する
 status: active
 period: 2026Q3
 horizon: quarter
@@ -14,54 +14,57 @@ related_tasks:
     task_ids:
       - story-brainbase-oss-npm-release-oidc-endpoint-source-alignment-review
 pr_scope_strategy: atomic_single_pr
-pr_scope_reason: "The diagnostic implementation is already on develop; this atomic activation PR sets one fixed workflow flag and updates its E2E contract so one fail-closed production run can identify the rejecting predicate."
+pr_scope_reason: "Run 30893794741 isolated the hostname predicate failure. The runtime trust-boundary correction, direct tests, release-evidence command, workflow enablement, acceptance replay, and operator runbook must land together so publication cannot be enabled before its validating runtime and evidence path."
 pr_scope_review_facets:
   - repo-control
   - requirements-ssot
+  - runtime-behavior
   - e2e-gate
   - misc-follow-up
 pr_scope_dependency_boundaries:
-  - requirements-ssot->repo-control
-  - requirements-ssot->e2e-gate
-  - requirements-ssot->misc-follow-up
-  - repo-control->e2e-gate
+  - runtime-behavior->requirements-ssot
+  - repo-control->runtime-behavior
+  - e2e-gate->runtime-behavior
+  - e2e-gate->repo-control
+  - misc-follow-up->requirements-ssot
 created_at: 2026-08-04
 updated_at: 2026-08-04
 ---
 
-# GitHub Actions OIDC endpoint拒否理由を安全に確定する
+# GitHub Actions OIDC endpoint判定を実測に合わせて復旧する
 
 ## 背景
 
-regional hostname対応をmergeした後の再実行run `30884874181`も、`GitHub Actions OIDC endpoint is not trusted`で停止した。ログにはendpoint実値も失敗predicateも残っておらず、明示的`:443`拒否が原因という仮説はまだ確定していない。workflow、repository、run、refのOIDC claim検証へ進む前に停止し、npm registry mutationは発生しなかった。
+診断run [`30893794741`](https://github.com/Unson-LLC/brainbase/actions/runs/30893794741) は、秘密値を出さずに `url_present=true`、`parse_ok=true`、`protocol_https=true`、`hostname_trusted=false`、`raw_authority_colon=false`、`userinfo_present=false`、`normalized_nondefault_port=false` を記録し、OIDC request前に停止した。これにより、明示的`:443`仮説は棄却され、`pipelines` prefixだけを許すhostname predicateがproduction blockerだと確定した。
 
 ## Current reality
 
-失敗run `30884874181`ではimmutable commitのvalidationまで成功し、publish jobがtoken取得前のendpoint authority判定で停止した。現行実装はregional hostnameを許可する一方、raw authority内のcolonを一律拒否するため明示的`:443`も拒否するが、実runの入力は未確認である。診断機構はすでに`develop`へmerge済みであり、このPRは認可条件を変更せず、workflow内の固定フラグだけを有効化する。merge後の最初のpublish runは固定booleanを記録して意図的にfail closedし、npm公開とGitHub Release作成には進まない。
+診断runではimmutable commit `a84fce233eb98ce12f6ee06f710ee78deecc2f42`のvalidationとartifact transferが成功し、publish jobだけがhostname判定で安全に停止した。修正はGitHub管理下の単一label `*.actions.githubusercontent.com`だけをHTTPS endpointとして許可し、suffix lookalike、userinfo、明示portは引き続き拒否する。token取得後は公式issuer `https://token.actions.githubusercontent.com`、audience、repository、run ID、workflow ref、refを完全一致で検証する。さらにnpm Trusted Publishingの公式要件に合わせ、publish jobのnpm CLIを`11.5.1`へ固定し、診断フラグを削除する。
 
 ## 誰が・何を・なぜ
 
-OSS maintainerは、OIDC URL、path、query、token、userinfo値をログへ出さず、GitHub Actions提供endpointが現行のどのpredicateで拒否されたかを一回の診断runで確定したい。
+OSS maintainerは、実測で確認したGitHub Actions提供endpoint classを安全に通し、OIDC claimを完全一致で検証したうえで、CLIから初回npm公開を完了したい。
 
 ## Business contextと成功指標
 
-初回OSS公開を止めているproduction release blockerを、推測でtrust boundaryを変更せずに特定する。PR内の成功指標は診断出力が固定booleanだけであること、OIDC requestが呼ばれないこと、通常モードの既存accept/reject testが不変であること。merge後の成功指標は診断runから拒否predicateを一意に判定できることとする。
+初回OSS公開を止めているproduction release blockerを実測根拠で解消する。PR内の成功指標は、非`pipelines` GitHub endpointのpositive test、suffix lookalike・userinfo・portのnegative test、issuerを含むclaim test、診断フラグ削除、npm CLI要件のworkflow testが現在HEADで成功すること。merge後はnpm metadataとGitHub Releaseの一致を成功指標とする。
 
 ## 受け入れ基準
 
 - [ ] 診断出力を`url_present`、`parse_ok`、`protocol_https`、`hostname_trusted`、`raw_authority_colon`、`userinfo_present`、`normalized_nondefault_port`の固定booleanへ限定する。
 - [ ] URL全文、path、query、OIDC request token、username、passwordの値を出力しない。
 - [ ] 診断モードはOIDC requestより前に専用errorで必ず停止し、npm registry mutationへ進まない。
-- [ ] 通常モードのendpointおよびclaim認可条件を変更しない。
-- [ ] diagnostic flagはdispatch入力として公開せず、このactivation PRでworkflow内の固定値としてのみ有効化する。
+- [ ] HTTPSの単一label `*.actions.githubusercontent.com`を許可し、suffix lookalike、userinfo、明示portを拒否する。
+- [ ] OIDC tokenのissuerを公式`https://token.actions.githubusercontent.com`へ固定し、既存claim検証を維持する。
+- [ ] 固定diagnostic flagを削除し、publish jobでnpm CLI `11.5.1`を使う。
 - [ ] focused unit、workflow、release validation、E2E、buildを現在HEADで成功させる。
-- [ ] 初回公開前の責任契約は対象versionのregistry不存在を要求し、公開後はdist integrityとimmutable gitHead一致を要求する。
+- [ ] 初回公開前は対象versionのregistry不存在を実証し、公開後にdist integrityとimmutable gitHeadを照合して不一致を失敗にする検証経路を固定する。
 
 ## 境界
 
 - npm token、npm organization、GitHub repository設定は変更しない。
-- 通常モードの認可条件、artifact contract、registry mutation順序は変更しない。責任契約のregistry証跡だけを公開段階別に明確化する。
-- このPRではworkflowの固定診断フラグと対応E2E契約だけを変更する。診断run後の原因修正PRでフラグを必ず削除し、通常publicationを再開する。
+- artifact contractとregistry mutation順序は変更しない。endpoint hostname class、issuer claim、npm CLI runtimeだけを修正する。
+- 診断classifierは安全な再調査用として残すが、workflowの固定diagnostic flagは削除して通常publicationを再開する。
 
 ## Failure modes
 
@@ -74,12 +77,22 @@ OSS maintainerは、OIDC URL、path、query、token、userinfo値をログへ出
 
 ## User Action
 
-Release note: npm公開を止めているGitHub Actions OIDC endpoint判定について、秘密値を含まない固定boolean診断を追加する。利用者向けCLIやpackage API、通常の認可条件の変更はない。
+### Release note
 
-このactivation PRのmerge後、release ownerは`develop`を`release_ref`に指定して`npm-publish.yml`を一度だけ手動dispatchする。期待結果はpublish jobの専用診断errorによる失敗であり、固定boolean vectorとrun URLをrelease evidenceとして保存する。この間はmerge triggerを含む全publish attemptが同じ固定フラグで停止し、npm公開とGitHub Release作成は行われない。`raw_authority_colon=true`かつ`normalized_nondefault_port=false`で他条件が正常なら、明示的default portを許可する最小修正へ進む。それ以外は失敗predicateに対応する入力契約を再調査する。原因修正PRのownerは同じPRで固定フラグを削除し、通常モードの検証後にpublicationを再実行する。
+production診断で特定したGitHub Actions OIDC hostname判定を修正し、公式issuer検証とnpm Trusted Publishing対応CLIを追加する。利用者向けpackage APIの変更はない。
 
-Rollback instruction: 診断出力や停止境界に問題があればこのactivation commitをrevertし、workflowを再実行せず公開停止を維持する。診断はregistry mutation前に止まるため、このPR単独ではnpm versionを作成しない。公開後のnpm versionはimmutableなので削除や上書きをせず、修正版を新しいforward versionとして公開する。
+### Operator action
+
+このcorrection PRのmerge後、release ownerは`develop`を`release_ref`に指定して`npm-publish.yml`を一度だけ手動dispatchする。成功時は`@unson/brainbase-mcp@0.1.0`のversion、gitHead、dist integrity、dist-tagとGitHub Release `v0.1.0`のtarget commitを照合する。失敗時は同じrunを証拠として、公開済みversionの有無を確認してから再調査する。
+
+### Observability evidence
+
+GitHub Actionsのvalidation/publish job結果、npm registryの`version`・`gitHead`・`dist.integrity`・dist-tag、GitHub Releaseのtag・target commitをrelease ownerが確認できる証拠とする。未確認または不一致は成功にしない。
+
+### Rollback instruction
+
+endpoint判定またはclaim検証に問題があればcorrection commitをrevertし、workflowを再実行せず公開停止を維持する。公開後のnpm versionはimmutableなので削除や上書きをせず、修正版を新しいforward versionとして公開する。
 
 ## Done evidence
 
-現在HEADに結び付いたunit、integration、E2E、buildと独立レビューでactivationのマージ可否を決める。診断runのboolean vectorとrun URLを保存し、原因修正PRで固定フラグを削除する。原因修正のmerge後、元Story `story-brainbase-oss-npm-release` のAC-9としてnpm metadataとGitHub Releaseを検証する。
+現在HEADに結び付いたunit、integration、E2E、buildと独立レビューでcorrectionのマージ可否を決める。診断runのboolean vectorとrun URLは原因証跡として保存済み。merge後、元Story `story-brainbase-oss-npm-release` のAC-9としてnpm metadataとGitHub Releaseを検証する。
