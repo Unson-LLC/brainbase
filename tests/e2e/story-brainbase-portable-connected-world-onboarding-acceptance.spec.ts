@@ -11,7 +11,7 @@ afterEach(async () => {
 });
 
 describe('connected-world onboarding acceptance', () => {
-  it('[AC-1][AC-2][AC-3][AC-4][AC-5][AC-6][AC-7][AC-8][AC-9][AC-10][AC-11][AC-12][AC-13] completes the bounded reviewed first-value journey', async () => {
+  it('AC-1 AC-2 AC-3 AC-4 AC-5 AC-6 AC-7 AC-8 AC-9 AC-10 AC-11 AC-12 AC-13 completes the bounded reviewed first-value journey', async () => {
     const dataDir = await mkdtemp(join(tmpdir(), 'brainbase-connected-e2e-'));
     dirs.push(dataDir);
     const started = await callBrainbaseTool('brainbase_onboarding_start', {
