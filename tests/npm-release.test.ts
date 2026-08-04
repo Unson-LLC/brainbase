@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   assertPublishedMetadata,
   assertSerializedPublicationContext,
+  classifyOidcEndpoint,
   commandFailureMessage,
   compareSemver,
   createReleaseArtifact,
@@ -44,6 +45,56 @@ describe('serialized publication context', () => {
       ...overrides
     })).toString('base64url');
     return `${header}.${payload}.test-signature`;
+  }
+
+  it.each([
+    [
+      'accepted canonical endpoint shape',
+      'https://pipelines.actions.githubusercontent.com/private-path?secret=query-sentinel',
+      { url_present: true, parse_ok: true, protocol_https: true, hostname_trusted: true, raw_authority_colon: false, userinfo_present: false, normalized_nondefault_port: false }
+    ],
+    [
+      'regional endpoint with an explicit default port',
+      'https://pipelinesghubeus4.actions.githubusercontent.com:443/private-path?secret=query-sentinel',
+      { url_present: true, parse_ok: true, protocol_https: true, hostname_trusted: true, raw_authority_colon: true, userinfo_present: false, normalized_nondefault_port: false }
+    ],
+    [
+      'userinfo and a non-default port',
+      'https://user-sentinel:password-sentinel@pipelines.actions.githubusercontent.com:8443/private-path?secret=query-sentinel',
+      { url_present: true, parse_ok: true, protocol_https: true, hostname_trusted: true, raw_authority_colon: true, userinfo_present: true, normalized_nondefault_port: true }
+    ],
+    [
+      'malformed endpoint',
+      'malformed-path-sentinel?secret=query-sentinel',
+      { url_present: true, parse_ok: false, protocol_https: false, hostname_trusted: false, raw_authority_colon: false, userinfo_present: false, normalized_nondefault_port: false }
+    ]
+  ])('reports only fixed OIDC diagnostic booleans for %s', async (_label, endpoint, expected) => {
+    const request = vi.fn();
+    const diagnostic = JSON.stringify(expected);
+    await expect(assertSerializedPublicationContext({
+      BRAINBASE_NPM_OIDC_DIAGNOSTIC: 'true',
+      ACTIONS_ID_TOKEN_REQUEST_URL: endpoint,
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'token-sentinel'
+    }, request)).rejects.toThrow(new RegExp(`^GitHub Actions OIDC diagnostic ${diagnostic.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}$`, 'u'));
+    expect(classifyOidcEndpoint(endpoint)).toEqual(expected);
+    expect(request).not.toHaveBeenCalled();
+    await assertDiagnosticContainsNoSentinel(endpoint);
+  });
+
+  async function assertDiagnosticContainsNoSentinel(endpoint) {
+    try {
+      await assertSerializedPublicationContext({
+        BRAINBASE_NPM_OIDC_DIAGNOSTIC: 'true',
+        ACTIONS_ID_TOKEN_REQUEST_URL: endpoint,
+        ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'token-sentinel'
+      }, vi.fn());
+      throw new Error('diagnostic mode unexpectedly continued');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      for (const sentinel of ['private-path', 'query-sentinel', 'user-sentinel', 'password-sentinel', 'token-sentinel']) {
+        expect(message).not.toContain(sentinel);
+      }
+    }
   }
 
   it('rejects direct local publication outside the package workflow queue', async () => {

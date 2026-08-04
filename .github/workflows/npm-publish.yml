@@ -125,6 +125,7 @@ jobs:
           path: ${{ runner.temp }}/npm-release
       - name: Publish and verify npm package
         env:
+          BRAINBASE_NPM_OIDC_DIAGNOSTIC: 'true'
           BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ needs.validate.outputs.version }}

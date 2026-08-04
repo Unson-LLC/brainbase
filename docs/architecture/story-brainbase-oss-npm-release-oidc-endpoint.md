@@ -1,20 +1,20 @@
-# GitHub regional OIDC endpoint trust-boundary correction
+# GitHub Actions OIDC endpoint diagnosis lane
 
 ## Decision
 
-`assertSerializedPublicationContext`のendpoint検証を、単一のcanonical hostname比較から、anchored hostname predicateへ置き換える。許可集合は`pipelines` prefix、英小文字・数字・hyphenからなる任意のregional segment、正確な`.actions.githubusercontent.com` suffixだけとする。
+現行の`assertSerializedPublicationContext`認可ロジックを変更せず、`BRAINBASE_NPM_OIDC_DIAGNOSTIC=true`のときだけendpointの固定boolean分類を出してOIDC request前に停止する診断laneを追加する。workflowはこのフラグを固定値として設定し、dispatch入力にはしない。
 
 ## Existing architecture retained
 
-この変更は[ADR-story-brainbase-oss-npm-release.md](ADR-story-brainbase-oss-npm-release.md)の「GitHub発行OIDC tokenとreview済みworkflow/refを完全一致させる」決定を変更しない。endpoint取得後のaudience、repository、run ID、workflow ref、ref claim検証、package単位serialization、tarball proof、registry mutation順序はそのまま維持するため、新しいADRは作成しない。
+この変更は[ADR-story-brainbase-oss-npm-release.md](ADR-story-brainbase-oss-npm-release.md)の「GitHub発行OIDC tokenとreview済みworkflow/refを完全一致させる」決定を変更しない。通常モードのendpoint predicate、audience、repository、run ID、workflow ref、ref claim検証、package単位serialization、tarball proof、registry mutation順序はそのまま維持するため、新しいADRは作成しない。
 
 ## Trust boundary
 
-- URL protocolは`https:`のみ。
-- hostname全体を`^pipelines[a-z0-9-]*\.actions\.githubusercontent\.com$`へ一致させる。
-- raw authorityに明示されたport（`:443`を含む）と、username、passwordを拒否する。
-- token responseと全OIDC claimは既存ロジックで検証する。
+- 診断classifierは現行predicateと同じURL parser、hostname正規表現、raw authority colon式を使うが、認可判断には流用しない。
+- 出力は固定booleanだけとし、URL、hostname値、path、query、token、username、password値を含めない。
+- 診断laneはclassifier実行直後に専用errorをthrowし、OIDC requestとnpm処理へ進まない。
+- 通常laneは既存のHTTPS、hostname、raw authority、userinfo、token response、claim検証をそのまま実行する。
 
 ## Failure and rollback
 
-不一致endpointはnpm registryを参照または変更する前にfail closedする。問題があればhotfix commitをrevertし、公開workflowを停止したままendpoint evidenceを再取得する。npm versionはこの変更だけでは作成されないため、rollback時のregistry migrationはない。
+診断runは常にOIDC request前でfail closedする。boolean vectorを取得後、原因修正PRでworkflowの診断フラグを削除する。問題があれば診断commitをrevertし、公開workflowを停止したまま再調査する。この変更だけではnpm versionは作成されない。

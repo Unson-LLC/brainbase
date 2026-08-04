@@ -1,6 +1,6 @@
 ---
 story_id: story-brainbase-oss-npm-release-oidc-endpoint
-title: GitHub regional OIDC endpointでOSS npm公開を継続する
+title: GitHub Actions OIDC endpoint拒否理由を安全に確定する
 status: active
 period: 2026Q3
 horizon: quarter
@@ -24,53 +24,53 @@ created_at: 2026-08-04
 updated_at: 2026-08-04
 ---
 
-# GitHub regional OIDC endpointでOSS npm公開を継続する
+# GitHub Actions OIDC endpoint拒否理由を安全に確定する
 
 ## 背景
 
-初回のOSS npm公開workflowは、GitHub-hosted runnerが返したregional OIDC endpoint
-`pipelinesghubeus4.actions.githubusercontent.com`を、canonical hostnameだけを許可する実装で拒否した。
-workflow、repository、run、refのOIDC claim検証は成功する前に停止し、npm registry mutationは発生しなかった。
+regional hostname対応をmergeした後の再実行run `30884874181`も、`GitHub Actions OIDC endpoint is not trusted`で停止した。ログにはendpoint実値も失敗predicateも残っておらず、明示的`:443`拒否が原因という仮説はまだ確定していない。workflow、repository、run、refのOIDC claim検証へ進む前に停止し、npm registry mutationは発生しなかった。
 
 ## Current reality
 
-失敗run `30881013519`では、immutable commitのvalidationまでは成功し、publish jobがGitHub-hosted runnerのregional OIDC endpointを信頼できずに停止した。したがって現在のblockerはnpm credentialやregistry mutationではなく、token取得前のendpoint authority判定である。hotfixはこの失敗経路をunit testでreplayし、既存claim検証へ進む境界だけを修正する。
+失敗run `30884874181`ではimmutable commitのvalidationまで成功し、publish jobがtoken取得前のendpoint authority判定で停止した。現行実装はregional hostnameを許可する一方、raw authority内のcolonを一律拒否するため明示的`:443`も拒否するが、実runの入力は未確認である。次のPRは認可条件を変更せず、固定booleanだけを出す診断モードで失敗predicateを確定する。
 
 ## 誰が・何を・なぜ
 
-OSS maintainerは、GitHub Actionsが発行するcanonicalまたはregional pipeline endpointからのみOIDC tokenを取得し、既存のclaim検証を維持したままnpm公開を再実行したい。
+OSS maintainerは、OIDC URL、path、query、token、userinfo値をログへ出さず、GitHub Actions提供endpointが現行のどのpredicateで拒否されたかを一回の診断runで確定したい。
 
 ## Business contextと成功指標
 
-初回OSS公開を止めているproduction release blockerを、registryの安全境界を弱めずに解消する。PR内の成功指標はregional endpointのpositive testとlookalike endpointのnegative testが現在HEADで成功すること、merge後の運用指標はpublication context検証を通過して元Storyのregistry検証まで到達することとする。
+初回OSS公開を止めているproduction release blockerを、推測でtrust boundaryを変更せずに特定する。PR内の成功指標は診断出力が固定booleanだけであること、OIDC requestが呼ばれないこと、通常モードの既存accept/reject testが不変であること。merge後の成功指標は診断runから拒否predicateを一意に判定できることとする。
 
 ## 受け入れ基準
 
-- [ ] `pipelines.actions.githubusercontent.com`と、`pipelines`で始まるGitHub regional hostnameを許可する。
-- [ ] endpointはHTTPS、portなし、userinfoなし、正確な`.actions.githubusercontent.com` suffixに限定する。
-- [ ] suffixの後ろへ攻撃者domainを付けたlookalike hostnameを公開前に拒否する。
-- [ ] audience、repository、run ID、workflow ref、ref claimの既存検証を緩めない。
-- [ ] regional endpoint成功とlookalike拒否をunit testで固定し、release validation、E2E、buildが現在HEADで成功する。
+- [ ] 診断出力を`url_present`、`parse_ok`、`protocol_https`、`hostname_trusted`、`raw_authority_colon`、`userinfo_present`、`normalized_nondefault_port`の固定booleanへ限定する。
+- [ ] URL全文、path、query、OIDC request token、username、passwordの値を出力しない。
+- [ ] 診断モードはOIDC requestより前に専用errorで必ず停止し、npm registry mutationへ進まない。
+- [ ] 通常モードのendpointおよびclaim認可条件を変更しない。
+- [ ] diagnostic flagはworkflow内の固定値とし、dispatch入力として公開しない。
+- [ ] focused unit、workflow、release validation、E2E、buildを現在HEADで成功させる。
 
 ## 境界
 
 - npm token、npm organization、GitHub repository設定は変更しない。
-- 公開workflowやartifact contractは変更しない。
-- npm registryへの実公開はmerge後の手動dispatchで検証し、このhotfixのPR前Gateには循環条件として含めない。
+- 通常モードの認可条件、artifact contract、registry mutation順序は変更しない。
+- このPRのworkflow変更は診断フラグの固定だけに限定し、診断run後の原因修正PRで必ず解除する。
 
 ## Failure modes
 
-- malformed、HTTP、port付き、userinfo付き、lookalike suffixのendpointを誤って許可すること。
-- regional endpointを再び拒否し、workflowをtoken取得前で停止させること。
-- endpoint修正に伴い、audience、repository、run ID、workflow ref、ref claimの検証を緩めること。
+- 診断メッセージへURL、path、query、tokenまたはuserinfo値を含めること。
+- 診断モードがOIDC requestやregistry mutationへ進むこと。
+- 診断classifierと現行predicateの式がずれ、原因を誤判定すること。
+- 診断追加に伴い通常モードのendpointまたはclaim検証を緩めること。
 
 これらはfocused unit testのpositive/negative path、release validation、OSS E2E、buildで現在HEADに結び付ける。
 
 ## Release note / operator action
 
-Release note: GitHub-hosted runnerのregional pipelines OIDC endpointを、HTTPS・authority・suffixの制約を維持したまま受け入れる。利用者向けCLIやpackage APIの変更はない。
+Release note: npm公開を止めているGitHub Actions OIDC endpoint判定について、秘密値を含まない固定boolean診断を追加する。利用者向けCLIやpackage API、通常の認可条件の変更はない。
 
-merge後のoperator actionは、`develop`を`release_ref`に指定して`npm-publish.yml`を手動dispatchすること。observability evidenceはGitHub Actionsのvalidation/publish各job logと、公開後に取得するnpm metadataの`version`、`gitHead`、`dist.integrity`、dist-tag、GitHub Releaseとする。
+merge後のoperator actionは、`develop`を`release_ref`に指定して`npm-publish.yml`を手動dispatchし、固定boolean vectorを保存すること。`raw_authority_colon=true`かつ`normalized_nondefault_port=false`で他条件が正常なら、明示的default portを許可する最小修正へ進む。それ以外は失敗predicateに対応する入力契約を再調査する。
 
 Rollback instruction: 公開前に問題が見つかった場合はhotfix commitをrevertしてworkflowを再実行しない。公開後のnpm versionはimmutableなので削除や上書きをせず、修正版を新しいforward versionとして公開する。
 

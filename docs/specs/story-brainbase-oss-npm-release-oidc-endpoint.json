@@ -9,38 +9,37 @@
     {
       "id": "oidc-endpoint-flow",
       "kind": "flow",
-      "title": "OIDC endpoint validation flow",
-      "mermaid": "flowchart LR\n  endpoint[\"GitHub Actions OIDC request endpoint\"] --> parse[\"Parse URL and raw authority\"]\n  parse --> transport[\"Require HTTPS and no explicit userinfo or port\"]\n  transport --> host[\"Match canonical or regional pipelines host\"]\n  host --> token[\"Retrieve runner-issued OIDC token\"]\n  token --> claims[\"Verify audience repository run workflow and ref claims\"]\n  claims --> publish[\"Continue guarded npm publication\"]"
+      "title": "OIDC endpoint diagnostic flow",
+      "mermaid": "flowchart LR\n  endpoint[\"GitHub Actions OIDC request endpoint\"] --> classify[\"Classify with fixed booleans\"]\n  classify --> report[\"Emit no URL path query token or userinfo values\"]\n  report --> stop[\"Stop before OIDC request\"]\n  stop --> evidence[\"Use observed predicate in the follow-up fix\"]"
     },
     {
       "id": "oidc-endpoint-threat-model",
       "kind": "threat_model",
-      "title": "OIDC endpoint authority boundary",
-      "mermaid": "flowchart TD\n  canonical[\"pipelines.actions.githubusercontent.com request host\"] --> trusted[\"Trusted request authority\"]\n  regional[\"pipelines regional host under actions.githubusercontent.com\"] --> trusted\n  suffix[\"Lookalike suffix or subdomain\"] --> reject[\"Fail before token retrieval\"]\n  malformed[\"Malformed URL HTTP explicit port or userinfo\"] --> reject\n  trusted --> token[\"Retrieve token from GitHub request endpoint\"]\n  token --> claims[\"Verify token issuer and existing claims unchanged\"]\n  claims --> release[\"Release authority\"]"
+      "title": "OIDC diagnostic data boundary",
+      "mermaid": "flowchart TD\n  endpoint[\"Runner endpoint\"] --> classifier[\"Existing predicate observations\"]\n  classifier --> safe[\"Fixed booleans only\"]\n  endpoint --> secret[\"URL path query token and userinfo values\"]\n  secret --> blocked[\"Never logged\"]\n  safe --> stop[\"Dedicated error before request\"]\n  stop --> followup[\"Evidence-bound correction\"]"
     }
   ],
   "clauses": [
     {
       "id": "OIDC-ENDPOINT-001",
       "type": "invariant",
-      "statement": "Only canonical or regional pipelines hosts under the exact actions.githubusercontent.com suffix are trusted.",
+      "statement": "Diagnostic mode reports only fixed endpoint predicate booleans and always stops before token retrieval.",
       "origin": {
         "story_refs": [{"kind": "acceptance_criteria", "index": 0}],
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
-        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "accepts GitHub-hosted runner regional OIDC endpoints"}]
+        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "reports only fixed OIDC diagnostic booleans"}]
       },
       "confidence": 1
     },
     {
       "id": "OIDC-ENDPOINT-002",
       "type": "scenario",
-      "statement": "Lookalike suffixes and malformed authority components fail before token retrieval or registry mutation.",
+      "statement": "Diagnostic output excludes URL, path, query, request token, and userinfo values while preserving the current predicate observations.",
       "origin": {
         "story_refs": [{"kind": "acceptance_criteria", "index": 2}],
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
         "test_refs": [
-          {"file": "tests/npm-release.test.ts", "case": "rejects lookalike OIDC endpoint suffixes"},
-          {"file": "tests/npm-release.test.ts", "case": "rejects explicit default port OIDC endpoints before token retrieval"}
+          {"file": "tests/npm-release.test.ts", "case": "reports only fixed OIDC diagnostic booleans"}
         ]
       },
       "confidence": 1
@@ -48,7 +47,7 @@
     {
       "id": "OIDC-CLAIMS-001",
       "type": "invariant",
-      "statement": "Endpoint acceptance does not relax audience, repository, run, workflow ref, or ref claim verification.",
+      "statement": "Diagnostic mode does not change normal endpoint acceptance or audience, repository, run, workflow ref, or ref claim verification.",
       "origin": {
         "story_refs": [{"kind": "acceptance_criteria", "index": 3}],
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
@@ -59,18 +58,18 @@
     {
       "id": "OIDC-OPS-001",
       "type": "contract",
-      "statement": "After this hotfix is merged, an operator reruns the npm publish workflow for develop and verifies both the workflow log and npm registry metadata; publication is not a pre-merge gate for this hotfix.",
+      "statement": "After this diagnostic is merged, an operator reruns the workflow for develop, records the fixed boolean vector, and uses only that evidence for the follow-up correction.",
       "origin": {
         "story_refs": [{"kind": "background", "index": 0}],
         "code_refs": [{"file": ".github/workflows/npm-publish.yml", "anchor": "workflow_dispatch"}],
-        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "accepts GitHub-hosted runner regional OIDC endpoints"}]
+        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "reports only fixed OIDC diagnostic booleans"}]
       },
       "confidence": 1
     },
     {
       "id": "OIDC-ROLLBACK-001",
       "type": "scenario",
-      "statement": "If the broadened host matcher is found unsafe before publication, revert this hotfix and leave the registry unchanged; after publication, registry versions remain immutable and rollback is a new forward version rather than deletion.",
+      "statement": "If diagnostic output or stopping behavior is unsafe, revert this diagnostic and keep publication stopped; this change alone cannot create an npm version.",
       "origin": {
         "story_refs": [{"kind": "policy", "index": 0}],
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
@@ -81,11 +80,11 @@
     {
       "id": "OIDC-SCOPE-001",
       "type": "contract",
-      "statement": "The implementation surface is limited to the OIDC authority matcher and its focused tests; the remaining changed files are Story, Architecture, and Spec traceability artifacts.",
+      "statement": "The implementation surface is limited to the diagnostic classifier, fixed workflow flag, focused tests, and Story, Architecture, and Spec traceability artifacts.",
       "origin": {
         "story_refs": [{"kind": "acceptance_criteria", "index": 4}],
-        "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "trustedOidcHostname"}],
-        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "rejects lookalike OIDC endpoint suffixes"}]
+        "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "classifyOidcEndpoint"}],
+        "test_refs": [{"file": "tests/npm-release.test.ts", "case": "reports only fixed OIDC diagnostic booleans"}]
       },
       "confidence": 1
     }

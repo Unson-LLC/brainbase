@@ -28,6 +28,7 @@ describe('npm publish workflow', () => {
     expect(publishJob).toMatch(/--tarball-file/u);
     expect(publishJob).toMatch(/node scripts\/npm-release\.mjs publish/u);
     expect(publishJob).toMatch(/BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'/u);
+    expect(publishJob).toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC: 'true'/u);
     expect(publishJob).toMatch(/id-token: write/u);
     expect(publishJob).not.toMatch(/npm run release:publish/u);
   });
