@@ -36,7 +36,7 @@
         "code_refs": [{"file": "scripts/npm-release.mjs", "anchor": "assertSerializedPublicationContext"}],
         "test_refs": [
           {"file": "tests/npm-release.test.ts", "case": "reports only fixed OIDC diagnostic booleans"},
-          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint.spec.ts", "case": "replays the fixed workflow diagnostic through the runtime stop boundary"}
+          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "replays the fixed workflow diagnostic through the runtime stop boundary"}
         ]
       },
       "confidence": 1
@@ -74,7 +74,7 @@
         "code_refs": [{"file": ".github/workflows/npm-publish.yml", "anchor": "workflow_dispatch"}],
         "test_refs": [
           {"file": "tests/npm-release.test.ts", "case": "reports only fixed OIDC diagnostic booleans"},
-          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint.spec.ts", "case": "replays the fixed workflow diagnostic through the runtime stop boundary"}
+          {"file": "tests/e2e/story-brainbase-oss-npm-release-oidc-endpoint-acceptance.spec.ts", "case": "replays the fixed workflow diagnostic through the runtime stop boundary"}
         ]
       },
       "confidence": 1
