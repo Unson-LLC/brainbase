@@ -106,14 +106,28 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
     await expect(assertSerializedPublicationContext({
       ...publicationContext,
       ACTIONS_ID_TOKEN_REQUEST_URL: 'https://acghubeus2.actions.githubusercontent.com/token'
-    }, acceptedRequest)).resolves.toBeUndefined();
+    }, acceptedRequest), 'ac-4 accepts a single GitHub-controlled hostname label').resolves.toBeUndefined();
 
     const rejectedRequest = vi.fn();
     await expect(assertSerializedPublicationContext({
       ...publicationContext,
       ACTIONS_ID_TOKEN_REQUEST_URL: 'https://acghubeus2.actions.githubusercontent.com.attacker.example/token'
-    }, rejectedRequest)).rejects.toThrow(/OIDC endpoint is not trusted/u);
+    }, rejectedRequest), 'ac-4 rejects a suffix-lookalike hostname').rejects.toThrow(/OIDC endpoint is not trusted/u);
     expect(rejectedRequest).not.toHaveBeenCalled();
+
+    const userinfoRequest = vi.fn();
+    await expect(assertSerializedPublicationContext({
+      ...publicationContext,
+      ACTIONS_ID_TOKEN_REQUEST_URL: 'https://runner:secret@acghubeus2.actions.githubusercontent.com/token'
+    }, userinfoRequest), 'ac-4 rejects endpoint userinfo').rejects.toThrow(/OIDC endpoint is not trusted/u);
+    expect(userinfoRequest).not.toHaveBeenCalled();
+
+    const explicitPortRequest = vi.fn();
+    await expect(assertSerializedPublicationContext({
+      ...publicationContext,
+      ACTIONS_ID_TOKEN_REQUEST_URL: 'https://acghubeus2.actions.githubusercontent.com:8443/token'
+    }, explicitPortRequest), 'ac-4 rejects an explicit port').rejects.toThrow(/OIDC endpoint is not trusted/u);
+    expect(explicitPortRequest).not.toHaveBeenCalled();
   });
 
   it('S-003 rejects a malformed endpoint before any token request', async () => {
@@ -133,7 +147,7 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
     expect(request).not.toHaveBeenCalled();
   });
 
-  it('AC-7 S-004 requires absence before initial publication and immutable evidence after it', async () => {
+  it('AC-8 S-004 requires absence before initial publication and immutable evidence after it', async () => {
     const contract = JSON.parse(await readFile(
       new URL('../../docs/responsibility-authority/npm-publication.json', import.meta.url),
       'utf8'
@@ -141,8 +155,8 @@ describe('OSS npm release OIDC diagnostic acceptance', () => {
     const publication = contract.responsibilities.find(
       (responsibility) => responsibility.id === 'brainbase_oss_npm_publication'
     );
-    expect(publication.required_evidence, 'ac-7 requires phase-aware registry evidence').toContain('registry_state_verified_for_release_phase');
-    expect(publication.unknown_policy).toMatch(/Before an initial publication, registry evidence must prove the target version is absent/u);
-    expect(publication.unknown_policy).toMatch(/after publication, it must prove dist integrity and immutable gitHead/u);
+    expect(publication.required_evidence, 'ac-8 requires phase-aware registry evidence').toContain('registry_state_verified_for_release_phase');
+    expect(publication.unknown_policy, 'ac-8 requires target-version absence before initial publication').toMatch(/Before an initial publication, registry evidence must prove the target version is absent/u);
+    expect(publication.unknown_policy, 'ac-8 requires dist integrity and immutable gitHead after publication').toMatch(/after publication, it must prove dist integrity and immutable gitHead/u);
   });
 });
