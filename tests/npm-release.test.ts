@@ -81,6 +81,28 @@ describe('serialized publication context', () => {
     );
   });
 
+  it('accepts GitHub-hosted runner regional OIDC endpoints', async () => {
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ value: oidcToken() })
+    });
+    await expect(assertSerializedPublicationContext({
+      ...context,
+      ACTIONS_ID_TOKEN_REQUEST_URL: 'https://pipelinesghubeus4.actions.githubusercontent.com/token'
+    }, request)).resolves.toBeUndefined();
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({ hostname: 'pipelinesghubeus4.actions.githubusercontent.com' }),
+      expect.any(Object)
+    );
+  });
+
+  it('rejects lookalike OIDC endpoint suffixes', async () => {
+    await expect(assertSerializedPublicationContext({
+      ...context,
+      ACTIONS_ID_TOKEN_REQUEST_URL: 'https://pipelines.actions.githubusercontent.com.attacker.example/token'
+    }, vi.fn())).rejects.toThrow(/OIDC endpoint is not trusted/u);
+  });
+
   it('rejects an attestation for a different run', async () => {
     const request = vi.fn().mockResolvedValue({
       ok: true,

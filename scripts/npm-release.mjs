@@ -449,9 +449,10 @@ export async function assertSerializedPublicationContext(environment = process.e
     throw new Error('publish is restricted to the serialized GitHub Actions workflow; use `gh workflow run npm-publish.yml --ref develop -f release_ref=<ref>`');
   }
   const oidcUrl = new URL(environment.ACTIONS_ID_TOKEN_REQUEST_URL);
+  const trustedOidcHostname = /^pipelines[a-z0-9-]*\.actions\.githubusercontent\.com$/u;
   if (
     oidcUrl.protocol !== 'https:' ||
-    oidcUrl.hostname !== 'pipelines.actions.githubusercontent.com' ||
+    !trustedOidcHostname.test(oidcUrl.hostname) ||
     oidcUrl.port ||
     oidcUrl.username ||
     oidcUrl.password
