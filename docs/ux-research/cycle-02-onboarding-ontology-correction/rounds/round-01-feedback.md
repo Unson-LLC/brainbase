@@ -1,14 +1,14 @@
-# Round 1 corrective feedback
+# 訂正評価・初回の意見
 
-Four synthetic beginner lenses reviewed the same actual-host walkthrough: a low-technical-literacy first-time user, an ontology newcomer, an interrupted operator, and a recovery-focused user.
+4つの合成初心者視点で、同じ実ホスト操作を確認した。視点は、技術に不慣れな初回利用者、オントロジー初心者、中断されながら操作する担当者、エラー復旧を重視する担当者である。実在する4人の発言ではない。
 
-## Adopted findings
+## 出た意見と判断
 
-| ID | Actual-screen observation | Beginner impact | Priority | Decision |
+| ID | 実画面で起きたこと | 初心者への影響 | 優先度 | 判断 |
 |---|---|---|---|---|
-| CUX-001 | `brainbase_onboarding_first_value` rendered no input fields | The required final step cannot be completed in the host UI | P0 | Adopt |
-| CUX-002 | Successful onboarding results did not identify the next tool or required IDs | A newcomer must infer the workflow from tool names and raw JSON | P1 | Adopt |
-| CUX-003 | The inferred-candidate error stated the prohibition but omitted the recovery action | A safe rejection becomes a dead end | P1 | Adopt |
-| CUX-004 | `get_ontology` began with the complete raw contract | A newcomer sees detail before a mental model | P1 | Adopt |
+| CUX-001 | `brainbase_onboarding_first_value` に入力欄が表示されない | 必須の最終工程を開始できない | P0 | 採用 |
+| CUX-002 | 成功結果に、次のツールと必要IDがない | ツール名と生JSONから手順を推測することになる | P1 | 採用 |
+| CUX-003 | 推論候補を承認できない理由だけが表示され、復旧操作がない | 安全な拒否が行き止まりになる | P1 | 採用 |
+| CUX-004 | `get_ontology` が完全な契約JSONから始まる | 全体像を持つ前に詳細を読まされる | P1 | 採用 |
 
-No persona quote or human completion time is claimed. Findings are grounded in the shared browser trace and screenshots.
+4件すべてを修正対象にした。ペルソナの架空の発言や、人間の完了時間は記録していない。根拠は共通のブラウザ操作履歴とスクリーンショットである。

@@ -1,23 +1,23 @@
-# Round 1 actual-host trace
+# 訂正評価・初回の実ホスト操作記録
 
-Surface: MCP Inspector 2.0.0 connected to the repository-built `brainbase-mcp` stdio server.
+操作画面: リポジトリでビルドした `brainbase-mcp` stdio serverへ接続したMCP Inspector 2.0.0。
 
-Evaluator: Codex acting through four synthetic beginner lenses. These are structured review lenses, not human participants. No quotes, human timings, physical-device evidence, or assistive-technology evidence were collected.
+評価者: Codexが4つの合成初心者視点を使って評価した。これは構造化された評価視点であり、実在する参加者ではない。発言、人間の所要時間、実端末、支援技術の証拠は収集していない。
 
-## Shared task trace
+## 共通の操作履歴
 
-1. Opened `brainbase_onboarding_start` in the actual host UI.
-2. Started a run with Drive `ready` and Gmail `waiting_for_authorization`.
-3. Confirmed the result preserved both source states and exposed `runId`.
-4. Opened `brainbase_onboarding_ingest`, submitted one inferred Decision candidate, and received `candidates_ready`.
-5. Tried to approve the inferred candidate in `brainbase_onboarding_review`.
-6. Confirmed the host error contained only `inferred candidates cannot be approved`; it did not contain the recovery action.
-7. Opened `brainbase_onboarding_first_value`.
-8. Confirmed MCP Inspector rendered no input fields because the public JSON Schema used a top-level `oneOf`; only `Execute Tool` was available.
-9. Opened `get_ontology`.
-10. Confirmed the result began directly with the full versioned contract and exposed no beginner map before the raw ontology.
+1. 実ホスト画面で `brainbase_onboarding_start` を開いた。
+2. Driveは `ready`、Gmailは `waiting_for_authorization` として開始した。
+3. 両方の接続状態と `runId` が結果に保持されることを確認した。
+4. `brainbase_onboarding_ingest` で推論されたDecision候補を1件送り、`candidates_ready` になった。
+5. `brainbase_onboarding_review` で推論候補の直接承認を試した。
+6. エラーは `inferred candidates cannot be approved` だけで、復旧操作が書かれていないことを確認した。
+7. `brainbase_onboarding_first_value` を開いた。
+8. 公開JSON Schemaの最上位が `oneOf` だったため入力欄が表示されず、`Execute Tool` しか操作できないことを確認した。
+9. `get_ontology` を開いた。
+10. 結果が完全なバージョン付き契約から始まり、その前に初心者向けの全体像がないことを確認した。
 
-## Evidence boundary
+## 証拠の範囲
 
-- Collected: actual host UI, browser DOM snapshot, screenshots, MCP request history.
-- Not collected: human participant observation, real device, screen reader, task timing.
+- 収集済み: 実ホスト画面、ブラウザDOMスナップショット、スクリーンショット、MCPリクエスト履歴。
+- 未収集: 実利用者の観察、実端末、スクリーンリーダー、タスク所要時間。

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brainbase 初心者UX 訂正評価</title>
+  <style>
+    :root { color-scheme: light; --ink:#172033; --muted:#5f6b7a; --line:#dbe1e8; --panel:#f7f9fc; --blue:#2457d6; --green:#147d64; --amber:#9a6410; --red:#b33a3a; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:#eef2f7; color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif; line-height:1.65; }
+    main { width:min(1120px,calc(100% - 32px)); margin:32px auto 72px; }
+    header,.section { background:white; border:1px solid var(--line); border-radius:18px; padding:28px; margin-bottom:20px; }
+    .eyebrow { margin:0 0 8px; color:var(--blue); font-weight:700; letter-spacing:.08em; font-size:13px; }
+    h1 { margin:0; font-size:clamp(28px,4vw,46px); line-height:1.25; }
+    h2 { margin:0 0 18px; font-size:24px; }
+    h3 { margin:0 0 8px; font-size:18px; }
+    p { margin:8px 0; }
+    .lead { max-width:850px; color:var(--muted); font-size:17px; }
+    .cards { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:24px; }
+    .card { padding:18px; background:var(--panel); border-radius:14px; }
+    .number { display:block; font-size:30px; font-weight:800; line-height:1.15; }
+    .label { color:var(--muted); font-size:13px; }
+    .good { color:var(--green); } .unknown { color:var(--amber); }
+    .notice { margin-top:18px; padding:14px 16px; border-left:4px solid var(--amber); background:#fff9ea; }
+    .rounds { display:grid; gap:12px; }
+    .round { display:grid; grid-template-columns:120px 1fr 150px; gap:18px; align-items:start; padding:18px; border:1px solid var(--line); border-radius:14px; }
+    .round-tag { font-weight:800; color:var(--blue); }
+    .status { padding:5px 10px; border-radius:999px; text-align:center; font-size:13px; font-weight:700; background:#e9f7f1; color:var(--green); }
+    .status.warn { background:#fff4d7; color:var(--amber); }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th,td { padding:12px 10px; text-align:left; vertical-align:top; border-bottom:1px solid var(--line); }
+    th { background:var(--panel); white-space:nowrap; }
+    .decision { color:var(--green); font-weight:800; }
+    .result-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    figure { margin:0; }
+    img { width:100%; border:1px solid var(--line); border-radius:12px; display:block; }
+    figcaption { margin-top:8px; color:var(--muted); font-size:13px; }
+    .limits li { margin:6px 0; }
+    code { padding:2px 5px; border-radius:5px; background:#edf1f6; }
+    a { color:var(--blue); }
+    @media (max-width:800px) { .cards{grid-template-columns:1fr 1fr}.round{grid-template-columns:1fr}.result-grid{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">BRAINBASE / ONBOARDING &amp; ONTOLOGY 1.0.0</p>
+    <h1>初心者UXの訂正評価</h1>
+    <p class="lead">何が分かりにくかったのか、どの意見を採用したのか、修正後にどこまで安心して使えると判断したのかを、日本語でまとめたレポートです。</p>
+    <div class="cards">
+      <div class="card"><span class="number good">32 / 32</span><span class="label">対象2タスクを完了できると判定した合成視点</span></div>
+      <div class="card"><span class="number">5 / 5</span><span class="label">発見して採用・修正した意見</span></div>
+      <div class="card"><span class="number good">0件</span><span class="label">最終版の安全ゲート失敗・重大回帰</span></div>
+      <div class="card"><span class="number unknown">0人</span><span class="label">今回観察した実際の初心者</span></div>
+    </div>
+    <div class="notice"><strong>人数の読み方：</strong>32は実在する利用者数ではなく、32種類の初心者条件による評価視点です。実ユーザー成功率はまだ不明です。</div>
+  </header>
+
+  <section class="section">
+    <h2>まず、旧4ラウンドで分かったこと</h2>
+    <p>旧4ラウンドは同じコードに対する自動契約評価でした。各ラウンドで32枠×4タスク＝128件が成功しましたが、実画面を操作していないため、初心者の意見や迷いは収集できていません。</p>
+    <div class="rounds">
+      <article class="round"><div class="round-tag">旧 Round 1</div><div><h3>自動契約 128 / 128成功</h3><p><code>runId</code>の名称統一とDecision意味フィールド保持など、コード契約上の不足を扱った。個別の初心者意見は0件。</p></div><div class="status warn">UXは未判定</div></article>
+      <article class="round"><div class="round-tag">旧 Round 2</div><div><h3>自動契約 128 / 128成功</h3><p>新しい自動検出は0件。実画面・実利用者の証拠は未収集。</p></div><div class="status warn">UXは未判定</div></article>
+      <article class="round"><div class="round-tag">旧 Round 3</div><div><h3>自動契約 128 / 128成功</h3><p>新しい自動検出は0件。初心者が次の操作を理解できるかは未確認。</p></div><div class="status warn">UXは未判定</div></article>
+      <article class="round"><div class="round-tag">旧 Round 4</div><div><h3>自動契約 128 / 128成功</h3><p>新しい自動検出は0件。4ラウンドを終えても、人間向けUXは未収束と判断した。</p></div><div class="status warn">UXは未収束</div></article>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>その後の訂正評価で出た意見</h2>
+    <table>
+      <thead><tr><th>段階</th><th>初心者視点の意見</th><th>判断</th><th>行った修正</th><th>結果</th></tr></thead>
+      <tbody>
+        <tr><td>実画面・初回</td><td>入力欄が表示されず、最終工程を始められない</td><td class="decision">採用</td><td>公開スキーマを平坦化し7項目を表示</td><td>実画面で入力可能</td></tr>
+        <tr><td>実画面・初回</td><td>成功後に、次にどのツールを使うか分からない</td><td class="decision">採用</td><td><code>nextAction</code>にツール・説明・必要IDを追加</td><td>次の操作を画面で判断可能</td></tr>
+        <tr><td>実画面・初回</td><td>推論候補を承認できないと、行き止まりになる</td><td class="decision">採用</td><td>人が確認した<code>edit</code>または<code>reject</code>を案内</td><td>安全な復旧経路を確認</td></tr>
+        <tr><td>実画面・初回</td><td>オントロジーの詳細が先に出て、全体像がつかめない</td><td class="decision">採用</td><td>1文説明と5要素の初心者ガイドを先頭に追加</td><td>詳細の前に全体像を確認</td></tr>
+        <tr><td>修正後・再操作</td><td>画面が前操作の値を残すと、正しい最終操作が失敗する</td><td class="decision">採用</td><td>不要な残留項目を受け止め、実行前に除去</td><td><code>first_value_answer_reviewed</code>まで完了</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2>最終評価：どのくらいの人が使えそうか</h2>
+    <table>
+      <thead><tr><th>初心者視点</th><th>評価数</th><th>オンボーディング完了</th><th>オントロジー理解</th><th>両方成功</th></tr></thead>
+      <tbody>
+        <tr><td>初回利用者</td><td>8</td><td>8 / 8</td><td>8 / 8</td><td>8 / 8</td></tr>
+        <tr><td>チーム運用担当</td><td>8</td><td>8 / 8</td><td>8 / 8</td><td>8 / 8</td></tr>
+        <tr><td>オントロジー管理担当</td><td>8</td><td>8 / 8</td><td>8 / 8</td><td>8 / 8</td></tr>
+        <tr><td>エラー復旧重視</td><td>8</td><td>8 / 8</td><td>8 / 8</td><td>8 / 8</td></tr>
+        <tr><th>合計</th><th>32視点</th><th>32 / 32</th><th>32 / 32</th><th>32 / 32</th></tr>
+      </tbody>
+    </table>
+    <div class="notice"><strong>言えること：</strong>MCP Inspectorの対象2タスクでは、32種類の初心者条件から見ても、明確な失敗や行き止まりは残っていません。<br><strong>まだ言えないこと：</strong>Brainbase全体を、実際の初心者32人が問題なく使えたわけではありません。</div>
+  </section>
+
+  <section class="section">
+    <h2>画面の修正前後</h2>
+    <div class="result-grid">
+      <figure><img src="screenshots/before-first-value-empty-form.png" alt="修正前。入力欄が表示されていない"><figcaption>修正前：入力欄がなく、初心者は最終工程を開始できない。</figcaption></figure>
+      <figure><img src="screenshots/after-completion.png" alt="修正後。最終評価まで完了している"><figcaption>修正後：残留入力があっても最終評価まで完了できる。</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>残っている確認</h2>
+    <ul class="limits">
+      <li>実際の初心者による独立した操作テスト</li>
+      <li>スマートフォン・小画面・実端末</li>
+      <li>スクリーンリーダー、キーボードのみ、音声入力などの支援技術</li>
+      <li>初心者が自力で完了するまでの時間</li>
+      <li>本番環境でのE2E</li>
+    </ul>
+    <p>詳細：<a href="SUMMARY.md">日本語サマリー</a> / <a href="decision-log.md">判断記録</a> / <a href="before-after.md">修正前後</a></p>
+  </section>
+</main>
+</body>
+</html>

@@ -1,11 +1,11 @@
-# Corrective decision log
+# 訂正評価の判断記録
 
-| ID | Decision | Implementation | Test | Final result |
-|---|---|---|---|---|
-| CUX-001 | Adopt | `41e051e2d075a7459a263794d5d2a29e8fb318ab` | `tests/mcp-contract.test.ts` | Input fields visible in actual host |
-| CUX-002 | Adopt | `41e051e2d075a7459a263794d5d2a29e8fb318ab` | `tests/persona-onboarding-ux.test.ts` | Explicit next tool and IDs visible |
-| CUX-003 | Adopt | `41e051e2d075a7459a263794d5d2a29e8fb318ab` | `tests/persona-onboarding-ux.test.ts` | Recovery action visible in host error |
-| CUX-004 | Adopt | `41e051e2d075a7459a263794d5d2a29e8fb318ab` | `tests/persona-onboarding-ux.test.ts` | Beginner map precedes full ontology |
-| CUX-005 | Adopt after correction attempt | `bfaed02d72e643c6c5933b447371cc491d147089` | `tests/persona-onboarding-ux.test.ts` | Retained host fields no longer block completion |
+| ID | 意見 | 判断 | 実装 | テスト | 最終結果 |
+|---|---|---|---|---|---|
+| CUX-001 | 入力欄がなく、初心者が最終工程を開始できない | 採用 | `41e051e2d7` | `tests/mcp-contract.test.ts` | 実ホストで入力欄を確認 |
+| CUX-002 | 次に何を使うかをJSONとツール名から推測させている | 採用 | `41e051e2d7` | `tests/persona-onboarding-ux.test.ts` | 次のツールと必要IDを確認 |
+| CUX-003 | 安全のための拒否が行き止まりになっている | 採用 | `41e051e2d7` | `tests/persona-onboarding-ux.test.ts` | エラー内に復旧操作を確認 |
+| CUX-004 | 詳細が先に出て、初心者の頭に全体像ができない | 採用 | `41e051e2d7` | `tests/persona-onboarding-ux.test.ts` | 全体像が完全定義より先に表示 |
+| CUX-005 | 画面が保持した前の値により、正しい次操作が失敗する | 再評価で採用 | `bfaed02d72` | `tests/persona-onboarding-ux.test.ts` | 残留値があっても完了 |
 
-The frozen machine-validated round binds only the final revision. The older-head diagnostic screenshots and the intermediate failure are preserved as historical evidence, but are not mislabeled as observations of the final revision.
+機械検証された最終ラウンドは最終版 `bfaed02d72` だけに結び付けている。修正前の画面と中間失敗は履歴証拠として残すが、最終版で発生した観察のようには扱わない。

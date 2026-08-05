@@ -1,9 +1,30 @@
-# Beginner correction evaluation
+# 初心者向け訂正評価サマリー
 
-Status: converged for the two defined MCP Inspector tasks on the final revision.
+## 結論
 
-The prior cycle proved deterministic contracts but did not perform a novice correction evaluation. This corrective cycle first reproduced four beginner blockers in the actual host, implemented them, reran the flow, found one additional host-state bug, fixed it, and then completed a frozen final evaluation with 32 synthetic persona lenses.
+最終版は、MCP Inspector上の対象2タスクについて、32の合成初心者ペルソナ視点すべてで `clear_success` となった。安全ゲート失敗0件、重大な回帰0件、新しい要修正意見0件だったため、この限定範囲では収束と判定した。
 
-The final shared actual-host walkthrough reached `first_value_answer_reviewed`, preserved authorization state, exposed a safe recovery route, and put a five-part beginner map before Ontology 1.0.0 details. The final frozen round had zero new actionable findings, zero safety-gate failures, and zero major regressions.
+| 対象 | 安心して完了できると判定 | 判定できなかった |
+|---|---:|---:|
+| 合成ペルソナ視点 | 32 / 32 | 0 / 32 |
+| 実際の初心者 | 未評価（0人） | 人数・成功率とも不明 |
 
-This does not claim 32 human sessions. Human observation, physical-device testing, screen-reader testing, and independent task timings were not collected. Convergence is limited to the defined common tasks in MCP Inspector.
+「32人の実利用者が成功した」という意味ではない。32種類の初心者条件を、同じ実ホスト操作の証拠に当てて評価した結果である。
+
+## 訂正評価の流れ
+
+1. 実画面の初回確認で、入力欄が出ない、次の操作が分からない、安全な復旧が分からない、オントロジーの全体像がない、という4件を発見してすべて採用した。
+2. 4件を修正後に再操作したところ、画面が前の入力値を保持すると最終評価が失敗する新しい問題を1件発見し、採用して追加修正した。
+3. 最終版でオンボーディング完了とオントロジー理解の2タスクを再評価し、32 / 32視点が両方を完了した。
+
+## 最終的にできるようになったこと
+
+- 入力すべき7項目が実画面に表示される。
+- 各操作後に、次のツール、説明、必要なIDが表示される。
+- 推論候補を直接承認できない場合も、人が確認した `edit` または `reject` へ復旧できる。
+- 画面に前操作の値が残っても、最終状態 `first_value_answer_reviewed` まで進める。
+- Ontology 1.0.0の詳細より先に、1文の説明と5要素の全体像を読める。
+
+## まだ安心と言えない範囲
+
+実利用者、実端末、スマートフォン、スクリーンリーダー、キーボードのみの操作、ペルソナ別の所要時間、本番環境は未評価である。したがって「Brainbase全体を誰でも問題なく使える」までは証明していない。

@@ -1,5 +1,13 @@
-# Corrective validation feedback
+# 訂正後の最終評価
 
-All 32 synthetic persona lenses could identify the required fields, follow the explicit next action, recover from the inferred-candidate rejection, and reach `first_value_answer_reviewed` in the shared actual-host walkthrough. The ontology task exposed a one-sentence model and five-part map before the complete contract.
+32の合成ペルソナ視点すべてで、必要な入力欄を特定し、明示された次の操作に進み、推論候補の拒否から安全に復旧し、共通の実ホスト操作で `first_value_answer_reviewed` に到達できると判定した。オントロジー理解タスクでは、完全な契約定義より先に、1文の説明と5要素の全体像を確認できた。
 
-No new actionable finding was observed in this final revision for the two required tasks. There were no safety-gate failures or major regressions. Human usability, physical-device behavior, assistive-technology behavior, and independent completion times remain unverified and are outside this convergence claim.
+| 役割 | 両タスクとも問題なく完了 | 成功率 |
+|---|---:|---:|
+| 初回利用者 | 8 / 8視点 | 100% |
+| チーム運用担当 | 8 / 8視点 | 100% |
+| オントロジー管理担当 | 8 / 8視点 | 100% |
+| エラー復旧重視 | 8 / 8視点 | 100% |
+| 合計 | 32 / 32視点 | 100% |
+
+対象2タスクでは、新しい要修正意見0件、安全ゲート失敗0件、重大な回帰0件だった。これは合成視点の判定であり、32人の実利用者が独立操作した結果ではない。実利用者、実端末、支援技術、個別の完了時間は未確認である。

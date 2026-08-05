@@ -11,16 +11,16 @@ const trace = 'rounds/correction-validation-browser-trace.md';
 
 const taskDefinitions = {
   'ONB-COMPLETE': {
-    startState: 'A reviewed candidate is ready and first-value record/review must be completed in the actual host UI.',
-    completionCondition: 'The host reaches first_value_answer_reviewed and nextAction is null.',
+    startState: 'レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。',
+    completionCondition: '画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。',
     screen: 'screenshots/after-completion.png',
-    positive: 'The retained-field path completed and the terminal state was visible.'
+    positive: '画面に前操作の値が残った場合も完了でき、最終状態を確認できた。'
   },
   'ONT-UNDERSTAND': {
-    startState: 'A newcomer opens get_ontology without an existing ontology mental model.',
-    completionCondition: 'A one-sentence model, five parts, examples, and suggested next tools appear before the full contract.',
+    startState: 'オントロジーの予備知識がない初心者が get_ontology を開く。',
+    completionCondition: '完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。',
     screen: 'screenshots/after-ontology-guide.png',
-    positive: 'The beginner map appeared before the immutable 1.0.0 details.'
+    positive: '変更不能な Ontology 1.0.0 の詳細より先に、初心者向けの全体像が表示された。'
   }
 };
 
@@ -40,14 +40,14 @@ const records = personas.flatMap((persona) => Object.entries(taskDefinitions).ma
   required_task: true,
   start_state: task.startState,
   completion_condition: task.completionCondition,
-  viewport_profile: 'MCP Inspector 2.0.0 desktop browser; assistive technology not collected',
+  viewport_profile: 'MCP Inspector 2.0.0 デスクトップブラウザ。支援技術の証拠は未収集。',
   outcome: 'clear_success',
   evidence_type: 'synthetic_browser_evaluation',
   hard_gate_status: 'pass',
   action_trace: [
-    'Applied the persona attributes as a structured lens to the shared actual-host walkthrough.',
-    taskId === 'ONB-COMPLETE' ? 'Followed start, ingest, safe review recovery, record, and review.' : 'Opened get_ontology and inspected the result ordering.',
-    'Checked the visible completion condition against the DOM snapshot and screenshot.'
+    '共通の実ホスト操作に対して、ペルソナ属性を評価視点として適用した。',
+    taskId === 'ONB-COMPLETE' ? '開始、取り込み、安全なレビュー復旧、記録、評価の順に操作した。' : 'get_ontology を開き、結果の表示順を確認した。',
+    'DOMスナップショットとスクリーンショットで、画面上の完了条件を確認した。'
   ],
   evidence_references: [trace, task.screen],
   provenance: {
@@ -62,7 +62,7 @@ const records = personas.flatMap((persona) => Object.entries(taskDefinitions).ma
     unclear_next_action: [],
     duplication: [],
     likely_error: [],
-    time_cost: 'Independent persona timing not collected; shared walkthrough only.',
+    time_cost: 'ペルソナ別の独立した所要時間は未収集。共通操作のみ。',
     misleading_state_or_language: [],
     positive_evidence: [task.positive],
     proposal: []

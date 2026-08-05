@@ -1,9 +1,9 @@
-# Before and after
+# 修正前後
 
-| Finding | Before | After | Verification |
+| 意見 | 修正前 | 採用した修正 | 最終確認 |
 |---|---|---|---|
-| CUX-001 first-value form | Actual MCP Inspector showed only `Execute Tool`; no fields rendered | Seven documented fields render and the two-call flow completes | `after-first-value-form.png`, `after-completion.png` |
-| CUX-002 next action | Raw state and IDs were returned without the next tool | Every onboarding result returns `runId` and state-specific `nextAction` | `after-next-action.png`, intent tests |
-| CUX-003 recovery | Error stopped at “inferred candidates cannot be approved” | Error tells the user to verify the source and choose human-confirmed `edit` or `reject` | `after-recovery-error.png`, intent tests |
-| CUX-004 ontology model | Full contract appeared before any explanation | A one-sentence model, five parts, examples, and next tools appear first | `after-ontology-guide.png`, intent tests |
-| CUX-005 retained host fields | Switching record to review resent prior fields and strict validation failed | Irrelevant retained fields are accepted then removed before runtime execution | `after-completion.png`, intent tests |
+| CUX-001 入力フォーム | MCP Inspectorには `Execute Tool` だけが表示され、入力欄がなかった | 公開スキーマを平坦化し、必要な7項目を表示 | `after-first-value-form.png`、`after-completion.png` |
+| CUX-002 次の操作 | 状態とIDだけが返り、次に使うツールは利用者が推測する必要があった | 全結果に `runId` と状態別の `nextAction` を追加 | `after-next-action.png`、意図テスト |
+| CUX-003 エラー復旧 | 「推論候補は承認できない」で止まり、復旧方法がなかった | 出典確認後の `edit` または `reject` を明示 | `after-recovery-error.png`、意図テスト |
+| CUX-004 オントロジー理解 | 説明なしで完全な契約JSONから始まった | 1文の説明、5要素、例、次のツールを先に表示 | `after-ontology-guide.png`、意図テスト |
+| CUX-005 前入力の残留 | 記録から評価へ切り替えると前の項目も再送され、厳格検証で失敗した | 不要な残留項目を受け止め、実行前に操作別の項目だけへ整形 | `after-completion.png`、意図テスト |
