@@ -2,6 +2,7 @@ export type SkillTarget = 'codex' | 'claude' | 'portable';
 
 export type BrainbaseSkillId =
   | 'brainbase-personal-onboarding'
+  | 'brainbase-connected-world-onboarding'
   | 'brainbase-source-import'
   | 'brainbase-candidate-review'
   | 'brainbase-daily-routines';
@@ -33,6 +34,7 @@ export interface SkillBundle {
 
 export const ALL_BRAINBASE_SKILLS: BrainbaseSkillId[] = [
   'brainbase-personal-onboarding',
+  'brainbase-connected-world-onboarding',
   'brainbase-source-import',
   'brainbase-candidate-review',
   'brainbase-daily-routines'
@@ -65,6 +67,7 @@ const SKILL_DEFINITIONS: Record<BrainbaseSkillId, BrainbaseSkillDefinition> = {
       '5. `brainbase onboard:candidates --write`、またはsource import/extractの流れでレビュー候補を作る。',
       '6. ユーザーが明示的に承認した事実だけを `brainbase onboard:seed`、`brainbase onboard:projects --write`、または `brainbase onboard:apply --write` でcanonical SSOTへ昇格する。',
       '7. `brainbase onboard:install --target codex|claude|codecode --dry-run` でMCP設定スニペットを生成し、ユーザーに確認してもらう。',
+      '8. 接続済みソースから最初の価値まで進める場合は `brainbase-connected-world-onboarding` Skillを使う。',
       '',
       '## 安全ルール',
       '',
@@ -72,6 +75,36 @@ const SKILL_DEFINITIONS: Record<BrainbaseSkillId, BrainbaseSkillDefinition> = {
       '- Brainbaseはローカルファーストで扱う。ユーザーが別のローカルパスを明示しない限り、ローカルMCPサーバーと `~/.brainbase/personal-os/` を使う。',
       '- メール、カレンダー、ドライブ、タスク、メモの生データは `sources/` 配下の二次材料として扱う。',
       '- canonical contextは、ユーザー確認後の `graph.json`、`relationships.json`、`personal-kg.jsonl`、`decisions.jsonl` だけから作る。'
+    ].join('\n')
+  },
+  'brainbase-connected-world-onboarding': {
+    id: 'brainbase-connected-world-onboarding',
+    title: 'Brainbase接続済み世界オンボーディング',
+    description: '実際に呼び出せる仕事ソースを棚卸しし、承認済み事実だけで最初の価値まで進める。',
+    body: [
+      '## 目的',
+      '',
+      '既に接続できる仕事ソースから、最小範囲の証拠を人間レビューへつなぎ、10分以内に最初の価値を評価する。',
+      '',
+      '## 手順',
+      '',
+      '1. 最初に「Brainbaseで最初に何が分かると価値があるか」を一つ聞く。',
+      '2. 自分が実際に呼び出せるMCP、Drive、Gmailを確認する。ローカルはユーザーが明示した限定フォルダ、fallbackは明示された単一ドキュメントだけを対象にする。',
+      '3. 各sourceを `ready`、`waiting_for_authorization`、`unavailable`、`error`、`unconfirmed` に分ける。認証失敗、timeout、未確認を0件やreadyにしない。',
+      '4. 最初の価値とsource inventoryを `brainbase_onboarding_start` に渡し、返された `selectedSourceIds` だけを使う。',
+      '5. selected sourceをmetadata-firstで最小範囲だけ取得し、本文ではなくpointer、SHA-256 hash、permission snapshotと短い構造化候補を `brainbase_onboarding_ingest` に渡す。',
+      '6. `brainbase_onboarding_get` の候補を、要約・evidence ID・observed/inferred区分付きでユーザーへ示す。',
+      '7. ユーザーの判断を `brainbase_onboarding_review` の `approve`、`edit`、`reject`、`merge` とreasonで記録する。inferred候補はapproveせず、確認できた内容へeditするかrejectする。',
+      '8. 昇格済みcanonical IDだけで最初の回答を作る。回答本文を渡さず、hashと使用IDを `brainbase_onboarding_first_value` の `record` で記録する。',
+      '9. ユーザーへ役立ったかを聞き、`useful` または `not_useful` と不足文脈を同toolの `review` で記録する。',
+      '',
+      '## 安全ルール',
+      '',
+      `- ${SECRET_RULE}`,
+      '- 全Drive、全mailbox、home directory全体を走査しない。selected sourceのpermission scopeを越えない。',
+      '- source本文と回答本文をBrainbase onboarding ledgerへ保存しない。',
+      '- 候補はcanonical memoryではない。人間が明示的にreviewしたobserved factだけを昇格する。',
+      '- connectorが使えない時は状態をそのまま報告し、別sourceまたは明示された単一ドキュメントを提案する。'
     ].join('\n')
   },
   'brainbase-source-import': {

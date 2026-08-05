@@ -41,6 +41,7 @@ describe('Onboarding skills installer acceptance', () => {
     const codex = JSON.parse(await cli(['onboard:skills', '--target', 'codex', '--format', 'json']));
     expect(codex.skills.map((skill: { id: string }) => skill.id), 'onboarding-skills-installer ac:1 exposes the four built-in public Brainbase skills.').toEqual([
       'brainbase-personal-onboarding',
+      'brainbase-connected-world-onboarding',
       'brainbase-source-import',
       'brainbase-candidate-review',
       'brainbase-daily-routines'

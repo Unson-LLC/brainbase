@@ -47,11 +47,26 @@ describe('MCP contract', () => {
       'search',
       'search_personal_kg',
       'onboarding_status',
+      'brainbase_onboarding_start',
+      'brainbase_onboarding_get',
+      'brainbase_onboarding_ingest',
+      'brainbase_onboarding_review',
+      'brainbase_onboarding_first_value',
       'get_ontology',
       'audit_ontology',
       'infer_decisions',
       'ontology_impact'
     ]);
+    const firstValue = toolDefinitions.find((tool) => tool.name === 'brainbase_onboarding_first_value');
+    expect(firstValue?.inputSchema).toMatchObject({
+      oneOf: [
+        { required: ['runId', 'action', 'answerHash', 'usedCanonicalIds'], properties: { action: { const: 'record' } } },
+        { required: ['runId', 'action', 'verdict'], properties: { action: { const: 'review' } } }
+      ]
+    });
+    const review = toolDefinitions.find((tool) => tool.name === 'brainbase_onboarding_review');
+    expect((review?.inputSchema as { properties?: { actions?: { minItems?: number } } }).properties?.actions?.minItems).toBe(1);
+    expect((review?.inputSchema as { properties?: { actions?: { items?: { oneOf?: unknown[] } } } }).properties?.actions?.items?.oneOf).toHaveLength(4);
   });
 
   it('S-4 lists v1 tools through stdio server startup', async () => {
@@ -66,6 +81,11 @@ describe('MCP contract', () => {
         'search',
         'search_personal_kg',
         'onboarding_status',
+        'brainbase_onboarding_start',
+        'brainbase_onboarding_get',
+        'brainbase_onboarding_ingest',
+        'brainbase_onboarding_review',
+        'brainbase_onboarding_first_value',
         'get_ontology',
         'audit_ontology',
         'infer_decisions',
@@ -113,6 +133,49 @@ describe('MCP contract', () => {
       });
       const statusText = status.content[0]?.type === 'text' ? status.content[0].text : '{}';
       expect(JSON.parse(statusText)).toMatchObject({ backend: 'local' });
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('connected-world onboarding completes start through first-value review over stdio', async () => {
+    const dataDir = await fixtureDir();
+    const { client, transport } = createClient(dataDir);
+    await client.connect(transport);
+    try {
+      const started = await client.callTool({ name: 'brainbase_onboarding_start', arguments: {
+        valueTarget: 'いまの重要案件を知る',
+        sources: [{ id: 'drive-alpha', mode: 'drive', status: 'ready', evidencePointer: 'drive://folder/alpha', permissionScope: ['folder:alpha'] }]
+      } });
+      const run = JSON.parse(started.content[0]?.type === 'text' ? started.content[0].text : '{}');
+      expect(run).toMatchObject({ path: 'warm', state: 'source_ready' });
+
+      const ingested = await client.callTool({ name: 'brainbase_onboarding_ingest', arguments: {
+        runId: run.id,
+        source: { sourceId: 'drive-alpha', evidencePointer: 'drive://folder/alpha', contentHash: `sha256:${'a'.repeat(64)}`, permissionSnapshot: { scopes: ['folder:alpha'] }, collectionStatus: 'collected' },
+        candidates: [{ kind: 'project', payload: { name: 'Alpha Launch' }, observationClass: 'observed', evidenceId: 'drive-item-1' }]
+      } });
+      const candidateRun = JSON.parse(ingested.content[0]?.type === 'text' ? ingested.content[0].text : '{}');
+      const candidateId = candidateRun.candidates[0].id;
+
+      const reviewed = await client.callTool({ name: 'brainbase_onboarding_review', arguments: {
+        runId: run.id,
+        actions: [{ candidateId, decision: 'approve', reason: 'folder metadataで確認済み' }]
+      } });
+      const promotedRun = JSON.parse(reviewed.content[0]?.type === 'text' ? reviewed.content[0].text : '{}');
+      expect(promotedRun.promotedCanonicalIds).toContainEqual(expect.stringMatching(/^project-/));
+
+      await client.callTool({ name: 'brainbase_onboarding_first_value', arguments: {
+        runId: run.id, action: 'record', answerHash: `sha256:${'b'.repeat(64)}`, usedCanonicalIds: [promotedRun.promotedCanonicalIds[0]]
+      } });
+      const completed = await client.callTool({ name: 'brainbase_onboarding_first_value', arguments: {
+        runId: run.id, action: 'review', verdict: 'useful', missingContext: ['期限']
+      } });
+      const completedRun = JSON.parse(completed.content[0]?.type === 'text' ? completed.content[0].text : '{}');
+      expect(completedRun).toMatchObject({ state: 'first_value_answer_reviewed', firstValueReview: { verdict: 'useful', withinTargetSeconds: true } });
+
+      const context = await client.callTool({ name: 'search', arguments: { query: 'Alpha Launch' } });
+      expect(JSON.stringify(context.content)).toContain('Alpha Launch');
     } finally {
       await client.close();
     }
@@ -194,6 +257,13 @@ describe('MCP contract', () => {
       toVersion: '1.0.0',
       supported: true
     });
+  });
+
+  it('rejects review fields that do not belong to the selected decision', async () => {
+    await expect(callBrainbaseTool('brainbase_onboarding_review', {
+      runId: 'run-1',
+      actions: [{ candidateId: 'candidate-1', decision: 'merge', reason: '同一', mergeIntoCandidateId: 'candidate-2', payload: { name: 'ignored' } }]
+    })).rejects.toThrow();
   });
 
   it('C-6 suppresses decision inference when another canonical snapshot surface is invalid', async () => {

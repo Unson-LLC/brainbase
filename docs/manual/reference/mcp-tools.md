@@ -60,6 +60,18 @@ Personal KGは個人の判断軸や経験を扱います。承認なしに仕事
 mcp__brainbase__onboarding_status({})
 ```
 
+## Connected-world onboarding
+
+接続済みソースから最初の価値まで進める場合は、次の5 toolを順に使います。
+
+1. `brainbase_onboarding_start`: 実際に呼び出せるsource inventoryと最初の価値を登録する。
+2. `brainbase_onboarding_get`: receipt、候補、review、first-value状態を確認する。
+3. `brainbase_onboarding_ingest`: 本文ではなくpointer、SHA-256 hash、permission snapshot、構造化候補を登録する。
+4. `brainbase_onboarding_review`: `approve`、`edit`、`reject`、`merge`を記録し、確認済み候補だけをcanonical SSOTへ昇格する。
+5. `brainbase_onboarding_first_value`: 回答本文ではなくhashと使用canonical IDを記録し、`useful`または`not_useful`を記録する。
+
+取得不能、権限待ち、error、未確認は空の結果やreadyとして扱いません。全Drive、全mailbox、home directory全体ではなく、`start`が返す`selectedSourceIds`の最小scopeだけを取得してください。
+
 seed済み項目、未設定項目、接続状態を見て、次に何を埋めるべきかを判断します。
 
 ## get_ontology
