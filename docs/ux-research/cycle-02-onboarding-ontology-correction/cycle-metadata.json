@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "cycle_id": "cycle-02-onboarding-ontology-correction",
+  "status": "converged",
+  "frozen": true,
+  "evaluated_head": "bfaed02d72e643c6c5933b447371cc491d147089",
+  "rotation_manifest": "rotation-manifest.json",
+  "rotation_manifest_sha256": "aff1829078b7aa0b83114b851a7bebf5cd8e49ea64553cde87d283034470453a",
+  "required_tasks_by_task_set": {
+    "first_time_individual-core": [
+      "ONB-COMPLETE",
+      "ONT-UNDERSTAND"
+    ],
+    "team_operator-core": [
+      "ONB-COMPLETE",
+      "ONT-UNDERSTAND"
+    ],
+    "ontology_steward-core": [
+      "ONB-COMPLETE",
+      "ONT-UNDERSTAND"
+    ],
+    "recovery_user-core": [
+      "ONB-COMPLETE",
+      "ONT-UNDERSTAND"
+    ]
+  },
+  "rounds": [
+    {
+      "round": 1,
+      "evaluated_head": "bfaed02d72e643c6c5933b447371cc491d147089",
+      "fixture_version": "mcp-inspector-correction-v1",
+      "raw_artifact": "rounds/correction-validation-raw.json",
+      "raw_sha256": "0c0ae2c3cfe42100445e0f456f32e1b9f68984fcbb65abde561a35c72fb66736",
+      "feedback_artifact": "rounds/correction-validation-feedback.md",
+      "feedback_sha256": "005d826bf8b15abcc77e14fac79cfcabaea26228d589008046c87a7005261e52",
+      "hard_gate_failures": 0,
+      "major_regressions": 0,
+      "common_tasks_complete": true,
+      "new_actionable_findings": 0
+    }
+  ],
+  "traceability": []
+}
