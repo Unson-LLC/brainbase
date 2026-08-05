@@ -1,0 +1,1372 @@
+[
+  {
+    "id": "P-101-G0",
+    "role": "first_time_individual",
+    "role_label": "初回利用者",
+    "character": "初日に最短で価値を実感し、使い続けるか判断したい個人利用者。",
+    "profile": "業務経験中程度・技術習熟度中・時間圧高・集中作業・速度重視・音声＋キーボード・動きの抑制が必要",
+    "generated_reaction_summary": "初日に最短で価値を実感し、使い続けるか判断したい個人利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-102-G0",
+    "role": "first_time_individual",
+    "role_label": "初回利用者",
+    "character": "導入前にデータの意味と安全性を自分で検証したい慎重な個人利用者。",
+    "profile": "業務経験者・技術習熟度高・時間圧低・集中作業・確認重視・キーボード・スクリーンリーダー",
+    "generated_reaction_summary": "導入前にデータの意味と安全性を自分で検証したい慎重な個人利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-103-G0",
+    "role": "first_time_individual",
+    "role_label": "初回利用者",
+    "character": "専門用語に自信がなく、間違えて壊さないかを心配する初学者。",
+    "profile": "業務初心者・技術習熟度低・時間圧高・集中作業・速度重視・音声＋キーボード・支援技術指定なし",
+    "generated_reaction_summary": "専門用語に自信がなく、間違えて壊さないかを心配する初学者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。指定された支援技術条件はない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。",
+          "構造化された結果とJSONの境界が、次に読む場所を分かりにくくする。"
+        ],
+        "missed": [
+          "音声入力を併用した操作は未確認。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "次の一手を先頭に固定し、詳細JSONを折りたたむ。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。",
+          "types、relations、constraintsなどの英語名が理解の入口で負荷になる。"
+        ],
+        "missed": [
+          "短時間で「結局、自分は何を登録すればよいか」を判断する要約が足りない。",
+          "音声入力を併用した操作は未確認。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+        ]
+      }
+    },
+    "overall": "success_with_friction"
+  },
+  {
+    "id": "P-104-G0",
+    "role": "first_time_individual",
+    "role_label": "初回利用者",
+    "character": "例を一つずつ確認し、納得してから先へ進む学習型の利用者。",
+    "profile": "業務経験中程度・技術習熟度中・時間圧低・集中作業・確認重視・キーボード・動きの抑制が必要",
+    "generated_reaction_summary": "例を一つずつ確認し、納得してから先へ進む学習型の利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-105-G0",
+    "role": "first_time_individual",
+    "role_label": "初回利用者",
+    "character": "仕組みは理解できるが、説明を読む時間を最小化したい熟練利用者。",
+    "profile": "業務経験者・技術習熟度高・時間圧高・集中作業・速度重視・音声＋キーボード・スクリーンリーダー",
+    "generated_reaction_summary": "仕組みは理解できるが、説明を読む時間を最小化したい熟練利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-106-G0",
+    "role": "first_time_individual",
+    "role_label": "初回利用者",
+    "character": "操作前に正解例を見て、自分の入力と照合したい慎重な初心者。",
+    "profile": "業務初心者・技術習熟度低・時間圧低・集中作業・確認重視・キーボード・支援技術指定なし",
+    "generated_reaction_summary": "操作前に正解例を見て、自分の入力と照合したい慎重な初心者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。専門語や英語の識別子が続くと、自分向けではないと感じやすい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。指定された支援技術条件はない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。",
+          "構造化された結果とJSONの境界が、次に読む場所を分かりにくくする。"
+        ],
+        "missed": [
+          "edit/rejectの前に、変更内容と取り消し可能性を確認する段階が弱い。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "実行前に変更対象と復旧可能性を日本語で確認する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。",
+          "types、relations、constraintsなどの英語名が理解の入口で負荷になる。"
+        ],
+        "missed": [],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+        ]
+      }
+    },
+    "overall": "success_with_friction"
+  },
+  {
+    "id": "P-107-G0",
+    "role": "first_time_individual",
+    "role_label": "初回利用者",
+    "character": "移動や会話の合間に、短い操作で最初の成果まで進めたい利用者。",
+    "profile": "業務経験中程度・技術習熟度中・時間圧高・集中作業・速度重視・音声＋キーボード・動きの抑制が必要",
+    "generated_reaction_summary": "移動や会話の合間に、短い操作で最初の成果まで進めたい利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-108-G0",
+    "role": "first_time_individual",
+    "role_label": "初回利用者",
+    "character": "後から経緯を監査できることを確かめてから利用したい個人利用者。",
+    "profile": "業務経験者・技術習熟度高・時間圧低・集中作業・確認重視・キーボード・スクリーンリーダー",
+    "generated_reaction_summary": "後から経緯を監査できることを確かめてから利用したい個人利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-201-G0",
+    "role": "team_operator",
+    "role_label": "チーム運用担当",
+    "character": "問い合わせ対応の合間に、チーム全体の進行を止めず運用したい担当者。",
+    "profile": "業務経験者・技術習熟度低・時間圧高・頻繁に中断・確認重視・音声＋キーボード・スクリーンリーダー",
+    "generated_reaction_summary": "問い合わせ対応の合間に、チーム全体の進行を止めず運用したい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-202-G0",
+    "role": "team_operator",
+    "role_label": "チーム運用担当",
+    "character": "引き継いだばかりで、まず通常業務を滞りなく回したい新任担当者。",
+    "profile": "業務初心者・技術習熟度中・時間圧低・頻繁に中断・速度重視・キーボード・支援技術指定なし",
+    "generated_reaction_summary": "引き継いだばかりで、まず通常業務を滞りなく回したい新任担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。指定された支援技術条件はない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。"
+        ],
+        "missed": [
+          "復帰時に「現在地・済んだこと・残り」をまとめた表示がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "再開用の3行要約を結果の先頭に置く。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。"
+        ],
+        "missed": [],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+        ]
+      }
+    },
+    "overall": "success_with_friction"
+  },
+  {
+    "id": "P-203-G0",
+    "role": "team_operator",
+    "role_label": "チーム運用担当",
+    "character": "複数案件を並行しながら、誤操作を出さずに素早く処理したい担当者。",
+    "profile": "業務経験中程度・技術習熟度高・時間圧高・頻繁に中断・確認重視・音声＋キーボード・動きの抑制が必要",
+    "generated_reaction_summary": "複数案件を並行しながら、誤操作を出さずに素早く処理したい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-204-G0",
+    "role": "team_operator",
+    "role_label": "チーム運用担当",
+    "character": "技術詳細より、チームの誰でも同じ手順を再現できることを重視する担当者。",
+    "profile": "業務経験者・技術習熟度低・時間圧低・頻繁に中断・速度重視・キーボード・スクリーンリーダー",
+    "generated_reaction_summary": "技術詳細より、チームの誰でも同じ手順を再現できることを重視する担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-205-G0",
+    "role": "team_operator",
+    "role_label": "チーム運用担当",
+    "character": "中断後も承認状況を取り違えず、安心して作業を再開したい担当者。",
+    "profile": "業務初心者・技術習熟度中・時間圧高・頻繁に中断・確認重視・音声＋キーボード・支援技術指定なし",
+    "generated_reaction_summary": "中断後も承認状況を取り違えず、安心して作業を再開したい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。指定された支援技術条件はない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。"
+        ],
+        "missed": [
+          "復帰時に「現在地・済んだこと・残り」をまとめた表示がない。",
+          "edit/rejectの前に、変更内容と取り消し可能性を確認する段階が弱い。",
+          "音声入力を併用した操作は未確認。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "再開用の3行要約を結果の先頭に置く。",
+          "実行前に変更対象と復旧可能性を日本語で確認する。",
+          "次の一手を先頭に固定し、詳細JSONを折りたたむ。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。"
+        ],
+        "missed": [
+          "短時間で「結局、自分は何を登録すればよいか」を判断する要約が足りない。",
+          "音声入力を併用した操作は未確認。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+        ]
+      }
+    },
+    "overall": "success_with_friction"
+  },
+  {
+    "id": "P-206-G0",
+    "role": "team_operator",
+    "role_label": "チーム運用担当",
+    "character": "構造を理解したうえで、反復作業をできるだけ短縮したい担当者。",
+    "profile": "業務経験中程度・技術習熟度高・時間圧低・頻繁に中断・速度重視・キーボード・動きの抑制が必要",
+    "generated_reaction_summary": "構造を理解したうえで、反復作業をできるだけ短縮したい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-207-G0",
+    "role": "team_operator",
+    "role_label": "チーム運用担当",
+    "character": "急な割り込み中でも、確認漏れによるチーム事故だけは避けたい担当者。",
+    "profile": "業務経験者・技術習熟度低・時間圧高・頻繁に中断・確認重視・音声＋キーボード・スクリーンリーダー",
+    "generated_reaction_summary": "急な割り込み中でも、確認漏れによるチーム事故だけは避けたい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-208-G0",
+    "role": "team_operator",
+    "role_label": "チーム運用担当",
+    "character": "新任でもマニュアルを読み込まず、画面の案内だけで運用したい担当者。",
+    "profile": "業務初心者・技術習熟度中・時間圧低・頻繁に中断・速度重視・キーボード・支援技術指定なし",
+    "generated_reaction_summary": "新任でもマニュアルを読み込まず、画面の案内だけで運用したい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。指定された支援技術条件はない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。"
+        ],
+        "missed": [
+          "復帰時に「現在地・済んだこと・残り」をまとめた表示がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "再開用の3行要約を結果の先頭に置く。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。"
+        ],
+        "missed": [],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+        ]
+      }
+    },
+    "overall": "success_with_friction"
+  },
+  {
+    "id": "P-301-G0",
+    "role": "ontology_steward",
+    "role_label": "オントロジー管理担当",
+    "character": "新しい領域の定義を短時間で作り、すぐ実務へ試したい管理担当者。",
+    "profile": "業務初心者・技術習熟度高・時間圧高・集中作業・速度重視・音声＋キーボード・支援技術指定なし",
+    "generated_reaction_summary": "新しい領域の定義を短時間で作り、すぐ実務へ試したい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。指定された支援技術条件はない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。"
+        ],
+        "missed": [
+          "音声入力を併用した操作は未確認。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "次の一手を先頭に固定し、詳細JSONを折りたたむ。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。"
+        ],
+        "missed": [
+          "短時間で「結局、自分は何を登録すればよいか」を判断する要約が足りない。",
+          "初心者向け説明から正式な型・関係・版管理の根拠へ辿る導線が弱い。",
+          "音声入力を併用した操作は未確認。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+        ]
+      }
+    },
+    "overall": "success_with_friction"
+  },
+  {
+    "id": "P-302-G0",
+    "role": "ontology_steward",
+    "role_label": "オントロジー管理担当",
+    "character": "技術には詳しくないが、用語の意味を丁寧に揃えたい管理担当者。",
+    "profile": "業務経験中程度・技術習熟度低・時間圧低・集中作業・確認重視・キーボード・動きの抑制が必要",
+    "generated_reaction_summary": "技術には詳しくないが、用語の意味を丁寧に揃えたい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-303-G0",
+    "role": "ontology_steward",
+    "role_label": "オントロジー管理担当",
+    "character": "既存定義との整合を素早く確認し、曖昧な関係を残したくない管理担当者。",
+    "profile": "業務経験者・技術習熟度中・時間圧高・集中作業・速度重視・音声＋キーボード・スクリーンリーダー",
+    "generated_reaction_summary": "既存定義との整合を素早く確認し、曖昧な関係を残したくない管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-304-G0",
+    "role": "ontology_steward",
+    "role_label": "オントロジー管理担当",
+    "character": "初めての領域なので、変更前に影響範囲を確認したい管理担当者。",
+    "profile": "業務初心者・技術習熟度高・時間圧低・集中作業・確認重視・キーボード・支援技術指定なし",
+    "generated_reaction_summary": "初めての領域なので、変更前に影響範囲を確認したい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。指定された支援技術条件はない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。"
+        ],
+        "missed": [
+          "edit/rejectの前に、変更内容と取り消し可能性を確認する段階が弱い。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "実行前に変更対象と復旧可能性を日本語で確認する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。"
+        ],
+        "missed": [
+          "初心者向け説明から正式な型・関係・版管理の根拠へ辿る導線が弱い。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+        ]
+      }
+    },
+    "overall": "success_with_friction"
+  },
+  {
+    "id": "P-305-G0",
+    "role": "ontology_steward",
+    "role_label": "オントロジー管理担当",
+    "character": "時間制約の中でも、型と関係の最低限の品質を守りたい管理担当者。",
+    "profile": "業務経験中程度・技術習熟度低・時間圧高・集中作業・速度重視・音声＋キーボード・動きの抑制が必要",
+    "generated_reaction_summary": "時間制約の中でも、型と関係の最低限の品質を守りたい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-306-G0",
+    "role": "ontology_steward",
+    "role_label": "オントロジー管理担当",
+    "character": "定義変更の根拠と履歴を後から説明できる状態にしたい管理担当者。",
+    "profile": "業務経験者・技術習熟度中・時間圧低・集中作業・確認重視・キーボード・スクリーンリーダー",
+    "generated_reaction_summary": "定義変更の根拠と履歴を後から説明できる状態にしたい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-307-G0",
+    "role": "ontology_steward",
+    "role_label": "オントロジー管理担当",
+    "character": "まず小さく定義して試し、必要なら素早く改訂したい管理担当者。",
+    "profile": "業務初心者・技術習熟度高・時間圧高・集中作業・速度重視・音声＋キーボード・支援技術指定なし",
+    "generated_reaction_summary": "まず小さく定義して試し、必要なら素早く改訂したい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。指定された支援技術条件はない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。"
+        ],
+        "missed": [
+          "音声入力を併用した操作は未確認。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "次の一手を先頭に固定し、詳細JSONを折りたたむ。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。"
+        ],
+        "missed": [
+          "短時間で「結局、自分は何を登録すればよいか」を判断する要約が足りない。",
+          "初心者向け説明から正式な型・関係・版管理の根拠へ辿る導線が弱い。",
+          "音声入力を併用した操作は未確認。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+        ]
+      }
+    },
+    "overall": "success_with_friction"
+  },
+  {
+    "id": "P-308-G0",
+    "role": "ontology_steward",
+    "role_label": "オントロジー管理担当",
+    "character": "具体例と正式定義を照合し、誤解のない語彙を作りたい管理担当者。",
+    "profile": "業務経験中程度・技術習熟度低・時間圧低・集中作業・確認重視・キーボード・動きの抑制が必要",
+    "generated_reaction_summary": "具体例と正式定義を照合し、誤解のない語彙を作りたい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-401-G0",
+    "role": "recovery_user",
+    "role_label": "復旧重視の利用者",
+    "character": "障害対応中でも、安全な復旧手順を迷わず選びたい利用者。",
+    "profile": "業務経験中程度・技術習熟度中・時間圧高・頻繁に中断・確認重視・音声＋キーボード・動きの抑制が必要",
+    "generated_reaction_summary": "障害対応中でも、安全な復旧手順を迷わず選びたい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-402-G0",
+    "role": "recovery_user",
+    "role_label": "復旧重視の利用者",
+    "character": "原因を特定したら、余計な説明なしで最短復旧したい熟練利用者。",
+    "profile": "業務経験者・技術習熟度高・時間圧低・頻繁に中断・速度重視・キーボード・スクリーンリーダー",
+    "generated_reaction_summary": "原因を特定したら、余計な説明なしで最短復旧したい熟練利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-403-G0",
+    "role": "recovery_user",
+    "role_label": "復旧重視の利用者",
+    "character": "失敗表示を見ると不安になり、データを壊していない確証を求める初心者。",
+    "profile": "業務初心者・技術習熟度低・時間圧高・頻繁に中断・確認重視・音声＋キーボード・支援技術指定なし",
+    "generated_reaction_summary": "失敗表示を見ると不安になり、データを壊していない確証を求める初心者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。専門語や英語の識別子が続くと、自分向けではないと感じやすい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。指定された支援技術条件はない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。",
+          "構造化された結果とJSONの境界が、次に読む場所を分かりにくくする。"
+        ],
+        "missed": [
+          "復帰時に「現在地・済んだこと・残り」をまとめた表示がない。",
+          "edit/rejectの前に、変更内容と取り消し可能性を確認する段階が弱い。",
+          "音声入力を併用した操作は未確認。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "再開用の3行要約を結果の先頭に置く。",
+          "実行前に変更対象と復旧可能性を日本語で確認する。",
+          "次の一手を先頭に固定し、詳細JSONを折りたたむ。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。",
+          "types、relations、constraintsなどの英語名が理解の入口で負荷になる。"
+        ],
+        "missed": [
+          "短時間で「結局、自分は何を登録すればよいか」を判断する要約が足りない。",
+          "定義を誤った場合に、誰がどう戻すかが初心者ガイドから見えない。",
+          "音声入力を併用した操作は未確認。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+        ]
+      }
+    },
+    "overall": "success_with_friction"
+  },
+  {
+    "id": "P-404-G0",
+    "role": "recovery_user",
+    "role_label": "復旧重視の利用者",
+    "character": "中断後に失敗地点へ戻り、同じ操作を重複させず再開したい利用者。",
+    "profile": "業務経験中程度・技術習熟度中・時間圧低・頻繁に中断・速度重視・キーボード・動きの抑制が必要",
+    "generated_reaction_summary": "中断後に失敗地点へ戻り、同じ操作を重複させず再開したい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-405-G0",
+    "role": "recovery_user",
+    "role_label": "復旧重視の利用者",
+    "character": "急いでいても、復旧操作が取り返しのつくものか確認したい利用者。",
+    "profile": "業務経験者・技術習熟度高・時間圧高・頻繁に中断・確認重視・音声＋キーボード・スクリーンリーダー",
+    "generated_reaction_summary": "急いでいても、復旧操作が取り返しのつくものか確認したい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-406-G0",
+    "role": "recovery_user",
+    "role_label": "復旧重視の利用者",
+    "character": "専門知識がなくても、画面の案内だけで自力復旧したい利用者。",
+    "profile": "業務初心者・技術習熟度低・時間圧低・頻繁に中断・速度重視・キーボード・支援技術指定なし",
+    "generated_reaction_summary": "専門知識がなくても、画面の案内だけで自力復旧したい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。指定された支援技術条件はない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。",
+          "構造化された結果とJSONの境界が、次に読む場所を分かりにくくする。"
+        ],
+        "missed": [
+          "復帰時に「現在地・済んだこと・残り」をまとめた表示がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "再開用の3行要約を結果の先頭に置く。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "success_with_friction",
+        "evidenceType": "synthetic_browser_evaluation",
+        "gate": "pass",
+        "confusion": [
+          "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。",
+          "types、relations、constraintsなどの英語名が理解の入口で負荷になる。"
+        ],
+        "missed": [
+          "定義を誤った場合に、誰がどう戻すかが初心者ガイドから見えない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+        ]
+      }
+    },
+    "overall": "success_with_friction"
+  },
+  {
+    "id": "P-407-G0",
+    "role": "recovery_user",
+    "role_label": "復旧重視の利用者",
+    "character": "割り込みが続く状況で、誤った候補を確定せず安全側へ倒したい利用者。",
+    "profile": "業務経験中程度・技術習熟度中・時間圧高・頻繁に中断・確認重視・音声＋キーボード・動きの抑制が必要",
+    "generated_reaction_summary": "割り込みが続く状況で、誤った候補を確定せず安全側へ倒したい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "動きの抑制が必要を有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  },
+  {
+    "id": "P-408-G0",
+    "role": "recovery_user",
+    "role_label": "復旧重視の利用者",
+    "character": "復旧後の状態と履歴を確認し、再発時にすぐ同じ手順を使いたい利用者。",
+    "profile": "業務経験者・技術習熟度高・時間圧低・頻繁に中断・速度重視・キーボード・スクリーンリーダー",
+    "generated_reaction_summary": "復旧後の状態と履歴を確認し、再発時にすぐ同じ手順を使いたい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "tasks": {
+      "ONB-COMPLETE": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      },
+      "ONT-UNDERSTAND": {
+        "outcome": "not_executed",
+        "evidenceType": "not_collected",
+        "gate": "not_collected",
+        "confusion": [],
+        "missed": [
+          "スクリーンリーダーを有効にした実操作証拠がない。"
+        ],
+        "next": [],
+        "likelyError": [],
+        "misleading": [],
+        "proposal": [
+          "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+        ]
+      }
+    },
+    "overall": "not_collected"
+  }
+]

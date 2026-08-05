@@ -1,7 +1,7 @@
 {
   "version": 1,
   "cycle_id": "cycle-02-onboarding-ontology-correction",
-  "status": "converged",
+  "status": "not_converged",
   "frozen": true,
   "evaluated_head": "bfaed02d72e643c6c5933b447371cc491d147089",
   "rotation_manifest": "rotation-manifest.json",
@@ -28,15 +28,16 @@
     {
       "round": 1,
       "evaluated_head": "bfaed02d72e643c6c5933b447371cc491d147089",
-      "fixture_version": "mcp-inspector-correction-v1",
+      "fixture_version": "mcp-inspector-correction-v2-persona-specific",
       "raw_artifact": "rounds/correction-validation-raw.json",
-      "raw_sha256": "d2634fb4e84809c8b9ddf7207a4d9ae676f66639062674db1cf0835407241db8",
+      "raw_sha256": "9622c4474b29447ef3af899c323eb52c5a6ee52d8e57d0d93163385821d1aa16",
       "feedback_artifact": "rounds/correction-validation-feedback.md",
-      "feedback_sha256": "a1d841744f9d6a136f7adc8d6c58ccea1cfeddaa5b72dcf38c61e7020cf6d078",
+      "feedback_sha256": "94e80c4c7463f828d70d2713a1e07ad0f1f59bd76286f6f108a642c358b1047b",
       "hard_gate_failures": 0,
+      "hard_gate_uncollected": 44,
       "major_regressions": 0,
-      "common_tasks_complete": true,
-      "new_actionable_findings": 0
+      "common_tasks_complete": false,
+      "new_actionable_findings": 4
     }
   ],
   "traceability": []
