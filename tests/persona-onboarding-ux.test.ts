@@ -107,7 +107,13 @@ describe('beginner persona onboarding contract', () => {
         dataDir, runId: started.runId, action: 'record', answerHash: `sha256:${'c'.repeat(64)}`, usedCanonicalIds: [currentDecisionId]
       });
       const completed = await callBrainbaseTool('brainbase_onboarding_first_value', {
-        dataDir, runId: started.runId, action: 'review', verdict: 'useful', missingContext: []
+        dataDir,
+        runId: started.runId,
+        action: 'review',
+        verdict: 'useful',
+        missingContext: [],
+        answerHash: `sha256:${'c'.repeat(64)}`,
+        usedCanonicalIds: [currentDecisionId]
       }) as { state: string; runId: string; nextAction: null };
       expect(completed.state).toBe('first_value_answer_reviewed');
       expect(completed.runId).toBe(started.runId);

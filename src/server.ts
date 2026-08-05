@@ -73,12 +73,15 @@ const connectedSchemas = {
       action: z.literal('record'),
       answerHash: z.string(),
       usedCanonicalIds: z.array(z.string()),
+      verdict: z.enum(['useful', 'not_useful']).optional(),
       missingContext: z.array(z.string()).optional()
     }).strict(),
     z.object({
       dataDir: z.string().optional(),
       runId: z.string(),
       action: z.literal('review'),
+      answerHash: z.string().optional(),
+      usedCanonicalIds: z.array(z.string()).optional(),
       verdict: z.enum(['useful', 'not_useful']),
       missingContext: z.array(z.string()).optional()
     }).strict()
@@ -336,8 +339,19 @@ async function callConnectedOnboardingTool(name: keyof typeof connectedSchemas, 
     case 'brainbase_onboarding_review':
       return runtime.review(args.runId!, args.actions as Parameters<ConnectedOnboardingRuntime['review']>[1]).then(withOnboardingGuidance);
     case 'brainbase_onboarding_first_value': {
-      const { runId, dataDir: _dataDir, ...input } = args;
-      return runtime.firstValue(runId!, input as Parameters<ConnectedOnboardingRuntime['firstValue']>[1]).then(withOnboardingGuidance);
+      const input: Parameters<ConnectedOnboardingRuntime['firstValue']>[1] = args.action === 'record'
+        ? {
+            action: 'record',
+            answerHash: args.answerHash as string,
+            usedCanonicalIds: args.usedCanonicalIds as string[],
+            missingContext: args.missingContext as string[] | undefined
+          }
+        : {
+            action: 'review',
+            verdict: args.verdict as 'useful' | 'not_useful',
+            missingContext: args.missingContext as string[] | undefined
+          };
+      return runtime.firstValue(args.runId!, input).then(withOnboardingGuidance);
     }
   }
 }
