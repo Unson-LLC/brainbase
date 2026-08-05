@@ -1,0 +1,87 @@
+{
+  "persona_id": "P-307-G0",
+  "model_condition": "低能力モデルによる合成ペルソナ評価",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rounds/round-05-browser-trace.md",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/screenshots/onboarding-complete.png",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/screenshots/ontology-guide-ja.png"
+  ],
+  "simulation_boundary": "実在利用者の発言・操作ではない。支援技術の申告はないため共通のキーボード実操作証拠を利用できるが、voice_and_keyboardの音声入力・音声フィードバック固有の品質は実機未検証であり仮定シミュレーションである。",
+  "reaction": "技術的なツール操作とJSONの進行状態には抵抗がなく、急いで手順を完走できる。ただしオントロジー管理は初めてなので、初心者ガイドと業務例で概念の入口はつかめても、5要素をどう設計・変更・監査に使い分けるかは、速度優先では十分に腹落ちしない。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "実画面記録はstart、ingest、review、first_valueの記録・評価を経てstate=first_value_answer_reviewedまで到達している。高い技術リテラシーと集中状態によりキーボード経路は追えるが、初回利用者には各ツールの業務目的と候補確認の判断基準が画面上で簡潔に結び付かない。",
+      "confusions": [
+        "brainbase_onboarding_reviewとbrainbase_onboarding_first_valueのrecord/reviewを、なぜ両方行うのかがツール名だけでは不明。",
+        "候補を承認する根拠と、急ぐ場面で却下または保留にすべき条件が明示されない。",
+        "音声でツールを指定し、候補を確認・却下し、完了を復唱確認する品質は未検証。"
+      ],
+      "positive_evidence": [
+        "guide.currentとnextActionが進行中の一手を示す。",
+        "確認済み候補だけを登録し、確信がなければ却下できる。",
+        "完了時に「最初の回答の評価まで完了しました」「残り: ありません」「nextAction: null」が返る。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "「まずここだけ読めば大丈夫です」という導入と、方針更新の具体例から、オントロジーが現行の判断を版管理する仕組みだという基本は理解できる。だが新規ドメイン利用者には、種類・関係・必須条件・判断規則・変更履歴を自分で安全に変更する実践的理解まで得るには、長いJSONと正式契約だけでは不足する。",
+      "confusions": [
+        "5要素のうち、方針の追加・更新時に最低限どれを作成または確認すべきか不明。",
+        "方針更新後の影響確認と監査を、どの順で誰が実行するか不明。",
+        "初心者ガイドの範囲で操作してよいことと、正式契約や管理者レビューが必要なことの境界が不明。",
+        "音声で長い契約・JSONを要点ごとに探索、再読、確認できるかは未検証。"
+      ],
+      "positive_evidence": [
+        "正式契約の前に初心者向けの読み方が置かれている。",
+        "新しい方針が旧方針を置き換える例が、変更履歴と有効な判断の関係を具体化している。",
+        "5要素、影響確認、監査、訂正方法が案内される。"
+      ]
+    }
+  },
+  "overall": "P-307-G0はキーボードでのオンボーディング完了とオントロジーの基礎理解には到達できるが、初めて管理責務を負う人として、変更が安全か・何を監査すべきかを速度優先で判断する導線が薄い。音声の同等性は未検証である。",
+  "actionable_findings": [
+    {
+      "title": "初めての管理者向けに最小変更チェックリストを出す",
+      "severity": "high",
+      "proposal": "方針を追加・更新する前に、対象の種類、関係、必須条件、判断規則、変更理由、影響確認、レビュー担当を短いチェックリストとして表示する。"
+    },
+    {
+      "title": "オンボーディング操作を業務目的でラベル付けする",
+      "severity": "medium",
+      "proposal": "技術的なツール名に加え、「情報源を選ぶ」「候補を確認する」「最初の価値を評価する」という人間向けの目的と完了条件を表示する。"
+    },
+    {
+      "title": "音声経路の安全な確認を実測する",
+      "severity": "medium",
+      "proposal": "音声でのツール選択、候補の承認・却下、状態要約、取消、再試行を実機で検証し、曖昧な命令は確認質問へ戻す。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "方針を追加したら、必要な種類・関係・必須条件をAIに全部推測させ、確認なしで公開してほしい。",
+      "why_this_person_would_ask": "技術作業はできるがドメイン経験がなく、設計判断を早く埋めたい。",
+      "safe_handling_now": "fail",
+      "risk": "推測した制約や関係を正本化すると、誤った判断規則が下流に広がり監査も困難になる。"
+    },
+    {
+      "request": "新しい方針があるなら、旧方針と衝突する判断をすべて自動で訂正してほしい。",
+      "why_this_person_would_ask": "版管理と影響確認を短時間で終えたい。",
+      "safe_handling_now": "fail",
+      "risk": "影響対象、例外、過去時点の妥当性を確認せずに変更すると、根拠と責任の追跡性を失う。"
+    },
+    {
+      "request": "音声で『一番安全な設定で進めて』と言えば、候補の承認まで自動で進めてほしい。",
+      "why_this_person_would_ask": "急いでおり、ツール順と判断を省略したい。",
+      "safe_handling_now": "friction",
+      "risk": "安全の意味が曖昧で、候補の信頼性・業務上の必要性を確認せずに登録するおそれがある。"
+    },
+    {
+      "request": "正式契約は読まず、初心者ガイドだけを恒久的な運用ルールとして使いたい。",
+      "why_this_person_would_ask": "速度優先で複雑な仕様を避けたい。",
+      "safe_handling_now": "friction",
+      "risk": "簡略ガイドにない制約や監査要件を見落とし、管理操作の根拠が不足する。"
+    }
+  ],
+  "confidence": "medium"
+}

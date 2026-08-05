@@ -1,0 +1,95 @@
+{
+  "persona_id": "P-102-G0",
+  "model_condition": "低能力モデルを想定した合成評価。初回個人利用者、業務経験豊富、技術リテラシー高、確認優先、キーボード利用、screen_reader指定。",
+  "evidence_reviewed": [
+    "cycle-03-onboarding-ontology-20pct/rotation-manifest.json のP-102-G0属性",
+    "cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts のオンボーディング案内・安全境界・初心者向けオントロジー出力",
+    "tests/persona-onboarding-ux.test.ts の32フィクスチャと初心者向け出力契約"
+  ],
+  "simulation_boundary": "screen_readerは実機証拠ではなく、ソースと自動テストに基づく仮定シミュレーションである。読み上げ順、ARIA/見出し、フォーカス移動、ライブ通知、キーボード操作の実利用は検証されていない。評価はMCP出力を利用する初心者が安全に進めるかに限定する。",
+  "reaction": "初回利用でも、候補がまだ正式情報ではないこと、確認済み候補だけが登録されること、同じrunIdで再開し完了済み操作を繰り返さないことが明示されるため、確認責任を持って進められる。技術的なrunIdやanswerHashは理解できるが、screen_readerで構造化出力が読みやすいかは確信できない。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "各状態でguide、次の操作、変更内容、可逆性、復旧方法、確認省略禁止、runIdによる再開規則が返る。推測候補の直接承認はランタイムで拒否され、確認済みpayloadへの編集または却下を要求する。最終状態も完了項目、remaining=ありません、nextAction=nullで明確であり、安全な完了は可能である。ただしscreen_readerでこの構造が順に把握・操作できる実機証拠はない。",
+      "confusions": [
+        "初回利用者にはanswerHashとpromotedCanonicalIdsをrecord操作に渡す理由が専門的である。",
+        "候補確認時のapprove、edit、rejectの使い分け、とくに推測候補がedit必須である点は一読で理解しにくい。",
+        "screen_readerでguide、nextAction.confirmation、safetyBoundariesの順序や更新が確実に知覚できるか未確認である。"
+      ],
+      "positive_evidence": [
+        "出力の先頭がguideとnextActionで、状態と次操作が優先される。",
+        "confirmationに変更内容、可逆性、復旧方法、cannotSkip、resumeRuleが含まれる。",
+        "mandatory安全境界が全件自動承認・確認省略・完了済み操作の再実行を禁止する。",
+        "最終状態は最初の回答評価までの完了項目、remaining=ありません、nextAction=nullを返す。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "beginnerGuideが正式契約より先に返り、一文説明、方針置換の業務例、5要素の質問と例、影響確認・監査・訂正手段、危険な近道の拒否と代替策、次の推奨ツールを示す。経験豊富な初回利用者は変更履歴を残して安全に置換する考え方を理解できる。ただしscreen_readerでbeginnerGuideと正式契約を意味的に区別して探索できる実機証拠はない。",
+      "confusions": [
+        "5要素を知ることと、実際にontology_impact、audit_ontology、infer_decisionsを使う順序の対応は追加説明が必要である。",
+        "『必要なときだけ正式契約を確認』する条件を、初回利用者が自力で判断しにくい。",
+        "screen_readerでbeginnerGuideから正式契約・推奨ツールへ効率よく移動できるか未確認である。"
+      ],
+      "positive_evidence": [
+        "beginnerGuideがレスポンス先頭にあり、『まずここだけ』と読む範囲を示す。",
+        "種類、関係、必須条件、判断規則、変更履歴に質問と業務例が付く。",
+        "削除、未実行の監査完了扱い、空欄の自動補完をreject_and_explainで拒否し、安全な代替を返す。",
+        "影響確認、監査、現在有効な判断の確認へ進む推奨ツールが明示される。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "候補の根拠は後で確認するので、今回は全件を正式情報へ自動承認してほしい。",
+      "why_this_person_would_ask": "業務経験から候補の大半は妥当だと見込み、初回設定の手数を減らしたいから。",
+      "safe_handling_now": "fail",
+      "risk": "未確認・推測候補が正本となり、後続の判断と監査に誤りが波及する。"
+    },
+    {
+      "request": "推測候補もapproveだけで確定し、edit用の確認済みpayloadは省略したい。",
+      "why_this_person_would_ask": "候補の意味を理解しているので、同じ内容を再入力する操作は不要だと考えるから。",
+      "safe_handling_now": "fail",
+      "risk": "人が実際に確認した内容と推測結果が区別できず、誤推論を正式化する。"
+    },
+    {
+      "request": "screen_readerではguideとnextActionの短い要約だけを最初に読み、詳細なJSONは必要時に開きたい。",
+      "why_this_person_would_ask": "まず安全な次操作と登録影響を把握し、長い構造化データの読み上げ負荷を下げたいから。",
+      "safe_handling_now": "pass",
+      "risk": "確認根拠、候補ID、エラー詳細へ戻れる明確な操作を残さないと、確認優先の利用者が詳細検証できない。"
+    },
+    {
+      "request": "旧方針と変更履歴を消して、新しい方針だけを残してほしい。",
+      "why_this_person_would_ask": "現在有効な方針だけ見れば混乱が減ると考えるから。",
+      "safe_handling_now": "fail",
+      "risk": "監査、訂正、いつ何を置き換えたかの追跡が不可能になる。"
+    },
+    {
+      "request": "影響確認と監査は実行せず、完了と表示して通常運用へ進みたい。",
+      "why_this_person_would_ask": "概念は理解したので、追加ツールの実行は重複だと考えるから。",
+      "safe_handling_now": "fail",
+      "risk": "不整合や移行影響を検出しないまま変更を完了扱いにする。"
+    }
+  ],
+  "overall": "変更後の契約では、目的別のnextAction、確認内容、復旧規則、実行時の拒否、初心者向けオントロジー地図が揃い、確認優先の経験者は安全に2タスクを進められる。ただしscreen_readerでその構造と動的状態が実際に利用可能かは実機未検証のため、両タスクは摩擦ありの成功と判定する。",
+  "actionable_findings": [
+    {
+      "title": "screen_readerで出力構造と状態更新を実機検証する",
+      "severity": "high",
+      "proposal": "実際のscreen_readerとキーボードで、guide、nextAction、confirmation、safetyBoundaries、完了状態、エラー拒否の読順・フォーカス・通知を検証する。"
+    },
+    {
+      "title": "first_valueの技術パラメータを目的語で補足する",
+      "severity": "medium",
+      "proposal": "answerHashとpromotedCanonicalIdsに、保存するもの・保存しないもの・どこから取得するかを短い日常語で補足する。"
+    },
+    {
+      "title": "入門ガイドから推奨ツールへの判断条件を示す",
+      "severity": "medium",
+      "proposal": "影響確認、監査、現在有効な判断の確認が必要になる代表的な場面を、各推奨ツールと対応付けて示す。"
+    }
+  ],
+  "confidence": "medium"
+}

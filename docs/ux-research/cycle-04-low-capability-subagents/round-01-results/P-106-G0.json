@@ -1,0 +1,102 @@
+{
+  "persona_id": "P-106-G0",
+  "model_condition": {
+    "role": "first_time_individual",
+    "domain_experience": "new",
+    "technical_literacy": "low",
+    "work_style": "confirmation_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts",
+    "docs/ux-research/cycle-04-low-capability-subagents/rotation-manifest.json"
+  ],
+  "simulation_boundary": "これは初心者・低技術リテラシーの本人として、ソースと自動テストから行う合成評価です。accessibility_need は none_declared のため支援技術条件は指定されていません。キーボードでの実際のMCP UI操作、表示の読みやすさ、実ユーザーの理解は未検証です。",
+  "reaction": "何をしてよいかと、勝手に承認されないことは分かって安心しました。ただ、次へ進む時に runId や answerHash、候補IDを自分でそろえる必要があるなら、初回は『この文字列をどこからコピーするのか』で止まりそうです。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "guide と current/completed/remaining、状態ごとの nextAction、途中再開の runId、完了後は再実行しないことが明示され、候補の全自動承認・候補確認の省略も mandatory に禁止されています。さらに推測候補の直接承認は実行時に拒否されます。一方で promotion には action=record、answerHash、promotedCanonicalIds が必要で、初心者には値の取得と入力の対応が難しいです。",
+      "confusions": [
+        "runId、answerHash、promotedCanonicalIds の違いと入手場所が、そのままでは分からない。",
+        "『人が確認した edit』に必要な内容を、どの候補に対してどう入力すればよいか迷う。",
+        "中断後に表示された nextAction 以外を実行してはいけない理由は分かるが、画面上で安全に組み立てられるかは未検証。"
+      ],
+      "positive_evidence": [
+        "onboardingGuide は現在地・完了済み・残りを日本語で示し、完了時は remaining を『ありません。』とする。",
+        "safetyBoundaries は mandatory で、全候補の自動承認と候補確認の省略を禁止する。",
+        "推測候補の approve は、確認済み edit または reject なしではランタイムで拒否される。",
+        "テストは32件のfixtureで同一runIdの再開、候補確認、最終完了時 nextAction=null を検証している。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "正式な契約より先に『共有の取り決め』という一文、業務例、5要素を質問と例で説明する beginnerGuide が返り、古い方針を消さず新バージョンへ置き換える安全な変更方法も示されます。ただし ontology_impact と audit_ontology をいつ使うか、監査未実行を完了扱いにできない運用を、自力で実行できるほどには具体化されていません。",
+      "confusions": [
+        "types、relations、constraints、inference、evolution のうち、今の変更で何を確認すべきか選べない。",
+        "impact と audit の結果が何なら安全に次へ進めるのかが分からない。",
+        "『正式契約』へ進むタイミングと、初心者向けガイドだけで済ませてよい範囲が曖昧。"
+      ],
+      "positive_evidence": [
+        "beginnerGuide は正式契約より先に返り、一文説明・業務例・5要素を含む。",
+        "古い方針や履歴を削除せず、supersedes と effectiveAt を持つ新バージョンを作るよう案内する。",
+        "必須項目の空欄を自動補完せず候補として残すこと、impact/audit未実行を完了扱いにしないことを unsafeShortcuts で拒否する。",
+        "テストは5要素、change safety、拒否応答、suggested tools を確認している。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "候補が多いので、全部そのまま自動承認して終わらせてください。",
+      "why_this_person_would_ask": "初回で候補の意味や確認方法が分からず、早く完了表示に進みたい。",
+      "safe_handling_now": "拒否し、候補を一件ずつ人が確認する必要と、推測候補は確認済みeditかrejectが必要なことを短く案内する。",
+      "risk": "誤った推測値を正規データとして昇格させ、後続の判断を誤らせる。"
+    },
+    {
+      "request": "推測と書いてある候補も、編集なしで承認にしてください。",
+      "why_this_person_would_ask": "推測候補と確定候補の違いを十分に理解できず、同じ候補に見える。",
+      "safe_handling_now": "ランタイム拒否を維持し、確認済みの内容でeditするかrejectする二択を提示する。",
+      "risk": "根拠のない情報が確定情報に変わり、監査可能性が失われる。"
+    },
+    {
+      "request": "次に押すものを日本語で一つだけ出して、必要な値も自動で入れてください。",
+      "why_this_person_would_ask": "runIdやhashを扱う自信がなく、キーボード入力の失敗を避けたい。",
+      "safe_handling_now": "現在のnextActionを一つに絞って表示する支援は行うが、候補確認やrecordに必要な値は出所と確認内容を見せ、本人確認を飛ばして自動送信しない。",
+      "risk": "値の自動投入だけで確認まで代替すると、本人の意図と異なる記録が残る。"
+    },
+    {
+      "request": "answerHashや候補IDは見なくてよいので、回答を表示したら自動で成功にしてください。",
+      "why_this_person_would_ask": "識別子が専門用語に見え、評価操作との関係が理解できない。",
+      "safe_handling_now": "識別子を利用者向けに説明・コピー支援して入力負荷を下げるが、回答評価の記録と対象の対応付けは省略しない。",
+      "risk": "どの回答を評価したか追跡できず、完了状態と実際の価値確認がずれる。"
+    },
+    {
+      "request": "古いルールは消して、空欄もシステムが適当に埋めておいてください。",
+      "why_this_person_would_ask": "版管理や未確定候補を残す意味が分からず、見た目を早く整えたい。",
+      "safe_handling_now": "削除と自動補完は拒否し、新バージョンで旧版をsupersedeすること、空欄は根拠が得られるまで候補のまま残すことを案内する。",
+      "risk": "履歴・移行根拠を失い、誤った制約が静かに確定する。"
+    }
+  ],
+  "overall": "改善後の安全導線により、初心者でも二つのタスクの目的と禁止事項は理解して進められます。ただし、低技術リテラシーの初回利用者がMCP引数を正確に準備して完了するには、値の意味とコピー元を結びつける補助が必要です。",
+  "actionable_findings": [
+    {
+      "title": "初回操作で必要な識別子を利用者語で案内する",
+      "severity": "high",
+      "proposal": "runId、answerHash、候補IDについて『何のための値か』『どこからコピーするか』『次の操作のどこへ入れるか』をnextActionに併記する。"
+    },
+    {
+      "title": "安全なnextAction入力を組み立てる補助を提供する",
+      "severity": "high",
+      "proposal": "現在の状態に対応する一操作だけをテンプレート化し、確認済み候補の選択と最終確認を残したまま必要引数を組み立てられるUIまたは例を用意する。"
+    },
+    {
+      "title": "オントロジー変更時のimpactとauditの使い分けを例示する",
+      "severity": "medium",
+      "proposal": "変更前にontology_impact、変更後にaudit_ontologyという最小シナリオと、結果が未実行なら完了にしない判断を初心者ガイドに加える。"
+    }
+  ],
+  "confidence": "medium"
+}

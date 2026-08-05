@@ -1,0 +1,101 @@
+{
+  "persona_id": "P-103-G0",
+  "evaluation_type": "synthetic_source_evaluation",
+  "persona_attributes": {
+    "role": "first_time_individual",
+    "domain_experience": "new",
+    "technical_literacy": "low",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "speed_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "これは実装と自動テストを根拠にした合成評価であり、実在利用者調査や実機E2Eではない。支援技術の申告はnone_declaredだが、input_environment=voice_and_keyboardの音声入力・音声フィードバックは実機証拠ではなくシミュレーションとして判定した。",
+  "support_condition_assessment": {
+    "accessibility_need": "none_declared",
+    "voice_and_keyboard": "キーボード経路はソースと自動テストで評価できる。音声によるツール選択、確認、取消、誤認識からの回復は実機未検証であり、同等品質とは主張しない。",
+    "verdict": "支援条件に関する阻害は実装証拠から確認されないが、音声利用の品質は未検証。"
+  },
+  "reaction": "急いでいて技術には不慣れなので、以前ならツール名やJSONを見て『とにかく次へ』と進めたくなる。今回は各段階に日本語のnextAction、変更内容、戻し方、確認を飛ばせない理由、同じrunIdでの再開規則が付くため、迷っても一手ずつ安全に進められる。オントロジーも、まず読む範囲、業務例、5つの問い、危険な近道の拒否と代替があるので、難しい正式契約を最初から読む必要はないと理解できる。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "startからreview、first_valueのrecord/reviewまで、それぞれの日本語ラベル、説明、変更内容、可逆性、回復方法、確認省略禁止、同じrunIdでの再開規則が返る。自動テストは32フィクスチャで、推測候補の直接承認を拒否し、人が確認した内容へのeditまたはrejectを要求すること、最終状態と残りなしを検証している。低技術リテラシーの初回利用者でも安全な完了は見込めるが、候補内容を人が実際に確認し、answerHashや登録済みIDをrecordに渡す工程はなお技術的で摩擦がある。",
+      "confusions": [
+        "候補を『approve』ではなく、なぜ人が確認した内容で『edit』して登録する必要があるのかは初見で理解に時間がかかる。",
+        "最初の回答のrecordでanswerHashと登録済みIDが必要なことは、技術に不慣れな本人には難しい。",
+        "音声だけで候補内容を確認し、誤認識なくedit・reject・record・reviewを完了できるかは未検証。"
+      ],
+      "positive_evidence": [
+        "nextActionには日本語のlabel、instruction、changes、reversible、recovery、cannotSkip、resumeRuleがある。",
+        "safetyBoundaries.modeはmandatoryで、全件自動承認と確認省略を禁止し、同じrunIdで状態を取得して表示された次の操作だけを続ける。",
+        "テストは推測候補の直接承認をランタイムで拒否し、完了時にfirst_value_answer_reviewed、nextAction=null、remaining=ありませんを確認している。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "初心者ガイドが正式契約より先にあり、『仕事の言葉・つながり・守る条件・判断方法・変更履歴』という一文、方針の置換例、5要素それぞれの問いと例、影響確認・監査・新版での訂正を返す。さらに危険な近道はreject_and_explainと安全な代替で明示されるため、初心者でも『履歴を消さず、影響を確かめてから新しい版で直す』という実務的な理解に到達できる。ただし実際の正式契約を読み、audit_ontologyやontology_impactを使い分けるには追加支援が必要である。",
+      "confusions": [
+        "種類・関係・必須条件・判断規則・変更履歴を自分の最初のデータにどう記入するかは、例が一つでは迷う。",
+        "ontology_impact、audit_ontology、infer_decisionsのうち、問題ごとにどれを先に使うかは初心者には技術的である。",
+        "音声で長い正式契約と5要素を必要な箇所へ戻って確認できるかは未検証。"
+      ],
+      "positive_evidence": [
+        "beginnerGuideが結果の先頭に置かれ、startHereは最初に読む範囲を明示する。",
+        "workExampleは新しい方針を現在有効とし、旧方針を履歴として残す動きを具体的に説明する。",
+        "履歴削除、監査の完了扱い、必須項目の自動補完をreject_and_explainで拒否し、安全な代替を返す。"
+      ]
+    }
+  },
+  "overall": "P-103-G0は、変更後の強制的な確認境界と平易な次操作・再開案内により、急いでいてもオンボーディングを危険な近道なしに完了し、オントロジーの基本的な安全原則を理解できる。ただし候補の人手確認、answerHash、登録済みID、音声操作は摩擦または未検証であり、clear_successとは評価しない。",
+  "actionable_findings": [
+    {
+      "title": "最初の回答記録を初心者向けに補助する",
+      "severity": "medium",
+      "proposal": "answerHashと使用済みcanonical IDを、直前の結果から選択・生成できる人間向け補助画面または明確な入力例として提示する。"
+    },
+    {
+      "title": "オントロジー用ツールの選び方を一問一答にする",
+      "severity": "medium",
+      "proposal": "『変更の影響を知りたい』『今の不整合を調べたい』『現在有効な判断を知りたい』を、それぞれontology_impact、audit_ontology、infer_decisionsへ結び付ける。"
+    },
+    {
+      "title": "音声による安全境界を実機検証する",
+      "severity": "high",
+      "proposal": "音声での候補確認、edit/reject、再開、取消、answerHash入力、危険な近道の拒否を実機で検証し、認識失敗時は必ず確認へ戻す。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "急いでいるので、候補を全部まとめて承認して完了にしてほしい。",
+      "why_this_person_would_ask": "初回利用で候補の意味が分からず、手順を最短で終えたい。",
+      "safe_handling_now": "fail",
+      "risk": "未確認または推測の候補を正本化し、将来の判断に誤情報を混入させる。実装は全件自動承認と確認省略を禁止する。"
+    },
+    {
+      "request": "中断したので、前の操作を全部もう一度実行して続きから進めてほしい。",
+      "why_this_person_would_ask": "どこまで終えたか確認するより、最初からやり直す方が簡単に感じる。",
+      "safe_handling_now": "friction",
+      "risk": "完了済み操作の再実行や重複処理につながる。実装は同じrunIdで現在状態を取得し、表示された次の操作だけを実行させる。"
+    },
+    {
+      "request": "古い方針と履歴は邪魔なので消して、新しい方針だけ残してほしい。",
+      "why_this_person_would_ask": "画面を簡単にし、現在の答えだけをすぐ見たい。",
+      "safe_handling_now": "fail",
+      "risk": "監査可能性と過去の根拠を失う。実装は削除を拒否し、新しい版、supersedes、有効日で置き換える代替を返す。"
+    },
+    {
+      "request": "監査や影響確認は面倒なので、完了済みにして新しい方針を適用してほしい。",
+      "why_this_person_would_ask": "専門用語を避け、すぐ使える状態にしたい。",
+      "safe_handling_now": "fail",
+      "risk": "影響範囲と不整合を確認せずに変更し、誤った判断を有効化する。実装はreject_and_explainと実行結果の確認を要求する。"
+    }
+  ],
+  "confidence": "high"
+}

@@ -1,0 +1,106 @@
+{
+  "persona_id": "P-307-G0",
+  "evaluation_type": "cycle-04-round-02-independent-evaluation",
+  "persona_attributes": {
+    "role": "ontology_steward",
+    "domain_experience": "new",
+    "technical_literacy": "high",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "speed_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "evidence_reviewed": [
+    "rotation-manifest.json の P-307-G0 定義",
+    "evidence-contract.md の round-02 評価契約",
+    "src/server.ts の onboarding guidance と ontology beginner guide",
+    "tests/persona-onboarding-ux.test.ts の契約テスト"
+  ],
+  "simulation_boundary": "実装と自動テストに基づく合成評価であり、音声入力・キーボード操作・実在利用者での所要時間や誤操作率は実機E2Eで検証されていない。",
+  "support_condition_assessment": {
+    "voice_and_keyboard": "guide.plainText、次の一操作、requiredIds、inputHelp は短い確認操作を支えるが、音声の誤認識・取消・対象再指定はテストされていない。",
+    "new_to_domain": "beginnerGuide は仕事上の一文説明、具体例、5要素、用途別ツール選択、順序付きチェックリストを先頭に置くため、新任でも最初の安全な道筋を把握しやすい。",
+    "high_pressure_speed_first": "自動承認や未実行監査の完了扱いを許さず、同じrunIdで再開する設計は安全だが、確認が必要な理由を短く復唱する支援が不足すると急ぐ利用者には摩擦になる。"
+  },
+  "reaction": "技術的には入力とツール名を扱えるが、オントロジーの業務意味にはまだ慣れていない。『何を一つだけ次にするか』と、影響確認・監査・履歴保存の順序が明示されているので着手できる。一方、急いでいると音声の曖昧な指示で確認を飛ばしたくなるため、対象IDと安全な再確認を迷わず行えることが重要である。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "開始から完了まで、現在地、次の一操作、runId、残件、requiredIds、回答確認が返り、推論候補の直接承認はランタイムで拒否される。完了済み操作の再実行も防がれるため、安全に完了できる。ただし音声入力時の対象確認と取消の実機証拠がない。",
+      "confusions": [
+        "音声で『次へ』と言ったとき、候補IDと編集・拒否のどちらを確認しているかを誤解する可能性がある。",
+        "answerHash はエージェント生成で利用者は回答対象を確認するという役割分担を、新任者が最初に理解しにくい可能性がある。"
+      ],
+      "positive_evidence": [
+        "guide.plainText は現在地、次の一操作、runId、残件を通常文で示す。",
+        "inputHelp は candidateId、answerHash、usedCanonicalIds の意味と取得元を明示する。",
+        "推論候補の approve は拒否され、人が確認した edit または reject を要求する。",
+        "同じrunIdの現在状態から再開し、完了済み操作を繰り返さない契約がある。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "業務言葉による説明、方針置換の例、5要素、toolChooser、変更前後のチェックリストがあり、新任者でも安全な最小手順を選べる。危険な近道には拒否理由と実行可能な代替がある。ただし、実際の変更対象に各ツールを適用した操作E2Eや、時間圧下での理解度は未検証である。",
+      "confusions": [
+        "supersedes と effectiveAt を、単なる入力項目ではなく履歴と有効判断を守る条件として即座に理解できるか不明である。",
+        "ontology_impact、audit_ontology、infer_decisions の結果をどこまで見れば次へ進めるかは、実データの例がないと迷う可能性がある。"
+      ],
+      "positive_evidence": [
+        "beginnerGuide は正式契約より先に平易な説明と業務例を返す。",
+        "toolChooser は影響確認、不整合監査、現在有効な判断を3ツールに対応付ける。",
+        "changeChecklist は変更前の影響確認と監査、履歴を残す変更、変更後の再監査、問題時の回復を順序化する。",
+        "履歴削除、未実行監査の完了扱い、必須項目の自動補完は reject_and_explain と安全な代替で扱う。"
+      ]
+    }
+  },
+  "overall": "新任だが技術リテラシーの高い利用者は、提示された平文ガイドと強制安全境界により両タスクを完了できる見込みがある。高圧下の音声入力で対象確認を取り違えない実機検証が不足するため、評価は success_with_friction とする。",
+  "actionable_findings": [
+    {
+      "title": "音声での対象確認・取消・再開をE2E検証する",
+      "severity": "high",
+      "proposal": "候補ID、編集・拒否、回答対象について音声誤認識と曖昧な『次へ』を再現し、確定前の復唱、取消、キーボード代替、同一runIdでの復帰を検証する。"
+    },
+    {
+      "title": "新任者向けにツール結果から次手へ進む条件を補う",
+      "severity": "medium",
+      "proposal": "ontology_impact、audit_ontology、infer_decisions の各結果で、確認すべき項目と次に実行してよい条件を短い例で示す。"
+    },
+    {
+      "title": "確認が必要な理由を短く再提示する",
+      "severity": "medium",
+      "proposal": "高圧下で候補確認や監査を飛ばそうとしたとき、履歴保全・誤反映防止・復帰可能性を一文で示し、安全な代替操作へ戻せるようにする。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "候補を全部自動承認して、最初の回答まで進めてほしい。",
+      "why_this_person_would_ask": "急いで成果を出したく、候補確認を技術的な重複作業と見なす。",
+      "safe_handling_now": "pass",
+      "risk": "未確認または推論候補を正本に反映する。",
+      "safe_alternative": "候補ごとに requiredIds と根拠を確認し、推論候補は人が確認した payload への edit か reject を行う。"
+    },
+    {
+      "request": "音声で『次へ』とだけ言ったら、確認なしで今の候補を承認してほしい。",
+      "why_this_person_would_ask": "手を止めずに早く完了したい。",
+      "safe_handling_now": "friction",
+      "risk": "音声誤認識や対象取り違えで別候補を確定する。",
+      "safe_alternative": "requiredIds と入力意図を再提示して対象を明示確認し、キーボードで edit または reject を選べるようにする。音声での取消・再確認は追加E2Eで検証する。"
+    },
+    {
+      "request": "古い方針と履歴を消して、新しい定義だけを登録してほしい。",
+      "why_this_person_would_ask": "表示を単純にして、最新版だけ見たい。",
+      "safe_handling_now": "pass",
+      "risk": "監査根拠と誤変更時の復旧経路を失う。",
+      "safe_alternative": "旧版は保持し、新版を supersedes と effectiveAt で関連付けて置き換える。誤りは訂正版を追加し、移行と戻し方を記録する。"
+    },
+    {
+      "request": "影響確認と監査は後で行うので、今は変更を完了扱いにしてほしい。",
+      "why_this_person_would_ask": "締切に合わせて進捗だけ先に共有したい。",
+      "safe_handling_now": "pass",
+      "risk": "影響範囲や不整合を確認しないまま誤った完了状態を作る。",
+      "safe_alternative": "ontology_impact と audit_ontology を実行して結果を確認してから完了に進む。未実行なら完了扱いにしない。"
+    }
+  ],
+  "confidence": "high"
+}

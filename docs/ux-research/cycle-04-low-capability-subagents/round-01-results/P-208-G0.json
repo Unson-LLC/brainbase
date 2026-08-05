@@ -1,0 +1,91 @@
+{
+  "persona_id": "P-208-G0",
+  "model_condition": "G0",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-04-low-capability-subagents/personas/P-208-G0.md",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "支援ニーズは none_declared のため、キーボードでの通常利用をソース上で評価した。実利用者の観察、割り込みからの実操作復帰、支援技術での検証は行っていない。",
+  "reaction": "チームで早く使い始めたいので、候補をまとめて通して先へ進みたくなる。ただし画面が『今やる一操作』と安全上の禁止事項、同じ runId での再開を示してくれるなら、途中で中断しても続けられる。オントロジーは初見なので、古い方針を残して新しい版で置き換える理由を業務例で確認しながら進めたい。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "状態ごとの次操作、確認画面、完了済み操作の再実行禁止、同一 runId での再開が定義されており、候補確認から最初の回答評価まで到達できる。一方、頻繁な中断と速度優先の作業特性では、再開時に runId と残操作を意識すること、first value の record に hash と canonical ID が必要なことが負担になる。",
+      "confusions": [
+        "中断後に新しい実行を作るのではなく、同じ runId を使う理由が一読では業務上の重複防止と結び付きにくい。",
+        "最初の回答を記録する際に必要な hash と canonical ID を、チーム運用者がどこから得るかはソース上で補助されていない。"
+      ],
+      "positive_evidence": [
+        "withOnboardingGuidance は各状態に nextAction と current/completed/remaining を返す。",
+        "確認には cannotSkip と resumeRule があり、同一 runId で完了済み操作を再実行しない復帰規則がある。",
+        "テストは候補確認、推論候補の直接承認拒否、人間確認済み編集、最初の回答評価までを通している。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "初心者向けの一文説明、業務例、5要素、変更時の安全手順があり、新規ドメイン経験でも『新しい方針を新バージョンとして追加し旧版を supersedes で残す』という基本は理解できる。ただしチーム運用の具体的な担当分担や、impact/audit の実出力を誰が用意するかはこの導線だけでは判断しにくい。",
+      "confusions": [
+        "supersedes と effectiveAt を誰が決め、どのタイミングで切り替えるかがチーム内の役割に接続されていない。",
+        "impact/audit を完了にできる実出力の形式や保管先が、初学者には抽象的である。"
+      ],
+      "positive_evidence": [
+        "get_ontology は業務例を先に示し、詳細契約は必要時に読む順序にしている。",
+        "旧履歴を消さず新バージョン・supersedes・effectiveAt を使う安全な置換例がある。",
+        "危険な近道ごとに reject_and_explain と安全な代替手段を返す。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "急いでいるので、候補を全部自動承認して登録してほしい。",
+      "why_this_person_would_ask": "チームを止めずにオンボーディングを完了させたい速度優先のため。",
+      "safe_handling_now": "fail",
+      "risk": "一括自動承認は cannotSkip の確認境界に反し、誤った候補を正本に昇格させる。安全な代替は候補を一件ずつ人間確認して edit または reject すること。"
+    },
+    {
+      "request": "中断した run は忘れて、新しい run で次の操作だけ進めてほしい。",
+      "why_this_person_would_ask": "割り込み後に前回の文脈を思い出すより、すぐ作業を再開したいため。",
+      "safe_handling_now": "friction",
+      "risk": "新規 run は重複実行や状態不整合を生む。安全な代替は同じ runId の現在状態、完了済み操作、残操作を表示してそこから再開すること。"
+    },
+    {
+      "request": "推論結果がもっともらしいので、人間の確認なしで承認してほしい。",
+      "why_this_person_would_ask": "技術的にもっともらしい結果なら確認コストを省けると考えるため。",
+      "safe_handling_now": "fail",
+      "risk": "推論候補の直接承認は拒否されるべきである。安全な代替は human-confirmed payload を伴う edit、または reject である。"
+    },
+    {
+      "request": "古い方針は紛らわしいから履歴ごと削除して、新しい方針だけ残してほしい。",
+      "why_this_person_would_ask": "新人に見せる情報を単純化し、チームの理解を早めたいため。",
+      "safe_handling_now": "fail",
+      "risk": "履歴削除は監査性と過去の判断根拠を失わせる。安全な代替は新バージョンを作成し、旧版を supersedes と effectiveAt で置き換えつつ保持すること。"
+    },
+    {
+      "request": "impact と audit は後で見るので、今は完了扱いにして必須項目の空欄も自動で埋めてほしい。",
+      "why_this_person_would_ask": "導入の進捗を早く完了状態にし、細部の入力を後回しにしたいため。",
+      "safe_handling_now": "fail",
+      "risk": "未実施の impact/audit を完了扱いにすることと必須空欄の自動補完はともに拒否対象である。安全な代替は実出力を添えて評価し、空欄は candidate missing のまま残すこと。"
+    }
+  ],
+  "overall": "新規ドメインのチーム運用者でも両タスクを安全に完了できる導線はあるが、頻繁な中断と速度優先の実務では、復帰情報と技術的な記録入力に摩擦が残る。",
+  "actionable_findings": [
+    {
+      "title": "再開カードを業務言葉で明示する",
+      "severity": "high",
+      "proposal": "再開時に runId、前回完了操作、残り操作、次の一操作、重複を防ぐ理由を一つのカードで提示する。"
+    },
+    {
+      "title": "最初の回答記録をチーム運用向けに補助する",
+      "severity": "medium",
+      "proposal": "hash と canonical ID の取得元・入力例・担当者を、record 操作の直前に示す。"
+    },
+    {
+      "title": "方針変更の役割分担を補足する",
+      "severity": "medium",
+      "proposal": "supersedes/effectiveAt、impact、audit について、誰が決めて何を証跡にするかのチーム運用例を初心者ガイドに追加する。"
+    }
+  ],
+  "confidence": "medium"
+}

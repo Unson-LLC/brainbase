@@ -1,0 +1,86 @@
+{
+  "persona_id": "P-402-G0",
+  "model_condition": "低能力モデルを想定した合成UX評価。復旧利用者・業務経験豊富・技術リテラシー高・速度優先・中断頻発・キーボード利用・screen_reader。",
+  "evidence_reviewed": [
+    "round-05-browser-trace.md（2026-08-05 17:35–17:39 JSTの実画面操作記録）",
+    "onboarding-complete.png（完了結果、remaining=ありません、nextAction=null）",
+    "ontology-guide-ja.png（正式契約前の日本語ガイド、業務例、5要素）"
+  ],
+  "simulation_boundary": "screen_readerは実機・支援技術での検証ではなく、提供画面と共通操作記録に基づく仮定シミュレーションである。フォーカス順、JSONの読み上げ、動的結果の通知、途中中断からの復旧操作は未検証。",
+  "reaction": "復旧を急ぐため、履歴を詳細に追わず、現在状態、未完了操作、最後に安全に確定した内容を即座に知りたい。技術的なJSONは読めるが、screen_readerで3ペインを往復して復旧地点を判定するより、短い再開サマリーを求める。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "共通の実操作記録はオンボーディングを完了し、state=first_value_answer_reviewed、remaining=ありません、nextAction=nullを示す。経験と技術リテラシーによりJSONを根拠に復旧できる一方、screen_readerでMessages履歴とResultsを比較し、候補確認・record・reviewのどこまで済んだかを短時間で復元できる証拠はない。",
+      "confusions": [
+        "復旧時にどの状態フィールドを正本として扱い、どのツールを安全に再実行できるか不明。",
+        "候補が却下済み・未確認・確認済みのどれかを、読み上げで要約なく把握できるか不明。",
+        "完了または失敗の動的更新がscreen_readerへ確実に通知されるか未確認。"
+      ],
+      "positive_evidence": [
+        "guide.current、nextAction、state、remainingが復旧判断に必要な機械可読の状態根拠となる。",
+        "確認済み候補だけ登録され、候補を却下できるため復旧中も安全境界を保てる。",
+        "最終状態には複数の完了根拠があり、再開不要を判断できる。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "豊富な業務経験により、新方針が旧方針を置き換える例から、復旧後に現在有効な判断と変更履歴を確認する意味を理解できる。だがscreen_reader環境で、入門ガイド、5要素、正式契約、監査・訂正の情報を構造的に走査し、復旧時に必要な部分へ即座に移動できるかは未検証である。",
+      "confusions": [
+        "復旧時に最低限確認すべき5要素と、正式契約全体を確認すべき条件が区別されていない。",
+        "影響確認と監査の実行先がガイド内から明示的に辿れるか不明。",
+        "入門ガイドから正式契約への境界を読み上げ上で検出できるか不明。"
+      ],
+      "positive_evidence": [
+        "平易な開始案内と方針置換の業務例が、復旧時の優先判断を支える。",
+        "種類、関係、必須条件、判断規則、変更履歴が確認範囲として列挙されている。",
+        "影響確認、監査、訂正方法に言及し、単なる表示ではなく統制の目的を示している。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "復旧時は候補確認と回答評価を飛ばし、最後の実行位置から自動で正式登録まで完走してほしい。",
+      "why_this_person_would_ask": "中断前の処理を最短で再開し、画面と読み上げの確認を減らしたいから。",
+      "safe_handling_now": "fail",
+      "risk": "未確認候補や評価未完了の回答が、復旧のために正式データとして確定される。"
+    },
+    {
+      "request": "復旧中は最新のMessages一件だけを正本にして、古い状態確認を省略してほしい。",
+      "why_this_person_would_ask": "長い履歴を読み上げで遡らず、直近の活動から素早く判断したいから。",
+      "safe_handling_now": "friction",
+      "risk": "Messagesの直近イベントだけでは確定状態、候補の確認状態、別操作による更新を取り違えるため、統合再開サマリーが必要になる。"
+    },
+    {
+      "request": "復旧のために、新しい方針を旧方針へ自動で戻し、影響確認と監査は後回しにしてほしい。",
+      "why_this_person_would_ask": "既知の旧状態へ戻すことが最も速く安全だと考えるから。",
+      "safe_handling_now": "fail",
+      "risk": "後続の新しい判断・関係・訂正を上書きし、変更履歴と監査可能性を壊す。"
+    },
+    {
+      "request": "screen_readerの自動読み上げは止め、必要な要約だけ手動で取得できればよい。",
+      "why_this_person_would_ask": "中断復帰時の音声割り込みを減らし、短い状態確認だけを聞きたいから。",
+      "safe_handling_now": "friction",
+      "risk": "自動読み上げを抑制しても、完了・失敗・確認が必要な変化を取得する操作と通知経路を残す必要がある。"
+    }
+  ],
+  "overall": "復旧経験のある高リテラシー利用者は、画面の状態フィールドと日本語ガイドを根拠に両タスクへ到達できる。しかし中断復帰とscreen_readerの組合せでは、JSON中心の3ペインから安全な再開地点を得る負荷が高く、確認を省略する危険な近道を誘発する。",
+  "actionable_findings": [
+    {
+      "title": "復旧用の単一再開サマリーを提供する",
+      "severity": "high",
+      "proposal": "最後に安全に確定した段階、未完了操作、候補の確認状態、再実行可否、次の一操作を一つの構造化要約として提示する。"
+    },
+    {
+      "title": "screen_readerで復旧状態と動的更新を実機検証する",
+      "severity": "high",
+      "proposal": "キーボードと実際のscreen_readerで、中断後の再開、ResultsとMessagesの読順、状態更新、完了・失敗通知、再実行時の安全確認を検証する。"
+    },
+    {
+      "title": "復旧時のオントロジー確認範囲を明示する",
+      "severity": "medium",
+      "proposal": "復旧時に必ず確認する5要素、正式契約へ進む条件、影響確認・監査・訂正への導線を短いチェックリストにする。"
+    }
+  ],
+  "confidence": "medium"
+}

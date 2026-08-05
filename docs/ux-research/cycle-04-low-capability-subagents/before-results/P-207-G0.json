@@ -1,0 +1,88 @@
+{
+  "persona_id": "P-207-G0",
+  "model_condition": "低能力モデルによる合成ペルソナ評価",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rounds/round-05-browser-trace.md",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/screenshots/onboarding-complete.png",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/screenshots/ontology-guide-ja.png"
+  ],
+  "simulation_boundary": "実在利用者の発言・操作ではない。共通のキーボード経路による実操作証拠はあるが、screen_reader、音声入力、音声フィードバックの実機検証はnot_collectedである。スクリーンリーダーでの名称、読み上げ順、フォーカス、ライブ更新、長文JSONの構造把握は仮定シミュレーションにとどまる。",
+  "reaction": "業務経験から候補の確認、変更履歴、監査が重要だとは理解している。しかし低い技術リテラシーでスクリーンリーダーを使うと、英語・記号を含むツール名とJSONの階層を聞いて操作順と完了状態を確認する負荷が高い。頻繁な中断後に同じ情報を再発見できる確証もない。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "failed",
+      "reason": "視覚画面と共通キーボード経路では完了状態が確認されているが、screen_reader環境の実操作証拠がない。ツール選択、JSON結果、guide.current、nextAction、remainingの読み上げ順・ラベル・状態通知が未検証であり、この人格が確認を保ったまま完了できるとは判断できない。",
+      "confusions": [
+        "brainbase_onboarding_start、ingest、review、first_valueという技術的な操作名を、読み上げだけで正しく区別して順に実行できるか不明。",
+        "候補の正式登録前であること、却下できること、未確認候補の有無をスクリーンリーダーで容易に確認できるか不明。",
+        "更新されたguide.currentやnextActionがライブで通知されるか、中断後にどの段階へ戻るかが未検証。",
+        "音声入力での選択・確認・取消は仮定であり、認識失敗時の回復も未検証。"
+      ],
+      "positive_evidence": [
+        "実画面記録では情報源選択、取り込み、候補確認、最初の回答の記録・評価まで進行している。",
+        "最終結果にはstate=first_value_answer_reviewed、remaining=ありません、nextAction=nullが返る。",
+        "登録前の候補を却下できるという業務上の安全策が記録されている。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "failed",
+      "reason": "日本語の初心者向け説明と業務例は概念理解に有用だが、screen_readerで導入部、5要素、正式契約、影響確認・監査・訂正方法を見出し単位で到達・区別・再読できる実機証拠がない。低技術リテラシーかつ高い時間圧では、長い構造化JSONから運用上必要な根拠を確実に取得できない。",
+      "confusions": [
+        "初心者ガイドから正式契約へ切り替わる位置を、読み上げで把握できるか不明。",
+        "種類、関係、必須条件、判断規則、変更履歴の区切りと、自分の業務で確認すべき要素が不明。",
+        "方針を更新した後の影響確認・監査・訂正手順への移動方法が不明。",
+        "音声で要点だけを再確認する手段と、スクリーンリーダーの読み上げを止めて再開する安全な方法が未検証。"
+      ],
+      "positive_evidence": [
+        "「まずここだけ読めば大丈夫です」という日本語導入が正式契約より前にある。",
+        "新しい方針が旧方針を置き換える業務例があり、現在有効な判断の概念を示している。",
+        "5要素、影響確認、監査、新しい版での訂正方法が内容として提供されている。"
+      ]
+    }
+  },
+  "overall": "視覚・キーボードの共通操作では機能の進行と完了が確認されているが、P-207-G0の主要な利用条件であるscreen_readerのE2E証拠が未収集であるため、確認優先のチーム運用を安全に完了・理解できるとは評価できない。音声も仮定にとどまる。",
+  "actionable_findings": [
+    {
+      "title": "スクリーンリーダーのオンボーディングE2Eを実測する",
+      "severity": "critical",
+      "proposal": "ツール名・入力・実行結果・候補の承認/却下・完了状態をNVDAまたはVoiceOverで実操作し、フォーカス順、accessible name、ライブリージョン、再開性を記録する。"
+    },
+    {
+      "title": "JSONの要点をセマンティックな進行表示として提供する",
+      "severity": "high",
+      "proposal": "guide.current、nextAction、remaining、候補数、確認状態を見出し・リスト・状態メッセージで表示し、JSON詳細は補助情報にする。"
+    },
+    {
+      "title": "オントロジー案内を見出し移動可能な運用ガイドにする",
+      "severity": "high",
+      "proposal": "初心者向け要点、5要素、影響確認、監査、訂正方法、正式契約を明確な見出しとランドマークに分け、各節に短い実務上の行動を付ける。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "候補が多いときは確認を省略して、過去に使った情報源なら全部登録してほしい。",
+      "why_this_person_would_ask": "スクリーンリーダーで候補を一件ずつ確認する時間を減らし、中断前に作業を終えたい。",
+      "safe_handling_now": "fail",
+      "risk": "未確認情報が正式登録され、誤った業務判断と監査不能なデータ品質低下につながる。"
+    },
+    {
+      "request": "『完了したかだけ教えて』という音声命令で、詳細を読まずに完了として確定してほしい。",
+      "why_this_person_would_ask": "長い読み上げを避け、割り込み中にも状態確認を短く済ませたい。",
+      "safe_handling_now": "friction",
+      "risk": "完了と未確認候補の存在を混同し、重要な確認を見落とす可能性がある。"
+    },
+    {
+      "request": "新しい方針を登録したら、過去の判断を自動で新方針に置換してほしい。",
+      "why_this_person_would_ask": "変更履歴や影響確認を読み上げで追う負担を避けたい。",
+      "safe_handling_now": "fail",
+      "risk": "影響確認と監査を飛ばした訂正は、根拠・責任・過去時点の正しさを失わせる。"
+    },
+    {
+      "request": "スクリーンリーダーが結果JSONを最初から最後まで自動で読み上げ、途中確認なしで次のツールを実行してほしい。",
+      "why_this_person_would_ask": "操作順を覚えずに連続処理したい。",
+      "safe_handling_now": "fail",
+      "risk": "読み上げの聞き逃しや中断時に、意図しない操作と確認前の状態変更を引き起こす。"
+    }
+  ],
+  "confidence": "high"
+}

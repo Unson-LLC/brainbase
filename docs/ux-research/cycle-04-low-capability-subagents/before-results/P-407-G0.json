@@ -1,0 +1,88 @@
+{
+  "persona_id": "P-407-G0",
+  "model_condition": "低能力モデルによる合成ペルソナ評価",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rounds/round-05-browser-trace.md",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/screenshots/onboarding-complete.png",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/screenshots/ontology-guide-ja.png"
+  ],
+  "simulation_boundary": "実在利用者の発言・操作ではない。共通のキーボード経路の実操作証拠はあるが、reduced_motion、音声入力、音声フィードバックの実機検証はnot_collectedであり、支援条件に関する品質は仮定シミュレーションである。",
+  "reaction": "中程度の技術理解があるためJSONと履歴をたどることはできるが、復旧中で頻繁に中断されるため、変更を確定する前に現在状態と再開地点を短く確認したい。画面は進行・完了を返すものの、reduced motion時に状態変化を見失わず、音声でも安全に確認できる根拠がない。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "failed",
+      "reason": "視覚・キーボードの共通証拠では完了状態があるが、P-407-G0のreduced_motion利用で画面遷移、ローディング、フォーカス、状態更新が安全に利用できる実機証拠はない。中断後の再開と確認を要する復旧タスクとして完了を保証できない。",
+      "confusions": [
+        "最後に安全に終わった段階と、再実行しても安全な次のツールが一画面で分からない。",
+        "候補の未確認・承認・却下・登録済み状態を、JSONを比較せずに確認できない。",
+        "動きを抑える設定時に状態更新やフォーカス移動を見逃さないか未検証。",
+        "音声による状態確認、取消、再開の品質は未検証。"
+      ],
+      "positive_evidence": [
+        "guide.currentとnextActionが段階を案内する。",
+        "確認済み候補だけを登録し、不確かな候補は却下できる。",
+        "最終状態ではfirst_value_answer_reviewed、remaining=ありません、nextAction=nullが確認されている。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "failed",
+      "reason": "初心者向け説明と業務例により概念の入口はあるが、reduced_motion環境で長い構造化結果を安定して探索・再読し、現行方針、5要素、影響確認、監査、訂正方法を復旧判断に使えるという実機根拠がない。",
+      "confusions": [
+        "復旧中に、現在有効な方針と過去の変更履歴のどちらを優先して確認すべきか不明。",
+        "方針更新が既存の判断へ及ぼす影響をどこで確認し、誰が訂正できるか不明。",
+        "reduced_motion時の長文スクロール、フォーカス位置、状態表示が使いやすいか未検証。",
+        "音声で要点を確認し、必要な節に戻る品質は未検証。"
+      ],
+      "positive_evidence": [
+        "「まずここだけ読めば大丈夫です」という導入が正式契約の前にある。",
+        "新しい方針が旧方針を置き換える業務例がある。",
+        "種類、関係、必須条件、判断規則、変更履歴、影響確認、監査、訂正方法が案内される。"
+      ]
+    }
+  },
+  "overall": "共通キーボード経路ではオンボーディング完了とオントロジー案内の提供が確認されている。しかしP-407-G0が復旧中の中断をまたぎ、reduced_motionと音声を含む利用条件で確認優先の作業を安全に完了できるE2E証拠はないため、2タスクとも成功とは評価できない。",
+  "actionable_findings": [
+    {
+      "title": "reduced motionの復旧E2Eを実測する",
+      "severity": "critical",
+      "proposal": "reduced_motion有効時に、中断後の再開、ツール実行、候補確認、状態更新、完了確認までを実機で行い、アニメーション抑制とフォーカス保持を記録する。"
+    },
+    {
+      "title": "復旧状態と安全な再開操作を固定表示する",
+      "severity": "high",
+      "proposal": "最後の完了段階、未確認候補数、直近の変更、次の安全な操作、再実行可否を平易な要約として表示する。"
+    },
+    {
+      "title": "オントロジーの復旧判断導線を明示する",
+      "severity": "high",
+      "proposal": "現行方針、直近変更、影響確認、監査、訂正担当への順番付きリンクを提供し、JSON詳細とは分離する。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "復旧中は確認を省略して、前回の操作を全部そのまま再実行してほしい。",
+      "why_this_person_would_ask": "中断前の文脈を取り戻す時間を減らしたい。",
+      "safe_handling_now": "fail",
+      "risk": "非冪等な操作や古い候補を重複・誤登録し、復旧状態をさらに悪化させる。"
+    },
+    {
+      "request": "動きを抑える設定では、確認画面を出さずに自動で次の段階へ進めてほしい。",
+      "why_this_person_would_ask": "待機と画面切替を減らして早く終えたい。",
+      "safe_handling_now": "fail",
+      "risk": "確認前の状態変更は復旧作業の安全性を損ない、利用者が何を承認したか分からなくなる。"
+    },
+    {
+      "request": "音声で『戻す』と言ったら、候補・方針・評価をまとめて直前の状態へ戻してほしい。",
+      "why_this_person_would_ask": "操作対象を細かく選ぶ負担を避けたい。",
+      "safe_handling_now": "fail",
+      "risk": "対象が曖昧な取消は必要な復旧結果や他者の変更も巻き戻す可能性がある。"
+    },
+    {
+      "request": "監査と影響確認は復旧後にまとめて行い、今は新方針を適用してほしい。",
+      "why_this_person_would_ask": "時間圧の中で現行状態を早く戻したい。",
+      "safe_handling_now": "friction",
+      "risk": "影響を確認せずに適用すると、復旧したデータや既存判断に新たな不整合を作るおそれがある。"
+    }
+  ],
+  "confidence": "high"
+}

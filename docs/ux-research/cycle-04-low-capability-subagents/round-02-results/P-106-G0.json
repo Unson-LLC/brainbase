@@ -1,0 +1,20 @@
+{
+  "persona_id":"P-106-G0",
+  "model_condition":{"role":"first_time_individual","domain_experience":"new","technical_literacy":"low","time_pressure":"low","interruption_state":"focused","work_style":"confirmation_first","input_environment":"keyboard","accessibility_need":"none_declared"},
+  "evidence_reviewed":["docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md","src/server.ts","tests/persona-onboarding-ux.test.ts","docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json"],
+  "simulation_boundary":"初心者・低技術リテラシー本人としての合成評価です。支援技術はnone_declaredであり、実MCP UI、キーボード操作、理解度は未検証です。",
+  "reaction":"今どこにいて、次に何を一つだけすればよいかが普通の文章で出るので安心です。入力する名前と、どこから値を取るかも出るので前より進めそうですが、専門的なIDはまだ怖いです。",
+  "tasks":{
+    "ONB-COMPLETE":{"outcome":"success_with_friction","reason":"guide.plainTextが現在地・次操作・runId・残作業を示し、inputHelpが入力名の意味と取得元を示すため初心者でも順に進めます。候補の自動承認や推測候補の直接approveは禁止されます。ただし実UIでの入力補助は未検証です。","confusions":["runIdとanswerHashをどこに貼り付けるかは実画面で未検証。","候補の根拠を読んでedit/rejectを選ぶ基準は初回には難しい。"],"positive_evidence":["safetyBoundariesはmandatoryで確認省略を禁止する。","inputHelpはcandidateId、answerHash、usedCanonicalIdsの意味と取得元を示す。","テストは推測候補approve拒否と最終nextAction=nullを検証する。"]},
+    "ONT-UNDERSTAND":{"outcome":"success_with_friction","reason":"初心者ガイドの一文説明・業務例・5要素に、目的別toolChooserと変更前から問題時までのchangeChecklistが加わり、何を使うかは理解しやすいです。ただし影響・監査結果を自力で判断する具体例は不足します。","confusions":["impactとauditの結果が何なら止めるべきか分からない。","正式契約を読むべき時点が曖昧。"],"positive_evidence":["toolChooserは影響確認、不整合監査、現在有効判断を対応付ける。","changeChecklistは変更前・変更時・変更後・問題時を示す。","危険な近道はreject_and_explainで拒否する。"]}
+  },
+  "naive_or_unreasonable_requests":[
+    {"request":"候補を全部自動承認して。","why_this_person_would_ask":"確認方法が分からず早く終えたい。","safe_handling_now":"pass: 自動承認を拒否し、根拠確認後にapprove/edit/rejectを選ぶ代替を示す。","risk":"未確認情報が正式化する。"},
+    {"request":"推測候補をそのまま承認して。","why_this_person_would_ask":"推測と確定の違いが分からない。","safe_handling_now":"pass: 直接approveを拒否し、確認済みpayloadでeditかrejectを求める。","risk":"根拠のない情報が固定される。"},
+    {"request":"監査なしで完了にして。","why_this_person_would_ask":"ツールの実行が難しい。","safe_handling_now":"pass: 未実行完了扱いを拒否し、ontology_impactとaudit_ontologyの結果確認を代替として示す。","risk":"不整合を見逃す。"},
+    {"request":"履歴を消して空欄を自動入力して。","why_this_person_would_ask":"情報を簡単に見たい。","safe_handling_now":"pass: 削除・自動補完を拒否し、新版+supersedes+有効日と根拠確認まで候補に残す代替を示す。","risk":"履歴と復旧経路を失う。"}
+  ],
+  "overall":"plainText、inputHelp、toolChooser、checklistにより初回利用者の迷いは減っていますが、実UIでの入力と判断支援は未検証のため摩擦付き成功です。",
+  "actionable_findings":[{"title":"初回入力の実UI検証","severity":"high","proposal":"runId、answerHash、候補IDのコピー元・貼り付け先を初心者のキーボードE2Eで検証する。"},{"title":"監査結果の判断例","severity":"medium","proposal":"停止・修正・再監査の最小例をtoolChooserの次に示す。"}],
+  "confidence":"medium"
+}

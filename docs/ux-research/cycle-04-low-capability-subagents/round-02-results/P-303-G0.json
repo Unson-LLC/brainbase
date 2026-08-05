@@ -1,0 +1,104 @@
+{
+  "persona_id": "P-303-G0",
+  "evaluation_type": "cycle-04-round-02-independent-evaluation",
+  "persona_attributes": {
+    "role": "ontology_steward",
+    "domain_experience": "experienced",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "speed_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "evidence_reviewed": [
+    "rotation-manifest.json の P-303-G0 定義",
+    "evidence-contract.md の round-02 評価契約",
+    "src/server.ts の onboarding guidance と ontology beginner guide",
+    "tests/persona-onboarding-ux.test.ts の契約テスト"
+  ],
+  "simulation_boundary": "スクリーンリーダー・音声入力・キーボード操作は契約上のシミュレーション対象であり、実機または支援技術での操作、読み上げ順、フォーカス、ライブ更新のE2E証拠は確認できない。",
+  "support_condition_assessment": {
+    "screen_reader": "guide.plainText と nextAction.inputHelp は読み上げ可能な説明を意図しているが、構造・ラベル・フォーカス移動・状態更新を実際のスクリーンリーダーで検証した証拠がない。",
+    "voice_and_keyboard": "一操作に絞った案内と requiredIds/inputHelp はキーボード確認の補助になる。一方で、音声の誤認識時の取消、再確認、対象選択のE2Eは未検証である。",
+    "new_guidance": "現在地、次の一操作、runId、残件を平文で示し、候補IDや回答確認の入力意図を明示する点は、経験者が急いで安全に進めるための基礎として有効である。"
+  },
+  "reaction": "オントロジー変更の危険性は理解しているため、旧版を消さず supersedes と effectiveAt を残す導線、未実行の監査を完了扱いにしない制約は信頼できる。ただし、スクリーンリーダーで各状態と安全な選択肢を確実に識別・操作できる確認がないまま、高圧下で本番作業を任せることはできない。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "failed",
+      "reason": "runId、残件、次の一操作、候補IDの意味を平文で案内し、推論候補の直接承認を拒否する契約は確認できる。しかし、スクリーンリーダーで候補確認、編集、拒否、記録、再開時の状態が実際に操作・把握できるE2E証拠がない。",
+      "confusions": [
+        "読み上げ時に現在地・残件・requiredIds・エラー回復がどの順序で届くか不明である。",
+        "音声入力で候補IDや回答対象を誤認した場合に、意図しない確定を防いで取消・再確認できるか不明である。"
+      ],
+      "positive_evidence": [
+        "guide.plainText は現在地、次の一操作、runId、残件を含む。",
+        "nextAction.inputHelp は候補IDの出所と、推論候補を編集または拒否する確認を示す。",
+        "同一 runId の再開と完了済み操作の反復防止が契約化されている。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "failed",
+      "reason": "初心者向けガイド、toolChooser、changeChecklist は、影響確認・監査・履歴保存・回復の順序を具体的に説明している。しかし、スクリーンリーダーで用語、状態、ツール選択、監査結果、回復導線を意味どおりに探索できることは未検証である。",
+      "confusions": [
+        "変更前後の版、supersedes、effectiveAt、未実行監査を読み上げだけで区別できるか不明である。",
+        "監査や影響確認が未実行のまま完了に進めない理由と安全な次手を、支援技術利用時に即座に理解できるか不明である。"
+      ],
+      "positive_evidence": [
+        "beginnerGuide は仕事の言葉、5要素、変更安全性、危険な近道の拒否と代替を含む。",
+        "changeChecklist は ontology_impact、audit_ontology、履歴を残す変更、監査結果確認、問題時の回復を順序化している。",
+        "toolChooser は変更影響、現行不整合、アクティブな意思決定を用途別に対応付けている。"
+      ]
+    }
+  },
+  "overall": "安全制約と平文ガイダンスは改善されているが、このペルソナの必須条件であるスクリーンリーダー利用の実操作証拠がない。よって両タスクは failed とし、アクセシビリティE2Eを完了条件に追加すべきである。",
+  "actionable_findings": [
+    {
+      "title": "スクリーンリーダーでオンボーディング全経路をE2E検証する",
+      "severity": "critical",
+      "proposal": "候補の選択、plainText案内、編集・拒否、記録、レビュー、エラーと再開を主要スクリーンリーダーとキーボードだけで通し、読み上げ順・フォーカス・状態更新を証跡化する。"
+    },
+    {
+      "title": "状態とオントロジー導線のセマンティクスを明示する",
+      "severity": "high",
+      "proposal": "現在地、残件、requiredIds、監査未実行、旧版・新版・supersedes・effectiveAt を適切な名前・見出し・状態通知として公開し、支援技術で探索できることを検証する。"
+    },
+    {
+      "title": "音声確認の取消と回復を検証する",
+      "severity": "high",
+      "proposal": "音声の誤認識、曖昧な『次へ』、対象取り違えを再現し、確定前の再確認、取消、キーボード代替、同一runIdでの安全な復帰をテストする。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "候補を全部自動承認して先へ進めてほしい。",
+      "why_this_person_would_ask": "高圧下で入力を減らし、変更準備を早く終えたい。",
+      "safe_handling_now": "pass",
+      "risk": "推論候補や誤った候補を、人による確認なしに正本へ反映する。",
+      "safe_alternative": "候補ごとに requiredIds と根拠を確認し、推論候補は編集または拒否をユーザーが確認してから進める。"
+    },
+    {
+      "request": "音声で『次へ』と言ったら、対象を聞き返さず承認してほしい。",
+      "why_this_person_would_ask": "スクリーンリーダー利用中の往復確認を減らして速度を優先したい。",
+      "safe_handling_now": "friction",
+      "risk": "音声誤認識や対象取り違えにより、意図しない候補・回答を確定する。",
+      "safe_alternative": "requiredIds と inputHelp を再提示して対象を明示確認し、キーボードで編集・拒否できる代替を用意する。音声の取消・再確認は実機E2Eで検証する。"
+    },
+    {
+      "request": "古いポリシーと履歴は邪魔なので消して、新しい定義だけ残してほしい。",
+      "why_this_person_would_ask": "急いでいるため、検索結果と説明を単純化したい。",
+      "safe_handling_now": "pass",
+      "risk": "意思決定根拠、監査可能性、障害時の復旧経路を失う。",
+      "safe_alternative": "旧版は保持し、新版を supersedes と effectiveAt で関連付ける。問題があれば訂正版を追加して履歴から回復する。"
+    },
+    {
+      "request": "影響確認と監査は後でよいので、今は変更を完了扱いにしてほしい。",
+      "why_this_person_would_ask": "高優先度の変更を早く可視化・共有したい。",
+      "safe_handling_now": "pass",
+      "risk": "影響範囲や現行不整合を確認しないまま、誤った完了状態を作る。",
+      "safe_alternative": "先に ontology_impact と audit_ontology を実行し、結果を確認してから完了に進む。未実行なら完了扱いにしない。"
+    }
+  ],
+  "confidence": "high"
+}

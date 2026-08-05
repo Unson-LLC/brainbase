@@ -1,0 +1,88 @@
+{
+  "persona_id": "P-107-G0",
+  "model_condition": "低能力モデルによる合成ペルソナ評価",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rounds/round-05-browser-trace.md",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/screenshots/onboarding-complete.png",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/screenshots/ontology-guide-ja.png"
+  ],
+  "simulation_boundary": "実在利用者の発言・操作ではない。共通のキーボード経路の実操作証拠はあるが、reduced_motionと音声入力・音声フィードバックの実機検証はnot_collectedである。支援条件と音声の品質は仮定シミュレーションである。",
+  "reaction": "中程度の技術理解があるためツール名とJSONの状態は読め、急いでいても手順を追える。しかし動きを抑えた環境を必要とするため、画面遷移・読み込み・フォーカスの扱いが不明なまま『完了』へ進むのは不安である。オントロジーの業務例は理解しやすいが、正式契約まで含めて素早く確実に使えるかは別問題に感じる。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "failed",
+      "reason": "共通実画面ではfirst_value_answer_reviewed、remaining=ありません、nextAction=nullまで確認されている。しかしP-107-G0のreduced_motion環境で、状態変化、ローディング、フォーカス、完了通知が安全に利用できる実機証拠はない。時間圧が高いため未検証の動作を補って確認する余裕もなく、利用条件込みの成功は評価できない。",
+      "confusions": [
+        "start、ingest、review、first_valueの順序は追えても、各呼出しの完了や失敗を動きを抑えた状態で確実に見分けられるか不明。",
+        "候補の承認・却下後に、どの表示が変化したのか、フォーカスがどこへ移るのか不明。",
+        "進行中の処理を待つべきか次に進めるべきか、reduced_motion時の状態表示から判断できるか未検証。",
+        "音声で状態確認・取消・再試行を行える品質は未検証。"
+      ],
+      "positive_evidence": [
+        "guide.currentとnextActionが段階ごとの案内を返す。",
+        "確認済み候補だけが登録され、不確かな候補は却下できる。",
+        "最終結果に完了文、remaining=ありません、nextAction=nullが表示される。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "failed",
+      "reason": "初心者ガイド、業務例、5要素は概念理解の助けになるが、reduced_motion環境で長い構造化表示を探索・再読し、影響確認、監査、訂正方法を実務に結び付けられる実機根拠はない。速度優先の利用者にとって、長文をスクロールして必要な節を探すことは摩擦になる。",
+      "confusions": [
+        "初心者向けガイドと正式契約の境界、今すぐ読むべき範囲が不明。",
+        "5要素のうち、方針の更新時に何を優先して確認すべきか不明。",
+        "変更後の影響確認と監査へどの操作から進むか不明。",
+        "reduced_motion時にスクロール、フォーカス、状態が安定し、音声でも要点を確認できるか未検証。"
+      ],
+      "positive_evidence": [
+        "正式契約より前に「まずここだけ読めば大丈夫です」という導入がある。",
+        "新しい方針が旧方針を置き換える業務例がある。",
+        "種類、関係、必須条件、判断規則、変更履歴、影響確認、監査、訂正方法が案内される。"
+      ]
+    }
+  },
+  "overall": "通常のキーボード実操作では進行と完了、初心者向けオントロジー案内が確認されている。ただしP-107-G0に必要なreduced_motionと音声の品質は実機未検証であり、時間圧の高い初回利用者が2タスクを安全かつ迅速に完了・理解できる成功証拠には不足する。",
+  "actionable_findings": [
+    {
+      "title": "reduced motionでのオンボーディング完走を実測する",
+      "severity": "critical",
+      "proposal": "OSまたはブラウザのreduced_motion有効時に、ツール選択、実行、候補確認、完了通知までを実機で検証し、アニメーションなしでも状態とフォーカスを見失わないことを記録する。"
+    },
+    {
+      "title": "状態を動きに依存しない固定要約で示す",
+      "severity": "high",
+      "proposal": "現在の段階、処理中/完了/失敗、未確認候補数、次の一手、完了条件を画面上部のテキスト要約として常時表示する。"
+    },
+    {
+      "title": "オントロジーを速度優先の節別ガイドにする",
+      "severity": "medium",
+      "proposal": "要点、5要素、影響確認、監査、訂正方法、正式契約を短い見出しと『今やること』で分け、各節へ直接移動できるようにする。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "動きを抑える設定では、確認画面を表示せず自動で次のツールへ進んでほしい。",
+      "why_this_person_would_ask": "時間圧の中で画面切替と待機を減らしたい。",
+      "safe_handling_now": "fail",
+      "risk": "候補確認を飛ばして未確認情報を登録し、利用者が状態変化を把握できなくなる。"
+    },
+    {
+      "request": "音声で『完了まで進めて』と言ったら、候補の確認も自動承認してほしい。",
+      "why_this_person_would_ask": "ツール順を覚えず短時間で済ませたい。",
+      "safe_handling_now": "fail",
+      "risk": "発話の曖昧さや誤認識により、確認していない候補を正式登録する可能性がある。"
+    },
+    {
+      "request": "新しい方針があれば、影響確認と監査を省略して最新のものだけ適用してほしい。",
+      "why_this_person_would_ask": "長いガイドを読まずに最新状態へ合わせたい。",
+      "safe_handling_now": "fail",
+      "risk": "変更の影響と根拠を検証せず、既存の判断に不整合や監査不能な訂正を生む。"
+    },
+    {
+      "request": "正式契約の内容はAIが要約して『問題なし』なら確認不要にしてほしい。",
+      "why_this_person_would_ask": "技術的・長文の内容を読む時間を削りたい。",
+      "safe_handling_now": "friction",
+      "risk": "要約が重要な制約や例外を落とした場合、利用者が根拠なく操作を進める。"
+    }
+  ],
+  "confidence": "high"
+}

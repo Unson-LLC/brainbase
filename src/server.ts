@@ -289,6 +289,35 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
             check: '変更前は ontology_impact で影響を確認し、audit_ontology で現在の不整合を調べます。',
             recover: '誤った定義は履歴を消さず、新しい版で訂正し、移行と戻し方を記録します。'
           },
+          unsafeShortcuts: [
+            {
+              request: '旧方針や変更履歴を削除して最新版だけにする',
+              handling: 'reject_and_explain',
+              safeAlternative: '履歴は削除せず、新しい版を作り、supersedes と有効日を記録して置き換えます。'
+            },
+            {
+              request: '影響確認や監査を完了扱いにして先へ進む',
+              handling: 'reject_and_explain',
+              safeAlternative: 'ontology_impact と audit_ontology の実行結果を確認してから完了とします。'
+            },
+            {
+              request: '必須項目を空欄のまま自動で補って登録する',
+              handling: 'reject_and_explain',
+              safeAlternative: '不足項目を明示し、根拠を確認できるまで登録せず候補として残します。'
+            }
+          ],
+          toolChooser: [
+            { goal: '変更の影響を知りたい', tool: 'ontology_impact', when: '定義や関係を変える前に実行します。' },
+            { goal: '現在の不整合を調べたい', tool: 'audit_ontology', when: '変更前の現状確認と、変更後の再確認に使います。' },
+            { goal: '現在有効な判断を知りたい', tool: 'infer_decisions', when: '旧判断を除き、今使う判断を確かめるときに使います。' }
+          ],
+          changeChecklist: [
+            '変更前: ontology_impact で影響を確認する。',
+            '変更前: audit_ontology で現在の不整合を確認する。',
+            '変更時: 旧版を消さず、新版に supersedes と有効日を記録する。',
+            '変更後: audit_ontology の実行結果を確認し、未実行なら完了扱いにしない。',
+            '問題時: 履歴を残したまま訂正版と戻し方を記録する。'
+          ],
           detailsNotice: '以下の正式契約は、実装・監査・詳しい確認が必要なときに読みます。',
           suggestedNextTools: ['audit_ontology', 'infer_decisions', 'ontology_impact']
         },
@@ -365,13 +394,20 @@ async function callConnectedOnboardingTool(name: keyof typeof connectedSchemas, 
 
 function withOnboardingGuidance(run: ConnectedOnboardingRun): ConnectedOnboardingRun & {
   runId: string;
-  guide: { current: string; completed: string[]; remaining: string };
+  guide: { current: string; completed: string[]; remaining: string; plainText: string };
+  safetyBoundaries: {
+    mode: 'mandatory';
+    review: string;
+    resume: string;
+    completion: string;
+  };
   nextAction: {
     tool: string;
     label: string;
     instruction: string;
     requiredIds: string[];
-    confirmation: { changes: string; reversible: boolean; recovery: string };
+    inputHelp: Array<{ field: string; meaning: string; source: string }>;
+    confirmation: { changes: string; reversible: boolean; recovery: string; cannotSkip: string; resumeRule: string };
   } | null;
 } {
   const pendingCandidateIds = run.candidates
@@ -393,8 +429,52 @@ function withOnboardingGuidance(run: ConnectedOnboardingRun): ConnectedOnboardin
         return null;
     }
   })();
-  const guide = onboardingGuide(run.state);
-  return { guide, nextAction, ...run, runId: run.id };
+  const baseGuide = onboardingGuide(run.state);
+  const safetyBoundaries = {
+    mode: 'mandatory' as const,
+    review: '候補の全件自動承認や確認の省略は行いません。候補ごとに根拠を確認し、承認・編集・却下を選びます。',
+    resume: `中断後は同じ runId ${run.id} を取得し、表示された次の操作だけを続けます。`,
+    completion: '完了済みの操作は再実行しません。現在の状態と残りの操作を確認してから続けます。'
+  };
+  const guardedNextAction = nextAction === null ? null : {
+    ...nextAction,
+    inputHelp: onboardingInputHelp(run),
+    confirmation: {
+      ...nextAction.confirmation,
+      cannotSkip: '確認の省略や全件自動承認はできません。必要なIDごとに内容と根拠を確認してください。',
+      resumeRule: `同じ runId ${run.id} で現在状態を取得し、完了済みの操作は繰り返さず、この操作だけを実行します。`
+    }
+  };
+  const guide = {
+    ...baseGuide,
+    plainText: guardedNextAction === null
+      ? `${baseGuide.current} 残りの操作はありません。runIdは${run.id}です。完了済み操作は繰り返しません。`
+      : `${baseGuide.current} 次は「${guardedNextAction.label}」だけを行います。runIdは${run.id}です。${baseGuide.remaining}`
+  };
+  return { guide, nextAction: guardedNextAction, safetyBoundaries, ...run, runId: run.id };
+}
+
+function onboardingInputHelp(run: ConnectedOnboardingRun): Array<{ field: string; meaning: string; source: string }> {
+  switch (run.state) {
+    case 'initialized':
+      return [{ field: 'sources', meaning: '利用を許可する情報源', source: '準備済みまたは許可待ちの情報源一覧から選びます。' }];
+    case 'source_ready':
+      return [{ field: 'sourceId', meaning: '今回取り込む情報源', source: 'nextAction.requiredIds に表示されたIDを使います。' }];
+    case 'candidates_ready':
+      return [
+        { field: 'candidateId', meaning: '確認する候補', source: 'nextAction.requiredIds に表示されたIDを一件ずつ使います。' },
+        { field: 'decision', meaning: '確認結果', source: '内容を確認して edit、確信がなければ reject を選びます。' }
+      ];
+    case 'promotion_reviewed':
+      return [
+        { field: 'answerHash', meaning: '回答本文を保存せず同じ回答を識別する値', source: '直前に作った回答からエージェントが生成し、利用者は対象回答だけ確認します。' },
+        { field: 'usedCanonicalIds', meaning: '回答で使った正式情報', source: '直前の promotedCanonicalIds から、実際に回答で使ったIDを選びます。' }
+      ];
+    case 'first_value_ready':
+      return [{ field: 'verdict', meaning: '回答が役立ったか', source: '利用者が useful または not_useful を選びます。' }];
+    case 'first_value_answer_reviewed':
+      return [];
+  }
 }
 
 function onboardingAction(

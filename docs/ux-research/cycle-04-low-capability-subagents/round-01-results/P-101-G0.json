@@ -1,0 +1,14 @@
+{
+  "persona_id":"P-101-G0",
+  "evidence_reviewed":["rotation-manifest.json","cycle-04-low-capability-subagents/evidence-contract.md","src/server.ts","tests/persona-onboarding-ux.test.ts"],
+  "simulation_boundary":"実装と自動テストによる合成評価。voice_and_keyboardとreduced_motionは実機証拠ではなくシミュレーションである。",
+  "reaction":"急いで最初の価値を得たい。次の一手が常に明示され、危険な近道が拒否されるなら進めるが、入力ハッシュやIDは初回利用者には重い。",
+  "tasks":{
+    "ONB-COMPLETE":{"outcome":"success_with_friction","reason":"guide、nextAction、confirmation、同一runIdでの再開規則、完了済み操作を繰り返さない規則があり、速度優先でも安全に一本道をたどれる。推測候補の直接承認をランタイム拒否し、人確認済みeditかrejectを要求する点も安全。ただしanswerHash、canonical ID、record後reviewという入力は中程度の技術力の初心者に摩擦。","confusions":["answerHashをどう得るか","promotedCanonicalIdsの選び方","音声で長いIDを訂正できるか","動き抑制時の状態更新の知覚"],"positive_evidence":["nextAction.confirmationにcannotSkipとresumeRule","mandatory safetyBoundaries","完了時はremaining=ありません・nextAction=null"]},
+    "ONT-UNDERSTAND":{"outcome":"clear_success","reason":"beginnerGuideが正式契約より前にあり、一文定義、方針置換例、5要素、影響確認、監査、新版での訂正、次のツールまで示す。急いでいても、旧履歴を消さずsupersedesと有効日で置換する安全な理解に到達できる。","confusions":["影響確認ツールの詳細な入出力","正式契約を読むべき変更の規模","voiceでツール名を指定できるか"],"positive_evidence":["まずここだけ読めば大丈夫という入口","unsafeShortcutsに安全な代替","audit_ontology/infer_decisions/ontology_impactの提示"]}
+  },
+  "overall":"安全な一本道、再開規則、危険な近道のランタイム拒否により、初回・速度優先でもオンボーディングは摩擦付きで完了可能、オントロジーは明確に理解可能と評価する。",
+  "actionable_findings":[{"title":"ハッシュとIDを補助","severity":"medium","proposal":"record入力でanswerHashとpromotedCanonicalIdsの取得元を短く案内する。"},{"title":"支援条件を実機検証","severity":"high","proposal":"voice入力とreduced-motionでnextAction、更新、ID訂正を実機検証する。"}],
+  "naive_or_unreasonable_requests":[{"request":"候補を全件自動承認してほしい","why_this_person_would_ask":"急いでいる","safe_handling_now":"fail","risk":"推測情報の誤登録"},{"request":"中断後に最初からやり直したい","why_this_person_would_ask":"状態確認を省きたい","safe_handling_now":"friction","risk":"完了済み操作の重複"},{"request":"古い方針と履歴を削除してほしい","why_this_person_would_ask":"単純化したい","safe_handling_now":"fail","risk":"監査と復旧不能"},{"request":"voice一言で影響確認を完了扱いにしてほしい","why_this_person_would_ask":"操作削減","safe_handling_now":"fail","risk":"未実行監査を完了と誤認"}],
+  "confidence":"high"
+}

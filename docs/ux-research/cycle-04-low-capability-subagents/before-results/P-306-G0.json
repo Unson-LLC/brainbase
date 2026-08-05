@@ -1,0 +1,86 @@
+{
+  "persona_id": "P-306-G0",
+  "model_condition": "低能力モデルを想定した合成UX評価。オントロジー管理者・業務経験豊富・技術リテラシー中程度・確認優先・集中状態・キーボード利用・screen_reader。",
+  "evidence_reviewed": [
+    "round-05-browser-trace.md（2026-08-05 17:35–17:39 JSTの実画面操作記録）",
+    "onboarding-complete.png（完了結果、remaining=ありません、nextAction=null）",
+    "ontology-guide-ja.png（正式契約前の日本語ガイド、業務例、5要素）"
+  ],
+  "simulation_boundary": "screen_readerは実機・支援技術での検証ではなく、提供画面と共通操作記録に基づく仮定シミュレーションである。見出し構造、読み上げ順、JSONの可読性、フォーカス、動的結果の通知は未検証。",
+  "reaction": "変更履歴、影響確認、監査の重要性を理解しているため、候補を確認してから登録する境界を歓迎する。画面の視覚的な3ペイン配置より、ツール名、結果JSON、Messages履歴を読み上げで行き来する負担と、正式契約へ確実に到達できるかを懸念する。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "共通の実操作記録では情報源選択から最初の回答評価まで完了し、state、remaining、nextActionが明確な完了根拠となる。経験豊富な管理者は確認境界を理解して進められるが、screen_readerでツール一覧、長いJSON結果、Messages履歴を構造的に探索できる証拠がないため、実行と完了確認には摩擦が残る。",
+      "confusions": [
+        "現在の主情報がResultsのguideなのか、Messagesの直近ログなのかを読み上げ中に判別しにくい。",
+        "recordとreviewの手順が、画面上で順序付きの目的ラベルとして提示されているか不明。",
+        "nextAction=nullとremaining=ありませんが動的に通知され、完了状態へ確実に移動できるか未確認。"
+      ],
+      "positive_evidence": [
+        "正式登録前であり候補を却下できること、確認済み候補だけ登録されることが示される。",
+        "guide.currentとnextActionが各段階の業務状態を説明する。",
+        "完了時にstate=first_value_answer_reviewed、remaining=ありません、nextAction=nullが揃う。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "経験により、方針置換の例、5要素、影響確認、監査、訂正の役割を理解し、正式契約の必要性も認識できる。だがガイドとOntology 1.0.0正式契約がJSON内に連続しており、screen_readerがbeginnerGuide、5要素、正式契約の境界を見出しとして把握できるか未検証である。",
+      "confusions": [
+        "入門ガイド、業務例、5要素、正式契約の開始位置が読み上げ上で区別されるか不明。",
+        "各要素から影響確認・監査・訂正の詳細へ進む操作導線があるか不明。",
+        "長いJSONの中で正式定義の必須条件と説明文を効率よく行き来できるか不明。"
+      ],
+      "positive_evidence": [
+        "正式契約の前に『まずここだけ読めば大丈夫です』という日本語の導入がある。",
+        "新方針が旧方針を置き換える例が、管理者の変更統制の文脈に合う。",
+        "種類、関係、必須条件、判断規則、変更履歴という管理上の確認対象が明示されている。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "画面の読み上げが長いので、候補確認を飛ばして正式登録まで一括実行してほしい。",
+      "why_this_person_would_ask": "支援技術で複数ペインとJSONを巡回する負担を減らしたいから。",
+      "safe_handling_now": "fail",
+      "risk": "未確認候補が正本に入り、後続の判断・監査の信頼性を損なう。"
+    },
+    {
+      "request": "正式契約は読まず、入門ガイドの例だけを根拠に方針変更を確定してほしい。",
+      "why_this_person_would_ask": "業務経験から大意は分かるため、詳細な読み上げを省きたいから。",
+      "safe_handling_now": "fail",
+      "risk": "必須条件や判断規則を見落とし、変更が契約に適合しないまま確定される。"
+    },
+    {
+      "request": "JSONを隠して、見出し付きの短い要約だけを標準表示にしてほしい。",
+      "why_this_person_would_ask": "現在状態と次操作を読み上げで速く把握したいから。",
+      "safe_handling_now": "pass",
+      "risk": "詳細JSONへ移動できる導線を残さなければ、監査・訂正時の根拠確認が難しくなる。"
+    },
+    {
+      "request": "結果の更新時には読み上げを一切しないでほしい。",
+      "why_this_person_would_ask": "操作途中の音声割り込みを避け、必要なときだけ自分で読みに行きたいから。",
+      "safe_handling_now": "friction",
+      "risk": "自動読み上げは抑制できても、完了・失敗・次操作を取得できる非侵襲的な状態通知と確認操作が必要になる。"
+    }
+  ],
+  "overall": "経験豊富なオントロジー管理者は、確認済み候補のみ登録する境界と日本語ガイドを根拠に両タスクを達成できる。ただしscreen_readerでの見出し、読み上げ順、動的状態通知が未検証で、JSON中心の3ペインUIは実用上の大きな摩擦となる。",
+  "actionable_findings": [
+    {
+      "title": "結果を見出し付きの支援技術向け要約として提示する",
+      "severity": "high",
+      "proposal": "現在段階、登録影響、未確認候補、次操作、完了状態をJSONの前に構造化して表示し、詳細JSONは折りたたみまたは別途参照可能にする。"
+    },
+    {
+      "title": "ガイドと正式契約を意味的に分離する",
+      "severity": "high",
+      "proposal": "入門ガイド、業務例、5要素、Ontology 1.0.0を明示的な見出しで区切り、各要素から影響確認・監査・訂正へ移動できるリンクを置く。"
+    },
+    {
+      "title": "screen_readerで完了と失敗の通知を実機検証する",
+      "severity": "high",
+      "proposal": "キーボード操作と実際のscreen_readerで、ツール選択、結果更新、nextAction、remaining、エラー復帰、完了通知の読み上げとフォーカスを検証する。"
+    }
+  ],
+  "confidence": "medium"
+}

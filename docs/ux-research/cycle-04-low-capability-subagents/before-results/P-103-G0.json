@@ -1,0 +1,88 @@
+{
+  "persona_id": "P-103-G0",
+  "model_condition": "低能力モデルによる合成ペルソナ評価",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rounds/round-05-browser-trace.md",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/screenshots/onboarding-complete.png",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/screenshots/ontology-guide-ja.png"
+  ],
+  "simulation_boundary": "実在利用者の発言・操作ではない。支援技術の申告はなく、共通のキーボード実操作証拠を参照する。voice_and_keyboardの音声入力・音声フィードバック固有の品質は実機未検証であり、仮定シミュレーションである。",
+  "reaction": "急いでいる初回利用者として、左側のツール名と中央のJSONは『専門家向けの画面』に見える。とはいえ、最後の「残り: ありません」と、日本語の方針更新例は、進めた結果と概念の大枠をつかむ手掛かりになる。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "実画面操作記録ではオンボーディングが最初の回答の評価まで完了し、remaining=ありません、nextAction=nullが表示される。集中してキーボードを使えるため完走は見込めるが、低技術リテラシーの初回利用者にはツール選択とJSONの読解が大きな負荷である。",
+      "confusions": [
+        "どのツールを、なぜその順番で実行するのかがツール名だけでは分からない。",
+        "候補を承認・却下する基準と、recordとreviewの違いが不明。",
+        "表示された状態が本当に完了なのか、stateやnextActionを知らない利用者には判断しにくい。",
+        "音声でツール選択、候補確認、完了確認を行える品質は未検証。"
+      ],
+      "positive_evidence": [
+        "guide.currentとnextActionが途中段階の案内を返す。",
+        "確認済み候補だけが登録され、確信がなければ却下できる。",
+        "最終結果に「最初の回答の評価まで完了しました」「残り: ありません」がある。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "「まずここだけ読めば大丈夫です」という導入と、方針更新の業務例により、オントロジーが新しい方針に従って判断を扱うものだという最低限の理解は得られる。ただし初心者が、5要素、影響確認、監査、訂正方法を自力で使い分けるには、画面の構造化JSONは難しい。",
+      "confusions": [
+        "種類、関係、必須条件、判断規則、変更履歴が自分の作業で何を意味するか不明。",
+        "新しい方針を見つけたとき、自分で訂正してよいのか、誰かに確認すべきか不明。",
+        "初心者向け説明を読み終えた後に、正式契約をどの程度読む必要があるか不明。",
+        "音声で長いガイドを要点ごとに聞き直せるか未検証。"
+      ],
+      "positive_evidence": [
+        "正式契約より前に初心者向けの読み方がある。",
+        "新しい方針が旧方針を置き換える例が、変更と有効な判断の関係を示す。",
+        "5要素、影響確認、監査、訂正方法が案内される。"
+      ]
+    }
+  },
+  "overall": "P-103-G0はキーボード経路なら2タスクの最低限の到達点には達し得るが、初回・低技術リテラシー・速度優先の条件では、技術的なツール／JSON表現による誤操作と理解不足のリスクが残る。音声で同等に安全に利用できる証拠はない。",
+  "actionable_findings": [
+    {
+      "title": "オンボーディングを一手ずつの人間向け画面にする",
+      "severity": "high",
+      "proposal": "現在の目的、次にすること、候補確認の基準、完了条件を日本語で表示し、技術的なツール名とJSONは詳細へ退避する。"
+    },
+    {
+      "title": "オントロジーの初心者向け行動を明記する",
+      "severity": "high",
+      "proposal": "5要素ごとに『いつ確認するか』『自分で変更してよいか』『迷ったら誰に確認するか』を短い例とともに表示する。"
+    },
+    {
+      "title": "音声の確認フローを実機検証する",
+      "severity": "medium",
+      "proposal": "音声でのツール選択、候補の承認・却下、完了状態の要約、取消、再試行を実測し、曖昧な発話には確認質問を返す。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "急いでいるので、候補は全部正しいものとして自動登録してほしい。",
+      "why_this_person_would_ask": "候補を確認する意味と基準が分からず、手順を早く終えたい。",
+      "safe_handling_now": "fail",
+      "risk": "未確認または誤った候補を正式登録し、以後の回答と判断に誤情報を混入させる。"
+    },
+    {
+      "request": "『次へ』と音声で言えば、内容を読まずに毎回進めてほしい。",
+      "why_this_person_would_ask": "技術画面を読み解かず、単純な手順として終えたい。",
+      "safe_handling_now": "friction",
+      "risk": "候補の確認や重要な警告を飛ばし、意図しない登録・評価をする可能性がある。"
+    },
+    {
+      "request": "新しい方針が出たら、古い方針と判断を全部消して一つだけ残してほしい。",
+      "why_this_person_would_ask": "変更履歴や監査の意味が分からず、画面を簡単にしたい。",
+      "safe_handling_now": "fail",
+      "risk": "過去の根拠と監査可能性を失い、誤りを訂正・説明できなくなる。"
+    },
+    {
+      "request": "オントロジーの5要素は難しいので、AIが勝手に最適な値を決めてほしい。",
+      "why_this_person_would_ask": "専門用語を避けて早く使い始めたい。",
+      "safe_handling_now": "fail",
+      "risk": "業務文脈に合わない種類・関係・制約を正本化し、誤った判断規則を作るおそれがある。"
+    }
+  ],
+  "confidence": "medium"
+}

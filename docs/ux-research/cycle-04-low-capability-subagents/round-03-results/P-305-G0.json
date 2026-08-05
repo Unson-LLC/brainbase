@@ -1,0 +1,113 @@
+{
+  "persona_id": "P-305-G0",
+  "evaluation_type": "cycle-04-round-03-independent-evaluation",
+  "persona_attributes": {
+    "role": "ontology_steward",
+    "domain_experience": "intermediate",
+    "technical_literacy": "low",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "speed_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "evidence_reviewed": [
+    "rotation-manifest.json の P-305-G0 定義",
+    "更新済み evidence-contract.md の round-03 評価規則",
+    "src/server.ts の線形オンボーディング案内と初心者向けオントロジーガイド",
+    "tests/persona-onboarding-ux.test.ts の契約テスト"
+  ],
+  "simulation_boundary": "線形テキスト対話で応答契約を利用する本人として評価した。reduced motionと音声入力の実機検証は未実施だが、それ自体は評点を下げる理由にしていない。",
+  "support_condition_assessment": {
+    "linear_text_interaction": "plainTextの現在地・次の一操作・runId・残件を読むことで、操作を一つずつ進められる。",
+    "low_technical_literacy": "inputHelpが入力名、意味、直前結果での取得元を示すため、IDや回答記録値を探す支援になる。ただし英字フィールドはその場で読み直す必要がある。",
+    "intermediate_domain_experience": "方針置換、影響確認、監査、履歴保全の目的は理解しており、beginnerGuideのtoolChooserとchangeChecklistを安全な実行順として使える。",
+    "reduced_motion": "線形テキスト対話では状態把握が動きに依存しない。UIの設定追従は別途確認事項である。"
+  },
+  "first_person_evaluation": "私はオントロジーの変更目的は理解しているが、技術的な値を自分で組み立てるのは得意ではない。だから、今どの段階か、次に何だけをするか、値をどこから取るかが書かれていれば進められる。急いでいるので候補確認や監査を飛ばしたくなるが、履歴を残して戻れるようにする理由も分かるので、提示された順序には従える。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "線形テキストで現在地、次の一操作、runId、残件、入力値の意味と取得元が示され、本人は候補確認から回答評価まで進められる。推論候補の直接承認も拒否される。一方、低技術リテラシーの本人はanswerHashとusedCanonicalIdsの意味をinputHelpで読み直す具体的な摩擦がある。",
+      "first_person_outcome": "候補IDはrequiredIdsから選び、確信がなければrejectする。回答記録では自分でハッシュを作らず、エージェントが生成した回答の対象を確認し、直前のpromotedCanonicalIdsから使ったIDを選ぶ。",
+      "confusions": [
+        "answerHashを自分で生成するのか、回答対象を確認するだけなのかを最初に確認する必要がある。",
+        "usedCanonicalIdsをどの結果から選ぶか、promotedCanonicalIdsという英字名を読み直す必要がある。"
+      ],
+      "positive_evidence": [
+        "plainTextは現在地、次の一操作、runId、残件を通常文で返す。",
+        "inputHelpはcandidateId、answerHash、usedCanonicalIdsの意味と取得元を示す。",
+        "推論候補のapproveはランタイムで拒否され、人が確認したeditまたはrejectを要求する。",
+        "完了時はnextActionがnullで、完了済み操作を繰り返さない。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "本人にはオントロジーの業務経験があり、業務例、toolChooser、changeChecklistから影響確認・監査・履歴保全の順を選べる。一方、低技術リテラシーかつ高圧ではsupersedesとeffectiveAtを正しい変更記録として入力する意味を一度読み直す摩擦がある。",
+      "first_person_outcome": "変更前にontology_impactとaudit_ontologyを実行する。旧版は削除せず、新版にsupersedesとeffectiveAtを記録し、変更後に監査結果を確認する。問題時は履歴を残した訂正版と戻し方で直す。",
+      "confusions": [
+        "supersedesとeffectiveAtを、旧版を消さずに置き換えるための情報として確認する必要がある。",
+        "監査で問題が出たとき、どの値を訂正版に移すかは結果を見ながら一拍置いて判断する必要がある。"
+      ],
+      "positive_evidence": [
+        "beginnerGuideは仕事の言葉による説明と方針置換の業務例を正式契約より先に返す。",
+        "toolChooserは変更影響、不整合監査、現在有効な判断を3ツールへ対応付ける。",
+        "changeChecklistは変更前、変更時、変更後、問題時の安全な最小手順を順に示す。",
+        "危険な近道にはreject_and_explainと実行可能な代替がある。"
+      ]
+    }
+  },
+  "overall": "中級のオントロジー経験を持つが技術操作に不慣れな本人は、線形テキストの入力支援と安全境界で両タスクを完了できる。英字フィールドと履歴用語の読み直しという具体的な摩擦があるため、両方をsuccess_with_frictionとする。",
+  "actionable_findings": [
+    {
+      "title": "回答記録の値を日本語で再確認できるようにする",
+      "severity": "medium",
+      "proposal": "answerHashはエージェントが生成し利用者は回答対象を確認すること、usedCanonicalIdsは直前のpromotedCanonicalIdsから選ぶことを操作文にも日本語で示す。"
+    },
+    {
+      "title": "履歴置換の入力例を加える",
+      "severity": "medium",
+      "proposal": "supersedesとeffectiveAtについて、旧版、新版、有効開始日を対応付けた短い例を変更時の手順に添える。"
+    },
+    {
+      "title": "reduced motionと音声取消を実機確認する",
+      "severity": "low",
+      "proposal": "UI経路でreduced motion設定を確認し、候補IDの聞き違い、取消、キーボード代替を実機E2Eで検証する。これは今回の線形テキスト評価とは別の改善項目とする。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "急いでいるので候補を全部自動承認してほしい。",
+      "why_this_person_would_ask": "入力と確認を減らして、変更作業を早く進めたい。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "契約は全件自動承認と確認省略を禁止し、推論候補の直接approveをランタイムで拒否する。",
+      "risk": "未確認または推論候補を正式情報として登録する。",
+      "safe_alternative": "requiredIdsごとに根拠を確認し、推論候補は人が確認したpayloadへのeditかrejectを行う。"
+    },
+    {
+      "request": "音声で『次へ』と言ったら、候補IDを確認せず承認してほしい。",
+      "why_this_person_would_ask": "英字IDの入力を省略して操作を速くしたい。",
+      "safe_handling_now": "friction",
+      "safe_handling_reason": "確認省略は禁止され、requiredIdsとinputHelpで対象確認へ戻れるが、音声の曖昧な指定を復唱・取消する専用契約は明示されていない。",
+      "risk": "別の候補を意図せず確定する。",
+      "safe_alternative": "requiredIdsをキーボードで照合し、対象を明示してeditまたはrejectを選ぶ。"
+    },
+    {
+      "request": "古い方針と履歴を削除して、新しい定義だけ残してほしい。",
+      "why_this_person_would_ask": "古い情報を見ずに、現在の作業だけに集中したい。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "beginnerGuideは履歴削除をreject_and_explainで拒否し、新版をsupersedesと有効日で置き換える代替を明示する。",
+      "risk": "監査根拠と問題時の回復経路を失う。",
+      "safe_alternative": "旧版を残し、新版にsupersedesとeffectiveAtを記録して置き換える。"
+    },
+    {
+      "request": "影響確認と監査は後回しにして、変更を完了扱いにしてほしい。",
+      "why_this_person_would_ask": "締切に合わせて完了を先に共有したい。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "未実行の影響確認・監査を完了扱いにする要求はreject_and_explainで拒否され、実行結果を確認してから完了とする代替が明示されている。",
+      "risk": "影響範囲や不整合を確認せず、誤った完了状態を作る。",
+      "safe_alternative": "ontology_impactとaudit_ontologyを実行し、結果を確認してから完了に進む。"
+    }
+  ],
+  "confidence": "high"
+}

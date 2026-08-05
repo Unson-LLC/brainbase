@@ -1,0 +1,95 @@
+{
+  "persona_id": "P-108-G0",
+  "model_condition": "合成の低能力ペルソナ評価。初回個人利用者、業務経験は豊富、技術リテラシーは高い、時間圧は低い、集中状態、確認優先、キーボード入力、screen_readerを想定。",
+  "evidence_reviewed": [
+    "cycle-03-onboarding-ontology-20pct/rotation-manifest.json の P-108-G0 属性",
+    "cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "実在利用者の発言・操作ではない合成ソース評価。screen_readerは実機検証ではなく、MCP結果のテキストとエージェントによる次操作案内が読み上げ可能であるという仮定で評価した。UIのアクセシブルな名前、フォーカス順、ライブリージョン、長いJSONの読み上げ順は実機証拠ではない。",
+  "reaction": "技術的にはrunId、状態、候補ID、ハッシュの意味を追えるが、初回利用者なので候補を正式情報にする前に人が何を確認したかを明確に残したい。安全境界が、推測候補の直接承認や全件自動承認を拒否し、次の一操作と再開規則を返すのは信頼できる。一方、スクリーンリーダーでJSON中心の応答からguide、confirmation、候補内容を効率よくたどれるかは実証されていない。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "状態ごとにguide、nextAction、confirmation、mandatoryな安全境界が返り、同じrunIdを取得して完了済み操作を繰り返さず、表示された一操作のみ継続する規則がある。テストは32 fixturesで開始から取り込み、推測候補の直接承認拒否、人が確認したedit、回答記録・評価、first_value_answer_reviewedまでを検証している。高い技術リテラシーならMCP出力を照合して完了できるが、screen_readerで同じ情報に到達する実機証拠がないため摩擦ありとする。",
+      "confusions": [
+        "screen_readerでguide、nextAction、safetyBoundaries、候補本文、confirmationの順序と境界を把握できるか未検証。",
+        "answerHashとpromotedCanonicalIdsは理解できても、初回利用者がエージェントの入力と自分の確認責任をどこで分けるかに説明が要る。",
+        "開始、取り込み、レビュー、first valueの各ツールへキーボードだけで迷わず到達できるUI上の導線はソース評価の範囲外。"
+      ],
+      "positive_evidence": [
+        "nextActionは『準備できた情報源を取り込む』『候補を確認する』等の人間向けラベルと具体的なinstructionを返す。",
+        "confirmationは変更内容、可逆性、復旧方法、省略禁止、同じrunIdでの再開規則を返す。",
+        "推測候補のapproveはランタイムで拒否され、人が確認したpayloadによるeditかrejectを要求する。",
+        "完了はguide.current、completed、remaining=『ありません。』、nextAction=null、stateで確認できる。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "get_ontologyは正式契約より前にbeginnerGuideを返し、最小読了案内、一文の目的、方針置換の例、5要素、影響確認と訂正方法、危険な近道の拒否を提供する。経験豊富で技術リテラシーが高い利用者は、履歴を消さずsupersedesと有効日で置き換える意図を理解できる。だが、スクリーンリーダーで導入、5要素、unsafeShortcuts、正式契約を効率よく区切って読めるかは実機未検証のため摩擦ありとする。",
+      "confusions": [
+        "5要素が見出し等で読み上げナビゲーション可能か、また例と質問が音声で混線せず対応付くか未検証。",
+        "影響確認・監査を誰が実行し、その結果を誰が変更承認に使うかは初心者ガイドだけでは役割分担が明示されない。",
+        "detailsNotice以降の正式契約に入った時、必要な詳細だけ読んで戻れるかは実機未検証。"
+      ],
+      "positive_evidence": [
+        "beginnerGuideが正式契約より先頭に置かれ、『まずここだけ読めば大丈夫です』と読む範囲を示す。",
+        "種類、関係、必須条件、判断規則、変更履歴にはそれぞれ初心者向けの質問と例がある。",
+        "旧方針・履歴の削除、未実行の影響確認・監査の完了扱い、必須項目の空欄自動補完にはreject_and_explainと安全な代替がある。",
+        "suggestedNextToolsにaudit_ontology、infer_decisions、ontology_impactを明示する。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "推測候補も、形式が正しければ人の確認なしでapproveしてほしい。",
+      "why_this_person_would_ask": "技術的な整合性を確認できるので、内容確認も不要だと過信しやすい。",
+      "safe_handling_now": "fail",
+      "risk": "推測を事実として正式登録し、以後の判断の根拠を壊す。"
+    },
+    {
+      "request": "候補が多いので、画面を読まず全件を一括承認して完了したい。",
+      "why_this_person_would_ask": "スクリーンリーダーで各候補を読むコストを減らし、初期設定を早く終えたい。",
+      "safe_handling_now": "fail",
+      "risk": "候補ごとの根拠・不確実性・誤りを見落とし、誤情報を正式化する。"
+    },
+    {
+      "request": "途中の状態は推測できるので、runIdを取得せずに次のツールを実行してほしい。",
+      "why_this_person_would_ask": "中断がなく集中しているため、状態照合を冗長だと考える。",
+      "safe_handling_now": "friction",
+      "risk": "完了済み操作の再実行や、誤った段階でのレビュー・評価を招く。"
+    },
+    {
+      "request": "新しい方針が有効なら、旧方針と変更履歴は削除して読み上げ量を減らしてほしい。",
+      "why_this_person_would_ask": "スクリーンリーダーで不要に見える履歴を省き、現在の判断だけに集中したい。",
+      "safe_handling_now": "fail",
+      "risk": "監査、影響確認、訂正、ロールバックに必要な履歴を失う。"
+    },
+    {
+      "request": "影響確認と監査の詳細は読み上げず、完了として新しい版へ進めたい。",
+      "why_this_person_would_ask": "長い出力の確認を避け、技術経験に基づき低リスクだと判断したい。",
+      "safe_handling_now": "fail",
+      "risk": "未検証の不整合や互換性問題を抱えた変更を有効化する。"
+    }
+  ],
+  "overall": "P-108-G0は、MCPの人間向けguide、次の一操作、確認・再開規則、ランタイム拒否により、オンボーディングを安全に完了し、オントロジーの変更安全性を理解できると推定する。ただしscreen_readerは実機未検証であり、キーボードナビゲーション、JSONの読み上げ順、状態更新の通知が保証されないため、両タスクはsuccess_with_frictionとする。",
+  "actionable_findings": [
+    {
+      "title": "スクリーンリーダーのMCP結果読解を実機検証する",
+      "severity": "high",
+      "proposal": "VoiceOverまたはNVDAで、guide、nextAction、confirmation、候補内容、完了状態、beginnerGuideの5要素とunsafeShortcutsへ順に到達し、読み上げ順・フォーカス・状態更新を記録する。"
+    },
+    {
+      "title": "人間の確認責任を操作ごとに要約する",
+      "severity": "medium",
+      "proposal": "候補レビューと方針変更の応答先頭に、『あなたが確認する内容』『エージェントが実行する内容』『省略できない確認』を短いテキストで追加する。"
+    },
+    {
+      "title": "初心者ガイドを音声移動しやすく構造化する",
+      "severity": "medium",
+      "proposal": "startHere、5要素、変更安全性、危険な近道、詳細契約をセマンティック見出しで明確に分離し、詳細からguideへ戻るリンクを提供する。"
+    }
+  ],
+  "confidence": "medium"
+}

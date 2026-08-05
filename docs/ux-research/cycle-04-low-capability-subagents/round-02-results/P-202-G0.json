@@ -1,0 +1,20 @@
+{
+  "persona_id":"P-202-G0",
+  "model_condition":{"role":"team_operator","domain_experience":"new","technical_literacy":"medium","time_pressure":"low","interruption_state":"frequently_interrupted","work_style":"speed_first","input_environment":"keyboard","accessibility_need":"none_declared"},
+  "evidence_reviewed":["docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md","src/server.ts","tests/persona-onboarding-ux.test.ts","docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json"],
+  "simulation_boundary":"新任チーム運用担当としての合成評価です。支援技術はnone_declaredで、実UIのキーボード復帰、複数作業の切替、表示は未検証です。",
+  "reaction":"中断しても普通の文章で現在地、次の一手、runIdが見えるので戻りやすいです。急ぎがちでも入力の意味と取得元が出るので無理に飛ばしにくいですが、候補の判断には引き継ぎ根拠も欲しいです。",
+  "tasks":{
+    "ONB-COMPLETE":{"outcome":"success_with_friction","reason":"plainTextとinputHelpにより、中断時にも現在地、次操作、runId、必要値の取得元を確認できます。mandatoryな安全境界と推測候補の直接approve拒否もあるため、速度優先でも安全に進められます。ただし実UIの復帰要約と候補根拠の比較は未検証です。","confusions":["複数runから復帰対象を選ぶ一覧はない。","候補が複数の時、急いでedit/rejectを選ぶ根拠が不足する。"],"positive_evidence":["guide.plainTextは現在地、次操作、runId、残作業をまとめる。","inputHelpは各入力の意味と直前結果からの取得元を示す。","テストは同一runId、candidateIdとanswerHashのinputHelp、完了状態を検証する。"]},
+    "ONT-UNDERSTAND":{"outcome":"success_with_friction","reason":"toolChooserにより影響確認・不整合監査・現行判断を目的から選べ、changeChecklistが変更前から問題時までを示すため、新任担当でも手順を把握できます。ただし結果別の担当分界とエスカレーションは未提示です。","confusions":["監査で不整合が出た時に誰へ渡すか不明。","impact結果のどの条件で停止すべきか不明。"],"positive_evidence":["初心者ガイドは5要素と安全な変更例を先に返す。","toolChooserとchangeChecklistをテストが検証する。","履歴削除、監査省略、空欄自動補完はreject_and_explainで拒否される。"]}
+  },
+  "naive_or_unreasonable_requests":[
+    {"request":"中断したので新しいrunを作って前の候補も承認して。","why_this_person_would_ask":"復帰対象を探すより早く通常業務に戻りたい。","safe_handling_now":"pass: 新規runへの飛ばしをせず、同じrunIdで現在状態を取得して表示されたnextActionのみ続ける。","risk":"重複と未確認登録が起きる。"},
+    {"request":"候補を全部approveして。","why_this_person_would_ask":"確認作業を減らしたい。","safe_handling_now":"pass: 全件自動承認を拒否し、根拠確認後にapprove/edit/rejectを選ぶ代替を示す。","risk":"推測や誤読が正式情報になる。"},
+    {"request":"answerHashなしで回答をusefulにして完了して。","why_this_person_would_ask":"二段階操作を減らしたい。","safe_handling_now":"pass: 記録と評価の省略をせず、inputHelpで値の取得元を示し本人が評価する。","risk":"評価対象と価値確認の証跡が失われる。"},
+    {"request":"監査せず古い方針を消して新版だけにして。","why_this_person_would_ask":"引き継ぎ情報を単純化したい。","safe_handling_now":"pass: 削除と未実行完了扱いを拒否し、新版+supersedes+有効日とimpact/audit結果確認を代替として示す。","risk":"履歴とロールバックを失う。"}
+  ],
+  "overall":"復帰と入力の説明は改善され、新任運用担当でも危険な短縮を避けて進められます。複数runの選別と監査後の担当分界が残るため摩擦付き成功です。",
+  "actionable_findings":[{"title":"復帰対象の一覧","severity":"high","proposal":"runの目的・状態・更新時刻を示し、選択後のnextActionと必要値をまとめる。"},{"title":"監査後の担当分界","severity":"medium","proposal":"結果別の停止、修正、エスカレーション、再監査をchecklistに追加する。"}],
+  "confidence":"medium"
+}

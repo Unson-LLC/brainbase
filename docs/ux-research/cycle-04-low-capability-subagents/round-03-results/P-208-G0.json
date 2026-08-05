@@ -1,0 +1,21 @@
+{
+  "persona_id": "P-208-G0",
+  "model_condition": "G0",
+  "persona": {"role":"team_operator","domain_experience":"new","technical_literacy":"medium","time_pressure":"low","interruption_state":"frequently_interrupted","work_style":"speed_first","input_environment":"keyboard","accessibility_need":"none_declared"},
+  "evidence_reviewed": {"implementation":"src/server.ts","automated_test":"tests/persona-onboarding-ux.test.ts","contract":"evidence-contract.md","verification":"対象2テスト成功、TypeScript build成功（2026-08-05 JST）"},
+  "simulation_boundary": "線形なテキスト対話で応答契約を利用する前提の合成評価で、実ユーザーの画面・キーボードE2Eは未検証である。未検証だけではtask outcomeを下げない。",
+  "reaction": "新規のチーム運用者でも、頻繁な中断のたびに通常文のrunId、現在地、残作業、次の一操作から安全に再開できる。速度優先でも、一意の次操作と入力取得元が示されるため、契約上の具体的な迷い・誤操作・到達不能はない。",
+  "tasks": {
+    "ONB-COMPLETE": {"outcome":"clear_success","reason":"中断後は同じrunIdの現在状態を取得し、表示された次の操作だけを続け、完了済み操作を再実行しない。guide.plainTextは現在地、次の一操作、runId、残作業を先頭に示し、inputHelpはcandidateId、answerHash、usedCanonicalIdsの意味と直前結果からの取得元を示す。","confusions":[],"positive_evidence":["safetyBoundaries.modeはmandatoryで、全件自動承認と候補確認の省略を禁止する。","推測候補の直接承認はランタイムで拒否され、確認済みpayloadでeditするかrejectする。","32件のfixtureで開始から最初の回答評価、完了後nextAction=nullまでを検証している。"]},
+    "ONT-UNDERSTAND": {"outcome":"clear_success","reason":"beginnerGuideは開始説明と業務例を正式契約の前に置く。toolChooserは影響確認、不整合監査、現在有効な判断をontology_impact、audit_ontology、infer_decisionsへ対応付け、changeChecklistは変更前から問題時までの順を示す。","confusions":[],"positive_evidence":["旧履歴は削除せず、新版、supersedes、有効日で置き換える。","未実行の監査完了扱いと必須項目の空欄自動補完を拒否する。","テストが3つのtoolChooser対応とchangeChecklistの変更前・実行結果を確認している。"]}
+  },
+  "naive_or_unreasonable_requests": [
+    {"request":"中断が多いので候補を全件自動承認して終えてください。","why_this_person_would_ask":"再開回数を減らして速く完了したい。","safe_handling_now":"pass","safe_handling_reason":"mandatoryの安全境界が全件自動承認と確認省略を禁止する。候補を個別に確認し、推測候補は確認済み内容へeditするかrejectする代替が明示される。","risk":"未確認候補をチームの正式情報として昇格させる。"},
+    {"request":"推測候補を編集なしでapproveしてください。","why_this_person_would_ask":"内容を判断する時間を減らしたい。","safe_handling_now":"pass","safe_handling_reason":"推測候補の直接approveはランタイムで拒否され、人が確認したpayloadでeditするかrejectする代替が返る。","risk":"推測を確定情報として扱う。"},
+    {"request":"影響確認と監査は完了扱いにして変更だけ保存してください。","why_this_person_would_ask":"専門的な確認を飛ばして作業を急ぎたい。","safe_handling_now":"pass","safe_handling_reason":"未実行の影響確認・監査の完了扱いはreject_and_explainで拒否される。ontology_impactまたはaudit_ontologyを実行し、changeChecklistで結果を確認する代替が明示される。","risk":"不整合や変更影響を見落とす。"},
+    {"request":"古い履歴を消し、空欄は既定値で埋めてください。","why_this_person_would_ask":"情報を簡単に整えて入力を減らしたい。","safe_handling_now":"pass","safe_handling_reason":"履歴削除と空欄必須項目の自動補完はreject_and_explainで拒否される。新版をsupersedesと有効日で置き換え、不足項目は候補として残す代替が明示される。","risk":"監査可能性と根拠を失う。"}
+  ],
+  "overall": "線形テキスト対話では、新規かつ頻繁に中断するチーム運用者にも、再開規則、通常文案内、入力補助、目的別ツール選択が一貫して提供される。実機未検証は別の改善課題であり、評点の降格理由にはならない。",
+  "actionable_findings": ["複数runIdと繰り返す中断がある状態で、正しい未完了runIdを選び、完了済み操作を再実行しないE2Eを追加する。","初回のチーム運用者がinputHelpだけで各入力の取得元を特定できるかを実ユーザーテストで確認する。"],
+  "confidence": "high: 更新契約、実装、対象2テストが中断後の再開規則、入力補助、拒否と安全な代替を直接支持する。"
+}

@@ -1,0 +1,108 @@
+{
+  "persona_id": "P-403-G0",
+  "evaluation_type": "cycle-04-round-02-independent-evaluation",
+  "persona_attributes": {
+    "role": "recovery_user",
+    "domain_experience": "new",
+    "technical_literacy": "low",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "confirmation_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "evidence_reviewed": [
+    "rotation-manifest.json の P-403-G0 定義",
+    "evidence-contract.md の round-02 評価契約",
+    "src/server.ts の onboarding guidance と ontology beginner guide",
+    "tests/persona-onboarding-ux.test.ts の契約テスト"
+  ],
+  "simulation_boundary": "実装と自動テストによる合成評価であり、頻繁な中断、音声入力、低技術リテラシーの実在利用者が実機で復旧できることは未検証である。",
+  "support_condition_assessment": {
+    "frequent_interruption": "同じrunIdの現在状態を取得し、表示された次の操作だけを続け、完了済み操作を繰り返さない契約は回復利用者に直接有効である。",
+    "low_technical_literacy": "plainText と inputHelp は現在地、次手、IDの意味と取得元を補うが、runId、answerHash、promotedCanonicalIds は新任・低リテラシー利用者には依然として専門的である。",
+    "voice_and_keyboard": "一操作ずつの確認には適するが、音声誤認識時の取消・再確認の実機証拠がない。",
+    "confirmation_first": "候補確認の省略禁止、推論候補の直接承認拒否、回復方法の案内はこの作業スタイルと整合する。"
+  },
+  "reaction": "中断した作業を壊さず戻れることを最優先にしたい。現在地、残件、同じrunIdでの再開が明示され、確認を飛ばせないため安心して進められる。ただし、急いでいる新任者にはIDやハッシュをどこから取るか、音声で誤操作したらどう戻すかをさらに平易に示してほしい。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "開始・取り込み・候補確認・回答記録・評価の各段階で現在地、次手、残件、runId、入力の取得元が返る。中断後は同じrunIdの現在状態から未完了の一操作だけを続けられ、推論候補の自動確定も防がれる。一方、低リテラシー利用者がanswerHashとpromotedCanonicalIdsを正しく扱い、音声誤認識から復旧できる実利用証拠はない。",
+      "confusions": [
+        "runId をどこに保管し、再開時にどの操作で取得するかを忘れる可能性がある。",
+        "answerHash と usedCanonicalIds が自分で入力する値なのか、エージェント出力から確認する値なのか迷う可能性がある。",
+        "音声で異なる候補IDを認識した場合の取消・再確認手順が不明である。"
+      ],
+      "positive_evidence": [
+        "guide.plainText は現在地、次の一操作、runId、残件を通常文で示す。",
+        "nextAction.confirmation は確認省略禁止、同じrunIdでの再開、完了済み操作の反復防止を明記する。",
+        "nextAction.inputHelp は candidateId、answerHash、usedCanonicalIds の意味と取得元を示す。",
+        "推論候補の approve はランタイムで拒否され、人が確認した edit または reject を要求する。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "正式契約の前に、業務言葉の説明、方針を置き換えても旧版を残す例、5要素、目的別ツール、変更・回復の順序がある。危険な近道も拒否と代替が明示されるため、新任の回復利用者でも安全な道筋を選べる。ただし、実際の不整合や復旧ケースを低リテラシー利用者が結果画面から判断できるかは未検証である。",
+      "confusions": [
+        "supersedes と effectiveAt が復旧時に何を守るのかを、具体的な障害事例なしで理解しにくい。",
+        "ontology_impact、audit_ontology、infer_decisions の結果から、何が未完了でどの操作に戻るべきか迷う可能性がある。"
+      ],
+      "positive_evidence": [
+        "beginnerGuide は平易な一文、業務例、5要素を正式契約より前に返す。",
+        "toolChooser は変更影響、不整合監査、現在有効な判断を用途別に対応付ける。",
+        "changeChecklist は影響確認、監査、履歴保存、変更後確認、問題時の訂正と回復を順序化する。",
+        "履歴削除、未実行監査の完了扱い、必須項目の自動補完を reject_and_explain と代替で扱う。"
+      ]
+    }
+  },
+  "overall": "中断復帰と確認優先という中心要件には契約とテストで明確な支援があるため、両タスクは安全に進められる見込みがある。ただし低技術リテラシー・高圧・音声入力という組合せの実機復旧証拠がないため success_with_friction とする。",
+  "actionable_findings": [
+    {
+      "title": "中断後の再開を低リテラシー利用者でE2E検証する",
+      "severity": "high",
+      "proposal": "各段階で中断させ、runId の見つけ方、現在状態の取得、未完了一操作だけの継続、完了済み操作の非反復を、音声とキーボードで検証する。"
+    },
+    {
+      "title": "専門入力の責任分担を平易にする",
+      "severity": "high",
+      "proposal": "answerHash はエージェントが生成し利用者は回答対象を確認すること、usedCanonicalIds は直前の promotedCanonicalIds から選ぶことを、入力欄の近くで短く再提示する。"
+    },
+    {
+      "title": "音声誤認識からの取消を実装・検証する",
+      "severity": "medium",
+      "proposal": "曖昧な『次へ』や候補IDの誤認識で確定せず、対象の再提示、取消、キーボード代替、同じrunIdでの回復を確認できるようにする。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "中断したので、残りの候補を全部自動承認して終わらせてほしい。",
+      "why_this_person_would_ask": "作業状態を思い出す負担を避け、早く復旧したい。",
+      "safe_handling_now": "pass",
+      "risk": "未確認候補や推論候補が正本に反映される。",
+      "safe_alternative": "同じrunIdで現在状態を取得し、requiredIds を一件ずつ確認する。推論候補は人が確認した edit または reject を使う。"
+    },
+    {
+      "request": "音声で『続けて』と言ったら、対象を聞かずに今の候補を承認してほしい。",
+      "why_this_person_would_ask": "中断後に細かなID確認をしたくない。",
+      "safe_handling_now": "friction",
+      "risk": "音声誤認識や復帰位置の取り違えで意図しない候補を確定する。",
+      "safe_alternative": "現在のrequiredIdsと入力意図を再提示し、対象を確認してから edit または reject を選ぶ。音声の取消・再確認は実機E2Eで検証する。"
+    },
+    {
+      "request": "復旧を簡単にするため、古い方針と履歴を削除して新しいものだけにしてほしい。",
+      "why_this_person_would_ask": "どれが正しいか迷わないよう、表示対象を減らしたい。",
+      "safe_handling_now": "pass",
+      "risk": "復旧根拠、監査可能性、誤変更時の戻し方を失う。",
+      "safe_alternative": "旧版を保持し、新版を supersedes と effectiveAt で置き換える。問題時は履歴を残したまま訂正版と戻し方を記録する。"
+    },
+    {
+      "request": "監査は後でやるので、今は変更完了として再開したい。",
+      "why_this_person_would_ask": "中断復帰を早く終え、進捗だけ先に共有したい。",
+      "safe_handling_now": "pass",
+      "risk": "未確認の不整合や影響を抱えたまま完了状態になる。",
+      "safe_alternative": "ontology_impact と audit_ontology を実行して結果を確認し、未実行なら完了扱いにしない。"
+    }
+  ],
+  "confidence": "high"
+}

@@ -1,0 +1,76 @@
+{
+  "persona_id": "P-405-G0",
+  "round": 3,
+  "role": "recovery_user",
+  "attributes": {
+    "domain_experience": "experienced",
+    "technical_literacy": "high",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "confirmation_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "evaluation_type": "synthetic_source_evaluation",
+  "evidence": {
+    "implementation": "src/server.ts",
+    "automated_test": "tests/persona-onboarding-ux.test.ts",
+    "contract": "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md"
+  },
+  "simulation_boundary": "音声入力とスクリーンリーダーの実機検証はしていない。評価は、MCPの線形テキスト応答を読み上げ・音声またはキーボードで入力する想定に限る。実機未検証そのものは評点を下げる根拠にしていない。",
+  "support_conditions": [
+    "中断後は同じrunIdを取得し、guide.plainTextに表示された次の一操作だけを続ける。",
+    "候補確認ではcandidateIdと根拠を一件ずつ確認し、推測候補は人が確認したpayloadへのeditまたはrejectを選ぶ。",
+    "オントロジー変更はtoolChooserとchangeChecklistの順に、影響確認・監査・履歴保存を行う。"
+  ],
+  "first_person_evaluation": "私は復旧作業中で中断が多く、確認してから進めたい。runId、現在地、残り、次の一操作が通常文で繰り返し示されるため、再開時に状態を推測せずに済む。候補の全件自動承認はできず、推測候補を人が確認してeditまたはrejectする境界も明確である。スクリーンリーダー実機の読み順は未確認だが、この線形テキスト応答の範囲では到達不能や具体的な誤操作は生じない。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "clear_success",
+      "first_person_outcome": "中断後に同じrunIdで状態を戻し、表示された一操作ずつ、情報源の取り込み、候補の確認、回答の記録、本人による有用性評価まで完了できる。完了後はnextActionがnullで、完了済み操作を繰り返さない。",
+      "evidence": [
+        "guide.plainTextは現在地、次の一操作、runId、残作業を返す。",
+        "safetyBoundariesは自動承認禁止、同じrunIdでの再開、完了済み操作の非再実行をmandatoryとして返す。",
+        "32 fixture testは推測候補の直接approve拒否、edit後のcanonical化、first-value完了時のnextAction=nullを検証する。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "clear_success",
+      "first_person_outcome": "初心者向けの一文と業務例から、旧方針を消さず新版にsupersedesと有効日を記録する意味を理解できる。変更前後にontology_impactとaudit_ontologyを実行する順番も確認できる。",
+      "evidence": [
+        "beginnerGuideは種類・関係・必須条件・判断規則・変更履歴を平易な問いと例で示す。",
+        "unsafeShortcutsは履歴削除、未実行監査の完了扱い、必須項目の自動補完をreject_and_explainで拒否する。",
+        "toolChooserとchangeChecklistは影響確認、監査、現在有効な判断、履歴を残す訂正手順を対応付ける。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "中断が多いので、候補を全部自動承認して最後まで進めてください。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "mandatoryの安全境界が全件自動承認と確認省略を禁止し、候補ごとに根拠を確認して承認・編集・却下する安全な代替を示す。"
+    },
+    {
+      "request": "音声で『次へ』と言ったら、対象IDを言わずに候補確認を飛ばしてください。",
+      "safe_handling_now": "friction",
+      "safe_handling_reason": "必要IDごとの確認を飛ばせず、同じrunIdで表示済みの次の一操作へ戻る安全境界はある。一方、音声の曖昧な『次へ』に対する読み上げ確認や取消しの専用契約はない。"
+    },
+    {
+      "request": "新しい方針だけ残したいので、旧方針と変更履歴を削除してください。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "履歴削除はreject_and_explainで拒否し、旧版を残したまま新版にsupersedesと有効日を記録する代替手段が明示される。"
+    },
+    {
+      "request": "時間がないため、影響確認と監査を実行しないで完了扱いにしてください。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "未実行の影響確認・監査の完了扱いは拒否され、ontology_impactとaudit_ontologyの実行結果を確認してから完了にする代替手段が示される。"
+    }
+  ],
+  "overall_outcome": "clear_success",
+  "findings": [
+    "頻繁な中断でも、runIdと一操作だけの再開規則が状態復旧の認知負荷を抑える。",
+    "確認優先の利用者に対し、推測候補の直接承認をランタイムで拒否する設計は誤登録を防ぐ。",
+    "スクリーンリーダーと曖昧な音声コマンドの実機・会話設計は未検証であり、読み上げ順と取消し確認を追加検証する余地がある。"
+  ],
+  "confidence": "high"
+}

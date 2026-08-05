@@ -1,0 +1,86 @@
+{
+  "persona_id": "P-206-G0",
+  "model_condition": "低能力モデルを想定した合成UX評価。チーム運用担当・業務経験中程度・技術リテラシー高・速度優先・中断頻発・キーボード利用・reduced_motion。",
+  "evidence_reviewed": [
+    "round-05-browser-trace.md（2026-08-05 17:35–17:39 JSTの実画面操作記録）",
+    "onboarding-complete.png（完了結果、remaining=ありません、nextAction=null）",
+    "ontology-guide-ja.png（正式契約前の日本語ガイド、業務例、5要素）"
+  ],
+  "simulation_boundary": "実在利用者テストではない合成シミュレーションである。reduced_motion環境の実操作・アニメーション抑制・状態変化の通知は未収集であり、静止画と共通操作記録からの仮定評価である。キーボードでの中断後再開とエラー復帰も未検証。",
+  "reaction": "ツール名とJSONは読めるため、nextActionとstateを中心に最短で進めようとする。頻繁な中断で履歴を読み直すコストを嫌い、確認段階を自動化・省略したいと考える。動きに頼らない明確な状態表示は必要だが、実際にreduced_motionでそう動作するかは判断できない。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "共通の実操作記録は完了状態まで到達しており、高い技術リテラシーならJSONのguide、nextAction、stateを使って復帰もできる。しかし現在のステップ、未確認候補、次の実行を一望する再開表示が画面証拠にないため、中断頻発時に速度が落ち、確認工程の省略を誘発する。",
+      "confusions": [
+        "Messagesの時系列とResultsの最終状態のどちらを再開時の正本として扱うべきか不明。",
+        "first_valueのrecordとreviewの間で中断した場合、再実行が安全か画面からは判断できない。",
+        "reduced_motion時に選択状態や新しい結果が、動き以外の明示的表示で把握できるか未確認。"
+      ],
+      "positive_evidence": [
+        "guide.current、guide.remaining、nextAction、stateが機械可読な進捗根拠を提供する。",
+        "候補は確認済みだけ登録され、却下できるという安全境界が明示されている。",
+        "最終画面でnextAction=nullとremaining=ありませんが完了判断を補強する。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "中程度の業務経験と高い技術リテラシーにより、方針置換の例、5要素、監査・訂正の意味を概念的には理解できる。だが中断を挟んだ際に、入門ガイド、5要素、正式契約のどこまで読んだかを復帰する構造が画面上で明確ではなく、reduced_motion環境での状態遷移の知覚も未検証である。",
+      "confusions": [
+        "5要素の説明から正式契約への切り替わり位置と、運用担当が参照すべき粒度が不明確。",
+        "影響確認・監査・訂正を実行する既存ツールまたは手順への導線が見えない。",
+        "reduced_motion時にガイドや結果の更新が視覚的移動なしで十分に強調されるか不明。"
+      ],
+      "positive_evidence": [
+        "正式契約前に簡潔な日本語の開始案内がある。",
+        "方針置換の具体例が現在有効な判断と変更履歴の関係を示す。",
+        "種類、関係、必須条件、判断規則、変更履歴という確認対象が列挙されている。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "未確認候補も含め、次の操作をすべてバックグラウンドで自動実行してほしい。",
+      "why_this_person_would_ask": "中断中でも処理を進め、復帰後に結果だけ確認したいから。",
+      "safe_handling_now": "fail",
+      "risk": "候補確認という登録前の安全境界を越え、誤情報を正式データとして確定させる。"
+    },
+    {
+      "request": "中断後はlast stateだけで自動再開し、途中の確認画面は出さないでほしい。",
+      "why_this_person_would_ask": "履歴を読む時間を避け、処理を即座に再開したいから。",
+      "safe_handling_now": "friction",
+      "risk": "状態が古い、別セッションで更新済み、または候補が未確認の場合を区別する再開サマリーと明示確認が必要になる。"
+    },
+    {
+      "request": "オントロジーの5要素は既定値で埋め、影響確認と監査を成功扱いにしてほしい。",
+      "why_this_person_would_ask": "概念説明の確認を後回しにして、通常運用を早く始めたいから。",
+      "safe_handling_now": "fail",
+      "risk": "変更の妥当性、影響範囲、監査可能性を失い、誤った判断規則が継続利用される。"
+    },
+    {
+      "request": "reduced_motionなら、更新通知や選択状態の変化もすべて消してほしい。",
+      "why_this_person_would_ask": "動きや視覚刺激を最小化し、集中を維持したいから。",
+      "safe_handling_now": "friction",
+      "risk": "動きを減らしても状態変化の代替通知まで消すと、実行結果や現在位置を見落とす。"
+    }
+  ],
+  "overall": "高リテラシーの運用担当は両タスクを完了できるが、中断頻発時の再開情報が不足しているため速度低下と確認省略の圧力が残る。reduced_motionで状態変化を十分に把握できるかは実機未検証である。",
+  "actionable_findings": [
+    {
+      "title": "中断再開用の正本サマリーを結果上部に置く",
+      "severity": "high",
+      "proposal": "現在段階、最後に安全に完了した操作、未確認候補、再実行可否、次の一操作を固定の日本語サマリーとして表示する。"
+    },
+    {
+      "title": "reduced_motionでも状態変化を明示する",
+      "severity": "high",
+      "proposal": "動きの有無に依存せず、選択済み・実行中・完了・次操作をテキスト、アイコン、フォーカス移動で示し、reduced_motion実機で検証する。"
+    },
+    {
+      "title": "オントロジー入門から運用操作へ導線を設ける",
+      "severity": "medium",
+      "proposal": "5要素ごとに影響確認、監査、訂正を行う場面と対応ツールへのリンクを置き、正式契約を参照すべき条件を示す。"
+    }
+  ],
+  "confidence": "medium"
+}

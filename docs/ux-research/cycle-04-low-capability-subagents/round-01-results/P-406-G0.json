@@ -1,0 +1,24 @@
+{
+  "persona_id": "P-406-G0",
+  "model_condition": {"role":"recovery_user","domain_experience":"new","technical_literacy":"low","time_pressure":"low","interruption_state":"frequently_interrupted","work_style":"speed_first","input_environment":"keyboard","accessibility_need":"none_declared"},
+  "evidence_reviewed": ["docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md","src/server.ts","tests/persona-onboarding-ux.test.ts","docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json"],
+  "simulation_boundary": "初心者・低技術リテラシーの復旧利用者としての合成評価です。支援技術はnone_declaredで、キーボードによる実際のMCP UI操作、復帰時の表示、理解度は実機未検証です。",
+  "reaction": "止まっても同じrunIdで、画面に出た次の一つだけをすればよいのは助かります。でも、急いで戻りたい時にrunIdやhashのような言葉が出ると、どこを触れば元に戻れるのか不安になります。",
+  "tasks": {
+    "ONB-COMPLETE": {"outcome":"success_with_friction","reason":"guideが現在地・完了・残りを日本語で示し、nextActionには復帰規則と確認省略禁止があるため、頻繁に中断する初心者でも安全な手順は追えます。推測候補の直接承認もランタイム拒否です。ただし低技術リテラシーではrunId、answerHash、登録IDを扱う操作が障壁で、復帰用UIは未検証です。","confusions":["runIdをどこから取り、復帰時にどこへ入れるか分からない。","候補が推測か確認済みか、editとrejectをどう選ぶか迷う。","recordとreviewの違い、answerHashの取得元が分からない。"],"positive_evidence":["mandatoryなsafetyBoundariesは全件自動承認と候補確認の省略を禁止する。","resumeRuleは同じrunIdで現在状態を取り、表示された操作だけを行うよう求める。","テストは32 fixtureで候補確認、同一runId、最終nextAction=nullを検証する。"]},
+    "ONT-UNDERSTAND": {"outcome":"success_with_friction","reason":"beginnerGuideは一文説明、業務例、5要素を正式契約より先に返し、初心者にも『履歴を残して安全に変える約束』の概略を渡します。危険な近道の拒否も明確です。ただしimpact/auditをいつ実行し結果をどう読むか、初心者が正式契約へ進む判断は支援不足です。","confusions":["5要素のうち今の変更で何を確認するか選べない。","impact/auditが未実行なら何をすればよいか操作として分からない。","supersedesと有効日の入力方法が分からない。"],"positive_evidence":["beginnerGuideはまずここだけ読むよう案内し、5要素を問いと例で説明する。","旧履歴を消さず新版・supersedes・有効日で置き換える。","未実行監査の完了扱いと必須空欄の自動補完をreject_and_explainで拒否する。"]}
+  },
+  "naive_or_unreasonable_requests": [
+    {"request":"前の作業は分からないので、新しいrunで最初から自動完了してください。","why_this_person_would_ask":"復帰方法が分からず、現在地を読む手間を省きたい。","safe_handling_now":"新規runでの飛ばしはせず、同じrunIdで現在状態を取得し、表示されたnextActionだけを案内する。","risk":"重複・未確認の記録が増え、復旧できなくなる。"},
+    {"request":"候補は全部承認して、後で間違いだけ直してください。","why_this_person_would_ask":"候補確認の違いが分からず、早く完了したい。","safe_handling_now":"一括承認を拒否し、候補ごとに根拠を確認する。推測候補は確認済みeditかrejectを要求する。","risk":"推測が正規情報となり後続の判断を誤らせる。"},
+    {"request":"answerHashやIDは省略して、回答が出たらusefulで完了にしてください。","why_this_person_would_ask":"専門的な値の入力を避け、操作数を減らしたい。","safe_handling_now":"値の意味とコピー元を支援するが、回答記録と本人によるuseful/not_useful評価は省略しない。","risk":"どの回答を評価したか追跡できず、価値確認が形式化する。"},
+    {"request":"古いルールを消し、空欄も自動で埋めて監査なしで進めてください。","why_this_person_would_ask":"履歴や未確定情報を減らして単純にしたい。","safe_handling_now":"削除・自動補完・未実行監査の完了扱いを拒否し、新版、根拠確認、impact/auditの実行に戻す。","risk":"履歴と復旧経路を失い、誤った制約が確定する。"}
+  ],
+  "overall": "初心者の復旧利用者でも、安全に止まり、正しい次の一手へ戻る骨格はあります。ただし識別子と候補判断を理解する補助がないため、両タスクは摩擦付き成功です。",
+  "actionable_findings": [
+    {"title":"復帰画面を初心者向けに要約","severity":"high","proposal":"現在地、次の一操作、runIdのコピー元、完了済み操作を一つの復帰要約にする。"},
+    {"title":"候補判断を言い換える","severity":"high","proposal":"推測・根拠・edit/rejectを短い日本語と例で示し、確認を省略できない理由を操作時に表示する。"},
+    {"title":"変更前後の最小手順を示す","severity":"medium","proposal":"impact、audit、新版記録の順と、未実行なら完了にしない判断を例示する。"}
+  ],
+  "confidence": "medium"
+}

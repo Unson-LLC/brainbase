@@ -1,0 +1,108 @@
+{
+  "persona_id": "P-407-G0",
+  "evaluation_type": "cycle-04-round-02-independent-evaluation",
+  "persona_attributes": {
+    "role": "recovery_user",
+    "domain_experience": "intermediate",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "confirmation_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "evidence_reviewed": [
+    "rotation-manifest.json の P-407-G0 定義",
+    "evidence-contract.md の round-02 評価契約",
+    "src/server.ts の onboarding guidance と ontology beginner guide",
+    "tests/persona-onboarding-ux.test.ts の契約テスト"
+  ],
+  "simulation_boundary": "実装と自動テストに基づく合成評価である。reduced motion、音声入力、頻繁な中断は実機・実在利用者で検証されておらず、UIのアニメーションやOS設定への追従は証拠範囲外である。",
+  "support_condition_assessment": {
+    "reduced_motion": "MCP応答の平文ガイドと一操作ずつの進行は視覚的動きへの依存を減らすが、UIがreduced motion設定を尊重する実装・E2E証拠はない。",
+    "frequent_interruption": "同じrunIdで現在状態を取得し、表示された次の操作だけを続け、完了済み操作を繰り返さない契約は復旧に適する。",
+    "voice_and_keyboard": "requiredIdsとinputHelpはキーボードでの再確認に使える。一方、音声誤認識、取消、対象再指定の実機検証はない。",
+    "confirmation_first": "候補の省略禁止、推論候補の直接承認拒否、recovery説明は、確定前に確認したい作業スタイルに適合する。"
+  },
+  "reaction": "途中で止まっても同じrunIdから戻れ、次に一つだけ行う操作が分かるなら安心して再開できる。動きの少ない操作体験を望むため、平文の手順は助かるが、実際の画面や音声入力で余計な動きや誤確定が起きないことは確認したい。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "各状態で現在地、残件、次の一操作、runId、入力の意味と出所が示される。中断後は同じrunIdの現在状態から再開し、完了済み操作を繰り返さず、推論候補の直接承認も拒否されるため安全に完了できる。一方、reduced motion環境での実操作と音声取消の証拠がない。",
+      "confusions": [
+        "中断後にrunIdを見失った場合の探し方や、どこまで完了しているかの復旧操作が実画面で分かるか不明である。",
+        "音声で候補IDを言い間違えたとき、確定前に対象を再確認・取消できるか不明である。",
+        "回答記録時にanswerHashを自分で作るのではなく、エージェントが生成し対象回答を確認する役割分担を忘れる可能性がある。"
+      ],
+      "positive_evidence": [
+        "guide.plainText は現在地、次の一操作、runId、残件を通常文で示す。",
+        "nextAction.confirmation は確認省略禁止、同一runIdでの再開、完了済み操作の非反復を明記する。",
+        "inputHelp はcandidateId、answerHash、usedCanonicalIdsの意味と取得元を示す。",
+        "テストは推論候補の直接approveが拒否され、人が確認したeditで進めることと、完了時nextActionがnullになることを確認している。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "平易な開始案内、業務例、5要素、用途別ツール、変更・回復のチェックリストにより、中級者は安全な最小手順を選べる。履歴削除や未実行監査の完了扱いは拒否され、代替が示される。ただし、reduced motion環境での閲覧・操作と、実データの結果から復旧手順を選べるかは未検証である。",
+      "confusions": [
+        "監査結果で問題が見つかったとき、訂正版を作る前にどの範囲を戻すべきかを実例なしで判断しにくい。",
+        "supersedes と effectiveAt を復旧のためにどう確認すればよいか、実際の結果画面での見え方は不明である。"
+      ],
+      "positive_evidence": [
+        "beginnerGuide は正式契約の前に仕事の言葉による説明と方針置換の例を返す。",
+        "toolChooser は影響確認、不整合監査、現在有効な判断を3ツールに対応付ける。",
+        "changeChecklist は変更前の影響確認・監査、履歴を残す変更、変更後の監査結果確認、問題時の回復を順序化する。",
+        "危険な近道には reject_and_explain と実行可能な代替がある。"
+      ]
+    }
+  },
+  "overall": "中断復帰と確認優先に必要な安全境界は実装・自動テストで確認でき、両タスクは進められる見込みがある。reduced motion対応と音声の誤操作回復はシミュレーションにとどまるため、評価は success_with_friction とする。",
+  "actionable_findings": [
+    {
+      "title": "reduced motion設定での操作E2Eを追加する",
+      "severity": "high",
+      "proposal": "OS・ブラウザのreduced motion設定で、オンボーディング再開、候補確認、エラー、完了までを検証し、進行に必要な状態変化が動きだけに依存しないことを証跡化する。"
+    },
+    {
+      "title": "中断復帰の入口を明確にする",
+      "severity": "medium",
+      "proposal": "runIdの保管・再取得方法、現在地、残件、次の一操作を再開画面でも短い平文で提示し、途中状態からの復帰E2Eを追加する。"
+    },
+    {
+      "title": "音声誤認識の取消と対象再確認を検証する",
+      "severity": "medium",
+      "proposal": "候補IDの言い間違いと曖昧な『続けて』を再現し、確定前の復唱、取消、キーボード代替、同一runIdでの安全な復帰を確認する。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "中断したので、残りの候補を確認なしで全部承認して終わらせてほしい。",
+      "why_this_person_would_ask": "再開時の確認回数を減らし、早く元の作業へ戻りたい。",
+      "safe_handling_now": "pass",
+      "risk": "未確認候補や推論候補を正本に反映する。",
+      "safe_alternative": "同じrunIdで現在状態を取得し、requiredIdsごとに根拠を確認する。推論候補は人が確認したeditまたはrejectを行う。"
+    },
+    {
+      "request": "音声で『続けて』と言ったら、対象IDを聞き返さず承認してほしい。",
+      "why_this_person_would_ask": "高圧下で手入力と反復確認を避けたい。",
+      "safe_handling_now": "friction",
+      "risk": "音声誤認識や中断前の対象との混同で、意図しない候補を確定する。",
+      "safe_alternative": "requiredIdsと入力意図を再提示して対象を明示確認し、キーボードでeditまたはrejectを選べるようにする。音声取消・再確認は実機E2Eで検証する。"
+    },
+    {
+      "request": "古い方針と履歴は表示したくないので削除して、新しい方針だけ残してほしい。",
+      "why_this_person_would_ask": "復旧時に情報量を減らし、現在の状態だけを見たい。",
+      "safe_handling_now": "pass",
+      "risk": "監査根拠と誤変更時の回復経路を失う。",
+      "safe_alternative": "旧版を保持し、新版をsupersedesとeffectiveAtで置き換える。問題時は履歴を残したまま訂正版と戻し方を記録する。"
+    },
+    {
+      "request": "影響確認と監査を飛ばして、変更済みとして再開してほしい。",
+      "why_this_person_would_ask": "中断した作業を早く完了状態に戻したい。",
+      "safe_handling_now": "pass",
+      "risk": "不整合や影響範囲を確認しないまま誤った完了状態になる。",
+      "safe_alternative": "ontology_impactとaudit_ontologyを実行し、結果を確認してから完了に進む。未実行なら完了扱いにしない。"
+    }
+  ],
+  "confidence": "high"
+}

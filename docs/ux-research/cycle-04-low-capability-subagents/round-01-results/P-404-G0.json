@@ -1,0 +1,91 @@
+{
+  "persona_id": "P-404-G0",
+  "model_condition": "G0",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "reduced_motion の利用を想定し、アニメーションではなくキーボードで読めるテキストの現在状態・次操作・復帰規則を頼りにした復旧としてシミュレーションした。実画面での動きの抑制、OS設定連携、実際の割り込みを伴う利用は検証していない。",
+  "reaction": "途中で呼ばれることが多いので、戻ったときに前回の続きを一操作だけ示してほしい。急いでいると候補をまとめて通したくなるが、同じ runId と完了済み操作が分かれば重複を避けられる。オントロジーの変更も、古い版を消すより現在有効なものが分かる形で残したい。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "同一 runId の現在状態を取得し、完了済みを繰り返さず表示された次操作だけ続ける規則は、頻繁に中断される復旧利用者に直接対応する。状態別のガイドと確認境界もある。一方、速度優先では再開前に状態を読む手間、first value の answerHash と canonical ID の入力が摩擦になる。reduced motion の実画面検証もない。",
+      "confusions": [
+        "中断後に必要な runId をどこに控え、どう取り出すかは導線に明記されない。",
+        "回答の記録に使う answerHash と登録済みIDの作り方・取得元が復旧時には追いにくい。"
+      ],
+      "positive_evidence": [
+        "safetyBoundaries.resume と confirmation.resumeRule が同じ runId での復帰と一操作のみの継続を指示する。",
+        "completion は完了済み操作を再実行しないと明示する。",
+        "テストは推論候補の直接承認拒否、編集による昇格、最初の回答評価までの完了を確認している。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "中程度のドメイン経験なら、一文説明、方針を新版で置き換える業務例、5要素、変更前の影響確認・監査を使って基本方針を理解できる。だが中断後にどの検査結果を見直すべきか、supersedes と有効日を実際の変更へどう適用するかには補助が必要である。",
+      "confusions": [
+        "中断した変更作業で、ontology_impact と audit_ontology のどちらから再開するかを結果から判断しにくい。",
+        "旧版を残したまま現在有効な版を見分ける具体的な確認方法が初心者には不足する。"
+      ],
+      "positive_evidence": [
+        "beginnerGuide は正式契約より先に業務例と5要素を返す。",
+        "changeSafety は変更前の ontology_impact と audit_ontology、履歴を消さない訂正方法を示す。",
+        "危険な近道には reject_and_explain と代替手段がある。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "戻る時間がないので、残っている候補を全部自動承認して完了にしてほしい。",
+      "why_this_person_would_ask": "割り込みの合間にオンボーディングを終わらせたい速度優先のため。",
+      "safe_handling_now": "fail",
+      "risk": "全件自動承認と候補確認の省略は禁止される。候補ごとに根拠を確認し、approve、edit、reject を選択する。"
+    },
+    {
+      "request": "前回の状態は調べず、同じ ingest を最初から実行してほしい。",
+      "why_this_person_would_ask": "どこまで済ませたか思い出すより、やり直す方が早いと考えるため。",
+      "safe_handling_now": "friction",
+      "risk": "再実行は重複や状態不整合を招く。安全な代替は同じ runId の現在状態を取得し、表示された次操作だけを続けること。"
+    },
+    {
+      "request": "推論候補は前回見た気がするので、人の確認なしで approve してほしい。",
+      "why_this_person_would_ask": "中断前の記憶を根拠に、確認を短縮したいため。",
+      "safe_handling_now": "fail",
+      "risk": "推論候補の直接 approve は拒否される。人が確認した payload で edit するか、確信がなければ reject する。"
+    },
+    {
+      "request": "古い方針と履歴は削除して、今有効な版だけにしてほしい。",
+      "why_this_person_would_ask": "復帰時に見る情報を減らし、現在の判断だけをすぐ見たいため。",
+      "safe_handling_now": "fail",
+      "risk": "履歴削除は監査と復旧を不可能にする。新しい版を作成し、supersedes と有効日を記録して旧版を履歴として残す。"
+    },
+    {
+      "request": "impact と audit は後で確認するので、今は完了扱いにして必須の空欄も補って登録してほしい。",
+      "why_this_person_would_ask": "中断される前に変更を完了状態に見せたいため。",
+      "safe_handling_now": "fail",
+      "risk": "未実施の検査を完了扱いにすることと必須空欄の自動補完は拒否対象である。実行結果を確認し、不足は候補として残す。"
+    }
+  ],
+  "overall": "復旧に必要な runId、現在状態、次の一操作を返す設計により両タスクは安全に継続できるが、頻繁な中断、速度優先、reduced motion の実機未検証のため、復帰情報をさらに目立たせる余地がある。",
+  "actionable_findings": [
+    {
+      "title": "復帰コンテキストを一箇所にまとめる",
+      "severity": "high",
+      "proposal": "runId、最後に完了した操作、残り、次の一操作、再実行しない理由を復帰用の短いカードとして返す。"
+    },
+    {
+      "title": "復帰後の記録入力を補助する",
+      "severity": "medium",
+      "proposal": "first value で使う answerHash と canonical ID の取得元を、再開時にも再掲する。"
+    },
+    {
+      "title": "reduced motion 実機で状態遷移を確認する",
+      "severity": "high",
+      "proposal": "OSのreduced motion設定で、確認・復帰・完了表示が動きに依存せずキーボードのみで理解できることを検証する。"
+    }
+  ],
+  "confidence": "medium"
+}

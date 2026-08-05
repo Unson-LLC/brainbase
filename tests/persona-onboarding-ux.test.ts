@@ -53,10 +53,16 @@ describe('beginner-safe onboarding output contract', () => {
       }) as {
         id: string;
         runId: string;
-        guide: { current: string; completed: string[]; remaining: string };
+        guide: { current: string; completed: string[]; remaining: string; plainText: string };
         selectedSourceIds: string[];
         sources: Array<{ id: string; status: string }>;
         nextAction: { tool: string; label: string; instruction: string; confirmation: { changes: string; reversible: boolean; recovery: string } };
+        safetyBoundaries: {
+          mode: string;
+          review: string;
+          resume: string;
+          completion: string;
+        };
       };
       expect(Object.keys(started).slice(0, 2)).toEqual(['guide', 'nextAction']);
       expect(started.runId).toBe(started.id);
@@ -67,8 +73,14 @@ describe('beginner-safe onboarding output contract', () => {
         current: '利用する情報源を選びました。',
         remaining: '情報の取り込み、候補の確認、最初の回答の評価が残っています。'
       });
+      expect(started.guide.plainText).toContain('次は「準備できた情報源を取り込む」');
+      expect(started.guide.plainText).toContain(started.runId);
       expect(started.selectedSourceIds).toEqual(['drive-current']);
       expect(started.sources.find((source) => source.id === 'gmail-main')?.status).toBe('waiting_for_authorization');
+      expect(started.safetyBoundaries).toMatchObject({ mode: 'mandatory' });
+      expect(started.safetyBoundaries.review).toContain('自動承認');
+      expect(started.safetyBoundaries.resume).toContain(started.runId);
+      expect(started.safetyBoundaries.completion).toContain('再実行しません');
 
       const currentPayload = {
         decision: `Persona ${index} uses Ontology 1.0.0`,
@@ -89,8 +101,13 @@ describe('beginner-safe onboarding output contract', () => {
       }) as {
         runId: string;
         candidates: Array<{ id: string }>;
-        guide: { current: string; completed: string[]; remaining: string };
-        nextAction: { tool: string; requiredIds: string[]; confirmation: { changes: string; reversible: boolean; recovery: string } };
+        guide: { current: string; completed: string[]; remaining: string; plainText: string };
+        nextAction: {
+          tool: string;
+          requiredIds: string[];
+          inputHelp: Array<{ field: string; meaning: string; source: string }>;
+          confirmation: { changes: string; reversible: boolean; recovery: string; cannotSkip: string; resumeRule: string };
+        };
       };
       const candidateId = ingested.candidates[0].id;
       expect(ingested.runId).toBe(started.runId);
@@ -99,6 +116,12 @@ describe('beginner-safe onboarding output contract', () => {
       expect(ingested.nextAction.confirmation).toMatchObject({ reversible: true });
       expect(ingested.nextAction.confirmation.changes).toContain('確認した候補だけ');
       expect(ingested.nextAction.confirmation.recovery).toContain('却下');
+      expect(ingested.nextAction.confirmation.cannotSkip).toContain('全件自動承認');
+      expect(ingested.nextAction.confirmation.resumeRule).toContain(started.runId);
+      expect(ingested.nextAction.confirmation.resumeRule).toContain('完了済み');
+      expect(ingested.nextAction.inputHelp).toEqual(expect.arrayContaining([
+        expect.objectContaining({ field: 'candidateId', source: expect.stringContaining('requiredIds') })
+      ]));
 
       await expect(callBrainbaseTool('brainbase_onboarding_review', {
         dataDir,
@@ -110,10 +133,14 @@ describe('beginner-safe onboarding output contract', () => {
         dataDir,
         runId: started.runId,
         actions: [{ candidateId, decision: 'edit', reason: '人が内容を確認した', payload: currentPayload }]
-      }) as { promotedCanonicalIds: string[]; nextAction: { tool: string; instruction: string }; guide: { current: string } };
+      }) as { promotedCanonicalIds: string[]; nextAction: { tool: string; instruction: string; inputHelp: Array<{ field: string; source: string }> }; guide: { current: string } };
       expect(reviewed.nextAction).toMatchObject({ tool: 'brainbase_onboarding_first_value' });
       expect(reviewed.nextAction.instruction).toContain('action=record');
       expect(reviewed.nextAction.instruction).toContain('回答の記録');
+      expect(reviewed.nextAction.inputHelp).toEqual(expect.arrayContaining([
+        expect.objectContaining({ field: 'answerHash', source: expect.stringContaining('回答') }),
+        expect.objectContaining({ field: 'usedCanonicalIds', source: expect.stringContaining('promotedCanonicalIds') })
+      ]));
       expect(reviewed.guide.current).toBe('確認済みの候補を正式な情報として登録しました。');
       const currentDecisionId = reviewed.promotedCanonicalIds.find((id) => id.startsWith('decision-'))!;
       const os = await loadPersonalOs(dataDir);
@@ -143,11 +170,12 @@ describe('beginner-safe onboarding output contract', () => {
       expect(completed.state).toBe('first_value_answer_reviewed');
       expect(completed.runId).toBe(started.runId);
       expect(completed.nextAction).toBeNull();
-      expect(completed.guide).toEqual({
+      expect(completed.guide).toMatchObject({
         current: '最初の回答の評価まで完了しました。',
         completed: ['情報源の選択', '情報の取り込み', '候補の確認', '最初の回答の記録', '回答の評価'],
         remaining: 'ありません。'
       });
+      expect((completed.guide as typeof completed.guide & { plainText: string }).plainText).toContain('完了済み操作は繰り返しません');
     }
   });
 
@@ -159,6 +187,13 @@ describe('beginner-safe onboarding output contract', () => {
         workExample: string;
         fiveParts: Array<{ id: string; name: string; question: string; example: string }>;
         changeSafety: { check: string; recover: string };
+        unsafeShortcuts: Array<{
+          request: string;
+          handling: 'reject_and_explain';
+          safeAlternative: string;
+        }>;
+        toolChooser: Array<{ goal: string; tool: string; when: string }>;
+        changeChecklist: string[];
         detailsNotice: string;
         suggestedNextTools: string[];
       };
@@ -172,6 +207,18 @@ describe('beginner-safe onboarding output contract', () => {
     expect(result.beginnerGuide.fiveParts.map((part) => part.name)).toEqual(['種類', '関係', '必須条件', '判断規則', '変更履歴']);
     expect(result.beginnerGuide.changeSafety.check).toContain('影響');
     expect(result.beginnerGuide.changeSafety.recover).toContain('新しい版');
+    expect(result.beginnerGuide.unsafeShortcuts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ request: expect.stringContaining('履歴を削除'), handling: 'reject_and_explain', safeAlternative: expect.stringContaining('supersedes') }),
+      expect.objectContaining({ request: expect.stringContaining('監査を完了扱い'), handling: 'reject_and_explain', safeAlternative: expect.stringContaining('実行結果') }),
+      expect.objectContaining({ request: expect.stringContaining('必須項目を空欄'), handling: 'reject_and_explain', safeAlternative: expect.stringContaining('不足') })
+    ]));
+    expect(result.beginnerGuide.toolChooser).toEqual([
+      expect.objectContaining({ goal: '変更の影響を知りたい', tool: 'ontology_impact' }),
+      expect.objectContaining({ goal: '現在の不整合を調べたい', tool: 'audit_ontology' }),
+      expect.objectContaining({ goal: '現在有効な判断を知りたい', tool: 'infer_decisions' })
+    ]);
+    expect(result.beginnerGuide.changeChecklist.join(' ')).toContain('変更前');
+    expect(result.beginnerGuide.changeChecklist.join(' ')).toContain('実行結果');
     expect(result.beginnerGuide.detailsNotice).toContain('正式契約');
     expect(result.beginnerGuide.suggestedNextTools).toEqual(['audit_ontology', 'infer_decisions', 'ontology_impact']);
     expect(result.version).toBe('1.0.0');

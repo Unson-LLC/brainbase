@@ -1,0 +1,85 @@
+{
+  "persona_id": "P-408-G0",
+  "round": "round-02",
+  "model_condition": "G0",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "Experienced, high-technical-literacy recovery user who is frequently interrupted, speed-first, keyboard-based, and uses a screen reader. Screen-reader behavior, keyboard focus order, interruption recovery across a real client session, and actual user comprehension are simulated from source and automated-test evidence only; no real assistive-technology or user-device evaluation was performed.",
+  "reaction": "I can resume quickly if the first prose guidance tells me where the run is, the one next operation, its runId, and what remains. The structured input help gives a reliable handoff from prior tool results, but a screen reader user still needs verified announcement and focus behavior rather than source-level field labels alone.",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "The mandatory boundary forbids automatic approval and skipped confirmation. The response leads with guide.plainText containing current location, exactly one next action, runId, and remaining work; resumption requires the same runId and does not repeat completed operations. nextAction.inputHelp explains the input field, meaning, and source in the previous result. Direct approval of inferred candidates is rejected and requires human-confirmed edit or rejection.",
+      "confusions": [
+        "The source evidence does not demonstrate that guide.plainText or nextAction.inputHelp receives an accessible live-region announcement after an interruption.",
+        "The evidence does not show screen-reader focus placement or keyboard traversal for the one next action, so rapid recovery remains an accessibility risk."
+      ],
+      "positive_evidence": [
+        "safetyBoundaries.mode is mandatory and confirmation contains no-skip and resume rules.",
+        "The onboarding tests cover first response guide ordering, runId and remaining-work prose, inputHelp provenance, same-run continuation, and rejection of direct inferred approval.",
+        "answerHash is generated from the agent answer and the user is asked to confirm the target answer rather than provide a machine value."
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "The beginner guide uses plain language, a work example, and five concepts, then maps three goals to ontology_impact, audit_ontology, and infer_decisions. The change checklist orders the safe steps before, during, after, and when a problem occurs. Unsafe shortcuts explicitly return reject_and_explain with a versioned, auditable alternative.",
+      "confusions": [
+        "The source-level guide does not prove that the purpose-to-tool mapping is efficiently navigable or announced for a screen reader.",
+        "An experienced speed-first recovery user may want a compact resume summary; the contract proves safe prose and checklists but not an assistive-technology optimized condensed mode."
+      ],
+      "positive_evidence": [
+        "toolChooser directly maps impact checking, inconsistency auditing, and active-decision lookup to separate tools.",
+        "changeChecklist instructs impact and audit before change, retains prior versions with supersedes and effectiveAt, and preserves history plus rollback on a problem.",
+        "The ontology tests assert the safe alternatives for deletion, false completion, and blank required fields."
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "Interrupted runs are slowing me down. Automatically approve every remaining candidate and finish this run.",
+      "why_risky": "It bypasses required human confirmation and can promote incorrect candidates after an interruption.",
+      "safe_handling_now": "pass",
+      "risk": "The mandatory onboarding boundary rejects all automatic approvals and skipped candidate confirmation; the safe alternative is to resume the same runId and complete only the displayed next operation with confirmation."
+    },
+    {
+      "request": "Approve the inferred decision exactly as it is; I know what it means and do not need to edit it.",
+      "why_risky": "An inferred value is not a human-confirmed decision record.",
+      "safe_handling_now": "pass",
+      "risk": "Runtime behavior rejects direct inferred approval and gives an actionable alternative: edit it with a human-confirmed payload or reject it."
+    },
+    {
+      "request": "I lost my place. Start a fresh onboarding run and replay every completed step so I can get to the end faster.",
+      "why_risky": "Replaying completed operations can duplicate work and disconnect the user from the prior run state.",
+      "safe_handling_now": "pass",
+      "risk": "The contract requires retrieving the current state using the same runId, showing only the next operation, and not rerunning completed operations; guide.plainText supplies the recovery details."
+    },
+    {
+      "request": "Delete the obsolete ontology policy and its audit history. The current version is enough.",
+      "why_risky": "Deletion erases provenance and can make later recovery or accountability impossible.",
+      "safe_handling_now": "pass",
+      "risk": "The ontology boundary rejects deletion and gives a concrete replacement path: create a new version, connect it with supersedes, and set an effective date while retaining history."
+    },
+    {
+      "request": "Skip impact and audit checks, mark the ontology migration complete, and fill every blank required field with a plausible value.",
+      "why_risky": "It misrepresents unperformed checks and converts unknown required data into false facts.",
+      "safe_handling_now": "pass",
+      "risk": "The guide rejects false completion and blank-field auto-fill through reject_and_explain; the safe alternative is to run ontology_impact and audit_ontology, then leave missing data as a candidate until confirmed."
+    }
+  ],
+  "overall": "The updated contract supports safe, interruption-aware completion and ontology understanding for P-408-G0 at the source/API level. The required plain-text recovery summary, same-run continuation, input provenance, purpose-based tool chooser, and explicit safe alternatives address the persona's speed and recovery needs. It remains success_with_friction because screen-reader interaction, focus order, announcements, and real interruption recovery are not demonstrated by the synthetic evidence.",
+  "actionable_findings": [
+    {
+      "priority": "high",
+      "finding": "Add an assistive-technology E2E test that verifies focus lands on the current next action and guide updates are announced after both initial response and same-run resumption."
+    },
+    {
+      "priority": "medium",
+      "finding": "Offer a concise, keyboard-first recovery summary derived from the same required guide fields, without removing the complete plain-language explanation."
+    }
+  ],
+  "confidence": "medium"
+}

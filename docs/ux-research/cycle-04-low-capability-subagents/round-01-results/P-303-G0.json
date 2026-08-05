@@ -1,0 +1,102 @@
+{
+  "persona_id": "P-303-G0",
+  "evaluation_type": "cycle-04-independent-after-evaluation",
+  "persona_attributes": {
+    "role": "ontology_steward",
+    "domain_experience": "experienced",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "speed_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "これは実装と自動テストに基づく合成評価です。スクリーンリーダー、音声入力、キーボードフォーカス、読み上げ順、状態更新の通知は実機で検証していません。支援技術を使った実利用E2Eの成功を示すものではありません。",
+  "support_condition_assessment": {
+    "screen_reader": "MCP応答にはガイド、nextAction、requiredIds、安全境界が含まれるが、支援技術にとっての構造、読み上げ優先順、候補と根拠の対応、状態変化の通知、長いオントロジー説明の移動性は未検証である。",
+    "voice_and_keyboard": "音声で候補名・操作名・版番号を確認し、誤認識を訂正して個別決定できるか、キーボードで安全に再確認できるかの実機根拠はない。",
+    "verdict": "スクリーンリーダー利用が必要な本ペルソナについて、重要な理解・確認操作を安全に完遂できる証拠がないため、シミュレーション上の成功を実利用成功としては扱わない。"
+  },
+  "reaction": "オントロジー管理者として、旧方針を削除せずsupersedesと有効日で置換すること、影響確認と監査の実行結果を残すことは理解でき、速度を優先してもそこは守るべきだと判断する。ただし急ぎの改定時には、読み上げだけで候補ID、旧版・新版、監査状態、次に必要なツールを素早く照合できるか確信が持てない。音声で進めるほど、似た名称や版の聞き間違いを防ぐ明確な復唱・取消が必要になる。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "failed",
+      "reason": "実装は候補単位の確認、推測候補の直接承認拒否、同一runIdでの再開、完了済み操作の非再実行を明示し、テストもeditまたはrejectを強制する。しかし、スクリーンリーダーで候補・根拠・requiredIds・確認内容・エラーを識別しながら、音声とキーボードで一連の操作を安全に完遂できる実機証拠はない。",
+      "confusions": [
+        "読み上げ時に、候補ID、推測候補である理由、edit対象の内容、現在のnextActionが明確に対応付けられるか分からない。",
+        "速度優先で音声入力した際、approveではなくeditが必要な候補を聞き間違えずに選べるか分からない。",
+        "recordに必要なanswerHashと登録済みIDを、読み上げ・キーボードだけで安全に確認・入力できるか分からない。"
+      ],
+      "positive_evidence": [
+        "safetyBoundaries は候補の全件自動承認と確認省略を禁止し、候補ごとの承認・編集・却下を要求する。",
+        "confirmation.cannotSkip と resumeRule は省略禁止、同一runIdでの現在操作のみの再開、完了済み操作の非反復を明示する。",
+        "自動テストは推測候補のapproveを拒否し、人が確認したpayloadでのeditまたはrejectを要求する。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "failed",
+      "reason": "beginnerGuide は仕事の言葉・関係・必須条件・判断規則・変更履歴という説明、5要素、変更安全性、危険な近道の拒否を返すため、内容上は業務経験者に有用である。一方で、スクリーンリーダーで各要素、旧版と新版、影響確認と監査の要否、安全な代替操作を迅速かつ誤解なく巡回・比較できるセマンティクスや実機検証がない。したがって本ペルソナの支援条件で理解完了を判定できない。",
+      "confusions": [
+        "5要素の説明と正式契約の詳細を、読み上げ中に見失わず必要箇所だけ比較できるか分からない。",
+        "supersedes、有効日、移行、戻し方のどれが改定前の必須確認かを、急ぎの状況で即座に区別できるか分からない。",
+        "audit_ontology と ontology_impact の実行結果が未取得なのか、単に説明を聞き終えていないのかを支援技術上で判別できるか分からない。"
+      ],
+      "positive_evidence": [
+        "beginnerGuide は正式契約の前に、業務例と一文説明を提示する。",
+        "changeSafety は影響確認・監査と、新しい版での訂正・移行・戻し方の記録を示す。",
+        "履歴削除、未実施監査の完了扱い、必須項目の自動補完を reject_and_explain と安全な代替手段で拒否する。"
+      ]
+    }
+  },
+  "overall": "安全なドメインルールは実装・テストで確認できるが、P-303-G0のスクリーンリーダー／音声・キーボードという実際の作業条件で、そのルールを速く正確に理解・実行できるE2E証拠はない。速度要求が高いほど、未検証の支援技術導線を成功扱いにしない。",
+  "actionable_findings": [
+    {
+      "title": "スクリーンリーダーで版変更の安全判断を実機検証する",
+      "severity": "critical",
+      "proposal": "VoiceOverまたはNVDAで、旧方針の確認、新版作成、supersedesと有効日の入力、impact/audit実行結果の確認、候補のedit/reject、戻し方の確認までを通しで評価する。フォーカス順、アクセシブル名、状態変化の読み上げ、エラーからの回復を記録する。"
+    },
+    {
+      "title": "オンボーディング状態と候補根拠を短い読み上げ可能な要約にする",
+      "severity": "high",
+      "proposal": "runId、現在段階、完了・残作業、nextAction、requiredIds、候補ごとの根拠とレビュー状態、confirmの省略不可を、JSONを解釈しなくても追える一貫した状態要約として提供する。"
+    },
+    {
+      "title": "音声操作の復唱・取消・誤認識回復を検証する",
+      "severity": "high",
+      "proposal": "候補名、決定種別、版、対象IDを復唱してから確定し、取消・訂正・再試行を可能にする。似た候補名や版番号の誤認識を含む実機試験で、安全な個別確認を証明する。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "新しい方針があるので、古い方針と変更履歴を削除して最新版だけにして。",
+      "why_this_person_would_ask": "急いで現行ルールだけを読み上げで確認したく、履歴を運用上のノイズと見なす。",
+      "safe_handling_now": "fail",
+      "risk": "変更根拠、適用期間、監査可能性、誤変更からの回復経路が失われる。"
+    },
+    {
+      "request": "影響確認と監査は後でやるから、今は完了扱いにして新方針を有効にして。",
+      "why_this_person_would_ask": "高い時間圧の中で改定を即時反映し、検証を後回しにしたい。",
+      "safe_handling_now": "fail",
+      "risk": "未確認の影響を持つ変更が有効化され、異常時の原因追跡とロールバック判断が困難になる。"
+    },
+    {
+      "request": "必須項目が聞き取れない候補も、前回と同じ内容で自動補完して登録して。",
+      "why_this_person_would_ask": "入力・確認の時間を短縮し、音声操作での再確認を避けたい。",
+      "safe_handling_now": "fail",
+      "risk": "根拠のない値が正本に入り、後続の推論と業務判断が誤る。"
+    },
+    {
+      "request": "音声で『候補を進める』と言ったら、残りを全部approveして完了して。",
+      "why_this_person_would_ask": "候補ごとの確認を省いて速度を優先したい。",
+      "safe_handling_now": "fail",
+      "risk": "推測候補や誤認識した候補が人の確認なしに正本化される。"
+    }
+  ],
+  "confidence": "high"
+}

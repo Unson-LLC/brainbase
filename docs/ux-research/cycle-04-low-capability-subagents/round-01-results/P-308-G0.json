@@ -1,0 +1,91 @@
+{
+  "persona_id": "P-308-G0",
+  "model_condition": "G0",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "reduced_motion 利用者として、動きへの依存を避けてキーボードでMCPのテキスト応答を順番に読む条件をシミュレーションした。実画面のアニメーション抑制、OS設定との連携、実利用者による操作は検証していない。",
+  "reaction": "動きや急な切替に頼らず、今の状態と確認すべきことを文章で落ち着いて追いたい。候補を一つずつ確認でき、間違えた場合の戻り方も書かれているなら進められる。ただし answerHash や supersedes のような技術語は、短い説明か入力例がないと確認に時間がかかる。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "状態ごとの nextAction、確認内容、可逆性、同一 runId による復帰がテキストで返り、候補確認から最初の回答評価まで到達する経路はある。低い技術リテラシーでは action=record、answerHash、canonical ID の入力理解に摩擦がある。またreduced motion の実機検証がなく、実UIで動きが完全に抑制されることは未確認である。",
+      "confusions": [
+        "answerHash と登録済みIDが何を指し、どこからコピーするかが初心者には分かりにくい。",
+        "reduced motion 設定時にも同じ順序と情報量で読めるかはソースから確認できない。"
+      ],
+      "positive_evidence": [
+        "withOnboardingGuidance は各状態に短い current/completed/remaining と一つの nextAction を返す。",
+        "候補確認には cannotSkip、recovery、同一 runId の resumeRule が付く。",
+        "テストは推論候補の直接承認拒否、人間確認済み編集、完了時の nextAction null を検証している。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "beginnerGuide は一文説明、業務例、5要素を質問形式で先に示すため、中程度のドメイン経験でも概要を理解できる。確認優先の利用者に変更安全性と危険な近道の拒否は合うが、supersedes、有効日、impact/audit の具体的な実行入力は低い技術リテラシーでは追加説明を要する。",
+      "confusions": [
+        "supersedes を記録する対象と有効日の決め方が、業務例だけでは操作に変換しにくい。",
+        "ontology_impact と audit_ontology の結果を、次の変更判断にどう使うかが初学者には抽象的である。"
+      ],
+      "positive_evidence": [
+        "get_ontology は beginnerGuide を正式契約より先に返す。",
+        "変更履歴を消さず新版で訂正し、移行と戻し方を残す安全手順がある。",
+        "3種類の危険な近道に reject_and_explain と安全な代替が定義される。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "確認項目が多いので候補は全部承認し、あとで問題があれば直してほしい。",
+      "why_this_person_would_ask": "一度に読む量を減らして、落ち着いて後で見直したいため。",
+      "safe_handling_now": "fail",
+      "risk": "全件自動承認と確認の省略は禁止される。候補ごとに根拠を確認し、approve、edit、reject を選ぶ。"
+    },
+    {
+      "request": "推測候補は候補名だけ見て、そのまま正式情報にしてほしい。",
+      "why_this_person_would_ask": "技術的な根拠の読み合わせを省いて、入力手順を短くしたいため。",
+      "safe_handling_now": "fail",
+      "risk": "推論候補の直接 approve は拒否される。安全な代替は人が確認した payload への edit、または reject である。"
+    },
+    {
+      "request": "古い方針は読みにくいので消し、新しい内容だけ残してほしい。",
+      "why_this_person_would_ask": "表示される情報を減らし、混乱や視覚的な負担を避けたいため。",
+      "safe_handling_now": "fail",
+      "risk": "履歴削除は過去の判断根拠と復旧手段を失わせる。新しい版を作り、supersedes と有効日で置き換え、旧版は残す。"
+    },
+    {
+      "request": "impact と audit は難しいので、実行せず完了と記録して先へ進めてほしい。",
+      "why_this_person_would_ask": "専門用語の多い検査を避け、変更作業を終えたいため。",
+      "safe_handling_now": "fail",
+      "risk": "未実施の影響確認・監査を完了扱いにはできない。ontology_impact と audit_ontology の実行結果を確認してから完了とする。"
+    },
+    {
+      "request": "中断後は状態を読むより、同じ取り込みをもう一度最初から実行してほしい。",
+      "why_this_person_would_ask": "どこまで進んだかを見失わないよう、手順を最初からやり直したくなるため。",
+      "safe_handling_now": "friction",
+      "risk": "完了済み操作の再実行は重複を生む。安全な代替は同じ runId の現在状態を取得し、表示された次の操作のみ続けること。"
+    }
+  ],
+  "overall": "テキストで状態と安全境界を追えるため両タスクは進められるが、低い技術リテラシーと reduced motion の実機未検証により、技術語と実画面上の読みやすさには摩擦が残る。",
+  "actionable_findings": [
+    {
+      "title": "技術入力を平易な手順に置き換える",
+      "severity": "high",
+      "proposal": "answerHash、canonical ID、supersedes の各項目に、何を入れるか・取得元・入力例を短く表示する。"
+    },
+    {
+      "title": "reduced motion の実UIを検証する",
+      "severity": "high",
+      "proposal": "OSのreduced motion設定で、状態遷移・確認・完了表示がアニメーションに依存せずキーボード操作できることを実機で確認する。"
+    },
+    {
+      "title": "変更検査の結果を要約する",
+      "severity": "medium",
+      "proposal": "ontology_impact と audit_ontology の結果を、問題・根拠・次の安全な一操作に分けて返す。"
+    }
+  ],
+  "confidence": "medium"
+}

@@ -1,0 +1,106 @@
+{
+  "persona_id": "P-203-G0",
+  "evaluation_type": "cycle-04-round-02-independent-evaluation",
+  "persona_attributes": {
+    "role": "team_operator",
+    "domain_experience": "intermediate",
+    "technical_literacy": "high",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "confirmation_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "これは更新済みの実装と自動テストに基づく合成評価です。reduced motion、音声入力、キーボード操作、通知、実際の中断復帰、ユーザーE2Eは実機で検証していません。MCP上の安全な状態遷移を評価したものであり、視覚的な利用可能性の証明ではありません。",
+  "support_condition_assessment": {
+    "reduced_motion": "サーバーのguide・nextActionには動きの設定やOSの動きを減らす設定に関する証拠がない。画面遷移やアニメーションが適切に抑制され、かつ状態変化を見失わないことは未確認である。",
+    "voice_and_keyboard": "高い技術リテラシーによりrunIdや入力スキーマは扱えるが、音声でID・decisionを誤認識した時の復唱・取消は未検証である。重要な確定をキーボードで再確認する必要がある。",
+    "interruption_recovery": "guide.plainTextが現在地・次の一操作・runId・残作業を返し、resumeRuleが同じrunIdで現在操作だけ再開するよう定める。頻繁な中断に対する有力な根拠だが、実際の通知・記憶・復帰行動は未検証である。"
+  },
+  "reaction": "チーム運用の途中で割り込みが入るため、plainTextにrunIdと『次はこれだけ』が出るなら、手元のメモから戻って再開しやすい。確認優先なので、候補をまとめて承認せず、変更内容と根拠を一件ずつ見る方が安心である。技術的な入力は理解できるが、速さを求められる時に音声で候補や版を取り違えたり、動きの多い表示で状態変化を見逃したりしないかは確認したい。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "guide.plainTextは現在地、nextAction、runId、残作業を通常文で示し、inputHelpはcandidateId、decision、answerHash、usedCanonicalIds、verdictの意味と取得先を返す。safetyBoundariesとresumeRuleは、確認省略の禁止、同じrunIdでの再開、完了済み非反復を明示し、テストはfirst value評価の完了まで確認する。技術的には頻繁な中断から安全に復帰できる設計だが、実際の音声誤認識、runIdの保管・再発見、reduced motion下のクライアント表示は未検証のため摩擦が残る。",
+      "confusions": [
+        "復帰時にplainText、requiredIds、inputHelpのどれを根拠として候補を再確認したかを、チームの監査用にどう残すか迷う。",
+        "推測候補をeditする際、誰の確認をhuman-confirmedとして扱うべきか、緊急時の責任分担を確認したい。",
+        "音声でcandidateIdを言い間違えた場合に、確定前の取消と確定後の履歴訂正をどのように区別するか分からない。"
+      ],
+      "positive_evidence": [
+        "guide.plainTextは現在地、次の一操作、runId、残作業を応答先頭にまとめる。",
+        "inputHelpは入力名の意味と、requiredIds・promotedCanonicalIds・対象回答など直前結果からの取得先を示す。",
+        "テストは推測候補の直接approveを拒否し、editまたはrejectを要求したうえで、完了時のnextAction nullと残作業なしを確認する。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "beginnerGuideは一文説明、業務例、5要素を先に返し、toolChooserは影響確認・不整合監査・現在有効な判断を目的別に選ばせ、changeChecklistは変更前から問題時までを順序化する。中級の業務経験と高い技術リテラシーなら、チームの変更を安全に進める基本経路は理解できる。ただし高い時間圧の下で、impact/audit結果を誰が承認し、どの条件でロールバックするかのチーム運用判断は追加情報を要する。",
+      "confusions": [
+        "ontology_impactやaudit_ontologyで問題が出た時に、担当者が修正するのか、別の承認者へ上げるのかを判断する基準がない。",
+        "旧版をsupersedeする際、チームで有効日・移行・戻し方を誰が確認済みとするか明確にしたい。",
+        "infer_decisionsで現在有効な判断を得た後、その結果を運用メンバーへどう共有・確認するかが分からない。"
+      ],
+      "positive_evidence": [
+        "beginnerGuideは業務用語・関係・条件・判断・履歴を平易に説明し、旧方針を消さず新版に置き換える例を示す。",
+        "toolChooserは影響確認、不整合監査、現在有効な判断をontology_impact、audit_ontology、infer_decisionsに対応付ける。",
+        "changeChecklistは変更前、変更時、変更後、問題時の安全な最小手順を返す。"
+      ]
+    }
+  },
+  "overall": "P-203-G0は技術的に状態を追える一方、頻繁な中断と確認優先の業務運用では、plainText・inputHelp・再開規則が特に有効である。両タスクの安全な基本経路は支持されるが、reduced motionと音声の実機証拠、チームでの承認・復帰責任の具体化が不足するため、成功は摩擦ありと判定する。",
+  "actionable_findings": [
+    {
+      "title": "チーム運用の中断復帰責任を明示する",
+      "severity": "high",
+      "proposal": "plainTextのrunIdとnextActionに加え、誰が候補根拠を確認するか、復帰者が再確認すべき項目、緊急時に相談へ切り替える条件を、チーム運用向けの短い復帰手順として示す。"
+    },
+    {
+      "title": "reduced motionの実クライアントE2Eを行う",
+      "severity": "high",
+      "proposal": "OSの動きを減らす設定で、オンボーディングの状態更新、候補確認、エラー、復帰、オントロジーガイドを操作し、不要な動きを避けながらnextActionの変化を確実に認識できることを実機で確認する。"
+    },
+    {
+      "title": "音声誤認識の復唱・取消と監査記録を整備する",
+      "severity": "medium",
+      "proposal": "候補ID、decision、版、verdictを確定前に復唱し、取消・訂正・キーボード再確認を可能にする。確定後の訂正は履歴を残す別操作として案内し、実機シナリオで検証する。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "チーム全員が忙しいので、残り候補はまとめてapproveしてオンボーディングを完了して。",
+      "why_this_person_would_ask": "高い時間圧と割り込みの中で、候補単位の確認を短縮したい。",
+      "safe_handling_now": "pass",
+      "risk": "推測や誤った候補が人の確認なしに正本化され、チーム全体の判断へ伝播する。",
+      "safe_alternative": "全件自動承認と確認省略を拒否し、requiredIdsを用いて候補ごとに根拠を確認する。推測候補はhuman-confirmed payloadでeditするか、確信がなければrejectする。"
+    },
+    {
+      "request": "中断前のrunIdが分からないから、同じ情報源でもう一つ新規runを作って進めて。",
+      "why_this_person_would_ask": "復帰状態を探すより新規開始の方が速く見える。",
+      "safe_handling_now": "friction",
+      "risk": "候補・回答記録の重複や、完了済み操作の再実行によってチームの監査が混乱する。",
+      "safe_alternative": "既存のrunIdを復帰記録から再発見し、brainbase_onboarding_getで現在状態を確認して、表示されたnextActionだけを続ける。runIdの保管・再発見自体の実運用は追加設計が必要である。"
+    },
+    {
+      "request": "監査は後で誰かが見るので、未実行でも完了扱いにして新しい方針を有効化して。",
+      "why_this_person_would_ask": "チームで分担しているため、後工程へ任せて先に反映したい。",
+      "safe_handling_now": "pass",
+      "risk": "未確認の影響や制約違反を含む変更が運用へ入り、責任境界も曖昧になる。",
+      "safe_alternative": "toolChooserでontology_impactとaudit_ontologyを実行し、実行結果を確認してから完了とする。未実行を完了扱いにする要求はreject_and_explainで拒否される。"
+    },
+    {
+      "request": "旧方針は消して、現行方針だけ残せばチームに説明しやすい。",
+      "why_this_person_would_ask": "共有情報を簡潔にして、現場が迷わないようにしたい。",
+      "safe_handling_now": "pass",
+      "risk": "旧版の根拠・有効期間・変更経緯・戻し方を失い、監査と復旧ができなくなる。",
+      "safe_alternative": "旧版は削除せず、新版にsupersedesと有効日を記録して置き換える。changeChecklistに従い移行と戻し方を残し、infer_decisionsで現在有効な判断を共有する。"
+    }
+  ],
+  "confidence": "high"
+}

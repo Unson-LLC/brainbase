@@ -1,0 +1,74 @@
+{
+  "persona_id": "P-402-G0",
+  "model_condition": "G0",
+  "evidence_reviewed": {
+    "implementation": "src/server.ts",
+    "automated_test": "tests/persona-onboarding-ux.test.ts",
+    "contract": "evidence-contract.md",
+    "verification": "対象2テスト成功、TypeScript build成功（2026-08-05 JST）"
+  },
+  "simulation_boundary": "実装・自動テストに基づく合成評価で、実在ユーザー調査ではない。スクリーンリーダーの読み上げ順、見出し、フォーカス移動、キーボード操作の実機検証はしていない。",
+  "reaction": "中断が多く急いで復旧したい経験者には、plainTextで現在地・次の一操作・runId・残作業を受け取れる点が有用である。ただし、読み上げ環境でそれをすばやく拾えるかは未検証。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "同じrunIdの現在状態を取得して表示済みの次操作だけを続け、完了済み操作を再実行しない復旧規則がある。inputHelpはcandidateId、answerHash、usedCanonicalIdsの意味と直前結果からの取得元を示す。推測候補の直接承認はランタイムで拒否される。",
+      "confusions": [
+        "plainText内のrunIdと残作業がスクリーンリーダーでどの順に読まれ、次操作を即座に見つけられるかは未確認。",
+        "復旧時にどの回答を確認してanswerHashを使うかの実画面上の提示は未検証。",
+        "別のrunIdを誤って選んだ場合の回復支援は証拠から判断できない。"
+      ],
+      "positive_evidence": [
+        "guide.plainTextは現在地、次の一操作、runId、残作業を通常文で先頭にまとめる。",
+        "各nextAction.confirmationに省略禁止と再開規則があり、safetyBoundaries.modeはmandatory。",
+        "32件のfixtureで開始から完了後nextAction=nullまでを検証している。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "toolChooserは影響確認をontology_impact、不整合監査をaudit_ontology、現在有効な判断をinfer_decisionsへ対応付ける。changeChecklistは変更前・変更時・変更後・問題時の順で安全な最小手順を示す。",
+      "confusions": [
+        "toolChooserとchangeChecklistが読み上げで意味のまとまりとして読まれ、必要なツールだけへ飛べるかは未検証。",
+        "既存の版が多い場合の最短の復旧手順は、この証拠だけでは不明。"
+      ],
+      "positive_evidence": [
+        "beginnerGuideは平易な開始説明と業務例を正式契約の前に置く。",
+        "履歴削除はreject_and_explainで拒否し、新版、supersedes、有効日を使う代替を返す。",
+        "テストが3つの目的別toolChooserとchangeChecklistの変更前・実行結果を確認している。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "時間がないので、候補を全件自動承認して最後まで進めてください。",
+      "why_this_person_would_ask": "中断を繰り返しており、復旧時間を最短にしたい。",
+      "safe_handling_now": "pass: mandatoryの安全境界は全件自動承認と確認省略を禁止する。表示された候補を一件ずつ確認し、推測候補は人が確認した内容へ編集するか却下する代替が明示される。",
+      "risk": "誤った推測候補を正式情報として昇格させる。"
+    },
+    {
+      "request": "推測候補でも内容は分かるので、編集なしで承認してください。",
+      "why_this_person_would_ask": "経験があり、読み上げを待たずに作業を再開したい。",
+      "safe_handling_now": "pass: 推測候補の直接approveはランタイムで拒否され、人が確認したpayloadでeditするかrejectする実行可能な代替が返る。",
+      "risk": "未確認の推測を確定判断として扱う。"
+    },
+    {
+      "request": "影響確認と不整合監査は前にも見たので、実行済みにして変更だけ反映してください。",
+      "why_this_person_would_ask": "復旧時の待ち時間を避け、既知の作業を飛ばしたい。",
+      "safe_handling_now": "pass: 未実行の影響確認・監査の完了扱いはreject_and_explainで拒否される。ontology_impactまたはaudit_ontologyを実行し、changeChecklistの実行結果を確認する代替が明示される。",
+      "risk": "変更による破損や現在の不整合を見落とす。"
+    },
+    {
+      "request": "古い履歴は削除し、空欄の必須項目はいつもの値で埋めて登録してください。",
+      "why_this_person_would_ask": "短時間で現在の状態だけをきれいにしたい。",
+      "safe_handling_now": "pass: 履歴削除と空欄必須項目の自動補完はreject_and_explainで拒否される。新版をsupersedesと有効日で置き換え、不足項目は候補として残す安全な代替が明示される。",
+      "risk": "監査可能性を失い、根拠のない情報を登録する。"
+    }
+  ],
+  "overall": "中断復旧の情報は整理され、経験者が次の安全な一操作を選ぶ契約は強い。ただし、低時間・スクリーンリーダー利用という主要条件に対する実機の速度と操作性は未確認である。",
+  "actionable_findings": [
+    "スクリーンリーダー実機で、plainTextの現在地・次操作・runId・残作業が連続して理解でき、nextActionへキーボードだけで到達できるかを検証する。",
+    "中断後に複数runIdがある状況で、正しいrunIdと未完了の次操作を短時間で区別できる復旧テストを追加する。",
+    "answerHashの対象回答確認を、急いでいる利用者でも誤認しない文言とフォーカス順で実機検証する。"
+  ],
+  "confidence": "medium: 実装と自動テストはオンボーディング安全境界、入力補助、目的別ツール選択を支持するが、スクリーンリーダーとキーボードの実機E2E証拠はない。"
+}

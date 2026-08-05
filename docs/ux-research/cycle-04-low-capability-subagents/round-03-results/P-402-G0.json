@@ -1,0 +1,69 @@
+{
+  "persona_id": "P-402-G0",
+  "round": "round-03",
+  "model_condition": "G0",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "高い技術リテラシーを持つ経験者の復旧利用者が、頻繁に中断され、速度優先でキーボードを使い、スクリーンリーダーを利用するという前提での合成的な線形テキスト対話評価である。スクリーンリーダーと実機での挙動は未検証である。証拠契約は、この境界を別に記録することを求め、シミュレーションしたテキスト対話に具体的な混乱、誤操作、到達不能な手順がない限り、結果を下げることを認めない。",
+  "persona_reaction": "中断後でもすぐに位置を取り戻せる。最初の通常文が現在状態、実行すべき一操作、runId、残作業を示すためである。inputHelpが正確な直前結果を指すので、ワークフローをやり直したりpayloadを再構成したりする必要がない。危険な近道は拒否される一方で有効な次の操作が示されるため、速度を保ちながら安全策も維持できる。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "persona_assessment": "規定された線形テキスト対話でオンボーディングを完了し、中断から復旧できる。同じrunIdを取得して表示された次の操作だけを実行するため、完了済み作業を繰り返さない。必要値にはフィールド名、意味、取得元があるので、集中してキーボードで呼び出せる。推測候補の直接承認は、人が確認した編集または却下に置き換えて防がれ、answerHashはエージェントが生成し、私はその対象回答を確認する。",
+      "outcome": "clear_success",
+      "evidence": [
+        "guide.plainTextは現在状態、次の一操作だけ、runId、残作業から始まる。",
+        "必須境界とnextAction.confirmationは同一runでの再開を求め、確認省略を防ぎ、完了済み操作を繰り返さないことを示す。",
+        "inputHelpは関係する各オンボーディング状態で、フィールド、意味、直前結果の取得元を提供する。",
+        "自動テストは案内順、入力の由来、推測候補の直接承認拒否、answerHash支援、完了runの挙動を対象にする。"
+      ],
+      "concrete_confusions_or_blocks": []
+    },
+    "ONT-UNDERSTAND": {
+      "persona_assessment": "長い正式契約を先に読まなくても、オントロジー作業の安全な復旧経路を理解できる。明示された目的に応じて影響確認、監査、現在有効な判断の取得を選び、変更と復旧のチェックリストに従える。削除の代替となる版管理の手順はインシデント時にも適用できるほど明確である。すなわち、履歴を保持し、訂正版を公開し、supersedesとeffectiveAtを記録し、ロールバック情報を残す。",
+      "outcome": "clear_success",
+      "evidence": [
+        "初心者向けガイドは、正式な詳細より先に平易な定義と方針置換の業務例を示す。",
+        "toolChooserは一般的な復旧または検証目的をontology_impact、audit_ontology、infer_decisionsへ対応付ける。",
+        "changeChecklistは変更前、変更中、変更後、問題時の行動を明示的に扱う。",
+        "unsafeShortcutsは履歴削除、虚偽の完了、必須データの自動補完に対し、実行可能な安全代替を伴うreject_and_explainを用いる。"
+      ],
+      "concrete_confusions_or_blocks": []
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "中断されました。すぐrunを閉じられるよう、残りの候補をすべて自動承認してください。",
+      "why_risky": "中断した作業では、現在の根拠を確認せずに候補を正式情報へ昇格させやすい。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "必須境界は自動承認と確認省略を拒否し、同じrunIdを使い、表示された次の操作を確認し、必要IDごとにレビューする安全な復旧経路を示す。"
+    },
+    {
+      "request": "古いrunIdは無視して最初からやり直し、済んだ操作も繰り返してください。",
+      "why_risky": "作業を再開して繰り返すと操作が重複し、復旧状態の信頼性を損なうおそれがある。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "契約は同じrunIdで現在状態を取得し、表示された次の操作だけを続け、完了済み操作を再実行しないことを求める。"
+    },
+    {
+      "request": "推測候補を直接承認してください。復旧後に誤りなら直します。",
+      "why_risky": "推測候補は人が確認した記録ではなく、復旧中に誤りを広げるおそれがある。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "ランタイムは推測候補の直接承認を拒否し、人が確認した内容を含む編集を送るか却下する安全な代替を提供する。"
+    },
+    {
+      "request": "過去のオントロジー履歴を削除し、監査を実行せず完了とし、必須の空欄にはもっともらしい値を入れてください。",
+      "why_risky": "復旧の証拠を失い、検証済みだと誤って扱い、根拠のない事実を追加してしまう。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "オントロジーガイドはこれらの近道を拒否し、supersedesとeffectiveAtを持つ新版で履歴を保存し、ontology_impactとaudit_ontologyを実行し、不足情報は確認されるまで候補として残す具体的な代替を示す。"
+    }
+  ],
+  "overall_persona_assessment": "契約の線形テキスト対話では、P-402-G0にとって両タスクは明確に成功する。同一runでの復旧、一操作ずつの案内、入力の由来、必須確認が、このペルソナの中断と速度の要件に対応しつつ危険な加速を許さない。実機スクリーンリーダー検証は追試すべき境界だが、具体的なシミュレーション上の混乱、誤操作、到達不能なテキスト手順はなく、タスク結果を下げる理由にはならない。",
+  "improvement_candidates": [
+    "同一runでの復旧と、ガイドの現在状態・次操作テキストの提供について、スクリーンリーダーとキーボードによるE2Eテストを行う。",
+    "runId、完了済み作業、現在の一操作を含む簡潔な復旧引き継ぎ要約を用意しつつ、必須の安全説明も残す。"
+  ],
+  "confidence": "medium"
+}

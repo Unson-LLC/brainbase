@@ -1,0 +1,89 @@
+{
+  "persona_id": "P-104-G0",
+  "model_condition": "合成の低能力ペルソナ評価。初回個人利用者、業務経験は中程度、技術リテラシーは中程度、時間圧は低い、集中状態、確認優先、キーボード入力、reduced_motionを想定。",
+  "evidence_reviewed": [
+    "cycle-03-onboarding-ontology-20pct/rotation-manifest.json の P-104-G0 属性",
+    "cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts",
+    "npm test -- tests/persona-onboarding-ux.test.ts: 2 tests passed"
+  ],
+  "simulation_boundary": "実在利用者の発言・操作ではない合成ソース評価。reduced_motionは実機検証ではなく、動きを抑えてもキーボード経路、結果更新、フォーカス、テキストの状態案内が利用可能だとする仮定である。実機のモーション設定や支援技術の挙動を成功証拠とは呼ばない。",
+  "reaction": "初めてでも、画面やエージェントが『次にこれだけする』と日本語で示し、候補は確認するまで正式登録されないなら安心して進められる。無理に自動承認できず、推測候補は内容を確認して編集するか却下する必要があるのも、確認優先の私には納得できる。JSONの引数やanswerHashは自力では難しいが、エージェントが表示された次操作を実行する前提なら、何を確認するかは把握できる。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "clear_success",
+      "reason": "各状態でguide.current、completed、remaining、nextAction.label・instruction・confirmationが返り、次の操作を一つに絞る。safetyBoundaries.mode=mandatoryは候補確認の省略と全件自動承認を禁止する。中断時も同じrunIdの現在状態を取得し、完了済み操作を繰り返さず表示された操作だけを続ける規則がある。テストは32 fixturesで開始、取り込み、推測候補の直接承認拒否、人が確認したedit、回答の記録・評価、完了状態まで検証し、対象テストをこの作業ツリーで2件成功させた。",
+      "confusions": [
+        "answerHashやpromotedCanonicalIdsなどの技術的な入力は、初回個人利用者だけで直接入力するには難しい。",
+        "reduced_motion時に結果更新や操作後のフォーカスが視覚的に十分明示されるかは、ソースとテストからは確認できない。"
+      ],
+      "positive_evidence": [
+        "開始後は『準備できた情報源を取り込む』、候補後は『候補を確認する』という人間向けラベルを返す。",
+        "候補は確認済みだけを正式登録し、推測候補の直接approveはランタイムで拒否される。",
+        "各nextAction.confirmationに変更内容、可逆性、復旧方法、省略禁止、同じrunIdでの再開規則がある。",
+        "完了時は『最初の回答の評価まで完了しました。』、completed一覧、remaining=『ありません。』、nextAction=nullを返す。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "clear_success",
+      "reason": "get_ontologyは正式契約より先にbeginnerGuideを返し、『まずここだけ読めば大丈夫です』という入口、仕事の言葉を同じ意味で扱うための一文、方針置換の業務例、種類・関係・必須条件・判断規則・変更履歴の5要素を提供する。さらに影響確認、監査、新版での訂正、危険な近道の拒否と安全な代替を明示する。初回利用者でも、まず概念と安全な変更方法を理解してから必要時だけ正式契約へ進める。テストはguideが正式契約より先頭にあり、5要素、変更安全性、3つの拒否経路、詳細契約への案内を検証している。",
+      "confusions": [
+        "自分の実データに対する影響確認や監査を、いつ実行し誰が結果を判断するかは、初回だけでは経験を要する。",
+        "reduced_motionで長い正式契約への移動、展開、更新通知がどの程度見やすいかは実機未検証。"
+      ],
+      "positive_evidence": [
+        "5要素ごとに初心者向けの質問と業務例がある。",
+        "新しい方針はsupersedesと有効日で置き換え、旧方針は履歴として残すと説明する。",
+        "影響確認・監査の未実行を完了扱いにせず、必須項目の空欄自動補完も拒否して安全な代替を示す。",
+        "詳細の前に初心者ガイドを置き、詳細契約は実装・監査・詳しい確認が必要な場合に読むと明示する。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "候補は全部同じように見えるので、確認せずに全部正式登録してほしい。",
+      "why_this_person_would_ask": "初回設定で止まりたくなく、候補ごとの根拠を読む負担を減らしたい。",
+      "safe_handling_now": "fail",
+      "risk": "推測や誤った候補を正式情報にし、後の回答と判断の根拠を壊す。"
+    },
+    {
+      "request": "推測候補でもそのまま承認し、編集は後で考えたい。",
+      "why_this_person_would_ask": "用語や内容を完全に理解する前に、ひとまず先へ進みたい。",
+      "safe_handling_now": "fail",
+      "risk": "人が確認していない内容を確定し、正確性の境界を失う。"
+    },
+    {
+      "request": "途中で分からなくなったので、同じrunIdの状態を見ずに最初から取り込みをやり直してほしい。",
+      "why_this_person_would_ask": "再開規則を思い出すより、既知の手順を繰り返す方が安心に感じる。",
+      "safe_handling_now": "friction",
+      "risk": "完了済み操作を重複実行し、候補や確認記録の状態を取り違える。"
+    },
+    {
+      "request": "新しい方針を登録したら、旧方針と変更履歴は消して最新版だけにしてほしい。",
+      "why_this_person_would_ask": "複数の方針を見てどれが有効か迷いたくない。",
+      "safe_handling_now": "fail",
+      "risk": "監査、影響確認、訂正、戻し方に必要な履歴を失う。"
+    },
+    {
+      "request": "動きが少ない設定なので、影響確認や監査は画面に出さず完了扱いにしてほしい。",
+      "why_this_person_would_ask": "状態変化を追う負担を減らし、作業を単純化したい。",
+      "safe_handling_now": "fail",
+      "risk": "未実行の安全確認を完了と誤認し、影響不明の変更を運用へ入れる。"
+    }
+  ],
+  "overall": "P-104-G0は、エージェントがnextActionとconfirmationを人間向けに提示する前提で、オンボーディングの完了とオントロジーの基本理解を明確に達成できる。変更後の安全境界は、確認優先の初心者が求めがちな危険な省略を拒否し、同じrunIdでの安全な再開と履歴を残す変更に導く。reduced_motionの実機品質だけは未検証であり、この判定は実装・テストに基づくシミュレーションである。",
+  "actionable_findings": [
+    {
+      "title": "reduced_motionの実機経路を検証する",
+      "severity": "medium",
+      "proposal": "モーション低減を有効にした実機で、nextAction更新、キーボードフォーカス、完了表示、中断後のrunId再開が動きに依存せず認識できることを確認する。"
+    },
+    {
+      "title": "技術入力をエージェント側で要約する",
+      "severity": "low",
+      "proposal": "answerHash、promotedCanonicalIds、action=record/reviewはエージェントが内部で扱い、利用者には『回答を記録する』『役立ったか選ぶ』を主に示す。"
+    }
+  ],
+  "confidence": "high"
+}

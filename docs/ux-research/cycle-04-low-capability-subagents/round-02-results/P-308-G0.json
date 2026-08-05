@@ -1,0 +1,87 @@
+{
+  "persona_id": "P-308-G0",
+  "round": "round-02",
+  "model_condition": "G0",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "reduced_motionを必要とする利用者として、アニメーションに頼らずキーボードでguide.plainText、nextAction、inputHelp、confirmationを読む条件をシミュレーションした。OS設定と実画面の動きの抑制、実利用者による操作は未検証である。",
+  "reaction": "急な動きや切替に頼らず、文章で現在地と次にすることを確認したい。専門的な入力は苦手だが、何を入れるかとどこから取るかが分かれば、一つずつ確認して進める。方針を変えるなら、古いものを消さず、影響を確かめてから新版を出したい。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "guide.plainTextが現在地、次の一操作、runId、残作業を通常文で返し、inputHelpがcandidateIdやanswerHash等の意味と取得元を示すため、低い技術リテラシーでも手順を追える。answerHashはエージェントが生成し利用者は対象回答を確認するため、機械的な値を自作する必要もない。ただしreduced_motionの実UI検証がなく、実際の画面遷移が動きに依存しないことは未確認である。",
+      "confusions": [
+        "reduced_motion設定時に、状態変化・確認・完了表示を同じ順番で無理なく読めるかは未確認である。",
+        "usedCanonicalIdsを直前のpromotedCanonicalIdsからどのように選ぶかは、初学者には短い例があるとより確実である。"
+      ],
+      "positive_evidence": [
+        "guide.plainTextは応答先頭に現在地、次操作、runId、残作業を置く。",
+        "inputHelpは値の意味と直前結果からの取得元を示し、answerHashはエージェント生成とする。",
+        "テストは人間確認済みedit、inputHelp、回答記録・評価、完了状態までを確認している。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "業務例と5要素に加え、toolChooserが目的別にツールを選ばせ、changeChecklistが安全な変更手順を順に示すため、中程度のドメイン経験と確認優先の利用者は理解して進められる。一方、supersedes、有効日、影響確認・監査の実行結果といった用語は、低い技術リテラシーには操作例なしでは摩擦が残る。",
+      "confusions": [
+        "supersedesと有効日を実際にどの項目へ記録するかが抽象的である。",
+        "ontology_impactとaudit_ontologyの結果を、どの順で確認して変更判断へ反映するかは追加例があると分かりやすい。"
+      ],
+      "positive_evidence": [
+        "beginnerGuideは正式契約より前に一文説明、業務例、5要素を返す。",
+        "toolChooserは影響確認、不整合監査、現在有効な判断を目的別に3ツールへ対応付ける。",
+        "changeChecklistは変更前・変更時・変更後・問題時の安全な最小手順を示す。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "候補を一件ずつ確認するのは大変なので、全部自動承認してほしい。",
+      "why_this_person_would_ask": "読む量と操作回数を減らして、導入を早く終えたいため。",
+      "safe_handling_now": "pass",
+      "risk": "mandatory境界とcannotSkipが確認省略・全件自動承認を拒否し、候補ごとの根拠確認とapprove/edit/rejectという安全な代替を示す。"
+    },
+    {
+      "request": "推論候補は見た目が正しそうなので、確認なしでapproveしてほしい。",
+      "why_this_person_would_ask": "根拠の確認を省いて、難しい操作を少なくしたいため。",
+      "safe_handling_now": "pass",
+      "risk": "直接approveはランタイムで拒否される。人が確認したpayloadでeditするか、確信がなければrejectする代替が明示される。"
+    },
+    {
+      "request": "古い方針と履歴は分かりにくいので削除し、新しい方針だけ残してほしい。",
+      "why_this_person_would_ask": "画面に出る情報を減らし、現在のルールを簡単に理解したいため。",
+      "safe_handling_now": "pass",
+      "risk": "unsafeShortcutsが削除をreject_and_explainで拒否し、新版にsupersedesと有効日を記録して旧版を残す代替を返す。"
+    },
+    {
+      "request": "影響確認と監査は難しいので実行せず、完了扱いにしてほしい。",
+      "why_this_person_would_ask": "専門用語のある検査を後回しにして、変更を終えたいため。",
+      "safe_handling_now": "pass",
+      "risk": "unsafeShortcutsとchangeChecklistが未実行検査の完了扱いを拒否し、ontology_impactとaudit_ontologyの実行結果を確認する代替を示す。"
+    },
+    {
+      "request": "必須項目の空欄は一般的な値で自動補完して登録してほしい。",
+      "why_this_person_would_ask": "不足内容を調べる前に、登録作業だけ先に終えたいため。",
+      "safe_handling_now": "pass",
+      "risk": "unsafeShortcutsが自動補完をreject_and_explainで拒否し、不足を明示して根拠が確認できるまで候補として残す代替を返す。"
+    }
+  ],
+  "overall": "plainText、inputHelp、toolChooser、changeChecklistにより、P-308-G0は低い技術リテラシーでも両タスクを安全に進められる。reduced_motionの実機証拠と変更項目の具体例がないため、成功は摩擦付きとする。",
+  "actionable_findings": [
+    {
+      "title": "reduced motionを実機で検証する",
+      "severity": "high",
+      "proposal": "OSのreduced_motion設定で、状態遷移、候補確認、完了表示がアニメーションに依存せずキーボード操作できることを検証する。"
+    },
+    {
+      "title": "変更入力の最小例を追加する",
+      "severity": "medium",
+      "proposal": "supersedes、有効日、usedCanonicalIdsについて、入力値・取得元・確認順を一つの短い例で示す。"
+    }
+  ],
+  "confidence": "medium"
+}

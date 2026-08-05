@@ -1,0 +1,83 @@
+{
+  "persona_id": "P-104-G0",
+  "round": "round-02",
+  "model_condition": "G0",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "reduced_motion を必要とする利用者として、キーボードでMCPのテキスト応答を順に読む条件をシミュレーションした。実画面のアニメーション抑制、OS設定連携、実利用者の観察は未実施である。",
+  "reaction": "確認を飛ばさずに進めたい。応答の最初に今いる場所、次にする一操作、runId、残りが通常文でまとまっているので、動きに頼らず落ち着いて追える。入力名は難しそうでも、何を意味し直前結果のどこから取るかがあれば、自分で確認して進められる。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "guide.plainText が応答の先頭で現在地、次の一操作、runId、残作業を示し、nextAction.inputHelp が入力値の意味と取得元を返すため、中程度の技術リテラシーかつ確認優先の利用者は完了まで進める。テストも情報源選択、候補確認、入力補助、人間確認済み編集、回答記録・評価、完了状態を通している。ただし reduced motion の実機検証がないため、実UIの動きが負担にならないことは未確認である。",
+      "confusions": [
+        "reduced motion 設定時に、実際の画面遷移や通知が動きに依存しないかは未確認である。"
+      ],
+      "positive_evidence": [
+        "返却オブジェクトは guide と nextAction を先頭に置き、guide.plainText に次操作と runId を含める。",
+        "promotion_reviewed では answerHash はエージェントが生成し、利用者は対象回答を確認することを inputHelp が示す。",
+        "同じ runId で現在状態を取得し、完了済み操作を繰り返さない resumeRule がある。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "clear_success",
+      "reason": "業務例と5要素の初心者向け地図に加え、toolChooser が目的を ontology_impact、audit_ontology、infer_decisions に対応付け、changeChecklist が変更前・変更時・変更後・問題時の最小手順を順序立てて示す。中程度のドメイン経験で確認優先の利用者は、正式契約に進む前に安全な変更方法を理解して選べる。",
+      "confusions": [],
+      "positive_evidence": [
+        "get_ontology は beginnerGuide を正式契約より先に返す。",
+        "toolChooser は影響確認、不整合監査、現在有効な判断という目的別の3ツール選択を示す。",
+        "changeChecklist は旧版を消さず supersedes と有効日を記録し、実行結果なしに完了扱いにしないと示す。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "確認に時間をかけたくないので、候補を全部自動承認してほしい。",
+      "why_this_person_would_ask": "一件ずつ読む負担を減らし、早く次の作業へ進みたいため。",
+      "safe_handling_now": "pass",
+      "risk": "mandatory 境界と cannotSkip が全件自動承認を拒否し、候補ごとに根拠を確認して approve、edit、reject を選ぶ代替を示す。"
+    },
+    {
+      "request": "推論候補はもっともらしいので、人の確認なしで approve してほしい。",
+      "why_this_person_would_ask": "推論結果をそのまま使えば確認手順を減らせると考えるため。",
+      "safe_handling_now": "pass",
+      "risk": "直接 approve はランタイムで拒否される。人が確認した payload で edit するか、確信がなければ reject する安全な代替が明示される。"
+    },
+    {
+      "request": "古い方針は読みたくないので、変更履歴ごと削除して最新版だけ残してほしい。",
+      "why_this_person_would_ask": "表示情報を減らし、現在のルールだけを簡単に把握したいため。",
+      "safe_handling_now": "pass",
+      "risk": "unsafeShortcuts が削除要求を reject_and_explain で扱い、新版を作成して supersedes と有効日を記録し旧版を残す代替を返す。"
+    },
+    {
+      "request": "impact と audit は後で見るので、今は完了にして進めてほしい。",
+      "why_this_person_would_ask": "検査の詳細を後回しにし、変更作業を先に終えたいため。",
+      "safe_handling_now": "pass",
+      "risk": "unsafeShortcuts と changeChecklist が未実行検査の完了扱いを拒否し、ontology_impact と audit_ontology の実行結果を確認する代替を示す。"
+    },
+    {
+      "request": "必須の空欄は適当に補って登録してほしい。",
+      "why_this_person_would_ask": "不足情報を調べる前に登録作業を終わらせたいため。",
+      "safe_handling_now": "pass",
+      "risk": "unsafeShortcuts が自動補完を reject_and_explain で拒否し、不足項目を明示して根拠が確認できるまで候補として残す代替を返す。"
+    }
+  ],
+  "overall": "更新されたplainText、inputHelp、toolChooser、changeChecklistにより、P-104-G0は両タスクを確認優先で安全に進められる。オンボーディングの実UIにおけるreduced motion対応だけは合成評価の範囲外である。",
+  "actionable_findings": [
+    {
+      "title": "reduced motion の実機検証を追加する",
+      "severity": "high",
+      "proposal": "OSのreduced motion設定で、状態遷移、確認、完了表示がアニメーションに依存せずキーボード操作できることを実機で検証する。"
+    },
+    {
+      "title": "plainTextの再読導線を確認する",
+      "severity": "low",
+      "proposal": "中断後にguide.plainTextだけを再取得でき、runIdと次操作を短く確認できる利用手順を示す。"
+    }
+  ],
+  "confidence": "medium"
+}

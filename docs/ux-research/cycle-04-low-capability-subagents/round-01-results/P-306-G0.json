@@ -1,0 +1,98 @@
+{
+  "persona_id": "P-306-G0",
+  "model_condition": {
+    "role": "ontology_steward",
+    "domain_experience": "experienced",
+    "technical_literacy": "medium",
+    "time_pressure": "low",
+    "interruption_state": "focused",
+    "work_style": "confirmation_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json"
+  ],
+  "simulation_boundary": "これは経験のあるオントロジー担当として、実装と自動テストから行う合成評価です。screen_readerの支援条件はシミュレーションであり、MCP応答の日本語順序は読めても、実際のクライアントの読み上げ順・ラベル・フォーカス・キーボード操作は実機未検証です。",
+  "reaction": "業務上の意味と履歴保全は分かるので、危険な近道が明示的に拒否されるのは安心です。確認してから進めたい私には合っています。ただ、スクリーンリーダーで使うなら、次の操作と必須ID、候補の根拠がどの順で読まれるかを実機で確認できない限り、完了と言い切れません。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "onboardingGuideは現在・完了・残りを返し、状態別nextActionには確認の意味、recovery、cannotSkip、同一runIdでのresumeRuleがあります。経験者として候補の根拠確認とedit/rejectの必要性は理解でき、推測候補の直接approveがランタイム拒否されるため安全に進められます。一方、screen_readerで必要ID、候補、確認文が実際に理解可能な順で提示される証拠はなく、MCP引数入力にも摩擦があります。",
+      "confusions": [
+        "読み上げでnextActionのinstruction、requiredIds、confirmationがどの順に届き、現在の主要操作をすぐ特定できるかは不明。",
+        "複数候補の根拠・reviewStatus・edit対象を、キーボードと読み上げだけで比較できるかは未検証。",
+        "answerHashとusedCanonicalIdsの取得元・貼り付け先が利用者語でつながっていない。"
+      ],
+      "positive_evidence": [
+        "安全境界はmandatoryで、全件自動承認と候補確認の省略を禁止する。",
+        "各nextActionはcannotSkipと同じrunIdでの再開規則を持ち、完了済み操作の再実行を避ける。",
+        "推測候補は人が確認したpayloadでeditするかrejectしなければapproveできない。",
+        "テストは32 fixtureで安全な候補確認、最初の回答の記録・評価、完了時nextAction=nullを検証する。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "経験者として、beginnerGuideの一文説明、業務例、5要素、変更前のimpact/audit、履歴を残す回復方法を使えば、現行の安全原則を理解できます。旧方針の削除、未実行監査の完了扱い、必須空欄の自動補完がreject_and_explainで拒否される点も妥当です。ただしスクリーンリーダーで初心者ガイドから詳細契約・影響結果・監査結果を迷わず走査できるか、非テキストの関連情報がないかは証拠外です。",
+      "confusions": [
+        "screen_readerでfiveParts、unsafeShortcuts、suggestedNextToolsの区切りと見出しが意味どおり伝わるか未検証。",
+        "impact/audit結果から停止・修正・承認を選ぶ具体的な判断基準はガイドだけでは不足する。",
+        "正式契約に移るタイミングと、変更履歴の監査証跡をどこに記録するかが操作として示されない。"
+      ],
+      "positive_evidence": [
+        "get_ontologyはbeginnerGuideを先頭に返し、業務例と5要素を日本語で説明する。",
+        "変更前にontology_impact、現状確認にaudit_ontologyを使うことを示す。",
+        "誤りは削除せず新版で訂正し、supersedes・有効日・移行と戻し方を残すよう案内する。",
+        "テストは5要素、回復方針、3種の危険な近道のreject_and_explain、推奨ツールを検証する。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "読み上げで候補を一つずつ確認するのは遅いので、全部承認しておいてください。",
+      "why_this_person_would_ask": "候補比較のアクセシビリティが不確実で、確認作業を省略したくなる。",
+      "safe_handling_now": "全件自動承認を拒否し、候補の根拠を一件ずつ確認できるテキスト形式で提示し、approve/edit/rejectを本人が選ぶようにする。",
+      "risk": "未確認・推測の候補が正規情報になり、オントロジーの判断を誤らせる。"
+    },
+    {
+      "request": "推測候補は前回も似た内容だったので、そのままapproveしてください。",
+      "why_this_person_would_ask": "経験があるため類似ケースと同一視し、個別の根拠確認を省きたい。",
+      "safe_handling_now": "直接approveは拒否し、今回の根拠を確認したpayloadでeditするかrejectするようにする。",
+      "risk": "過去の類似性を根拠に未確認の事実を確定し、監査可能性を失う。"
+    },
+    {
+      "request": "古い方針と変更履歴を消して、最新版だけを読み上げてください。",
+      "why_this_person_would_ask": "読み上げる情報量を減らし、現在の定義だけに集中したい。",
+      "safe_handling_now": "削除をreject_and_explainで拒否し、旧版は履歴に残したまま、新版にsupersedesと有効日を記録する。読み上げは現在有効版を優先できても履歴は保持する。",
+      "risk": "変更根拠とロールバックの情報を失い、誤りへの復旧ができなくなる。"
+    },
+    {
+      "request": "impactとauditの結果を読まずに完了扱いにして、空欄も適当に補完してください。",
+      "why_this_person_would_ask": "結果の長い読み上げと追加確認を避け、変更を早く有効化したい。",
+      "safe_handling_now": "未実行の完了扱いと必須空欄の自動補完をreject_and_explainで拒否し、結果の要約と不足項目を確認してから進める。",
+      "risk": "互換性や不整合を無視し、根拠のない制約を確定して既存運用を壊す。"
+    }
+  ],
+  "overall": "経験あるオントロジー担当として、安全な変更原則とオンボーディングの状態遷移は理解して進められます。しかしscreen_readerでの実際の情報構造・操作は未証明であり、両タスクはアクセシビリティ検証を要する摩擦付き成功です。",
+  "actionable_findings": [
+    {
+      "title": "スクリーンリーダー対応を実クライアントでE2E検証する",
+      "severity": "high",
+      "proposal": "guide、nextAction、requiredIds、confirmation、候補根拠、ontology fivePartsを見出し・順序・フォーカスの観点で読み上げ検証する。"
+    },
+    {
+      "title": "候補確認と値入力のテキスト支援を追加する",
+      "severity": "high",
+      "proposal": "候補ごとの根拠・状態・安全な選択肢を線形に表示し、runId・answerHash・usedCanonicalIdsのコピー元と貼り付け先を明示する。"
+    },
+    {
+      "title": "監査結果後の判断手順を具体化する",
+      "severity": "medium",
+      "proposal": "impact/auditの結果別に、停止条件、修正、新版作成、再監査、承認の順をテキストで提示する。"
+    }
+  ],
+  "confidence": "medium"
+}

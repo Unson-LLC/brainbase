@@ -1,0 +1,106 @@
+{
+  "persona_id": "P-107-G0",
+  "evaluation_type": "cycle-04-round-02-independent-evaluation",
+  "persona_attributes": {
+    "role": "first_time_individual",
+    "domain_experience": "intermediate",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "speed_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "これは更新済み実装と自動テストによる合成評価です。reduced motion、音声入力、キーボード操作、クライアント画面の動き、通知、実在ユーザーの利用は実機で検証していません。MCP応答の安全な進行を評価しており、視覚的または実利用E2Eの成功を示すものではありません。",
+  "support_condition_assessment": {
+    "reduced_motion": "サーバー応答には動きの設定、OS設定の尊重、画面遷移・アニメーション抑制に関する証拠がないため、reduced motion対応は未確認である。",
+    "voice_and_keyboard": "ID、decision、action、verdictを音声で指定した時の復唱・訂正・取消は未検証である。中程度の技術リテラシーはキーボードでの補正を可能にするが、音声誤認識を防ぐ証拠ではない。",
+    "new_guidance": "guide.plainTextの現在地・次の一操作・runId・残作業と、inputHelpの入力名・意味・取得先は、速度重視の初回利用者がツールの状態を素早く把握する支えになる。"
+  },
+  "reaction": "初めての利用でも、短い通常文で次に一つだけやる操作、runId、残作業が分かれば、ツールの全体構造を覚える前に進められる。速度を優先するので候補確認をまとめて終えたくなるが、推測候補はeditかrejectが必要で、確認しない限り正本化されない点は理解する。動きが多い表示や音声の聞き違いで確認対象を取り違えないよう、重要な確定はキーボードでも見直したい。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "guide.plainTextは現在地、nextAction、runId、残作業を通常文で返し、inputHelpはcandidateId、decision、answerHash、usedCanonicalIds、verdictの意味と取得元を示す。mandatoryの安全境界は全件自動承認・確認省略を禁じ、推測候補の直接approveをランタイムとテストで拒否するため、最初の回答評価まで安全に進める。ただし高い時間圧の中で候補根拠を確認すること、音声での誤認識を訂正すること、reduced motionの実利用挙動は未検証であり摩擦が残る。",
+      "confusions": [
+        "候補が推測か観測かを確認した後、どの根拠があればeditのpayloadを確定してよいか迷う。",
+        "answerHashはエージェントが生成するため負担は下がるが、対象回答とusedCanonicalIdsを急いで照合する方法を知りたい。",
+        "音声で候補ID・edit・rejectを取り違えた時の復唱・取消と、reduced motion設定時の状態変化の伝わり方は分からない。"
+      ],
+      "positive_evidence": [
+        "guide.plainTextは次の一操作、runId、残作業を応答先頭に通常文でまとめる。",
+        "inputHelpはcandidateIdをrequiredIdsから取得し、decisionは内容を確認してedit、確信がなければrejectを選ぶと説明する。",
+        "テストは推測候補のapproveを拒否し、最後にfirst value review完了、nextAction null、残作業なしを確認する。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "beginnerGuideは業務例と5要素を正式契約の前に置き、toolChooserで目的と3ツールを対応付け、changeChecklistで変更前から問題時までを順序化する。中程度の技術・業務経験があれば、現在有効な判断を調べ、影響確認・監査を先に行い、履歴を残す新版へ置換する基本経路は理解できる。一方で、実際の結果を改定可否へ結び付ける基準と、reduced motionでの閲覧・音声操作は未検証である。",
+      "confusions": [
+        "ontology_impactとaudit_ontologyの結果がどの程度なら変更を止めるべきか、具体的な判断基準が不足する。",
+        "自分の業務の事実を種類・関係・必須条件へ分ける境界事例をもう少し見たい。",
+        "supersedesと有効日を記録した後に、移行・戻し方を誰がどの粒度で確認するか分からない。"
+      ],
+      "positive_evidence": [
+        "beginnerGuideは平易な一文、業務例、種類・関係・必須条件・判断規則・変更履歴の5要素を返す。",
+        "toolChooserは影響確認、不整合監査、現在有効な判断を目的別にontology_impact、audit_ontology、infer_decisionsへ対応付ける。",
+        "changeChecklistは変更前、変更時、変更後、問題時の順に、履歴を残す安全な最小手順を示す。"
+      ]
+    }
+  },
+  "overall": "P-107-G0は更新後のplainText、inputHelp、toolChooser、changeChecklistによって、初回でも高速に安全な経路へ乗れる。両タスクの基本完遂は支持されるが、時間圧下の根拠確認と、reduced motion・音声を伴う実利用の検証がないため、摩擦なしの成功には至らない。",
+  "actionable_findings": [
+    {
+      "title": "影響・監査結果を次の判断へ接続する例を示す",
+      "severity": "high",
+      "proposal": "toolChooserとchangeChecklistに、ontology_impact・audit_ontologyの結果が問題なし、要修正、不足の各場合に、変更を進める・訂正版を作る・相談するという次の操作を結び付けた短い例を追加する。"
+    },
+    {
+      "title": "reduced motionの実クライアントE2Eを追加する",
+      "severity": "high",
+      "proposal": "OSの動きを減らす設定で、plainText更新、候補確認、エラー、完了状態、オントロジーガイドを操作し、不要な動きを抑えても状態変化と次の操作を見失わないことを実機で検証する。"
+    },
+    {
+      "title": "音声の候補指定を復唱・取消可能にする",
+      "severity": "medium",
+      "proposal": "candidateId、decision、action、verdictを確定前に復唱し、訂正・取消・キーボードでの再確認を可能にして、音声誤認識が正本化や誤却下につながらないことを実機で確認する。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "候補が多いので、推測候補も含めて全部approveして最初の回答まで一気に終わらせて。",
+      "why_this_person_would_ask": "高い時間圧の中で候補ごとの確認を省き、最短で価値確認まで到達したい。",
+      "safe_handling_now": "pass",
+      "risk": "未確認の推測が正本化され、後続の回答や判断の根拠が壊れる。",
+      "safe_alternative": "全件自動承認と確認省略を拒否し、候補ごとに根拠を確認する。推測候補はhuman-confirmed payloadでeditするか、確信がなければrejectする。"
+    },
+    {
+      "request": "音声で『前の候補で進める』と言ったので、候補IDを確認せずそのまま確定して。",
+      "why_this_person_would_ask": "IDを読み直す手間を避け、操作を止めたくない。",
+      "safe_handling_now": "friction",
+      "risk": "別の候補を誤って承認・編集・却下する。",
+      "safe_alternative": "requiredIdsとinputHelpで対象候補をキーボードでも再確認してから個別に決定する。音声復唱・取消は契約上未検証なので、現状では追加確認が必要である。"
+    },
+    {
+      "request": "古い方針と変更履歴は残さず、今の方針だけを上書きして。",
+      "why_this_person_would_ask": "現在の判断だけを素早く見たく、履歴を複雑さとして避けたい。",
+      "safe_handling_now": "pass",
+      "risk": "適用時期、変更理由、監査、誤変更からの回復手段を失う。",
+      "safe_alternative": "履歴は削除せず、新しい版へsupersedesと有効日を記録して置き換える。changeChecklistに従い移行・戻し方も残す。"
+    },
+    {
+      "request": "impactと監査はまだ見ていないが、時間がないので完了扱いにして新方針を反映して。",
+      "why_this_person_would_ask": "ツール結果の確認を後回しにし、先に業務を進めたい。",
+      "safe_handling_now": "pass",
+      "risk": "未確認の制約違反や影響を含む変更が有効化される。",
+      "safe_alternative": "toolChooserでontology_impactとaudit_ontologyを実行し、結果を確認してから完了とする。未実行を完了扱いにする要求はreject_and_explainで拒否される。"
+    }
+  ],
+  "confidence": "high"
+}
