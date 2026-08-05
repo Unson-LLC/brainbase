@@ -1,0 +1,672 @@
+{
+  "schema_version": "0.1.0",
+  "model": "story-pr-split-plan-v1",
+  "story_id": "story-brainbase-portable-connected-world-onboarding",
+  "status": "split_recommended",
+  "recommended_strategy": "split_by_lane_then_prepare",
+  "automatic_recommendation": {
+    "status": "split_recommended",
+    "recommended_strategy": "split_by_lane_then_prepare"
+  },
+  "accepted_current_story_lineage": [],
+  "task_bound_repo_control": null,
+  "atomic_scope": {
+    "status": "rejected",
+    "strategy": "atomic_single_pr",
+    "reason": "The public MCP contract, bounded ledger, atomic SSOT sidecar, host Skill, security boundaries, documentation, and executable acceptance evidence form one user-visible onboarding capability; landing any lane alone would expose an incomplete or unverifiable workflow.",
+    "review_facets": [
+      "requirements-ssot",
+      "runtime-behavior",
+      "e2e-gate",
+      "misc-follow-up"
+    ],
+    "dependency_boundaries": [
+      {
+        "from": "runtime-behavior",
+        "to": "requirements-ssot"
+      },
+      {
+        "from": "e2e-gate",
+        "to": "runtime-behavior"
+      },
+      {
+        "from": "misc-follow-up",
+        "to": "requirements-ssot"
+      },
+      {
+        "from": "misc-follow-up",
+        "to": "runtime-behavior"
+      }
+    ],
+    "generated_lane_ids": [
+      "requirements-ssot",
+      "runtime-behavior",
+      "e2e-gate",
+      "misc-follow-up"
+    ],
+    "missing_review_facets": [],
+    "missing_reason_facets": [],
+    "missing_dependency_facets": [],
+    "invalid_dependency_boundaries": [],
+    "unsafe_scope_signals": [],
+    "unsafe_scope_reasons": [],
+    "review_owner_map_verified": false,
+    "verification_ready": true,
+    "current_passing_verification_count": 3,
+    "verification_evidence_refs": [
+      ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/e2e.json",
+      ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/unit.json",
+      ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/build.json"
+    ],
+    "next_actions": [
+      {
+        "type": "record_current_head_review_owners",
+        "missing_required_roles": [],
+        "roles_requiring_surface_coverage": [
+          "gate:gate_evidence"
+        ],
+        "unowned_review_facets": [
+          "e2e-gate",
+          "misc-follow-up"
+        ],
+        "uncovered_paths": [
+          "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+          "tests/e2e/onboarding-skills-installer-acceptance.spec.ts",
+          "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+          "docs/management/decisions/2026-08-04-budget-override-story-brainbase-portable-connected-world-onboarding-281eba5c.md",
+          "docs/manual/guide/mcp-install.md",
+          "docs/manual/reference/mcp-tools.md"
+        ],
+        "prepare_commands": [
+          "vibepro review prepare . --id story-brainbase-portable-connected-world-onboarding --stage gate --role gate_evidence"
+        ],
+        "follow_up_command": "vibepro review status . --id story-brainbase-portable-connected-world-onboarding",
+        "command": "vibepro review prepare . --id story-brainbase-portable-connected-world-onboarding --stage gate --role gate_evidence",
+        "follow_up": "vibepro review status . --id story-brainbase-portable-connected-world-onboarding"
+      },
+      {
+        "type": "rerun_atomic_scope_decision",
+        "command": "vibepro pr prepare . --story-id story-brainbase-portable-connected-world-onboarding"
+      }
+    ],
+    "review_owner_map": [
+      {
+        "facet": "requirements-ssot",
+        "changed_paths": [
+          "docs/management/stories/active/story-brainbase-portable-connected-world-onboarding.md",
+          "docs/specs/story-brainbase-portable-connected-world-onboarding.md",
+          "docs/architecture/story-brainbase-portable-connected-world-onboarding.md"
+        ],
+        "owners": [
+          {
+            "stage": "gate",
+            "role": "gate_evidence",
+            "effective_status": "pass",
+            "binding_mode": "strict_head",
+            "reviewer_identity": "separate_session",
+            "reviewer_identity_source": "lifecycle_agent_binding",
+            "reviewer_session_id": "/root/npm_gate_evidence",
+            "implementation_session_id": "root",
+            "covered_paths": [
+              "docs/management/stories/active/story-brainbase-portable-connected-world-onboarding.md",
+              "docs/specs/story-brainbase-portable-connected-world-onboarding.md",
+              "docs/architecture/story-brainbase-portable-connected-world-onboarding.md"
+            ]
+          }
+        ],
+        "uncovered_paths": [],
+        "owned": true
+      },
+      {
+        "facet": "runtime-behavior",
+        "changed_paths": [
+          "src/connected-onboarding.ts",
+          "src/import-extract.ts",
+          "src/server.ts",
+          "src/skills.ts",
+          "src/ssot.ts",
+          "tests/connected-onboarding.test.ts",
+          "tests/mcp-contract.test.ts",
+          "tests/ssot-atomic.test.ts"
+        ],
+        "owners": [
+          {
+            "stage": "gate",
+            "role": "gate_evidence",
+            "effective_status": "pass",
+            "binding_mode": "strict_head",
+            "reviewer_identity": "separate_session",
+            "reviewer_identity_source": "lifecycle_agent_binding",
+            "reviewer_session_id": "/root/npm_gate_evidence",
+            "implementation_session_id": "root",
+            "covered_paths": [
+              "src/connected-onboarding.ts",
+              "src/import-extract.ts",
+              "src/server.ts",
+              "src/skills.ts",
+              "src/ssot.ts",
+              "tests/connected-onboarding.test.ts",
+              "tests/mcp-contract.test.ts",
+              "tests/ssot-atomic.test.ts"
+            ]
+          }
+        ],
+        "uncovered_paths": [],
+        "owned": true
+      },
+      {
+        "facet": "e2e-gate",
+        "changed_paths": [
+          "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+          "tests/e2e/onboarding-skills-installer-acceptance.spec.ts",
+          "tests/e2e/story-brainbase-portable-connected-world-onboarding-acceptance.spec.ts",
+          "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts"
+        ],
+        "owners": [
+          {
+            "stage": "gate",
+            "role": "gate_evidence",
+            "effective_status": "pass",
+            "binding_mode": "strict_head",
+            "reviewer_identity": "separate_session",
+            "reviewer_identity_source": "lifecycle_agent_binding",
+            "reviewer_session_id": "/root/npm_gate_evidence",
+            "implementation_session_id": "root",
+            "covered_paths": [
+              "tests/e2e/story-brainbase-portable-connected-world-onboarding-acceptance.spec.ts"
+            ]
+          }
+        ],
+        "uncovered_paths": [
+          "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+          "tests/e2e/onboarding-skills-installer-acceptance.spec.ts",
+          "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts"
+        ],
+        "owned": false
+      },
+      {
+        "facet": "misc-follow-up",
+        "changed_paths": [
+          "docs/management/decisions/2026-08-04-budget-override-story-brainbase-portable-connected-world-onboarding-281eba5c.md",
+          "docs/manual/guide/mcp-install.md",
+          "docs/manual/reference/mcp-tools.md"
+        ],
+        "owners": [],
+        "uncovered_paths": [
+          "docs/management/decisions/2026-08-04-budget-override-story-brainbase-portable-connected-world-onboarding-281eba5c.md",
+          "docs/manual/guide/mcp-install.md",
+          "docs/manual/reference/mcp-tools.md"
+        ],
+        "owned": false
+      }
+    ],
+    "unowned_review_facets": [
+      "e2e-gate",
+      "misc-follow-up"
+    ],
+    "automatic_split_required": true,
+    "rejection_reasons": [
+      "atomic scope requires a current-head reviewer owner map with every configured role passing"
+    ],
+    "source_ref": "docs/management/stories/active/story-brainbase-portable-connected-world-onboarding.md"
+  },
+  "rationale": [
+    "baseからのcommitが 4 件あるため履歴確認が必要だが、別Story lineageは検出されていない",
+    "4 lanes に分けると、要求正本・実装・検証基盤・repo制御を別々にレビューできる",
+    "Graphifyで 11 changed files が一致し、31 related files を影響調査候補にした",
+    "型付きatomic scopeを不採用: atomic scope requires a current-head reviewer owner map with every configured role passing"
+  ],
+  "graph_context": {
+    "available": true,
+    "graph_path": ".vibepro/graphify/graph.json",
+    "edge_source_key": "links",
+    "node_count": 450,
+    "edge_count": 1050,
+    "matched_file_count": 11,
+    "related_file_count": 31,
+    "investigation_files": [
+      "scripts/npm-release.mjs",
+      "src/cli.ts",
+      "src/connected-onboarding.ts",
+      "src/import-extract.ts",
+      "src/index.ts",
+      "src/ontology-ssot.ts",
+      "src/ontology.ts",
+      "src/paths.ts",
+      "src/server.ts",
+      "src/ssot.ts",
+      "src/templates.ts",
+      "src/tools.ts",
+      "src/types.ts",
+      "tests/cli.test.ts",
+      "tests/connected-onboarding.test.ts",
+      "tests/e2e/agent-assisted-source-onboarding-acceptance.spec.ts",
+      "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+      "tests/e2e/connected-world-onboarding-acceptance.spec.ts",
+      "tests/e2e/onboarding-project-registration-acceptance.spec.ts",
+      "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts",
+      "tests/e2e/source-diagnosis-candidates-onboarding-acceptance.spec.ts",
+      "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+      "tests/fixtures.ts",
+      "tests/helpers/ssot-writer.ts",
+      "tests/import-extract.test.ts",
+      "tests/mcp-contract.test.ts",
+      "tests/projects.test.ts",
+      "tests/skills.test.ts",
+      "tests/ssot-atomic.test.ts",
+      "tests/ssot.test.ts"
+    ],
+    "impact_by_file": [
+      {
+        "file": "src/connected-onboarding.ts",
+        "matched_nodes": [
+          "src_connected_onboarding_ts",
+          "src_connected_onboarding_connectedonboardingerror",
+          "src_connected_onboarding_connectedonboardingerror_constructor",
+          "src_connected_onboarding_connectedonboardingruntime",
+          "src_connected_onboarding_connectedonboardingruntime_constructor",
+          "src_connected_onboarding_connectedonboardingruntime_start",
+          "src_connected_onboarding_connectedonboardingruntime_get",
+          "src_connected_onboarding_connectedonboardingruntime_ingest"
+        ],
+        "related_files": [
+          "src/cli.ts",
+          "src/import-extract.ts",
+          "src/ontology.ts",
+          "src/server.ts",
+          "src/ssot.ts",
+          "tests/connected-onboarding.test.ts"
+        ]
+      },
+      {
+        "file": "src/import-extract.ts",
+        "matched_nodes": [
+          "src_import_extract_ts",
+          "src_import_extract_sourcepathfor",
+          "src_import_extract_parseprovider",
+          "src_import_extract_normalizesource",
+          "src_import_extract_rendersourcejsonl",
+          "src_import_extract_unwraparray",
+          "src_import_extract_normalizegmail",
+          "src_import_extract_normalizecalendar"
+        ],
+        "related_files": [
+          "src/cli.ts",
+          "src/connected-onboarding.ts",
+          "src/types.ts",
+          "tests/import-extract.test.ts"
+        ]
+      },
+      {
+        "file": "src/server.ts",
+        "matched_nodes": [
+          "src_server_ts",
+          "src_server_callbrainbasetool",
+          "src_server_callconnectedonboardingtool",
+          "src_server_createserver",
+          "src_server_runmcpserver"
+        ],
+        "related_files": [
+          "src/connected-onboarding.ts",
+          "src/index.ts",
+          "src/ontology-ssot.ts",
+          "src/ontology.ts",
+          "src/paths.ts",
+          "src/ssot.ts",
+          "src/tools.ts",
+          "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+          "tests/e2e/connected-world-onboarding-acceptance.spec.ts",
+          "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+          "tests/mcp-contract.test.ts",
+          "tests/ssot.test.ts"
+        ]
+      },
+      {
+        "file": "src/skills.ts",
+        "matched_nodes": [
+          "src_skills_ts",
+          "src_skills_parseskilltarget",
+          "src_skills_parseskillids",
+          "src_skills_buildskillbundle",
+          "src_skills_renderskillsmarkdown",
+          "src_skills_assertpublicsafeskillbundle",
+          "src_skills_buildskillfile",
+          "src_skills_renderskillcontent"
+        ],
+        "related_files": [
+          "src/cli.ts",
+          "tests/skills.test.ts"
+        ]
+      },
+      {
+        "file": "src/ssot.ts",
+        "matched_nodes": [
+          "src_ssot_ts",
+          "src_ssot_initializepersonalos",
+          "src_ssot_loadpersonalos",
+          "src_ssot_mutatepersonalos",
+          "src_ssot_mutatepersonaloswithsidecar",
+          "src_ssot_loadpersonalosunlocked",
+          "src_ssot_commitaggregate",
+          "src_ssot_cleanupcommittedtransaction"
+        ],
+        "related_files": [
+          "scripts/npm-release.mjs",
+          "src/cli.ts",
+          "src/connected-onboarding.ts",
+          "src/ontology-ssot.ts",
+          "src/ontology.ts",
+          "src/server.ts",
+          "src/templates.ts",
+          "src/types.ts",
+          "tests/cli.test.ts",
+          "tests/connected-onboarding.test.ts",
+          "tests/e2e/agent-assisted-source-onboarding-acceptance.spec.ts",
+          "tests/e2e/brainbase-mcp-only-acceptance.spec.ts"
+        ]
+      },
+      {
+        "file": "tests/connected-onboarding.test.ts",
+        "matched_nodes": [
+          "tests_connected_onboarding_test_ts",
+          "tests_connected_onboarding_test_fixture",
+          "tests_connected_onboarding_test_readydrive",
+          "tests_connected_onboarding_test_clock",
+          "tests_connected_onboarding_test_promote"
+        ],
+        "related_files": [
+          "src/connected-onboarding.ts",
+          "src/ssot.ts"
+        ]
+      },
+      {
+        "file": "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+        "matched_nodes": [
+          "tests_e2e_brainbase_mcp_only_acceptance_spec_ts",
+          "e2e_brainbase_mcp_only_acceptance_spec_tempdir",
+          "e2e_brainbase_mcp_only_acceptance_spec_capture",
+          "e2e_brainbase_mcp_only_acceptance_spec_pathexists"
+        ],
+        "related_files": [
+          "src/cli.ts",
+          "src/paths.ts",
+          "src/server.ts",
+          "src/ssot.ts"
+        ]
+      },
+      {
+        "file": "tests/e2e/onboarding-skills-installer-acceptance.spec.ts",
+        "matched_nodes": [
+          "tests_e2e_onboarding_skills_installer_acceptance_spec_ts",
+          "e2e_onboarding_skills_installer_acceptance_spec_tempdir",
+          "e2e_onboarding_skills_installer_acceptance_spec_capture",
+          "e2e_onboarding_skills_installer_acceptance_spec_cli"
+        ],
+        "related_files": [
+          "src/cli.ts"
+        ]
+      },
+      {
+        "file": "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
+        "matched_nodes": [
+          "tests_e2e_story_brainbase_portable_ontology_kernel_acceptance_spec_ts",
+          "e2e_story_brainbase_portable_ontology_kernel_acceptance_spec_tempdir",
+          "e2e_story_brainbase_portable_ontology_kernel_acceptance_spec_capture"
+        ],
+        "related_files": [
+          "src/cli.ts",
+          "src/ontology-ssot.ts",
+          "src/ontology.ts",
+          "src/server.ts",
+          "tests/fixtures.ts"
+        ]
+      },
+      {
+        "file": "tests/mcp-contract.test.ts",
+        "matched_nodes": [
+          "tests_mcp_contract_test_ts",
+          "tests_mcp_contract_test_fixturedir",
+          "tests_mcp_contract_test_createclient"
+        ],
+        "related_files": [
+          "src/server.ts",
+          "tests/fixtures.ts"
+        ]
+      },
+      {
+        "file": "tests/ssot-atomic.test.ts",
+        "matched_nodes": [
+          "tests_ssot_atomic_test_ts",
+          "tests_ssot_atomic_test_tempdir",
+          "tests_ssot_atomic_test_copycanonical",
+          "tests_ssot_atomic_test_canonicalsnapshot",
+          "tests_ssot_atomic_test_waitforfile",
+          "tests_ssot_atomic_test_capture"
+        ],
+        "related_files": [
+          "src/cli.ts",
+          "src/ssot.ts"
+        ]
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "requirements-ssot",
+      "order": 10,
+      "title": "Story / Spec / Architecture / Policy SSOT",
+      "category": "requirements",
+      "recommendation": "separate_pr",
+      "files": [
+        "docs/management/stories/active/story-brainbase-portable-connected-world-onboarding.md",
+        "docs/specs/story-brainbase-portable-connected-world-onboarding.md",
+        "docs/architecture/story-brainbase-portable-connected-world-onboarding.md"
+      ],
+      "required_gates": [
+        "Requirement Gate"
+      ],
+      "review_focus": [
+        "Story / Spec / Architecture / Policy の正本が互いに矛盾していないか",
+        "実装差分が要求の範囲を超えていないか",
+        "Storyに明示されたREADME/helpなどの利用者向け出力面が受け入れ基準と対応しているか"
+      ],
+      "file_count": 3,
+      "graph_investigation_files": [],
+      "suggested_branch": "feat/brainbase-portable-connected-world-onboarding-requirements-ssot"
+    },
+    {
+      "id": "runtime-behavior",
+      "order": 20,
+      "title": "Runtime behavior and unit coverage",
+      "category": "implementation",
+      "recommendation": "primary_pr",
+      "files": [
+        "src/connected-onboarding.ts",
+        "src/import-extract.ts",
+        "src/server.ts",
+        "src/skills.ts",
+        "src/ssot.ts",
+        "tests/connected-onboarding.test.ts",
+        "tests/mcp-contract.test.ts",
+        "tests/ssot-atomic.test.ts"
+      ],
+      "required_gates": [
+        "Requirement Gate",
+        "Unit Gate",
+        "Integration Gate",
+        "E2E Gate"
+      ],
+      "review_focus": [
+        "受け入れ基準と実装分岐が対応しているか",
+        "Graphifyで隣接するファイルまで影響確認されているか"
+      ],
+      "file_count": 8,
+      "graph_investigation_files": [
+        "scripts/npm-release.mjs",
+        "src/cli.ts",
+        "src/index.ts",
+        "src/ontology-ssot.ts",
+        "src/ontology.ts",
+        "src/paths.ts",
+        "src/templates.ts",
+        "src/tools.ts",
+        "src/types.ts",
+        "tests/cli.test.ts",
+        "tests/e2e/agent-assisted-source-onboarding-acceptance.spec.ts",
+        "tests/e2e/brainbase-mcp-only-acceptance.spec.ts"
+      ],
+      "suggested_branch": "feat/brainbase-portable-connected-world-onboarding-runtime-behavior"
+    },
+    {
+      "id": "e2e-gate",
+      "order": 30,
+      "title": "E2E and verification harness",
+      "category": "verification",
+      "recommendation": "separate_pr",
+      "files": [
+        "tests/e2e/brainbase-mcp-only-acceptance.spec.ts",
+        "tests/e2e/onboarding-skills-installer-acceptance.spec.ts",
+        "tests/e2e/story-brainbase-portable-connected-world-onboarding-acceptance.spec.ts",
+        "tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts"
+      ],
+      "required_gates": [
+        "E2E Gate",
+        "Integration Gate"
+      ],
+      "review_focus": [
+        "E2E harnessが失敗exit codeを握りつぶしていないか",
+        "PR Gateが変更対象のE2Eに正しくスコープされているか"
+      ],
+      "file_count": 4,
+      "graph_investigation_files": [
+        "src/cli.ts",
+        "src/ontology-ssot.ts",
+        "src/ontology.ts",
+        "src/paths.ts",
+        "src/server.ts",
+        "src/ssot.ts",
+        "tests/fixtures.ts"
+      ],
+      "suggested_branch": "feat/brainbase-portable-connected-world-onboarding-e2e-gate"
+    },
+    {
+      "id": "misc-follow-up",
+      "order": 90,
+      "title": "Miscellaneous follow-up",
+      "category": "other",
+      "recommendation": "separate_pr",
+      "files": [
+        "docs/management/decisions/2026-08-04-budget-override-story-brainbase-portable-connected-world-onboarding-281eba5c.md",
+        "docs/manual/guide/mcp-install.md",
+        "docs/manual/reference/mcp-tools.md"
+      ],
+      "required_gates": [
+        "Manual Review"
+      ],
+      "review_focus": [
+        "Storyとの対応が不明な差分をPRから外すか、Storyに根拠を追記する"
+      ],
+      "file_count": 3,
+      "graph_investigation_files": [],
+      "suggested_branch": "feat/brainbase-portable-connected-world-onboarding-misc-follow-up"
+    }
+  ],
+  "merge_order": [
+    "requirements-ssot",
+    "runtime-behavior",
+    "e2e-gate",
+    "misc-follow-up"
+  ],
+  "stacked_gate_plan": {
+    "schema_version": "0.1.0",
+    "model": "stacked-pr-gate-plan-v1",
+    "summary": {
+      "lane_count": 4,
+      "cumulative_gate_count": 1,
+      "requires_cumulative_e2e": true,
+      "requires_atomic_head_validation": false
+    },
+    "lane_plans": [
+      {
+        "lane_id": "requirements-ssot",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "Requirement Gate / document consistency review"
+        ],
+        "cumulative_checks": [],
+        "review_note": "requirements-ssot は単体PRとしてレビュー可能。"
+      },
+      {
+        "lane_id": "runtime-behavior",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "npm test -- --exclude tests/npm-prepublication-evidence.integration.test.ts",
+          "npm run build"
+        ],
+        "cumulative_checks": [],
+        "review_note": "runtime差分はUnit/Integrationを単体PRで確認し、E2Eは後続のe2e-gateまたは累積validationで確認する。"
+      },
+      {
+        "lane_id": "e2e-gate",
+        "gate_mode": "cumulative_after_dependencies",
+        "depends_on": [
+          "requirements-ssot",
+          "runtime-behavior"
+        ],
+        "isolated_checks": [
+          "npm run build",
+          "Playwright harness smoke if runtime dependencies are already merged"
+        ],
+        "cumulative_checks": [
+          "npm test -- --exclude tests/npm-prepublication-evidence.integration.test.ts",
+          "npm run build",
+          "npm run test:e2e -- tests/e2e/story-brainbase-portable-connected-world-onboarding-acceptance.spec.ts"
+        ],
+        "review_note": "e2e-gate は単体PRだけで完了判定せず、requirements-ssot -> runtime-behavior を取り込んだ累積状態でGateを確認する。"
+      },
+      {
+        "lane_id": "misc-follow-up",
+        "gate_mode": "isolated_pr",
+        "depends_on": [],
+        "isolated_checks": [
+          "manual review"
+        ],
+        "cumulative_checks": [],
+        "review_note": "misc-follow-up は単体PRとしてレビュー可能。"
+      }
+    ],
+    "final_validation": {
+      "required": true,
+      "trigger": "runtime-behavior と e2e-gate の両方がmerge対象に含まれる",
+      "commands": [
+        "npm test -- --exclude tests/npm-prepublication-evidence.integration.test.ts",
+        "npm run build",
+        "npm run test:e2e -- tests/e2e/story-brainbase-portable-connected-world-onboarding-acceptance.spec.ts"
+      ]
+    }
+  },
+  "next_actions": [
+    {
+      "lane_id": "requirements-ssot",
+      "action": "Create feat/brainbase-portable-connected-world-onboarding-requirements-ssot with 3 files",
+      "command": "git switch -c feat/brainbase-portable-connected-world-onboarding-requirements-ssot \"<base>\" && git add docs/management/stories/active/story-brainbase-portable-connected-world-onboarding.md docs/specs/story-brainbase-portable-connected-world-onboarding.md docs/architecture/story-brainbase-portable-connected-world-onboarding.md"
+    },
+    {
+      "lane_id": "runtime-behavior",
+      "action": "Create feat/brainbase-portable-connected-world-onboarding-runtime-behavior with 8 files",
+      "command": "git switch -c feat/brainbase-portable-connected-world-onboarding-runtime-behavior \"<base>\" && git add src/connected-onboarding.ts src/import-extract.ts src/server.ts src/skills.ts src/ssot.ts tests/connected-onboarding.test.ts tests/mcp-contract.test.ts tests/ssot-atomic.test.ts"
+    },
+    {
+      "lane_id": "e2e-gate",
+      "action": "Create feat/brainbase-portable-connected-world-onboarding-e2e-gate with 4 files",
+      "command": "git switch -c feat/brainbase-portable-connected-world-onboarding-e2e-gate \"<base>\" && git add tests/e2e/brainbase-mcp-only-acceptance.spec.ts tests/e2e/onboarding-skills-installer-acceptance.spec.ts tests/e2e/story-brainbase-portable-connected-world-onboarding-acceptance.spec.ts tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts"
+    },
+    {
+      "lane_id": "misc-follow-up",
+      "action": "Create feat/brainbase-portable-connected-world-onboarding-misc-follow-up with 3 files",
+      "command": "git switch -c feat/brainbase-portable-connected-world-onboarding-misc-follow-up \"<base>\" && git add docs/management/decisions/2026-08-04-budget-override-story-brainbase-portable-connected-world-onboarding-281eba5c.md docs/manual/guide/mcp-install.md docs/manual/reference/mcp-tools.md"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+
+> @unson/brainbase-mcp@0.1.0 test:e2e
+> vitest run tests/e2e/brainbase-mcp-only-acceptance.spec.ts tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts tests/e2e/story-brainbase-portable-connected-world-onboarding-acceptance.spec.ts
+
+
+ RUN  v4.1.8 /private/tmp/brainbase-oss-connected-onboarding
+
+
+ Test Files  3 passed (3)
+      Tests  3 passed (3)
+   Start at  10:14:24
+   Duration  844ms (transform 323ms, setup 0ms, import 685ms, tests 638ms, environment 0ms)
+

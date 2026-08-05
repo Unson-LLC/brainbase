@@ -1,0 +1,154 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-portable-connected-world-onboarding",
+  "stage": "planning_spec",
+  "role": "spec_consistency",
+  "status": "needs_changes",
+  "summary": "主要契約と回帰証跡は整合したが、terminal review retryがdecision-specificな完全同一actionに限定されていない",
+  "findings": [
+    {
+      "severity": "medium",
+      "id": "review-retry-action-shape-not-exact",
+      "detail": "完了済みmerge retryへpayloadを追加しても成功しcaller intentを黙って無視する"
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Story Architecture Spec runtime SSOT MCP Zod Skill unit E2E既存回帰を照合しterminal merge retry probeを実施",
+    "evidence": "focused 20 tests existing regression 51 tests and E2E 3 tests passed; mutated terminal merge retry was accepted",
+    "inputs": [
+      "docs/specs/story-brainbase-portable-connected-world-onboarding.md",
+      "src/connected-onboarding.ts",
+      "src/server.ts",
+      "tests/connected-onboarding.test.ts",
+      "tests/mcp-contract.test.ts"
+    ]
+  },
+  "judgment_delta": [
+    "observed boundary atomic recovery and broad regressions were confirmed; exact action shape remained unenforced for terminal retries"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-oss-connected-onboarding",
+    "actual_root": "/private/tmp/brainbase-oss-connected-onboarding",
+    "expected_root": null,
+    "expected_head_sha": "01f9e7578080390c252104df9c66cf4b6ccb2920",
+    "current_head_sha": "01f9e7578080390c252104df9c66cf4b6ccb2920",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-oss-connected-onboarding",
+      "actual_root": "/private/tmp/brainbase-oss-connected-onboarding",
+      "expected_root": null,
+      "expected_head_sha": "01f9e7578080390c252104df9c66cf4b6ccb2920",
+      "current_head_sha": "01f9e7578080390c252104df9c66cf4b6ccb2920",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-04T11:38:49.968Z",
+  "git_context": {
+    "head_sha": "01f9e7578080390c252104df9c66cf4b6ccb2920",
+    "current_branch": "codex/oss-connected-world-onboarding",
+    "dirty": true,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "eeaa88d34c2007e1ae56bb21c58b25012631038eda00ff21b4a99fcadcca94e5",
+    "user_status_fingerprint_hash": "eeaa88d34c2007e1ae56bb21c58b25012631038eda00ff21b4a99fcadcca94e5",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-04T11:38:49.959Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 5 file(s)",
+    "recorded_head_sha": "01f9e7578080390c252104df9c66cf4b6ccb2920",
+    "surface_files": [
+      {
+        "path": "docs/specs/story-brainbase-portable-connected-world-onboarding.md",
+        "sha256": "4fea7d70f73842fb0fdc258b9af4ea2ddeb056bddd83a816cc9eccd4b4636493",
+        "size": 4493
+      },
+      {
+        "path": "src/connected-onboarding.ts",
+        "sha256": "b5b2ce637d16c68f7109b2cd1e5605a00cda3cd80d5ede454d661aa84e2a6d34",
+        "size": 35620
+      },
+      {
+        "path": "src/server.ts",
+        "sha256": "fd734b441b69da39cc1d806ca606eb96fdeb9b8bbaee9f7f683318af5fe7172c",
+        "size": 13849
+      },
+      {
+        "path": "tests/connected-onboarding.test.ts",
+        "sha256": "d7bd2b6cc7a5a35e21b0b23fe77df4fe84e5aae6e486ddd88d37f6bfbdaf40ef",
+        "size": 16711
+      },
+      {
+        "path": "tests/mcp-contract.test.ts",
+        "sha256": "d26c0926d18ceb0d1e5ba704a41ac5ac4e554675fc7a897aa6e8a69d64dc6b13",
+        "size": 11264
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "82c3dd73a1fa4d205f350fe39a2d9dac42219dc1ddad79bee3669116655c757e"
+  },
+  "source_fingerprint": "df99b0a89e088d9e3351a16995c245b256fb0568ad54c9af8dda97da61faa99e",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/onboarding_plan_spec_v2",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/onboarding_plan_spec_v2",
+    "session_id": "/root/onboarding_plan_spec_v2",
+    "tool_call_id": null,
+    "transcript_artifact": null,
+    "request_artifact": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/review-request-spec_consistency.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "collaboration:/root/onboarding_plan_spec_v2:completed",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/onboarding_plan_spec_v2",
+      "implementation_session_id": "root",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

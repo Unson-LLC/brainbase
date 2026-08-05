@@ -1,0 +1,121 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-review-surface-violations-v1",
+  "story_id": "story-brainbase-portable-connected-world-onboarding",
+  "append_only": true,
+  "updated_at": "2026-08-05T01:10:17.048Z",
+  "entries": [
+    {
+      "schema_version": "0.1.0",
+      "violation_id": "rsv-baa3f9867bae5137",
+      "story_id": "story-brainbase-portable-connected-world-onboarding",
+      "kind": "review_surface_mutated_during_review",
+      "evidence_class": "violation",
+      "changed_fields": [
+        "surface_digest"
+      ],
+      "started": {
+        "head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+        "surface_digest": "3f9ef7571623bd4c4a4dd4437c00857ecaa341eb59ffec7dd29b8f2725915871"
+      },
+      "closed": {
+        "head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+        "surface_digest": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574"
+      },
+      "stage": "gate",
+      "role": "gate_evidence",
+      "lifecycle_id": "c9204012-a01f-44bb-b072-650c4043bf16",
+      "agent_system": "codex",
+      "agent_id": "/root/npm_gate_evidence",
+      "started_at": "2026-08-04T14:23:22.670Z",
+      "close_reason": "completed",
+      "close_evidence": "/root/npm_gate_evidence final current-head review result",
+      "detected_by": "review close",
+      "recorded_at": "2026-08-04T14:27:52.453Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "violation_id": "rsv-39e97f43b7676a53",
+      "story_id": "story-brainbase-portable-connected-world-onboarding",
+      "kind": "review_surface_mutated_during_review",
+      "evidence_class": "violation",
+      "changed_fields": [
+        "surface_digest"
+      ],
+      "started": {
+        "head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+        "surface_digest": "3f9ef7571623bd4c4a4dd4437c00857ecaa341eb59ffec7dd29b8f2725915871"
+      },
+      "closed": {
+        "head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+        "surface_digest": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574"
+      },
+      "stage": "planning_spec",
+      "role": "product_requirement",
+      "lifecycle_id": "77d981f1-d573-4842-bbf1-9ab2ce702e75",
+      "agent_system": "codex",
+      "agent_id": "/root/onboarding_plan_product_v5",
+      "started_at": "2026-08-05T01:06:32.648Z",
+      "close_reason": "completed",
+      "close_evidence": "collaboration:/root/onboarding_plan_product_v5:completed",
+      "detected_by": "review close",
+      "recorded_at": "2026-08-05T01:10:15.969Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "violation_id": "rsv-1e68620a4c7ede1a",
+      "story_id": "story-brainbase-portable-connected-world-onboarding",
+      "kind": "review_surface_mutated_during_review",
+      "evidence_class": "violation",
+      "changed_fields": [
+        "surface_digest"
+      ],
+      "started": {
+        "head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+        "surface_digest": "3f9ef7571623bd4c4a4dd4437c00857ecaa341eb59ffec7dd29b8f2725915871"
+      },
+      "closed": {
+        "head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+        "surface_digest": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574"
+      },
+      "stage": "planning_spec",
+      "role": "architecture_boundary",
+      "lifecycle_id": "6aecb0fe-16e5-4945-91b1-a5e29b6e376d",
+      "agent_system": "codex",
+      "agent_id": "/root/onboarding_plan_arch_v5",
+      "started_at": "2026-08-05T01:06:33.152Z",
+      "close_reason": "completed",
+      "close_evidence": "collaboration:/root/onboarding_plan_arch_v5:completed",
+      "detected_by": "review close",
+      "recorded_at": "2026-08-05T01:10:16.528Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "violation_id": "rsv-51d8a96180ae5c90",
+      "story_id": "story-brainbase-portable-connected-world-onboarding",
+      "kind": "review_surface_mutated_during_review",
+      "evidence_class": "violation",
+      "changed_fields": [
+        "surface_digest"
+      ],
+      "started": {
+        "head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+        "surface_digest": "3f9ef7571623bd4c4a4dd4437c00857ecaa341eb59ffec7dd29b8f2725915871"
+      },
+      "closed": {
+        "head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+        "surface_digest": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574"
+      },
+      "stage": "planning_spec",
+      "role": "spec_consistency",
+      "lifecycle_id": "505360c8-7bf1-473f-89f8-dd22078f9bab",
+      "agent_system": "codex",
+      "agent_id": "/root/onboarding_plan_spec_v5",
+      "started_at": "2026-08-05T01:06:33.678Z",
+      "close_reason": "completed",
+      "close_evidence": "collaboration:/root/onboarding_plan_spec_v5:completed",
+      "detected_by": "review close",
+      "recorded_at": "2026-08-05T01:10:17.048Z"
+    }
+  ]
+}

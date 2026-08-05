@@ -1,0 +1,101 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-portable-connected-world-onboarding",
+  "ledger_path": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-outcome-ledger.json",
+  "selector": {
+    "decision_trace_id": "dt_1232b05616327dd2de55c55bc7dc4aa1115f087e53fbbf3d32171d149d209c30"
+  },
+  "parent_revision_fingerprint": "7c1c362180693ba23e8363b8a4164e92a94cffd628ebc1bd2b2b796c2f9a37b8",
+  "revision_fingerprint": "f0fcf9c6e5e457ae28565c7ae39993ce68cddac439e2ab3ae1245d541f480fd2",
+  "trace": {
+    "decision_trace_id": "dt_1232b05616327dd2de55c55bc7dc4aa1115f087e53fbbf3d32171d149d209c30",
+    "collision_group": null,
+    "trace_source_ref": "tsr_a35bdca50b1d5e870042138465f0ee1a05d424dd6ae811d248a5e302174ed7fb",
+    "normalized_subject_key": "gate:review_surface_integrity:rsv-39e97f43b7676a53",
+    "source_identity": {
+      "source_kind": "decision_record",
+      "source_ref": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-records.json",
+      "native_id": "decision-1785892236202-335945b7",
+      "digest": "ee13b2403e72b0559ec8b6014e2dc4a096856889cc51ee6d9978796f41412ae2",
+      "multiplicity": 1
+    },
+    "evidence_head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+    "parent_revision_fingerprint": "7c1c362180693ba23e8363b8a4164e92a94cffd628ebc1bd2b2b796c2f9a37b8",
+    "revision_fingerprint": "f0fcf9c6e5e457ae28565c7ae39993ce68cddac439e2ab3ae1245d541f480fd2",
+    "observation_identity": null,
+    "observation_read_aliases": [
+      {
+        "trace_selector": {
+          "decision_trace_id": "dt_1232b05616327dd2de55c55bc7dc4aa1115f087e53fbbf3d32171d149d209c30"
+        },
+        "parent_revision_fingerprint": "16088bb89f45950dfa4b93781156da4616750e46db3f67d34dce3e4768dc52fa"
+      }
+    ],
+    "trace_status": "partial",
+    "missing_reason": "observation_missing",
+    "finding": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "gate": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "detector": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "disposition": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "decision": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "behavior_delta": {
+      "status": "not_observed",
+      "before": null,
+      "after": null,
+      "change_refs": [],
+      "verification_refs": [],
+      "verification_sources": [],
+      "missing_reason": "explicit_behavior_delta_missing",
+      "excluded_sources": []
+    },
+    "delivery": {
+      "status": "merged",
+      "pr": {
+        "number": 445,
+        "url": "https://github.com/Unson-LLC/brainbase/pull/445",
+        "state": "MERGED"
+      },
+      "merge": {
+        "sha": "954103ac8d8ef75830ecee770f581df2f1dfddf6",
+        "status": "merged",
+        "merged_at": "2026-08-05T01:25:04Z"
+      },
+      "source_ref": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-merge.json"
+    },
+    "downstream_outcome": {
+      "status": "not_observed",
+      "value": null,
+      "reason": null,
+      "source_ref": null,
+      "missing_reason": "observation_missing"
+    },
+    "eligible_outcome_sources": {
+      "total_count": 0,
+      "returned_count": 0,
+      "omitted_count": 0,
+      "truncated": false,
+      "entries": []
+    },
+    "source_errors": []
+  }
+}

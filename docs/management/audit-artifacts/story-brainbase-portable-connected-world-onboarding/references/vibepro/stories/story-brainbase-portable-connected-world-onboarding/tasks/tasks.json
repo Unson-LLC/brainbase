@@ -1,0 +1,647 @@
+{
+  "schema_version": "0.1.0",
+  "generated_at": "2026-08-04T13:55:12.222Z",
+  "story": {
+    "story_id": "story-brainbase-portable-connected-world-onboarding",
+    "title": "story-brainbase-portable-connected-world-onboarding",
+    "ssot": "local",
+    "status": "active",
+    "horizon": null,
+    "view": null,
+    "period": null,
+    "category": null
+  },
+  "source_run": {
+    "run_id": "2026-08-04T110100Z",
+    "gate_status": "pass",
+    "source_plan_generated_at": "2026-08-04T13:55:11.987Z"
+  },
+  "scope_boundary": {
+    "schema_version": "0.1.0",
+    "declared": false,
+    "allowed_paths": [
+      "src/connected-onboarding.ts",
+      "src/guided-onboarding.ts",
+      "src/onboarding.ts",
+      "src/cli.ts",
+      "src/ssot.ts",
+      "src/import-extract.ts",
+      "src/projects.ts",
+      "src/server.ts",
+      "src/types.ts",
+      "src/ontology.ts",
+      "tests/connected-onboarding.test.ts"
+    ],
+    "source": "derived_from_target_files",
+    "recorded_at": "2026-08-04T13:55:12.226Z"
+  },
+  "tasks": [
+    {
+      "id": "story-brainbase-portable-connected-world-onboarding-source-alignment-review",
+      "source_type": "source_alignment_finding",
+      "source_id": "story-brainbase-portable-connected-world-onboarding-source-alignment-review",
+      "finding_id": null,
+      "title": "Story/Spec/ADR不整合をレビューする",
+      "priority": "high",
+      "status": "todo",
+      "order": 10,
+      "execution_policy": "proposal_only",
+      "mutates_repository": false,
+      "target_count": 11,
+      "target_files": [
+        "src/connected-onboarding.ts",
+        "src/guided-onboarding.ts",
+        "src/onboarding.ts",
+        "src/cli.ts",
+        "src/ssot.ts",
+        "src/import-extract.ts",
+        "src/projects.ts",
+        "src/server.ts",
+        "src/types.ts",
+        "src/ontology.ts",
+        "tests/connected-onboarding.test.ts"
+      ],
+      "target_routes": [],
+      "target_groups": [],
+      "read_first_files": [
+        {
+          "file": "src/connected-onboarding.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        },
+        {
+          "file": "src/guided-onboarding.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        },
+        {
+          "file": "src/onboarding.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        },
+        {
+          "file": "src/cli.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        },
+        {
+          "file": "src/ssot.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        },
+        {
+          "file": "src/import-extract.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        },
+        {
+          "file": "src/projects.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        },
+        {
+          "file": "src/server.ts",
+          "reason": "Source Alignment FindingのGraphify/コード証跡"
+        }
+      ],
+      "recommended_strategy": {
+        "id": "source-alignment-review",
+        "reason": "コードとしては正しいUIやAPIでも、ユーザーが本当に達成したい成果とずれている可能性がある。"
+      },
+      "implementation_steps": [
+        {
+          "id": "read-sources",
+          "title": "正本を読む",
+          "detail": "Story、Spec、Architecture/ADRの参照を読み、要件・受け入れ基準・境界判断を並べる"
+        },
+        {
+          "id": "read-graph",
+          "title": "Graph影響範囲を読む",
+          "detail": "Graphifyのmatched/related/hub/communityを読み、実際の影響範囲を確認する"
+        },
+        {
+          "id": "classify-mismatch",
+          "title": "不整合を分類する",
+          "detail": "Storyが誤り、Specが誤り、ADRが不足、コードが意図外のどれかを判定する"
+        },
+        {
+          "id": "record-outcome",
+          "title": "判断を記録する",
+          "detail": "修正する場合はタスク化し、正しい場合はレビュー済み理由を正本またはPR本文へ残す"
+        }
+      ],
+      "acceptance_criteria": [
+        "各潜在バグ候補について、Story/Spec/ADR/コードのどれを修正するか判断している",
+        "Graphifyのhub/communityを読んだ上で影響範囲を説明できる",
+        "要件が正しい場合はレビュー済み理由を正本またはPR本文に残している"
+      ],
+      "source_recovery": null,
+      "recovery_drafts": [],
+      "source_alignment_findings": [
+        {
+          "id": "story-brainbase-portable-connected-world-onboarding-business_context_gap",
+          "story_id": "story-brainbase-portable-connected-world-onboarding",
+          "title": "既存の仕事ソースから10分で自分の世界を立ち上げる",
+          "type": "business_context_gap",
+          "severity": "high",
+          "reason": "Storyの事業/利用文脈が未確定。",
+          "potential_bug": "コードとしては正しいUIやAPIでも、ユーザーが本当に達成したい成果とずれている可能性がある。",
+          "recommended_review": "対象ユーザー、利用場面、成功状態をStory正本に明記してからSpecを承認する。",
+          "evidence": {
+            "story_source_status": "present",
+            "spec_status": "story_backed",
+            "architecture_status": "implicit",
+            "source_type": "config_story",
+            "confidence": "medium",
+            "open_questions": [
+              "business_context",
+              "business_metric"
+            ],
+            "story_contract": {
+              "status": "ready",
+              "story_type": "new_capability",
+              "unresolved_checks": []
+            },
+            "docs": [
+              "docs/management/stories/active/story-brainbase-portable-connected-world-onboarding.md"
+            ],
+            "files": [
+              "src/connected-onboarding.ts",
+              "src/guided-onboarding.ts",
+              "src/onboarding.ts",
+              "src/cli.ts",
+              "src/ssot.ts",
+              "src/import-extract.ts",
+              "src/projects.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "src/ontology.ts",
+              "tests/connected-onboarding.test.ts"
+            ],
+            "open_question": "business_context"
+          },
+          "refs": {
+            "story": [
+              "docs/management/stories/active/story-brainbase-portable-connected-world-onboarding.md"
+            ],
+            "spec": [],
+            "architecture": []
+          },
+          "graph": {
+            "matched_files": [
+              "src/connected-onboarding.ts",
+              "src/guided-onboarding.ts",
+              "src/onboarding.ts"
+            ],
+            "related_files": [
+              "src/cli.ts",
+              "src/ssot.ts",
+              "src/import-extract.ts",
+              "src/projects.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "src/ontology.ts",
+              "tests/connected-onboarding.test.ts"
+            ],
+            "hub_nodes": [
+              {
+                "id": "src_cli_ts",
+                "label": "cli.ts",
+                "source_file": "src/cli.ts",
+                "community": 0,
+                "degree": 69
+              },
+              {
+                "id": "src_connected_onboarding_ts",
+                "label": "connected-onboarding.ts",
+                "source_file": "src/connected-onboarding.ts",
+                "community": 1,
+                "degree": 53
+              },
+              {
+                "id": "src_ssot_ts",
+                "label": "ssot.ts",
+                "source_file": "src/ssot.ts",
+                "community": 0,
+                "degree": 53
+              },
+              {
+                "id": "src_onboarding_ts",
+                "label": "onboarding.ts",
+                "source_file": "src/onboarding.ts",
+                "community": 4,
+                "degree": 51
+              },
+              {
+                "id": "src_guided_onboarding_ts",
+                "label": "guided-onboarding.ts",
+                "source_file": "src/guided-onboarding.ts",
+                "community": 6,
+                "degree": 23
+              }
+            ],
+            "affected_communities": [
+              {
+                "id": 0,
+                "route_count": 0,
+                "file_count": 2,
+                "node_count": 2,
+                "edge_count": 45
+              },
+              {
+                "id": 1,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 59,
+                "edge_count": 158
+              },
+              {
+                "id": 4,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 47,
+                "edge_count": 124
+              },
+              {
+                "id": 6,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 20,
+                "edge_count": 45
+              }
+            ],
+            "related_edge_count": 349,
+            "impact_score": 0.3324,
+            "cross_community": true
+          },
+          "execution_policy": "proposal_only",
+          "mutates_repository": false
+        },
+        {
+          "id": "story-brainbase-portable-connected-world-onboarding-cross_community_without_architecture",
+          "story_id": "story-brainbase-portable-connected-world-onboarding",
+          "title": "既存の仕事ソースから10分で自分の世界を立ち上げる",
+          "type": "cross_community_without_architecture",
+          "severity": "high",
+          "reason": "Graphify上で複数communityに跨るが、Architecture/ADR正本が未確定。",
+          "potential_bug": "局所変更のつもりで責務境界を跨ぎ、別flowや共有serviceの挙動を壊す可能性がある。",
+          "recommended_review": "hub/related fileを先に読み、ADRが必要な境界変更か、Storyをflow単位に分割すべきか判断する。",
+          "evidence": {
+            "story_source_status": "present",
+            "spec_status": "story_backed",
+            "architecture_status": "implicit",
+            "source_type": "config_story",
+            "confidence": "medium",
+            "open_questions": [
+              "business_context",
+              "business_metric"
+            ],
+            "story_contract": {
+              "status": "ready",
+              "story_type": "new_capability",
+              "unresolved_checks": []
+            },
+            "docs": [
+              "docs/management/stories/active/story-brainbase-portable-connected-world-onboarding.md"
+            ],
+            "files": [
+              "src/connected-onboarding.ts",
+              "src/guided-onboarding.ts",
+              "src/onboarding.ts",
+              "src/cli.ts",
+              "src/ssot.ts",
+              "src/import-extract.ts",
+              "src/projects.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "src/ontology.ts",
+              "tests/connected-onboarding.test.ts"
+            ]
+          },
+          "refs": {
+            "story": [
+              "docs/management/stories/active/story-brainbase-portable-connected-world-onboarding.md"
+            ],
+            "spec": [],
+            "architecture": []
+          },
+          "graph": {
+            "matched_files": [
+              "src/connected-onboarding.ts",
+              "src/guided-onboarding.ts",
+              "src/onboarding.ts"
+            ],
+            "related_files": [
+              "src/cli.ts",
+              "src/ssot.ts",
+              "src/import-extract.ts",
+              "src/projects.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "src/ontology.ts",
+              "tests/connected-onboarding.test.ts"
+            ],
+            "hub_nodes": [
+              {
+                "id": "src_cli_ts",
+                "label": "cli.ts",
+                "source_file": "src/cli.ts",
+                "community": 0,
+                "degree": 69
+              },
+              {
+                "id": "src_connected_onboarding_ts",
+                "label": "connected-onboarding.ts",
+                "source_file": "src/connected-onboarding.ts",
+                "community": 1,
+                "degree": 53
+              },
+              {
+                "id": "src_ssot_ts",
+                "label": "ssot.ts",
+                "source_file": "src/ssot.ts",
+                "community": 0,
+                "degree": 53
+              },
+              {
+                "id": "src_onboarding_ts",
+                "label": "onboarding.ts",
+                "source_file": "src/onboarding.ts",
+                "community": 4,
+                "degree": 51
+              },
+              {
+                "id": "src_guided_onboarding_ts",
+                "label": "guided-onboarding.ts",
+                "source_file": "src/guided-onboarding.ts",
+                "community": 6,
+                "degree": 23
+              }
+            ],
+            "affected_communities": [
+              {
+                "id": 0,
+                "route_count": 0,
+                "file_count": 2,
+                "node_count": 2,
+                "edge_count": 45
+              },
+              {
+                "id": 1,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 59,
+                "edge_count": 158
+              },
+              {
+                "id": 4,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 47,
+                "edge_count": 124
+              },
+              {
+                "id": 6,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 20,
+                "edge_count": 45
+              }
+            ],
+            "related_edge_count": 349,
+            "impact_score": 0.3324,
+            "cross_community": true
+          },
+          "execution_policy": "proposal_only",
+          "mutates_repository": false
+        },
+        {
+          "id": "story-brainbase-portable-connected-world-onboarding-business_metric_gap",
+          "story_id": "story-brainbase-portable-connected-world-onboarding",
+          "title": "既存の仕事ソースから10分で自分の世界を立ち上げる",
+          "type": "business_metric_gap",
+          "severity": "medium",
+          "reason": "Storyの成功指標または観測観点が未確定。",
+          "potential_bug": "受け入れ基準を満たしても、プロダクト上の改善を検知できない可能性がある。",
+          "recommended_review": "少なくとも1つのKPI、ログ、運用確認観点をSpecまたはStoryへ紐づける。",
+          "evidence": {
+            "story_source_status": "present",
+            "spec_status": "story_backed",
+            "architecture_status": "implicit",
+            "source_type": "config_story",
+            "confidence": "medium",
+            "open_questions": [
+              "business_context",
+              "business_metric"
+            ],
+            "story_contract": {
+              "status": "ready",
+              "story_type": "new_capability",
+              "unresolved_checks": []
+            },
+            "docs": [
+              "docs/management/stories/active/story-brainbase-portable-connected-world-onboarding.md"
+            ],
+            "files": [
+              "src/connected-onboarding.ts",
+              "src/guided-onboarding.ts",
+              "src/onboarding.ts",
+              "src/cli.ts",
+              "src/ssot.ts",
+              "src/import-extract.ts",
+              "src/projects.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "src/ontology.ts",
+              "tests/connected-onboarding.test.ts"
+            ],
+            "open_question": "business_metric"
+          },
+          "refs": {
+            "story": [
+              "docs/management/stories/active/story-brainbase-portable-connected-world-onboarding.md"
+            ],
+            "spec": [],
+            "architecture": []
+          },
+          "graph": {
+            "matched_files": [
+              "src/connected-onboarding.ts",
+              "src/guided-onboarding.ts",
+              "src/onboarding.ts"
+            ],
+            "related_files": [
+              "src/cli.ts",
+              "src/ssot.ts",
+              "src/import-extract.ts",
+              "src/projects.ts",
+              "src/server.ts",
+              "src/types.ts",
+              "src/ontology.ts",
+              "tests/connected-onboarding.test.ts"
+            ],
+            "hub_nodes": [
+              {
+                "id": "src_cli_ts",
+                "label": "cli.ts",
+                "source_file": "src/cli.ts",
+                "community": 0,
+                "degree": 69
+              },
+              {
+                "id": "src_connected_onboarding_ts",
+                "label": "connected-onboarding.ts",
+                "source_file": "src/connected-onboarding.ts",
+                "community": 1,
+                "degree": 53
+              },
+              {
+                "id": "src_ssot_ts",
+                "label": "ssot.ts",
+                "source_file": "src/ssot.ts",
+                "community": 0,
+                "degree": 53
+              },
+              {
+                "id": "src_onboarding_ts",
+                "label": "onboarding.ts",
+                "source_file": "src/onboarding.ts",
+                "community": 4,
+                "degree": 51
+              },
+              {
+                "id": "src_guided_onboarding_ts",
+                "label": "guided-onboarding.ts",
+                "source_file": "src/guided-onboarding.ts",
+                "community": 6,
+                "degree": 23
+              }
+            ],
+            "affected_communities": [
+              {
+                "id": 0,
+                "route_count": 0,
+                "file_count": 2,
+                "node_count": 2,
+                "edge_count": 45
+              },
+              {
+                "id": 1,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 59,
+                "edge_count": 158
+              },
+              {
+                "id": 4,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 47,
+                "edge_count": 124
+              },
+              {
+                "id": 6,
+                "route_count": 0,
+                "file_count": 1,
+                "node_count": 20,
+                "edge_count": 45
+              }
+            ],
+            "related_edge_count": 349,
+            "impact_score": 0.3324,
+            "cross_community": true
+          },
+          "execution_policy": "proposal_only",
+          "mutates_repository": false
+        }
+      ],
+      "graph_context": {
+        "matched_route_count": 0,
+        "target_file_count": 3,
+        "matched_file_count": 3,
+        "matched_files": [
+          "src/connected-onboarding.ts",
+          "src/guided-onboarding.ts",
+          "src/onboarding.ts"
+        ],
+        "unmatched_files": [],
+        "matched_node_count": 128,
+        "affected_communities": [
+          {
+            "id": 0,
+            "route_count": 0,
+            "file_count": 2,
+            "node_count": 2,
+            "edge_count": 45
+          },
+          {
+            "id": 1,
+            "route_count": 0,
+            "file_count": 1,
+            "node_count": 59,
+            "edge_count": 158
+          },
+          {
+            "id": 4,
+            "route_count": 0,
+            "file_count": 1,
+            "node_count": 47,
+            "edge_count": 124
+          },
+          {
+            "id": 6,
+            "route_count": 0,
+            "file_count": 1,
+            "node_count": 20,
+            "edge_count": 45
+          }
+        ],
+        "hub_nodes": [
+          {
+            "id": "src_cli_ts",
+            "label": "cli.ts",
+            "source_file": "src/cli.ts",
+            "community": 0,
+            "degree": 69
+          },
+          {
+            "id": "src_connected_onboarding_ts",
+            "label": "connected-onboarding.ts",
+            "source_file": "src/connected-onboarding.ts",
+            "community": 1,
+            "degree": 53
+          },
+          {
+            "id": "src_ssot_ts",
+            "label": "ssot.ts",
+            "source_file": "src/ssot.ts",
+            "community": 0,
+            "degree": 53
+          },
+          {
+            "id": "src_onboarding_ts",
+            "label": "onboarding.ts",
+            "source_file": "src/onboarding.ts",
+            "community": 4,
+            "degree": 51
+          },
+          {
+            "id": "src_guided_onboarding_ts",
+            "label": "guided-onboarding.ts",
+            "source_file": "src/guided-onboarding.ts",
+            "community": 6,
+            "degree": 23
+          }
+        ],
+        "related_files": [
+          "src/cli.ts",
+          "src/ssot.ts",
+          "src/import-extract.ts",
+          "src/projects.ts",
+          "src/server.ts",
+          "src/types.ts",
+          "src/ontology.ts",
+          "tests/connected-onboarding.test.ts"
+        ],
+        "related_edge_count": 349,
+        "impact_score": 0.3324,
+        "community_span": 4,
+        "cross_community": true
+      },
+      "pre_fix_briefing": null
+    }
+  ]
+}

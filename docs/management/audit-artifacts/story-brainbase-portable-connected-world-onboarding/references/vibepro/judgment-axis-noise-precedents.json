@@ -1,0 +1,41 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-judgment-axis-noise-precedent-ledger-v1",
+  "entries": [
+    {
+      "fingerprint": "scope_reviewability|changed_files:18|graphify:related_files|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-portable-connected-world-onboarding",
+      "decision_id": "decision-1785892406133-011dcd3d",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "Story, architecture, spec, runtime, public MCP tools, and acceptance tests implement one atomic connected-world onboarding contract; splitting them would separate the public contract from its persistence and verification evidence.",
+      "artifact": "docs/architecture/story-brainbase-portable-connected-world-onboarding.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:18",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-05T01:13:35.602Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:1179|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-portable-connected-world-onboarding",
+      "decision_id": "decision-1785892406133-011dcd3d",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "Story, architecture, spec, runtime, public MCP tools, and acceptance tests implement one atomic connected-world onboarding contract; splitting them would separate the public contract from its persistence and verification evidence.",
+      "artifact": "docs/architecture/story-brainbase-portable-connected-world-onboarding.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:1179",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-05T01:14:51.612Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    }
+  ]
+}

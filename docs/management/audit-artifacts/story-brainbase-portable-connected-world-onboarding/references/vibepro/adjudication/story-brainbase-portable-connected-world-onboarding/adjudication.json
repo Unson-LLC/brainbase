@@ -1,0 +1,437 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-evidence-adjudication-v1",
+  "story_id": "story-brainbase-portable-connected-world-onboarding",
+  "updated_at": "2026-08-04T14:21:55.906Z",
+  "verdicts": [
+    {
+      "clause_id": "AC-3",
+      "verdict": "demonstrated",
+      "reason": "先の判定はhost側のconnector fetch実行までAC-3へ含めていた。Story境界上、AC-3はBrainbase runtimeのsource selection制約であり、ready primaryがあればwarm、なければ明示single_documentのみfallback、どちらもなければblockedとし、選択外sourceのingestを拒否する。複数sourceを走査しない選択ロジックとfallback/blocked testsで実証済み。hostへのbounded-fetch指示は別途AC-12で検証される。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-portable-connected-world-onboarding",
+        "task_id": null,
+        "acceptance_criteria": [
+          "AC-1: run開始時に、最初に得たい価値と、`mcp`、`drive`、`gmail`、`local_folder`、`single_document`の実在する接続状態を受け取る。",
+          "AC-2: source inventoryは`ready`、`waiting_for_authorization`、`unavailable`、`error`、`unconfirmed`を区別し、取得失敗を0件やreadyへ変換しない。",
+          "AC-3: ready sourceが複数ある場合はwarm pathを、ない場合は明示された単一ドキュメントfallbackだけを選び、全Driveやhome directoryを走査しない。",
+          "AC-4: source receiptはpointer、content hash、permission snapshot、収集状態だけを保持し、本文、回答本文、credential、token、password、secretを永続化しない。",
+          "AC-5: evidence candidateはsource receiptと双方向に追跡でき、`observed`と`inferred`を区別する。",
+          "AC-6: `approve`、`edit`、`reject`、`merge`を候補単位で実行できる。`inferred`候補は直接approveできない。",
+          "AC-7: review入力全体を事前検証し、不正な1件があればcanonical SSOTを一切変更しない。",
+          "AC-8: approve/edit/mergeされた候補だけをOntology validation経由で昇格し、canonical 4ファイルとreview ledgerを同じrecovery可能なSSOT transactionでpublishする。rejectは監査履歴を残すがcanonical IDを持たない。",
+          "AC-9: retryは同じsource/candidateを重複作成せず、source identityを後から別pointer/hashへ差し替えられない。",
+          "AC-10: first-value receiptは昇格済みcanonical IDだけを根拠として記録し、回答本文を保存せず、`useful`または`not_useful`と不足文脈を記録できる。",
+          "AC-11:最初のready sourceからfirst-value reviewまでの経過時間を記録し、600秒以内かを機械判定できる。",
+          "AC-12: 公開Skillが、実際のconnector棚卸し、最小範囲fetch、5つのonboarding MCP tool、人間レビュー、失敗状態をホストエージェントへ明示する。",
+          "AC-13: MCP stdioを通るfixture E2Eでstart→ingest→review→first value→verdictとcanonical検索を確認する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "9f35220b73d0ca1c5571f55706fc71459dc8b2309b9b68b85b5a7280ab733b72",
+      "recorded_at": "2026-08-04T14:21:55.904Z"
+    },
+    {
+      "clause_id": "AC-1",
+      "verdict": "demonstrated",
+      "reason": "先の判定はout-of-scopeなlive connector API実行を要求していた。Story境界ではhostが実際に呼出可能なconnector statesを渡し、Brainbaseはそれをreceivesする。start実装はtargetと5 source mode・5 availability stateを受領・保存し、MCP schema、source-state tests、public Skill contractで実証されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-portable-connected-world-onboarding",
+        "task_id": null,
+        "acceptance_criteria": [
+          "AC-1: run開始時に、最初に得たい価値と、`mcp`、`drive`、`gmail`、`local_folder`、`single_document`の実在する接続状態を受け取る。",
+          "AC-2: source inventoryは`ready`、`waiting_for_authorization`、`unavailable`、`error`、`unconfirmed`を区別し、取得失敗を0件やreadyへ変換しない。",
+          "AC-3: ready sourceが複数ある場合はwarm pathを、ない場合は明示された単一ドキュメントfallbackだけを選び、全Driveやhome directoryを走査しない。",
+          "AC-4: source receiptはpointer、content hash、permission snapshot、収集状態だけを保持し、本文、回答本文、credential、token、password、secretを永続化しない。",
+          "AC-5: evidence candidateはsource receiptと双方向に追跡でき、`observed`と`inferred`を区別する。",
+          "AC-6: `approve`、`edit`、`reject`、`merge`を候補単位で実行できる。`inferred`候補は直接approveできない。",
+          "AC-7: review入力全体を事前検証し、不正な1件があればcanonical SSOTを一切変更しない。",
+          "AC-8: approve/edit/mergeされた候補だけをOntology validation経由で昇格し、canonical 4ファイルとreview ledgerを同じrecovery可能なSSOT transactionでpublishする。rejectは監査履歴を残すがcanonical IDを持たない。",
+          "AC-9: retryは同じsource/candidateを重複作成せず、source identityを後から別pointer/hashへ差し替えられない。",
+          "AC-10: first-value receiptは昇格済みcanonical IDだけを根拠として記録し、回答本文を保存せず、`useful`または`not_useful`と不足文脈を記録できる。",
+          "AC-11:最初のready sourceからfirst-value reviewまでの経過時間を記録し、600秒以内かを機械判定できる。",
+          "AC-12: 公開Skillが、実際のconnector棚卸し、最小範囲fetch、5つのonboarding MCP tool、人間レビュー、失敗状態をホストエージェントへ明示する。",
+          "AC-13: MCP stdioを通るfixture E2Eでstart→ingest→review→first value→verdictとcanonical検索を確認する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "9f35220b73d0ca1c5571f55706fc71459dc8b2309b9b68b85b5a7280ab733b72",
+      "recorded_at": "2026-08-04T14:21:55.658Z"
+    },
+    {
+      "clause_id": "AC-13",
+      "verdict": "demonstrated",
+      "reason": "tests/mcp-contract.test.tsが実stdio Client/ServerTransportでstart→ingest→review→first_value record/review→canonical searchを通す。現HEADのfull unit runで当該testを含む28 files/241 testsが成功している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-portable-connected-world-onboarding",
+        "task_id": null,
+        "acceptance_criteria": [
+          "AC-1: run開始時に、最初に得たい価値と、`mcp`、`drive`、`gmail`、`local_folder`、`single_document`の実在する接続状態を受け取る。",
+          "AC-2: source inventoryは`ready`、`waiting_for_authorization`、`unavailable`、`error`、`unconfirmed`を区別し、取得失敗を0件やreadyへ変換しない。",
+          "AC-3: ready sourceが複数ある場合はwarm pathを、ない場合は明示された単一ドキュメントfallbackだけを選び、全Driveやhome directoryを走査しない。",
+          "AC-4: source receiptはpointer、content hash、permission snapshot、収集状態だけを保持し、本文、回答本文、credential、token、password、secretを永続化しない。",
+          "AC-5: evidence candidateはsource receiptと双方向に追跡でき、`observed`と`inferred`を区別する。",
+          "AC-6: `approve`、`edit`、`reject`、`merge`を候補単位で実行できる。`inferred`候補は直接approveできない。",
+          "AC-7: review入力全体を事前検証し、不正な1件があればcanonical SSOTを一切変更しない。",
+          "AC-8: approve/edit/mergeされた候補だけをOntology validation経由で昇格し、canonical 4ファイルとreview ledgerを同じrecovery可能なSSOT transactionでpublishする。rejectは監査履歴を残すがcanonical IDを持たない。",
+          "AC-9: retryは同じsource/candidateを重複作成せず、source identityを後から別pointer/hashへ差し替えられない。",
+          "AC-10: first-value receiptは昇格済みcanonical IDだけを根拠として記録し、回答本文を保存せず、`useful`または`not_useful`と不足文脈を記録できる。",
+          "AC-11:最初のready sourceからfirst-value reviewまでの経過時間を記録し、600秒以内かを機械判定できる。",
+          "AC-12: 公開Skillが、実際のconnector棚卸し、最小範囲fetch、5つのonboarding MCP tool、人間レビュー、失敗状態をホストエージェントへ明示する。",
+          "AC-13: MCP stdioを通るfixture E2Eでstart→ingest→review→first value→verdictとcanonical検索を確認する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "9f35220b73d0ca1c5571f55706fc71459dc8b2309b9b68b85b5a7280ab733b72",
+      "recorded_at": "2026-08-04T14:20:08.682Z"
+    },
+    {
+      "clause_id": "AC-12",
+      "verdict": "demonstrated",
+      "reason": "生成されるpublic Skillが実コネクタ棚卸し、最小fetch、5 onboarding tools、人間review、失敗状態、全体走査禁止、raw/answer非保存を明記し、installer acceptance testが配布物を検証している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-portable-connected-world-onboarding",
+        "task_id": null,
+        "acceptance_criteria": [
+          "AC-1: run開始時に、最初に得たい価値と、`mcp`、`drive`、`gmail`、`local_folder`、`single_document`の実在する接続状態を受け取る。",
+          "AC-2: source inventoryは`ready`、`waiting_for_authorization`、`unavailable`、`error`、`unconfirmed`を区別し、取得失敗を0件やreadyへ変換しない。",
+          "AC-3: ready sourceが複数ある場合はwarm pathを、ない場合は明示された単一ドキュメントfallbackだけを選び、全Driveやhome directoryを走査しない。",
+          "AC-4: source receiptはpointer、content hash、permission snapshot、収集状態だけを保持し、本文、回答本文、credential、token、password、secretを永続化しない。",
+          "AC-5: evidence candidateはsource receiptと双方向に追跡でき、`observed`と`inferred`を区別する。",
+          "AC-6: `approve`、`edit`、`reject`、`merge`を候補単位で実行できる。`inferred`候補は直接approveできない。",
+          "AC-7: review入力全体を事前検証し、不正な1件があればcanonical SSOTを一切変更しない。",
+          "AC-8: approve/edit/mergeされた候補だけをOntology validation経由で昇格し、canonical 4ファイルとreview ledgerを同じrecovery可能なSSOT transactionでpublishする。rejectは監査履歴を残すがcanonical IDを持たない。",
+          "AC-9: retryは同じsource/candidateを重複作成せず、source identityを後から別pointer/hashへ差し替えられない。",
+          "AC-10: first-value receiptは昇格済みcanonical IDだけを根拠として記録し、回答本文を保存せず、`useful`または`not_useful`と不足文脈を記録できる。",
+          "AC-11:最初のready sourceからfirst-value reviewまでの経過時間を記録し、600秒以内かを機械判定できる。",
+          "AC-12: 公開Skillが、実際のconnector棚卸し、最小範囲fetch、5つのonboarding MCP tool、人間レビュー、失敗状態をホストエージェントへ明示する。",
+          "AC-13: MCP stdioを通るfixture E2Eでstart→ingest→review→first value→verdictとcanonical検索を確認する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "9f35220b73d0ca1c5571f55706fc71459dc8b2309b9b68b85b5a7280ab733b72",
+      "recorded_at": "2026-08-04T14:20:08.453Z"
+    },
+    {
+      "clause_id": "AC-11",
+      "verdict": "demonstrated",
+      "reason": "sourceReadyAtからreview記録時刻までのelapsedSecondsを算出し、600秒以下をwithinTargetとして機械判定する。stdio flowでもwithinTarget=trueを確認している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-portable-connected-world-onboarding",
+        "task_id": null,
+        "acceptance_criteria": [
+          "AC-1: run開始時に、最初に得たい価値と、`mcp`、`drive`、`gmail`、`local_folder`、`single_document`の実在する接続状態を受け取る。",
+          "AC-2: source inventoryは`ready`、`waiting_for_authorization`、`unavailable`、`error`、`unconfirmed`を区別し、取得失敗を0件やreadyへ変換しない。",
+          "AC-3: ready sourceが複数ある場合はwarm pathを、ない場合は明示された単一ドキュメントfallbackだけを選び、全Driveやhome directoryを走査しない。",
+          "AC-4: source receiptはpointer、content hash、permission snapshot、収集状態だけを保持し、本文、回答本文、credential、token、password、secretを永続化しない。",
+          "AC-5: evidence candidateはsource receiptと双方向に追跡でき、`observed`と`inferred`を区別する。",
+          "AC-6: `approve`、`edit`、`reject`、`merge`を候補単位で実行できる。`inferred`候補は直接approveできない。",
+          "AC-7: review入力全体を事前検証し、不正な1件があればcanonical SSOTを一切変更しない。",
+          "AC-8: approve/edit/mergeされた候補だけをOntology validation経由で昇格し、canonical 4ファイルとreview ledgerを同じrecovery可能なSSOT transactionでpublishする。rejectは監査履歴を残すがcanonical IDを持たない。",
+          "AC-9: retryは同じsource/candidateを重複作成せず、source identityを後から別pointer/hashへ差し替えられない。",
+          "AC-10: first-value receiptは昇格済みcanonical IDだけを根拠として記録し、回答本文を保存せず、`useful`または`not_useful`と不足文脈を記録できる。",
+          "AC-11:最初のready sourceからfirst-value reviewまでの経過時間を記録し、600秒以内かを機械判定できる。",
+          "AC-12: 公開Skillが、実際のconnector棚卸し、最小範囲fetch、5つのonboarding MCP tool、人間レビュー、失敗状態をホストエージェントへ明示する。",
+          "AC-13: MCP stdioを通るfixture E2Eでstart→ingest→review→first value→verdictとcanonical検索を確認する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "9f35220b73d0ca1c5571f55706fc71459dc8b2309b9b68b85b5a7280ab733b72",
+      "recorded_at": "2026-08-04T14:20:08.215Z"
+    },
+    {
+      "clause_id": "AC-10",
+      "verdict": "demonstrated",
+      "reason": "first-value receiptはpromoted canonical IDだけを許可し、answerHashのみ保存する。verdictはuseful/not_usefulとmissingContextを保持し、未昇格IDを拒否する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-portable-connected-world-onboarding",
+        "task_id": null,
+        "acceptance_criteria": [
+          "AC-1: run開始時に、最初に得たい価値と、`mcp`、`drive`、`gmail`、`local_folder`、`single_document`の実在する接続状態を受け取る。",
+          "AC-2: source inventoryは`ready`、`waiting_for_authorization`、`unavailable`、`error`、`unconfirmed`を区別し、取得失敗を0件やreadyへ変換しない。",
+          "AC-3: ready sourceが複数ある場合はwarm pathを、ない場合は明示された単一ドキュメントfallbackだけを選び、全Driveやhome directoryを走査しない。",
+          "AC-4: source receiptはpointer、content hash、permission snapshot、収集状態だけを保持し、本文、回答本文、credential、token、password、secretを永続化しない。",
+          "AC-5: evidence candidateはsource receiptと双方向に追跡でき、`observed`と`inferred`を区別する。",
+          "AC-6: `approve`、`edit`、`reject`、`merge`を候補単位で実行できる。`inferred`候補は直接approveできない。",
+          "AC-7: review入力全体を事前検証し、不正な1件があればcanonical SSOTを一切変更しない。",
+          "AC-8: approve/edit/mergeされた候補だけをOntology validation経由で昇格し、canonical 4ファイルとreview ledgerを同じrecovery可能なSSOT transactionでpublishする。rejectは監査履歴を残すがcanonical IDを持たない。",
+          "AC-9: retryは同じsource/candidateを重複作成せず、source identityを後から別pointer/hashへ差し替えられない。",
+          "AC-10: first-value receiptは昇格済みcanonical IDだけを根拠として記録し、回答本文を保存せず、`useful`または`not_useful`と不足文脈を記録できる。",
+          "AC-11:最初のready sourceからfirst-value reviewまでの経過時間を記録し、600秒以内かを機械判定できる。",
+          "AC-12: 公開Skillが、実際のconnector棚卸し、最小範囲fetch、5つのonboarding MCP tool、人間レビュー、失敗状態をホストエージェントへ明示する。",
+          "AC-13: MCP stdioを通るfixture E2Eでstart→ingest→review→first value→verdictとcanonical検索を確認する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "9f35220b73d0ca1c5571f55706fc71459dc8b2309b9b68b85b5a7280ab733b72",
+      "recorded_at": "2026-08-04T14:20:07.974Z"
+    },
+    {
+      "clause_id": "AC-9",
+      "verdict": "demonstrated",
+      "reason": "source receiptとcandidate IDは安定導出され、同一retryは冪等、source/evidence/kind/payload変更を伴うretryは拒否するテストがある。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-portable-connected-world-onboarding",
+        "task_id": null,
+        "acceptance_criteria": [
+          "AC-1: run開始時に、最初に得たい価値と、`mcp`、`drive`、`gmail`、`local_folder`、`single_document`の実在する接続状態を受け取る。",
+          "AC-2: source inventoryは`ready`、`waiting_for_authorization`、`unavailable`、`error`、`unconfirmed`を区別し、取得失敗を0件やreadyへ変換しない。",
+          "AC-3: ready sourceが複数ある場合はwarm pathを、ない場合は明示された単一ドキュメントfallbackだけを選び、全Driveやhome directoryを走査しない。",
+          "AC-4: source receiptはpointer、content hash、permission snapshot、収集状態だけを保持し、本文、回答本文、credential、token、password、secretを永続化しない。",
+          "AC-5: evidence candidateはsource receiptと双方向に追跡でき、`observed`と`inferred`を区別する。",
+          "AC-6: `approve`、`edit`、`reject`、`merge`を候補単位で実行できる。`inferred`候補は直接approveできない。",
+          "AC-7: review入力全体を事前検証し、不正な1件があればcanonical SSOTを一切変更しない。",
+          "AC-8: approve/edit/mergeされた候補だけをOntology validation経由で昇格し、canonical 4ファイルとreview ledgerを同じrecovery可能なSSOT transactionでpublishする。rejectは監査履歴を残すがcanonical IDを持たない。",
+          "AC-9: retryは同じsource/candidateを重複作成せず、source identityを後から別pointer/hashへ差し替えられない。",
+          "AC-10: first-value receiptは昇格済みcanonical IDだけを根拠として記録し、回答本文を保存せず、`useful`または`not_useful`と不足文脈を記録できる。",
+          "AC-11:最初のready sourceからfirst-value reviewまでの経過時間を記録し、600秒以内かを機械判定できる。",
+          "AC-12: 公開Skillが、実際のconnector棚卸し、最小範囲fetch、5つのonboarding MCP tool、人間レビュー、失敗状態をホストエージェントへ明示する。",
+          "AC-13: MCP stdioを通るfixture E2Eでstart→ingest→review→first value→verdictとcanonical検索を確認する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "9f35220b73d0ca1c5571f55706fc71459dc8b2309b9b68b85b5a7280ab733b72",
+      "recorded_at": "2026-08-04T14:20:07.742Z"
+    },
+    {
+      "clause_id": "AC-8",
+      "verdict": "demonstrated",
+      "reason": "approve/edit/mergeはontology validationを通り、4 canonical filesとledger sidecarを単一SSOT transactionでpublishする。size failure・publish injection・recovery時の原子性をテストしている。rejectはaudit stateのみでcanonical IDを持たない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-portable-connected-world-onboarding",
+        "task_id": null,
+        "acceptance_criteria": [
+          "AC-1: run開始時に、最初に得たい価値と、`mcp`、`drive`、`gmail`、`local_folder`、`single_document`の実在する接続状態を受け取る。",
+          "AC-2: source inventoryは`ready`、`waiting_for_authorization`、`unavailable`、`error`、`unconfirmed`を区別し、取得失敗を0件やreadyへ変換しない。",
+          "AC-3: ready sourceが複数ある場合はwarm pathを、ない場合は明示された単一ドキュメントfallbackだけを選び、全Driveやhome directoryを走査しない。",
+          "AC-4: source receiptはpointer、content hash、permission snapshot、収集状態だけを保持し、本文、回答本文、credential、token、password、secretを永続化しない。",
+          "AC-5: evidence candidateはsource receiptと双方向に追跡でき、`observed`と`inferred`を区別する。",
+          "AC-6: `approve`、`edit`、`reject`、`merge`を候補単位で実行できる。`inferred`候補は直接approveできない。",
+          "AC-7: review入力全体を事前検証し、不正な1件があればcanonical SSOTを一切変更しない。",
+          "AC-8: approve/edit/mergeされた候補だけをOntology validation経由で昇格し、canonical 4ファイルとreview ledgerを同じrecovery可能なSSOT transactionでpublishする。rejectは監査履歴を残すがcanonical IDを持たない。",
+          "AC-9: retryは同じsource/candidateを重複作成せず、source identityを後から別pointer/hashへ差し替えられない。",
+          "AC-10: first-value receiptは昇格済みcanonical IDだけを根拠として記録し、回答本文を保存せず、`useful`または`not_useful`と不足文脈を記録できる。",
+          "AC-11:最初のready sourceからfirst-value reviewまでの経過時間を記録し、600秒以内かを機械判定できる。",
+          "AC-12: 公開Skillが、実際のconnector棚卸し、最小範囲fetch、5つのonboarding MCP tool、人間レビュー、失敗状態をホストエージェントへ明示する。",
+          "AC-13: MCP stdioを通るfixture E2Eでstart→ingest→review→first value→verdictとcanonical検索を確認する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "9f35220b73d0ca1c5571f55706fc71459dc8b2309b9b68b85b5a7280ab733b72",
+      "recorded_at": "2026-08-04T14:20:07.513Z"
+    },
+    {
+      "clause_id": "AC-7",
+      "verdict": "demonstrated",
+      "reason": "全review actionを先にshape・conflict・promotion planまで検証してから適用し、1件不正なbatchでcanonicalとledgerが不変となるテストがある。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-portable-connected-world-onboarding",
+        "task_id": null,
+        "acceptance_criteria": [
+          "AC-1: run開始時に、最初に得たい価値と、`mcp`、`drive`、`gmail`、`local_folder`、`single_document`の実在する接続状態を受け取る。",
+          "AC-2: source inventoryは`ready`、`waiting_for_authorization`、`unavailable`、`error`、`unconfirmed`を区別し、取得失敗を0件やreadyへ変換しない。",
+          "AC-3: ready sourceが複数ある場合はwarm pathを、ない場合は明示された単一ドキュメントfallbackだけを選び、全Driveやhome directoryを走査しない。",
+          "AC-4: source receiptはpointer、content hash、permission snapshot、収集状態だけを保持し、本文、回答本文、credential、token、password、secretを永続化しない。",
+          "AC-5: evidence candidateはsource receiptと双方向に追跡でき、`observed`と`inferred`を区別する。",
+          "AC-6: `approve`、`edit`、`reject`、`merge`を候補単位で実行できる。`inferred`候補は直接approveできない。",
+          "AC-7: review入力全体を事前検証し、不正な1件があればcanonical SSOTを一切変更しない。",
+          "AC-8: approve/edit/mergeされた候補だけをOntology validation経由で昇格し、canonical 4ファイルとreview ledgerを同じrecovery可能なSSOT transactionでpublishする。rejectは監査履歴を残すがcanonical IDを持たない。",
+          "AC-9: retryは同じsource/candidateを重複作成せず、source identityを後から別pointer/hashへ差し替えられない。",
+          "AC-10: first-value receiptは昇格済みcanonical IDだけを根拠として記録し、回答本文を保存せず、`useful`または`not_useful`と不足文脈を記録できる。",
+          "AC-11:最初のready sourceからfirst-value reviewまでの経過時間を記録し、600秒以内かを機械判定できる。",
+          "AC-12: 公開Skillが、実際のconnector棚卸し、最小範囲fetch、5つのonboarding MCP tool、人間レビュー、失敗状態をホストエージェントへ明示する。",
+          "AC-13: MCP stdioを通るfixture E2Eでstart→ingest→review→first value→verdictとcanonical検索を確認する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "9f35220b73d0ca1c5571f55706fc71459dc8b2309b9b68b85b5a7280ab733b72",
+      "recorded_at": "2026-08-04T14:20:07.285Z"
+    },
+    {
+      "clause_id": "AC-6",
+      "verdict": "demonstrated",
+      "reason": "approve/edit/reject/mergeをdecision別schemaで実装し、inferredの直接approve/mergeを拒否する。edit後のobserved化と各terminal decisionのテストがある。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-portable-connected-world-onboarding",
+        "task_id": null,
+        "acceptance_criteria": [
+          "AC-1: run開始時に、最初に得たい価値と、`mcp`、`drive`、`gmail`、`local_folder`、`single_document`の実在する接続状態を受け取る。",
+          "AC-2: source inventoryは`ready`、`waiting_for_authorization`、`unavailable`、`error`、`unconfirmed`を区別し、取得失敗を0件やreadyへ変換しない。",
+          "AC-3: ready sourceが複数ある場合はwarm pathを、ない場合は明示された単一ドキュメントfallbackだけを選び、全Driveやhome directoryを走査しない。",
+          "AC-4: source receiptはpointer、content hash、permission snapshot、収集状態だけを保持し、本文、回答本文、credential、token、password、secretを永続化しない。",
+          "AC-5: evidence candidateはsource receiptと双方向に追跡でき、`observed`と`inferred`を区別する。",
+          "AC-6: `approve`、`edit`、`reject`、`merge`を候補単位で実行できる。`inferred`候補は直接approveできない。",
+          "AC-7: review入力全体を事前検証し、不正な1件があればcanonical SSOTを一切変更しない。",
+          "AC-8: approve/edit/mergeされた候補だけをOntology validation経由で昇格し、canonical 4ファイルとreview ledgerを同じrecovery可能なSSOT transactionでpublishする。rejectは監査履歴を残すがcanonical IDを持たない。",
+          "AC-9: retryは同じsource/candidateを重複作成せず、source identityを後から別pointer/hashへ差し替えられない。",
+          "AC-10: first-value receiptは昇格済みcanonical IDだけを根拠として記録し、回答本文を保存せず、`useful`または`not_useful`と不足文脈を記録できる。",
+          "AC-11:最初のready sourceからfirst-value reviewまでの経過時間を記録し、600秒以内かを機械判定できる。",
+          "AC-12: 公開Skillが、実際のconnector棚卸し、最小範囲fetch、5つのonboarding MCP tool、人間レビュー、失敗状態をホストエージェントへ明示する。",
+          "AC-13: MCP stdioを通るfixture E2Eでstart→ingest→review→first value→verdictとcanonical検索を確認する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "9f35220b73d0ca1c5571f55706fc71459dc8b2309b9b68b85b5a7280ab733b72",
+      "recorded_at": "2026-08-04T14:20:07.053Z"
+    },
+    {
+      "clause_id": "AC-5",
+      "verdict": "demonstrated",
+      "reason": "receipt.candidateIdsとcandidate.sourceId/evidenceIdの双方向参照、observed/inferred区分をschema validationとcorruption testsで強制している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-portable-connected-world-onboarding",
+        "task_id": null,
+        "acceptance_criteria": [
+          "AC-1: run開始時に、最初に得たい価値と、`mcp`、`drive`、`gmail`、`local_folder`、`single_document`の実在する接続状態を受け取る。",
+          "AC-2: source inventoryは`ready`、`waiting_for_authorization`、`unavailable`、`error`、`unconfirmed`を区別し、取得失敗を0件やreadyへ変換しない。",
+          "AC-3: ready sourceが複数ある場合はwarm pathを、ない場合は明示された単一ドキュメントfallbackだけを選び、全Driveやhome directoryを走査しない。",
+          "AC-4: source receiptはpointer、content hash、permission snapshot、収集状態だけを保持し、本文、回答本文、credential、token、password、secretを永続化しない。",
+          "AC-5: evidence candidateはsource receiptと双方向に追跡でき、`observed`と`inferred`を区別する。",
+          "AC-6: `approve`、`edit`、`reject`、`merge`を候補単位で実行できる。`inferred`候補は直接approveできない。",
+          "AC-7: review入力全体を事前検証し、不正な1件があればcanonical SSOTを一切変更しない。",
+          "AC-8: approve/edit/mergeされた候補だけをOntology validation経由で昇格し、canonical 4ファイルとreview ledgerを同じrecovery可能なSSOT transactionでpublishする。rejectは監査履歴を残すがcanonical IDを持たない。",
+          "AC-9: retryは同じsource/candidateを重複作成せず、source identityを後から別pointer/hashへ差し替えられない。",
+          "AC-10: first-value receiptは昇格済みcanonical IDだけを根拠として記録し、回答本文を保存せず、`useful`または`not_useful`と不足文脈を記録できる。",
+          "AC-11:最初のready sourceからfirst-value reviewまでの経過時間を記録し、600秒以内かを機械判定できる。",
+          "AC-12: 公開Skillが、実際のconnector棚卸し、最小範囲fetch、5つのonboarding MCP tool、人間レビュー、失敗状態をホストエージェントへ明示する。",
+          "AC-13: MCP stdioを通るfixture E2Eでstart→ingest→review→first value→verdictとcanonical検索を確認する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "9f35220b73d0ca1c5571f55706fc71459dc8b2309b9b68b85b5a7280ab733b72",
+      "recorded_at": "2026-08-04T14:20:06.817Z"
+    },
+    {
+      "clause_id": "AC-4",
+      "verdict": "demonstrated",
+      "reason": "receiptはpointer/hash/permission/statusに限定され、raw/body/content/document/messageBody/answer、secret-like key、credential patternを永続化前に拒否する。disk-level negative testsもある。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-portable-connected-world-onboarding",
+        "task_id": null,
+        "acceptance_criteria": [
+          "AC-1: run開始時に、最初に得たい価値と、`mcp`、`drive`、`gmail`、`local_folder`、`single_document`の実在する接続状態を受け取る。",
+          "AC-2: source inventoryは`ready`、`waiting_for_authorization`、`unavailable`、`error`、`unconfirmed`を区別し、取得失敗を0件やreadyへ変換しない。",
+          "AC-3: ready sourceが複数ある場合はwarm pathを、ない場合は明示された単一ドキュメントfallbackだけを選び、全Driveやhome directoryを走査しない。",
+          "AC-4: source receiptはpointer、content hash、permission snapshot、収集状態だけを保持し、本文、回答本文、credential、token、password、secretを永続化しない。",
+          "AC-5: evidence candidateはsource receiptと双方向に追跡でき、`observed`と`inferred`を区別する。",
+          "AC-6: `approve`、`edit`、`reject`、`merge`を候補単位で実行できる。`inferred`候補は直接approveできない。",
+          "AC-7: review入力全体を事前検証し、不正な1件があればcanonical SSOTを一切変更しない。",
+          "AC-8: approve/edit/mergeされた候補だけをOntology validation経由で昇格し、canonical 4ファイルとreview ledgerを同じrecovery可能なSSOT transactionでpublishする。rejectは監査履歴を残すがcanonical IDを持たない。",
+          "AC-9: retryは同じsource/candidateを重複作成せず、source identityを後から別pointer/hashへ差し替えられない。",
+          "AC-10: first-value receiptは昇格済みcanonical IDだけを根拠として記録し、回答本文を保存せず、`useful`または`not_useful`と不足文脈を記録できる。",
+          "AC-11:最初のready sourceからfirst-value reviewまでの経過時間を記録し、600秒以内かを機械判定できる。",
+          "AC-12: 公開Skillが、実際のconnector棚卸し、最小範囲fetch、5つのonboarding MCP tool、人間レビュー、失敗状態をホストエージェントへ明示する。",
+          "AC-13: MCP stdioを通るfixture E2Eでstart→ingest→review→first value→verdictとcanonical検索を確認する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "9f35220b73d0ca1c5571f55706fc71459dc8b2309b9b68b85b5a7280ab733b72",
+      "recorded_at": "2026-08-04T14:20:06.587Z"
+    },
+    {
+      "clause_id": "AC-2",
+      "verdict": "demonstrated",
+      "reason": "ready/waiting_auth/waiting_permission/unavailable/failedを型・MCP schema・ledgerで区別し、unavailable/failedをreadyや0件に変換しないテストがある。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "acceptance_scope": {
+        "source": "story",
+        "story_id": "story-brainbase-portable-connected-world-onboarding",
+        "task_id": null,
+        "acceptance_criteria": [
+          "AC-1: run開始時に、最初に得たい価値と、`mcp`、`drive`、`gmail`、`local_folder`、`single_document`の実在する接続状態を受け取る。",
+          "AC-2: source inventoryは`ready`、`waiting_for_authorization`、`unavailable`、`error`、`unconfirmed`を区別し、取得失敗を0件やreadyへ変換しない。",
+          "AC-3: ready sourceが複数ある場合はwarm pathを、ない場合は明示された単一ドキュメントfallbackだけを選び、全Driveやhome directoryを走査しない。",
+          "AC-4: source receiptはpointer、content hash、permission snapshot、収集状態だけを保持し、本文、回答本文、credential、token、password、secretを永続化しない。",
+          "AC-5: evidence candidateはsource receiptと双方向に追跡でき、`observed`と`inferred`を区別する。",
+          "AC-6: `approve`、`edit`、`reject`、`merge`を候補単位で実行できる。`inferred`候補は直接approveできない。",
+          "AC-7: review入力全体を事前検証し、不正な1件があればcanonical SSOTを一切変更しない。",
+          "AC-8: approve/edit/mergeされた候補だけをOntology validation経由で昇格し、canonical 4ファイルとreview ledgerを同じrecovery可能なSSOT transactionでpublishする。rejectは監査履歴を残すがcanonical IDを持たない。",
+          "AC-9: retryは同じsource/candidateを重複作成せず、source identityを後から別pointer/hashへ差し替えられない。",
+          "AC-10: first-value receiptは昇格済みcanonical IDだけを根拠として記録し、回答本文を保存せず、`useful`または`not_useful`と不足文脈を記録できる。",
+          "AC-11:最初のready sourceからfirst-value reviewまでの経過時間を記録し、600秒以内かを機械判定できる。",
+          "AC-12: 公開Skillが、実際のconnector棚卸し、最小範囲fetch、5つのonboarding MCP tool、人間レビュー、失敗状態をホストエージェントへ明示する。",
+          "AC-13: MCP stdioを通るfixture E2Eでstart→ingest→review→first value→verdictとcanonical検索を確認する。"
+        ]
+      },
+      "acceptance_scope_fingerprint": "9f35220b73d0ca1c5571f55706fc71459dc8b2309b9b68b85b5a7280ab733b72",
+      "recorded_at": "2026-08-04T14:20:06.131Z"
+    }
+  ]
+}

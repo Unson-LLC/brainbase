@@ -1,0 +1,1330 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-portable-connected-world-onboarding",
+  "source": "execute_merge",
+  "promoted_at": "2026-08-05T01:25:06.831Z",
+  "canonical_dir": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding",
+  "source_workspace_dir": ".vibepro",
+  "audit_index_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-index.json",
+  "decision_summary_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/decision-summary.md",
+  "artifact_policy": {
+    "scope": "compact_manifest_only",
+    "evidence_depth": "standard",
+    "compacted": true,
+    "persisted_for_main_audit": true,
+    "why_compacted": [],
+    "excludes": [
+      "duplicated decision index body",
+      "duplicated cost summary body",
+      "full PR lifecycle JSON",
+      "full review lifecycle JSON",
+      "HTML reports",
+      "raw logs",
+      "dispatch scratch artifacts",
+      "temporary execution state"
+    ]
+  },
+  "evidence_depth": "standard",
+  "cost_summary_ref": {
+    "source": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-index.json",
+    "pointer": "/cost_summary"
+  },
+  "automation_value_audit_ref": {
+    "source": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-index.json",
+    "pointer": "/automation_value_audit"
+  },
+  "replay_bundle": {
+    "schema_version": "0.1.0",
+    "path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+    "compression": "gzip",
+    "media_type": "application/json",
+    "content_hash": "sha256:b443fafb2670eb145b72e598c0020c0b0842ffd482afa573eb2d504d3703b515",
+    "compressed_hash": "sha256:e5ea82461a94e282b5db27f2bcfe252b52bab517ae2b460ed2421a5d8b4ef0af",
+    "expanded_bytes": 26066,
+    "compressed_bytes": 4719,
+    "expanded_line_count": 661,
+    "persisted_line_count": 1,
+    "included_artifact_kinds": [
+      "decision_index",
+      "decision_outcome_ledger",
+      "evidence_plan",
+      "evidence_reuse",
+      "pr_create",
+      "pr_merge",
+      "pr_prepare",
+      "review_lifecycle",
+      "review_request",
+      "review_result",
+      "review_summary",
+      "senior_gap_judgment",
+      "traceability",
+      "verification_evidence"
+    ],
+    "replay_command": "vibepro audit replay . --story-id story-brainbase-portable-connected-world-onboarding",
+    "cost": {
+      "compressed_bytes": 4719,
+      "expanded_bytes": 26066,
+      "expanded_line_count": 661,
+      "persisted_line_count": 1
+    }
+  },
+  "merge": {
+    "status": "merged",
+    "base": "develop",
+    "delivery": {
+      "status": "merged",
+      "source": "github_pr",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/445",
+      "merge_commit_sha": "954103ac8d8ef75830ecee770f581df2f1dfddf6",
+      "merged_at": "2026-08-05T01:25:04Z"
+    },
+    "reconciliation": {
+      "status": "reconciliation_required",
+      "reasons": [
+        "decision_outcome_binding_failed"
+      ],
+      "evaluated_at": "2026-08-05T01:25:06.826Z",
+      "head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae"
+    },
+    "reconciliation_action": {
+      "status": "required",
+      "reason": "decision_outcome_binding_failed",
+      "commands": [
+        "vibepro pr prepare . --story-id story-brainbase-portable-connected-world-onboarding --base develop",
+        "vibepro execute merge . --story-id story-brainbase-portable-connected-world-onboarding --base develop --pr https://github.com/Unson-LLC/brainbase/pull/445"
+      ]
+    },
+    "decision_outcome_binding": {
+      "status": "failed",
+      "reason": "central_ledger_parse_failed",
+      "expected_entry_count": 52,
+      "promoted_count": 0,
+      "duplicate_count": 0,
+      "persistence_status": null
+    },
+    "pr_url": "https://github.com/Unson-LLC/brainbase/pull/445",
+    "merge_commit_sha": "954103ac8d8ef75830ecee770f581df2f1dfddf6",
+    "merged_at": "2026-08-05T01:25:04Z",
+    "current_head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...723c2c2d0436709ecd9b4f6b596fea0aebc73fae"
+  },
+  "handoff_replay_status": "blocked",
+  "handoff_replay": {
+    "status": "blocked",
+    "resolved_reference_count": 92,
+    "copied_reference_count": 74,
+    "unresolved_reference_count": 3,
+    "replay_bundle": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+    "replay_command": "vibepro audit replay . --story-id story-brainbase-portable-connected-world-onboarding"
+  },
+  "artifacts": [
+    {
+      "kind": "audit_index",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-index.json"
+    },
+    {
+      "kind": "decision_summary",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/decision-summary.md"
+    },
+    {
+      "kind": "compressed_replay_bundle",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "compression": "gzip",
+      "content_hash": "sha256:b443fafb2670eb145b72e598c0020c0b0842ffd482afa573eb2d504d3703b515"
+    }
+  ],
+  "raw_artifact_manifest": [
+    {
+      "kind": "evidence_reuse",
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/evidence-reuse.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:fcfa1c96e3b064ddd6c4d83e8aa81c58b5ed0559005e0b577eb7bd44d8b9a5d9",
+      "audit_digest": "sha256:fcfa1c96e3b064ddd6c4d83e8aa81c58b5ed0559005e0b577eb7bd44d8b9a5d9",
+      "line_count": 944,
+      "raw_line_count": 944,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "decision_outcome_ledger",
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-outcome-ledger.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:d869581dea0dbae47dd69c532b558cfedbe4b663ad9607de5993492a901ec93c",
+      "audit_digest": "sha256:d869581dea0dbae47dd69c532b558cfedbe4b663ad9607de5993492a901ec93c",
+      "line_count": 1120,
+      "raw_line_count": 1120,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "pr_prepare",
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-prepare.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:335e832d8c4a1564e046ce74385aeb051f849beee0eac09418071125fe42bb29",
+      "audit_digest": "sha256:947b4cecdd0b78c0328f526a73522ab68dfd6bc6b9ce8c07ee00791fe06ef7ea",
+      "line_count": 11356,
+      "raw_line_count": 34329,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_prepare.diagnostics.progress_snapshots",
+        "pr_prepare.pr_context.full_gate_dag",
+        "pr_prepare.pr_context.design_ssot_full_registry_inventory",
+        "pr_prepare.pr_context.inactive_judgment_axis_details",
+        "pr_prepare.duplicated_child_artifacts",
+        "design_ssot.unregistered_docs_full_inventory",
+        "design_ssot.registered_docs_full_inventory",
+        "responsibility_authority.full_registry_entries",
+        "requirement_consistency.verbose_code_scenarios",
+        "engineering_judgment.inactive_axis_details",
+        "engineering_judgment.verbose_matched_evidence",
+        "verification.raw_command_output",
+        "senior_gap_judgment.verbose_supporting_context",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "pr_create",
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-create.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:70db3738ffe935c492faf5d5e55602154ba4295a69d213c0271bbf1ebf389861",
+      "audit_digest": "sha256:70ab4c196d825c57db9f0dd0da15891e042fd4178eef414fb0eda9e9586d50ed",
+      "line_count": 2684,
+      "raw_line_count": 5558,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "senior_gap_judgment",
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/senior-gap-judgment.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:82d8409484c7adc4934f12489512244b335427e42c137257a1b403309f76d47a",
+      "audit_digest": "sha256:f68642f4ccfb4331fe4b16ef81483750251001fd57dd663b5b1342334a863fa9",
+      "line_count": 14,
+      "raw_line_count": 502,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "senior_gap_judgment.verbose_supporting_context"
+      ]
+    },
+    {
+      "kind": "pr_merge",
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-merge.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:2f97029c4744e71302bce62289bbd53cfa86276e15c4128cbb763a2bd61debfc",
+      "audit_digest": "sha256:ac7663c5dd3a3cbdf4c82296ae32911bb7951be14c8a9df3419a0ba250eb2df7",
+      "line_count": 2721,
+      "raw_line_count": 5772,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects",
+        "pr_merge.canonical_audit",
+        "pr_merge.roi_ledger_promotion"
+      ]
+    },
+    {
+      "kind": "traceability",
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/traceability.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:ead59815ab18d5db679e2d00106f207dd0934b011246585b4f1595c7b324b6f5",
+      "audit_digest": "sha256:ead59815ab18d5db679e2d00106f207dd0934b011246585b4f1595c7b324b6f5",
+      "line_count": 560,
+      "raw_line_count": 560,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "verification_evidence",
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:32be2a94ebb181fcfcaff26cd7fb6e6ebefd844de5ef250be67849811c5f007a",
+      "audit_digest": "sha256:a77b27ee7f26e7237c6c2d53405123ee1f8c7e1c3426afb1cdd9fd31bf3b115f",
+      "line_count": 57,
+      "raw_line_count": 995,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "verification.raw_command_output"
+      ]
+    },
+    {
+      "kind": "evidence_plan",
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/evidence-plan.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:a80f43247548bbb9603b96dd675b01b1b9dfb8991ffb1d42b776612a0f2c02a8",
+      "audit_digest": "sha256:a80f43247548bbb9603b96dd675b01b1b9dfb8991ffb1d42b776612a0f2c02a8",
+      "line_count": 984,
+      "raw_line_count": 984,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "decision_index",
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-index.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:e398ef34dc9eaacf73a128ea9078364061de8ed6858d2b94193fc68de93eab30",
+      "audit_digest": "sha256:e398ef34dc9eaacf73a128ea9078364061de8ed6858d2b94193fc68de93eab30",
+      "line_count": 1012,
+      "raw_line_count": 1012,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/architecture_spec/review-request-architecture_boundary.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:39f6be4250ecea91a86da60cc4d81b2367884132bc69cbec9c637112887e6a45",
+      "audit_digest": "sha256:39f6be4250ecea91a86da60cc4d81b2367884132bc69cbec9c637112887e6a45",
+      "line_count": 134,
+      "raw_line_count": 134,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/architecture_spec/review-request-regression_risk.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:358a7084c71b1ad95fc33a2dda51d81ad912faa12a793cefb2d6311ddbb7320a",
+      "audit_digest": "sha256:358a7084c71b1ad95fc33a2dda51d81ad912faa12a793cefb2d6311ddbb7320a",
+      "line_count": 134,
+      "raw_line_count": 134,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/architecture_spec/review-request-spec_consistency.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:da3698d80000a2e74c8596858527007bbfd0f82f06f93cac19e22a7884005d46",
+      "audit_digest": "sha256:da3698d80000a2e74c8596858527007bbfd0f82f06f93cac19e22a7884005d46",
+      "line_count": 134,
+      "raw_line_count": 134,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/architecture_spec/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:de50fd65a0a3994ca90364d83235c31289886a0f43094e4c7cbcdaa2539ea48b",
+      "audit_digest": "sha256:de50fd65a0a3994ca90364d83235c31289886a0f43094e4c7cbcdaa2539ea48b",
+      "line_count": 173,
+      "raw_line_count": 173,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:0ca3cb1aa170047786bfdbf6278517f6559db79ea8750fa070d08e30afa09950",
+      "audit_digest": "sha256:0ca3cb1aa170047786bfdbf6278517f6559db79ea8750fa070d08e30afa09950",
+      "line_count": 339,
+      "raw_line_count": 339,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/review-request-gate_evidence.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:44516c26f981d56eb430bb51cabfb765103f1b493769141fe689057e4c90a5c0",
+      "audit_digest": "sha256:44516c26f981d56eb430bb51cabfb765103f1b493769141fe689057e4c90a5c0",
+      "line_count": 150,
+      "raw_line_count": 150,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/review-result-gate_evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:c1a720a8fbfdd8ff39ab5919cf1c62482c152a19be063feaad14431689228dca",
+      "audit_digest": "sha256:c1a720a8fbfdd8ff39ab5919cf1c62482c152a19be063feaad14431689228dca",
+      "line_count": 205,
+      "raw_line_count": 205,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:29e97fba85ba880f41dd690dd439d6b8b99f28d753b7d83604b208a85f6b8a10",
+      "audit_digest": "sha256:29e97fba85ba880f41dd690dd439d6b8b99f28d753b7d83604b208a85f6b8a10",
+      "line_count": 697,
+      "raw_line_count": 697,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:f1c4dfaf370add8b3ad4290097c5cfe5099acbc70d1a9e610679f001dd9289c9",
+      "audit_digest": "sha256:f1c4dfaf370add8b3ad4290097c5cfe5099acbc70d1a9e610679f001dd9289c9",
+      "line_count": 4401,
+      "raw_line_count": 4401,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/review-request-architecture_boundary.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:7d1d18a5611e663b5405289e501e62b10ecef779ad65a98d46fca465a1483e4f",
+      "audit_digest": "sha256:7d1d18a5611e663b5405289e501e62b10ecef779ad65a98d46fca465a1483e4f",
+      "line_count": 136,
+      "raw_line_count": 136,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/review-request-product_requirement.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:cf896b5a02e60a21571b675de1d4258879dd06bb0f364fd1dabc4684cfe4ade1",
+      "audit_digest": "sha256:cf896b5a02e60a21571b675de1d4258879dd06bb0f364fd1dabc4684cfe4ade1",
+      "line_count": 136,
+      "raw_line_count": 136,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/review-request-spec_consistency.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:bf8e6511b202fad65ec8dd332a13f210a23a38325bf8ea2e4f222882e12d31c1",
+      "audit_digest": "sha256:bf8e6511b202fad65ec8dd332a13f210a23a38325bf8ea2e4f222882e12d31c1",
+      "line_count": 136,
+      "raw_line_count": 136,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/review-result-architecture_boundary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:3ab13352043a9175c960dd12c03124068fb9a32d11d3d939056aefb49b008afe",
+      "audit_digest": "sha256:3ab13352043a9175c960dd12c03124068fb9a32d11d3d939056aefb49b008afe",
+      "line_count": 125,
+      "raw_line_count": 125,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/review-result-product_requirement.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:c4cd7e5bc7f49358ff1ea46cfa94058bd85920e735d35687111efe8468450b62",
+      "audit_digest": "sha256:c4cd7e5bc7f49358ff1ea46cfa94058bd85920e735d35687111efe8468450b62",
+      "line_count": 125,
+      "raw_line_count": 125,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/review-result-spec_consistency.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:5247c167294e2bd0836bab70bd4d3c114e60854ad9e3704e9aa669d17963da85",
+      "audit_digest": "sha256:5247c167294e2bd0836bab70bd4d3c114e60854ad9e3704e9aa669d17963da85",
+      "line_count": 139,
+      "raw_line_count": 139,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
+      "digest": "sha256:b9f0ebc0df8a8e76ab69f5dc9456d8188055fcf5e6d54d46bc842172f80cf10a",
+      "audit_digest": "sha256:b9f0ebc0df8a8e76ab69f5dc9456d8188055fcf5e6d54d46bc842172f80cf10a",
+      "line_count": 5380,
+      "raw_line_count": 5380,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    }
+  ],
+  "missing_artifacts": [],
+  "resolved_references": [
+    {
+      "source": ".vibepro/adjudication/story-brainbase-portable-connected-world-onboarding/adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/adjudication/story-brainbase-portable-connected-world-onboarding/adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/adjudication/story-brainbase-portable-connected-world-onboarding/judgment-adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/adjudication/story-brainbase-portable-connected-world-onboarding/judgment-adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/config.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/config.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/evidence.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/static-site-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/static-site-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/judgment-axis-noise-precedents.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/judgment-axis-noise-precedents.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/pr/decision-index.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-index.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-index.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-outcome-ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/pr/decision-outcome-ledger.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-records.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-records.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/pr/evidence-plan.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/evidence-plan.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/evidence-plan.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/evidence-reuse.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/pr/evidence-reuse.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/evidence-reuse.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/evidence-reuse.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-create.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/pr/pr-create.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-merge.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/pr/pr-merge.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-prepare.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/pr/pr-prepare.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/ref-topology.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/ref-topology.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/ref-topology.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/ref-topology.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/senior-gap-judgment.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/pr/senior-gap-judgment.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/split-plan.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/split-plan.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/traceability.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/pr/traceability.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/pr/verification-evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/build.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/build.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/build.log",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/build.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/e2e.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/e2e.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/e2e.log",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/e2e.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/unit.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/unit.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/unit.log",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/unit.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/architecture_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/architecture_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/history/review-result-gate_evidence-2026-08-04T14-03-15.865Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/history/review-result-gate_evidence-2026-08-04T14-03-15.865Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/history/review-result-gate_evidence-2026-08-04T14-28-23.195Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/history/review-result-gate_evidence-2026-08-04T14-28-23.195Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/review-request-gate_evidence.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/reviews/gate/review-request-gate_evidence.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/review-result-gate_evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/reviews/gate/review-result-gate_evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T11-38-49.076Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T11-38-49.076Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T11-48-19.749Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T11-48-19.749Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T11-55-06.242Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T11-55-06.242Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T12-01-24.757Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T12-01-24.757Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T12-09-12.427Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T12-09-12.427Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T13-49-19.404Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T13-49-19.404Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T13-54-56.323Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T13-54-56.323Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-05T01-12-12.551Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-05T01-12-12.551Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T11-36-16.550Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T11-36-16.550Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T11-48-18.569Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T11-48-18.569Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T11-55-04.798Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T11-55-04.798Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T12-01-24.015Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T12-01-24.015Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T12-09-11.641Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T12-09-11.641Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T13-49-18.787Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T13-49-18.787Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T13-54-55.654Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T13-54-55.654Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-05T01-12-11.872Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-05T01-12-11.872Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T11-38-49.968Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T11-38-49.968Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T11-48-20.896Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T11-48-20.896Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T11-55-07.672Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T11-55-07.672Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T12-01-25.588Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T12-01-25.588Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T12-09-13.450Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T12-09-13.450Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T13-49-20.023Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T13-49-20.023Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T13-54-56.996Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T13-54-56.996Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-05T01-12-13.267Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-05T01-12-13.267Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/review-request-architecture_boundary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/reviews/planning_spec/review-request-architecture_boundary.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/review-request-product_requirement.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/reviews/planning_spec/review-request-product_requirement.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/review-request-spec_consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/reviews/planning_spec/review-request-spec_consistency.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/review-result-architecture_boundary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/reviews/planning_spec/review-result-architecture_boundary.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/review-result-product_requirement.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/reviews/planning_spec/review-result-product_requirement.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/review-result-spec_consistency.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/reviews/planning_spec/review-result-spec_consistency.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/surface-violations.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/surface-violations.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-brainbase-portable-connected-world-onboarding/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/stories/story-brainbase-portable-connected-world-onboarding/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-brainbase-portable-connected-world-onboarding/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/stories/story-brainbase-portable-connected-world-onboarding/tasks/tasks.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/validation-sequencing/story-brainbase-portable-connected-world-onboarding/state.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/validation-sequencing/story-brainbase-portable-connected-world-onboarding/state.json",
+      "resolution": "copied_reference"
+    }
+  ],
+  "copied_references": [
+    {
+      "source": ".vibepro/adjudication/story-brainbase-portable-connected-world-onboarding/adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/adjudication/story-brainbase-portable-connected-world-onboarding/adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/adjudication/story-brainbase-portable-connected-world-onboarding/judgment-adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/adjudication/story-brainbase-portable-connected-world-onboarding/judgment-adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/config.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/config.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/evidence.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/static-site-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/static-site-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-08-04T110100Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/diagnostics/2026-08-04T110100Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/judgment-axis-noise-precedents.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/judgment-axis-noise-precedents.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-index.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-index.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-records.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-records.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/evidence-plan.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/evidence-plan.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/evidence-reuse.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/evidence-reuse.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/ref-topology.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/ref-topology.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/ref-topology.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/ref-topology.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/split-plan.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/split-plan.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/build.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/build.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/build.log",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/build.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/e2e.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/e2e.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/e2e.log",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/e2e.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/unit.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/unit.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/unit.log",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/pr/story-brainbase-portable-connected-world-onboarding/verification-runs/unit.log",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/architecture_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/architecture_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/history/review-result-gate_evidence-2026-08-04T14-03-15.865Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/history/review-result-gate_evidence-2026-08-04T14-03-15.865Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/history/review-result-gate_evidence-2026-08-04T14-28-23.195Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/history/review-result-gate_evidence-2026-08-04T14-28-23.195Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T11-38-49.076Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T11-38-49.076Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T11-48-19.749Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T11-48-19.749Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T11-55-06.242Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T11-55-06.242Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T12-01-24.757Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T12-01-24.757Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T12-09-12.427Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T12-09-12.427Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T13-49-19.404Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T13-49-19.404Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T13-54-56.323Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-04T13-54-56.323Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-05T01-12-12.551Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-architecture_boundary-2026-08-05T01-12-12.551Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T11-36-16.550Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T11-36-16.550Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T11-48-18.569Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T11-48-18.569Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T11-55-04.798Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T11-55-04.798Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T12-01-24.015Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T12-01-24.015Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T12-09-11.641Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T12-09-11.641Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T13-49-18.787Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T13-49-18.787Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T13-54-55.654Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-04T13-54-55.654Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-05T01-12-11.872Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-product_requirement-2026-08-05T01-12-11.872Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T11-38-49.968Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T11-38-49.968Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T11-48-20.896Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T11-48-20.896Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T11-55-07.672Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T11-55-07.672Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T12-01-25.588Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T12-01-25.588Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T12-09-13.450Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T12-09-13.450Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T13-49-20.023Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T13-49-20.023Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T13-54-56.996Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-04T13-54-56.996Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-05T01-12-13.267Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/history/review-result-spec_consistency-2026-08-05T01-12-13.267Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/surface-violations.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/reviews/story-brainbase-portable-connected-world-onboarding/surface-violations.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-brainbase-portable-connected-world-onboarding/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/stories/story-brainbase-portable-connected-world-onboarding/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-brainbase-portable-connected-world-onboarding/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/stories/story-brainbase-portable-connected-world-onboarding/tasks/tasks.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/validation-sequencing/story-brainbase-portable-connected-world-onboarding/state.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/references/vibepro/validation-sequencing/story-brainbase-portable-connected-world-onboarding/state.json",
+      "resolution": "copied_reference"
+    }
+  ],
+  "unresolved_references": [
+    {
+      "source": ".vibepro/graphify/graph.json",
+      "reason": "source_too_large",
+      "size_bytes": 539302
+    },
+    {
+      "source": ".vibepro/uiux/story-brainbase-portable-connected-world-onboarding/ia-flow-map.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-brainbase-portable-connected-world-onboarding/responsive-a11y-matrix.json",
+      "reason": "source_missing"
+    }
+  ]
+}

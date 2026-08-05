@@ -1,0 +1,216 @@
+{
+  "schema_version": "0.2.0",
+  "model": "vibepro-judgment-dag-adjudication-v2",
+  "story_id": "story-brainbase-portable-connected-world-onboarding",
+  "updated_at": "2026-08-04T14:20:11.751Z",
+  "events": [
+    {
+      "event_id": "e82c374f-4040-4656-b7dd-96b55e989921",
+      "type": "verdict",
+      "item_id": "spine:intent",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "first-valueを600秒以内に得るというStory intentが、bounded evidence、human review、ontology-valid promotion、verdictまで一貫して実装へ接続されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "recorded_at": "2026-08-04T14:20:08.902Z"
+    },
+    {
+      "event_id": "1dbf6ae8-a304-4eeb-bb3f-65bf376419f7",
+      "type": "verdict",
+      "item_id": "spine:current_reality",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "既存9 MCP tools・canonical SSOTを維持し、5 toolsと独立ledgerをadditiveに追加する現状認識がsource、contract tests、docsと一致する。実コネクタ実行証跡がない点をAC-1で未実証として分離できる。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "recorded_at": "2026-08-04T14:20:09.143Z"
+    },
+    {
+      "event_id": "a7854178-ddbc-4ec1-8f07-3d6e8b2cb4ac",
+      "type": "verdict",
+      "item_id": "spine:invariants",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "raw/secret非保存、inferred非承認、selected-source限定、canonical参照整合、ontology validation、原子性が実装上のguardとnegative testsで固定されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "recorded_at": "2026-08-04T14:20:09.385Z"
+    },
+    {
+      "event_id": "ec9fcf0c-7808-47af-a179-181a7ecfb7cf",
+      "type": "verdict",
+      "item_id": "spine:boundaries",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "hostがconnector discovery/bounded fetch、Brainbaseがreceipt/candidate/review/promotion/auditを所有する境界がArchitecture、Spec、Skill、MCP adapterで一致している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "recorded_at": "2026-08-04T14:20:09.607Z"
+    },
+    {
+      "event_id": "cd2e7070-6e6d-497b-a93c-c22d95562b3c",
+      "type": "verdict",
+      "item_id": "spine:failure_modes",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "malformed/unknown ledger、secret payload、permission逸脱、identity改変、invalid batch、merge不整合、publish途中失敗、stale lock/recoveryをfail-loudまたはrollbackするテストがある。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "recorded_at": "2026-08-04T14:20:09.847Z"
+    },
+    {
+      "event_id": "88091e6f-45cd-4e06-bbab-2a8b71f62594",
+      "type": "verdict",
+      "item_id": "spine:done_evidence",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "現HEAD固定のunit 28/28・241/241、build、E2E 3/3とstdio contract evidenceは再構成可能である。一方、live connector/no-wide-scan証拠不足をAC-1/AC-3として残しており、完了を過大主張しない判定になっている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "recorded_at": "2026-08-04T14:20:10.090Z"
+    },
+    {
+      "event_id": "72dea4c2-aec8-4f88-bbcf-c82617922136",
+      "type": "verdict",
+      "item_id": "axis:public_contract",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "5 MCP toolsのschema/dispatch、既存toolsとのadditive contract、public Skill、利用docs、stdioおよびinstaller testsが同じ公開契約を検証している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "recorded_at": "2026-08-04T14:20:10.309Z"
+    },
+    {
+      "event_id": "224db635-cf97-4a49-8ec7-56923c33febf",
+      "type": "verdict",
+      "item_id": "axis:scope_reviewability",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "18 filesは単一Storyの縦断sliceとして整合する。runtime、import ID、SSOT sidecar、MCP adapter、Skill、docs、unit/stdio/E2E、VibePro Story/Architecture/Spec/decision evidenceに限定され、分割は不完全状態を公開する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "recorded_at": "2026-08-04T14:20:10.550Z"
+    },
+    {
+      "event_id": "9320935b-99ff-4275-a3e7-0fc7038c2e87",
+      "type": "verdict",
+      "item_id": "failure_mode:parse_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "malformed JSON、unknown schema、nested corruption、encoded secret、MCP input parse failureを明示的に拒否し、canonical mutation前に停止する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "recorded_at": "2026-08-04T14:20:10.797Z"
+    },
+    {
+      "event_id": "ff7017b8-41b5-4422-8bca-380a890e675b",
+      "type": "verdict",
+      "item_id": "failure_mode:schema_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "strict key validation、decision別shape、receipt/candidate backlink、promotion ID、merge consistency、canonical cross-checkによりschema driftとsubstituted ledgerを拒否する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "recorded_at": "2026-08-04T14:20:11.023Z"
+    },
+    {
+      "event_id": "d2c3cd74-def5-4776-bcda-ec328b46b662",
+      "type": "verdict",
+      "item_id": "failure_mode:retry_or_async_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "ingest/review retryの冪等性、changed retry拒否、ledger/SSOT lock、temp rename、PREPARED transaction、publish failure rollback/recoveryを実装・テストしている。非同期queueはこの設計境界に存在しない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "recorded_at": "2026-08-04T14:20:11.263Z"
+    },
+    {
+      "event_id": "01878352-ab19-4722-bdb9-4d1f35c50afe",
+      "type": "verdict",
+      "item_id": "failure_mode:auth_denied",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "connector authはhost境界に残し、waiting_auth/waiting_permissionを明示状態として保持する。Brainbase側ではselected sourceとpermission authorityの逸脱を拒否し、失敗をready扱いしない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "recorded_at": "2026-08-04T14:20:11.500Z"
+    },
+    {
+      "event_id": "0ba54f2a-79ea-4fd0-b574-6c41c7c4e9f2",
+      "type": "verdict",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "verification sidecarはbefore/after HEADが723c2c2d0436709ecd9b4f6b596fea0aebc73faeで一致し、worktree hashもrun内で不変。ログからunit件数、build、E2E、stdio contractを再構成できる。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "fresh_adjudication_v2",
+        "session_ref": "/root/fresh_adjudication_v2"
+      },
+      "head_commit": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "recorded_at": "2026-08-04T14:20:11.749Z"
+    }
+  ]
+}

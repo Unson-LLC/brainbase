@@ -1,0 +1,153 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-portable-connected-world-onboarding",
+  "ledger_path": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/decision-outcome-ledger.json",
+  "selector": {
+    "decision_trace_id": "dt_fdaf17d10833f34c74c2ce81f474c8ad3b7fe0efdd4208d96202d869abb2cd6a"
+  },
+  "parent_revision_fingerprint": "db3e17029094ddab2cd52272223fac8a225085e939b2b0417c4b631e6db360fa",
+  "revision_fingerprint": "e2857e4f9428b7059aec0dae429345c8ae00d561aabe95af7ffbd29c14105d5c",
+  "trace": {
+    "decision_trace_id": "dt_fdaf17d10833f34c74c2ce81f474c8ad3b7fe0efdd4208d96202d869abb2cd6a",
+    "collision_group": null,
+    "trace_source_ref": "tsr_d86153ea6a1f04a6a343b70f2a4d634296a0e59066f6221b7c3578544a206813",
+    "normalized_subject_key": "finding:release-only-registry-evidence-boundary",
+    "source_identity": {
+      "source_kind": "linked_sources",
+      "source_ref": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/review-result-gate_evidence.json,.vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/review-result-gate_evidence.json",
+      "native_id": "release-only-registry-evidence-boundary,release-only-registry-evidence-boundary",
+      "digest": "2f1b367baedbe1f92ade42d60ac05ff6054b086bc53616b789f96fbaba49f0d3",
+      "multiplicity": 1
+    },
+    "evidence_head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+    "parent_revision_fingerprint": "db3e17029094ddab2cd52272223fac8a225085e939b2b0417c4b631e6db360fa",
+    "revision_fingerprint": "e2857e4f9428b7059aec0dae429345c8ae00d561aabe95af7ffbd29c14105d5c",
+    "observation_identity": null,
+    "observation_read_aliases": [
+      {
+        "trace_selector": {
+          "decision_trace_id": "dt_fdaf17d10833f34c74c2ce81f474c8ad3b7fe0efdd4208d96202d869abb2cd6a"
+        },
+        "parent_revision_fingerprint": "e2261d9ce6f1d474d9e3b71c47791ec0f330d9a1bdbb82b3e2e07f233ff951c4"
+      }
+    ],
+    "trace_status": "partial",
+    "missing_reason": "observation_missing",
+    "finding": {
+      "status": "observed",
+      "value": {
+        "severity": "low",
+        "id": "release-only-registry-evidence-boundary",
+        "detail": "raw npm testの唯一の失敗は、既に公開済みの@unson/brainbase-mcp@0.1.0についてtarget_version_absent/E404を要求するprepublication integration testである。Story回帰ではないがrelease suite全体のgreen証跡には転用しない。"
+      },
+      "provenance": [
+        {
+          "source_kind": "review_finding",
+          "source_ref": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/review-result-gate_evidence.json",
+          "source_head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+          "source_digest": "7e93ebb9b9212dbf9ec65b98eee501813044730f2b6d1ad2d4b2c705aaf131c3",
+          "native_id": "release-only-registry-evidence-boundary"
+        }
+      ]
+    },
+    "gate": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "detector": {
+      "status": "observed",
+      "value": {
+        "detected_by": "gate_evidence",
+        "stage": "gate",
+        "detected_head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae"
+      },
+      "provenance": [
+        {
+          "source_kind": "review_finding",
+          "source_ref": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/review-result-gate_evidence.json",
+          "source_head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+          "source_digest": "7e93ebb9b9212dbf9ec65b98eee501813044730f2b6d1ad2d4b2c705aaf131c3",
+          "native_id": "release-only-registry-evidence-boundary"
+        }
+      ]
+    },
+    "disposition": {
+      "status": "observed",
+      "value": {
+        "finding_id": "release-only-registry-evidence-boundary",
+        "disposition": "deferred",
+        "resolved_by": [],
+        "reason": "次回release時にpost-publication integrityとgitHeadを検証する",
+        "inferred_from_resolution": false
+      },
+      "provenance": [
+        {
+          "source_kind": "finding_disposition",
+          "source_ref": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/review-result-gate_evidence.json",
+          "source_head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+          "source_digest": "915899b9da9c0a94401d08f8dfb861444fb7b7d25bd7bdf94aa820fb4c094fb5",
+          "native_id": "release-only-registry-evidence-boundary"
+        }
+      ]
+    },
+    "decision": {
+      "status": "observed",
+      "value": {
+        "finding_id": "release-only-registry-evidence-boundary",
+        "disposition": "deferred",
+        "resolved_by": [],
+        "reason": "次回release時にpost-publication integrityとgitHeadを検証する",
+        "inferred_from_resolution": false
+      },
+      "provenance": [
+        {
+          "source_kind": "finding_disposition",
+          "source_ref": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/review-result-gate_evidence.json",
+          "source_head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+          "source_digest": "915899b9da9c0a94401d08f8dfb861444fb7b7d25bd7bdf94aa820fb4c094fb5",
+          "native_id": "release-only-registry-evidence-boundary"
+        }
+      ]
+    },
+    "behavior_delta": {
+      "status": "not_observed",
+      "before": null,
+      "after": null,
+      "change_refs": [],
+      "verification_refs": [],
+      "verification_sources": [],
+      "missing_reason": "explicit_behavior_delta_missing",
+      "excluded_sources": []
+    },
+    "delivery": {
+      "status": "merged",
+      "pr": {
+        "number": 445,
+        "url": "https://github.com/Unson-LLC/brainbase/pull/445",
+        "state": "MERGED"
+      },
+      "merge": {
+        "sha": "954103ac8d8ef75830ecee770f581df2f1dfddf6",
+        "status": "merged",
+        "merged_at": "2026-08-05T01:25:04Z"
+      },
+      "source_ref": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-merge.json"
+    },
+    "downstream_outcome": {
+      "status": "not_observed",
+      "value": null,
+      "reason": null,
+      "source_ref": null,
+      "missing_reason": "observation_missing"
+    },
+    "eligible_outcome_sources": {
+      "total_count": 0,
+      "returned_count": 0,
+      "omitted_count": 0,
+      "truncated": false,
+      "entries": []
+    },
+    "source_errors": []
+  }
+}

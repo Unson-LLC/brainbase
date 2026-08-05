@@ -1,0 +1,175 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-portable-connected-world-onboarding",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "needs_changes",
+  "summary": "Current HEAD implementation is materially tested, but final Gate bindings are incomplete.",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "gate-binding-current-head-incomplete",
+      "detail": "AC and judgment adjudications, authority evidence, and current-head planning reviews are missing."
+    },
+    {
+      "severity": "high",
+      "id": "path-surface-review-and-ac-binding-missing",
+      "detail": "review_surface structured evidence and Story-prefixed executable AC bindings are missing."
+    },
+    {
+      "severity": "medium",
+      "id": "scope-and-story-source-binding-unresolved",
+      "detail": "unmatched legacy Story source and committed VibePro config require removal or explicit policy."
+    },
+    {
+      "severity": "medium",
+      "id": "spec-diagram-gate-unmet",
+      "detail": "Spec-bound flow and threat-model diagrams are missing."
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Exact clean HEAD inspected across Story, Spec, architecture, implementation, MCP, Skill, SSOT, tests, and Gate artifacts; focused 49 tests passed.",
+    "evidence": ".vibepro/pr/story-brainbase-portable-connected-world-onboarding/pr-prepare.json; focused 3 files/49 tests pass at 92a0b87",
+    "inputs": [
+      "docs/management/stories/active/story-brainbase-portable-connected-world-onboarding.md",
+      "docs/specs/story-brainbase-portable-connected-world-onboarding.md",
+      "src/connected-onboarding.ts",
+      "src/ssot.ts",
+      "tests/connected-onboarding.test.ts",
+      "tests/e2e/connected-world-onboarding-acceptance.spec.ts"
+    ]
+  },
+  "judgment_delta": [
+    "Focused regression evidence changed happy-path concern to adequate; Gate remains needs_changes because current-head adjudication, authority, review-surface, AC-path, scope, and diagram bindings are absent."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-oss-connected-onboarding",
+    "actual_root": "/private/tmp/brainbase-oss-connected-onboarding",
+    "expected_root": null,
+    "expected_head_sha": "92a0b87bcf17e27d883e93eed39af48bcd49ca1b",
+    "current_head_sha": "92a0b87bcf17e27d883e93eed39af48bcd49ca1b",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-oss-connected-onboarding",
+      "actual_root": "/private/tmp/brainbase-oss-connected-onboarding",
+      "expected_root": null,
+      "expected_head_sha": "92a0b87bcf17e27d883e93eed39af48bcd49ca1b",
+      "current_head_sha": "92a0b87bcf17e27d883e93eed39af48bcd49ca1b",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-04T14:03:15.865Z",
+  "git_context": {
+    "head_sha": "92a0b87bcf17e27d883e93eed39af48bcd49ca1b",
+    "current_branch": "codex/oss-connected-world-onboarding",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-04T14:03:15.852Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 6 file(s)",
+    "recorded_head_sha": "92a0b87bcf17e27d883e93eed39af48bcd49ca1b",
+    "surface_files": [
+      {
+        "path": "docs/management/stories/active/story-brainbase-portable-connected-world-onboarding.md",
+        "sha256": "aae5265f5573561d658c2e863fc38ce02044a700ddb204a0bf41152d5bc609e3",
+        "size": 4457
+      },
+      {
+        "path": "docs/specs/story-brainbase-portable-connected-world-onboarding.md",
+        "sha256": "6fabd4df5c055b6f8dfb95d3bfbf204f49d0d42054e33ec02cee91434f16991f",
+        "size": 5437
+      },
+      {
+        "path": "src/connected-onboarding.ts",
+        "sha256": "cef03845191c7ab713d983603e809332aaa776a24b20d09b9611a8987d633d87",
+        "size": 50994
+      },
+      {
+        "path": "src/ssot.ts",
+        "sha256": "10be1e5f4a9801a273f1de4f26f9126abd1afa49709d7c5609a11bb6308daae2",
+        "size": 20150
+      },
+      {
+        "path": "tests/connected-onboarding.test.ts",
+        "sha256": "7fd26aa229295da19b179761ec2529a219ed0dd66f8e5d51710d0ec832d25a5d",
+        "size": 35559
+      },
+      {
+        "path": "tests/e2e/connected-world-onboarding-acceptance.spec.ts",
+        "sha256": "4754c9941b6d20908f7e90413eade9eae8a87bed2f771cecf06576095cd2687f",
+        "size": 2818
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "49bf51b733499fd15bb999f4d2b5c05f312e29ca95aad9ae8d4b95f840402ed7"
+  },
+  "source_fingerprint": "a380c027b7231554aa0aca1a5a16718cc4319e88ca18d85685faefa196de50b1",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/npm_gate_evidence",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/npm_gate_evidence",
+    "session_id": "npm_gate_evidence",
+    "tool_call_id": null,
+    "transcript_artifact": null,
+    "request_artifact": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "collaboration final result delivered; agent interrupted after completion",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "npm_gate_evidence",
+      "implementation_session_id": "root",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

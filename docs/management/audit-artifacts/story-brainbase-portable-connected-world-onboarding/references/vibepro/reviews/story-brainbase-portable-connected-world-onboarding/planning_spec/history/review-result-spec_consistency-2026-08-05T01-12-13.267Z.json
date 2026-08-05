@@ -1,0 +1,138 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-portable-connected-world-onboarding",
+  "stage": "planning_spec",
+  "role": "spec_consistency",
+  "status": "pass",
+  "summary": "Story, Architecture, Spec, runtime invariants, and acceptance evidence are consistent",
+  "findings": [
+    {
+      "severity": "low",
+      "id": "public-skill-count-label-drift",
+      "detail": "Test description says four built-in public skills while the assertion correctly expects five"
+    }
+  ],
+  "finding_dispositions": [
+    {
+      "finding_id": "public-skill-count-label-drift",
+      "disposition": "deferred",
+      "resolved_by": [],
+      "reason": "non-behavioral test title cleanup",
+      "inferred_from_resolution": false
+    }
+  ],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Cross-checked planning documents, connected onboarding implementation, public skill registry, and acceptance tests; found only a low-severity test-title count mismatch",
+    "evidence": "Focused spec and acceptance tests passed; runtime contract is unaffected",
+    "inputs": [
+      "docs/specs/story-brainbase-portable-connected-world-onboarding.md"
+    ]
+  },
+  "judgment_delta": [
+    "Possible cross-document mismatch -> pass with one deferred low-severity label-only finding because runtime and assertions agree"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-oss-connected-onboarding",
+    "actual_root": "/private/tmp/brainbase-oss-connected-onboarding",
+    "expected_root": null,
+    "expected_head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+    "current_head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-oss-connected-onboarding",
+      "actual_root": "/private/tmp/brainbase-oss-connected-onboarding",
+      "expected_root": null,
+      "expected_head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "current_head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-05T01:12:13.267Z",
+  "git_context": {
+    "head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+    "current_branch": "codex/oss-connected-world-onboarding",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-05T01:12:13.264Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "Reviewed exact HEAD 723c2c2d0436709ecd9b4f6b596fea0aebc73fae"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae",
+    "surface_files": [
+      {
+        "path": "docs/specs/story-brainbase-portable-connected-world-onboarding.md",
+        "sha256": "be8917fde4205bb785706982c22d5d4b97aa5df98e96dddaa28bd7e2cfea5696",
+        "size": 6540
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "f9274cf53546499b026f3f761a15d61ee78002d763ae932082947af1d35d3c05"
+  },
+  "source_fingerprint": "ce9674513c632fb8f85ee1bf9b37898d031c616ba5dc2021734edf99d825d5f0",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/onboarding_plan_spec_v5",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": "high",
+    "cost_tier": "medium",
+    "thread_id": "/root/onboarding_plan_spec_v5",
+    "session_id": "/root/onboarding_plan_spec_v5",
+    "tool_call_id": null,
+    "transcript_artifact": null,
+    "request_artifact": ".vibepro/reviews/story-brainbase-portable-connected-world-onboarding/planning_spec/review-request-spec_consistency.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "collaboration:/root/onboarding_plan_spec_v5:completed",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/onboarding_plan_spec_v5",
+      "implementation_session_id": "root",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}
