@@ -149,6 +149,7 @@ describe('MCP contract', () => {
       } });
       const run = JSON.parse(started.content[0]?.type === 'text' ? started.content[0].text : '{}');
       expect(run).toMatchObject({ path: 'warm', state: 'source_ready' });
+      expect(run.runId).toBe(run.id);
 
       const ingested = await client.callTool({ name: 'brainbase_onboarding_ingest', arguments: {
         runId: run.id,

@@ -559,7 +559,22 @@ export function planApply(
           skipped.push({ id: candidate.id, reason: 'decision candidate missing decision text' });
           break;
         }
-        decisionAdditions.push({ id: `decision-${stableHash(text)}`, title: 'Promoted decision principle', decision: text, tags: ['principle'], updatedAt: now });
+        const topic = payloadString(payload, 'topic');
+        const effectiveAt = payloadString(payload, 'effectiveAt');
+        const rationale = payloadString(payload, 'rationale');
+        const supersedes = readStringArray(payload, ['supersedes']);
+        const tags = readStringArray(payload, ['tags']);
+        decisionAdditions.push({
+          id: `decision-${stableHash(text)}`,
+          title: payloadString(payload, 'title') || 'Promoted decision principle',
+          decision: text,
+          topic: topic || undefined,
+          supersedes: supersedes.length > 0 ? supersedes : undefined,
+          effectiveAt: effectiveAt || undefined,
+          rationale: rationale || undefined,
+          tags: tags.length > 0 ? tags : ['principle'],
+          updatedAt: now
+        });
         applied.push({ id: candidate.id, kind: candidate.kind, summary: text, canonicalIds: [`decision-${stableHash(text)}`] });
         break;
       }

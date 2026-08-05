@@ -109,7 +109,7 @@ export const toolDefinitions = [
   },
   {
     name: 'search',
-    description: 'Search canonical local Graph, Personal KG, relationships, and decisions.',
+    description: 'Search all canonical local stores: Graph entities, Personal KG, relationships, and decisions. Use this for people and projects.',
     inputSchema: {
       type: 'object',
       required: ['query'],
@@ -122,7 +122,7 @@ export const toolDefinitions = [
   },
   {
     name: 'search_personal_kg',
-    description: 'Search owner-local Personal KG only.',
+    description: 'Search owner-local Personal KG only. People and projects are Graph entities, so use search for them.',
     inputSchema: {
       type: 'object',
       required: ['query'],
@@ -145,11 +145,11 @@ export const toolDefinitions = [
   },
   {
     name: 'brainbase_onboarding_start',
-    description: 'Start a local first-value onboarding run from an evidence-safe inventory of actually callable sources.',
+    description: 'Start a local first-value onboarding run from actually callable sources. The result exposes runId (also id); pass runId to every later onboarding tool.',
     inputSchema: {
       type: 'object', required: ['valueTarget', 'sources'], additionalProperties: false,
       properties: {
-        dataDir: { type: 'string' }, valueTarget: { type: 'string' },
+        dataDir: { type: 'string', description: 'Optional Personal OS directory.' }, valueTarget: { type: 'string', description: 'One concrete question the first useful answer should resolve.' },
         sources: { type: 'array', maxItems: 50, items: { type: 'object', required: ['id', 'mode', 'status'], additionalProperties: false, properties: {
           id: { type: 'string' }, mode: { enum: ['mcp', 'drive', 'gmail', 'local_folder', 'single_document'] },
           status: { enum: ['ready', 'waiting_for_authorization', 'unavailable', 'error', 'unconfirmed'] }, evidencePointer: { type: 'string' },
@@ -165,11 +165,11 @@ export const toolDefinitions = [
   },
   {
     name: 'brainbase_onboarding_ingest',
-    description: 'Ingest a bounded source receipt and observed or inferred review candidates.',
+    description: 'Ingest one selected source receipt under source plus review candidates. Do not flatten sourceId or receipt fields at the top level.',
     inputSchema: {
       type: 'object', required: ['runId', 'source', 'candidates'], additionalProperties: false,
       properties: {
-        dataDir: { type: 'string' }, runId: { type: 'string' },
+        dataDir: { type: 'string' }, runId: { type: 'string', description: 'runId returned by brainbase_onboarding_start.' },
         source: { type: 'object', required: ['sourceId', 'evidencePointer', 'contentHash', 'permissionSnapshot', 'collectionStatus'], additionalProperties: false, properties: {
           sourceId: { type: 'string' }, evidencePointer: { type: 'string' }, contentHash: { type: 'string' }, permissionSnapshot: { type: 'object' }, collectionStatus: { const: 'collected' }
         } },
@@ -181,7 +181,7 @@ export const toolDefinitions = [
   },
   {
     name: 'brainbase_onboarding_review',
-    description: 'Approve, edit, reject, or merge onboarding candidates and atomically promote confirmed facts.',
+    description: 'Submit review decisions in actions. Inferred candidates cannot be approved or merged; use edit with a human-confirmed payload, or reject.',
     inputSchema: {
       type: 'object', required: ['runId', 'actions'], additionalProperties: false,
       properties: { dataDir: { type: 'string' }, runId: { type: 'string', minLength: 1, maxLength: 200 }, actions: { type: 'array', minItems: 1, maxItems: 50, items: {
@@ -322,7 +322,8 @@ async function callConnectedOnboardingTool(name: keyof typeof connectedSchemas, 
   const runtime = new ConnectedOnboardingRuntime(resolveDataDir(args.dataDir));
   switch (name) {
     case 'brainbase_onboarding_start':
-      return runtime.start(args as Parameters<ConnectedOnboardingRuntime['start']>[0]);
+      return runtime.start(args as Parameters<ConnectedOnboardingRuntime['start']>[0])
+        .then((run) => ({ ...run, runId: run.id }));
     case 'brainbase_onboarding_get':
       return runtime.get(args.runId!);
     case 'brainbase_onboarding_ingest': {
