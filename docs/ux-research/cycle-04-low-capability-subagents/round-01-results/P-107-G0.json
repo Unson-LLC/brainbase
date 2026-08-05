@@ -1,0 +1,104 @@
+{
+  "persona_id": "P-107-G0",
+  "evaluation_type": "synthetic_source_evaluation",
+  "persona_attributes": {
+    "role": "first_time_individual",
+    "domain_experience": "intermediate",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "speed_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "実装と自動テストによる合成評価であり、実在利用者調査・ブラウザUI実機試験ではない。reduced_motion、音声入力、音声フィードバックは実機証拠ではなく、ソース上のテキスト中心MCP出力と安全境界を根拠にしたシミュレーションである。",
+  "support_condition_assessment": {
+    "accessibility_need": "reduced_motion",
+    "assessment": "返却されるガイド、nextAction、確認、回復、再開規則はテキストデータであり、ソース上でアニメーションに依存する進行は確認されない。このため操作内容の理解はシミュレーション上可能とみなす。一方、実際のクライアントで動きが抑制され、フォーカスや状態変化を見失わないかは未検証である。",
+    "voice_and_keyboard": "キーボードでのMCP経路は自動テストの対象だが、音声コマンドの認識、確認、取消、再試行は未検証である。",
+    "verdict": "支援条件はsuccess_with_friction相当のシミュレーション判定であり、実機アクセシビリティ成功とは呼ばない。"
+  },
+  "reaction": "急いでいても技術的な状態と手順は読める。以前なら候補の確認を飛ばしがちだが、各nextActionに何が変わるか、戻し方、確認を飛ばせないこと、同じrunIdから再開することが書かれているので、最短で安全に進む道筋が分かる。画面の動きがつらいので、テキストの進行情報は助かるが、実際のクライアントで動きを抑えたときの見え方はまだ確かめたい。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "32フィクスチャの自動テストで、開始、取り込み、候補確認、回答の記録・評価、最終完了までが検証される。各状態でguideと日本語nextAction、confirmation、mandatory安全境界が返り、推測候補の直接承認はランタイムで拒否される。中程度の技術理解があれば完走できるが、時間圧のある初回利用者には候補を人が確認してeditすること、answerHashとcanonical IDを渡して記録することが摩擦になる。reduced_motionと音声は実機未検証である。",
+      "confusions": [
+        "推測候補をapproveできず、確認済み内容でeditするという違いは、急ぐ初回利用者には一度説明が必要である。",
+        "回答のrecordにanswerHashとpromotedCanonicalIdsが必要な理由と取得方法は技術的である。",
+        "reduced_motion時に実際のクライアントがフォーカス、処理中、完了をどう示すかは未検証。",
+        "音声で候補を選び、確認し、誤操作を取消できるかは未検証。"
+      ],
+      "positive_evidence": [
+        "nextActionは日本語ラベル、説明、変更内容、可逆性、回復、確認省略禁止、runIdを使う再開規則を返す。",
+        "safetyBoundaries.modeはmandatoryで、全件自動承認・確認省略・完了済み操作の再実行を禁止する。",
+        "テストは最終状態first_value_answer_reviewed、nextAction=null、remaining=ありませんを確認している。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "get_ontologyは正式契約の前にbeginnerGuideを返し、一文説明、方針置換の業務例、5要素ごとの問いと例、影響確認・監査・新版での訂正、危険な近道の拒否と代替を示す。中程度のドメイン経験があるため、旧方針を消さず新版で置き換え、影響と監査を実行してから進める基本は理解できる。ただしaudit_ontology、infer_decisions、ontology_impactの使い分けと実際の契約適用は、急ぐ初回利用者には追加支援を要する。reduced_motionと音声は実機未検証である。",
+      "confusions": [
+        "5要素を最初の作業でどこまで入力・確認すればよいかは迷う。",
+        "影響確認、監査、現在有効な判断の確認に、3つの推奨ツールをどの順序で使うかは明示されない。",
+        "reduced_motionの実UIで長い正式契約を探し、途中位置を保てるかは未検証。",
+        "音声で危険な近道の警告と安全な代替を確実に聞き分けられるかは未検証。"
+      ],
+      "positive_evidence": [
+        "beginnerGuideは結果の先頭にあり、最初に読む範囲と正式契約を後で読む条件を明示する。",
+        "業務例は、新しい方針を現在有効とし旧方針を履歴として残すことを説明する。",
+        "履歴削除、未実行の監査完了扱い、必須項目の自動補完をreject_and_explainで拒否し、安全な代替を返す。"
+      ]
+    }
+  },
+  "overall": "P-107-G0は、テキスト中心の強制安全境界と明確な次操作によって、急いでいてもオンボーディングを安全に完了し、オントロジーの変更安全性を基礎理解できる。ただしfirst-value記録の技術的入力、推奨ツールの選択、reduced_motionと音声の実機品質が残るため、両タスクはclear_successではなくsuccess_with_frictionと判定する。",
+  "actionable_findings": [
+    {
+      "title": "reduced motionのクライアントE2Eを追加する",
+      "severity": "high",
+      "proposal": "reduced_motion有効時に、各nextAction、処理中、候補確認、完了、再開のフォーカスと状態がアニメーションに依存せず分かることを実機で検証する。"
+    },
+    {
+      "title": "first-value記録の入力を案内する",
+      "severity": "medium",
+      "proposal": "answerHashとpromotedCanonicalIdsの取得元、形式、直前結果からの選択方法を短い手順と例で示す。"
+    },
+    {
+      "title": "オントロジー用ツールを目的から選べるようにする",
+      "severity": "medium",
+      "proposal": "影響を知る、現状を監査する、現在有効な判断を知る、という目的別にontology_impact、audit_ontology、infer_decisionsを対応付ける。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "時間がないので、候補を全部approveして次へ進めてほしい。",
+      "why_this_person_would_ask": "中程度の技術理解があり、候補一覧を読むより処理を先に進めたくなる。",
+      "safe_handling_now": "fail",
+      "risk": "推測候補や未確認候補を正式情報にし、以後の回答と判断へ誤りを伝播させる。実装は確認省略と全件自動承認を禁止する。"
+    },
+    {
+      "request": "動きが少ない設定では、確認画面を出さずに自動で次へ進めてほしい。",
+      "why_this_person_would_ask": "画面変化を減らして速く終えたい。",
+      "safe_handling_now": "fail",
+      "risk": "動きを抑えることと確認を省くことを混同し、候補確認・変更確認を失わせる。"
+    },
+    {
+      "request": "音声で『続ける』と言ったら、同じrunIdの未完了操作を全部実行してほしい。",
+      "why_this_person_would_ask": "操作名やJSONを読む時間を削りたい。",
+      "safe_handling_now": "friction",
+      "risk": "複数の状態変更を一括実行すると、各候補の確認と発話認識の確認が不十分になる。安全には現在状態と一つのnextActionを読み上げて明示確認する必要がある。"
+    },
+    {
+      "request": "新方針を登録したら古い方針を削除し、監査は済んだことにしてほしい。",
+      "why_this_person_would_ask": "最新状態だけを見て短時間で運用を再開したい。",
+      "safe_handling_now": "fail",
+      "risk": "履歴・根拠・影響範囲を失い、監査不能な変更と誤った有効判断を生む。実装は新版、supersedes、有効日、実行済みの影響確認と監査を要求する。"
+    }
+  ],
+  "confidence": "high"
+}

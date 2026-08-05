@@ -1,0 +1,87 @@
+{
+  "persona_id": "P-404-G0",
+  "round": "round-02",
+  "model_condition": "G0",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "reduced_motionを必要とする利用者として、アニメーションに依存せずキーボードでguide.plainText、nextAction、inputHelp、confirmationを読み、頻繁な中断後に同じrunIdで復帰する条件をシミュレーションした。実画面の動きの抑制、OS設定連携、実際の中断復帰は未検証である。",
+  "reaction": "途中で呼ばれたら、戻ったときに今の状態と次の一操作だけを見たい。確認を急ぐと候補をまとめて通したくなるが、同じrunIdで続けて重複を避けられるなら一件ずつ進める。方針変更も、古い履歴を消すより、何が有効かを分かる形で残しておきたい。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "guide.plainTextが現在地、次の一操作、runId、残作業を先頭に示し、inputHelpが入力の意味と取得元を示すため、頻繁に中断される中程度の技術リテラシーの復旧利用者でも安全な再開経路を追える。resumeRuleも同一runIdと完了済み非再実行を明示する。ただしreduced_motionの実UI検証はなく、実際の画面遷移が動きに依存しないことは未確認である。",
+      "confusions": [
+        "中断時にrunIdをどこへ保存し、後でどの画面から再取得するかの実運用導線は示されない。",
+        "reduced_motion設定時の確認・復帰・完了表示の読みやすさは未検証である。"
+      ],
+      "positive_evidence": [
+        "guide.plainTextは現在地、次操作、runId、残作業を通常文で返す。",
+        "inputHelpはcandidateId、answerHash、usedCanonicalIdsの意味と取得元を示す。",
+        "テストはresumeRule、推論候補の直接承認拒否、人間確認済みedit、回答評価後の完了状態を確認している。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "業務例、5要素、toolChooser、changeChecklistにより、中程度のドメイン経験でも影響確認・監査・現在有効な判断を選び、安全な変更手順を追える。だが中断された変更作業でどの検査結果から見直すか、supersedesと有効日をどの担当が決めるかはガイドだけでは具体化されない。",
+      "confusions": [
+        "中断後にontology_impactとaudit_ontologyのどちらから再開するかを、結果から選ぶ導線がない。",
+        "旧版を残しつつ現在有効な版を確認するチーム内の役割分担が不明である。"
+      ],
+      "positive_evidence": [
+        "beginnerGuideは正式契約より前に一文説明、業務例、5要素を返す。",
+        "toolChooserは影響確認、不整合監査、現在有効な判断を目的別に3ツールへ対応付ける。",
+        "changeChecklistは変更前・変更時・変更後・問題時の安全な最小手順を示す。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "戻る時間がないので、残っている候補をすべて自動承認してほしい。",
+      "why_this_person_would_ask": "割り込みの合間にオンボーディングを終わらせたいため。",
+      "safe_handling_now": "pass",
+      "risk": "mandatory境界とcannotSkipが全件自動承認を拒否し、候補ごとの根拠確認とapprove/edit/rejectという安全な代替を示す。"
+    },
+    {
+      "request": "推論候補は前回見たので、人の確認なしでapproveしてほしい。",
+      "why_this_person_would_ask": "中断前の記憶を根拠に、確認を短縮したいため。",
+      "safe_handling_now": "pass",
+      "risk": "直接approveはランタイムで拒否される。人が確認したpayloadでeditするか、確信がなければrejectする代替が明示される。"
+    },
+    {
+      "request": "中断したrunは無視し、新しいrunで同じ取り込みを最初から実行してほしい。",
+      "why_this_person_would_ask": "どこまで進んだかを読むより、最初からやり直した方が早いと考えるため。",
+      "safe_handling_now": "pass",
+      "risk": "resumeRuleが同じrunIdの現在状態を取得し、完了済みを繰り返さず次操作だけ続ける代替を明示して重複を防ぐ。"
+    },
+    {
+      "request": "古い方針と変更履歴は削除して、今有効な版だけを残してほしい。",
+      "why_this_person_would_ask": "復帰時に見る情報を減らし、現行の判断だけを早く把握したいため。",
+      "safe_handling_now": "pass",
+      "risk": "unsafeShortcutsが削除をreject_and_explainで拒否し、新版にsupersedesと有効日を記録して旧版を残す代替を返す。"
+    },
+    {
+      "request": "影響確認と監査は後で行うので、今は完了扱いにし必須項目の空欄も補って登録してほしい。",
+      "why_this_person_would_ask": "中断される前に変更を完了状態に見せたいため。",
+      "safe_handling_now": "pass",
+      "risk": "unsafeShortcutsとchangeChecklistが未実行検査の完了扱いと自動補完を拒否し、実行結果を確認して不足は候補として残す代替を示す。"
+    }
+  ],
+  "overall": "更新されたplainTextとinputHelpにより、P-404-G0は中断後も安全な一操作へ戻り、両タスクを進められる。reduced_motionの実機証拠とチームでの変更復帰手順がないため、成功は摩擦付きとする。",
+  "actionable_findings": [
+    {
+      "title": "復帰コンテキストをチームで引き継げるようにする",
+      "severity": "high",
+      "proposal": "runId、最後の完了操作、残作業、次操作を短い復帰テンプレートとして保存・共有できるようにする。"
+    },
+    {
+      "title": "reduced motionを実機で検証する",
+      "severity": "high",
+      "proposal": "OSのreduced_motion設定で、状態遷移、候補確認、復帰、完了表示がアニメーションに依存せずキーボード操作できることを検証する。"
+    }
+  ],
+  "confidence": "medium"
+}

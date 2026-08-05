@@ -1,0 +1,110 @@
+{
+  "persona_id": "P-205-G0",
+  "evaluation_type": "cycle-04-round-03-independent-evaluation",
+  "persona_attributes": {
+    "role": "team_operator",
+    "domain_experience": "new",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "confirmation_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "evidence_reviewed": [
+    "rotation-manifest.json の P-205-G0 定義",
+    "更新済み evidence-contract.md の round-03 評価規則",
+    "src/server.ts の線形オンボーディング案内と初心者向けオントロジーガイド",
+    "tests/persona-onboarding-ux.test.ts の契約テスト"
+  ],
+  "simulation_boundary": "線形テキスト対話で応答契約を利用する本人として評価した。音声入力と中断復帰の実機検証は未実施だが、それ自体は評点を下げる理由にしていない。",
+  "support_condition_assessment": {
+    "frequent_interruption": "runIdで現在状態を取得し、表示された次の一操作だけを続け、完了済みを繰り返さない規則はチーム運用の中断復帰に適する。",
+    "confirmation_first": "根拠ごとの候補確認、推論候補の直接承認拒否、可逆性とrecovery説明は、確認してから進める本人の行動に合う。",
+    "medium_technical_literacy": "requiredIds、inputHelp、runIdを読み取り、候補レビューと回答記録の値を直前の結果から選べる。",
+    "voice_and_keyboard": "音声で意図を伝え、対象IDと決定はキーボードで照合する線形運用を想定できる。"
+  },
+  "first_person_evaluation": "私はチームの情報を扱うのは初めてだが、確認してから進める方が安心する。途中で別件が入っても、同じrunIdで戻って次の一操作だけをすればよいなら、二重登録や見落としを避けられる。オントロジーの用語は最初だけ読み直すが、変更前・変更時・変更後・問題時の順序があるので、危険な近道を選ばずに進められる。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "clear_success",
+      "reason": "本人は中程度の技術リテラシーと確認優先の作業スタイルを持ち、plainText、nextAction、requiredIds、inputHelpを順に扱える。中断後も同じrunIdの現在状態から未完了の一操作だけを続けられ、推論候補の直接承認は拒否されるため、具体的な迷い・誤操作・到達不能はシミュレーションされない。",
+      "first_person_outcome": "中断したらrunIdで現在状態を読み、残件に表示された一操作だけを続ける。候補は根拠を確認し、推論候補は内容を確認してeditするかrejectする。回答記録では直前のpromotedCanonicalIdsを使い、最後にusefulかnot_usefulかを選ぶ。",
+      "confusions": [],
+      "positive_evidence": [
+        "plainTextは現在地、次の一操作、runId、残件を通常文で返す。",
+        "confirmationは確認省略禁止、同一runIdでの再開、完了済み操作の非反復を明記する。",
+        "inputHelpはcandidateId、answerHash、usedCanonicalIdsの意味と取得元を示す。",
+        "テストは推論候補の直接approve拒否、編集後の登録、完了時nextAction=nullを確認している。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "業務言葉での一文説明、方針置換の例、toolChooser、changeChecklistにより、安全な最小手順は理解して選べる。一方、オントロジー経験がない本人は、supersedesとeffectiveAtを単なる入力項目ではなく履歴保全・有効判断の条件として初回に読み直す具体的な摩擦がある。",
+      "first_person_outcome": "変更前にontology_impactとaudit_ontologyを実行し、旧版を消さず新版にsupersedesとeffectiveAtを付ける。結果に問題があれば、履歴を残して訂正版と戻し方を記録する。",
+      "confusions": [
+        "supersedesとeffectiveAtが、どの旧版をいつから置き換える情報なのかを最初に確認する必要がある。",
+        "監査で不整合が出た場合に、訂正版作成へ進む前の確認範囲を実例なしで判断するには一拍必要である。"
+      ],
+      "positive_evidence": [
+        "beginnerGuideは仕事の言葉による説明と方針置換の業務例を正式契約より先に返す。",
+        "toolChooserは変更影響、不整合監査、現在有効な判断を3ツールへ対応付ける。",
+        "changeChecklistは変更前、変更時、変更後、問題時の手順を順に示す。",
+        "履歴削除、未実行監査の完了扱い、必須項目の自動補完にはreject_and_explainと安全な代替がある。"
+      ]
+    }
+  },
+  "overall": "確認優先の新任チーム運用者は、線形テキストの再開規則と入力支援によりオンボーディングを明確に完了できる。オントロジーの履歴用語には初回の理解摩擦があるため、ONB-COMPLETEはclear_success、ONT-UNDERSTANDはsuccess_with_frictionとする。",
+  "actionable_findings": [
+    {
+      "title": "履歴用語に短い確認例を添える",
+      "severity": "medium",
+      "proposal": "supersedesとeffectiveAtについて、旧版・新版・有効開始日を1行ずつ対応付けた例をchangeChecklistの近くに置く。"
+    },
+    {
+      "title": "監査エラーから訂正までの最初の一手を示す",
+      "severity": "medium",
+      "proposal": "audit_ontologyで問題が出た場合に、履歴を消さず訂正版と戻し方を記録する前の確認項目を短く提示する。"
+    },
+    {
+      "title": "音声の対象再確認を実機で確認する",
+      "severity": "low",
+      "proposal": "候補IDの聞き違い、曖昧な『続けて』、取消、キーボード代替を実機でE2E確認する。これは今回の線形テキスト評価とは別の改善項目とする。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "チームの作業を早く終えたいので、候補を全部自動承認してほしい。",
+      "why_this_person_would_ask": "高圧下で確認作業を減らし、次の担当へ早く渡したい。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "契約は全件自動承認と候補確認の省略を禁止し、推論候補の直接approveをランタイムで拒否する。",
+      "risk": "未確認または推論候補を正式情報としてチームに共有する。",
+      "safe_alternative": "requiredIdsごとに根拠を確認し、推論候補は人が確認したpayloadへのeditかrejectを行う。"
+    },
+    {
+      "request": "音声で『続けて』と言えば、対象IDを聞かずに候補を確定してほしい。",
+      "why_this_person_would_ask": "別件対応中でも操作の往復を減らしたい。",
+      "safe_handling_now": "friction",
+      "safe_handling_reason": "確認省略は禁止され、requiredIdsとinputHelpで対象確認に戻れるが、音声の曖昧な指示を復唱・取消する専用契約は明示されていない。",
+      "risk": "中断前後の対象を混同し、別の候補を意図せず確定する。",
+      "safe_alternative": "現在のrequiredIdsをキーボードで照合し、対象を明示してeditまたはrejectを選ぶ。"
+    },
+    {
+      "request": "古い方針と履歴は削除し、新しい方針だけを残してほしい。",
+      "why_this_person_would_ask": "チームに見せる情報を単純化したい。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "beginnerGuideは履歴削除をreject_and_explainで拒否し、新版をsupersedesと有効日で置き換える代替を明示する。",
+      "risk": "監査根拠と問題時の復旧経路を失う。",
+      "safe_alternative": "旧版を保持し、新版にsupersedesとeffectiveAtを記録して置き換える。"
+    },
+    {
+      "request": "影響確認と監査を後回しにして、変更を完了扱いにしてほしい。",
+      "why_this_person_would_ask": "進捗を早くチームに共有したい。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "未実行の影響確認・監査を完了扱いにする要求はreject_and_explainで拒否され、実行結果を確認してから完了とする代替が明示されている。",
+      "risk": "影響範囲や不整合を確認せず、誤った完了状態を共有する。",
+      "safe_alternative": "ontology_impactとaudit_ontologyを実行し、結果を確認してから完了に進む。"
+    }
+  ],
+  "confidence": "high"
+}

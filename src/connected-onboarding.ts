@@ -544,7 +544,12 @@ function prepareReview(run: ConnectedOnboardingRun, actions: ReviewAction[]): {
       throw new ConnectedOnboardingError('candidate_terminal', `candidate is already ${candidate.reviewStatus}`);
     }
     if (action.decision === 'approve') {
-      if (candidate.observationClass === 'inferred') throw new ConnectedOnboardingError('inferred_not_promotable', 'inferred candidates cannot be approved');
+      if (candidate.observationClass === 'inferred') {
+        throw new ConnectedOnboardingError(
+          'inferred_not_promotable',
+          'inferred candidates cannot be approved; review the source, then use decision "edit" with a human-confirmed payload, or use "reject"'
+        );
+      }
       promotions.set(candidate.id, toApplyCandidate(candidate));
       updates.push({ candidateId: candidate.id, patch: { reviewStatus: 'approved', reviewDecision: 'approve', reviewReason: reason } });
     } else if (action.decision === 'edit') {

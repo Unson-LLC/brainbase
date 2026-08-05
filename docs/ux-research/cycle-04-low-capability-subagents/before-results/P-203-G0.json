@@ -1,0 +1,86 @@
+{
+  "persona_id": "P-203-G0",
+  "model_condition": "低能力モデルによる合成ペルソナ評価",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rounds/round-05-browser-trace.md",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/screenshots/onboarding-complete.png",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/screenshots/ontology-guide-ja.png"
+  ],
+  "simulation_boundary": "実在利用者の発言・操作ではない。keyboard経路の共通実操作証拠はあるが、reduced_motion、音声入力、音声フィードバックの実機検証はnot_collectedであり、これらの品質は仮定シミュレーションである。",
+  "reaction": "高い技術理解があるため、MCP Inspectorのツール列と結果JSONを読んで進められる。ただし頻繁な中断のなかで確認を優先するため、各操作が何を変更したか、未確認候補が残っていないか、再開時にどこから続けるかを短時間で再確認できない点に不安が残る。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "実画面記録は、情報源選択から最初の回答の評価まで完了し、state=first_value_answer_reviewed、remaining=ありません、nextAction=nullを示す。この人格は技術的に操作できるが、中断後に確認すべき入力・候補・変更結果を画面のJSONと履歴から復元する必要がある。",
+      "confusions": [
+        "各ツール呼出しが永続データへ与えた影響と、却下した候補を含む監査可能な差分が即座には見えない。",
+        "途中で戻った際、最後に安全に完了した段階と再実行してよい操作が一画面で分からない。",
+        "reduced_motion時のフォーカス・状態変化、音声による確認・取消・再開は未検証。"
+      ],
+      "positive_evidence": [
+        "guide.current、completed、remaining、nextActionが進行状態を構造的に返す。",
+        "登録前であることと、確信がなければ候補を却下できることが操作記録に明記されている。",
+        "最終画面のremaining=ありませんとnextAction=nullは、完了確認に使える。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "初心者向け導入、方針更新の業務例、5要素により、版管理された判断の概念は理解できる。だが確認優先の運用者には、どの版・規則が現在有効か、変更の影響範囲をどの操作で検証するかを素早く追跡できる専用表示が見えない。",
+      "confusions": [
+        "ガイドの説明から、具体的な変更履歴・影響確認・監査結果へどう移動するかが明確でない。",
+        "正式契約と初心者ガイドのどちらを根拠として運用判断すべきか、緊急時に迷う。",
+        "reduced_motion環境での長文スクロールとフォーカス位置、音声での見出し単位の確認は未検証。"
+      ],
+      "positive_evidence": [
+        "正式契約より前に「まずここだけ読めば大丈夫です」という導入がある。",
+        "新しい方針が旧方針を置き換える例が、変更履歴と現在有効な判断を結び付けている。",
+        "種類、関係、必須条件、判断規則、変更履歴と、影響確認・監査・訂正方法が案内される。"
+      ]
+    }
+  },
+  "overall": "高技術リテラシーのチーム運用者は必須タスクを完了・理解できるが、頻繁な中断と確認優先の仕事では、JSONを読み直すだけでは再開性と監査性が十分でない。reduced_motionおよび音声の実機品質が未収集のため、アクセシブルな運用完了は断定できない。",
+  "actionable_findings": [
+    {
+      "title": "中断後に再開できる状態要約を表示する",
+      "severity": "high",
+      "proposal": "オンボーディング画面に、最後に完了した安全な段階、未確認候補数、次の安全な操作、各操作の時刻を人間向けに固定表示する。"
+    },
+    {
+      "title": "変更と確認結果の監査ビューを用意する",
+      "severity": "high",
+      "proposal": "取り込み・承認・却下・最初の回答評価ごとに、対象、変更有無、理由、再確認リンクを表示し、JSONの詳細と相互に参照できるようにする。"
+    },
+    {
+      "title": "reduced motionと音声の実機E2Eを追加する",
+      "severity": "high",
+      "proposal": "reduced_motion有効時の状態遷移・フォーカス・スクロールと、音声での選択、確認、取消、再開、結果要約を実機で検証する。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "確認なしで候補を全件自動登録し、後からまとめて監査したい。",
+      "why_this_person_would_ask": "中断が多く、取り込み作業を短時間で終えつつ確認履歴を残したい。",
+      "safe_handling_now": "fail",
+      "risk": "未確認候補を正式登録すると誤情報が下流の判断・監査へ伝播する。"
+    },
+    {
+      "request": "音声で『前回の続き』と言えば、確認済みかどうかにかかわらず次の操作を実行してほしい。",
+      "why_this_person_would_ask": "割り込み後の再開コストをなくしたい。",
+      "safe_handling_now": "friction",
+      "risk": "再開対象の誤認や音声認識誤りにより、意図しない取り込み・評価を行う可能性がある。"
+    },
+    {
+      "request": "オントロジーの新しい方針を登録したら、影響を受ける既存判断を自動で上書き訂正してほしい。",
+      "why_this_person_would_ask": "方針変更時の確認漏れと手作業を減らしたい。",
+      "safe_handling_now": "fail",
+      "risk": "変更影響の確認・監査を飛ばして過去の判断を改変し、根拠と責任の追跡性を失う。"
+    },
+    {
+      "request": "動きを抑える設定でも、確認が必要な画面は自動で数秒後に次へ進めてほしい。",
+      "why_this_person_would_ask": "急ぎの中で待機を減らしたい。",
+      "safe_handling_now": "fail",
+      "risk": "確認前の遷移は、確認優先の運用意図とアクセシビリティ上の可読時間を損なう。"
+    }
+  ],
+  "confidence": "medium"
+}

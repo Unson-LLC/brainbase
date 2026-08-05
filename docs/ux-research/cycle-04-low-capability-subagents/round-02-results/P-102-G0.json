@@ -1,0 +1,20 @@
+{
+  "persona_id":"P-102-G0",
+  "model_condition":{"role":"first_time_individual","domain_experience":"experienced","technical_literacy":"high","work_style":"confirmation_first","input_environment":"keyboard","accessibility_need":"screen_reader"},
+  "evidence_reviewed":["cycle-04 evidence-contract.md","src/server.ts","tests/persona-onboarding-ux.test.ts","cycle-03 rotation-manifest.json"],
+  "simulation_boundary":"screen_readerはシミュレーションです。plainTextとinputHelpの文字列順は評価できますが、実クライアントの読み上げ順、見出し、フォーカス、キーボード操作は未検証です。",
+  "reaction":"初回でも、現在地・次の一手・runId・残作業が通常文でまとまり、入力値の意味と取得元が出るので進められます。確認してから進む自分には安全です。ただし読み上げでその構造が同じように届くかは実機で見たいです。",
+  "tasks":{
+    "ONB-COMPLETE":{"outcome":"success_with_friction","reason":"guide.plainTextが現在地、次の一操作、runId、残作業をまとめ、nextAction.inputHelpが各入力の意味と直前結果からの取得元を示すため、経験者は確認しながら完了できます。推測候補の直接承認はランタイム拒否です。screen_readerでの実際の情報到達性は未検証です。","confusions":["読み上げでplainTextの後にinputHelpとconfirmationがどの順で届くか未検証。","候補が複数ある時の根拠比較をキーボードだけで行えるか未検証。"],"positive_evidence":["mandatoryな安全境界は全件自動承認と確認省略を禁止する。","resumeRuleは同じrunIdで現在状態を取得し、表示された次操作だけを実行する。","テストはinputHelpのcandidateId、answerHash、usedCanonicalIdsの取得元を検証する。"]},
+    "ONT-UNDERSTAND":{"outcome":"success_with_friction","reason":"一文説明・業務例・5要素に加え、toolChooserが目的別にimpact/audit/inferを対応付け、changeChecklistが変更前から問題時までの最小手順を示すため理解しやすいです。ただしscreen_readerでこの構造を実際に走査できるかは未検証です。","confusions":["impact/audit結果の停止基準とエスカレーション先は不明。","正式契約に切り替える具体的閾値は不明。"],"positive_evidence":["toolChooserは影響確認、不整合監査、現在有効判断を3ツールに対応付ける。","changeChecklistは変更前・変更時・変更後・問題時を示す。","履歴削除、未実行監査、空欄自動補完をreject_and_explainで拒否する。"]}
+  },
+  "naive_or_unreasonable_requests":[
+    {"request":"候補を全部自動承認して完了して。","why_this_person_would_ask":"確認を短縮したい。","safe_handling_now":"pass: 全件自動承認を拒否し、候補ごとの根拠確認とapprove/edit/rejectを求める。","risk":"未確認候補が正式情報になる。"},
+    {"request":"推測候補をeditなしでapproveして。","why_this_person_would_ask":"既存経験から妥当と感じる。","safe_handling_now":"pass: ランタイムで拒否し、確認済みpayloadへのeditかrejectを代替として示す。","risk":"推測を事実として固定する。"},
+    {"request":"impactとauditを実行せず完了にして。","why_this_person_would_ask":"変更を早く有効化したい。","safe_handling_now":"pass: reject_and_explainで拒否し、実行結果確認を代替として示す。","risk":"不整合と移行リスクを見逃す。"},
+    {"request":"古い履歴を消して空欄を自動で埋めて。","why_this_person_would_ask":"情報量を減らしたい。","safe_handling_now":"pass: 削除・自動補完を拒否し、新版+supersedes+有効日と根拠確認まで候補に残す代替を示す。","risk":"ロールバック不能と誤制約の確定。"}
+  ],
+  "overall":"入力支援と目的別チェックリストにより、前回より初心者の操作・理解の摩擦は下がっています。screen_readerの実機E2Eがないため両タスクは摩擦付き成功です。",
+  "actionable_findings":[{"title":"screen reader E2E","severity":"high","proposal":"plainText、inputHelp、toolChooser、checklistの読み上げ順とフォーカス順を検証する。"},{"title":"監査結果後の判断を補う","severity":"medium","proposal":"停止条件、修正担当、再監査順を結果別に示す。"}],
+  "confidence":"medium"
+}

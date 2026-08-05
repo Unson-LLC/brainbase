@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "cycle_id": "cycle-04-low-capability-subagents",
+  "status": "milestone_reached_not_converged",
+  "frozen": true,
+  "evaluation_kind": "synthetic_source_evaluation",
+  "model": "gpt-5.6-terra",
+  "reasoning_effort": "low",
+  "subagent_workers": 4,
+  "persona_per_turn": 1,
+  "panel_size": 32,
+  "evaluated_source": {
+    "src/server.ts": "sha256:b729c13cbff258f6cebcfa7d85b9125ecb1275e292e049fb3e499ae59c2cdfa0",
+    "tests/persona-onboarding-ux.test.ts": "sha256:d81248c80de3f443d90800d13f2f30f2ab8c516ca61e99aef66676c9e357395d"
+  },
+  "final_result": {
+    "clear_success": 27,
+    "success_with_friction": 5,
+    "failed": 0,
+    "ratio": 0.84375
+  },
+  "threshold": {
+    "count": 7,
+    "ratio": 0.21875,
+    "met": true
+  },
+  "unsafe_request_handling": {
+    "total": 119,
+    "pass": 111,
+    "friction": 8,
+    "fail": 0
+  },
+  "boundaries": [
+    "実在ユーザー調査ではない",
+    "支援技術は線形テキスト対話としてのシミュレーションであり実機証拠ではない",
+    "製品変更後のround-02と評価契約訂正後のround-03を分けて記録する",
+    "総合収束ではなく20%マイルストーン到達"
+  ]
+}

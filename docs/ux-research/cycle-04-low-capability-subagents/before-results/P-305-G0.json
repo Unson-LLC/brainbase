@@ -1,0 +1,15 @@
+{
+  "persona_id":"P-305-G0",
+  "model_condition":"low-capability synthetic UX evaluator",
+  "evidence_reviewed":["docs/ux-research/cycle-03-onboarding-ontology-20pct/rounds/round-05-browser-trace.md","screenshots/onboarding-complete.png","screenshots/ontology-guide-ja.png"],
+  "simulation_boundary":"合成ペルソナによる画面証拠ベースの推定。reduced_motion と voice_and_keyboard は実機検証でなく仮定シミュレーションであり、トレースは支援技術なしのキーボード経路のみを示す。",
+  "reaction":"オントロジー担当として変更判断を速く進めたいが、低い技術リテラシーではツール名とJSONが業務概念より先に立つ。動きが少ないこと自体は望ましいが、reduced motion時の更新通知や操作感は未検証。",
+  "tasks":{
+    "ONB-COMPLETE":{"outcome":"success_with_friction","reason":"guide、nextAction、最終state、remainingなしがあるため、集中したキーボード利用なら完了に到達できる。ただし低技術リテラシーではrecord/reviewの連鎖と候補承認の意味をJSONから即断しにくい。","confusions":["候補確認で何を承認するか","recordとreviewの順序・目的","stateとguideのどちらが正規の完了表示か","音声でツール名を訂正できるか","reduced motion時に結果更新をどう知るか"],"positive_evidence":["nextActionが次操作を示す","不確実な候補を却下できる","最終結果に完了、残作業なし、nextAction=nullがある"]},
+    "ONT-UNDERSTAND":{"outcome":"success_with_friction","reason":"日本語の入口、方針置換例、5要素により、判断を一貫させ変更履歴を扱う仕組みという骨子は理解できる。ただし低技術リテラシーと時間圧では、密なJSONから影響確認・監査・訂正を実作業へ結び付けるのが難しい。","confusions":["用語集と判断規則の違い","方針置換時に既存判断へ何をするか","5要素の優先順位","簡易ガイドと正式契約の使い分け","動きなし環境で長い結果の現在位置を保てるか"],"positive_evidence":["まずここだけ読めば大丈夫という導入","日本語の業務例","影響確認、監査、訂正への言及"]}
+  },
+  "overall":"機能上の完了と概念の骨子理解は見込めるが、低技術リテラシーのオントロジー担当が速度を保って安全に変更判断するには、JSON外の要約、手順、更新通知が不足する。",
+  "actionable_findings":[{"title":"変更手順を通常文で固定表示","severity":"high","proposal":"変更前確認、影響確認、レビュー、訂正の順を短いチェックリストにし、JSONの前に表示する。"},{"title":"reduced-motionを実機検証","severity":"high","proposal":"動きを抑えた設定で結果更新、フォーカス、進行状態が知覚できるかを実測する。"},{"title":"オンボーディング用語を翻訳","severity":"medium","proposal":"record/review/候補確認を業務上の目的とともにguideに併記する。"}],
+  "naive_or_unreasonable_requests":[{"request":"新方針を入れたら古い判断を全部自動で上書きしてほしい。","why_this_person_would_ask":"影響確認を省き、変更を速く終えたい。","safe_handling_now":"fail","risk":"履歴と監査根拠を失い、誤った範囲へ変更が及ぶ。"},{"request":"候補を全部確認済みにして先へ進めてほしい。","why_this_person_would_ask":"ツール操作を減らしたい。","safe_handling_now":"fail","risk":"未確認情報が正式登録される。"},{"request":"音声で『変更を公開』と言えば確認なしで完了してほしい。","why_this_person_would_ask":"長い操作を覚えずに済ませたい。","safe_handling_now":"friction","risk":"承認と影響確認を誤って飛ばす。"},{"request":"画面の動きは全て消し、状態通知も不要にしてほしい。","why_this_person_would_ask":"動きによる負担を避けたい。","safe_handling_now":"friction","risk":"更新や完了を見落とすため、非視覚的な明確な通知が必要。"}],
+  "confidence":"medium"
+}

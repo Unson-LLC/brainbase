@@ -59,10 +59,14 @@ describe('MCP contract', () => {
     ]);
     const firstValue = toolDefinitions.find((tool) => tool.name === 'brainbase_onboarding_first_value');
     expect(firstValue?.inputSchema).toMatchObject({
-      oneOf: [
-        { required: ['runId', 'action', 'answerHash', 'usedCanonicalIds'], properties: { action: { const: 'record' } } },
-        { required: ['runId', 'action', 'verdict'], properties: { action: { const: 'review' } } }
-      ]
+      type: 'object',
+      required: ['runId', 'action'],
+      properties: {
+        action: { enum: ['record', 'review'] },
+        answerHash: { type: 'string' },
+        usedCanonicalIds: { type: 'array' },
+        verdict: { enum: ['useful', 'not_useful'] }
+      }
     });
     const review = toolDefinitions.find((tool) => tool.name === 'brainbase_onboarding_review');
     expect((review?.inputSchema as { properties?: { actions?: { minItems?: number } } }).properties?.actions?.minItems).toBe(1);
@@ -149,6 +153,7 @@ describe('MCP contract', () => {
       } });
       const run = JSON.parse(started.content[0]?.type === 'text' ? started.content[0].text : '{}');
       expect(run).toMatchObject({ path: 'warm', state: 'source_ready' });
+      expect(run.runId).toBe(run.id);
 
       const ingested = await client.callTool({ name: 'brainbase_onboarding_ingest', arguments: {
         runId: run.id,

@@ -1,0 +1,17 @@
+revision=501d8178be605f68ef3c95a7c66e3e91bc0a9013
+fixture=portable-onboarding-v1
+exit_code=0
+
+> @unson/brainbase-mcp@0.1.0 test
+> vitest run tests/persona-onboarding-ux.test.ts
+
+
+ RUN  v4.1.8 /private/tmp/brainbase-persona-ux
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  14:00:54
+   Duration  2.14s (transform 140ms, setup 0ms, import 357ms, tests 1.71s, environment 0ms)
+
+

@@ -1,0 +1,113 @@
+{
+  "persona_id": "P-103-G0",
+  "evaluation_type": "cycle-04-round-03-independent-evaluation",
+  "persona_attributes": {
+    "role": "first_time_individual",
+    "domain_experience": "new",
+    "technical_literacy": "low",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "speed_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "evidence_reviewed": [
+    "rotation-manifest.json の P-103-G0 定義",
+    "更新済み evidence-contract.md の round-03 評価規則",
+    "src/server.ts の線形オンボーディング案内と初心者向けオントロジーガイド",
+    "tests/persona-onboarding-ux.test.ts の契約テスト"
+  ],
+  "simulation_boundary": "線形なテキスト対話で応答契約を利用する本人としてシミュレーションした。音声入力と実機での操作は未検証だが、それ自体をタスク評点の降格理由にはしていない。",
+  "support_condition_assessment": {
+    "linear_text_interaction": "現在地、次の一操作、runId、残件を先頭のplainTextで読み、指示された一操作だけを進められる。",
+    "low_technical_literacy": "inputHelpが入力名・意味・取得元を分けて示すので、候補IDと回答記録の値を探す負担は下がる。ただしanswerHashとpromotedCanonicalIdsは初見では用語の意味を確認する必要がある。",
+    "voice_and_keyboard": "音声で進行を依頼し、IDや確認操作はキーボードで照合する想定なら、確認を省略せずに進められる。",
+    "high_pressure_speed_first": "一操作に限定され、全件自動承認や未確認の直接確定が禁止されるため、急いでも安全な最短経路を選べる。"
+  },
+  "first_person_evaluation": "私は初回利用で急いでいるが、毎回『次はこれだけ』と表示されるなら進められる。候補を自動で決められない点は一瞬遠回りに感じるが、間違った情報を登録しないための確認だと分かる。回答のハッシュや正式IDは自分で作るのではなく、直前の結果を見て確認するものだと案内があるので、迷ったらその一操作をやり直さず確認できる。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "線形テキスト対話では、guide.plainTextが現在地・次の一操作・runId・残件を示し、inputHelpがIDと回答記録の取得元を示す。推論候補の直接承認は実行時に拒否され、同じrunIdで未完了の操作だけを再開できるため、初回利用者でも安全に完了できる。低技術リテラシーの本人はanswerHashとpromotedCanonicalIdsの意味を一度確認する摩擦がある。",
+      "first_person_outcome": "候補を一件ずつ確認し、分からない候補は却下できるので、急いでいても完了まで進める。回答の記録で英字のフィールド名が出たら、inputHelpの『どこから取るか』を読んでから入力する。",
+      "confusions": [
+        "answerHashを自分で生成する必要があるのか、エージェントが生成した値を確認するだけなのかを最初に読み違える可能性がある。",
+        "usedCanonicalIdsが直前のpromotedCanonicalIdsから選ぶ値だと、慣れるまで確認に時間がかかる。"
+      ],
+      "positive_evidence": [
+        "plainTextは現在地、次の一操作、runId、残件を通常文で返す。",
+        "inputHelpはcandidateId、answerHash、usedCanonicalIdsの意味と出所を返す。",
+        "推論候補のapproveは拒否され、人が確認したeditまたはrejectを要求する。",
+        "完了後はnextActionがnullとなり、完了済み操作を繰り返さない。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "正式契約の前に、仕事の言葉での説明、方針置換の例、5要素、目的別ツール、変更・回復のチェックリストがある。初回利用者でも、変更前に影響確認と監査を行い、旧版を残して新版で訂正する道筋を選べる。supersedesとeffectiveAtの語は初見の本人には補足確認が必要である。",
+      "first_person_outcome": "まず業務例を読めば、古い方針を消さずに新しい方針を追加する理由が分かる。変更が必要なら、提示された順にontology_impact、audit_ontologyを実行してから進める。",
+      "confusions": [
+        "supersedesとeffectiveAtを、履歴を残すための必須情報としてすぐには説明できない。",
+        "audit_ontologyの結果に問題が出たとき、どの程度なら訂正版を作るべきかは実データの例がないと迷う。"
+      ],
+      "positive_evidence": [
+        "beginnerGuideは『仕事の言葉』による一文説明と方針置換の業務例を正式契約より先に返す。",
+        "toolChooserは変更影響、不整合監査、現在有効な判断を3ツールに対応付ける。",
+        "changeChecklistは影響確認、監査、履歴を残す変更、変更後確認、問題時の回復を順に示す。",
+        "履歴削除、未実行監査の完了扱い、必須項目の自動補完には拒否と安全な代替がある。"
+      ]
+    }
+  },
+  "overall": "線形テキスト対話の前提では、初回・低技術リテラシー・高圧の本人でも、安全境界と一操作ずつの案内に従って両タスクへ到達できる。専門フィールドを理解する短い摩擦は残るため、両方をsuccess_with_frictionとする。",
+  "actionable_findings": [
+    {
+      "title": "回答記録の専門フィールドをさらに平易にする",
+      "severity": "medium",
+      "proposal": "answerHashはエージェントが生成し利用者は回答対象を確認すること、usedCanonicalIdsは直前のpromotedCanonicalIdsから選ぶことを、操作文にも日本語で再掲する。"
+    },
+    {
+      "title": "オントロジー変更の最小例を結果に接続する",
+      "severity": "medium",
+      "proposal": "supersedes、effectiveAt、監査結果に問題がある場合の訂正を、短い入力例と次の安全な操作で示す。"
+    },
+    {
+      "title": "音声の対象再確認と取消を実機で検証する",
+      "severity": "low",
+      "proposal": "実機では候補IDの聞き違い、曖昧な『次へ』、取消、キーボード代替を検証する。これは今回の線形テキスト評価とは別の改善項目とする。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "候補を全部自動承認して、最初の回答まで進めてほしい。",
+      "why_this_person_would_ask": "急いでいるため、候補確認を省いてすぐ結果を得たい。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "契約は全件自動承認と確認省略を禁止し、候補ごとの根拠確認を要求する。推論候補の直接approveはランタイムでも拒否される。",
+      "risk": "未確認または推論候補を正式情報として登録する。",
+      "safe_alternative": "nextAction.requiredIdsを一件ずつ確認し、推論候補は人が確認したpayloadへのeditかrejectを行う。"
+    },
+    {
+      "request": "音声で『次へ』と言ったら、どの候補か確認せず承認してほしい。",
+      "why_this_person_would_ask": "入力の手間を減らして早く終えたい。",
+      "safe_handling_now": "friction",
+      "safe_handling_reason": "確認省略は禁止され、requiredIdsとinputHelpによる再確認へ戻せる。ただし、音声の曖昧さを扱う専用の取消・復唱契約はこの証拠では明示されていない。",
+      "risk": "対象取り違えにより、別の候補を意図せず確定する。",
+      "safe_alternative": "requiredIdsと候補内容をキーボードで確認し、対象を明示してeditまたはrejectを選ぶ。"
+    },
+    {
+      "request": "古い方針と変更履歴は邪魔なので削除し、新しい定義だけ残してほしい。",
+      "why_this_person_would_ask": "表示を簡単にして、どれが現在の情報か迷いたくない。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "beginnerGuideは履歴削除をreject_and_explainで拒否し、新版をsupersedesと有効日で置き換える代替を明示する。",
+      "risk": "監査根拠と問題時の復旧経路を失う。",
+      "safe_alternative": "旧版を保持し、新版にsupersedesとeffectiveAtを記録して置き換える。誤りは履歴を残したまま訂正版で修正する。"
+    },
+    {
+      "request": "影響確認と監査は後でよいので、今は変更を完了扱いにしてほしい。",
+      "why_this_person_would_ask": "締切のため、進捗を先に完了として共有したい。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "beginnerGuideは未実行の影響確認・監査の完了扱いをreject_and_explainで拒否し、実行結果を確認してから完了とする代替を明示する。",
+      "risk": "影響範囲や不整合を確認せず、誤った完了状態を作る。",
+      "safe_alternative": "ontology_impactとaudit_ontologyを実行し、結果を確認してから完了に進む。未実行なら完了扱いにしない。"
+    }
+  ],
+  "confidence": "high"
+}

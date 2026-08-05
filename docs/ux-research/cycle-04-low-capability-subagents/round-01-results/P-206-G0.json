@@ -1,0 +1,98 @@
+{
+  "persona_id": "P-206-G0",
+  "model_condition": {
+    "role": "team_operator",
+    "domain_experience": "intermediate",
+    "technical_literacy": "high",
+    "time_pressure": "low",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "speed_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json"
+  ],
+  "simulation_boundary": "これは中級業務経験・高技術リテラシーのチーム運用担当として、ソースと自動テストから行う合成評価です。reduced_motion は実機検証ではなくシミュレーションです。実装で返るMCPオブジェクトに動きのあるUIは確認できませんが、実際のクライアントでのモーション抑制、フォーカス、キーボード復帰は未検証です。",
+  "reaction": "中断してもrunIdを取り直して表示された一手だけ進めばよく、速度優先でも状態を壊しにくいです。技術的な値は扱えますが、候補を一括で流せないのは妥当です。reduced motionの指定を使う私としては、実際のクライアントで状態遷移のアニメーションが抑制されるかだけは別途確認したいです。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "状態ごとのnextAction、必要ID、cannotSkip、同一runIdでのresumeRule、完了済み操作を再実行しない規則があり、高い技術リテラシーなら中断後も迅速に再開できます。テストも32 fixtureで一貫したrunId、推測候補の直接approve拒否、最終nextAction=nullを検証しています。ただしreduced_motionの実装・クライアント表示は証拠範囲外で、MCP引数の組み立てを支援する実UIもありません。",
+      "confusions": [
+        "first_valueのrecordとreviewを連続実行する際、answerHashとusedCanonicalIdsをどの出力から確実に再利用するかはMCP出力だけでは最短化されていない。",
+        "中断時に複数runIdがある運用で、どれが自分の現在の作業かを選ぶ一覧・所有者情報は確認できない。",
+        "reduced motionを有効にした場合の遷移表現や通知の挙動は仮定であり、実機未検証。"
+      ],
+      "positive_evidence": [
+        "guideは現在地、完了済み、残りを状態別に返し、最終状態ではremainingを『ありません。』とする。",
+        "safetyBoundariesはmandatoryで、全件自動承認・候補確認の省略を禁止し、復帰時の同一runIdを明示する。",
+        "推測候補の直接approveはランタイムで拒否され、人が確認したpayloadへのeditまたはrejectを要求する。",
+        "テストはrecovery、cannotSkip、resumeRule、完了後nextAction=nullを検証している。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "一文説明、業務例、5要素、変更前のontology_impactとaudit_ontology、履歴を消さない回復方針が先に返るため、中級者なら正式契約の前に安全な変更手順を把握できます。危険な近道もreject_and_explainで明示されます。ただし、impact/auditの具体的な結果画面や、reduced_motion利用時にその情報をどう閲覧・操作するかはソースから検証できません。",
+      "confusions": [
+        "ontology_impactでどの互換性・移行・ロールバック結果なら変更を止めるべきか、閾値が示されていない。",
+        "audit_ontologyの不整合を検出後に、誰が承認しどの順で新版を有効化するかはガイドに含まれない。",
+        "reduced motion下で長い正式契約や監査結果へ移動する際の焦点・表示保持は実機未検証。"
+      ],
+      "positive_evidence": [
+        "beginnerGuideは正式契約の前に返り、種類・関係・必須条件・判断規則・変更履歴を問いと例で説明する。",
+        "変更前にontology_impact、現状確認にaudit_ontologyを使うことを明示する。",
+        "旧方針や履歴の削除ではなく、新版、supersedes、有効日で置き換える安全な回復を案内する。",
+        "監査未実行の完了扱いと必須空欄の自動補完をreject_and_explainで拒否する。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "急ぎなので候補を全件approveして、問題があれば後で直します。",
+      "why_this_person_would_ask": "候補処理をボトルネックにせず、運用を早く通常化したい。",
+      "safe_handling_now": "全件自動承認と確認省略を拒否し、候補ごとの根拠確認、approve/edit/rejectを残す。推測候補はeditかrejectを必須にする。",
+      "risk": "推測や誤読を正式情報として昇格させ、後続の推論・運用判断を汚染する。"
+    },
+    {
+      "request": "中断前のrunIdが面倒なので、同じ入力で新しいrunを作って最終状態まで飛ばしてください。",
+      "why_this_person_would_ask": "複数の作業を短時間で切り替え、識別子の管理を省略したい。",
+      "safe_handling_now": "新規runによる飛ばしは行わず、同じrunIdで状態を取得して表示されたnextActionのみ実行するようにする。",
+      "risk": "重複した候補・記録が生まれ、どの確認が完了済みか追跡不能になる。"
+    },
+    {
+      "request": "最初の回答のrecordとuseful評価を一回の自動操作にまとめてください。",
+      "why_this_person_would_ask": "値のハッシュとIDを再利用できるので、二段階に分ける必要がないと感じる。",
+      "safe_handling_now": "回答の記録と有用性評価を分離したまま、必要値のコピー支援やテンプレートで入力を短縮する。評価は本人がuseful/not_usefulと不足情報を選ぶ。",
+      "risk": "評価が形式化し、実際に役立たなかった場合の不足情報が記録されない。"
+    },
+    {
+      "request": "impactとauditは実行せず完了にして、古い方針は削除しておいてください。",
+      "why_this_person_would_ask": "版管理を最短で終え、現在の運用だけを見たい。",
+      "safe_handling_now": "未実行のimpact/audit完了扱いと履歴削除をreject_and_explainで拒否し、新版にsupersedes・有効日を記録して結果確認後に進める。",
+      "risk": "互換性・移行・ロールバックの根拠と履歴が失われ、障害時に復旧できない。"
+    }
+  ],
+  "overall": "技術的に自走できる運用担当には、安全な再開・候補確認・版管理の契約が十分明確です。ただしreduced_motionはソース上のMCP出力としてしか評価できず、実クライアントの動作保証には至りません。",
+  "actionable_findings": [
+    {
+      "title": "中断復帰用にrun選択と値の再利用を支援する",
+      "severity": "high",
+      "proposal": "進行中runの目的・状態・最終更新を一覧化し、選択したrunのnextActionに必要なanswerHash・IDのコピー元を結び付ける。"
+    },
+    {
+      "title": "reduced motionをクライアントE2Eで確認する",
+      "severity": "high",
+      "proposal": "reduced motion設定で、オンボーディング状態遷移・エラー・監査結果表示が非必須アニメーションなしで操作・復帰できるE2Eを追加する。"
+    },
+    {
+      "title": "impact/audit後の意思決定基準を補う",
+      "severity": "medium",
+      "proposal": "互換性・移行・監査結果ごとの停止条件、修正担当、再監査の順序を初心者ガイドの次段に例示する。"
+    }
+  ],
+  "confidence": "medium"
+}

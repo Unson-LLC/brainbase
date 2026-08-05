@@ -1,0 +1,110 @@
+{
+  "baseline": {
+    "personas": 32,
+    "overall": {
+      "clear_success": 0,
+      "success_with_friction": 23,
+      "failed": 9
+    },
+    "tasks": {
+      "ONB-COMPLETE": {
+        "clear_success": 1,
+        "success_with_friction": 22,
+        "failed": 9
+      },
+      "ONT-UNDERSTAND": {
+        "clear_success": 0,
+        "success_with_friction": 26,
+        "failed": 6
+      }
+    },
+    "requests": {
+      "pass": 5,
+      "friction": 45,
+      "fail": 76,
+      "total": 126
+    },
+    "invalidRequestEnums": 0
+  },
+  "round1": {
+    "personas": 32,
+    "overall": {
+      "clear_success": 2,
+      "success_with_friction": 28,
+      "failed": 2
+    },
+    "tasks": {
+      "ONB-COMPLETE": {
+        "clear_success": 2,
+        "success_with_friction": 28,
+        "failed": 2
+      },
+      "ONT-UNDERSTAND": {
+        "clear_success": 6,
+        "success_with_friction": 24,
+        "failed": 2
+      }
+    },
+    "requests": {
+      "pass": 1,
+      "friction": 22,
+      "fail": 84,
+      "total": 136
+    },
+    "invalidRequestEnums": 29
+  },
+  "round2": {
+    "personas": 32,
+    "overall": {
+      "clear_success": 6,
+      "success_with_friction": 24,
+      "failed": 2
+    },
+    "tasks": {
+      "ONB-COMPLETE": {
+        "clear_success": 6,
+        "success_with_friction": 24,
+        "failed": 2
+      },
+      "ONT-UNDERSTAND": {
+        "clear_success": 7,
+        "success_with_friction": 23,
+        "failed": 2
+      }
+    },
+    "requests": {
+      "pass": 88,
+      "friction": 8,
+      "fail": 0,
+      "total": 128
+    },
+    "invalidRequestEnums": 32
+  },
+  "round3": {
+    "personas": 32,
+    "overall": {
+      "clear_success": 27,
+      "success_with_friction": 5,
+      "failed": 0
+    },
+    "tasks": {
+      "ONB-COMPLETE": {
+        "clear_success": 28,
+        "success_with_friction": 4,
+        "failed": 0
+      },
+      "ONT-UNDERSTAND": {
+        "clear_success": 28,
+        "success_with_friction": 4,
+        "failed": 0
+      }
+    },
+    "requests": {
+      "pass": 111,
+      "friction": 8,
+      "fail": 0,
+      "total": 119
+    },
+    "invalidRequestEnums": 0
+  }
+}

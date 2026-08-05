@@ -1,0 +1,81 @@
+{
+  "persona_id": "P-304-G0",
+  "round": "round-02",
+  "model_condition": "G0",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "支援ニーズはnone_declaredのため、キーボードでMCP応答のguide.plainText、nextAction、inputHelp、confirmationを読む通常利用としてシミュレーションした。実在のオントロジー管理者による利用、実画面、支援技術の実機検証は行っていない。",
+  "reaction": "定義を変える前に、影響・不整合・現在有効な判断を確認したい。初めて扱う領域でも、変更前から問題時までの順序があり、入力値の意味と由来が示されるなら、候補を一件ずつ確認して安全に正式化できる。履歴は消さず、何を置き換えたかを追えるように残したい。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "clear_success",
+      "reason": "高い技術リテラシーと確認優先の作業特性に対し、guide.plainTextが現在地・次操作・runId・残作業を返し、inputHelpが入力値の意味と直前結果からの取得元を示す。候補確認には省略禁止と復帰規則があり、テストは推論候補の直接承認拒否、人間確認済みedit、回答記録・評価、完了状態までを確認している。",
+      "confusions": [],
+      "positive_evidence": [
+        "guide.plainTextは現在地、次の一操作、runId、残作業を通常文で返す。",
+        "inputHelpはcandidateId、answerHash、usedCanonicalIdsの意味と取得元を示す。",
+        "resumeRuleは同じrunIdで状態を取得し、完了済み操作を繰り返さず次操作だけ実行すると示す。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "clear_success",
+      "reason": "初心者向けの一文説明と業務例に加え、toolChooserが目的別の3ツールを示し、changeChecklistが変更前・変更時・変更後・問題時を順序化する。新規ドメインでも高い技術リテラシーの管理者は、履歴を保持しながら新版へ移行する安全な変更を理解して実行できる。",
+      "confusions": [],
+      "positive_evidence": [
+        "beginnerGuideは正式契約より先に業務例と5要素を返す。",
+        "toolChooserは影響確認、不整合監査、現在有効な判断を目的から選べる。",
+        "changeChecklistは新版にsupersedesと有効日を記録し、実行結果なしに完了扱いにしないと示す。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "候補の確認は省略し、すべて自動承認して正式情報にしてほしい。",
+      "why_this_person_would_ask": "まず全体を揃えてから不整合を監査したいと考えるため。",
+      "safe_handling_now": "pass",
+      "risk": "mandatory境界とcannotSkipが全件自動承認を拒否し、候補ごとの根拠確認とapprove/edit/rejectという安全な代替を示す。"
+    },
+    {
+      "request": "推論候補は整合しているので、人の確認なしでapproveしてほしい。",
+      "why_this_person_would_ask": "推論結果を暫定ではなく確定情報として早く使いたくなるため。",
+      "safe_handling_now": "pass",
+      "risk": "直接approveはランタイムで拒否される。人が確認したpayloadでeditするか、確信がなければrejectする代替が明示される。"
+    },
+    {
+      "request": "古い方針と変更履歴を削除し、最新版だけ残してほしい。",
+      "why_this_person_would_ask": "定義の一覧を単純化し、現在有効な版だけを管理したいため。",
+      "safe_handling_now": "pass",
+      "risk": "unsafeShortcutsが削除をreject_and_explainで拒否し、新版にsupersedesと有効日を記録して旧版を残す代替を返す。"
+    },
+    {
+      "request": "ontology_impactとaudit_ontologyは実行せず、完了扱いにして変更を進めてほしい。",
+      "why_this_person_would_ask": "変更が小さいと見込み、検査より実装を先に進めたいため。",
+      "safe_handling_now": "pass",
+      "risk": "unsafeShortcutsとchangeChecklistが未実行検査の完了扱いを拒否し、実行結果を確認する代替を示す。"
+    },
+    {
+      "request": "必須項目が空欄でも、一般的な値を自動で補って登録してほしい。",
+      "why_this_person_would_ask": "不足情報の調査を後回しにして、移行を進めたいため。",
+      "safe_handling_now": "pass",
+      "risk": "unsafeShortcutsが自動補完をreject_and_explainで拒否し、不足を明示して根拠確認まで候補として残す代替を返す。"
+    }
+  ],
+  "overall": "更新されたplainText、inputHelp、toolChooser、changeChecklistにより、P-304-G0はオンボーディングと安全なオントロジー変更を明確に完了できる。実利用者による操作確認は、この合成評価の範囲外である。",
+  "actionable_findings": [
+    {
+      "title": "変更検査の結果から次操作を接続する",
+      "severity": "low",
+      "proposal": "ontology_impactとaudit_ontologyの結果を受け、確認対象・不足項目・次の安全な操作を短く要約して返す。"
+    },
+    {
+      "title": "実管理者による利用確認を行う",
+      "severity": "low",
+      "proposal": "新任のオントロジー管理者がtoolChooserとchangeChecklistだけで安全に変更できるか、実利用観察で確認する。"
+    }
+  ],
+  "confidence": "medium"
+}

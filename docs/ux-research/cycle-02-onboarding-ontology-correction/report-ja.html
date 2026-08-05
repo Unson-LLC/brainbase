@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brainbase 初心者UX ペルソナ固有再評価</title>
+  <style>
+    :root{color-scheme:light;--ink:#172033;--muted:#5f6b7a;--line:#dbe1e8;--panel:#f7f9fc;--blue:#2457d6;--green:#147d64;--amber:#9a6410;--red:#b33a3a}*{box-sizing:border-box}body{margin:0;background:#eef2f7;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;line-height:1.65}main{width:min(1180px,calc(100% - 32px));margin:32px auto 72px}header,.section{background:#fff;border:1px solid var(--line);border-radius:18px;padding:28px;margin-bottom:20px}.eyebrow{margin:0 0 8px;color:var(--blue);font-weight:700;letter-spacing:.08em;font-size:13px}h1{margin:0;font-size:clamp(28px,4vw,46px);line-height:1.25}h2{margin:0 0 16px;font-size:24px}h3{margin:0 0 6px;font-size:17px}p{margin:8px 0}.lead{max-width:900px;color:var(--muted);font-size:17px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:24px}.card{padding:18px;background:var(--panel);border-radius:14px}.number{display:block;font-size:30px;font-weight:800;line-height:1.15}.label{color:var(--muted);font-size:13px}.good{color:var(--green)}.unknown{color:var(--amber)}.bad{color:var(--red)}.notice{margin-top:18px;padding:14px 16px;border-left:4px solid var(--amber);background:#fff9ea}.error{border-left-color:var(--red);background:#fff1f1}.principle{padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:11px 10px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:var(--panel);white-space:nowrap}.pill{display:inline-block;padding:3px 8px;border-radius:999px;font-weight:700;white-space:nowrap}.pill.friction{background:#fff4d7;color:var(--amber)}.pill.unverified{background:#f2e9e9;color:var(--red)}.reaction{min-width:360px}.profile{min-width:260px;color:var(--muted)}code{padding:2px 5px;border-radius:5px;background:#edf1f6}a{color:var(--blue)}li{margin:6px 0}@media(max-width:800px){.cards,.grid{grid-template-columns:1fr 1fr}}@media(max-width:560px){.cards,.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header>
+    <p class="eyebrow">BRAINBASE / PERSONA-SPECIFIC REASSESSMENT</p>
+    <h1>「32視点」ではなく、32人分の感じ方を再評価</h1>
+    <p class="lead">前回は32ペルソナに同じ成功判定を複製していました。これはペルソナ評価ではありません。共通の実画面証拠はそのままに、各人の役割・経験・時間圧・中断・確認傾向・入力環境・アクセシビリティから、受け取り方を個別に評価し直しました。</p>
+    <div class="cards">
+      <div class="card"><span class="number bad">0 / 32</span><span class="label">摩擦なしで安心して使えると確認済み</span></div>
+      <div class="card"><span class="number unknown">10 / 32</span><span class="label">完了可能だが性格に応じた摩擦あり</span></div>
+      <div class="card"><span class="number bad">22 / 32</span><span class="label">支援技術条件を実操作しておらず未確認</span></div>
+      <div class="card"><span class="number unknown">0人</span><span class="label">今回観察した実在の初心者</span></div>
+    </div>
+    <div class="notice error"><strong>訂正：</strong>以前の「32 / 32 clear_success」「収束」は撤回します。正しい結論は<strong>未収束</strong>です。10人分は画面上のタスクを完了できそうですが摩擦があり、22人分は必要な支援技術条件で実行していません。</div>
+  </header>
+
+  <section class="section">
+    <h2>何を間違えていたのか</h2>
+    <div class="grid">
+      <article class="principle"><h3>誤ったやり方</h3><p>1回の共通操作が成功したため、32人全員に同じ<code>clear_success</code>、同じ操作履歴、同じ「摩擦なし」を記録していました。違っていたのは属性欄だけです。</p></article>
+      <article class="principle"><h3>今回のやり方</h3><p>「この性格の人なら、画面のどこを先に見て、何を不安に思い、何があれば動けるか」を個別に生成し、共通の画面証拠と照合しました。</p></article>
+    </div>
+    <div class="notice"><strong>重要：</strong>下の「感じ方」は合成された反応要約で、実在人物の発言ではありません。画面で確認できていないものを、想像だけで成功扱いもしません。</div>
+  </section>
+
+  <section class="section">
+    <h2>性格によって、見る場所と不安が変わる</h2>
+    <div class="grid">
+      <article class="principle"><h3>速度重視 × 時間圧が高い</h3><p>説明より先に「次の一手」を探す。長いJSONは読み飛ばすため、次操作が先頭にないと迷いやすい。</p></article>
+      <article class="principle"><h3>確認重視</h3><p>実行前に何が変わるか、取り消せるかを確認したい。<code>edit</code>/<code>reject</code>があるだけでは安心し切れない。</p></article>
+      <article class="principle"><h3>頻繁に中断される</h3><p>復帰時に「現在地・済んだこと・残り」が必要。手順が正しくても、状態を一から読み直すなら負担が残る。</p></article>
+      <article class="principle"><h3>業務初心者 × 技術習熟度が低い</h3><p><code>runId</code>、<code>candidateId</code>、<code>relations</code>などが続くと「自分向けではない」と感じやすい。</p></article>
+      <article class="principle"><h3>オントロジー管理担当</h3><p>やさしい説明だけでなく、正式な型・関係・版管理の根拠へ辿れることが信頼につながる。</p></article>
+      <article class="principle"><h3>復旧重視</h3><p>誤った場合の理由、戻し方、責任者が見えないと止まる。正常系の完了だけでは安心しない。</p></article>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>32ペルソナそれぞれの反応</h2>
+    <p>同じ役割でも、時間圧・確認傾向・経験・支援技術が違えば反応は異なります。「未確認」は失敗ではなく、必要な条件でまだ実行していないという意味です。</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>役割</th><th>性格・状況</th><th>その人ならどう感じるか（合成要約）</th><th>判定</th></tr></thead>
+      <tbody id="persona-rows"><tr><td colspan="5">評価データを読み込み中...</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <section class="section">
+    <h2>今回見つかった、次に直すべきこと</h2>
+    <ol>
+      <li>急いでいる人向けに「次の一手」を詳細JSONより上へ固定する。</li>
+      <li>中断復帰向けに「現在地・済んだこと・残り」の3行要約を出す。</li>
+      <li>確認重視の人向けに、変更内容と取り消し可能性を実行前に日本語で示す。</li>
+      <li>業務例 → 日本語の5要素 → 正式な型・関係・変更手順、の順に段階表示する。</li>
+      <li>スクリーンリーダーと動きの抑制設定を実際に有効化し、22ペルソナの未確認を解消する。</li>
+    </ol>
+    <p>機能上の行き止まり5件を直した事実は変わりません。ただし、それだけで全性格の人が安心できるとは言えない、というのが今回の訂正です。</p>
+  </section>
+
+  <section class="section">
+    <h2>証拠の境界</h2>
+    <ul>
+      <li>確認済み：MCP Inspectorの共通デスクトップ操作、オンボーディング完了画面、初心者向けオントロジー表示。</li>
+      <li>合成評価：32ペルソナ固有の反応要約と摩擦仮説。</li>
+      <li>未確認：実在の初心者、実端末、本番E2E、所要時間、スクリーンリーダー、動きの抑制、音声入力、キーボードのみのフォーカス順。</li>
+    </ul>
+    <p><a href="rounds/persona-specific-reassessment.md">32人分のMarkdown</a> / <a href="rounds/persona-specific-results.json">機械可読データ</a> / <a href="SUMMARY.md">日本語サマリー</a></p>
+  </section>
+</main>
+<script src="persona-reassessment.js"></script>
+<script>
+  const labels={clear_success:'摩擦なし',success_with_friction:'完了可能・摩擦あり',not_collected:'未確認'};
+  const classes={clear_success:'good',success_with_friction:'friction',not_collected:'unverified'};
+  const rows=(window.PERSONA_REASSESSMENT||[]).map(p=>`<tr><td>${p.id}</td><td>${p.role_label}</td><td class="profile">${p.profile}</td><td class="reaction">${p.generated_reaction_summary}</td><td><span class="pill ${classes[p.overall]}">${labels[p.overall]}</span></td></tr>`).join('');
+  document.getElementById('persona-rows').innerHTML=rows||'<tr><td colspan="5">評価データを読み込めませんでした。</td></tr>';
+</script>
+</body></html>

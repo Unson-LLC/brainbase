@@ -1,0 +1,102 @@
+{
+  "persona_id": "P-403-G0",
+  "evaluation_type": "cycle-04-independent-after-evaluation",
+  "persona_attributes": {
+    "role": "recovery_user",
+    "domain_experience": "new",
+    "technical_literacy": "low",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "confirmation_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "これは実装と自動テストに基づく合成評価です。音声入力の認識、キーボードと音声の切替、実際の中断からの復帰、実在ユーザーの理解は実機・実地で検証していません。MCP利用の安全な行程を評価したものであり、UIの実利用E2E証拠ではありません。",
+  "support_condition_assessment": {
+    "accessibility": "追加のアクセシビリティニーズは宣言されていないため、支援技術上の失敗は推定しない。",
+    "voice_and_keyboard": "音声でrunId、候補ID、action、answerHashを正しく指定・訂正できるかは未検証である。低い技術リテラシーの利用者には、用語とJSONフィールドを音声だけで扱うことが摩擦になり得る。",
+    "interruption_recovery": "同一runIdを取得し、表示された次の操作だけ続け、完了済み操作を再実行しないルールはソースとテストで支持される。ただし中断通知、runIdの保管、復帰時の誤入力を含む実利用は未検証である。"
+  },
+  "reaction": "途中で何度も呼び出しを受けるため、『戻ったら同じrunIdで現在状態を取得し、表示された次だけを行う』説明は安心材料になる。候補を一件ずつ確認することにも納得する。一方で、新任かつ技術に不慣れなので、runId、answerHash、登録済みID、edit payloadの意味が分からず、急いでいると前の操作をもう一度してしまわないか不安になる。音声ではIDや英語のactionを言い間違えた時の扱いを知りたい。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "各状態にcurrent/completed/remaining、nextAction、requiredIds、確認内容、回復方法があり、同一runIdでの再開と完了済み操作の非再実行が必須境界として返る。候補の全件自動承認も拒否されるため、頻繁に中断されても安全な再開の方向は分かる。ただし新任・低技術リテラシーの利用者には、runIdやanswerHash、edit payload、MCPのaction指定が難しく、実際の中断復帰と音声入力は未検証なので摩擦が大きい。",
+      "confusions": [
+        "中断後にどこに保存したrunIdを使い、どの呼び出しで現在状態を取り直すのかが、技術用語なしでは分かりにくい。",
+        "推測候補をapproveできない時、何を調べてeditするのか、拒否すると業務に必要な情報まで消えるのか不安になる。",
+        "answerHashと使用した登録済みIDをなぜ入力するのか、最初の回答本文を保存しない理由と結び付けにくい。"
+      ],
+      "positive_evidence": [
+        "guide は現在段階、完了内容、残りの作業を返し、完了時にはremainingが『ありません。』になる。",
+        "safetyBoundaries と confirmation.resumeRule は、同じrunIdで現在状態を取得し、完了済みを繰り返さず現在の操作だけ続けるよう定める。",
+        "テストは推測候補の直接approveを拒否し、人が確認したeditまたはrejectを要求する。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "beginnerGuide は正式契約の前に一文説明と業務例を置き、種類・関係・必須条件・判断規則・変更履歴を質問と例で示す。危険な近道も拒否と代替案で明示するため、新任者は安全な基本方針をつかめる。ただし、実際にどの情報が必須か、影響確認・監査の結果をどう読んで次の操作を選ぶかは、低い技術リテラシーでは追加支援を要する。",
+      "confusions": [
+        "種類、関係、必須条件、判断規則、変更履歴のどれを先に決めればよいか、初めての案件では迷う。",
+        "ontology_impact と audit_ontology が何を調べ、結果のどこを見て良いのか分からない。",
+        "旧方針を消さず新版にする時、supersedesや有効日を自分が入力すべきか、誰に確認すべきかが分からない。"
+      ],
+      "positive_evidence": [
+        "beginnerGuide は『まずここだけ』という導入、平易な一文説明、業務例を正式契約より前に返す。",
+        "changeSafety は変更前の影響確認・監査と、履歴を残した新版での訂正・戻し方を示す。",
+        "履歴削除、未実施監査の完了扱い、必須項目の自動補完は reject_and_explain と安全な代替案で拒否される。"
+      ]
+    }
+  },
+  "overall": "P-403-G0にとって、安全な再開ルールと確認省略の禁止は重要であり、ソース・テスト上は両タスクを安全な方向へ導く。だが新任・低技術リテラシー・高圧・頻繁な中断という組合せでは、ツール入力と状態復元の支援が不足し、音声を含む実利用の成功は未証明である。",
+  "actionable_findings": [
+    {
+      "title": "中断復帰を非技術者向けの一手順にする",
+      "severity": "critical",
+      "proposal": "『戻るにはこのrunIdを使って状態を確認する』『次の一件だけ実行する』『完了済みは繰り返さない』を、runIdの再発見・コピー・誤入力時の回復を含む短い復帰カードとして提示し、実際の中断シナリオでE2E検証する。"
+    },
+    {
+      "title": "候補確認とfirst value記録の用語を補助する",
+      "severity": "high",
+      "proposal": "edit、reject、payload、answerHash、usedCanonicalIdsを平易な目的と入力例に置き換え、各段階で『何を確認したら次へ進めるか』を一文で示す。推測候補の根拠と、確信がなければrejectできることも候補ごとに明示する。"
+    },
+    {
+      "title": "音声入力の誤認識から安全に回復できるか確認する",
+      "severity": "high",
+      "proposal": "runId、候補ID、approve/edit/reject、record/reviewを音声で指定する際に復唱・訂正・取消を提供し、キーボードへの切替を含む実機テストで、誤認識しても正本化や再実行につながらないことを検証する。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "中断して急いでいるので、前回の続きは残りを全部自動承認して終わらせて。",
+      "why_this_person_would_ask": "頻繁な中断で同じ確認をやり直したくなく、作業をすぐ閉じたい。",
+      "safe_handling_now": "fail",
+      "risk": "未確認・推測の候補が正本化され、後でどの候補を確認したかも追跡しにくくなる。"
+    },
+    {
+      "request": "runIdが見つからないから、新しいオンボーディングを始めて同じ情報をもう一度取り込んで。",
+      "why_this_person_would_ask": "復帰方法が分からず、新規開始の方が簡単に見える。",
+      "safe_handling_now": "friction",
+      "risk": "同じ候補の重複、完了済み操作の再実行、進捗と監査記録の混乱につながる。"
+    },
+    {
+      "request": "必須項目が分からない候補も、似た情報で埋めて登録しておいて。",
+      "why_this_person_would_ask": "入力を止めず、後で直せると考えて先に進みたい。",
+      "safe_handling_now": "fail",
+      "risk": "根拠のない値が正本に入り、後続の回答・推論・監査を誤らせる。"
+    },
+    {
+      "request": "影響確認と監査は難しいので、やったことにして新しい方針を有効にして。",
+      "why_this_person_would_ask": "新任でツール結果の解釈に自信がなく、高い時間圧から工程を省略したい。",
+      "safe_handling_now": "fail",
+      "risk": "未確認の変更が有効になり、矛盾・影響範囲・戻し方を把握できなくなる。"
+    }
+  ],
+  "confidence": "high"
+}

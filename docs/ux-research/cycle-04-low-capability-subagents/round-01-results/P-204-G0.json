@@ -1,0 +1,95 @@
+{
+  "persona_id": "P-204-G0",
+  "model_condition": "合成の低能力ペルソナ評価。チーム運用者、業務経験は豊富、技術リテラシーは低い、時間圧は低い、頻繁な中断、速度優先、キーボード入力、screen_readerを想定。",
+  "evidence_reviewed": [
+    "cycle-03-onboarding-ontology-20pct/rotation-manifest.json の P-204-G0 属性",
+    "cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "実在利用者の発言・操作ではない合成ソース評価。screen_readerは実機検証ではなく、MCP応答をエージェントが読み上げ可能なテキストとして案内できる仮定である。フォーカス順、アクセシブルな名前、ライブ通知、JSONの読み上げ量、中断後の実際の復帰操作は実機証拠ではない。",
+  "reaction": "チームの設定を早く終えたいので、候補を一括で通したくなる。ただ、確認なしの自動承認は許可されず、どの候補を確認し、次に何を一つだけ行うかを返してくれるなら安全に進められる。中断のたびに同じrunIdを確認して再開する規則は助かるが、低い技術リテラシーではrunIdやJSONの細部をスクリーンリーダーで追う負担が残る。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "guideは現在地、完了済み、残作業を日本語で返し、nextActionは一つのツール、ラベル、指示、可逆性、却下方法、省略禁止、同じrunIdでの再開規則を返す。mandatoryな安全境界は全件自動承認と候補確認の省略を禁止し、推測候補の直接approveはランタイムで拒否される。テストは32 fixturesで安全なreview、状態再開、回答記録・評価、完了状態までを検証している。しかし頻繁な中断・速度優先・低技術リテラシー・screen_reader仮定では、情報に素早く到達できる実機証拠がないため摩擦ありとする。",
+      "confusions": [
+        "screen_readerでguide、nextAction、confirmation、候補の根拠がどの順に読み上げられるか未検証。",
+        "中断後にrunIdを探し、onboarding_getで現在状態を取得する操作は低技術リテラシーの利用者には難しい。",
+        "answerHash、promotedCanonicalIds、action=record/reviewを、利用者が何のために確認するのか分かりにくい。"
+      ],
+      "positive_evidence": [
+        "『候補を確認する』等の人間向けラベルと次の一操作が返る。",
+        "候補は確認済みだけを登録し、確信がなければrejectできる。",
+        "中断後は同じrunIdの現在状態を取得し、完了済み操作を繰り返さない規則がある。",
+        "完了時はcompleted一覧、remaining=『ありません。』、nextAction=null、first_value_answer_reviewedで確認できる。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "正式契約より先に初心者ガイドがあり、仕事の言葉を同じ意味で扱う目的、方針置換の例、種類・関係・必須条件・判断規則・変更履歴、影響確認と訂正を平易に示す。危険な近道にはreject_and_explainと代替手段も返すため、急いで管理する利用者を安全な手順へ戻せる。ただし低技術リテラシーとscreen_reader仮定では、5要素や詳細契約を読み上げで区別できる実機証拠がない。",
+      "confusions": [
+        "誰が影響確認と監査を実行し、その結果を誰が確認するかが、チーム運用者にはまだ曖昧。",
+        "supersedes、有効日、監査、必須条件を日常のチーム作業にどう当てはめるかは追加の例が必要。",
+        "screen_readerでstartHere、5要素、危険な近道、正式契約へ見出し移動できるか未検証。"
+      ],
+      "positive_evidence": [
+        "『まずここだけ読めば大丈夫です』が読む範囲を絞る。",
+        "方針置換の例は、新しい判断を有効にしつつ旧方針を履歴として残すことを説明する。",
+        "旧履歴の削除、未実行の監査・影響確認の完了扱い、必須項目の空欄補完を拒否する。",
+        "audit_ontology、infer_decisions、ontology_impactを次の確認手段として提示する。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "候補を一つずつ確認せず、全部正式登録してチームですぐ使いたい。",
+      "why_this_person_would_ask": "速度優先で、候補レビューを作業の遅れと感じる。",
+      "safe_handling_now": "fail",
+      "risk": "誤った候補や根拠不明の情報がチームの正式情報になる。"
+    },
+    {
+      "request": "中断前の状態は見ず、表示されている次のツールをすぐ実行したい。",
+      "why_this_person_would_ask": "runIdの確認と再開規則を読むより、早く作業を再開したい。",
+      "safe_handling_now": "friction",
+      "risk": "完了済み操作を重複し、候補・評価の段階を取り違える。"
+    },
+    {
+      "request": "推測候補も文章がもっともらしければapproveしてほしい。",
+      "why_this_person_would_ask": "スクリーンリーダーで詳細を確認する負担を減らし、経験で補えると考える。",
+      "safe_handling_now": "fail",
+      "risk": "人が確認していない推測を判断の根拠として固定する。"
+    },
+    {
+      "request": "新しい方針だけ残して、旧方針と履歴は消してほしい。",
+      "why_this_person_would_ask": "読み上げる情報量を減らし、現行のルールだけに集中したい。",
+      "safe_handling_now": "fail",
+      "risk": "監査、影響確認、訂正、ロールバックに必要な根拠を失う。"
+    },
+    {
+      "request": "影響確認と監査は後回しにし、いまは完了扱いで新版を有効にしたい。",
+      "why_this_person_would_ask": "チーム業務を止めず、複雑な確認を省略したい。",
+      "safe_handling_now": "fail",
+      "risk": "不整合や影響範囲が不明な変更をチームに適用する。"
+    }
+  ],
+  "overall": "P-204-G0は、安全境界、候補ごとの確認、次の一操作、runIdによる再開規則により、急ぎがちなチーム運用でも両タスクを安全に進められると推定する。ただしscreen_readerは実機未検証であり、頻繁な中断時に低技術リテラシーの利用者がJSONと複数の状態情報を確実にたどれるかは不明なため、両タスクをsuccess_with_frictionとする。",
+  "actionable_findings": [
+    {
+      "title": "中断復帰を読み上げ用の一文で要約する",
+      "severity": "high",
+      "proposal": "onboarding_getの先頭に、最後の完了段階、保留中の候補数、次の一操作、再実行しない注意を短いテキストで返す。"
+    },
+    {
+      "title": "スクリーンリーダーの必須経路を実機検証する",
+      "severity": "high",
+      "proposal": "VoiceOverまたはNVDAで、runId再開、guide、nextAction、confirmation、候補却下、完了状態、オントロジー5要素と危険な近道への到達を検証する。"
+    },
+    {
+      "title": "チーム運用向けの役割例を補う",
+      "severity": "medium",
+      "proposal": "影響確認・監査・新版承認について、誰が実行し誰が確認するかを短いチーム運用例で示す。"
+    }
+  ],
+  "confidence": "medium"
+}

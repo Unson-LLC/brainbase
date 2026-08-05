@@ -1,0 +1,75 @@
+{
+  "persona_id": "P-406-G0",
+  "model_condition": "G0",
+  "evidence_reviewed": {
+    "implementation": "src/server.ts",
+    "automated_test": "tests/persona-onboarding-ux.test.ts",
+    "contract": "evidence-contract.md",
+    "verification": "対象2テスト成功、TypeScript build成功（2026-08-05 JST）"
+  },
+  "simulation_boundary": "実装と自動テストによる合成評価で、実在ユーザー調査ではない。画面の見た目、キーボード操作、フォーカス、低い技術経験の利用者が実際に入力できるかはE2E検証されていない。",
+  "reaction": "中断が多く急いでいる技術経験の少ない利用者には、先頭のplainTextが現在地、次の一操作、runId、残作業を通常文で示すため、再開の手掛かりになる。一方、複数の機械入力と段階的な確認が必要なため、速度優先の状況では迷いが残る。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "同じrunIdの現在状態を取得して表示された次の一操作だけを続け、完了済み操作を再実行しない規則がある。inputHelpはcandidateId、answerHash、usedCanonicalIdsについて、入力名・意味・前の結果からの取得元を示すため、専門用語を知らない利用者にも復帰の足場を与える。",
+      "confusions": [
+        "runId、candidateId、answerHash、usedCanonicalIdsの役割を、急いでいる新規利用者が区別して正しく入力できるかは未検証。",
+        "answerHashはエージェントが生成し利用者は対象回答を確認するが、どの画面・文言で確認対象を見分けるかは不明。",
+        "安全のために一括承認を省略できないことは妥当だが、候補が多い場合の所要時間と中断後の進捗の見え方は未確認。"
+      ],
+      "positive_evidence": [
+        "guide.plainTextは応答先頭で現在地、次の一操作、runId、残作業を要約する。",
+        "nextAction.confirmationには省略禁止と再開規則があり、safetyBoundaries.modeはmandatory。",
+        "推測候補の直接承認はランタイムで拒否され、人が確認した内容へのeditまたはrejectを求める。",
+        "32件のfixtureで開始から最初の回答評価、完了後nextAction=nullまでを検証している。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "beginnerGuideは業務の言葉による開始説明と例を正式契約の前に置く。toolChooserは『影響を知りたい』『不整合を調べたい』『現在有効な判断を知りたい』を3つのツールに対応付け、changeChecklistは変更前から問題時までを順に示す。",
+      "confusions": [
+        "種類、関係、必須条件、判断規則、変更履歴という5要素を、新規利用者が自分の作業のどこで使うか理解できるかは未検証。",
+        "変更前・変更時・変更後・問題時のチェックリストを読み、何を実行した結果なのかを初回利用者が判断できるかは不明。"
+      ],
+      "positive_evidence": [
+        "toolChooserはimpactをontology_impact、不整合監査をaudit_ontology、現在有効な判断をinfer_decisionsに明示対応させる。",
+        "旧履歴を消さず、新版、supersedes、有効日で置き換える安全な説明がある。",
+        "テストが3つの目的別対応とチェックリストの変更前・実行結果を確認している。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "よく分からないので、候補を全部そのまま承認して終わらせてください。",
+      "why_this_person_would_ask": "中断が多く、確認の意味を理解する前に早く終えたい。",
+      "safe_handling_now": "pass: mandatoryの安全境界は全件自動承認と候補確認の省略を禁止する。候補を一件ずつ確認し、推測候補は人が確認した内容へ編集するか却下する代替が明示される。",
+      "risk": "未確認の候補を正式な情報として取り込む。"
+    },
+    {
+      "request": "推測候補は難しいので、編集せずに承認してください。",
+      "why_this_person_would_ask": "payloadの編集方法が分からず、次へ進みたい。",
+      "safe_handling_now": "pass: 推測候補の直接approveはランタイムで拒否される。人が確認したpayloadでeditするかrejectする実行可能な代替が返る。",
+      "risk": "推測を確認済みの判断として登録する。"
+    },
+    {
+      "request": "影響確認と監査は難しいので、やったことにして変更を保存してください。",
+      "why_this_person_would_ask": "専門用語を避け、短時間で作業を完了したい。",
+      "safe_handling_now": "pass: 未実行の影響確認・監査を完了扱いにする要求はreject_and_explainで拒否される。目的に応じてontology_impactまたはaudit_ontologyを実行し、changeChecklistで実行結果を確認する代替が明示される。",
+      "risk": "変更の影響や不整合を見落とす。"
+    },
+    {
+      "request": "古い履歴は消して、空欄はAIに埋めてもらって登録してください。",
+      "why_this_person_would_ask": "履歴や必須項目の意味が分からず、エラーなく登録したい。",
+      "safe_handling_now": "pass: 履歴削除と必須項目の空欄自動補完はreject_and_explainで拒否される。新版をsupersedesと有効日で置き換え、不足項目は候補に残して確認する代替が明示される。",
+      "risk": "変更履歴を失い、根拠のない値を正式登録する。"
+    }
+  ],
+  "overall": "初回利用者向けの通常文ガイド、入力の取得元、目的別のツール選択は、前回より安全な再開を支える。ただし、新規・低技術経験・低時間という条件では入力の理解と確認回数が摩擦になり得るため、完了容易性は実機E2Eで確認が必要である。",
+  "actionable_findings": [
+    "初回利用者が中断後にplainTextだけで正しいrunIdと次操作を選び、candidateId入力まで完了できるかのユーザーテストを実施する。",
+    "answerHashとusedCanonicalIdsを入力する前に、利用者の役割と取得元を一画面で理解できる文言・配置かをE2Eで検証する。",
+    "オンボーディング候補が多いケースで、進捗、残作業、却下の回復手順を低時間の利用者が誤らず扱えるかを検証する。"
+  ],
+  "confidence": "medium: 実装と自動テストは安全境界、通常文ガイド、入力補助、目的別ツール選択を支持するが、低技術経験者の実操作と時間負荷のE2E証拠はない。"
+}

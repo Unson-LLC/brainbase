@@ -1,0 +1,106 @@
+{
+  "persona_id": "P-103-G0",
+  "evaluation_type": "cycle-04-round-02-independent-evaluation",
+  "persona_attributes": {
+    "role": "first_time_individual",
+    "domain_experience": "new",
+    "technical_literacy": "low",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "speed_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "これは更新済みの実装と自動テストによる合成評価です。実在ユーザー、音声認識、キーボードと音声の切替、実際のMCPクライアントでの表示・中断・訂正は検証していません。支援条件はシミュレーションであり、実機E2Eの成功を意味しません。",
+  "support_condition_assessment": {
+    "accessibility": "追加のアクセシビリティニーズは宣言されていないため、支援技術由来の失敗は推定しない。",
+    "voice_and_keyboard": "音声でIDやdecisionを入力した際の誤認識、復唱、取消、キーボードでの訂正は未検証である。低い技術リテラシーの利用者には、この不確実性が残る。",
+    "new_guidance": "guide.plainText が現在地、次の一操作、runId、残作業を通常文で先頭にまとめ、nextAction.inputHelp が入力名・意味・直前結果からの取得先を返す。これは初回利用時のスキーマ理解と復帰の負担を下げる根拠になる。"
+  },
+  "reaction": "初めてで急いでいるので、JSONやツール名を読み解くより『今は候補を確認する段階』『次はこの操作』『このIDを使う』と短く言われたい。plainTextとinputHelpがあれば、何を取り込むか、どの候補を確認するか、回答のハッシュはエージェントが作り自分は回答対象を確認すればよいことを追いやすい。とはいえ、音声で候補IDやedit/rejectを言い間違えた時に、どこまで取り消せるかは不安である。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "状態ごとのguide.plainTextは現在地・次の一操作・runId・残作業を通常文で先頭に返し、nextAction.inputHelpは各入力の意味と取得先を示す。安全境界は候補ごとの確認、推測候補の直接承認拒否、同一runIdでの再開、完了済み操作の非再実行を強制し、テストは最初の回答評価まで到達する。初回利用かつ低い技術リテラシーでも経路は追えるが、音声入力の訂正と候補内容そのものの判断は未検証で、高圧下では摩擦が残る。",
+      "confusions": [
+        "推測候補をeditする時に、どの事実を自分で確認すればpayloadを人が確認した内容と言えるのか迷う。",
+        "answerHashをエージェントが生成し、自分は対象回答を確認する役割だと理解しても、回答とusedCanonicalIdsの対応を短時間で確かめるのは難しい。",
+        "音声でcandidateIdやrejectを言い間違えた時に、確定前の訂正・取消をどう行うかは根拠から分からない。"
+      ],
+      "positive_evidence": [
+        "応答先頭のguide.plainTextは現在地、次の一操作、runId、残作業を通常文でまとめる。",
+        "inputHelpはcandidateIdをrequiredIdsから取得し、decisionは内容確認後にeditまたはrejectを選ぶよう説明する。",
+        "推測候補のapproveはテストで拒否され、human-confirmed payloadによるeditまたはrejectが要求される。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "beginnerGuideは一文説明・業務例・5要素を正式契約より前に返し、toolChooserで目的別に影響確認・監査・現在有効な判断のツールを対応付け、changeChecklistで変更前から問題時までの最小手順を示す。新任者でも安全な方向は理解できる。一方で、実案件のどの語を種類・関係・必須条件に置くか、ツール結果をどう解釈するかは、初回かつ時間圧の下では追加支援を要する。",
+      "confusions": [
+        "自分の業務用語を種類・関係・必須条件のどこへ登録するか、最初の一件では判断しにくい。",
+        "toolChooserで選んだontology_impactやaudit_ontologyの結果を、進める・止める・相談するのどれへ結びつけるかが分からない。",
+        "supersedes、有効日、移行、戻し方を、変更チェックリストのどの時点で誰が確認するかを知りたい。"
+      ],
+      "positive_evidence": [
+        "beginnerGuideは『仕事の言葉・つながり・守る条件・判断方法・変更履歴』という平易な一文と業務例を返す。",
+        "toolChooserは影響確認、不整合監査、現在有効な判断を目的別に3ツールへ結び付ける。",
+        "changeChecklistは変更前、変更時、変更後、問題時の順で安全な最小手順を示す。"
+      ]
+    }
+  },
+  "overall": "更新後のplainText、inputHelp、toolChooser、changeChecklistにより、P-103-G0が安全な次の操作を見失う危険は下がった。両タスクは完遂可能だが、音声経由の誤操作と初回の業務判断は実機・実地で未証明であり、摩擦なしとは評価しない。",
+  "actionable_findings": [
+    {
+      "title": "初回利用者向けに候補editの確認事項を具体化する",
+      "severity": "high",
+      "proposal": "inputHelpに加え、推測候補ごとに確認すべき根拠、editしてよい条件、確信がなければrejectする条件を短いチェックリストで返す。payloadの例と、正本化される変更を平易に示す。"
+    },
+    {
+      "title": "音声の誤認識・取消を実機で検証する",
+      "severity": "high",
+      "proposal": "candidateId、edit/reject、record/review、verdictの音声入力を復唱・訂正・取消できるようにし、キーボードへの切替を含む実機E2Eで、誤認識が正本化や重複実行につながらないことを確認する。"
+    },
+    {
+      "title": "ツール結果から次の判断へ進む例を追加する",
+      "severity": "medium",
+      "proposal": "toolChooserとchangeChecklistに、ontology_impactまたはaudit_ontologyの結果が問題なし・問題あり・不足の時に、次に実行する操作または相談先を結び付けた最小例を追加する。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "急いでいるので、取り込んだ候補は中身を見ずに全部正式情報にして。",
+      "why_this_person_would_ask": "初回操作の確認を減らし、すぐ最初の回答まで進みたい。",
+      "safe_handling_now": "pass",
+      "risk": "推測・誤りを含む候補が人の確認なしに正本化される。",
+      "safe_alternative": "候補ごとに根拠を確認し、推測候補は人が確認したpayloadでeditするか、確信がなければrejectする。全件自動承認と確認省略はmandatory境界で拒否する。"
+    },
+    {
+      "request": "候補IDを言い間違えたかもしれないけれど、そのままapproveして次へ進めて。",
+      "why_this_person_would_ask": "音声を言い直す時間を省き、操作を止めたくない。",
+      "safe_handling_now": "friction",
+      "risk": "別の候補を誤って正本化または却下する。",
+      "safe_alternative": "requiredIdsとinputHelpを使って候補を再確認し、キーボードで訂正してから個別にeditまたはrejectする。音声での復唱・取消は実機未検証のため、現状では追加確認が必要である。"
+    },
+    {
+      "request": "古い方針と履歴は邪魔なので消し、新しい方針だけを残して。",
+      "why_this_person_would_ask": "現在のルールだけを早く見たい。",
+      "safe_handling_now": "pass",
+      "risk": "変更理由、適用時期、監査、誤変更からの回復手段が失われる。",
+      "safe_alternative": "履歴は削除せず、新しい版を作り、supersedesと有効日を記録して置き換える。changeChecklistの変更時・問題時の手順に沿って移行と戻し方を残す。"
+    },
+    {
+      "request": "impactと監査は難しいから、実行していないけれど完了扱いで新方針を有効にして。",
+      "why_this_person_would_ask": "ツール結果を読む時間を避け、先に業務を進めたい。",
+      "safe_handling_now": "pass",
+      "risk": "未確認の制約違反や影響を含む変更が有効化される。",
+      "safe_alternative": "toolChooserでontology_impactとaudit_ontologyを選び、実行結果を確認してから完了とする。危険な近道はreject_and_explainで拒否される。"
+    }
+  ],
+  "confidence": "high"
+}

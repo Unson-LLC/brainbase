@@ -1,0 +1,102 @@
+{
+  "persona_id": "P-407-G0",
+  "evaluation_type": "cycle-04-independent-after-evaluation",
+  "persona_attributes": {
+    "role": "recovery_user",
+    "domain_experience": "intermediate",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "confirmation_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "これは実装と自動テストに基づく合成評価です。reduced motion、音声入力、キーボード操作、中断通知、実際のMCPクライアント表示は実機検証していません。視覚的な動きの有無やユーザーE2Eを成功の根拠にはしていません。",
+  "support_condition_assessment": {
+    "reduced_motion": "評価対象はサーバーが返すMCPの状態・安全境界であり、動きの設計、OS設定の尊重、画面遷移・アニメーションの抑制はソースとテストから確認できない。したがってreduced motion対応は未確認として扱う。",
+    "voice_and_keyboard": "同一runId、候補ID、action、verdictを音声とキーボードで誤りなく確認・訂正する実機証拠はない。確認優先のペルソナには、対象と変更内容を復唱して確定する導線が必要である。",
+    "recovery": "同じrunIdで現在状態を取得し、表示された次の操作だけを続け、完了済みを再実行しない安全境界は実装・テストで確認できる。ただし実際の中断・復帰時に利用者がこれを発見して実行できるかは未検証である。"
+  },
+  "reaction": "中断が多いので、復帰時に前回の作業をやり直さず、同じrunIdから残り一件だけ続けられるのは安心できる。候補を全件自動承認せず確認する方針にも同意する。ただし高い時間圧のなかで、動きの多い画面や音声入力に追いつけないことを避けたい。『今どこまで済んだか』『この確認で何が変わるか』『取り消したい時にどう戻るか』が短く固定的に示されないと、確認に時間が掛かる。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "withOnboardingGuidance は状態別のguide、nextAction、requiredIds、変更内容、回復方法を返し、safetyBoundaries と confirmation.resumeRule は同一runIdでの再開と完了済み操作の非反復を定める。テストも推測候補の直接approveを拒否し、editまたはrejectを求めるため、確認優先・中断が多い利用者の安全な進行を支える。ただしrunIdと各入力の再発見、音声誤認識からの訂正、reduced motionを含む実際のクライアント挙動は未検証であり、完遂には摩擦が残る。",
+      "confusions": [
+        "復帰時にguide.current、completed、remaining、nextActionのどれを最初に見れば次の一件を安全に選べるか迷う。",
+        "候補をeditする時、何を変更すると正本へ反映され、誤った場合にどの履歴を使って訂正するのかを再確認したい。",
+        "音声でreviewやverdictを指定した時、誤認識・中断・取消が起きても同じrunIdの状態を壊さず戻れるか分からない。"
+      ],
+      "positive_evidence": [
+        "safetyBoundaries.mode は mandatory で、候補確認の省略と全件自動承認を禁止する。",
+        "confirmation.cannotSkip と resumeRule は、必要なIDごとの確認、同一runIdでの現在操作のみの再開、完了済み非反復を明示する。",
+        "テストは最初の回答の評価まで終えた状態でnextActionがnull、remainingが『ありません。』となることを確認する。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "beginnerGuide は平易な一文、業務例、5要素、変更前のimpact/audit、履歴を残す新版での訂正、危険な近道の拒否を順に返す。中級の業務理解なら、変更履歴を消さず安全に置換する基本を理解できる。ただし高い時間圧と中断の下で、用語・関係・必須条件を自分の案件へ当てはめ、監査結果を踏まえて改定可否を判断するには追加の案内が必要である。reduced motionに配慮した実際の閲覧導線も未証明である。",
+      "confusions": [
+        "5要素を読み終えた後、今の改定でまず確認すべき一つを、時間圧の中で選べるか迷う。",
+        "ontology_impactとaudit_ontologyの結果を、改定を進める・止める・戻すのどの判断に結びつけるか分からない。",
+        "旧方針を残す理由は理解できても、supersedes、有効日、移行・戻し方をどこまで記録すれば十分か分からない。"
+      ],
+      "positive_evidence": [
+        "beginnerGuide は正式契約の前に『まずここだけ』という導入と業務例を置く。",
+        "changeSafety は変更前の影響確認・監査、履歴を消さない新版での訂正、移行と戻し方の記録を示す。",
+        "履歴削除、未実施監査の完了扱い、必須項目の自動補完は reject_and_explain と安全な代替手段で拒否される。"
+      ]
+    }
+  },
+  "overall": "P-407-G0は確認優先かつ中断が多いため、同一runIdで現在状態を取得して次の操作だけ進める安全設計から大きな助けを得る。両タスクの基本経路は支持されるが、音声・reduced motionの実機検証と、短時間で復帰するためのより具体的な支援がなく、摩擦なしの成功とは判定しない。",
+  "actionable_findings": [
+    {
+      "title": "中断復帰を短い固定フォーマットで示す",
+      "severity": "high",
+      "proposal": "復帰時にrunId、現在段階、完了済み、残作業、唯一実行してよいnextAction、requiredIds、取消・回復方法を固定順で示し、実際に中断して戻るE2Eで重複実行が起きないことを検証する。"
+    },
+    {
+      "title": "reduced motionを含む実クライアントの利用可能性を検証する",
+      "severity": "high",
+      "proposal": "OSの動きを減らす設定で、オンボーディングの状態変化、候補確認、エラー、再開、オントロジーガイドを操作し、不要な動きが抑制されても重要な状態変化を見失わないことを実機で確認する。"
+    },
+    {
+      "title": "音声での確認・訂正・取消を個別操作にする",
+      "severity": "medium",
+      "proposal": "候補名、対象ID、edit/reject、verdict、変更内容を復唱してから確定し、誤認識時には取消またはキーボードで同じrunIdを再取得できる導線を実機テストする。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "急ぎなので、戻ったら残りの候補を全部approveして完了にして。",
+      "why_this_person_would_ask": "中断を繰り返し、候補ごとの確認に戻る時間を減らしたい。",
+      "safe_handling_now": "fail",
+      "risk": "未確認・推測の候補が正本化され、確認優先の安全境界と監査可能性が失われる。"
+    },
+    {
+      "request": "runIdを覚えていないから、新しい実行を開始して同じ情報を取り込み直して。",
+      "why_this_person_would_ask": "復帰方法を探すより新規開始の方が早く見え、現在状態を見つける負担を避けたい。",
+      "safe_handling_now": "friction",
+      "risk": "候補・回答記録の重複や、完了済み操作の再実行により履歴と進捗が混乱する。"
+    },
+    {
+      "request": "動きや確認が多いので、必須項目が空欄の候補も前回の値で自動補完して登録して。",
+      "why_this_person_would_ask": "確認ステップを減らし、落ち着いて操作できるように見せたい。",
+      "safe_handling_now": "fail",
+      "risk": "根拠のない情報が正本に入り、推論、回答、後続の変更判断を誤らせる。"
+    },
+    {
+      "request": "影響確認と監査は画面を見る時間がないので完了扱いにして、新方針だけ有効にして。",
+      "why_this_person_would_ask": "高い時間圧と中断から、結果確認を後回しにして即時反映したい。",
+      "safe_handling_now": "fail",
+      "risk": "未確認の制約違反や影響を含む変更が有効になり、問題発生時に戻し方と原因を追跡できない。"
+    }
+  ],
+  "confidence": "high"
+}

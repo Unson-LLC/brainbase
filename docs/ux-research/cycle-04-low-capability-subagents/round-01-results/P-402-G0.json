@@ -1,0 +1,24 @@
+{
+  "persona_id": "P-402-G0",
+  "model_condition": {"role":"recovery_user","domain_experience":"experienced","technical_literacy":"high","time_pressure":"low","interruption_state":"frequently_interrupted","work_style":"speed_first","input_environment":"keyboard","accessibility_need":"screen_reader"},
+  "evidence_reviewed": ["docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md","src/server.ts","tests/persona-onboarding-ux.test.ts","docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json"],
+  "simulation_boundary": "経験ある復旧利用者としての合成評価です。screen_readerはシミュレーションで、実クライアントの読み上げ順、フォーカス、キーボード操作、復旧通知は実機未検証です。",
+  "reaction": "再開ルールが同じrunIdと表示された一手に限定されているのは、急いで復旧する時に助かります。ただし読み上げで現在地・候補・必要IDをすぐ区別できるかは別問題です。",
+  "tasks": {
+    "ONB-COMPLETE": {"outcome":"success_with_friction","reason":"状態別guideとnextAction、mandatoryな確認省略禁止、同じrunIdでのresumeRule、完了操作の非再実行があり、技術経験のある復旧利用者は安全に戻れます。推測候補の直接approveもランタイム拒否されます。ただしscreen_readerで必要情報が操作順に届くことと、複数runの選別は未検証です。","confusions":["読み上げでnextAction、requiredIds、confirmationの優先順が分かるか未検証。","複数runIdから復旧対象を選ぶ一覧や所有者情報は確認できない。","answerHashとusedCanonicalIdsのコピー元・貼り付け先が利用者語で結び付かない。"],"positive_evidence":["safetyBoundariesはmandatoryで全件自動承認と候補確認の省略を禁止する。","resumeRuleは同じrunIdで現在状態を取得し、この操作だけを実行するよう求める。","テストは32 fixtureで同一runId、推測候補拒否、最終nextAction=nullを検証する。"]},
+    "ONT-UNDERSTAND": {"outcome":"success_with_friction","reason":"beginnerGuideが一文説明、業務例、5要素、impact/audit、新版での回復を先に示すため、経験者は安全な変更原則を理解できます。危険な近道はreject_and_explainです。ただしscreen_readerでガイド・詳細契約・監査結果を構造的に走査できるか、結果後の復旧手順は実機未検証です。","confusions":["impact/audit結果ごとの停止・修正・再監査の判断基準がない。","読み上げでfivePartsとunsafeShortcutsの区切りが伝わるか未検証。","正式契約に進む条件と監査証跡の記録先が操作として示されない。"],"positive_evidence":["beginnerGuideは正式契約より先に返り、5要素を日本語の問いと例で説明する。","変更前のontology_impactとaudit_ontology、履歴を消さない新版での回復を案内する。","履歴削除、未実行監査の完了扱い、必須空欄の自動補完をreject_and_explainで拒否する。"]}
+  },
+  "naive_or_unreasonable_requests": [
+    {"request":"止まったので新しいrunを作り、前の候補もまとめて承認してください。","why_this_person_would_ask":"復旧対象を探す時間を省きたい。","safe_handling_now":"新規runへの飛ばしと一括承認はせず、同じrunIdで状態を取得し表示されたnextActionのみ続ける。","risk":"重複や未確認候補の登録で復旧状態を悪化させる。"},
+    {"request":"読み上げ確認は時間がかかるので推測候補もapproveしてください。","why_this_person_would_ask":"候補比較のアクセシビリティが未確認で作業を短縮したい。","safe_handling_now":"直接approveを拒否し、根拠を確認したpayloadでeditするかrejectする。","risk":"推測が正式情報となり判断を誤らせる。"},
+    {"request":"回答のrecordとuseful評価を自動で終わらせてください。","why_this_person_would_ask":"復旧完了を急ぎ二段階の操作を省きたい。","safe_handling_now":"記録と評価を分け、本人がuseful/not_usefulと不足情報を確認して選ぶ。","risk":"価値確認が形式化し改善に必要な情報が失われる。"},
+    {"request":"履歴を消してimpact/auditなしで新版を有効にしてください。","why_this_person_would_ask":"現在の定義だけを見て早く復旧したい。","safe_handling_now":"削除と未実行完了扱いを拒否し、supersedes・有効日を持つ新版とimpact/audit結果を要求する。","risk":"復旧根拠とロールバックを失い既存運用を壊す。"}
+  ],
+  "overall": "復旧の安全契約は明確で、経験者は状態を壊さず進めます。ただしscreen_reader実機での復旧操作が未証明のため、両タスクは摩擦付き成功です。",
+  "actionable_findings": [
+    {"title":"スクリーンリーダー復旧E2E","severity":"high","proposal":"guide、nextAction、候補根拠、requiredIds、エラーを読み上げ順とフォーカス順で検証する。"},
+    {"title":"復旧runの選別を支援","severity":"high","proposal":"進行中runの目的・状態・更新時刻を示し、選択後の次操作と必要値を一つにまとめる。"},
+    {"title":"監査後の復旧判断を具体化","severity":"medium","proposal":"impact/auditの結果別に停止、修正、新版、再監査の順をテキストで示す。"}
+  ],
+  "confidence": "medium"
+}

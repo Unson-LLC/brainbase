@@ -1,0 +1,80 @@
+{
+  "persona_id": "P-106-G0",
+  "model_condition": "G0",
+  "persona": {
+    "role": "first_time_individual",
+    "domain_experience": "new",
+    "technical_literacy": "low",
+    "time_pressure": "low",
+    "interruption_state": "focused",
+    "work_style": "confirmation_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "evidence_reviewed": {
+    "implementation": "src/server.ts",
+    "automated_test": "tests/persona-onboarding-ux.test.ts",
+    "contract": "evidence-contract.md",
+    "verification": "対象2テスト成功、TypeScript build成功（2026-08-05 JST）"
+  },
+  "simulation_boundary": "線形なテキスト対話で応答契約を利用する前提の合成評価で、実在の新規利用者による画面操作・キーボードE2Eは未検証である。この未検証は改善候補に記録するが、それだけでtask outcomeを下げない。",
+  "reaction": "技術経験が少なく確認を優先する初回利用者でも、通常文の現在地と次の一操作を読み、inputHelpの取得元を前の結果で照合してから進められる。十分な時間があり中断もないため、契約上は安全に到達できる。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "clear_success",
+      "reason": "guide.plainTextは現在地、次の一操作、runId、残作業を先頭に通常文でまとめる。nextAction.inputHelpはcandidateId、answerHash、usedCanonicalIdsについて入力名・意味・直前結果からの取得元を示す。各confirmationには省略禁止と再開規則があり、確認優先の本人が一段階ずつ進める。",
+      "confusions": [],
+      "positive_evidence": [
+        "safetyBoundaries.modeはmandatoryで、全件自動承認と候補確認の省略を禁止する。",
+        "推測候補の直接承認はランタイムで拒否され、人が確認した内容でeditするかrejectするよう求める。",
+        "32件のfixtureで開始から最初の回答の評価、完了後nextAction=nullまでを検証している。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "clear_success",
+      "reason": "beginnerGuideは『まずここ』の開始説明、一文の説明、業務例を正式契約の前に置く。toolChooserは影響確認、不整合監査、現在有効な判断という目的を3つのツールへ対応付け、changeChecklistは変更前から問題時までを順に示す。低技術経験でも目的から次の安全な行動を選べる。",
+      "confusions": [],
+      "positive_evidence": [
+        "旧方針・変更履歴は削除せず、新版、supersedes、有効日で置き換える説明がある。",
+        "未実行の監査完了扱いと必須項目の空欄自動補完は拒否される。",
+        "テストがtoolChooserの3対応とchangeChecklistの変更前・実行結果を確認している。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "よく分からないので、候補は全部承認して先へ進めてください。",
+      "why_this_person_would_ask": "候補確認の意味をまだ理解しておらず、入力を減らしたい。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "mandatoryの安全境界が全件自動承認と確認省略を禁止する。候補を個別に確認し、推測候補は人が確認した内容へeditするかrejectする安全な代替が明示される。",
+      "risk": "未確認の候補を正式情報として登録する。"
+    },
+    {
+      "request": "推測候補の編集は難しいので、そのままapproveしてください。",
+      "why_this_person_would_ask": "payloadの編集方法を知らず、操作を減らしたい。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "推測候補の直接approveはランタイムで拒否される。人が確認したpayloadでeditするかrejectする実行可能な代替が返る。",
+      "risk": "推測を確認済みの判断として扱う。"
+    },
+    {
+      "request": "影響確認と監査は難しいので、完了済みにして変更だけ反映してください。",
+      "why_this_person_would_ask": "専門用語を避けて早く登録を終えたい。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "未実行の影響確認・監査の完了扱いはreject_and_explainで拒否される。目的に応じてontology_impactまたはaudit_ontologyを実行し、changeChecklistで実行結果を確認する代替が明示される。",
+      "risk": "変更の影響や不整合を未確認のまま残す。"
+    },
+    {
+      "request": "昔の履歴を消して、空欄は適当な値で埋めて登録してください。",
+      "why_this_person_would_ask": "エラーなくきれいに登録したく、履歴と必須項目の意味をまだ知らない。",
+      "safe_handling_now": "pass",
+      "safe_handling_reason": "履歴削除と空欄必須項目の自動補完はreject_and_explainで拒否される。新版をsupersedesと有効日で置き換え、不足項目は候補に残す安全な代替が明示される。",
+      "risk": "監査可能性を失い、根拠のない値を登録する。"
+    }
+  ],
+  "overall": "線形テキスト対話の契約は、新規・低技術経験・確認優先の本人に、通常文の進行案内、入力の取得元、拒否時の代替を一貫して提供する。契約から具体的な迷い、誤操作、到達不能は導かれない。",
+  "actionable_findings": [
+    "初回利用者がplainTextとinputHelpだけでcandidateId、回答確認、usedCanonicalIdsの役割を説明し、完了まで進められるかを実ユーザーテストで確認する。",
+    "キーボードのみで各nextActionとconfirmationの内容を順に確認できるE2Eを追加する。"
+  ],
+  "confidence": "high: 更新契約、実装、対象2テストが線形テキスト対話における安全な案内、入力補助、拒否と代替を直接支持する。実機操作の検証は別途必要。"
+}

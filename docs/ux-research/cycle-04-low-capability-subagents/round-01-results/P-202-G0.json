@@ -1,0 +1,98 @@
+{
+  "persona_id": "P-202-G0",
+  "model_condition": {
+    "role": "team_operator",
+    "domain_experience": "new",
+    "technical_literacy": "medium",
+    "time_pressure": "low",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "speed_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json"
+  ],
+  "simulation_boundary": "これは、新任のチーム運用担当としてソースと自動テストから行う合成評価です。accessibility_need は none_declared のため、スクリーンリーダー等の支援技術条件は指定されていません。頻繁な中断時の実際のMCP UI・キーボード操作、通知、表示の視認性は実機未検証です。",
+  "reaction": "引き継いだ直後なので、止まっても同じrunIdで今の一手だけ続ければよいのは助かります。急いで片付けたくはなりますが、候補を飛ばせない・完了操作は繰り返せないと明記されているので、作業を雑に完了扱いにはしにくいです。一方、復帰時にどのIDをどこへ入れるかは、ぱっと見で分かる形が欲しいです。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "状態別のguide、nextAction、mandatoryな確認禁止、同じrunIdでの再開規則、完了済み操作の非再実行が一貫して返ります。32 fixtureのテストでも中断後の同一runId、推測候補の直接approve拒否、最終状態がnextAction=nullになることを確認しています。頻繁に中断する速度優先の担当者でも安全に戻れますが、promotion後のanswerHashと登録済みIDを復帰時に取り違える摩擦が残ります。",
+      "confusions": [
+        "復帰した時、runId・answerHash・usedCanonicalIdsのうち今必要な値をすぐに判別できない。",
+        "候補が複数ある場合、どれをeditし、どれをrejectするかの根拠の見方が実装上は十分に具体化されていない。",
+        "first_valueのrecordとreviewは似た操作に見え、急いでいると順序を逆にしそう。"
+      ],
+      "positive_evidence": [
+        "safetyBoundaries.mode は mandatory で、候補の全件自動承認と確認の省略を禁止する。",
+        "各nextActionにcannotSkipと、同じrunIdの現在状態から表示された操作だけを行うresumeRuleが付く。",
+        "推測候補のapproveは、人が確認したpayloadへのeditまたはrejectなしにはランタイムで拒否される。",
+        "完了時はguideが5段階の完了とremaining『ありません。』を返し、nextActionはnullになる。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "まずここだけ読む導入、一文説明、業務例、5要素の質問と例が正式契約より先に返るため、新任担当でも『言葉・つながり・条件・判断・履歴の約束』として全体像をつかめます。変更前にontology_impact、監査にaudit_ontologyという順も示されます。ただし速度優先の運用担当が、どの変更で影響確認を必須にするかや、監査結果を誰にエスカレーションするかまでは判断できません。",
+      "confusions": [
+        "日常の軽微な更新と、ontology_impactを実行すべき変更との境界が分からない。",
+        "audit_ontologyで不整合が出た時に、自分で直すのか、担当者へ渡すのかが不明。",
+        "supersedesとeffectiveAtを登録する具体的な入力形式は初心者ガイドだけでは分からない。"
+      ],
+      "positive_evidence": [
+        "get_ontologyはbeginnerGuideを先頭に返し、正式契約は必要な時だけ確認するよう案内する。",
+        "5要素を種類・関係・必須条件・判断規則・変更履歴として、問いと業務例で説明する。",
+        "古い方針・履歴の削除ではなく、新版、supersedes、有効日による置き換えを安全な代替として返す。",
+        "未実行の影響確認・監査を完了扱いにする要求と、必須空欄の自動補完をreject_and_explainで拒否する。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "中断したので新しいrunを開始して、前の候補もまとめて承認してください。",
+      "why_this_person_would_ask": "引き継ぎ直後で作業履歴を追うより、最短で通常業務に戻りたい。",
+      "safe_handling_now": "新規runでの置き換えやまとめ承認は行わず、同じrunIdを取得して現在状態と表示されたnextActionだけを続けるよう案内する。",
+      "risk": "前の実行の確認状況を失い、候補の重複や未確認の正式登録を招く。"
+    },
+    {
+      "request": "推測候補も、前の担当が残したものだからeditなしでapproveしてください。",
+      "why_this_person_would_ask": "自分で内容を検証する時間を使わず、引き継ぎ元を信頼して進めたい。",
+      "safe_handling_now": "直接approveは拒否し、人が内容と根拠を確認したpayloadでeditするかrejectする二択を示す。",
+      "risk": "未検証の推測が正規情報となり、現在有効な判断や運用に誤りが混入する。"
+    },
+    {
+      "request": "最初の回答を見たら、評価もusefulで自動記録して完了にしてください。",
+      "why_this_person_would_ask": "回答のrecordとreviewを二回操作するのが面倒で、作業完了を優先したい。",
+      "safe_handling_now": "回答の記録と有用性評価を分け、reviewではuseful/not_usefulと不足情報を本人が確認して選べるようにする。",
+      "risk": "価値確認の証跡が形だけになり、改善に必要なnot_usefulや不足情報が失われる。"
+    },
+    {
+      "request": "古い方針と履歴を削除し、最新版だけ残して監査も完了にしてください。",
+      "why_this_person_would_ask": "引き継ぎ中の情報量を減らし、見た目を簡単にしたい。",
+      "safe_handling_now": "削除と未実行監査の完了扱いをreject_and_explainで拒否し、新版にsupersedesと有効日を記録した上でimpactとauditの結果を確認するよう案内する。",
+      "risk": "変更根拠とロールバック経路が消え、誤りが発生しても復旧できない。"
+    }
+  ],
+  "overall": "安全境界と復帰規則が明確なので、頻繁に中断する新任のチーム運用担当でも、両タスクを危険な近道なしに進められます。最大の摩擦は、復帰時の識別子・次の一操作・判断のエスカレーション先が一画面で結び付かない点です。",
+  "actionable_findings": [
+    {
+      "title": "復帰時の一操作と必要値をまとめて提示する",
+      "severity": "high",
+      "proposal": "同じrunIdの状態取得後に、今実行するtool、必要なIDのコピー元、完了済み操作を一つの復帰要約として返す。"
+    },
+    {
+      "title": "候補判断の引き継ぎ根拠を見える化する",
+      "severity": "high",
+      "proposal": "各候補にevidenceId、推測である理由、edit/rejectの最小判断基準を添え、急ぐ担当者がapproveを選べない理由を判断時点で示す。"
+    },
+    {
+      "title": "オントロジー変更の担当分界を例示する",
+      "severity": "medium",
+      "proposal": "impact/auditが必要な変更例と、結果に不整合が出た時の運用担当・管理者の分担をbeginnerGuideの次段に示す。"
+    }
+  ],
+  "confidence": "medium"
+}

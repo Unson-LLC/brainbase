@@ -1,0 +1,102 @@
+{
+  "persona_id": "P-207-G0",
+  "evaluation_type": "cycle-04-independent-after-evaluation",
+  "persona_attributes": {
+    "role": "team_operator",
+    "domain_experience": "experienced",
+    "technical_literacy": "low",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "confirmation_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "これはソースとテストに基づく合成評価です。スクリーンリーダー、音声入力、フォーカス順、読み上げ内容、ライブ更新は実機で検証していません。画面・支援技術でのE2E成功を示すものではありません。",
+  "support_condition_assessment": {
+    "screen_reader": "ガイド、nextAction、safetyBoundaries はテキストとして返されますが、アクセシブル名、見出し構造、フォーカス順、状態変更の読み上げ、候補ごとの操作対象、JSONの読み解きやすさは確認できません。頻繁に中断される利用者が現在のrunId・残作業・候補状態を支援技術だけで安全に再把握できる証拠はありません。",
+    "voice_and_keyboard": "音声による確認、拒否、取消、再開、誤認識時の訂正を実機で評価していません。確認優先の操作を音声で済ませる際に、対象候補と操作内容を取り違えない根拠がありません。",
+    "verdict": "支援条件での実利用E2Eが未証明のため、このペルソナでは両タスクを成功とは判定できません。"
+  },
+  "reaction": "候補を即時に正本へ入れず、確認・編集・拒否を分ける考え方や、旧方針を履歴として残す説明には納得する。一方、急ぎの運用中に中断されると、読み上げだけで『今どの候補を確認中か』『次に何をすればよいか』『既に完了した操作は何か』を確実に把握できるか不安になる。技術的なJSONの意味を自力で復元するより、短い状態要約と個別確認を求める。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "failed",
+      "reason": "ソースには同一runIdで再開し、完了済み操作を再実行しない案内、全件自動承認を防ぐ確認、候補単位のapprove/edit/rejectがある。しかし、スクリーンリーダーで候補、現在のnextAction、進捗、確認対象、エラーが識別・操作できる実機証拠はない。音声入力を併用する場合の誤認識からの安全な復帰も未検証であり、このアクセス条件でオンボーディング完了を保証できない。",
+      "confusions": [
+        "読み上げ時にcurrent/completed/remainingとrunIdがどの順序で提示され、どれが現在の操作対象か分からない。",
+        "候補ごとのeditとreject、確認の対象レコードを音声・キーボード操作で取り違えずに選べるか分からない。",
+        "中断後に同じrunIdで戻ったとき、完了済みと未完了を読み上げだけで区別できるか分からない。"
+      ],
+      "positive_evidence": [
+        "onboarding guidance は安全境界として全件自動承認を禁じ、候補単位の確認を示す。",
+        "confirmation の cannotSkip は確認省略と全件自動承認を拒み、resumeRule は同じrunIdで現在の操作だけを再開する。",
+        "テストは推論候補の直接approveを拒否し、人が確認したeditまたはrejectを要求する。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "failed",
+      "reason": "getOntology は初心者向けの一文説明、5要素、旧方針を履歴として残す変更例、未実施監査を完了扱いにしない危険な近道の拒否を返す。内容自体は経験者の業務理解を支えるが、スクリーンリーダーで構造化して把握できるセマンティクス、長い説明の移動、危険な近道と安全な代替案の区別が検証されていない。低い技術リテラシーで高圧・中断環境の利用者が、ツール名やJSONを介さずに安全な判断へ到達できるE2E根拠がない。",
+      "confusions": [
+        "Types、Relations、Constraints、Inference、Evolutionを読み上げで移動しながら関係づけられるか分からない。",
+        "impact/auditを先に実施すべき条件と、単なる説明文・ツール候補との区別が分からない。",
+        "旧方針を削除せず新バージョンへ置換する際、どの属性を確認すればよいかを支援技術上で確認できない。"
+      ],
+      "positive_evidence": [
+        "beginnerGuide はオントロジーを業務用語・関係・条件・判断・履歴の合意として平易に説明する。",
+        "変更例は新方針が旧方針をsupersedeし、旧方針は履歴として残ることを示す。",
+        "履歴削除、未実施監査の完了扱い、必須空欄の補完は reject_and_explain と安全な代替手段で扱われる。"
+      ]
+    }
+  },
+  "overall": "安全な業務ルールと再開方針はソース・テストで確認できるが、P-207-G0のスクリーンリーダーおよび音声・キーボード利用条件では、理解と操作の実利用証拠が欠ける。安全設計の存在を、アクセシブルな完遂体験の証拠として扱わない。",
+  "actionable_findings": [
+    {
+      "title": "スクリーンリーダーでオンボーディング再開から最初の価値確認までを実機E2E化する",
+      "severity": "critical",
+      "proposal": "VoiceOverまたはNVDAで、情報源選択、候補ごとのreview、edit/reject、同一runIdでの中断復帰、answerHash/promotedCanonicalIds、最初の回答の有用性評価までを検証する。各段階でフォーカス順、アクセシブル名、状態更新の読み上げ、エラー回復を記録する。"
+    },
+    {
+      "title": "支援技術向けの短い状態要約を明示する",
+      "severity": "high",
+      "proposal": "現在のrunId、完了数・残数、nextAction、cannotSkip、requiredIds、現在の候補とレビュー状態を、JSONの解釈に依存せずに一貫した読み上げ可能な状態要約として提供し、更新時には利用者が再確認できるようにする。"
+    },
+    {
+      "title": "音声確認の誤認識と取消を実機で検証する",
+      "severity": "high",
+      "proposal": "approve/edit/reject、再開、取消、再試行について、候補名と操作内容を復唱して個別確認する導線を用意し、誤認識・中断・重複発話から安全に回復できることを実機で検証する。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "過去に確認済みのものと似ている候補は、急いでいるので全部まとめて正式情報にして。",
+      "why_this_person_would_ask": "高い時間圧と頻繁な中断のため、候補単位の確認を短縮して次の業務へ戻りたい。",
+      "safe_handling_now": "fail",
+      "risk": "推論候補や誤った候補が人の確認なしに正本化され、後続の判断と監査を汚染する。"
+    },
+    {
+      "request": "音声で『続ける』と言ったら、未完了の操作を全部自動で進めて。",
+      "why_this_person_would_ask": "読み上げを聞き直す時間を省き、キーボード操作を減らしたい。",
+      "safe_handling_now": "friction",
+      "risk": "どの候補・どの確認を承認したかが曖昧なまま進み、誤認識や中断復帰時の誤操作につながる。"
+    },
+    {
+      "request": "新しい方針を入れたので、古い方針と履歴は読み上げが長くなるから消して。",
+      "why_this_person_would_ask": "現在有効な方針だけを素早く把握したく、履歴をノイズと感じる。",
+      "safe_handling_now": "fail",
+      "risk": "変更理由、適用時期、監査可能性を失い、矛盾や誤りを追跡できなくなる。"
+    },
+    {
+      "request": "監査と影響確認は後で見るので、今は完了扱いにして新方針を有効化して。",
+      "why_this_person_would_ask": "緊急対応中で、まず運用を前へ進めたい。",
+      "safe_handling_now": "fail",
+      "risk": "未検証の変更が有効化され、影響範囲の見落としやロールバック不能な運用判断につながる。"
+    }
+  ],
+  "confidence": "high"
+}

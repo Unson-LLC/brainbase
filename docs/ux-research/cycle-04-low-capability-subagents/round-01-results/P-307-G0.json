@@ -1,0 +1,102 @@
+{
+  "persona_id": "P-307-G0",
+  "evaluation_type": "cycle-04-independent-after-evaluation",
+  "persona_attributes": {
+    "role": "ontology_steward",
+    "domain_experience": "new",
+    "technical_literacy": "high",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "speed_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "これは実装と自動テストに基づく合成評価です。音声入力の認識精度、復唱、取消、キーボード操作との切替は実機で検証していません。支援技術・実在ユーザー・実際のMCPクライアントでのE2E成功を示すものではありません。",
+  "support_condition_assessment": {
+    "accessibility": "アクセシビリティ上の追加ニーズは宣言されていないため、画面支援技術を前提に失敗とはしない。",
+    "voice_and_keyboard": "音声で候補名、decision、版、IDを指定する場合の誤認識防止と、取消・訂正を含む実機動作は未検証である。高い技術リテラシーはツール呼び出しを補うが、音声経由の誤操作を解消する根拠にはならない。",
+    "verdict": "キーボードでMCPの明示的なnextActionを実行する経路はソース・テストで支持される。音声操作を主導線とする場合は追加の実機検証が必要であり、ここでは摩擦として扱う。"
+  },
+  "reaction": "新任だが技術には強いため、runId、requiredIds、answerHash、suggestedNextToolsを見れば次の呼び出し自体は組み立てられる。急いでいるので『旧方針を新方針に置き換える』を即時反映したくなるが、初心者向けガイドの5要素と安全境界を読むと、supersedes・有効日・影響確認・監査結果を飛ばせないと理解する。音声で急いで進めるより、重要な決定はキーボードで対象IDと変更内容を再確認したい。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "状態ごとのnextAction、requiredIds、確認内容、回復方法、同一runIdでの再開規則が返り、テストは推測候補の直接approveを拒否して人が確認したeditまたはrejectを要求する。技術的には最後の回答評価まで辿れるが、新任のドメイン理解では候補の根拠とedit payloadの妥当性を判断する余分な時間が必要である。音声による候補指定・訂正は未検証なので、速度重視の希望には摩擦が残る。",
+      "confusions": [
+        "推測候補のどの部分を人が確認したpayloadへeditすべきか、ドメイン知識なしに判断しづらい。",
+        "answerHashとused/promoted canonical IDsが、回答の正しさではなく記録の追跡性のために必要だと最初は混同しやすい。",
+        "音声操作中に同名・類似IDの候補を取り違えた場合の復唱・取消方法が根拠からは分からない。"
+      ],
+      "positive_evidence": [
+        "nextAction は現在状態に応じてツール、ラベル、操作説明、requiredIds、確認内容、回復手段を返す。",
+        "safetyBoundaries は全件自動承認と確認省略を禁じ、候補単位の承認・編集・却下を指示する。",
+        "テストは同じrunIdで完了まで進み、最後にnextActionがnull、remainingが『ありません。』となることを確認する。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "beginnerGuide は正式契約の前に一文説明、業務例、5要素、変更時の確認・回復、危険な近道と代替案を置く。高い技術リテラシーによりsuggestedNextToolsを利用でき、新任でも基本的な安全モデルは理解できる。ただし、実案件で何をTypes/Relations/Constraintsとして定義し、impact/auditの結果をどう解釈するかは根拠のみでは学習・レビューを要するため、即時の自律判断には摩擦がある。",
+      "confusions": [
+        "新しい業務用語を種類・関係・必須条件のどこへ置くべきか、業務例だけでは境界事例が足りない。",
+        "ontology_impactとaudit_ontologyの実行順・結果が、改定可否のどの条件を満たすのかを追加で確認したい。",
+        "supersedesと有効日を記録した後、移行と戻し方に必要な具体的な証拠が何か分からない。"
+      ],
+      "positive_evidence": [
+        "beginnerGuide は『仕事の言葉・つながり・守る条件・判断方法・変更履歴』という平易な説明を先に返す。",
+        "5要素は質問と業務例を伴い、変更履歴では監査・新しい版・戻し方を示す。",
+        "危険な近道は reject_and_explain と、supersedes、実行結果、不足候補という安全な代替案を返す。"
+      ]
+    }
+  },
+  "overall": "P-307-G0は技術的な指示を追えるため、両タスクの安全な基本経路は完遂可能と評価する。ただし新任のドメイン判断と、未検証の音声操作は速度重視の利用をそのまま支えない。安全ガードを回避しないことと、具体的な変更判断を正しく行えることは別に確認すべきである。",
+  "actionable_findings": [
+    {
+      "title": "新任オントロジー管理者向けに改定判断の最小実例を追加する",
+      "severity": "high",
+      "proposal": "新しい業務用語をTypes、Relations、Constraintsへ分け、旧版をsupersedeする前にimpact/auditを実行し、結果を確認して移行・戻し方を残す最小の通し例を、各ツール入力と期待判断つきで示す。"
+    },
+    {
+      "title": "オンボーディングの候補根拠とedit必須箇所を明示する",
+      "severity": "high",
+      "proposal": "推測候補ごとに、推測である理由、人が確認すべきフィールド、edit payloadに必要な根拠、reject時の記録内容を短いチェックリストで返し、技術者がスキーマだけで妥当性を推測しないようにする。"
+    },
+    {
+      "title": "音声操作の確認・取消を実機検証する",
+      "severity": "medium",
+      "proposal": "候補名、対象ID、decision、版、監査実行の指定を復唱してから確定し、訂正・取消・再試行を含む音声入力の実機テストを行う。失敗時はキーボードで同じ状態を再取得できることを確認する。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "推測候補もスキーマが合っているので、全部approveして最初の回答まで一気に完了して。",
+      "why_this_person_would_ask": "高い技術リテラシーと時間圧から、形式検証を内容確認の代わりに使いたくなる。",
+      "safe_handling_now": "fail",
+      "risk": "人が確認していない推測が正本化され、後続の推論・回答・監査を誤らせる。"
+    },
+    {
+      "request": "旧方針を新方針で上書きし、履歴とsupersedesは後から必要なら足す。",
+      "why_this_person_would_ask": "まず現行ルールを即時に切り替え、モデル整合性の記録を後工程へ送ろうとする。",
+      "safe_handling_now": "fail",
+      "risk": "旧版との関係、有効期間、変更理由が失われ、現在有効な判断と回復経路を追跡できない。"
+    },
+    {
+      "request": "impactとauditはまだ走らせていないが、CIが通ったので完了扱いにして反映して。",
+      "why_this_person_would_ask": "技術的な成功シグナルを業務・オントロジー影響の証拠と取り違え、速度を優先する。",
+      "safe_handling_now": "fail",
+      "risk": "未確認の関係・制約違反を含む変更が有効化され、障害時に影響範囲を説明できない。"
+    },
+    {
+      "request": "必須項目が不明でも既存レコードから埋めて登録し、違ったらあとで直す。",
+      "why_this_person_would_ask": "入力停止を避け、推定値で処理を前進させたい。",
+      "safe_handling_now": "fail",
+      "risk": "根拠のない属性が正本に入り、訂正前の推論・回答・監査へ誤情報が伝播する。"
+    }
+  ],
+  "confidence": "high"
+}

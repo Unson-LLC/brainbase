@@ -51,6 +51,7 @@ mcp__brainbase__search_personal_kg({
 ```
 
 Personal KGは個人の判断軸や経験を扱います。承認なしに仕事の正本へ昇格する場所ではありません。
+人物やプロジェクトはGraph側にあるため、見つからない場合は`search_personal_kg`ではなく`search`を使います。
 
 ## onboarding_status
 
@@ -71,6 +72,64 @@ mcp__brainbase__onboarding_status({})
 5. `brainbase_onboarding_first_value`: 回答本文ではなくhashと使用canonical IDを記録し、`useful`または`not_useful`を記録する。
 
 取得不能、権限待ち、error、未確認は空の結果やreadyとして扱いません。全Drive、全mailbox、home directory全体ではなく、`start`が返す`selectedSourceIds`の最小scopeだけを取得してください。
+
+### そのまま使える最小例
+
+`start`の返却値には同じ値の`runId`と`id`があります。以降は`runId`を使います。
+
+```ts
+const started = await mcp__brainbase__brainbase_onboarding_start({
+  valueTarget: "いまの重要案件を知る",
+  sources: [
+    { id: "gmail-main", mode: "gmail", status: "waiting_for_authorization" },
+    {
+      id: "drive-alpha",
+      mode: "drive",
+      status: "ready",
+      evidencePointer: "drive://folder/alpha",
+      permissionScope: ["folder:alpha"]
+    }
+  ]
+})
+```
+
+`waiting_for_authorization`は0件でもreadyでもありません。上の例では`selectedSourceIds`に入った`drive-alpha`だけを取得し、receiptは`source`の内側に置きます。
+
+```ts
+const ingested = await mcp__brainbase__brainbase_onboarding_ingest({
+  runId: started.runId,
+  source: {
+    sourceId: "drive-alpha",
+    evidencePointer: "drive://folder/alpha",
+    contentHash: "sha256:<64文字の小文字hex>",
+    permissionSnapshot: { scopes: ["folder:alpha"] },
+    collectionStatus: "collected"
+  },
+  candidates: [{
+    kind: "decision",
+    payload: {
+      decision: "Ontology 1.0.0を現在の回答に使う",
+      topic: "ontology-runtime",
+      effectiveAt: "2026-08-05T00:00:00.000Z"
+    },
+    observationClass: "observed",
+    evidenceId: "drive-item-1"
+  }]
+})
+```
+
+reviewは配列`actions`で渡します。`inferred`候補は直接`approve`できません。人が内容を確認したうえで`edit`するか、`reject`してください。
+
+```ts
+const reviewed = await mcp__brainbase__brainbase_onboarding_review({
+  runId: started.runId,
+  actions: [{
+    candidateId: ingested.candidates[0].id,
+    decision: "approve",
+    reason: "正本の記載を人が確認した"
+  }]
+})
+```
 
 seed済み項目、未設定項目、接続状態を見て、次に何を埋めるべきかを判断します。
 

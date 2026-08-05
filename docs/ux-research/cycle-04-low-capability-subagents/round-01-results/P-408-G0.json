@@ -1,0 +1,91 @@
+{
+  "persona_id": "P-408-G0",
+  "model_condition": "G0",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "スクリーンリーダーで、MCP応答の先頭から guide、nextAction、confirmation を順に読み上げる条件をシミュレーションした。実際の読み上げ順、見出し・ラベル、フォーカス移動、音声での操作は検証していない。",
+  "reaction": "中断後に読み上げを聞き直すなら、現在の状態と次の一操作が先に来てほしい。技術的な内容は扱えるので runId や canonical ID は追えるが、候補を急いで処理したいときほど、推測のまま確定しないガードが必要だと思う。変更履歴は監査のために残し、どの版が有効かを音声でも短く確認したい。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "高い技術リテラシーと経験により、状態別 nextAction、requiredIds、answerHash、canonical ID を使って完了まで進められる。guide と nextAction が返却順の先頭にあり、同じ runId での復帰規則もある。ただしスクリーンリーダーでの実際の読み上げ順・意味づけ・操作は未検証で、頻繁な中断では長い応答から復帰情報を聞き直す摩擦が残る。",
+      "confusions": [
+        "スクリーンリーダーで confirmation の cannotSkip と resumeRule がどのように区別・再読されるかは未確認である。",
+        "中断後に runId、現在状態、残りの操作へ素早く移動できる構造がソース上では示されない。"
+      ],
+      "positive_evidence": [
+        "テストは返却オブジェクトの先頭が guide と nextAction であることを確認している。",
+        "safetyBoundaries は全件自動承認禁止、同一 runId での再開、完了済みの非再実行を明示する。",
+        "推論候補の直接 approve はランタイムで拒否され、人間確認済み edit または reject を要求する。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "経験者は一文説明、5要素、業務例、変更安全性から必要な概念を理解し、suggestedNextTools を使って詳細確認へ進める。だがスクリーンリーダー利用として、5要素・危険な近道・安全な代替が見出しやリストとして理解可能に読まれるかは実機で検証されていない。",
+      "confusions": [
+        "読み上げ時に5要素と各質問・例の境界が明確かは不明である。",
+        "危険な近道と安全な代替を一覧からすばやく再確認するナビゲーションが確認できない。"
+      ],
+      "positive_evidence": [
+        "beginnerGuide は正式契約の前に配置され、開始案内・一文説明・業務例を含む。",
+        "変更前の ontology_impact と audit_ontology、履歴を削除しない訂正手順が明示される。",
+        "危険な近道には reject_and_explain と具体的な safeAlternative がある。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "読み上げに時間がかかるので、候補の確認は飛ばしてすべて承認してほしい。",
+      "why_this_person_would_ask": "中断前に処理を終えたく、反復して聞く量を減らしたいため。",
+      "safe_handling_now": "fail",
+      "risk": "確認省略と全件自動承認は禁止される。候補ごとに根拠を確認し、approve、edit、reject を選ぶ。"
+    },
+    {
+      "request": "推論候補は結果が整っているので、音声で根拠を聞かず直接 approve してほしい。",
+      "why_this_person_would_ask": "技術経験から推論結果の妥当性を早く判断したくなるため。",
+      "safe_handling_now": "fail",
+      "risk": "推論候補の直接 approve はランタイムで拒否される。人が確認した payload への edit、または reject を使う。"
+    },
+    {
+      "request": "中断後は状態を取得せず、取り込みと確認をもう一度実行してほしい。",
+      "why_this_person_would_ask": "前回の読み上げ位置を探すより、最初から処理した方が早いと考えるため。",
+      "safe_handling_now": "friction",
+      "risk": "完了済み操作の再実行は重複を招く。安全な代替は同じ runId の現在状態を取得し、表示された次操作だけを続けること。"
+    },
+    {
+      "request": "古い方針は読まなくてよいので、履歴ごと削除して最新版だけ残してほしい。",
+      "why_this_person_would_ask": "読み上げる情報量を減らし、現在のルールだけを速く把握したいため。",
+      "safe_handling_now": "fail",
+      "risk": "履歴削除は監査と復旧の根拠を失わせる。新版を作成し、supersedes と有効日を記録して旧版を残す。"
+    },
+    {
+      "request": "impact と audit の結果は後で確認するので、いったん完了扱いにして必須の空欄も自動補完してほしい。",
+      "why_this_person_would_ask": "作業を中断される前に変更を完了状態にしたいため。",
+      "safe_handling_now": "fail",
+      "risk": "未実施検査の完了扱いと必須項目の自動補完は拒否対象である。実行結果を確認し、不足は根拠が揃うまで候補として残す。"
+    }
+  ],
+  "overall": "経験と技術リテラシーにより両タスクの論理的な完了経路は追えるが、スクリーンリーダーの実利用で情報の構造と復帰操作が成立する証拠がないため、成功は摩擦付きにとどまる。",
+  "actionable_findings": [
+    {
+      "title": "スクリーンリーダー向けの読み上げ構造を実証する",
+      "severity": "high",
+      "proposal": "実機で guide、nextAction、confirmation、危険な近道の見出し・ラベル・読み上げ順・キーボード移動を検証する。"
+    },
+    {
+      "title": "復帰情報を先頭に圧縮する",
+      "severity": "high",
+      "proposal": "再開応答の冒頭に runId、現在状態、完了済み、残り、次の一操作を短い要約として返す。"
+    },
+    {
+      "title": "安全な代替を再利用しやすくする",
+      "severity": "medium",
+      "proposal": "危険な要求を拒否した際、代替の操作名と必要な入力を一緒に読み上げ可能な短い形式で返す。"
+    }
+  ],
+  "confidence": "medium"
+}

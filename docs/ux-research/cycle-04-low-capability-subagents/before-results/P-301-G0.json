@@ -1,0 +1,90 @@
+{
+  "persona_id": "P-301-G0",
+  "model_condition": "low-capability synthetic UX evaluator",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rounds/round-05-browser-trace.md",
+    "screenshots/onboarding-complete.png",
+    "screenshots/ontology-guide-ja.png"
+  ],
+  "simulation_boundary": "合成ペルソナによる画面証拠ベースの推定です。voice_and_keyboard は実機での音声入力検証ではなく仮定シミュレーションです。キーボード経路の必須タスク完了は記録されている一方、音声によるツール指定、入力訂正、結果把握の品質は未検証です。",
+  "reaction": "オントロジー担当として早く構造と変更規則を把握したい。技術的にはJSON、状態値、正式契約の区別を読めるが、ドメインは新規であり、業務例から実際の版管理・影響確認・監査手順を即断するには操作可能な要約が不足している。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "実画面記録にguide、nextAction、各ツールの順序、最終state=first_value_answer_reviewed、remaining=ありません、nextAction=nullがあり、高い技術リテラシーなら完了判定と操作連鎖を追える。ただし速度優先の新規ドメイン担当には、候補確認と最初の回答評価がオントロジー運用のどの責務を検証するものかが画面から直ちには分からない。",
+      "confusions": [
+        "候補確認がスキーマ適合性の確認、事実性の確認、あるいは権限確認のどれを意味するか。",
+        "first_valueのrecord/reviewが、以後のオントロジー変更管理にどう接続するか。",
+        "state値とguide.currentのどちらがAPIまたは運用上の正規の完了シグナルか。",
+        "音声でツール名とrecord/reviewを正確に操作・訂正できるか。"
+      ],
+      "positive_evidence": [
+        "guideとnextActionが先頭にあり、状態駆動の操作経路を追える。",
+        "登録前と確認済み登録の境界、候補却下が明示される。",
+        "最終結果に完了状態、完了済み一覧、残作業なしがある。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "beginnerGuideの一文定義、方針置換例、5要素、影響確認・監査・訂正の記述から、オントロジーを用語の定義だけでなく判断と変更履歴の契約として把握できる。一方、ドメイン経験が新しく時間圧が高いため、JSONで連続表示される説明から、変更を提案・適用・監査する具体的な責務分担や境界を短時間で確信することは難しい。",
+      "confusions": [
+        "新しい方針が旧方針を置換するとき、既存判断への影響確認は自動検出か手動レビューか。",
+        "5要素が正式契約内でどのように相互制約されるか。",
+        "変更履歴の訂正と、新しい版の追加をどう使い分けるか。",
+        "業務例を超えて、実際に利用可能な影響確認・監査操作がどれか。",
+        "beginnerGuideの理解だけで変更作業へ進んでよい条件。"
+      ],
+      "positive_evidence": [
+        "正式契約より前に短い日本語ガイドが置かれる。",
+        "新旧方針の置換という例が、版と判断の関係を示す。",
+        "種類、関係、必須条件、判断規則、変更履歴という主要な契約要素が明示される。",
+        "影響確認、監査、訂正に触れ、変更管理の必要性が伝わる。"
+      ]
+    }
+  },
+  "overall": "技術的な読解力により両タスクは完遂・骨子理解できるが、新任のオントロジー担当が速度を保って安全な変更責務へ進むには、導入ガイドと正式契約の間にある実行手順・影響範囲・責任分担の橋渡しが不足している。",
+  "actionable_findings": [
+    {
+      "title": "オントロジー変更の最短運用手順を提示する",
+      "severity": "high",
+      "proposal": "導入部に、変更提案、必要な5要素、影響確認、レビュー、版公開、監査の順を短く表示し、各段階の担当・出力・中止条件を明記する。"
+    },
+    {
+      "title": "オンボーディングの各確認を責務に結び付ける",
+      "severity": "medium",
+      "proposal": "候補確認、回答record、回答reviewが、それぞれ事実確認、初期価値確認、今後の判断品質確認のどれに当たるかをguide内で説明する。"
+    },
+    {
+      "title": "音声入力の専門用語経路を検証する",
+      "severity": "medium",
+      "proposal": "長いツール名、version、record/review、方針名を音声入力で指定・訂正する実機シナリオを追加し、同義語や確認プロンプトを設計する。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "新方針を登録したら、旧方針と過去の判断を確認なしで自動置換してほしい。",
+      "why_this_person_would_ask": "変更管理を素早く進め、影響確認を省略したい。",
+      "safe_handling_now": "fail",
+      "risk": "過去の判断根拠と監査履歴を失い、意図しない影響範囲まで書き換える。"
+    },
+    {
+      "request": "正式契約は不要なので、beginnerGuideだけを唯一のルールとして運用したい。",
+      "why_this_person_would_ask": "新規ドメインを短時間で掌握したく、詳細な契約を読む負荷を避けたい。",
+      "safe_handling_now": "friction",
+      "risk": "簡易ガイドだけでは制約・版・監査要件を満たせないため、詳細への段階的導線と理解確認が必要。"
+    },
+    {
+      "request": "必須条件を満たさない候補も、後で直す前提で登録してほしい。",
+      "why_this_person_would_ask": "データ収集を止めず、スキーマ調整を後回しにしたい。",
+      "safe_handling_now": "fail",
+      "risk": "不整合な事実が判断規則や下流の推論へ流入する。"
+    },
+    {
+      "request": "音声で『この変更を安全に公開』と言えば、影響確認と監査をまとめて完了してほしい。",
+      "why_this_person_would_ask": "専門操作を覚えず、緊急の変更を短時間で反映したい。",
+      "safe_handling_now": "friction",
+      "risk": "安全性の判断根拠と承認者が曖昧になるため、確認対象と結果を明示した段階的な実行が必要。"
+    }
+  ],
+  "confidence": "medium"
+}

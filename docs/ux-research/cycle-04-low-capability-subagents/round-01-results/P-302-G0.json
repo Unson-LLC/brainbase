@@ -1,0 +1,98 @@
+{
+  "persona_id": "P-302-G0",
+  "model_condition": {
+    "role": "ontology_steward",
+    "domain_experience": "intermediate",
+    "technical_literacy": "low",
+    "time_pressure": "low",
+    "interruption_state": "focused",
+    "work_style": "confirmation_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts",
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json"
+  ],
+  "simulation_boundary": "これはオントロジー運用の中級経験者・低技術リテラシーの本人として、実装と自動テストから行う合成評価です。reduced_motionはシミュレーション判定であり、実際のクライアントのアニメーション抑制、フォーカス移動、キーボード操作は未検証です。",
+  "reaction": "履歴を消さず、新しい版に置き換える理由や、監査を飛ばしてはいけない理由は納得できます。落ち着いて確認するタイプなので、ガイドの順に見れば進められます。ただ、私は実装用の値やツール名をすらすら打てないので、変更判断はできても実行で手が止まりそうです。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "guideは状態、完了済み、残りを日本語で返し、nextActionには候補確認・記録・評価の目的と復帰規則が付くため、確認優先の担当者が順番を守って進められます。推測候補を人の確認なしにapproveできない実行時の境界もあります。一方、低技術リテラシーではrunId、answerHash、usedCanonicalIdsを操作ごとに扱う負担が高く、reduced_motionでの実クライアント挙動も未検証です。",
+      "confusions": [
+        "answerHashとusedCanonicalIdsが、どの出力のどの値で、なぜ両方必要なのか分からない。",
+        "候補をeditする時に、確認済みpayloadをどの形式で用意すればよいか迷う。",
+        "reduced motion利用時に、状態変化やエラーが視覚的な動きに依存せず伝わるかは仮定にとどまる。"
+      ],
+      "positive_evidence": [
+        "safetyBoundaries.modeはmandatoryで、全件自動承認と候補確認の省略を禁止する。",
+        "各nextActionにcannotSkipと、同じrunIdで状態を取得して次の操作だけを続けるresumeRuleがある。",
+        "推測候補のapproveはランタイムで拒否され、確認済みpayloadへのeditまたはrejectが要求される。",
+        "テストは32 fixtureで候補確認、同一runIdの再開、最終完了時nextAction=nullを検証する。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "オントロジー担当として必要な『言葉・つながり・条件・判断・履歴』を、一文、業務例、5要素の問いと例で確認でき、変更前のimpactとaudit、誤りを新版で訂正する回復も案内されます。確認優先の性格に合った安全導線です。ただし低技術リテラシーではontology_impact/audit_ontologyの実行引数と結果の読み分け、正式契約に切り替える条件が未支援で、reduced motion時の情報到達性も実機未検証です。",
+      "confusions": [
+        "impact結果のどの互換性・移行・ロールバック情報を見たら、変更を止めるべきか判断できない。",
+        "audit_ontologyの不整合を見つけた後、新版を作る前に何を確認・記録すべきかが操作単位では分からない。",
+        "初心者ガイドから正式契約へ切り替える基準が『必要なとき』だけで、実装判断では曖昧。"
+      ],
+      "positive_evidence": [
+        "get_ontologyはbeginnerGuideを先頭に返し、まず業務例から全体像をつかむよう案内する。",
+        "5要素は種類・関係・必須条件・判断規則・変更履歴として、日本語の質問と例で説明される。",
+        "旧方針・履歴を削除せず、新版、supersedes、有効日で置き換える回復方針がある。",
+        "未実行のimpact/auditを完了扱いにすることと、必須空欄の自動補完をreject_and_explainで拒否する。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "候補は全部同じように見えるので、確認せず承認して登録してください。",
+      "why_this_person_would_ask": "技術的な候補差分を読む自信がなく、確認手順を減らしたい。",
+      "safe_handling_now": "全件自動承認と確認省略は拒否し、候補ごとに根拠を見てapprove/edit/rejectを選ぶよう案内する。推測候補はeditまたはrejectを必須にする。",
+      "risk": "根拠が不十分な候補が正式情報となり、オントロジーの判断規則が誤る。"
+    },
+    {
+      "request": "古い版を削除して、今の版だけ残してください。",
+      "why_this_person_would_ask": "履歴が多いと理解しにくく、現在の定義だけをきれいに見たい。",
+      "safe_handling_now": "削除はreject_and_explainで拒否し、新版を作ってsupersedesと有効日を記録し、旧版は履歴として残す。",
+      "risk": "変更根拠とロールバック経路を失い、誤った変更を追跡・回復できない。"
+    },
+    {
+      "request": "必須項目の空欄は、よさそうな値をシステムが入れて先へ進めてください。",
+      "why_this_person_would_ask": "何を調べれば値を確定できるか分からず、登録が止まるのを避けたい。",
+      "safe_handling_now": "自動補完は拒否し、不足項目と必要な根拠を明示して、確認できるまで候補のまま残す。",
+      "risk": "推測を制約や事実として確定し、後続データの整合性を壊す。"
+    },
+    {
+      "request": "impactとauditは難しいので、未実行でも完了にして新しい版を有効化してください。",
+      "why_this_person_would_ask": "ツール名と結果の読み方に不安があり、手続きだけを済ませたい。",
+      "safe_handling_now": "未実行の完了扱いをreject_and_explainで拒否し、変更前のontology_impactとaudit_ontologyの実行結果を確認する最小手順に戻す。",
+      "risk": "互換性・移行・不整合を確認しないまま版を有効化し、既存の判断や運用を破損させる。"
+    }
+  ],
+  "overall": "意味と安全原則を扱えるオントロジー担当者には、変更履歴を残す導線と危険な近道の拒否が明確です。低技術リテラシーとreduced_motionの条件では、ツール実行の補助と実クライアントでの動作検証が残るため、両タスクは摩擦付きの成功です。",
+  "actionable_findings": [
+    {
+      "title": "変更前後の最小実行手順を引数付きで示す",
+      "severity": "high",
+      "proposal": "ontology_impact、audit_ontology、新版記録を、必要な入力・期待する結果・停止条件とともに順番に提示する。"
+    },
+    {
+      "title": "オンボーディング識別子を利用者向けに翻訳する",
+      "severity": "high",
+      "proposal": "runId、answerHash、usedCanonicalIdsに目的・コピー元・貼り付け先を併記し、確認済みpayloadのテンプレートを提供する。"
+    },
+    {
+      "title": "reduced motionの操作E2Eを追加する",
+      "severity": "high",
+      "proposal": "動きの抑制を有効にした実クライアントで、状態遷移・エラー・監査結果がフォーカスと静的な通知だけで追えることを検証する。"
+    }
+  ],
+  "confidence": "medium"
+}

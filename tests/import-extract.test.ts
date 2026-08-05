@@ -174,6 +174,38 @@ describe('planApply (INV-4/INV-5 selection + dry-run)', () => {
     const second = planApply(candidates, { ids: new Set(), all: true }, emptyBase(), '2026-06-05T00:00:00.000Z');
     expect(first.applied.map((item) => item.id)).toEqual(second.applied.map((item) => item.id));
   });
+
+  it('preserves ontology semantics when promoting a decision candidate', () => {
+    const decision = {
+      id: 'decision-candidate',
+      kind: 'decision',
+      payload: {
+        decision: 'Use the reviewed ontology kernel for current answers.',
+        topic: 'ontology-runtime',
+        supersedes: ['decision-legacy'],
+        effectiveAt: '2026-08-05T00:00:00.000Z',
+        rationale: 'The reviewed kernel has explicit inference rules.',
+        tags: ['ontology', 'reviewed']
+      }
+    };
+    const result = planApply(
+      [decision],
+      { ids: new Set([decision.id]), all: false },
+      emptyBase(),
+      '2026-08-05T01:00:00.000Z'
+    );
+
+    expect(result.decisionAdditions).toEqual([
+      expect.objectContaining({
+        decision: decision.payload.decision,
+        topic: 'ontology-runtime',
+        supersedes: ['decision-legacy'],
+        effectiveAt: '2026-08-05T00:00:00.000Z',
+        rationale: 'The reviewed kernel has explicit inference rules.',
+        tags: ['ontology', 'reviewed']
+      })
+    ]);
+  });
 });
 
 describe('loadApplyCandidates', () => {

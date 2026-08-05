@@ -1,0 +1,102 @@
+{
+  "persona_id": "P-203-G0",
+  "evaluation_type": "synthetic_source_evaluation",
+  "persona_attributes": {
+    "role": "team_operator",
+    "domain_experience": "intermediate",
+    "technical_literacy": "high",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "confirmation_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "実装と自動テストを根拠にした合成評価であり、実在利用者の利用観察やブラウザUI実機試験ではない。reduced_motion、音声入力、音声フィードバックは実機証拠ではなくシミュレーションとして判定した。",
+  "support_condition_assessment": {
+    "accessibility_need": "reduced_motion",
+    "assessment": "MCPが返す進行・確認・再開情報はテキスト中心で、ソースにアニメーション依存の進行はないため、内容理解はシミュレーション上可能である。一方、実クライアントの動き抑制、フォーカス、状態変化の視認性は未検証である。",
+    "voice_and_keyboard": "キーボード経路は自動テストの対象である。音声でrunId、候補、確認、取消、再開を正しく扱えるかは実機未検証である。",
+    "verdict": "支援条件はsuccess_with_friction相当のシミュレーションであり、実機アクセシビリティの成功とは呼ばない。"
+  },
+  "reaction": "チーム運用では、急いでいても候補の根拠と変更範囲を確認し、割り込み後に安全に再開できることが重要だ。今回のrunId、guide、nextAction.confirmation、mandatory境界は、どこまで終わったか・次に何をしてよいかを復元するのに役立つ。技術的には扱えるが、実クライアントのreduced motionと音声で同じ再開性があるかは確認したい。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "各状態に日本語のguide、nextAction、変更内容、可逆性、回復、確認省略禁止、同じrunIdでの再開規則があり、完了済み操作を再実行しないこともmandatory境界で定められる。32フィクスチャのテストは、推測候補の直接承認を拒否し、確認済みeditまたはrejectを求めたうえで最終完了まで検証する。頻繁な中断に対する再開情報は十分だが、候補内容の人手確認、answerHash、実機のreduced_motionと音声は摩擦または未検証である。",
+      "confusions": [
+        "複数候補がある場合、再開時にどの候補を誰が既に確認したかを人間向けの一覧で迅速に比較できるかは、このMCP契約だけでは不明。",
+        "first-valueのrecordでanswerHashとpromotedCanonicalIdsをどう取得・保持するかは運用上の追加手順を要する。",
+        "reduced_motion時のフォーカスと処理中通知、音声でのrunId再開・確認・取消は実機未検証。"
+      ],
+      "positive_evidence": [
+        "safetyBoundariesは全件自動承認の禁止、同じrunIdからの再開、完了済み操作の非再実行を明示する。",
+        "nextAction.confirmationはchanges、reversible、recovery、cannotSkip、resumeRuleを返す。",
+        "テストは最終状態first_value_answer_reviewed、nextAction=null、remaining=ありませんまで確認している。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "beginnerGuideは正式契約の前に、オントロジーの一文説明、方針置換例、5要素、影響確認・監査・訂正方法、危険な近道の拒否と代替を返す。中程度の業務経験を持つ運用者なら、履歴を消さず新版、supersedes、有効日で置換し、実行結果を確認してから進める原則を理解できる。ただし実際の変更審査で誰が何を確認するか、推奨ツールの実行順、reduced_motion／音声での探索は追加支援を要する。",
+      "confusions": [
+        "ontology_impact、audit_ontology、infer_decisionsを、変更前・変更後・障害時のどの順で実行するかは明文化されない。",
+        "チーム内で影響確認と監査の責任者・承認者をどう分担するかはこの出力だけでは不明。",
+        "reduced_motionと音声で長い正式契約・監査結果を再開位置を保って確認できるかは未検証。"
+      ],
+      "positive_evidence": [
+        "方針置換の例は、新しい方針を現在有効とし旧方針を履歴として残すことを説明する。",
+        "changeSafetyは変更前のontology_impactとaudit_ontology、誤り時の新版訂正と戻し方の記録を明示する。",
+        "履歴削除、未実行の監査完了扱い、必須項目の自動補完はreject_and_explainで拒否される。"
+      ]
+    }
+  },
+  "overall": "P-203-G0は、確認優先かつ頻繁な中断というチーム運用の条件でも、強制的な候補確認、同じrunIdによる状態復元、一手ずつの再開規則によって2タスクを安全に進められる。人手確認とfirst-value記録の技術的入力、実機のreduced_motion／音声品質が残るため、両タスクはsuccess_with_frictionと判定する。",
+  "actionable_findings": [
+    {
+      "title": "中断再開の候補一覧を運用者向けに要約する",
+      "severity": "medium",
+      "proposal": "runIdごとに未確認・edit済み・reject済み候補、確認者、根拠、直近操作、次の一手を一つの再開要約として返す。"
+    },
+    {
+      "title": "変更安全ツールの実行順をチーム向けに示す",
+      "severity": "medium",
+      "proposal": "変更前はontology_impact、変更後はaudit_ontology、現在の有効判断はinfer_decisionsという基本順と、例外時の担当分担を明示する。"
+    },
+    {
+      "title": "reduced motionと音声の再開E2Eを実測する",
+      "severity": "high",
+      "proposal": "割り込み後にreduced_motion有効・音声併用でrunIdを取得し、状態要約、候補確認、取消、次操作の実行までを実機で検証する。"
+    }
+  ],
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "急ぎなので、前回と同じ種類の候補は根拠確認なしで全件承認してほしい。",
+      "why_this_person_would_ask": "チーム運用で反復作業を短縮し、割り込み前に処理を進めたい。",
+      "safe_handling_now": "fail",
+      "risk": "未確認・推測候補を正本化して誤情報を伝播させる。実装は全件自動承認を禁止し、推測候補の直接approveも拒否する。"
+    },
+    {
+      "request": "中断後は、未完了操作をすべて自動実行して完了状態まで進めてほしい。",
+      "why_this_person_would_ask": "runIdごとの状態を読み直す時間を削りたい。",
+      "safe_handling_now": "friction",
+      "risk": "候補ごとの根拠確認と変更確認を飛ばすおそれがある。安全には現在状態を取得し、表示された一つのnextActionだけを明示確認して進める必要がある。"
+    },
+    {
+      "request": "新しい方針が来たら、古い方針と履歴を削除して最新版だけ残してほしい。",
+      "why_this_person_would_ask": "運用画面を単純化し、現行ルールだけを見たい。",
+      "safe_handling_now": "fail",
+      "risk": "監査証跡と過去の判断根拠を失う。実装は新版、supersedes、有効日での置換を代替として返す。"
+    },
+    {
+      "request": "影響確認と監査はあとでやるので、今は完了済みにして方針を適用してほしい。",
+      "why_this_person_would_ask": "インシデント中に現行ルールを素早く切り替えたい。",
+      "safe_handling_now": "fail",
+      "risk": "影響範囲と不整合を確認しない変更により、既存判断を壊し監査不能な状態を作る。実装はreject_and_explainと実行結果の確認を要求する。"
+    }
+  ],
+  "confidence": "high"
+}

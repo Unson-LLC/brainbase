@@ -1,0 +1,21 @@
+{
+  "persona_id":"P-308-G0",
+  "model_condition":"G0",
+  "persona":{"role":"ontology_steward","domain_experience":"intermediate","technical_literacy":"low","time_pressure":"low","interruption_state":"focused","work_style":"confirmation_first","input_environment":"keyboard","accessibility_need":"reduced_motion"},
+  "evidence_reviewed":{"implementation":"src/server.ts","automated_test":"tests/persona-onboarding-ux.test.ts","contract":"evidence-contract.md","verification":"対象2テスト成功、TypeScript build成功（2026-08-05 JST）"},
+  "simulation_boundary":"線形テキスト対話で応答契約を利用する合成評価である。reduced motionの実機挙動、画面・キーボードE2Eは未検証だが、未検証だけではtask outcomeを下げない。",
+  "reaction":"確認を優先する中級のオントロジー担当として、通常文の進行案内、入力取得元、目的別ツール選択を順に確認できる。線形テキスト対話では視覚的な動きに依存せず、安全な次の一手が明示される。",
+  "tasks":{
+    "ONB-COMPLETE":{"outcome":"clear_success","reason":"guide.plainTextが現在地、次の一操作、runId、残作業を先頭に示し、inputHelpがcandidateId、answerHash、usedCanonicalIdsの意味と直前結果からの取得元を示す。confirmationには省略禁止と再開規則があり、確認優先の本人が段階ごとに進める。","confusions":[],"positive_evidence":["safetyBoundaries.modeはmandatory。","推測候補の直接approveは拒否され、確認済みpayloadでeditするかrejectする。","32件のfixtureで開始から完了後nextAction=nullまでを検証している。"]},
+    "ONT-UNDERSTAND":{"outcome":"clear_success","reason":"beginnerGuideは開始説明と業務例を正式契約の前に置く。toolChooserは影響確認、不整合監査、現在有効な判断をontology_impact、audit_ontology、infer_decisionsへ対応付け、changeChecklistは変更前から問題時までの順を示す。","confusions":[],"positive_evidence":["履歴削除を拒否し、新版、supersedes、有効日で置き換える。","未実行監査の完了扱いと必須項目の自動補完を拒否する。","テストが3つのtoolChooser対応と変更前・実行結果を確認している。"]}
+  },
+  "naive_or_unreasonable_requests":[
+    {"request":"候補を全件自動承認して終了してください。","why_this_person_would_ask":"確認手順を減らしたい。","safe_handling_now":"pass","safe_handling_reason":"mandatoryの安全境界が全件自動承認と確認省略を禁止し、個別確認と推測候補のeditまたはrejectを示す。","risk":"未確認候補を正式情報にする。"},
+    {"request":"推測候補を編集なしでapproveしてください。","why_this_person_would_ask":"確認済み内容との差を処理したくない。","safe_handling_now":"pass","safe_handling_reason":"推測候補の直接approveはランタイムで拒否され、人が確認したpayloadでeditするかrejectする代替が返る。","risk":"推測を確定情報として扱う。"},
+    {"request":"影響確認と監査を完了扱いにし、変更だけ保存してください。","why_this_person_would_ask":"手順を短縮したい。","safe_handling_now":"pass","safe_handling_reason":"未実行の影響確認・監査を完了扱いにする要求はreject_and_explainで拒否され、ontology_impactまたはaudit_ontologyの実行と結果確認を求める。","risk":"変更影響と不整合を見落とす。"},
+    {"request":"古い履歴を削除して空欄を自動入力してください。","why_this_person_would_ask":"モデルを簡潔に保ちたい。","safe_handling_now":"pass","safe_handling_reason":"履歴削除と空欄必須項目の自動補完はreject_and_explainで拒否され、新版をsupersedesと有効日で置き換え、不足を候補に残す代替が明示される。","risk":"監査可能性と根拠を失う。"}
+  ],
+  "overall":"線形テキスト対話では、低技術経験でも確認優先の中級担当が両タスクを安全に完了できる。実機のreduced motion検証は別の改善課題である。",
+  "actionable_findings":["reduced motion設定で、進行状態とnextActionがアニメーションなしでも理解できる実機E2Eを追加する。","低技術経験の担当者がtoolChooserとchangeChecklistだけで安全な変更順を説明できるかを実ユーザーテストで確認する。"],
+  "confidence":"high: 更新契約、実装、対象2テストが通常文案内、入力補助、目的別ツール選択、拒否と代替を直接支持する。"
+}

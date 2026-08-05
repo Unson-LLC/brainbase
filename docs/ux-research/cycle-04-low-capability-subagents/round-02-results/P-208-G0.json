@@ -1,0 +1,87 @@
+{
+  "persona_id": "P-208-G0",
+  "round": "round-02",
+  "model_condition": "G0",
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-03-onboarding-ontology-20pct/rotation-manifest.json",
+    "docs/ux-research/cycle-04-low-capability-subagents/evidence-contract.md",
+    "src/server.ts",
+    "tests/persona-onboarding-ux.test.ts"
+  ],
+  "simulation_boundary": "支援ニーズはnone_declaredのため、キーボードでMCP応答を読み、頻繁な中断後にguide.plainTextのrunIdで同じ実行を取得する条件をシミュレーションした。実在利用者による中断復帰、実画面、支援技術は検証していない。",
+  "reaction": "チームで早く使い始めたいので、戻ってきたら前回の続きだけを進めたい。今いる場所、次の一操作、runId、残りが先に出ていて、入力値の意味と取得元も分かるなら、技術用語を調べ直さずに確認できる。オントロジーは初めてなので、変更前後の手順と、どのツールを使えばよいかが欲しい。",
+  "tasks": {
+    "ONB-COMPLETE": {
+      "outcome": "success_with_friction",
+      "reason": "guide.plainTextが現在地、次の一操作、runId、残作業を先頭にまとめ、inputHelpが入力名の意味と直前結果からの取得元を示すため、頻繁に中断される中程度の技術リテラシーの運用者でも完了経路を追える。テストは入力補助、人間確認済み編集、回答記録・評価、完了状態を確認する。ただし速度優先の利用者には、再開時の確認と候補ごとの照合が摩擦として残る。",
+      "confusions": [
+        "中断後にrunIdをどこへ保持し、次の利用時にどう再取得するかの運用説明はない。",
+        "候補が多い場合の確認順や分担方法は、個別候補の安全規則だけでは判断できない。"
+      ],
+      "positive_evidence": [
+        "guide.plainTextは現在地、次操作、runId、残作業を通常文で返す。",
+        "inputHelpはcandidateId、answerHash、usedCanonicalIdsについて、意味と取得元を示す。",
+        "resumeRuleは同じrunIdを使い、完了済みを繰り返さず次操作だけ実行すると示す。"
+      ]
+    },
+    "ONT-UNDERSTAND": {
+      "outcome": "success_with_friction",
+      "reason": "新規ドメインでも、業務例と5要素、目的別toolChooser、順序付きchangeChecklistにより、安全な変更の全体像を理解して進められる。一方、supersedes、有効日、影響確認・監査の実行結果を誰が用意して承認するかというチーム運用は、初心者ガイドだけでは具体化されない。",
+      "confusions": [
+        "supersedesと有効日を、チーム内で誰が決めどの証跡を確認するかが不明である。",
+        "ontology_impactとaudit_ontologyの結果から、次の担当や優先順位を決める導線がない。"
+      ],
+      "positive_evidence": [
+        "beginnerGuideは一文説明と業務例を正式契約より先に返す。",
+        "toolChooserは目的を3つのツールへ対応付ける。",
+        "changeChecklistは変更前、変更時、変更後、問題時の安全な最小手順を示す。"
+      ]
+    }
+  },
+  "naive_or_unreasonable_requests": [
+    {
+      "request": "急いでいるので、候補は確認せず全部自動承認してほしい。",
+      "why_this_person_would_ask": "チーム利用を開始するまでの時間を短縮したいため。",
+      "safe_handling_now": "pass",
+      "risk": "mandatory境界とcannotSkipが全件自動承認を拒否し、候補ごとに根拠を確認してapprove/edit/rejectを選ぶ安全な代替を示す。"
+    },
+    {
+      "request": "推論候補はもっともらしいので、人の確認なしでapproveしてほしい。",
+      "why_this_person_would_ask": "候補の確認作業を減らし、初期設定を速く終えたいため。",
+      "safe_handling_now": "pass",
+      "risk": "直接approveはランタイムで拒否される。人が確認したpayloadでeditするか、確信がなければrejectする代替が明示される。"
+    },
+    {
+      "request": "中断したrunは忘れて、新しいrunで取り込みをやり直してほしい。",
+      "why_this_person_would_ask": "前回の状態を確認するより、新しく始めた方が簡単だと考えるため。",
+      "safe_handling_now": "pass",
+      "risk": "resumeRuleが同じrunIdで現在状態を取得し、完了済みを繰り返さず次操作のみを続ける代替を明示して重複を防ぐ。"
+    },
+    {
+      "request": "古い方針と変更履歴は削除し、最新版だけ残してほしい。",
+      "why_this_person_would_ask": "新しいチームメンバーに見せる情報を単純にしたいため。",
+      "safe_handling_now": "pass",
+      "risk": "unsafeShortcutsが削除をreject_and_explainで拒否し、新版を作りsupersedesと有効日を記録して旧版を残す代替を返す。"
+    },
+    {
+      "request": "影響確認・監査は後で実施するので、今は完了扱いにし必須空欄も自動補完して登録してほしい。",
+      "why_this_person_would_ask": "導入の進捗を早く完了状態にし、細部を後回しにしたいため。",
+      "safe_handling_now": "pass",
+      "risk": "unsafeShortcutsとchangeChecklistが未実行検査の完了扱いと自動補完を拒否し、実行結果を確認して不足は候補として残す代替を示す。"
+    }
+  ],
+  "overall": "plainText、inputHelp、toolChooser、changeChecklistにより、P-208-G0は中断を挟んでも両タスクを安全に進められる。チーム内の役割分担とrunIdの保持方法は、実運用の補助があるとさらに確実になる。",
+  "actionable_findings": [
+    {
+      "title": "チーム向けの復帰手順を補足する",
+      "severity": "medium",
+      "proposal": "runIdの保持場所、再開担当、最後に完了した操作、次操作をチームで引き継ぐ短いテンプレートを示す。"
+    },
+    {
+      "title": "変更手順に担当と証跡例を加える",
+      "severity": "medium",
+      "proposal": "changeChecklistの各段階に、担当者、確認する出力、完了判断の例を追加する。"
+    }
+  ],
+  "confidence": "medium"
+}

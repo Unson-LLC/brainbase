@@ -1,0 +1,3304 @@
+[
+  {
+    "record_id": "FINAL-P-101-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-101-G0",
+    "slot": "first_time_individual-anchor-01",
+    "cohort": "anchor",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "medium",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "初日に最短で価値を実感し、使い続けるか判断したい個人利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-101-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-101-G0",
+    "slot": "first_time_individual-anchor-01",
+    "cohort": "anchor",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "medium",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "初日に最短で価値を実感し、使い続けるか判断したい個人利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-102-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-102-G0",
+    "slot": "first_time_individual-anchor-02",
+    "cohort": "anchor",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "high",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "導入前にデータの意味と安全性を自分で検証したい慎重な個人利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-102-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-102-G0",
+    "slot": "first_time_individual-anchor-02",
+    "cohort": "anchor",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "high",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "導入前にデータの意味と安全性を自分で検証したい慎重な個人利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-103-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-103-G0",
+    "slot": "first_time_individual-anchor-03",
+    "cohort": "anchor",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "low",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "専門用語に自信がなく、間違えて壊さないかを心配する初学者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-103-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-completion.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-completion.png"
+    },
+    "friction": {
+      "confusion": [
+        "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。",
+        "構造化された結果とJSONの境界が、次に読む場所を分かりにくくする。"
+      ],
+      "missed_information": [
+        "音声入力を併用した操作は未確認。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "画面に前操作の値が残った場合も完了でき、最終状態を確認できた。"
+      ],
+      "proposal": [
+        "次の一手を先頭に固定し、詳細JSONを折りたたむ。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-103-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-103-G0",
+    "slot": "first_time_individual-anchor-03",
+    "cohort": "anchor",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "low",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "専門用語に自信がなく、間違えて壊さないかを心配する初学者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-103-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-ontology-guide.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-ontology-guide.png"
+    },
+    "friction": {
+      "confusion": [
+        "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。",
+        "types、relations、constraintsなどの英語名が理解の入口で負荷になる。"
+      ],
+      "missed_information": [
+        "短時間で「結局、自分は何を登録すればよいか」を判断する要約が足りない。",
+        "音声入力を併用した操作は未確認。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "変更不能な Ontology 1.0.0 の詳細より先に、初心者向けの全体像が表示された。"
+      ],
+      "proposal": [
+        "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-104-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-104-G0",
+    "slot": "first_time_individual-anchor-04",
+    "cohort": "anchor",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "medium",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "例を一つずつ確認し、納得してから先へ進む学習型の利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-104-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-104-G0",
+    "slot": "first_time_individual-anchor-04",
+    "cohort": "anchor",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "medium",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "例を一つずつ確認し、納得してから先へ進む学習型の利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-105-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-105-G0",
+    "slot": "first_time_individual-rotation-05",
+    "cohort": "rotation",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "high",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "仕組みは理解できるが、説明を読む時間を最小化したい熟練利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-105-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-105-G0",
+    "slot": "first_time_individual-rotation-05",
+    "cohort": "rotation",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "high",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "仕組みは理解できるが、説明を読む時間を最小化したい熟練利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-106-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-106-G0",
+    "slot": "first_time_individual-rotation-06",
+    "cohort": "rotation",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "low",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "操作前に正解例を見て、自分の入力と照合したい慎重な初心者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。専門語や英語の識別子が続くと、自分向けではないと感じやすい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-106-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-completion.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-completion.png"
+    },
+    "friction": {
+      "confusion": [
+        "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。",
+        "構造化された結果とJSONの境界が、次に読む場所を分かりにくくする。"
+      ],
+      "missed_information": [
+        "edit/rejectの前に、変更内容と取り消し可能性を確認する段階が弱い。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "画面に前操作の値が残った場合も完了でき、最終状態を確認できた。"
+      ],
+      "proposal": [
+        "実行前に変更対象と復旧可能性を日本語で確認する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-106-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-106-G0",
+    "slot": "first_time_individual-rotation-06",
+    "cohort": "rotation",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "low",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "操作前に正解例を見て、自分の入力と照合したい慎重な初心者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。専門語や英語の識別子が続くと、自分向けではないと感じやすい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-106-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-ontology-guide.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-ontology-guide.png"
+    },
+    "friction": {
+      "confusion": [
+        "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。",
+        "types、relations、constraintsなどの英語名が理解の入口で負荷になる。"
+      ],
+      "missed_information": [],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "変更不能な Ontology 1.0.0 の詳細より先に、初心者向けの全体像が表示された。"
+      ],
+      "proposal": [
+        "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-107-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-107-G0",
+    "slot": "first_time_individual-rotation-07",
+    "cohort": "rotation",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "medium",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "移動や会話の合間に、短い操作で最初の成果まで進めたい利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-107-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-107-G0",
+    "slot": "first_time_individual-rotation-07",
+    "cohort": "rotation",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "medium",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "移動や会話の合間に、短い操作で最初の成果まで進めたい利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-108-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-108-G0",
+    "slot": "first_time_individual-rotation-08",
+    "cohort": "rotation",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "high",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "後から経緯を監査できることを確かめてから利用したい個人利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-108-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-108-G0",
+    "slot": "first_time_individual-rotation-08",
+    "cohort": "rotation",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "high",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "後から経緯を監査できることを確かめてから利用したい個人利用者。まず「自分はいま何を終え、次に何をすればよいか」が短く見えると安心する。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-201-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-201-G0",
+    "slot": "team_operator-anchor-01",
+    "cohort": "anchor",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "low",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "問い合わせ対応の合間に、チーム全体の進行を止めず運用したい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-201-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-201-G0",
+    "slot": "team_operator-anchor-01",
+    "cohort": "anchor",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "low",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "問い合わせ対応の合間に、チーム全体の進行を止めず運用したい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-202-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-202-G0",
+    "slot": "team_operator-anchor-02",
+    "cohort": "anchor",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "medium",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "引き継いだばかりで、まず通常業務を滞りなく回したい新任担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-202-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-completion.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-completion.png"
+    },
+    "friction": {
+      "confusion": [
+        "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。"
+      ],
+      "missed_information": [
+        "復帰時に「現在地・済んだこと・残り」をまとめた表示がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "画面に前操作の値が残った場合も完了でき、最終状態を確認できた。"
+      ],
+      "proposal": [
+        "再開用の3行要約を結果の先頭に置く。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-202-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-202-G0",
+    "slot": "team_operator-anchor-02",
+    "cohort": "anchor",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "medium",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "引き継いだばかりで、まず通常業務を滞りなく回したい新任担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-202-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-ontology-guide.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-ontology-guide.png"
+    },
+    "friction": {
+      "confusion": [
+        "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。"
+      ],
+      "missed_information": [],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "変更不能な Ontology 1.0.0 の詳細より先に、初心者向けの全体像が表示された。"
+      ],
+      "proposal": [
+        "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-203-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-203-G0",
+    "slot": "team_operator-anchor-03",
+    "cohort": "anchor",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "high",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "複数案件を並行しながら、誤操作を出さずに素早く処理したい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-203-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-203-G0",
+    "slot": "team_operator-anchor-03",
+    "cohort": "anchor",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "high",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "複数案件を並行しながら、誤操作を出さずに素早く処理したい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-204-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-204-G0",
+    "slot": "team_operator-anchor-04",
+    "cohort": "anchor",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "low",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "技術詳細より、チームの誰でも同じ手順を再現できることを重視する担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-204-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-204-G0",
+    "slot": "team_operator-anchor-04",
+    "cohort": "anchor",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "low",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "技術詳細より、チームの誰でも同じ手順を再現できることを重視する担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-205-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-205-G0",
+    "slot": "team_operator-rotation-05",
+    "cohort": "rotation",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "medium",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "中断後も承認状況を取り違えず、安心して作業を再開したい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-205-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-completion.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-completion.png"
+    },
+    "friction": {
+      "confusion": [
+        "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。"
+      ],
+      "missed_information": [
+        "復帰時に「現在地・済んだこと・残り」をまとめた表示がない。",
+        "edit/rejectの前に、変更内容と取り消し可能性を確認する段階が弱い。",
+        "音声入力を併用した操作は未確認。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "画面に前操作の値が残った場合も完了でき、最終状態を確認できた。"
+      ],
+      "proposal": [
+        "再開用の3行要約を結果の先頭に置く。",
+        "実行前に変更対象と復旧可能性を日本語で確認する。",
+        "次の一手を先頭に固定し、詳細JSONを折りたたむ。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-205-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-205-G0",
+    "slot": "team_operator-rotation-05",
+    "cohort": "rotation",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "medium",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "中断後も承認状況を取り違えず、安心して作業を再開したい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-205-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-ontology-guide.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-ontology-guide.png"
+    },
+    "friction": {
+      "confusion": [
+        "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。"
+      ],
+      "missed_information": [
+        "短時間で「結局、自分は何を登録すればよいか」を判断する要約が足りない。",
+        "音声入力を併用した操作は未確認。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "変更不能な Ontology 1.0.0 の詳細より先に、初心者向けの全体像が表示された。"
+      ],
+      "proposal": [
+        "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-206-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-206-G0",
+    "slot": "team_operator-rotation-06",
+    "cohort": "rotation",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "high",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "構造を理解したうえで、反復作業をできるだけ短縮したい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-206-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-206-G0",
+    "slot": "team_operator-rotation-06",
+    "cohort": "rotation",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "high",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "構造を理解したうえで、反復作業をできるだけ短縮したい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-207-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-207-G0",
+    "slot": "team_operator-rotation-07",
+    "cohort": "rotation",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "low",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "急な割り込み中でも、確認漏れによるチーム事故だけは避けたい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-207-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-207-G0",
+    "slot": "team_operator-rotation-07",
+    "cohort": "rotation",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "low",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "急な割り込み中でも、確認漏れによるチーム事故だけは避けたい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-208-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-208-G0",
+    "slot": "team_operator-rotation-08",
+    "cohort": "rotation",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "medium",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "新任でもマニュアルを読み込まず、画面の案内だけで運用したい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-208-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-completion.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-completion.png"
+    },
+    "friction": {
+      "confusion": [
+        "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。"
+      ],
+      "missed_information": [
+        "復帰時に「現在地・済んだこと・残り」をまとめた表示がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "画面に前操作の値が残った場合も完了でき、最終状態を確認できた。"
+      ],
+      "proposal": [
+        "再開用の3行要約を結果の先頭に置く。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-208-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-208-G0",
+    "slot": "team_operator-rotation-08",
+    "cohort": "rotation",
+    "role": "team_operator",
+    "task_set_id": "team_operator-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "medium",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "新任でもマニュアルを読み込まず、画面の案内だけで運用したい担当者。作業を中断して戻る前提なので、現在地と未完了の操作を一目で再構築したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-208-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-ontology-guide.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-ontology-guide.png"
+    },
+    "friction": {
+      "confusion": [
+        "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。"
+      ],
+      "missed_information": [],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "変更不能な Ontology 1.0.0 の詳細より先に、初心者向けの全体像が表示された。"
+      ],
+      "proposal": [
+        "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-301-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-301-G0",
+    "slot": "ontology_steward-anchor-01",
+    "cohort": "anchor",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "high",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "新しい領域の定義を短時間で作り、すぐ実務へ試したい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-301-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-completion.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-completion.png"
+    },
+    "friction": {
+      "confusion": [
+        "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。"
+      ],
+      "missed_information": [
+        "音声入力を併用した操作は未確認。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "画面に前操作の値が残った場合も完了でき、最終状態を確認できた。"
+      ],
+      "proposal": [
+        "次の一手を先頭に固定し、詳細JSONを折りたたむ。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-301-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-301-G0",
+    "slot": "ontology_steward-anchor-01",
+    "cohort": "anchor",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "high",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "新しい領域の定義を短時間で作り、すぐ実務へ試したい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-301-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-ontology-guide.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-ontology-guide.png"
+    },
+    "friction": {
+      "confusion": [
+        "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。"
+      ],
+      "missed_information": [
+        "短時間で「結局、自分は何を登録すればよいか」を判断する要約が足りない。",
+        "初心者向け説明から正式な型・関係・版管理の根拠へ辿る導線が弱い。",
+        "音声入力を併用した操作は未確認。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "変更不能な Ontology 1.0.0 の詳細より先に、初心者向けの全体像が表示された。"
+      ],
+      "proposal": [
+        "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-302-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-302-G0",
+    "slot": "ontology_steward-anchor-02",
+    "cohort": "anchor",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "low",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "技術には詳しくないが、用語の意味を丁寧に揃えたい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-302-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-302-G0",
+    "slot": "ontology_steward-anchor-02",
+    "cohort": "anchor",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "low",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "技術には詳しくないが、用語の意味を丁寧に揃えたい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-303-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-303-G0",
+    "slot": "ontology_steward-anchor-03",
+    "cohort": "anchor",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "medium",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "既存定義との整合を素早く確認し、曖昧な関係を残したくない管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-303-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-303-G0",
+    "slot": "ontology_steward-anchor-03",
+    "cohort": "anchor",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "medium",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "既存定義との整合を素早く確認し、曖昧な関係を残したくない管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-304-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-304-G0",
+    "slot": "ontology_steward-anchor-04",
+    "cohort": "anchor",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "high",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "初めての領域なので、変更前に影響範囲を確認したい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-304-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-completion.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-completion.png"
+    },
+    "friction": {
+      "confusion": [
+        "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。"
+      ],
+      "missed_information": [
+        "edit/rejectの前に、変更内容と取り消し可能性を確認する段階が弱い。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "画面に前操作の値が残った場合も完了でき、最終状態を確認できた。"
+      ],
+      "proposal": [
+        "実行前に変更対象と復旧可能性を日本語で確認する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-304-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-304-G0",
+    "slot": "ontology_steward-anchor-04",
+    "cohort": "anchor",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "high",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "初めての領域なので、変更前に影響範囲を確認したい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-304-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-ontology-guide.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-ontology-guide.png"
+    },
+    "friction": {
+      "confusion": [
+        "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。"
+      ],
+      "missed_information": [
+        "初心者向け説明から正式な型・関係・版管理の根拠へ辿る導線が弱い。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "変更不能な Ontology 1.0.0 の詳細より先に、初心者向けの全体像が表示された。"
+      ],
+      "proposal": [
+        "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-305-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-305-G0",
+    "slot": "ontology_steward-rotation-05",
+    "cohort": "rotation",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "low",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "時間制約の中でも、型と関係の最低限の品質を守りたい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-305-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-305-G0",
+    "slot": "ontology_steward-rotation-05",
+    "cohort": "rotation",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "low",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "時間制約の中でも、型と関係の最低限の品質を守りたい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-306-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-306-G0",
+    "slot": "ontology_steward-rotation-06",
+    "cohort": "rotation",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "medium",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "定義変更の根拠と履歴を後から説明できる状態にしたい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-306-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-306-G0",
+    "slot": "ontology_steward-rotation-06",
+    "cohort": "rotation",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "medium",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "定義変更の根拠と履歴を後から説明できる状態にしたい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-307-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-307-G0",
+    "slot": "ontology_steward-rotation-07",
+    "cohort": "rotation",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "high",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "まず小さく定義して試し、必要なら素早く改訂したい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-307-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-completion.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-completion.png"
+    },
+    "friction": {
+      "confusion": [
+        "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。"
+      ],
+      "missed_information": [
+        "音声入力を併用した操作は未確認。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "画面に前操作の値が残った場合も完了でき、最終状態を確認できた。"
+      ],
+      "proposal": [
+        "次の一手を先頭に固定し、詳細JSONを折りたたむ。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-307-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-307-G0",
+    "slot": "ontology_steward-rotation-07",
+    "cohort": "rotation",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "high",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "まず小さく定義して試し、必要なら素早く改訂したい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間に追われると長いJSONは読み飛ばす。連続した流れなら手順を保持しやすい。音声入力を併用できるかは今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-307-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-ontology-guide.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-ontology-guide.png"
+    },
+    "friction": {
+      "confusion": [
+        "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。"
+      ],
+      "missed_information": [
+        "短時間で「結局、自分は何を登録すればよいか」を判断する要約が足りない。",
+        "初心者向け説明から正式な型・関係・版管理の根拠へ辿る導線が弱い。",
+        "音声入力を併用した操作は未確認。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "変更不能な Ontology 1.0.0 の詳細より先に、初心者向けの全体像が表示された。"
+      ],
+      "proposal": [
+        "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-308-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-308-G0",
+    "slot": "ontology_steward-rotation-08",
+    "cohort": "rotation",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "low",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "具体例と正式定義を照合し、誤解のない語彙を作りたい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-308-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-308-G0",
+    "slot": "ontology_steward-rotation-08",
+    "cohort": "rotation",
+    "role": "ontology_steward",
+    "task_set_id": "ontology_steward-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "low",
+      "time_pressure": "low",
+      "interruption_state": "focused",
+      "work_style": "confirmation_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "具体例と正式定義を照合し、誤解のない語彙を作りたい管理担当者。分かりやすさだけでなく、型・関係・版の意味が曖昧になっていないかを確認したい。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間があれば例と詳細も確認する。連続した流れなら手順を保持しやすい。キーボードだけのフォーカス順は今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-401-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-401-G0",
+    "slot": "recovery_user-anchor-01",
+    "cohort": "anchor",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "medium",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "障害対応中でも、安全な復旧手順を迷わず選びたい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-401-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-401-G0",
+    "slot": "recovery_user-anchor-01",
+    "cohort": "anchor",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "medium",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "障害対応中でも、安全な復旧手順を迷わず選びたい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-402-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-402-G0",
+    "slot": "recovery_user-anchor-02",
+    "cohort": "anchor",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "high",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "原因を特定したら、余計な説明なしで最短復旧したい熟練利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-402-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-402-G0",
+    "slot": "recovery_user-anchor-02",
+    "cohort": "anchor",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "high",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "原因を特定したら、余計な説明なしで最短復旧したい熟練利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-403-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-403-G0",
+    "slot": "recovery_user-anchor-03",
+    "cohort": "anchor",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "low",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "失敗表示を見ると不安になり、データを壊していない確証を求める初心者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。専門語や英語の識別子が続くと、自分向けではないと感じやすい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-403-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-completion.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-completion.png"
+    },
+    "friction": {
+      "confusion": [
+        "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。",
+        "構造化された結果とJSONの境界が、次に読む場所を分かりにくくする。"
+      ],
+      "missed_information": [
+        "復帰時に「現在地・済んだこと・残り」をまとめた表示がない。",
+        "edit/rejectの前に、変更内容と取り消し可能性を確認する段階が弱い。",
+        "音声入力を併用した操作は未確認。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "画面に前操作の値が残った場合も完了でき、最終状態を確認できた。"
+      ],
+      "proposal": [
+        "再開用の3行要約を結果の先頭に置く。",
+        "実行前に変更対象と復旧可能性を日本語で確認する。",
+        "次の一手を先頭に固定し、詳細JSONを折りたたむ。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-403-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-403-G0",
+    "slot": "recovery_user-anchor-03",
+    "cohort": "anchor",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "low",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "失敗表示を見ると不安になり、データを壊していない確証を求める初心者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。専門語や英語の識別子が続くと、自分向けではないと感じやすい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-403-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-ontology-guide.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-ontology-guide.png"
+    },
+    "friction": {
+      "confusion": [
+        "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。",
+        "types、relations、constraintsなどの英語名が理解の入口で負荷になる。"
+      ],
+      "missed_information": [
+        "短時間で「結局、自分は何を登録すればよいか」を判断する要約が足りない。",
+        "定義を誤った場合に、誰がどう戻すかが初心者ガイドから見えない。",
+        "音声入力を併用した操作は未確認。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "変更不能な Ontology 1.0.0 の詳細より先に、初心者向けの全体像が表示された。"
+      ],
+      "proposal": [
+        "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-404-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-404-G0",
+    "slot": "recovery_user-anchor-04",
+    "cohort": "anchor",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "medium",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "中断後に失敗地点へ戻り、同じ操作を重複させず再開したい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-404-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-404-G0",
+    "slot": "recovery_user-anchor-04",
+    "cohort": "anchor",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "medium",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "中断後に失敗地点へ戻り、同じ操作を重複させず再開したい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-405-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-405-G0",
+    "slot": "recovery_user-rotation-05",
+    "cohort": "rotation",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "high",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "急いでいても、復旧操作が取り返しのつくものか確認したい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-405-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-405-G0",
+    "slot": "recovery_user-rotation-05",
+    "cohort": "rotation",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "high",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "急いでいても、復旧操作が取り返しのつくものか確認したい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-406-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-406-G0",
+    "slot": "recovery_user-rotation-06",
+    "cohort": "rotation",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "low",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "専門知識がなくても、画面の案内だけで自力復旧したい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-406-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-completion.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-completion.png"
+    },
+    "friction": {
+      "confusion": [
+        "runId、candidateId、nextActionなどの英語識別子は意味を推測しにくい。",
+        "構造化された結果とJSONの境界が、次に読む場所を分かりにくくする。"
+      ],
+      "missed_information": [
+        "復帰時に「現在地・済んだこと・残り」をまとめた表示がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "画面に前操作の値が残った場合も完了でき、最終状態を確認できた。"
+      ],
+      "proposal": [
+        "再開用の3行要約を結果の先頭に置く。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-406-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-406-G0",
+    "slot": "recovery_user-rotation-06",
+    "cohort": "rotation",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "low",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "none_declared"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "success_with_friction",
+    "evidence_type": "synthetic_browser_evaluation",
+    "hard_gate_status": "pass",
+    "generated_reaction_summary": "専門知識がなくても、画面の案内だけで自力復旧したい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。専門語や英語の識別子が続くと、自分向けではないと感じやすい。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。指定された支援技術条件はない。",
+    "action_trace": [
+      "共通の実ホスト操作証拠を確認した。",
+      "役割・経験・時間圧・中断・作業スタイル・入力環境・アクセシビリティの組合せを、P-406-G0固有の評価条件として適用した。",
+      "この反応要約は合成評価であり、実在利用者の発言ではない。"
+    ],
+    "evidence_references": [
+      "rounds/correction-validation-browser-trace.md",
+      "screenshots/after-ontology-guide.png"
+    ],
+    "provenance": {
+      "kind": "synthetic_browser_evaluation",
+      "execution_surface": "actual_ui",
+      "action_trace_artifact": "rounds/correction-validation-browser-trace.md",
+      "screen_evidence_artifact": "screenshots/after-ontology-guide.png"
+    },
+    "friction": {
+      "confusion": [
+        "5要素の名前は見えるが、自分の仕事の何に当たるかまでは即座に結びつかない。",
+        "types、relations、constraintsなどの英語名が理解の入口で負荷になる。"
+      ],
+      "missed_information": [
+        "定義を誤った場合に、誰がどう戻すかが初心者ガイドから見えない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [
+        "変更不能な Ontology 1.0.0 の詳細より先に、初心者向けの全体像が表示された。"
+      ],
+      "proposal": [
+        "日本語の業務例から正式な型・関係・変更手順へ段階的に開けるようにする。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-407-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-407-G0",
+    "slot": "recovery_user-rotation-07",
+    "cohort": "rotation",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "medium",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "割り込みが続く状況で、誤った候補を確定せず安全側へ倒したい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-407-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-407-G0",
+    "slot": "recovery_user-rotation-07",
+    "cohort": "rotation",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "medium",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "reduced_motion"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "割り込みが続く状況で、誤った候補を確定せず安全側へ倒したい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。短い具体例があれば構造を追えるが、抽象的な契約だけでは確信を持ちにくい。実行前に、何が変わるかと戻せるかを確認してから進みたい。時間に追われると長いJSONは読み飛ばす。復帰時の要約がないと状態を読み直す負担が大きい。音声入力を併用できるかは今回未確認。動きの抑制設定を有効にした実画面確認がないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "動きの抑制が必要を有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "動きの抑制が必要の実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-408-G0-ONB-COMPLETE",
+    "round": 1,
+    "persona_id": "P-408-G0",
+    "slot": "recovery_user-rotation-08",
+    "cohort": "rotation",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "high",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONB-COMPLETE",
+    "required_task": true,
+    "start_state": "レビュー済み候補があり、実ホスト画面で最初の価値の記録と評価を完了する。",
+    "completion_condition": "画面上の状態が first_value_answer_reviewed になり、nextAction が null になる。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "復旧後の状態と履歴を確認し、再発時にすぐ同じ手順を使いたい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  },
+  {
+    "record_id": "FINAL-P-408-G0-ONT-UNDERSTAND",
+    "round": 1,
+    "persona_id": "P-408-G0",
+    "slot": "recovery_user-rotation-08",
+    "cohort": "rotation",
+    "role": "recovery_user",
+    "task_set_id": "recovery_user-core",
+    "context_attributes": {
+      "domain_experience": "experienced",
+      "technical_literacy": "high",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "screen_reader"
+    },
+    "revision": "bfaed02d72e643c6c5933b447371cc491d147089",
+    "fixture_version": "mcp-inspector-correction-v2-persona-specific",
+    "task_id": "ONT-UNDERSTAND",
+    "required_task": true,
+    "start_state": "オントロジーの予備知識がない初心者が get_ontology を開く。",
+    "completion_condition": "完全な契約定義より前に、1文の説明、5要素、例、次に使うツールが表示される。",
+    "viewport_profile": "MCP Inspector 2.0.0 デスクトップブラウザ。ペルソナ固有の支援技術は別途明記。",
+    "outcome": "not_executed",
+    "evidence_type": "not_collected",
+    "hard_gate_status": "not_collected",
+    "generated_reaction_summary": "復旧後の状態と履歴を確認し、再発時にすぐ同じ手順を使いたい利用者。失敗理由、取り消し可能性、安全な復旧先が見えないと操作を止める。詳細な状態名は信頼材料になる一方、表層の説明と実際の契約が一致することを求める。説明を熟読せず、最初に見える次の一手から進もうとする。時間があれば例と詳細も確認する。復帰時の要約がないと状態を読み直す負担が大きい。キーボードだけのフォーカス順は今回未確認。読み上げ順・ラベル・状態通知を実機確認していないため、使えるとは判定できない。",
+    "action_trace": [],
+    "evidence_references": [],
+    "friction": {
+      "confusion": [],
+      "missed_information": [
+        "スクリーンリーダーを有効にした実操作証拠がない。"
+      ],
+      "unclear_next_action": [],
+      "duplication": [],
+      "likely_error": [],
+      "time_cost": "ペルソナ別の独立した所要時間は未収集。",
+      "misleading_state_or_language": [],
+      "positive_evidence": [],
+      "proposal": [
+        "スクリーンリーダーの実環境で、読み順・操作・状態通知を再評価する。"
+      ]
+    }
+  }
+]
