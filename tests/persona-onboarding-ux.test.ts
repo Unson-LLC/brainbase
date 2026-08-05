@@ -50,8 +50,9 @@ describe('beginner persona onboarding contract', () => {
           { id: 'gmail-main', mode: 'gmail', status: 'waiting_for_authorization' },
           { id: 'drive-current', mode: 'drive', status: 'ready', permissionScope: ['folder:current'] }
         ]
-      }) as { id: string; runId: string; selectedSourceIds: string[]; sources: Array<{ id: string; status: string }> };
+      }) as { id: string; runId: string; selectedSourceIds: string[]; sources: Array<{ id: string; status: string }>; nextAction: { tool: string } };
       expect(started.runId).toBe(started.id);
+      expect(started.nextAction.tool).toBe('brainbase_onboarding_ingest');
       expect(started.selectedSourceIds).toEqual(['drive-current']);
       expect(started.sources.find((source) => source.id === 'gmail-main')?.status).toBe('waiting_for_authorization');
 
@@ -71,20 +72,24 @@ describe('beginner persona onboarding contract', () => {
           permissionSnapshot: { scopes: ['folder:current'] }, collectionStatus: 'collected'
         },
         candidates: [{ kind: 'decision', payload: currentPayload, observationClass: 'inferred', evidenceId: 'current-decision' }]
-      }) as { candidates: Array<{ id: string }> };
+      }) as { runId: string; candidates: Array<{ id: string }>; nextAction: { tool: string; requiredIds: string[] } };
       const candidateId = ingested.candidates[0].id;
+      expect(ingested.runId).toBe(started.runId);
+      expect(ingested.nextAction).toMatchObject({ tool: 'brainbase_onboarding_review', requiredIds: [candidateId] });
 
       await expect(callBrainbaseTool('brainbase_onboarding_review', {
         dataDir,
         runId: started.runId,
         actions: [{ candidateId, decision: 'approve', reason: '推測のまま承認' }]
-      })).rejects.toThrow(/inferred candidates cannot be approved/);
+      })).rejects.toThrow(/use decision "edit" with a human-confirmed payload, or use "reject"/);
 
       const reviewed = await callBrainbaseTool('brainbase_onboarding_review', {
         dataDir,
         runId: started.runId,
         actions: [{ candidateId, decision: 'edit', reason: '人が内容を確認した', payload: currentPayload }]
-      }) as { promotedCanonicalIds: string[] };
+      }) as { promotedCanonicalIds: string[]; nextAction: { tool: string; instruction: string } };
+      expect(reviewed.nextAction).toMatchObject({ tool: 'brainbase_onboarding_first_value' });
+      expect(reviewed.nextAction.instruction).toContain('action=record');
       const currentDecisionId = reviewed.promotedCanonicalIds.find((id) => id.startsWith('decision-'))!;
       const os = await loadPersonalOs(dataDir);
       expect(os.decisions.find((decision) => decision.id === currentDecisionId)).toMatchObject(currentPayload);
@@ -103,8 +108,21 @@ describe('beginner persona onboarding contract', () => {
       });
       const completed = await callBrainbaseTool('brainbase_onboarding_first_value', {
         dataDir, runId: started.runId, action: 'review', verdict: 'useful', missingContext: []
-      }) as { state: string };
+      }) as { state: string; runId: string; nextAction: null };
       expect(completed.state).toBe('first_value_answer_reviewed');
+      expect(completed.runId).toBe(started.runId);
+      expect(completed.nextAction).toBeNull();
     }
+  });
+
+  it('puts a plain-language map before the full ontology contract', async () => {
+    const result = await callBrainbaseTool('get_ontology') as {
+      beginnerGuide: { oneSentence: string; fiveParts: Array<{ id: string }>; suggestedNextTools: string[] };
+      version: string;
+    };
+    expect(result.beginnerGuide.oneSentence).toContain('machine-checkable agreement');
+    expect(result.beginnerGuide.fiveParts.map((part) => part.id)).toEqual(['types', 'relations', 'constraints', 'inference', 'evolution']);
+    expect(result.beginnerGuide.suggestedNextTools).toEqual(['audit_ontology', 'infer_decisions', 'ontology_impact']);
+    expect(result.version).toBe('1.0.0');
   });
 });

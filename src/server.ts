@@ -2,7 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { ConnectedOnboardingRuntime } from './connected-onboarding.js';
+import { ConnectedOnboardingRuntime, type ConnectedOnboardingRun } from './connected-onboarding.js';
 import { resolveDataDir } from './paths.js';
 import { auditPersonalOsDirectory } from './ontology-ssot.js';
 import { getOntologyImpact, inferPersonalOs, portableOntology, resolveOntologyVersion } from './ontology.js';
@@ -204,33 +204,23 @@ export const toolDefinitions = [
   },
   {
     name: 'brainbase_onboarding_first_value',
-    description: 'Record an answer hash backed only by promoted canonical IDs, then record useful/not_useful review.',
+    description: 'Finish onboarding in two calls. First choose action=record with an answer hash and promoted canonical IDs. Then choose action=review with useful or not_useful.',
     inputSchema: {
-      type: 'object',
-      oneOf: [
-        {
-          type: 'object', required: ['runId', 'action', 'answerHash', 'usedCanonicalIds'], additionalProperties: false,
-          properties: {
-            dataDir: { type: 'string' }, runId: { type: 'string', minLength: 1, maxLength: 200 }, action: { const: 'record' },
-            answerHash: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
-            usedCanonicalIds: { type: 'array', minItems: 1, maxItems: 50, items: { type: 'string', minLength: 1, maxLength: 200 } },
-            missingContext: { type: 'array', maxItems: 50, items: { type: 'string', minLength: 1, maxLength: 200 } }
-          }
-        },
-        {
-          type: 'object', required: ['runId', 'action', 'verdict'], additionalProperties: false,
-          properties: {
-            dataDir: { type: 'string' }, runId: { type: 'string', minLength: 1, maxLength: 200 }, action: { const: 'review' },
-            verdict: { enum: ['useful', 'not_useful'] },
-            missingContext: { type: 'array', maxItems: 50, items: { type: 'string', minLength: 1, maxLength: 200 } }
-          }
-        }
-      ]
+      type: 'object', required: ['runId', 'action'], additionalProperties: false,
+      properties: {
+        dataDir: { type: 'string', description: 'Optional Personal OS directory.' },
+        runId: { type: 'string', minLength: 1, maxLength: 200, description: 'runId returned by the previous onboarding step.' },
+        action: { enum: ['record', 'review'], description: 'Use record first. Use review only after the answer receipt has been recorded.' },
+        answerHash: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$', description: 'Required for action=record. SHA-256 of the answer body; the body itself is not stored.' },
+        usedCanonicalIds: { type: 'array', minItems: 1, maxItems: 50, items: { type: 'string', minLength: 1, maxLength: 200 }, description: 'Required for action=record. Use only promotedCanonicalIds returned by review.' },
+        verdict: { enum: ['useful', 'not_useful'], description: 'Required for action=review.' },
+        missingContext: { type: 'array', maxItems: 50, items: { type: 'string', minLength: 1, maxLength: 200 }, description: 'Optional short labels for context the answer still lacked.' }
+      }
     }
   },
   {
     name: 'get_ontology',
-    description: 'Return the bundled immutable Brainbase Portable Ontology Kernel release.',
+    description: 'Return a beginner guide followed by the bundled immutable Brainbase Portable Ontology Kernel release.',
     inputSchema: {
       type: 'object',
       properties: {}
@@ -280,7 +270,20 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
 
   switch (name) {
     case 'get_ontology':
-      return portableOntology;
+      return {
+        beginnerGuide: {
+          oneSentence: 'The ontology is Brainbase\'s machine-checkable agreement about entity meanings, relationships, validation, inference, and safe change.',
+          fiveParts: [
+            { id: 'types', question: 'What kind of thing is this?', example: 'person, org, project, relationship, decision' },
+            { id: 'relations', question: 'How are two things connected?', example: 'a decision supersedes another decision' },
+            { id: 'constraints', question: 'What must be true before data is accepted?', example: 'a supersedes ID must resolve to an existing decision' },
+            { id: 'inference', question: 'What can Brainbase conclude from explicit facts?', example: 'an explicitly superseded decision becomes inactive' },
+            { id: 'evolution', question: 'How can meanings change without losing history?', example: 'audit, migrate, and keep rollback instructions' }
+          ],
+          suggestedNextTools: ['audit_ontology', 'infer_decisions', 'ontology_impact']
+        },
+        ...portableOntology
+      };
     case 'audit_ontology':
       return auditPersonalOsDirectory(dataDir, { ontologyVersion: resolveOntologyVersion(args.ontologyVersion) });
     case 'ontology_impact':
@@ -323,20 +326,46 @@ async function callConnectedOnboardingTool(name: keyof typeof connectedSchemas, 
   switch (name) {
     case 'brainbase_onboarding_start':
       return runtime.start(args as Parameters<ConnectedOnboardingRuntime['start']>[0])
-        .then((run) => ({ ...run, runId: run.id }));
+        .then(withOnboardingGuidance);
     case 'brainbase_onboarding_get':
-      return runtime.get(args.runId!);
+      return runtime.get(args.runId!).then(withOnboardingGuidance);
     case 'brainbase_onboarding_ingest': {
       const { runId, dataDir: _dataDir, ...input } = args;
-      return runtime.ingest(runId!, input as Parameters<ConnectedOnboardingRuntime['ingest']>[1]);
+      return runtime.ingest(runId!, input as Parameters<ConnectedOnboardingRuntime['ingest']>[1]).then(withOnboardingGuidance);
     }
     case 'brainbase_onboarding_review':
-      return runtime.review(args.runId!, args.actions as Parameters<ConnectedOnboardingRuntime['review']>[1]);
+      return runtime.review(args.runId!, args.actions as Parameters<ConnectedOnboardingRuntime['review']>[1]).then(withOnboardingGuidance);
     case 'brainbase_onboarding_first_value': {
       const { runId, dataDir: _dataDir, ...input } = args;
-      return runtime.firstValue(runId!, input as Parameters<ConnectedOnboardingRuntime['firstValue']>[1]);
+      return runtime.firstValue(runId!, input as Parameters<ConnectedOnboardingRuntime['firstValue']>[1]).then(withOnboardingGuidance);
     }
   }
+}
+
+function withOnboardingGuidance(run: ConnectedOnboardingRun): ConnectedOnboardingRun & {
+  runId: string;
+  nextAction: { tool: string; instruction: string; requiredIds: string[] } | null;
+} {
+  const pendingCandidateIds = run.candidates
+    .filter((candidate) => candidate.reviewStatus === 'pending')
+    .map((candidate) => candidate.id);
+  const nextAction = (() => {
+    switch (run.state) {
+      case 'initialized':
+        return { tool: 'brainbase_onboarding_start', instruction: 'No source is ready. Authorize or add one callable source, then start a new run.', requiredIds: [] };
+      case 'source_ready':
+        return { tool: 'brainbase_onboarding_ingest', instruction: 'Ingest a receipt and review candidates from one selected ready source.', requiredIds: run.selectedSourceIds };
+      case 'candidates_ready':
+        return { tool: 'brainbase_onboarding_review', instruction: 'Review every pending candidate. Inferred candidates require edit with a human-confirmed payload, or reject.', requiredIds: pendingCandidateIds };
+      case 'promotion_reviewed':
+        return { tool: 'brainbase_onboarding_first_value', instruction: 'Use action=record with an answerHash and promotedCanonicalIds.', requiredIds: run.promotedCanonicalIds };
+      case 'first_value_ready':
+        return { tool: 'brainbase_onboarding_first_value', instruction: 'Use action=review with verdict useful or not_useful.', requiredIds: [] };
+      case 'first_value_answer_reviewed':
+        return null;
+    }
+  })();
+  return { ...run, runId: run.id, nextAction };
 }
 
 export function createServer(): Server {
