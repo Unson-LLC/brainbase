@@ -275,14 +275,21 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
     case 'get_ontology':
       return {
         beginnerGuide: {
-          oneSentence: 'The ontology is Brainbase\'s machine-checkable agreement about entity meanings, relationships, validation, inference, and safe change.',
+          startHere: 'まずここだけ読めば大丈夫です。下の業務例から全体像をつかみ、必要なときだけ正式契約を確認してください。',
+          oneSentence: 'オントロジーは、仕事の言葉・つながり・守る条件・判断方法・変更履歴を、Brainbaseと人が同じ意味で扱うための約束です。',
+          workExample: '例: 「新しい方針が旧方針を置き換えた」と登録すると、Brainbaseは新しい方針を現在有効な判断として扱い、旧方針も履歴として残します。',
           fiveParts: [
-            { id: 'types', question: 'What kind of thing is this?', example: 'person, org, project, relationship, decision' },
-            { id: 'relations', question: 'How are two things connected?', example: 'a decision supersedes another decision' },
-            { id: 'constraints', question: 'What must be true before data is accepted?', example: 'a supersedes ID must resolve to an existing decision' },
-            { id: 'inference', question: 'What can Brainbase conclude from explicit facts?', example: 'an explicitly superseded decision becomes inactive' },
-            { id: 'evolution', question: 'How can meanings change without losing history?', example: 'audit, migrate, and keep rollback instructions' }
+            { id: 'types', name: '種類', question: 'これは何ですか？', example: '人、組織、プロジェクト、関係、意思決定' },
+            { id: 'relations', name: '関係', question: '何とどうつながっていますか？', example: '新しい意思決定が旧意思決定を置き換える' },
+            { id: 'constraints', name: '必須条件', question: '登録前に何が揃っている必要がありますか？', example: '置き換える相手の意思決定が実在する' },
+            { id: 'inference', name: '判断規則', question: '明示した事実から何を判断しますか？', example: '置き換えられた旧意思決定は現在有効ではない' },
+            { id: 'evolution', name: '変更履歴', question: '履歴を失わずに意味をどう変えますか？', example: '監査して新しい版へ移行し、戻し方も残す' }
           ],
+          changeSafety: {
+            check: '変更前は ontology_impact で影響を確認し、audit_ontology で現在の不整合を調べます。',
+            recover: '誤った定義は履歴を消さず、新しい版で訂正し、移行と戻し方を記録します。'
+          },
+          detailsNotice: '以下の正式契約は、実装・監査・詳しい確認が必要なときに読みます。',
           suggestedNextTools: ['audit_ontology', 'infer_decisions', 'ontology_impact']
         },
         ...portableOntology
@@ -358,7 +365,14 @@ async function callConnectedOnboardingTool(name: keyof typeof connectedSchemas, 
 
 function withOnboardingGuidance(run: ConnectedOnboardingRun): ConnectedOnboardingRun & {
   runId: string;
-  nextAction: { tool: string; instruction: string; requiredIds: string[] } | null;
+  guide: { current: string; completed: string[]; remaining: string };
+  nextAction: {
+    tool: string;
+    label: string;
+    instruction: string;
+    requiredIds: string[];
+    confirmation: { changes: string; reversible: boolean; recovery: string };
+  } | null;
 } {
   const pendingCandidateIds = run.candidates
     .filter((candidate) => candidate.reviewStatus === 'pending')
@@ -366,20 +380,69 @@ function withOnboardingGuidance(run: ConnectedOnboardingRun): ConnectedOnboardin
   const nextAction = (() => {
     switch (run.state) {
       case 'initialized':
-        return { tool: 'brainbase_onboarding_start', instruction: 'No source is ready. Authorize or add one callable source, then start a new run.', requiredIds: [] };
+        return onboardingAction('brainbase_onboarding_start', '利用できる情報源を準備する', '利用を許可するか、読み取れる情報源を追加して、新しいオンボーディングを開始します。', [], '新しい実行を作成します。既存データは変更しません。', true, '準備できない場合は開始せず、情報源の設定に戻れます。');
       case 'source_ready':
-        return { tool: 'brainbase_onboarding_ingest', instruction: 'Ingest a receipt and review candidates from one selected ready source.', requiredIds: run.selectedSourceIds };
+        return onboardingAction('brainbase_onboarding_ingest', '準備できた情報源を取り込む', '選択済みの情報源から、証拠の記録と確認候補を取り込みます。', run.selectedSourceIds, '確認待ちの候補を作ります。まだ正式な情報にはなりません。', true, '取り込み後も、候補を却下すれば正式な情報には反映されません。');
       case 'candidates_ready':
-        return { tool: 'brainbase_onboarding_review', instruction: 'Review every pending candidate. Inferred candidates require edit with a human-confirmed payload, or reject.', requiredIds: pendingCandidateIds };
+        return onboardingAction('brainbase_onboarding_review', '候補を確認する', 'すべての候補を確認します。推測された候補は、人が確認した内容へ edit するか、reject で却下してください。', pendingCandidateIds, '確認した候補だけを正式な情報として登録します。', true, '確信がなければ却下できます。誤って登録した場合も履歴を残して訂正できます。');
       case 'promotion_reviewed':
-        return { tool: 'brainbase_onboarding_first_value', instruction: 'Use action=record with an answerHash and promotedCanonicalIds.', requiredIds: run.promotedCanonicalIds };
+        return onboardingAction('brainbase_onboarding_first_value', '最初の回答を記録する', 'action=record と回答の answerHash、登録済みIDを使って、回答の記録だけを保存します。', run.promotedCanonicalIds, '回答本文ではなくハッシュと使用したIDを記録します。', true, '回答本文は保存されません。記録後に役立ったかを確認できます。');
       case 'first_value_ready':
-        return { tool: 'brainbase_onboarding_first_value', instruction: 'Use action=review with verdict useful or not_useful.', requiredIds: [] };
+        return onboardingAction('brainbase_onboarding_first_value', '回答が役立ったか評価する', 'action=review と verdict=useful または not_useful を使って評価します。', [], '最初の回答に対する評価を記録し、オンボーディングを完了します。', true, '役立たなかった場合は not_useful と不足情報を記録できます。');
       case 'first_value_answer_reviewed':
         return null;
     }
   })();
-  return { ...run, runId: run.id, nextAction };
+  const guide = onboardingGuide(run.state);
+  return { guide, nextAction, ...run, runId: run.id };
+}
+
+function onboardingAction(
+  tool: string,
+  label: string,
+  instruction: string,
+  requiredIds: string[],
+  changes: string,
+  reversible: boolean,
+  recovery: string
+) {
+  return { tool, label, instruction, requiredIds, confirmation: { changes, reversible, recovery } };
+}
+
+function onboardingGuide(state: ConnectedOnboardingRun['state']): { current: string; completed: string[]; remaining: string } {
+  const guides = {
+    initialized: {
+      current: '利用できる情報源を準備する段階です。',
+      completed: [],
+      remaining: '情報源の準備、取り込み、候補の確認、最初の回答の評価が残っています。'
+    },
+    source_ready: {
+      current: '利用する情報源を選びました。',
+      completed: ['情報源の選択'],
+      remaining: '情報の取り込み、候補の確認、最初の回答の評価が残っています。'
+    },
+    candidates_ready: {
+      current: '取り込んだ候補を確認する段階です。',
+      completed: ['情報源の選択', '情報の取り込み'],
+      remaining: '候補の確認、最初の回答の記録と評価が残っています。'
+    },
+    promotion_reviewed: {
+      current: '確認済みの候補を正式な情報として登録しました。',
+      completed: ['情報源の選択', '情報の取り込み', '候補の確認'],
+      remaining: '最初の回答の記録と評価が残っています。'
+    },
+    first_value_ready: {
+      current: '最初の回答を記録しました。',
+      completed: ['情報源の選択', '情報の取り込み', '候補の確認', '最初の回答の記録'],
+      remaining: '回答が役立ったかの評価が残っています。'
+    },
+    first_value_answer_reviewed: {
+      current: '最初の回答の評価まで完了しました。',
+      completed: ['情報源の選択', '情報の取り込み', '候補の確認', '最初の回答の記録', '回答の評価'],
+      remaining: 'ありません。'
+    }
+  } satisfies Record<ConnectedOnboardingRun['state'], { current: string; completed: string[]; remaining: string }>;
+  return guides[state];
 }
 
 export function createServer(): Server {

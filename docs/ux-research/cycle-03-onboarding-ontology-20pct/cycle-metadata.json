@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "cycle_id": "cycle-03-onboarding-ontology-20pct",
+  "status": "milestone_reached_not_converged",
+  "frozen": true,
+  "evaluated_revision": "sha256:0dc06ac3956a2077a7afbd8bde5c1f372a167db7b0abb7085a05d6a6cb12eb70",
+  "predecessor": "../cycle-02-onboarding-ontology-correction/cycle-metadata.json",
+  "round": 5,
+  "result_counts": {
+    "clear_success": 10,
+    "success_with_friction": 0,
+    "not_collected": 22
+  },
+  "threshold": {
+    "count": 7,
+    "ratio": 0.21875,
+    "met": true
+  },
+  "evidence": {
+    "trace": "rounds/round-05-browser-trace.md",
+    "trace_sha256": "76c559b35d927dfcaf60bfc761f10c8ea0f37d3891aaa4f2c940aa675fa23c93",
+    "onboarding_screen": "screenshots/onboarding-complete.png",
+    "onboarding_screen_sha256": "01f7a0bed6fabc698d721a17c1c29ef03d6bd826c3d465a115879718c515d99d",
+    "ontology_screen": "screenshots/ontology-guide-ja.png",
+    "ontology_screen_sha256": "f61aa66c675362e38b9bb1705f7077db633eb9e8069966971032eb604a7b175a"
+  },
+  "unresolved": [
+    "screen_reader 11人の実環境評価",
+    "reduced_motion 11人の実環境評価"
+  ],
+  "overall_convergence": false
+}
