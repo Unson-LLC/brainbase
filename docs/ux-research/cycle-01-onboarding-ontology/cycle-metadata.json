@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "cycle_id": "cycle-01-onboarding-ontology",
+  "status": "not_converged",
+  "frozen": true,
+  "evaluated_head": "501d8178be605f68ef3c95a7c66e3e91bc0a9013",
+  "rotation_manifest": "rotation-manifest.json",
+  "rotation_manifest_sha256": "aff1829078b7aa0b83114b851a7bebf5cd8e49ea64553cde87d283034470453a",
+  "required_tasks_by_task_set": {
+    "first_time_individual-core": [
+      "ONB-START",
+      "ONB-REVIEW",
+      "ONT-DECISION",
+      "ONB-RECOVERY"
+    ],
+    "team_operator-core": [
+      "ONB-START",
+      "ONB-REVIEW",
+      "ONT-DECISION",
+      "ONB-RECOVERY"
+    ],
+    "ontology_steward-core": [
+      "ONB-START",
+      "ONB-REVIEW",
+      "ONT-DECISION",
+      "ONB-RECOVERY"
+    ],
+    "recovery_user-core": [
+      "ONB-START",
+      "ONB-REVIEW",
+      "ONT-DECISION",
+      "ONB-RECOVERY"
+    ]
+  },
+  "rounds": [
+    {
+      "round": 1,
+      "evaluated_head": "501d8178be605f68ef3c95a7c66e3e91bc0a9013",
+      "fixture_version": "portable-onboarding-v1",
+      "raw_artifact": "rounds/round-01-raw.json",
+      "raw_sha256": "8c25b439f28e29bb63baeaf79d01971baed24e0ec8c908a52315c9a55805e251",
+      "feedback_artifact": "rounds/round-01-feedback.md",
+      "feedback_sha256": "dff92f673167779ab601bc5d8b8b4d576cefb90d843a3364173046ae6934a6f0",
+      "hard_gate_failures": 0,
+      "major_regressions": 0,
+      "common_tasks_complete": true,
+      "new_actionable_findings": 2
+    },
+    {
+      "round": 2,
+      "evaluated_head": "501d8178be605f68ef3c95a7c66e3e91bc0a9013",
+      "fixture_version": "portable-onboarding-v1",
+      "raw_artifact": "rounds/round-02-raw.json",
+      "raw_sha256": "ebc2e19a70be59482430df4833e3dfe87b491b5fefb3539b96e44add0d1541d5",
+      "feedback_artifact": "rounds/round-02-feedback.md",
+      "feedback_sha256": "343ded351ed4ea751c16408a84d3fe6e713b332aee8f40cf476200a297abb5a0",
+      "hard_gate_failures": 0,
+      "major_regressions": 0,
+      "common_tasks_complete": true,
+      "new_actionable_findings": 0
+    },
+    {
+      "round": 3,
+      "evaluated_head": "501d8178be605f68ef3c95a7c66e3e91bc0a9013",
+      "fixture_version": "portable-onboarding-v1",
+      "raw_artifact": "rounds/round-03-raw.json",
+      "raw_sha256": "0a64344864a35ed74a88338263d98511506f4d423258853863ca841019cdfbf7",
+      "feedback_artifact": "rounds/round-03-feedback.md",
+      "feedback_sha256": "08d5c2496317c46d9fa05d34ce90bd482b6970b2edb1ae7452a4722012a02126",
+      "hard_gate_failures": 0,
+      "major_regressions": 0,
+      "common_tasks_complete": true,
+      "new_actionable_findings": 0
+    },
+    {
+      "round": 4,
+      "evaluated_head": "501d8178be605f68ef3c95a7c66e3e91bc0a9013",
+      "fixture_version": "portable-onboarding-v1",
+      "raw_artifact": "rounds/round-04-raw.json",
+      "raw_sha256": "ed0b73681e3283fd7cf92ef2d6847387802cf195b91aec19828bc8d3434e8980",
+      "feedback_artifact": "rounds/round-04-feedback.md",
+      "feedback_sha256": "16b7e6b2e7155df2ae5b8a47f40f7be270f5fef83f26b51ac0c133f71b0fcf6c",
+      "hard_gate_failures": 0,
+      "major_regressions": 0,
+      "common_tasks_complete": true,
+      "new_actionable_findings": 0
+    }
+  ],
+  "traceability": [
+    {
+      "finding_id": "UX-001",
+      "raw_observation": "rounds/round-01-raw.json#R1-P-101-G0-ONB-START",
+      "finding": "後続toolが要求するrunIdをstart応答で直接発見できる必要がある",
+      "priority": "P1",
+      "decision": "adopt",
+      "implementation_commit": "2c5f9b1864c383632d4373352ba723f0e902e9a8",
+      "test": "tests/mcp-contract.test.ts",
+      "before_after": "before-after.md",
+      "next_round_result": "rounds/round-02-raw.json#R2-P-101-G0-ONB-START"
+    },
+    {
+      "finding_id": "UX-002",
+      "raw_observation": "rounds/round-01-raw.json#R1-P-101-G0-ONT-DECISION",
+      "finding": "Decision昇格後もOntology推論に必要な意味フィールドを保持する必要がある",
+      "priority": "P0",
+      "decision": "adopt",
+      "implementation_commit": "2c5f9b1864c383632d4373352ba723f0e902e9a8",
+      "test": "tests/persona-onboarding-ux.test.ts",
+      "before_after": "before-after.md",
+      "next_round_result": "rounds/round-02-raw.json#R2-P-101-G0-ONT-DECISION"
+    }
+  ]
+}
