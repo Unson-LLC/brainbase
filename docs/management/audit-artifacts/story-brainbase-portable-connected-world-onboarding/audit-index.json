@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "story_id": "story-brainbase-portable-connected-world-onboarding",
   "source": "execute_merge",
-  "generated_at": "2026-08-05T01:25:06.831Z",
+  "generated_at": "2026-08-05T01:25:12.209Z",
   "evidence_depth": "standard",
   "budget_status": "within_budget",
   "cost_summary": {
@@ -24,7 +24,7 @@
     },
     "diff_stats_collected_at": "2026-08-05T01:25:02.482Z",
     "diff_stats_reason": null,
-    "artifact_lines": 1832,
+    "artifact_lines": 1810,
     "changed_lines": {
       "status": "available",
       "total_changed_lines": 2449,
@@ -123,7 +123,7 @@
     "product_code_changed_lines": 2168,
     "product_code_changed_lines_status": "available",
     "product_code_changed_lines_reason": null,
-    "artifact_code_ratio": 0.748,
+    "artifact_code_ratio": 0.739,
     "artifact_code_ratio_reason": null,
     "budget": {
       "profile": "high",
@@ -158,13 +158,13 @@
     "implementation_budget_status": "within_budget",
     "docs_only_budget_status": "not_applicable",
     "replay_bundle": {
-      "compressed_bytes": 4719,
-      "expanded_bytes": 26066,
-      "expanded_line_count": 661,
+      "compressed_bytes": 4602,
+      "expanded_bytes": 25114,
+      "expanded_line_count": 641,
       "persisted_line_count": 1
     },
-    "raw_source_artifact_lines": 33996,
-    "raw_source_artifact_code_ratio": 13.882,
+    "raw_source_artifact_lines": 33985,
+    "raw_source_artifact_code_ratio": 13.877,
     "artifact_lines_source": "persisted_canonical_compact"
   },
   "pr_prepare": {
@@ -228,26 +228,16 @@
         "merged_at": "2026-08-05T01:25:04Z"
       },
       "reconciliation": {
-        "status": "reconciliation_required",
-        "reasons": [
-          "decision_outcome_binding_failed"
-        ],
-        "evaluated_at": "2026-08-05T01:25:06.826Z",
+        "status": "reconciled",
+        "reasons": [],
+        "evaluated_at": "2026-08-05T01:25:12.204Z",
         "head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae"
       },
-      "reconciliation_action": {
-        "status": "required",
-        "reason": "decision_outcome_binding_failed",
-        "commands": [
-          "vibepro pr prepare . --story-id story-brainbase-portable-connected-world-onboarding --base develop",
-          "vibepro execute merge . --story-id story-brainbase-portable-connected-world-onboarding --base develop --pr https://github.com/Unson-LLC/brainbase/pull/445"
-        ]
-      },
       "decision_outcome_binding": {
-        "status": "failed",
-        "reason": "central_ledger_parse_failed",
+        "status": "bound",
+        "reason": "all_local_decision_outcomes_bound_to_canonical_ledger",
         "expected_entry_count": 52,
-        "promoted_count": 0,
+        "promoted_count": 52,
         "duplicate_count": 0,
         "persistence_status": null
       },
@@ -314,8 +304,8 @@
     "schema_version": "0.1.0",
     "artifact_kind": "vibepro_automation_value_audit",
     "story_id": "story-brainbase-portable-connected-world-onboarding",
-    "generated_at": "2026-08-05T01:25:06.831Z",
-    "status": "needs_evidence",
+    "generated_at": "2026-08-05T01:25:12.209Z",
+    "status": "partial",
     "purpose": "daily_automation_input",
     "sources": {
       "canonical_audit": true,
@@ -336,18 +326,16 @@
         "merged_at": "2026-08-05T01:25:04Z"
       },
       "reconciliation": {
-        "status": "reconciliation_required",
-        "reasons": [
-          "decision_outcome_binding_failed"
-        ],
-        "evaluated_at": "2026-08-05T01:25:06.826Z",
+        "status": "reconciled",
+        "reasons": [],
+        "evaluated_at": "2026-08-05T01:25:12.204Z",
         "head_sha": "723c2c2d0436709ecd9b4f6b596fea0aebc73fae"
       },
       "decision_outcome_binding": {
-        "status": "failed",
-        "reason": "central_ledger_parse_failed",
+        "status": "bound",
+        "reason": "all_local_decision_outcomes_bound_to_canonical_ledger",
         "expected_entry_count": 52,
-        "promoted_count": 0,
+        "promoted_count": 52,
         "duplicate_count": 0,
         "persistence_status": null
       },
@@ -373,7 +361,7 @@
       "story_spec_architecture_to_src": 0.174,
       "audit_artifacts_to_src": 0,
       "automation_evidence_to_src": 0.775,
-      "artifact_lines_to_product_changed_lines": 0.748
+      "artifact_lines_to_product_changed_lines": 0.739
     },
     "session_cost": {
       "token_status": "unavailable",
@@ -406,10 +394,10 @@
     "cost_controls": {
       "status": "action_required",
       "budget_status": "within_budget",
-      "artifact_code_ratio": 0.748,
+      "artifact_code_ratio": 0.739,
       "automation_evidence_to_src": 0.775,
       "budget_exceeded_reasons": [],
-      "canonical_artifact_lines": 1832,
+      "canonical_artifact_lines": 1810,
       "product_changed_lines": 2449,
       "evidence_depth": "standard",
       "recommended_evidence_depth": "standard",
@@ -442,11 +430,11 @@
     "path": "docs/management/audit-artifacts/story-brainbase-portable-connected-world-onboarding/audit-replay-bundle.json.gz",
     "compression": "gzip",
     "media_type": "application/json",
-    "content_hash": "sha256:b443fafb2670eb145b72e598c0020c0b0842ffd482afa573eb2d504d3703b515",
-    "compressed_hash": "sha256:e5ea82461a94e282b5db27f2bcfe252b52bab517ae2b460ed2421a5d8b4ef0af",
-    "expanded_bytes": 26066,
-    "compressed_bytes": 4719,
-    "expanded_line_count": 661,
+    "content_hash": "sha256:f07b92a8953661bd86b1585abfcdf40868356a9e4c9875e6428daa32b8739cc2",
+    "compressed_hash": "sha256:fc69430dadf0bbb111bab076d037bbda563722f8a8fa00e6c24392b3cf4f9874",
+    "expanded_bytes": 25114,
+    "compressed_bytes": 4602,
+    "expanded_line_count": 641,
     "persisted_line_count": 1,
     "included_artifact_kinds": [
       "decision_index",
@@ -466,9 +454,9 @@
     ],
     "replay_command": "vibepro audit replay . --story-id story-brainbase-portable-connected-world-onboarding",
     "cost": {
-      "compressed_bytes": 4719,
-      "expanded_bytes": 26066,
-      "expanded_line_count": 661,
+      "compressed_bytes": 4602,
+      "expanded_bytes": 25114,
+      "expanded_line_count": 641,
       "persisted_line_count": 1
     }
   }
