@@ -1,18 +1,20 @@
 #!/bin/bash
-# 3 workspace 別 slack-mcp-server を起動するラッパー。
+# workspace 別 slack-mcp-server を起動するラッパー。
 # Infisical から workspace 別 token を取得し、slack-mcp-server が期待する
-# SLACK_MCP_XOXC_TOKEN / SLACK_MCP_XOXD_TOKEN にリネームして exec する。
+# SLACK_MCP_XOXP_TOKEN または SLACK_MCP_XOXC_TOKEN / SLACK_MCP_XOXD_TOKEN
+# にリネームして exec する。
 #
 # Usage:
-#   run-slack-mcp.sh <salestailor|unson|techknight>
-#   run-slack-mcp.sh <salestailor|unson|techknight> --check
+#   run-slack-mcp.sh <salestailor|unson|techknight|t0882t8n9uh>
+#   run-slack-mcp.sh <workspace> --check
+#   run-slack-mcp.sh t0882t8n9uh --upload
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/infisical-target.sh"
 
 usage() {
-  echo "usage: $0 <salestailor|unson|techknight> [--check]" >&2
+  echo "usage: $0 <salestailor|unson|techknight|t0882t8n9uh> [--check|--upload]" >&2
 }
 
 die() {
@@ -26,7 +28,7 @@ if [ -z "$WS" ]; then
   usage
   exit 2
 fi
-if [ -n "$MODE" ] && [ "$MODE" != "--check" ]; then
+if [ -n "$MODE" ] && [ "$MODE" != "--check" ] && [ "$MODE" != "--upload" ]; then
   usage
   exit 2
 fi
@@ -51,8 +53,16 @@ case "$WS" in
   salestailor) PORT=13081 ;;
   unson)       PORT=13082 ;;
   techknight)  PORT=13083 ;;
+  t0882t8n9uh) PORT=13084 ;;
   *) die "unknown workspace '$WS'" ;;
 esac
+
+if [ "$MODE" = "--upload" ]; then
+  if [ "$WS" != "t0882t8n9uh" ]; then
+    die "upload MCP is only configured for t0882t8n9uh"
+  fi
+  PORT=13085
+fi
 
 # npm版は darwin-arm64 サブパッケージの cpu metadata バグで動かないため、
 # GitHub release の arm64 binary を直接使う。
@@ -162,23 +172,27 @@ INFISICAL_RUN_ARGS=(
 CHECK_SCRIPT='
   set -euo pipefail
   unset INFISICAL_TOKEN
+  xoxp_key="SLACK_MCP_XOXP_${WS_UPPER}"
   xoxc_key="SLACK_MCP_XOXC_${WS_UPPER}"
   xoxd_key="SLACK_MCP_XOXD_${WS_UPPER}"
-  if [ -z "${!xoxc_key:-}" ]; then
-    echo "SLACK_MCP_UNAVAILABLE: missing secret key ${xoxc_key}" >&2
-    exit 78
-  fi
-  if [ -z "${!xoxd_key:-}" ]; then
-    echo "SLACK_MCP_UNAVAILABLE: missing secret key ${xoxd_key}" >&2
+  if [ -z "${!xoxp_key:-}" ] && { [ -z "${!xoxc_key:-}" ] || [ -z "${!xoxd_key:-}" ]; }; then
+    echo "SLACK_MCP_UNAVAILABLE: require ${xoxp_key} or both ${xoxc_key} and ${xoxd_key}" >&2
     exit 78
   fi
 '
 
 RUN_SCRIPT="$CHECK_SCRIPT"'
-  export SLACK_MCP_XOXC_TOKEN="${!xoxc_key}"
-  export SLACK_MCP_XOXD_TOKEN="${!xoxd_key}"
+  if [ -n "${!xoxp_key:-}" ]; then
+    export SLACK_MCP_XOXP_TOKEN="${!xoxp_key}"
+  else
+    export SLACK_MCP_XOXC_TOKEN="${!xoxc_key}"
+    export SLACK_MCP_XOXD_TOKEN="${!xoxd_key}"
+  fi
   export SLACK_MCP_HOST=127.0.0.1
   export SLACK_MCP_PORT="${PORT}"
+  if [ "${MODE}" = "--upload" ]; then
+    exec "${NODE_BIN}" "${SLACK_UPLOAD_MCP_SCRIPT}"
+  fi
   # SLACK_MCP_TRANSPORT=http -> one shared Streamable HTTP service per workspace
   # (endpoint http://127.0.0.1:${PORT}/mcp). Default stdio = legacy per-session spawn.
   if [ "${SLACK_MCP_TRANSPORT:-stdio}" = "http" ]; then
@@ -189,7 +203,13 @@ RUN_SCRIPT="$CHECK_SCRIPT"'
 '
 
 SLACK_MCP_TRANSPORT="${SLACK_MCP_TRANSPORT:-stdio}"
-export WS_UPPER PORT SLACK_MCP_BIN SLACK_MCP_TRANSPORT INFISICAL_DISABLE_UPDATE_CHECK=true
+NODE_BIN="${NODE_BIN:-/Users/ksato/.local/bin/node}"
+SLACK_UPLOAD_MCP_SCRIPT="${SLACK_UPLOAD_MCP_SCRIPT:-$SCRIPT_DIR/slack-file-upload-mcp.mjs}"
+if [ "$MODE" = "--upload" ] && { [ ! -x "$NODE_BIN" ] || [ ! -f "$SLACK_UPLOAD_MCP_SCRIPT" ]; }; then
+  die "upload MCP runtime unavailable"
+fi
+
+export WS_UPPER PORT MODE NODE_BIN SLACK_UPLOAD_MCP_SCRIPT SLACK_MCP_BIN SLACK_MCP_TRANSPORT INFISICAL_DISABLE_UPDATE_CHECK=true
 if [ -n "$INFISICAL_TOKEN_VALUE" ]; then
   export INFISICAL_TOKEN="$INFISICAL_TOKEN_VALUE"
 else

@@ -91,6 +91,21 @@
         "SLACK_MCP_XOXC_TECHKNIGHT",
         "SLACK_MCP_XOXD_TECHKNIGHT"
       ]
+    },
+    "slack-t0882t8n9uh": {
+      "description": "Slack MCP OAuth token for workspace T0882T8N9UH",
+      "org": "unson",
+      "projectId": "ce20541c-02b9-4523-bbe0-49d50b2fcc19",
+      "env": "prod",
+      "path": "/",
+      "authFiles": [
+        "~/.brainbase/runtime-env/slack-mcp.universal-auth.env",
+        "@org:unson"
+      ],
+      "tokenFile": "~/.brainbase/runtime-env/slack-mcp.infisical-token",
+      "requiredKeys": [
+        "SLACK_MCP_XOXP_T0882T8N9UH"
+      ]
     }
   }
 }
