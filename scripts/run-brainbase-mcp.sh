@@ -147,10 +147,12 @@ INFISICAL_RUN_ARGS=(
 CHECK_SCRIPT='
   set -euo pipefail
   unset INFISICAL_TOKEN
-  if [ -z "${BRAINBASE_API_URL:-}" ] && [ -z "${BRAINBASE_GRAPH_API_URL:-}" ]; then
-    echo "BRAINBASE_MCP_UNAVAILABLE: missing BRAINBASE_API_URL in Infisical project ${INFISICAL_PROJECT} (env ${INFISICAL_ENV}, path ${BRAINBASE_MCP_INFISICAL_PATH})" >&2
+  resolved_api_url="${BRAINBASE_GRAPH_API_URL:-${BRAINBASE_API_URL:-${BRAINBASE_API_BASE_URL:-}}}"
+  if [ -z "$resolved_api_url" ]; then
+    echo "BRAINBASE_MCP_UNAVAILABLE: missing Brainbase API URL in Infisical project ${INFISICAL_PROJECT} (env ${INFISICAL_ENV}, path ${BRAINBASE_MCP_INFISICAL_PATH})" >&2
     exit 78
   fi
+  export BRAINBASE_RESOLVED_API_URL="$resolved_api_url"
   if [ -z "${BRAINBASE_TASK_API_TOKEN:-}" ]; then
     echo "BRAINBASE_MCP_UNAVAILABLE: missing BRAINBASE_TASK_API_TOKEN in Infisical project ${INFISICAL_PROJECT} (env ${INFISICAL_ENV}, path ${BRAINBASE_MCP_INFISICAL_PATH})" >&2
     exit 78
@@ -172,7 +174,7 @@ CHECK_SCRIPT='
   fi
   export BRAINBASE_JUDGMENT_ADAPTER_ID="${BRAINBASE_JUDGMENT_ADAPTER_ID:-brainbase-mcp}"
   export BRAINBASE_JUDGMENT_ADAPTER_VERSION="${BRAINBASE_JUDGMENT_ADAPTER_VERSION:-1}"
-  task_api_base="${BRAINBASE_API_URL:-${BRAINBASE_GRAPH_API_URL}}"
+  task_api_base="$BRAINBASE_RESOLVED_API_URL"
   task_api_status="$(curl -sS -o /dev/null -w "%{http_code}" \
     -H "Authorization: Bearer ${BRAINBASE_TASK_API_TOKEN}" \
     "${task_api_base%/}/api/companion/tasks?limit=1")" || {
@@ -187,10 +189,6 @@ CHECK_SCRIPT='
 '
 
 RUN_SCRIPT="$CHECK_SCRIPT"'
-  # BRAINBASE_API_URL を MCP server が期待する BRAINBASE_GRAPH_API_URL として export
-  if [ -z "${BRAINBASE_GRAPH_API_URL:-}" ] && [ -n "${BRAINBASE_API_URL:-}" ]; then
-    export BRAINBASE_GRAPH_API_URL="${BRAINBASE_API_URL}"
-  fi
   cd "${REPO_ROOT}"
   exec node "${MCP_ENTRY}"
 '

@@ -5,7 +5,7 @@
 
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert';
-import { loadConfig } from '../../src/config.js';
+import { loadConfig, resolveBrainbaseApiUrl } from '../../src/config.js';
 
 describe('loadConfig', () => {
   let originalEnv: NodeJS.ProcessEnv;
@@ -16,6 +16,7 @@ describe('loadConfig', () => {
     delete process.env.BRAINBASE_GRAPH_API_URL;
     delete process.env.BRAINBASE_API_URL;
     delete process.env.BRAINBASE_API_BASE_URL;
+    delete process.env.BRAINBASE_RESOLVED_API_URL;
     delete process.env.BRAINBASE_PROJECT_CODES;
     delete process.env.CODEX_PATH;
   });
@@ -57,6 +58,15 @@ describe('loadConfig', () => {
     const config = loadConfig();
 
     assert.strictEqual(config.graphApiUrl, 'https://explicit-graph.example.com');
+  });
+
+  it('launcherが固定したresolved URLを全API用途の最優先にする', () => {
+    process.env.BRAINBASE_RESOLVED_API_URL = 'https://resolved.example.com/';
+    process.env.BRAINBASE_GRAPH_API_URL = 'https://graph.example.com';
+    process.env.BRAINBASE_API_URL = 'https://api.example.com';
+
+    assert.strictEqual(resolveBrainbaseApiUrl(), 'https://resolved.example.com');
+    assert.strictEqual(loadConfig().graphApiUrl, 'https://resolved.example.com');
   });
 
   it('優先順位_GRAPH_API_URLが無いときBRAINBASE_API_URLが次点', () => {

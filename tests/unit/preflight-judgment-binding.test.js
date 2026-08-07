@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     buildJudgmentBindingProbe,
-    preflightJudgmentBinding
+    preflightJudgmentBinding,
+    resolveBrainbaseApiUrl
 } from '../../scripts/preflight-judgment-binding.js';
 import { canonicalJson } from '../../server/services/judgment-resolution-service.js';
 
@@ -12,6 +13,17 @@ const SECRET = 'test-binding-secret-with-at-least-32-characters';
 const NOW = new Date('2026-08-07T00:00:00.000Z');
 
 describe('judgment binding preflight', () => {
+    it('launcherと同じ優先順位で単一API URLを解決する', () => {
+        expect(resolveBrainbaseApiUrl({
+            BRAINBASE_RESOLVED_API_URL: 'https://resolved.example.com',
+            BRAINBASE_GRAPH_API_URL: 'https://graph.example.com',
+            BRAINBASE_API_URL: 'https://api.example.com'
+        })).toBe('https://resolved.example.com');
+        expect(resolveBrainbaseApiUrl({
+            BRAINBASE_GRAPH_API_URL: 'https://graph.example.com',
+            BRAINBASE_API_URL: 'https://api.example.com'
+        })).toBe('https://graph.example.com');
+    });
     it('API runtimeで検証できるrequest-bound署名を生成する', () => {
         const probe = buildJudgmentBindingProbe({
             bindingSecret: SECRET,

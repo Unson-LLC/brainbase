@@ -107,10 +107,17 @@ export async function preflightJudgmentBinding({
   return { status: 'managed', adapter_id: binding.adapter_id, adapter_version: binding.adapter_version };
 }
 
+export function resolveBrainbaseApiUrl(env = process.env) {
+  return env.BRAINBASE_RESOLVED_API_URL
+    || env.BRAINBASE_GRAPH_API_URL
+    || env.BRAINBASE_API_URL
+    || env.BRAINBASE_API_BASE_URL;
+}
+
 async function main() {
   try {
     const result = await preflightJudgmentBinding({
-      apiUrl: process.env.BRAINBASE_API_URL || process.env.BRAINBASE_GRAPH_API_URL,
+      apiUrl: resolveBrainbaseApiUrl(),
       taskApiToken: process.env.BRAINBASE_TASK_API_TOKEN,
       bindingSecret: process.env.BRAINBASE_JUDGMENT_BINDING_SECRET,
       adapterId: process.env.BRAINBASE_JUDGMENT_ADAPTER_ID,

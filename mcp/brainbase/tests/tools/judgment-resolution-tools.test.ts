@@ -176,6 +176,38 @@ describe('judgment resolution MCP tool', () => {
     assert.ok((unmanaged?.warning ?? '').length > 0);
   });
 
+  it('GRAPH_API_URL-only構成でpreflightと同じURLを本番dispatcherが使う', async () => {
+    const originalEnv = { ...process.env };
+    try {
+      delete process.env.BRAINBASE_RESOLVED_API_URL;
+      delete process.env.BRAINBASE_API_URL;
+      delete process.env.BRAINBASE_API_BASE_URL;
+      process.env.BRAINBASE_GRAPH_API_URL = 'https://graph-only.example.com/';
+      process.env.BRAINBASE_JUDGMENT_BINDING_SECRET = 'secret';
+      const fetchCalls: string[] = [];
+      const dependencies = {
+        ...serverTesting.createDefaultJudgmentResolutionDependencies(),
+        configuredProjectCodes: ['brainbase'],
+        tokenManager: { getToken: async () => jwt({ projectCodes: ['brainbase'] }) },
+        fetch: async (url: string | URL | globalThis.Request) => {
+          fetchCalls.push(String(url));
+          return new Response(JSON.stringify(receipt()), { status: 200 });
+        },
+      };
+
+      const result = await serverTesting.dispatchJudgmentResolutionToolCall(
+        'brainbase_judgment_resolve',
+        args,
+        dependencies,
+      );
+
+      assert.equal(result?.management_status, 'managed');
+      assert.deepEqual(fetchCalls, ['https://graph-only.example.com/api/judgment/resolve']);
+    } finally {
+      process.env = originalEnv;
+    }
+  });
+
   it('仕様違反receiptを本番fan-inでmanagedに格上げない', async () => {
     const malformed = receipt({
       classification: { ...args.classification_proposal, domains: ['general', 'engineering'] },
