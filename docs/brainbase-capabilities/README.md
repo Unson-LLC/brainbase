@@ -51,6 +51,7 @@ troubleshooting: []
 | `meeting.automation` | Defines the live meeting-source ingest, Eve dispatch/reconcile, approval, and evidence path retained during Workflow retirement. |
 | `codex.app-server` | Historical record of the retired Brainbase Codex-like UI adapter. |
 | `graph.ssot` | Defines when Brainbase Graph is the canonical source for names, projects, terminology, and decisions. |
+| `knowledge.resolve` | Resolves the canonical knowledge source before search and preserves unsearched scope and uncertainty in a routing receipt. |
 | `onboarding.connected-world` | Defines the host-agent workflow that starts from callable MCP, Drive, Gmail, or explicit local folders, preserves unavailable states, and routes reviewed candidates through Promotion Gate. |
 | `requirements.nocodb` | Defines how `FRD-*`, `REQ-*`, and `BUG-*` references are resolved before scope or implementation changes. |
 | `code.reading` | Defines how agents should inspect code without loading broad files unnecessarily. |

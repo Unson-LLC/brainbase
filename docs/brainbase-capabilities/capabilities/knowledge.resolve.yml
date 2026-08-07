@@ -1,0 +1,44 @@
+id: knowledge.resolve
+name: Canonical knowledge source resolver
+purpose: Resolve the canonical source class before retrieval so team documents, Graph facts, Drive sources, personal cognition, and runtime state are not searched interchangeably.
+surfaces:
+  ui: []
+  api:
+    - POST /api/knowledge/resolve
+    - brainbase MCP brainbase_knowledge_resolve
+  code:
+    - server/services/knowledge-resolution-service.js
+    - server/routes/knowledge-resolution.js
+    - mcp/brainbase/src/tools/knowledge-resolution-tools.ts
+    - .claude/skills/brainbase-knowledge-resolver/SKILL.md
+  data:
+    - Routing receipts returned to the caller; no knowledge body is persisted by this capability.
+depends_on:
+  - auth.grants
+  - graph.ssot
+visibility_rules:
+  - Team documents resolve to the owning repository; source PDFs and large original assets resolve to team Drive.
+  - Canonical people, organizations, projects, terms, and decisions resolve to Graph.
+  - Personal stance, preferences, and cognitive memory resolve to owner-only personal KG and never become team knowledge implicitly.
+  - Runtime state resolves to the current workspace and is not treated as durable knowledge.
+  - Wiki is a migration compatibility surface and is never selected as a canonical destination.
+  - A routing receipt proves only where to search. searched_scope remains empty until a downstream retrieval receipt records actual evidence.
+  - Unknown content type returns unconfirmed with not_searched and next_route; it never proves absence.
+verification:
+  commands:
+    - npx vitest run tests/unit/knowledge-resolution-service.test.js tests/integration/knowledge-resolution-routes.test.js
+    - npm --prefix mcp/brainbase test
+    - npm --prefix mcp/brainbase run typecheck
+  expected:
+    - Structured content types deterministically select Graph, owning repo, team Drive, personal KG, or workspace.
+    - Unknown input returns status=unconfirmed, absence_confirmed=false, and explicit not_searched scope.
+    - The authenticated MCP tool calls POST /api/knowledge/resolve and rejects an inaccessible project before fetch.
+common_failures:
+  - Searching Graph or Wiki by exact book title before resolving a team document to its owning repository.
+  - Treating one no-result response as proof that knowledge does not exist.
+  - Saving team knowledge into an owner-only personal knowledge layer.
+  - Treating a routing receipt as proof that retrieval succeeded.
+runbooks:
+  - ../runbooks/knowledge-resolve.md
+troubleshooting:
+  - ../../architecture/wiki-retirement-inventory.md

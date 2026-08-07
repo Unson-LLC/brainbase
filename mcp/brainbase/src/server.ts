@@ -40,6 +40,8 @@ import {
 } from './tools/control-plane-tools.js';
 import { taskTools, handleTaskToolCall } from './tools/task-tools.js';
 import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-tools.js';
+import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './tools/knowledge-resolution-tools.js';
+import { dispatchFirst, type ToolHandler } from './tools/tool-dispatcher.js';
 
 // Global index. Runtime lookups rebuild and atomically swap this snapshot.
 let entityIndex: EntityIndex;
@@ -62,6 +64,7 @@ let defaultProjectCode = 'brainbase';
 let configuredProjectCodes: string[] | undefined;
 
 type OnboardingDispatchDependencies = Parameters<typeof handleOnboardingToolCall>[2];
+type KnowledgeResolutionDispatchDependencies = Parameters<typeof handleKnowledgeResolutionToolCall>[2];
 
 async function dispatchOnboardingToolCall(
   name: string,
@@ -73,6 +76,26 @@ async function dispatchOnboardingToolCall(
     configuredProjectCodes,
     tokenManager: globalTokenManager,
   });
+}
+
+async function dispatchKnowledgeResolutionToolCall(
+  name: string,
+  args: Record<string, unknown>,
+  dependencies?: KnowledgeResolutionDispatchDependencies,
+) {
+  return handleKnowledgeResolutionToolCall(name, args, dependencies ?? {
+    apiUrl: brainbaseApiUrl,
+    configuredProjectCodes,
+    tokenManager: globalTokenManager,
+  });
+}
+
+async function dispatchExtensionToolCall(
+  name: string,
+  args: Record<string, unknown>,
+  handlers: Array<ToolHandler<unknown>>,
+) {
+  return dispatchFirst(handlers, name, args);
 }
 
 async function refreshEntityIndex(): Promise<void> {
@@ -896,8 +919,10 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
 }
 
 export const __testing = {
-  tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...taskTools],
+  tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...knowledgeResolutionTools, ...taskTools],
   dispatchOnboardingToolCall,
+  dispatchKnowledgeResolutionToolCall,
+  dispatchExtensionToolCall,
   setEntityIndex(index: EntityIndex): void {
     entityIndex = index;
   },
@@ -1021,7 +1046,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...taskTools, ...meshTools] };
+    return { tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...knowledgeResolutionTools, ...taskTools, ...meshTools] };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -1029,31 +1054,25 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
 
     try {
       const toolArgs = args as Record<string, unknown>;
-      const controlPlaneResult = await handleControlPlaneToolCall(name, toolArgs, {
-        apiUrl: brainbaseApiUrl,
-        configuredProjectCodes,
-        tokenManager: globalTokenManager,
-      });
-      const onboardingResult = controlPlaneResult
-        ? null
-        : await dispatchOnboardingToolCall(name, toolArgs);
-      // Each extension handler returns null for unknown tool names.
-      const taskResult = controlPlaneResult || onboardingResult
-        ? null
-        : await handleTaskToolCall(name, toolArgs, {
-            apiUrl: taskApiUrl,
-            token: taskApiToken,
-          });
-      const meshResult = controlPlaneResult || onboardingResult || taskResult
-        ? null
-        : await handleMeshToolCall(name, toolArgs, brainbaseApiUrl);
-      const result = controlPlaneResult
-        ? JSON.stringify(controlPlaneResult, null, 2)
-        : onboardingResult
-          ? JSON.stringify(onboardingResult, null, 2)
-        : taskResult
-          ? JSON.stringify(taskResult, null, 2)
-          : meshResult ?? await handleToolCall(name, toolArgs);
+      const extensionResult = await dispatchExtensionToolCall(name, toolArgs, [
+        (toolName, extensionArgs) => handleControlPlaneToolCall(toolName, extensionArgs, {
+          apiUrl: brainbaseApiUrl,
+          configuredProjectCodes,
+          tokenManager: globalTokenManager,
+        }),
+        (toolName, extensionArgs) => dispatchOnboardingToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => dispatchKnowledgeResolutionToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => handleTaskToolCall(toolName, extensionArgs, {
+          apiUrl: taskApiUrl,
+          token: taskApiToken,
+        }),
+        (toolName, extensionArgs) => handleMeshToolCall(toolName, extensionArgs, brainbaseApiUrl),
+      ]);
+      const result = extensionResult === null
+        ? await handleToolCall(name, toolArgs)
+        : typeof extensionResult === 'string'
+          ? extensionResult
+          : JSON.stringify(extensionResult, null, 2);
       return {
         content: [
           {

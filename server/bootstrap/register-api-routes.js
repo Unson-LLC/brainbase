@@ -11,6 +11,7 @@ import { createInfoSSOTRouter } from '../routes/info-ssot.js';
 import { createLearningRouter } from '../routes/learning.js';
 import { createCandidateStoreRouter } from '../routes/candidate-store.js';
 import { createOnboardingRouter } from '../routes/onboarding.js';
+import { createKnowledgeResolutionRouter } from '../routes/knowledge-resolution.js';
 import { createCompanionRouter } from '../routes/companion.js';
 import { createExternalRunnerRouter } from '../routes/external-runner.js';
 import { createRunReceiptRouter } from '../routes/run-receipts.js';
@@ -46,6 +47,7 @@ import { XApiClient } from '../services/sns/providers/x-client.js';
 import { buildXProvider } from '../services/sns/providers/x-provider.js';
 import { ReplyDraftService } from '../services/companion/reply-draft-service.js';
 import { DecisionEventService } from '../services/companion/decision-event-service.js';
+import { KnowledgeResolutionService } from '../services/knowledge-resolution-service.js';
 
 export function resolveSnsPostingLedgerDatabaseUrl(env = process.env) {
     if (env.SNS_POSTING_LEDGER_DATABASE_URL) return env.SNS_POSTING_LEDGER_DATABASE_URL;
@@ -101,6 +103,14 @@ export function registerOnboardingApiRoute(app, { authService, onboardingRuntime
         '/api/onboarding',
         requireAuth(authService, { allowInsecureHeaders: false }),
         createOnboardingRouter({ service: onboardingRuntimeService })
+    );
+}
+
+export function registerKnowledgeResolutionApiRoute(app, { authService, service = new KnowledgeResolutionService() }) {
+    app.use(
+        '/api/knowledge',
+        requireAuth(authService, { allowInsecureHeaders: false }),
+        createKnowledgeResolutionRouter({ service })
     );
 }
 
@@ -198,6 +208,7 @@ export function registerApiRoutes(app, {
         candidateRepository
     })));
     registerOnboardingApiRoute(app, { authService, onboardingRuntimeService });
+    registerKnowledgeResolutionApiRoute(app, { authService });
     if (candidateRepository) {
         // cross-repo source (mana / salestailor / zeims / SNS) からの
         // Raw Ledger envelope 受信。 STR-006 / ADR-010 で確定した
