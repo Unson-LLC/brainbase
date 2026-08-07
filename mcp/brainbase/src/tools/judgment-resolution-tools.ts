@@ -15,6 +15,7 @@ const ACTIONS = ['none', 'read', 'write', 'external'] as const;
 const RISKS = ['low', 'medium', 'high', 'critical'] as const;
 const CONFIDENCES = ['confirmed', 'inferred', 'unknown'] as const;
 const SIGNALS = ['cumulative_effect', 'complexity_growth', 'threshold_proposal', 'parallel_exploration', 'authority_boundary', 'problem_frame_uncertain', 'external_outcome'] as const;
+const CONTENT_TYPES = ['canonical_fact', 'team_document', 'source_document', 'personal_knowledge', 'operational_state', 'unknown'] as const;
 
 export type JudgmentResolutionDependencies = AuthenticatedApiDependencies & {
   bindingSecret: string;
@@ -143,9 +144,11 @@ function ordered(values: string[], order: readonly string[]): string[] {
 
 function isClassification(value: unknown): value is Record<string, unknown> {
   if (!isRecord(value) || !hasOnlyKeys(value, ['intent', 'domains', 'action_kind', 'risk', 'confidence', 'signals'])) return false;
+  const domains = value.domains;
   return INTENTS.includes(value.intent as typeof INTENTS[number])
-    && isStringArray(value.domains, { nonEmpty: true, unique: true })
-    && value.domains.every((domain) => DOMAINS.includes(domain as typeof DOMAINS[number]))
+    && isStringArray(domains, { nonEmpty: true, unique: true })
+    && domains.every((domain) => DOMAINS.includes(domain as typeof DOMAINS[number]))
+    && (!domains.includes('general') || domains.length === 1)
     && ACTIONS.includes(value.action_kind as typeof ACTIONS[number])
     && RISKS.includes(value.risk as typeof RISKS[number])
     && CONFIDENCES.includes(value.confidence as typeof CONFIDENCES[number])
@@ -193,7 +196,7 @@ function isRequiredCapability(value: unknown): boolean {
   if (!inputKeys.every((key) => ['intent', 'audience', 'content_type', 'project_code'].includes(key))) return false;
   return value.input.intent === 'lookup'
     && ['personal', 'team', 'organization'].includes(String(value.input.audience))
-    && isNonEmptyString(value.input.content_type)
+    && CONTENT_TYPES.includes(value.input.content_type as typeof CONTENT_TYPES[number])
     && (value.input.project_code === undefined || isNonEmptyString(value.input.project_code));
 }
 

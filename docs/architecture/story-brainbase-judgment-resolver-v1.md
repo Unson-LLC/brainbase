@@ -96,7 +96,7 @@ knowledge nodeはKnowledge Resolverを直接実行せず、次の型付きhandof
 
 ## Personal policy access
 
-policyは`visibility: owner|team|organization`と任意の`owner_person_id`を持つ。`personal_judgment`は`req.access.personId`がownerまたは設定済みaliasと一致する時だけ選択できる。`internal_api`等のowner不明service credentialはpersonal policyを受け取れず、403相当の`personal_judgment_not_accessible`となる。organization policyへの暗黙fallbackは、別人の判断を本人のものとして扱うため行わない。
+policyは`visibility: owner|organization`と任意の`owner_person_id`を持つ。`personal_judgment`は`req.access.personId`がownerまたは設定済みaliasと一致する時だけ選択できる。`internal_api`等のowner不明service credentialはpersonal policyを受け取れず、403相当の`personal_judgment_not_accessible`となる。organization policyへの暗黙fallbackは、別人の判断を本人のものとして扱うため行わない。team audienceはKnowledge Resolverの取得範囲であり、Judgment Constitution policyのvisibilityとは分離する。
 
 ## Invariants
 

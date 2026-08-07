@@ -183,6 +183,7 @@ CHECK_SCRIPT='
     echo "BRAINBASE_MCP_UNAVAILABLE: canonical task API preflight returned HTTP ${task_api_status}" >&2
     exit 77
   fi
+  node "${REPO_ROOT}/scripts/preflight-judgment-binding.js"
 '
 
 RUN_SCRIPT="$CHECK_SCRIPT"'

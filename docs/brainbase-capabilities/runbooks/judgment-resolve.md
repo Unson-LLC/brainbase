@@ -40,5 +40,5 @@ When changing the manifest, increment `runtime_version` and append the new versi
 
 - Provision the same high-entropy `BRAINBASE_JUDGMENT_BINDING_SECRET` to the Brainbase API runtime and the Brainbase MCP Infisical path. Never log or return it.
 - Keep `BRAINBASE_JUDGMENT_ADAPTER_ID=brainbase-mcp` and `BRAINBASE_JUDGMENT_ADAPTER_VERSION=1` aligned with the manifest registry. A version change requires a manifest/runtime version update.
-- `scripts/run-brainbase-mcp.sh --check` must pass before declaring the MCP managed; it fails closed when the binding secret is missing.
+- `scripts/run-brainbase-mcp.sh --check` must pass before declaring the MCP managed. It fails closed when the binding secret is missing, then sends a signed read-only probe to `/api/judgment/resolve` and accepts only a request-bound `managed` receipt. This detects API/MCP secret mismatch before the first user turn.
 - Rotate by deploying a manifest/version that accepts the intended adapter, replacing the API and MCP secret in one controlled window, restarting both runtimes, and verifying a signed receipt. During mismatch, report `unmanaged` and block write/external action.

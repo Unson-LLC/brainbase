@@ -135,6 +135,13 @@ describe('judgment resolution MCP tool', () => {
     ['edge', { active_edges: [123] }],
     ['node definition', { active_node_definitions: [] }],
     ['policy', { applicable_policies: [123] }],
+    ['required capability content type', { required_capabilities: [{
+      capability: 'knowledge.resolve', status: 'required', receipt_required: true,
+      input: { intent: 'lookup', audience: 'team', content_type: 'invented_type' },
+    }] }],
+    ['general mixed with engineering', { classification: {
+      ...args.classification_proposal, domains: ['general', 'engineering'],
+    } }],
     ['plan digest', { plan_digest: '0'.repeat(64) }],
   ] as const) {
     it(`malformed ${label} receiptをmanagedとして受理しない`, async () => {
@@ -167,6 +174,25 @@ describe('judgment resolution MCP tool', () => {
     assert.equal(unmanaged?.management_status, 'unmanaged');
     assert.equal(unmanaged?.receipt, null);
     assert.ok((unmanaged?.warning ?? '').length > 0);
+  });
+
+  it('仕様違反receiptを本番fan-inでmanagedに格上げない', async () => {
+    const malformed = receipt({
+      classification: { ...args.classification_proposal, domains: ['general', 'engineering'] },
+      required_capabilities: [{
+        capability: 'knowledge.resolve', status: 'required', receipt_required: true,
+        input: { intent: 'lookup', audience: 'team', content_type: 'invented_type' },
+      }],
+    });
+    const result = await serverTesting.dispatchJudgmentResolutionToolCall('brainbase_judgment_resolve', args, {
+      apiUrl: 'http://brainbase.test', configuredProjectCodes: ['brainbase'], bindingSecret: 'secret',
+      adapterId: 'brainbase-mcp', adapterVersion: '1', now: () => new Date('2026-08-07T00:00:00.000Z'),
+      tokenManager: { getToken: async () => jwt({ projectCodes: ['brainbase'] }) },
+      fetch: async () => new Response(JSON.stringify(malformed), { status: 200 }),
+    });
+    assert.equal(result?.management_status, 'unmanaged');
+    assert.equal(result?.receipt, null);
+    assert.ok((result?.warning ?? '').length > 0);
   });
 });
 
