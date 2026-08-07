@@ -50,7 +50,7 @@ SLACK_MCP_INFISICAL_AUTH_FILE="${SLACK_MCP_INFISICAL_AUTH_FILE:-$HOME/.brainbase
 if [ ! -x "$(command -v "$INFISICAL_BIN")" ]; then
   die "infisical CLI not found: $INFISICAL_BIN"
 fi
-if [ ! -f "$MCP_ENTRY" ]; then
+if [ "$MODE" != "--check" ] && [ ! -f "$MCP_ENTRY" ]; then
   die "MCP entry not found: $MCP_ENTRY (run 'cd $REPO_ROOT/mcp/brainbase && npm run build')"
 fi
 

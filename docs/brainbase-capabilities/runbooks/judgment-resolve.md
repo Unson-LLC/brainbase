@@ -49,7 +49,7 @@ When changing the manifest, increment `runtime_version` and append the new versi
 1. Generate one high-entropy secret of at least 32 characters without printing it to logs. Provision that exact value to both the Brainbase API runtime and the `brainbase-mcp` Infisical target before changing either runtime.
 2. Run the Infisical target readiness check and confirm that `BRAINBASE_JUDGMENT_BINDING_SECRET` is present alongside `BRAINBASE_API_URL` and `BRAINBASE_TASK_API_TOKEN`. Check key presence only; never read the value into an artifact.
 3. Deploy the API at the intended commit SHA. Confirm the deployed SHA and that authenticated requests can reach `/api/judgment/resolve`; an unsigned request must still be rejected.
-4. From the same commit SHA intended for the MCP runtime, run `scripts/run-brainbase-mcp.sh --check`. Continue only when both the task API preflight and the signed Judgment binding preflight succeed against the deployed API.
+4. From the same commit SHA intended for the MCP runtime, run `scripts/run-brainbase-mcp.sh --check` **before mutating the currently runnable MCP checkout**. The automated reconciler runs this candidate launcher from the UI checkout first and only fast-forwards/builds the MCP runtime after both the task API preflight and the signed Judgment binding preflight succeed against the deployed API.
 5. Update and restart the MCP runtime, then verify the reconcile receipt and running MCP SHA match the intended commit. Do not declare the host managed from deployment success alone; retain the successful signed preflight evidence.
 
 ### Rollback
