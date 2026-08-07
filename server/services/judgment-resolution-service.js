@@ -361,7 +361,9 @@ function reconcile(input, manifest) {
     } else if (safeGeneral && detectedDomains.length === 0) {
         reasons.push('request_classification_conflict');
     }
-    if ((detectedDomains.includes('knowledge') || proposal.domains.includes('knowledge')) && !input.knowledge_context) reasons.push('knowledge_context_missing');
+    const wantsKnowledge = detectedDomains.includes('knowledge') || proposal.domains.includes('knowledge');
+    if (wantsKnowledge && !input.knowledge_context) reasons.push('knowledge_context_missing');
+    if (wantsKnowledge && !input.project_code) reasons.push('knowledge_project_code_missing');
 
     const uniqueReasons = [...new Set(reasons)];
     if (uniqueReasons.length > 0) {
@@ -546,7 +548,7 @@ function knowledgeCapabilities(input, classification) {
             intent: 'lookup',
             audience: input.knowledge_context.audience,
             content_type: input.knowledge_context.content_type,
-            ...(input.project_code ? { project_code: input.project_code } : {})
+            project_code: input.project_code
         },
         receipt_required: true
     }];

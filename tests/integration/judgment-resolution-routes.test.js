@@ -111,7 +111,28 @@ describe('judgment resolution API', () => {
         expect(response.body.error.code).toBe('judgment_resolution_input_invalid');
     });
 
-    it('personal judgmentをnon-ownerへ公開しない', async () => {
+    it('knowledge requestのproject不足を不完全handoffではなくclarificationへ写像する', async () => {
+        const payload = body({
+            request: 'Brainbaseの判断履歴を調べて',
+            project_code: undefined,
+            classification_proposal: {
+                intent: 'investigate', domains: ['knowledge'], action_kind: 'read', risk: 'low', confidence: 'confirmed', signals: []
+            },
+            knowledge_context: { audience: 'team', content_type: 'canonical_fact' }
+        });
+        delete payload.project_code;
+        const response = await request(app()).post('/api/judgment/resolve').set(bindingHeaders(payload)).send(payload);
+        expect(response.status).toBe(200);
+        expect(response.body.status).toBe('needs_classification');
+        expect(response.body.reconciliation_reasons).toContain('knowledge_project_code_missing');
+        expect(response.body.required_capabilities).toEqual([]);
+    });
+
+    it.each([
+        ['different owner', 'person_other'],
+        ['missing owner', null],
+        ['service credential', 'internal_api']
+    ])('personal judgmentを%sへ公開しない', async (_label, personId) => {
         const payload = body({
             request: '俺の思考アルゴリズムで判断して',
             classification_proposal: {
@@ -119,10 +140,11 @@ describe('judgment resolution API', () => {
             }
         });
         const response = await request(app({
-            access: { personId: 'person_other', tenantId: 'unson', projectCodes: ['brainbase'] }
+            access: { personId, tenantId: 'unson', projectCodes: ['brainbase'] }
         })).post('/api/judgment/resolve').set(bindingHeaders(payload)).send(payload);
         expect(response.status).toBe(403);
         expect(response.body.error.code).toBe('personal_judgment_not_accessible');
+        expect(JSON.stringify(response.body)).not.toContain('owner.sato');
     });
 
     it('予期しないservice失敗を500へ写像する', async () => {

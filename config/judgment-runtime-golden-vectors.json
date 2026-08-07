@@ -8,5 +8,27 @@
   "manifest": {
     "runtime_version": "judgment-runtime-1.0.0",
     "expected_sha256": "48a46e6020a65c550967a966753a5e44e9f7fc9ffad128ce9fe8ae884bf6e754"
+  },
+  "binding": {
+    "request": {
+      "request": "この文章の意味を説明して",
+      "turn_id": "host-turn-mcp",
+      "project_code": "brainbase",
+      "classification_proposal": {
+        "intent": "answer",
+        "domains": ["general"],
+        "action_kind": "none",
+        "risk": "low",
+        "confidence": "confirmed",
+        "signals": []
+      }
+    },
+    "secret": "secret",
+    "adapter_id": "brainbase-mcp",
+    "adapter_version": "1",
+    "issued_at": "2026-08-07T00:00:00.000Z",
+    "expected_request_digest": "de5df94c9ac524d5fa9f5835c3481f81b78b1adab72639956803162ac3f5b652",
+    "expected_payload_bytes": "[\"brainbase-judgment-binding-v1\",\"brainbase-mcp\",\"1\",\"host-turn-mcp\",\"2026-08-07T00:00:00.000Z\",\"de5df94c9ac524d5fa9f5835c3481f81b78b1adab72639956803162ac3f5b652\"]",
+    "expected_signature": "9c161938fa90021c3970357d4c3bc2892b3ef0213d59000bdac0ecbcaf487d1d"
   }
 }

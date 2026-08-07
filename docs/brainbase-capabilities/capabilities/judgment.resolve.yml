@@ -34,6 +34,7 @@ visibility_rules:
 verification:
   commands:
     - npm run test:judgment-resolution
+    - npm run test:knowledge-resolution
     - npm --prefix mcp/brainbase run typecheck
     - npm run typecheck
     - cmp -s CLAUDE.md AGENTS.md

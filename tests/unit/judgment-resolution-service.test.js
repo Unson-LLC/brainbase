@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -51,6 +52,59 @@ function binding() {
 
 function readFixture(name) {
     return JSON.parse(readFileSync(resolve(process.cwd(), 'config', name), 'utf8'));
+}
+
+const MANIFEST = readFixture('judgment-runtime-manifest.json');
+
+function expectedGraph(dagIds, manifest = MANIFEST) {
+    const dagMap = new Map(manifest.dags.map((dag) => [dag.id, dag]));
+    const activeNodes = ['entry', 'reconcile'];
+    const activeEdges = [['entry', 'reconcile']];
+    const addNode = (node) => { if (!activeNodes.includes(node)) activeNodes.push(node); };
+    const addEdge = (from, to) => {
+        if (!activeEdges.some((edge) => edge[0] === from && edge[1] === to)) activeEdges.push([from, to]);
+    };
+    for (const dagId of dagIds) {
+        const path = dagMap.get(dagId).path;
+        path.forEach(addNode);
+        addEdge('reconcile', path[0]);
+        for (let index = 1; index < path.length; index += 1) addEdge(path[index - 1], path[index]);
+        addEdge(path.at(-1), 'merge');
+    }
+    activeNodes.push('merge', 'receipt');
+    addEdge('merge', 'receipt');
+    return { activeNodes, activeEdges };
+}
+
+function expectExactResolvedPlan(receipt, { dagIds, policyIds = [], capabilities = [] }) {
+    const graph = expectedGraph(dagIds);
+    expect(receipt.status).toBe('resolved');
+    expect(receipt.selected_dag_ids).toEqual(dagIds);
+    expect(receipt.applicable_policies.map((policy) => policy.id)).toEqual(policyIds);
+    expect(receipt.required_capabilities).toEqual(capabilities);
+    expect(receipt.active_nodes).toEqual(graph.activeNodes);
+    expect(receipt.active_edges).toEqual(graph.activeEdges);
+    expect(receipt.active_node_definitions.map((node) => node.id)).toEqual(graph.activeNodes);
+}
+
+function expectTopologicalGraph(receipt) {
+    const remaining = new Map(receipt.active_nodes.map((node) => [node, 0]));
+    const outgoing = new Map(receipt.active_nodes.map((node) => [node, []]));
+    for (const [from, to] of receipt.active_edges) {
+        remaining.set(to, remaining.get(to) + 1);
+        outgoing.get(from).push(to);
+    }
+    const queue = receipt.active_nodes.filter((node) => remaining.get(node) === 0);
+    const consumed = [];
+    while (queue.length > 0) {
+        const node = queue.shift();
+        consumed.push(node);
+        for (const target of outgoing.get(node)) {
+            remaining.set(target, remaining.get(target) - 1);
+            if (remaining.get(target) === 0) queue.push(target);
+        }
+    }
+    expect(consumed).toHaveLength(receipt.active_nodes.length);
 }
 
 function serviceWithManifest(mutator) {
@@ -107,6 +161,14 @@ describe('JudgmentResolutionService', () => {
         expect(sha256Hex(canonical)).toBe(golden.canonical_json.expected_sha256);
         expect(manifest.runtime_version).toBe(golden.manifest.runtime_version);
         expect(sha256Hex(canonicalJson(manifest))).toBe(golden.manifest.expected_sha256);
+        expect(computeRequestDigest(golden.binding.request)).toBe(golden.binding.expected_request_digest);
+        const bindingPayload = canonicalJson([
+            'brainbase-judgment-binding-v1', golden.binding.adapter_id, golden.binding.adapter_version,
+            golden.binding.request.turn_id, golden.binding.issued_at, golden.binding.expected_request_digest
+        ]);
+        expect(bindingPayload).toBe(golden.binding.expected_payload_bytes);
+        expect(createHmac('sha256', golden.binding.secret).update(bindingPayload).digest('hex'))
+            .toBe(golden.binding.expected_signature);
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:5
@@ -178,37 +240,39 @@ describe('JudgmentResolutionService', () => {
     });
 
     it.each([
-        ['general', 'この文章の意味を説明して', proposal(), 'direct.v1', 'hypothesis'],
-        ['knowledge', 'Brainbaseの判断履歴を調べて', proposal({ intent: 'investigate', domains: ['knowledge'], action_kind: 'read' }), 'knowledge.v1', 'personal-decision'],
-        ['personal_judgment', '俺の思考アルゴリズムで判断して', proposal({ intent: 'review', domains: ['personal_judgment'], action_kind: 'read' }), 'personal-judgment.v1', 'organization-incentive'],
-        ['engineering', 'API設計をレビューして', proposal({ intent: 'review', domains: ['engineering'], action_kind: 'read' }), 'engineering.v1', 'organization-incentive'],
-        ['organization', '組織の権限構造とインセンティブを評価して', proposal({ intent: 'review', domains: ['organization'], action_kind: 'read' }), 'organization.v1', 'hypothesis'],
-        ['operations', '運用runbookをレビューして', proposal({ intent: 'review', domains: ['operations'], action_kind: 'read' }), 'operations.v1', 'organization-incentive']
-    ])('%s domainは対応する最小DAGだけを選ぶ', (_domain, request, classificationProposal, expectedDag, excludedNode) => {
-        const overrides = expectedDag === 'knowledge.v1'
+        ['general', 'この文章の意味を説明して', proposal(), ['direct.v1'], ['global.goal-before-solution.v1']],
+        ['knowledge', 'Brainbaseの判断履歴を調べて', proposal({ intent: 'investigate', domains: ['knowledge'], action_kind: 'read' }), ['knowledge.v1'], []],
+        ['personal_judgment', '俺の思考アルゴリズムで判断して', proposal({ intent: 'review', domains: ['personal_judgment'], action_kind: 'read' }), ['personal-judgment.v1'], ['owner.sato.hypothesis-loop.v1', 'global.goal-before-solution.v1', 'global.problem-frame-rederive.v1']],
+        ['engineering', 'API設計をレビューして', proposal({ intent: 'review', domains: ['engineering'], action_kind: 'read' }), ['engineering.v1'], ['global.goal-before-solution.v1', 'global.problem-frame-rederive.v1']],
+        ['organization', '組織の権限構造とインセンティブを評価して', proposal({ intent: 'review', domains: ['organization'], action_kind: 'read' }), ['organization.v1'], ['global.goal-before-solution.v1', 'global.problem-frame-rederive.v1']],
+        ['operations', '運用runbookをレビューして', proposal({ intent: 'review', domains: ['operations'], action_kind: 'read' }), ['operations.v1'], []]
+    ])('%s domainは対応する最小DAGだけを選ぶ', (_domain, request, classificationProposal, dagIds, policyIds) => {
+        const overrides = dagIds[0] === 'knowledge.v1'
             ? { knowledge_context: { audience: 'team', content_type: 'canonical_fact' } }
             : {};
         const receipt = service.resolve(input(request, classificationProposal, overrides), { access: ACCESS, hostBinding: binding() });
-        expect(receipt.status).toBe('resolved');
-        expect(receipt.selected_dag_ids).toContain(expectedDag);
-        expect(receipt.active_nodes).not.toContain(excludedNode);
+        const capabilities = dagIds[0] === 'knowledge.v1' ? [{
+            capability: 'knowledge.resolve',
+            status: 'required',
+            input: { intent: 'lookup', audience: 'team', content_type: 'canonical_fact', project_code: 'brainbase' },
+            receipt_required: true
+        }] : [];
+        expectExactResolvedPlan(receipt, { dagIds, policyIds, capabilities });
     });
 
     it.each([
-        ['cumulative_effect', 'API設計の複数Storyにまたがる累積を確認して', 'cumulative-complexity.v1', 'controller-scope'],
-        ['complexity_growth', 'API設計の正味複雑性を確認して', 'cumulative-complexity.v1', 'subtract-first'],
-        ['threshold_proposal', 'API設計の閾値を確認して', 'threshold.v1', 'threshold-source'],
-        ['parallel_exploration', 'API設計の並列な候補生成を確認して', 'parallel.v1', 'separate-generation-adoption'],
-        ['authority_boundary', 'API設計の権限境界を確認して', 'authority.v1', 'enforcement-point'],
-        ['problem_frame_uncertain', 'API設計の問題設定を確認して', 'problem-frame.v1', 'rederive'],
-        ['external_outcome', 'API設計の外部成果を確認して', 'external-outcome.v1', 'downstream-outcome']
-    ])('%s signalは対応するconstraint DAGを合成する', (signal, request, expectedDag, expectedNode) => {
+        ['cumulative_effect', 'API設計の複数Storyにまたがる累積を確認して', ['engineering.v1', 'cumulative-complexity.v1'], ['global.goal-before-solution.v1', 'global.problem-frame-rederive.v1', 'global.external-outcome-first.v1', 'global.subtraction-first.v1']],
+        ['complexity_growth', 'API設計の正味複雑性を確認して', ['engineering.v1', 'cumulative-complexity.v1'], ['global.goal-before-solution.v1', 'global.problem-frame-rederive.v1', 'global.external-outcome-first.v1', 'global.subtraction-first.v1']],
+        ['threshold_proposal', 'API設計の閾値を確認して', ['engineering.v1', 'threshold.v1'], ['global.goal-before-solution.v1', 'global.no-unsupported-threshold.v1', 'global.problem-frame-rederive.v1']],
+        ['parallel_exploration', 'API設計の並列な候補生成を確認して', ['engineering.v1', 'parallel.v1'], ['global.goal-before-solution.v1', 'global.preserve-parallel-exploration.v1', 'global.problem-frame-rederive.v1']],
+        ['authority_boundary', 'API設計の権限境界を確認して', ['engineering.v1', 'authority.v1'], ['global.action-authorization-separate.v1', 'global.goal-before-solution.v1', 'global.problem-frame-rederive.v1']],
+        ['problem_frame_uncertain', 'API設計の問題設定を確認して', ['engineering.v1', 'problem-frame.v1'], ['global.goal-before-solution.v1', 'global.problem-frame-rederive.v1']],
+        ['external_outcome', 'API設計の外部成果を確認して', ['engineering.v1', 'external-outcome.v1'], ['global.goal-before-solution.v1', 'global.problem-frame-rederive.v1', 'global.external-outcome-first.v1']]
+    ])('%s signalは対応するconstraint DAGを合成する', (signal, request, dagIds, policyIds) => {
         const receipt = service.resolve(input(request, proposal({
             intent: 'review', domains: ['engineering'], action_kind: 'read', signals: [signal]
         })), { access: ACCESS, hostBinding: binding() });
-        expect(receipt.status).toBe('resolved');
-        expect(receipt.selected_dag_ids).toContain(expectedDag);
-        expect(receipt.active_nodes).toContain(expectedNode);
+        expectExactResolvedPlan(receipt, { dagIds, policyIds });
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:9
@@ -239,6 +303,13 @@ describe('JudgmentResolutionService', () => {
         ]));
     });
 
+    it('safe generalに肯定一致しない一般提案を明示理由でfail closedにする', () => {
+        const receipt = service.resolve(input('もっと良くして', proposal()), { access: ACCESS, hostBinding: binding() });
+        expect(receipt.status).toBe('needs_classification');
+        expect(receipt.reconciliation_reasons).toEqual(['general_not_server_supported']);
+        expect(receipt.selected_dag_ids).toEqual(['clarification.v1']);
+    });
+
     // Trace: story-brainbase-judgment-resolver-v1:ac:8
     it('knowledge branchはKnowledge Resolverの完全なhandoffだけを返す', () => {
         const receipt = service.resolve(input('Brainbaseの判断履歴を調べて', proposal({
@@ -265,6 +336,17 @@ describe('JudgmentResolutionService', () => {
         })), { access: ACCESS, hostBinding: binding() });
         expect(receipt.status).toBe('needs_classification');
         expect(receipt.reconciliation_reasons).toContain('knowledge_context_missing');
+        expect(receipt.required_capabilities).toEqual([]);
+    });
+
+    it('knowledge project不足は不完全なhandoffを返さずclarificationへ落とす', () => {
+        const rawInput = input('判断履歴を調べて', proposal({
+            intent: 'investigate', domains: ['knowledge'], action_kind: 'read'
+        }), { knowledge_context: { audience: 'team', content_type: 'canonical_fact' } });
+        delete rawInput.project_code;
+        const receipt = service.resolve(rawInput, { access: ACCESS, hostBinding: binding() });
+        expect(receipt.status).toBe('needs_classification');
+        expect(receipt.reconciliation_reasons).toContain('knowledge_project_code_missing');
         expect(receipt.required_capabilities).toEqual([]);
     });
 
@@ -319,6 +401,18 @@ describe('JudgmentResolutionService', () => {
         const secondReceipt = service.resolve(second, { access: ACCESS, hostBinding: binding() });
         expect(firstReceipt.request_digest).not.toBe(secondReceipt.request_digest);
         expect(firstReceipt.plan_digest).toBe(secondReceipt.plan_digest);
+        expectExactResolvedPlan(firstReceipt, {
+            dagIds: ['engineering.v1', 'operations.v1', 'authority.v1', 'external-outcome.v1'],
+            policyIds: [
+                'global.action-authorization-separate.v1',
+                'global.goal-before-solution.v1',
+                'global.problem-frame-rederive.v1',
+                'global.external-outcome-first.v1'
+            ]
+        });
+        const branchEnds = [...new Set(firstReceipt.selected_dag_ids.map((dagId) => MANIFEST.dags.find((dag) => dag.id === dagId).path.at(-1)))];
+        expect(firstReceipt.active_edges.filter(([, to]) => to === 'merge')).toEqual(branchEnds.map((node) => [node, 'merge']));
+        expectTopologicalGraph(firstReceipt);
     });
 
     it('同じturn IDでもrequestが変わればrequest digestを再利用できない', () => {
@@ -393,6 +487,16 @@ describe('judgment manifest validation', () => {
         ['matcher reference', (manifest) => { manifest.semantic_matchers.signals.unsupported = ['x']; }, /unsupported selector or matcher/]
     ])('%sの破損manifestを起動時に拒否する', (_label, mutate, expected) => {
         expect(() => serviceWithManifest(mutate)).toThrowError(expected);
+    });
+
+    it('個別DAGはacyclicでも合成時に生じるcycleを拒否する', () => {
+        const custom = serviceWithManifest((manifest) => {
+            manifest.dags.find((dag) => dag.id === 'engineering.v1').path = ['goal', 'direct-answer'];
+            manifest.dags.find((dag) => dag.id === 'threshold.v1').path = ['direct-answer', 'goal'];
+        });
+        expect(() => custom.resolve(input('API設計の閾値を確認して', proposal({
+            intent: 'review', domains: ['engineering'], action_kind: 'read', signals: ['threshold_proposal']
+        })), { access: ACCESS, hostBinding: binding() })).toThrowError(/active judgment graph contains a cycle/);
     });
 });
 

@@ -1,4 +1,4 @@
-import { createHmac, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
@@ -11,7 +11,11 @@ import {
   handleJudgmentResolutionToolCall,
   judgmentResolutionTools,
 } from '../../src/tools/judgment-resolution-tools.js';
-import { canProceedWithAction, normalizeJudgmentHostResult } from '../../src/tools/judgment-host-contract.js';
+import {
+  canProceedWithAction,
+  normalizeJudgmentHostResult,
+  runManagedJudgmentTurn,
+} from '../../src/tools/judgment-host-contract.js';
 import { __testing as serverTesting } from '../../src/server.js';
 
 function jwt(payload: Record<string, unknown>): string {
@@ -75,20 +79,28 @@ describe('judgment resolution MCP tool', () => {
     const goldenPath = fileURLToPath(new URL('../../../../config/judgment-runtime-golden-vectors.json', import.meta.url));
     const golden = JSON.parse(readFileSync(goldenPath, 'utf8')) as {
       canonical_json: { input: unknown; expected_bytes: string; expected_sha256: string };
+      binding: {
+        request: typeof args; secret: string; adapter_id: string; adapter_version: string; issued_at: string;
+        expected_request_digest: string; expected_payload_bytes: string; expected_signature: string;
+      };
     };
     const canonical = canonicalJson(golden.canonical_json.input);
     assert.equal(canonical, golden.canonical_json.expected_bytes);
     assert.equal(createHash('sha256').update(canonical).digest('hex'), golden.canonical_json.expected_sha256);
 
-    const headers = createJudgmentBindingHeaders(args, {
-      bindingSecret: 'secret', adapterId: 'brainbase-mcp', adapterVersion: '1',
-      issuedAt: '2026-08-07T00:00:00.000Z',
+    const headers = createJudgmentBindingHeaders(golden.binding.request, {
+      bindingSecret: golden.binding.secret,
+      adapterId: golden.binding.adapter_id,
+      adapterVersion: golden.binding.adapter_version,
+      issuedAt: golden.binding.issued_at,
     });
-    const payload = JSON.stringify([
-      'brainbase-judgment-binding-v1', 'brainbase-mcp', '1', args.turn_id,
-      '2026-08-07T00:00:00.000Z', headers['x-brainbase-judgment-request-digest'],
+    const payload = canonicalJson([
+      'brainbase-judgment-binding-v1', golden.binding.adapter_id, golden.binding.adapter_version,
+      golden.binding.request.turn_id, golden.binding.issued_at, golden.binding.expected_request_digest,
     ]);
-    assert.equal(headers['x-brainbase-judgment-signature'], createHmac('sha256', 'secret').update(payload).digest('hex'));
+    assert.equal(headers['x-brainbase-judgment-request-digest'], golden.binding.expected_request_digest);
+    assert.equal(payload, golden.binding.expected_payload_bytes);
+    assert.equal(headers['x-brainbase-judgment-signature'], golden.binding.expected_signature);
   });
 
   it('receiptを同じturn・request・adapter bindingへ再束縛する', async () => {
@@ -139,6 +151,14 @@ describe('judgment resolution MCP tool', () => {
     ['required capability content type', { required_capabilities: [{
       capability: 'knowledge.resolve', status: 'required', receipt_required: true,
       input: { intent: 'lookup', audience: 'team', content_type: 'invented_type' },
+    }] }],
+    ['required capability missing project', { required_capabilities: [{
+      capability: 'knowledge.resolve', status: 'required', receipt_required: true,
+      input: { intent: 'lookup', audience: 'team', content_type: 'canonical_fact' },
+    }] }],
+    ['required capability mismatched project', { required_capabilities: [{
+      capability: 'knowledge.resolve', status: 'required', receipt_required: true,
+      input: { intent: 'lookup', audience: 'team', content_type: 'canonical_fact', project_code: 'other' },
     }] }],
     ['general mixed with engineering', { classification: {
       ...args.classification_proposal, domains: ['general', 'engineering'],
@@ -251,5 +271,93 @@ describe('judgment host contract', () => {
     assert.equal(result.management_status, 'managed');
     assert.equal(canProceedWithAction(result, 'read'), true);
     assert.equal(canProceedWithAction(result, 'write'), false);
+  });
+
+  it('managed turnはResolverを一度だけ通りactive node definitionsを実行側へ渡す', async () => {
+    let resolveCalls = 0;
+    let continueCalls = 0;
+    const management = normalizeJudgmentHostResult({ status: 'ok', scope: { project_codes: ['brainbase'] }, data: receipt() });
+    const result = await runManagedJudgmentTurn({
+      resolve: async () => { resolveCalls += 1; return management; },
+      actionKind: 'read',
+      continueTurn: ({ activeNodeDefinitions }) => {
+        continueCalls += 1;
+        assert.deepEqual(activeNodeDefinitions.map((node) => node.id), management.receipt?.active_nodes);
+        return 'continued';
+      },
+    });
+    assert.equal(resolveCalls, 1);
+    assert.equal(continueCalls, 1);
+    assert.equal(result.execution_status, 'continued');
+    assert.equal(result.output, 'continued');
+  });
+
+  for (const [label, management, actionKind] of [
+    ['unavailable', normalizeJudgmentHostResult({ status: 'unavailable', scope: { project_codes: [] }, error: { code: 'down', message: 'down' } }), 'read'],
+    ['missing receipt', normalizeJudgmentHostResult({ status: 'ok', scope: { project_codes: ['brainbase'] } }), 'read'],
+    ['binding denial', normalizeJudgmentHostResult({ status: 'error', scope: { project_codes: ['brainbase'] }, error: { code: 'denied', message: 'denied', http_status: 403 } }), 'external'],
+    ['invalid receipt', normalizeJudgmentHostResult({ status: 'error', scope: { project_codes: ['brainbase'] }, error: { code: 'brainbase_api_response_invalid', message: 'invalid' } }), 'write'],
+    ['unresolved receipt', normalizeJudgmentHostResult({ status: 'ok', scope: { project_codes: ['brainbase'] }, data: receipt({
+      status: 'needs_classification', classification: null, classification_assurance: 'unknown',
+      reconciliation_reasons: ['general_not_server_supported'], selected_dag_ids: ['clarification.v1'],
+      active_nodes: ['entry', 'reconcile', 'clarification', 'receipt'],
+      active_node_definitions: [
+        ['entry', 'common'], ['reconcile', 'common'], ['clarification', 'fail_closed'], ['receipt', 'common'],
+      ].map(([id, kind]) => ({ id, kind, instruction: `Execute ${id}.`, required_capability_template: null })),
+      active_edges: [['entry', 'reconcile'], ['reconcile', 'clarification'], ['clarification', 'receipt']],
+      unresolved: ['classification'], rationale: ['clarify'],
+    }) }), 'read'],
+  ] as const) {
+    it(`${label}では後続write・external・応答生成を実行しない`, async () => {
+      let continueCalls = 0;
+      const result = await runManagedJudgmentTurn({
+        resolve: async () => management,
+        actionKind,
+        continueTurn: () => { continueCalls += 1; return 'must-not-run'; },
+      });
+      assert.equal(result.execution_status, 'stopped');
+      assert.equal(result.output, null);
+      assert.equal(continueCalls, 0);
+      assert.ok(result.warning.length > 0);
+    });
+  }
+
+  it('resolved receiptでもwrite・externalは別のaction authorizationなしに実行しない', async () => {
+    const management = normalizeJudgmentHostResult({ status: 'ok', scope: { project_codes: ['brainbase'] }, data: receipt() });
+    for (const actionKind of ['write', 'external'] as const) {
+      let continueCalls = 0;
+      const result = await runManagedJudgmentTurn({
+        resolve: async () => management,
+        actionKind,
+        continueTurn: () => { continueCalls += 1; return 'must-not-run'; },
+      });
+      assert.equal(result.reason, 'judgment_receipt_is_not_action_authorization');
+      assert.equal(result.execution_status, 'stopped');
+      assert.equal(continueCalls, 0);
+    }
+  });
+
+  it('write・externalはJudgmentと独立したaction authorizationが成功した場合だけ継続する', async () => {
+    const management = normalizeJudgmentHostResult({ status: 'ok', scope: { project_codes: ['brainbase'] }, data: receipt() });
+    for (const actionKind of ['write', 'external'] as const) {
+      let authorizationCalls = 0;
+      let continueCalls = 0;
+      const result = await runManagedJudgmentTurn({
+        resolve: async () => management,
+        actionKind,
+        authorizeAction: ({ actionKind: authorizedKind, receipt: authorizedReceipt, activeNodeDefinitions }) => {
+          authorizationCalls += 1;
+          assert.equal(authorizedKind, actionKind);
+          assert.equal(authorizedReceipt, management.receipt);
+          assert.deepEqual(activeNodeDefinitions.map((node) => node.id), management.receipt?.active_nodes);
+          return true;
+        },
+        continueTurn: () => { continueCalls += 1; return 'authorized'; },
+      });
+      assert.equal(authorizationCalls, 1);
+      assert.equal(continueCalls, 1);
+      assert.equal(result.execution_status, 'continued');
+      assert.equal(result.output, 'authorized');
+    }
   });
 });

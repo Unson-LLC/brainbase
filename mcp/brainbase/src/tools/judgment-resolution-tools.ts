@@ -189,15 +189,15 @@ function isSuppressedPolicy(value: unknown): boolean {
     && ['lower_priority', 'lower_specificity', 'hard_over_soft'].includes(String(value.reason));
 }
 
-function isRequiredCapability(value: unknown): boolean {
+function isRequiredCapability(value: unknown, projectCode: unknown): boolean {
   if (!isRecord(value) || !hasOnlyKeys(value, ['capability', 'status', 'input', 'receipt_required'])) return false;
   if (value.capability !== 'knowledge.resolve' || value.status !== 'required' || value.receipt_required !== true || !isRecord(value.input)) return false;
-  const inputKeys = Object.keys(value.input);
-  if (!inputKeys.every((key) => ['intent', 'audience', 'content_type', 'project_code'].includes(key))) return false;
+  if (!hasOnlyKeys(value.input, ['intent', 'audience', 'content_type', 'project_code'])) return false;
   return value.input.intent === 'lookup'
     && ['personal', 'team', 'organization'].includes(String(value.input.audience))
     && CONTENT_TYPES.includes(value.input.content_type as typeof CONTENT_TYPES[number])
-    && (value.input.project_code === undefined || isNonEmptyString(value.input.project_code));
+    && isNonEmptyString(value.input.project_code)
+    && value.input.project_code === projectCode;
 }
 
 function isActiveNodeDefinition(value: unknown): boolean {
@@ -265,7 +265,8 @@ function isJudgmentReceipt(
   if (!isStringArray(value.reconciliation_reasons, { unique: true }) || !isStringArray(value.selected_dag_ids, { nonEmpty: true, unique: true })) return false;
   if (!Array.isArray(value.applicable_policies) || !value.applicable_policies.every(isPolicy)) return false;
   if (!Array.isArray(value.suppressed_policies) || !value.suppressed_policies.every(isSuppressedPolicy)) return false;
-  if (!Array.isArray(value.required_capabilities) || !value.required_capabilities.every(isRequiredCapability)) return false;
+  if (!Array.isArray(value.required_capabilities)
+    || !value.required_capabilities.every((capability) => isRequiredCapability(capability, value.project_code))) return false;
   if (!isStringArray(value.active_nodes, { nonEmpty: true, unique: true })) return false;
   if (!Array.isArray(value.active_node_definitions) || !value.active_node_definitions.every(isActiveNodeDefinition)) return false;
   if (value.active_node_definitions.length !== value.active_nodes.length

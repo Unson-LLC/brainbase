@@ -58,7 +58,7 @@ public classificationはproposalであり、確定値ではない。callerの`co
 - risk order: `low < medium < high < critical`、action order: `none < read < write < external`。
 - reconciled domains/signalsはserver detectionで裏づけられた値であり、proposalはfloorを下げられない。`general`は、safe-general matcherが肯定一致し、他domain/safety matcherが未検出で、intentが`answer|review`かつaction floorが`none|read`の時だけ選べる。
 
-proposalのaction/riskがfloorより弱い、confidenceがunknown、server検出domain/signalを欠く、非general domain/signalがproposalだけで支持される、safe-generalの肯定一致がない、knowledge必須contextが不足、またはrequestと構造分類が矛盾する場合、statusは`needs_classification`となる。callerはtrusted provenanceを指定できず、receiptの`classification_assurance=verified|bounded|unknown`と`reconciliation_reasons`はserverだけが生成する。
+proposalのaction/riskがfloorより弱い、confidenceがunknown、server検出domain/signalを欠く、非general domain/signalがproposalだけで支持される、safe-generalの肯定一致がない、knowledge必須contextまたは`project_code`が不足、またはrequestと構造分類が矛盾する場合、statusは`needs_classification`となる。knowledgeの`project_code`不足は`knowledge_project_code_missing`として記録し、不完全なKnowledge handoffを返さない。callerはtrusted provenanceを指定できず、receiptの`classification_assurance=verified|bounded|unknown`と`reconciliation_reasons`はserverだけが生成する。
 
 ## 4. Runtime manifest
 
@@ -228,7 +228,7 @@ MCP toolは`brainbase_judgment_resolve`。HTTP APIと同じ公開input schemaを
 - `CLAUDE.md`と`AGENTS.md`へ、Brainbase管理対象turnは回答前にJudgment Resolverを呼ぶthin ruleを同一内容で追加する。
 - `.claude/skills/brainbase-judgment-resolver/SKILL.md`はcapability YAML、MCP call、receipt active DAG、Knowledge handoff、unmanaged時停止だけを案内する。
 - `docs/brainbase-capabilities/capabilities/judgment.resolve.yml`、runbook、README indexへsurface、visibility、failure semantics、receiptがaction evidenceではないことを記録する。
-- host contractの共通resultは`{management_status: managed|unmanaged, reason, warning, receipt}`とし、unavailable tool、missing receipt、403 binding rejectionでは`management_status=unmanaged`、`receipt=null`、非空warningを返す。`canProceedWithAction`はunmanagedの`write|external`を必ずfalseにする。
+- host contractの共通resultは`{management_status: managed|unmanaged, reason, warning, receipt}`とし、unavailable tool、missing receipt、403 binding rejectionでは`management_status=unmanaged`、`receipt=null`、非空warningを返す。`canProceedWithAction`はJudgment receipt単体による`write|external`を必ずfalseにする。共通turn runnerは、Judgmentとは独立したaction authorizationが明示的に成功した場合に限り、managedな`write|external`を継続できる。
 
 ## 12. Tests
 
