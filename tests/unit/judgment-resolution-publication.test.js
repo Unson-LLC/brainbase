@@ -6,6 +6,7 @@ function read(path) {
 }
 
 describe('judgment resolver publication surfaces', () => {
+    // Trace: story-brainbase-judgment-resolver-v1:ac:14
     it('CLAUDEとAGENTSのalways-loaded host contractを同一に保つ', () => {
         const claude = read('CLAUDE.md');
         const agents = read('AGENTS.md');

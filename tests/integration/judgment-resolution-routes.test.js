@@ -58,6 +58,7 @@ function app({ access, service } = {}) {
 }
 
 describe('judgment resolution API', () => {
+    // Trace: story-brainbase-judgment-resolver-v1:ac:1 story-brainbase-judgment-resolver-v1:ac:13
     it('valid bindingでrequest-bound managed receiptを返す', async () => {
         const payload = body();
         const response = await request(app()).post('/api/judgment/resolve').set(bindingHeaders(payload)).send(payload);

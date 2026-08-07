@@ -53,6 +53,7 @@ function receipt(overrides: Record<string, unknown> = {}) {
 }
 
 describe('judgment resolution MCP tool', () => {
+  // Trace: story-brainbase-judgment-resolver-v1:ac:2 story-brainbase-judgment-resolver-v1:ac:13
   it('tool listへ公開し署名済みbinding headersでAPIを呼ぶ', async () => {
     assert.ok(serverTesting.tools.some((tool) => tool.name === 'brainbase_judgment_resolve'));
     assert.equal(judgmentResolutionTools.length, 1);
@@ -229,6 +230,7 @@ describe('judgment resolution MCP tool', () => {
 });
 
 describe('judgment host contract', () => {
+  // Trace: story-brainbase-judgment-resolver-v1:ac:3
   for (const [label, toolResult] of [
     ['unavailable tool', { status: 'unavailable', scope: { project_codes: [] }, error: { code: 'down', message: 'down' } }],
     ['missing receipt', { status: 'ok', scope: { project_codes: ['brainbase'] } }],

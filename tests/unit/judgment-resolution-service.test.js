@@ -91,6 +91,7 @@ function addPoliciesToDirect(manifest, policies) {
 }
 
 describe('JudgmentResolutionService', () => {
+    // Trace: story-brainbase-judgment-resolver-v1:ac:12
     const service = new JudgmentResolutionService({
         now: () => new Date('2026-08-07T00:00:00.000Z'),
         id: () => 'jr_test',
@@ -108,6 +109,7 @@ describe('JudgmentResolutionService', () => {
         expect(sha256Hex(canonicalJson(manifest))).toBe(golden.manifest.expected_sha256);
     });
 
+    // Trace: story-brainbase-judgment-resolver-v1:ac:5
     it('肯定一致したsafe generalだけをdirect DAGへ通す', () => {
         const receipt = service.resolve(input('この文章の意味を説明して'), { access: ACCESS, hostBinding: binding() });
         expect(receipt.status).toBe('resolved');
@@ -124,6 +126,7 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.request_digest).toBe(computeRequestDigest(input('この文章の意味を説明して')));
     });
 
+    // Trace: story-brainbase-judgment-resolver-v1:ac:4
     it('現在発話だけでなく署名対象の会話文脈から最小DAGを選ぶ', () => {
         const rawInput = input('それを作って', proposal({
             intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
@@ -150,6 +153,7 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.reconciliation_reasons).toContain('domain_supported_only_by_proposal');
     });
 
+    // Trace: story-brainbase-judgment-resolver-v1:ac:6 story-brainbase-judgment-resolver-v1:ac:15
     it('文脈に応じたdomain・constraint・authority DAGだけを選ぶ', () => {
         const receipt = service.resolve(input('認証APIの累積した複雑性を保ちながら並列開発できる設計を実装して', proposal({
             intent: 'implement',
@@ -207,6 +211,7 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.active_nodes).toContain(expectedNode);
     });
 
+    // Trace: story-brainbase-judgment-resolver-v1:ac:9
     it('専門依頼をgeneral提案してもserver検出を迂回できない', () => {
         const receipt = service.resolve(input('認証APIを実装して', proposal({
             intent: 'implement', action_kind: 'none', risk: 'low'
@@ -234,6 +239,7 @@ describe('JudgmentResolutionService', () => {
         ]));
     });
 
+    // Trace: story-brainbase-judgment-resolver-v1:ac:8
     it('knowledge branchはKnowledge Resolverの完全なhandoffだけを返す', () => {
         const receipt = service.resolve(input('Brainbaseの判断履歴を調べて', proposal({
             intent: 'investigate', domains: ['knowledge'], action_kind: 'read'
@@ -262,6 +268,7 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.required_capabilities).toEqual([]);
     });
 
+    // Trace: story-brainbase-judgment-resolver-v1:ac:11
     it('personal judgmentはownerだけにpolicyを公開する', () => {
         const ownerReceipt = service.resolve(input('俺の思考アルゴリズムで判断して', proposal({
             intent: 'review', domains: ['personal_judgment'], action_kind: 'read'
@@ -290,6 +297,7 @@ describe('JudgmentResolutionService', () => {
         }
     });
 
+    // Trace: story-brainbase-judgment-resolver-v1:ac:10
     it('callerによるruntime・DAG・policy・binding注入を拒否する', () => {
         for (const injected of ['dag_ids', 'policy_ids', 'runtime_version', 'host_binding', 'classification_assurance', 'active_nodes']) {
             expect(() => service.resolve({ ...input('意味を説明して'), [injected]: [] }, {
@@ -322,6 +330,7 @@ describe('JudgmentResolutionService', () => {
 });
 
 describe('judgment policy resolution', () => {
+    // Trace: story-brainbase-judgment-resolver-v1:ac:7
     it('global・organization・project・owner scopeを認証contextにだけ適用する', () => {
         const applicable = [
             testPolicy('test.global'),
