@@ -73,7 +73,7 @@ export async function authenticateProject(
 export async function fetchAuthenticatedJson(
   dependencies: AuthenticatedApiDependencies,
   context: AuthenticatedProjectContext,
-  request: { path: string; method: string; body?: unknown },
+  request: { path: string; method: string; body?: unknown; headers?: Record<string, string> },
 ): Promise<
   | { ok: true; response: Response; payload: unknown; payloadParsed: boolean }
   | { ok: false; result: ToolResult }
@@ -85,6 +85,7 @@ export async function fetchAuthenticatedJson(
       {
         method: request.method,
         headers: {
+          ...request.headers,
           Authorization: `Bearer ${context.token}`,
           'x-brainbase-projects': context.scope.join(','),
           ...(request.body !== undefined ? { 'content-type': 'application/json' } : {}),

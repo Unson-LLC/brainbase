@@ -1,0 +1,54 @@
+id: judgment.resolve
+name: Context-routed judgment resolver
+purpose: Resolve the smallest context-relevant judgment DAG for each Brainbase-managed turn so facts, ontology, policies, constraints, and reasoning order remain portable across model hosts.
+surfaces:
+  ui: []
+  mcp:
+    - brainbase_judgment_resolve
+  api:
+    - POST /api/judgment/resolve
+  code:
+    - server/services/judgment-resolution-service.js
+    - server/routes/judgment-resolution.js
+    - mcp/brainbase/src/tools/judgment-resolution-tools.ts
+    - mcp/brainbase/src/tools/judgment-host-contract.ts
+    - .claude/skills/brainbase-judgment-resolver/SKILL.md
+  data:
+    - config/judgment-runtime-manifest.json
+    - config/judgment-runtime-manifest-lock.json
+    - Signed per-turn resolution receipts returned to the host; request bodies and receipts are not persisted by this capability.
+depends_on:
+  - auth.grants
+  - graph.ssot
+  - knowledge.resolve
+visibility_rules:
+  - Every Brainbase-managed turn calls the resolver once, but only the selected active DAG branches run; the full judgment library is never a mandatory linear checklist.
+  - Follow-up turns pass only the necessary signed conversation_context with source turn IDs; domain and signal routing may use that context while current-turn action and risk floors use the current request.
+  - Each active node is accompanied by a manifest-owned executable definition; node IDs alone are not the execution contract.
+  - The caller proposes classification while the server owns semantic reconciliation, action and risk floors, DAG selection, policy merge, and receipt provenance.
+  - Cumulative complexity selects a controller whose observation scope covers the cumulative problem and compares delete, consolidate, redesign, and retire before adding machinery.
+  - Parallel candidate generation remains separate from adoption control; the resolver does not impose unsupported numeric thresholds.
+  - Personal judgment policies are owner-only and are never exposed to another person or service identity.
+  - A managed receipt does not authorize write or external action; existing authorization, approval, and enforcement points remain independent.
+  - Missing tool, rejected binding, invalid receipt, or unavailable service is visibly unmanaged and blocks write or external action under the host contract.
+verification:
+  commands:
+    - npm run test:judgment-resolution
+    - npm --prefix mcp/brainbase run typecheck
+    - npm run typecheck
+    - cmp -s CLAUDE.md AGENTS.md
+  expected:
+    - General questions select only the direct path; engineering, organization, operations, cumulative complexity, authority, and other branches are selected only when supported by context.
+    - MCP and API agree on exact-body canonical request digests, expose a separate context digest and normalized-plan digest, and reject stale, mismatched, or unsigned host bindings.
+    - Knowledge requests return a required Knowledge Resolver handoff rather than claiming retrieval happened.
+    - Unmanaged host fixtures cannot proceed with write or external actions.
+common_failures:
+  - Treating the resolver as a fixed ten-step pipeline instead of a router over a reusable judgment DAG library.
+  - Sending only the current follow-up utterance and losing the conversation context that determines the branch.
+  - Returning active node IDs without the manifest instructions needed to execute them.
+  - Letting the model inject DAG IDs, policy IDs, provenance, or host-binding assurance.
+  - Treating internal tests, gates, or receipts as external outcome; the receipt does not authorize any action.
+  - Adding a local gate for a cumulative problem whose evidence spans multiple Stories or changes.
+runbooks:
+  - ../runbooks/judgment-resolve.md
+troubleshooting: []

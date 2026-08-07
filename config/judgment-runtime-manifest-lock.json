@@ -1,0 +1,9 @@
+{
+  "schema_version": "brainbase-judgment-manifest-lock-v1",
+  "entries": [
+    {
+      "runtime_version": "judgment-runtime-1.0.0",
+      "manifest_digest": "48a46e6020a65c550967a966753a5e44e9f7fc9ffad128ce9fe8ae884bf6e754"
+    }
+  ]
+}

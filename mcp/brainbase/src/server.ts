@@ -41,6 +41,8 @@ import {
 import { taskTools, handleTaskToolCall } from './tools/task-tools.js';
 import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-tools.js';
 import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './tools/knowledge-resolution-tools.js';
+import { judgmentResolutionTools, handleJudgmentResolutionToolCall } from './tools/judgment-resolution-tools.js';
+import { normalizeJudgmentHostResult } from './tools/judgment-host-contract.js';
 import { dispatchFirst, type ToolHandler } from './tools/tool-dispatcher.js';
 
 // Global index. Runtime lookups rebuild and atomically swap this snapshot.
@@ -65,6 +67,7 @@ let configuredProjectCodes: string[] | undefined;
 
 type OnboardingDispatchDependencies = Parameters<typeof handleOnboardingToolCall>[2];
 type KnowledgeResolutionDispatchDependencies = Parameters<typeof handleKnowledgeResolutionToolCall>[2];
+type JudgmentResolutionDispatchDependencies = Parameters<typeof handleJudgmentResolutionToolCall>[2];
 
 async function dispatchOnboardingToolCall(
   name: string,
@@ -88,6 +91,22 @@ async function dispatchKnowledgeResolutionToolCall(
     configuredProjectCodes,
     tokenManager: globalTokenManager,
   });
+}
+
+async function dispatchJudgmentResolutionToolCall(
+  name: string,
+  args: Record<string, unknown>,
+  dependencies?: JudgmentResolutionDispatchDependencies,
+) {
+  const result = await handleJudgmentResolutionToolCall(name, args, dependencies ?? {
+    apiUrl: brainbaseApiUrl,
+    configuredProjectCodes,
+    tokenManager: globalTokenManager,
+    bindingSecret: process.env.BRAINBASE_JUDGMENT_BINDING_SECRET || '',
+    adapterId: process.env.BRAINBASE_JUDGMENT_ADAPTER_ID || 'brainbase-mcp',
+    adapterVersion: process.env.BRAINBASE_JUDGMENT_ADAPTER_VERSION || '1',
+  });
+  return result === null ? null : normalizeJudgmentHostResult(result);
 }
 
 async function dispatchExtensionToolCall(
@@ -919,8 +938,9 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
 }
 
 export const __testing = {
-  tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...knowledgeResolutionTools, ...taskTools],
+  tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...taskTools],
   dispatchOnboardingToolCall,
+  dispatchJudgmentResolutionToolCall,
   dispatchKnowledgeResolutionToolCall,
   dispatchExtensionToolCall,
   setEntityIndex(index: EntityIndex): void {
@@ -1046,7 +1066,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...knowledgeResolutionTools, ...taskTools, ...meshTools] };
+    return { tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...taskTools, ...meshTools] };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -1061,6 +1081,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
           tokenManager: globalTokenManager,
         }),
         (toolName, extensionArgs) => dispatchOnboardingToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => dispatchJudgmentResolutionToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => dispatchKnowledgeResolutionToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleTaskToolCall(toolName, extensionArgs, {
           apiUrl: taskApiUrl,

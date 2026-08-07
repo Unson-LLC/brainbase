@@ -162,6 +162,16 @@ CHECK_SCRIPT='
       exit 78
       ;;
   esac
+  if [ -z "${BRAINBASE_JUDGMENT_BINDING_SECRET:-}" ]; then
+    echo "BRAINBASE_MCP_UNAVAILABLE: missing BRAINBASE_JUDGMENT_BINDING_SECRET in Infisical project ${INFISICAL_PROJECT} (env ${INFISICAL_ENV}, path ${BRAINBASE_MCP_INFISICAL_PATH})" >&2
+    exit 78
+  fi
+  if [ "${#BRAINBASE_JUDGMENT_BINDING_SECRET}" -lt 32 ]; then
+    echo "BRAINBASE_MCP_UNAVAILABLE: BRAINBASE_JUDGMENT_BINDING_SECRET must be at least 32 characters" >&2
+    exit 78
+  fi
+  export BRAINBASE_JUDGMENT_ADAPTER_ID="${BRAINBASE_JUDGMENT_ADAPTER_ID:-brainbase-mcp}"
+  export BRAINBASE_JUDGMENT_ADAPTER_VERSION="${BRAINBASE_JUDGMENT_ADAPTER_VERSION:-1}"
   task_api_base="${BRAINBASE_API_URL:-${BRAINBASE_GRAPH_API_URL}}"
   task_api_status="$(curl -sS -o /dev/null -w "%{http_code}" \
     -H "Authorization: Bearer ${BRAINBASE_TASK_API_TOKEN}" \
