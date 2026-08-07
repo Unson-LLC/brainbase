@@ -40,15 +40,21 @@ describe('judgment resolver publication surfaces', () => {
 
     it('binding secretをenv・MCP preflight・運用手順へ公開する', () => {
         const envExample = read('.env.example');
+        const infisicalTargets = JSON.parse(read('config/infisical-targets.json'));
         const launcher = read('scripts/run-brainbase-mcp.sh');
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
 
         expect(envExample).toContain('BRAINBASE_JUDGMENT_BINDING_SECRET');
         expect(envExample).toContain('BRAINBASE_JUDGMENT_ADAPTER_ID=brainbase-mcp');
+        expect(infisicalTargets.targets['brainbase-mcp'].requiredKeys).toContain(
+            'BRAINBASE_JUDGMENT_BINDING_SECRET',
+        );
         expect(launcher).toContain('missing BRAINBASE_JUDGMENT_BINDING_SECRET');
         expect(launcher).toContain('BRAINBASE_JUDGMENT_BINDING_SECRET must be at least 32 characters');
         expect(launcher).toContain('preflight-judgment-binding.js');
         expect(runbook).toContain('Binding secret provisioning and rotation');
+        expect(runbook).toContain('Initial release order');
+        expect(runbook).toContain('Rollback');
         expect(runbook).toContain('scripts/run-brainbase-mcp.sh --check');
         expect(runbook).toContain('signed read-only probe');
     });

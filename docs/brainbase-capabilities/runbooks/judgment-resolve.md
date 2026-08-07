@@ -43,3 +43,19 @@ When changing the manifest, increment `runtime_version` and append the new versi
 - `scripts/run-brainbase-mcp.sh --check` must pass before declaring the MCP managed. It fails closed when the binding secret is missing, then sends a signed read-only probe to `/api/judgment/resolve` and accepts only a request-bound `managed` receipt. This detects API/MCP secret mismatch before the first user turn.
 - The launcher resolves one API URL in the order `BRAINBASE_GRAPH_API_URL`, `BRAINBASE_API_URL`, then `BRAINBASE_API_BASE_URL`, exports it as `BRAINBASE_RESOLVED_API_URL`, and uses that exact value for the task preflight, Judgment preflight, and production MCP dispatcher. Do not configure different endpoints for those paths.
 - Rotate by deploying a manifest/version that accepts the intended adapter, replacing the API and MCP secret in one controlled window, restarting both runtimes, and verifying a signed receipt. During mismatch, report `unmanaged` and block write/external action.
+
+### Initial release order
+
+1. Generate one high-entropy secret of at least 32 characters without printing it to logs. Provision that exact value to both the Brainbase API runtime and the `brainbase-mcp` Infisical target before changing either runtime.
+2. Run the Infisical target readiness check and confirm that `BRAINBASE_JUDGMENT_BINDING_SECRET` is present alongside `BRAINBASE_API_URL` and `BRAINBASE_TASK_API_TOKEN`. Check key presence only; never read the value into an artifact.
+3. Deploy the API at the intended commit SHA. Confirm the deployed SHA and that authenticated requests can reach `/api/judgment/resolve`; an unsigned request must still be rejected.
+4. From the same commit SHA intended for the MCP runtime, run `scripts/run-brainbase-mcp.sh --check`. Continue only when both the task API preflight and the signed Judgment binding preflight succeed against the deployed API.
+5. Update and restart the MCP runtime, then verify the reconcile receipt and running MCP SHA match the intended commit. Do not declare the host managed from deployment success alone; retain the successful signed preflight evidence.
+
+### Rollback
+
+1. Stop the rollout before restarting additional MCP processes if the API deployment, signed preflight, reconcile receipt, or runtime SHA check fails.
+2. Restore the last known-good API and MCP commit SHAs as a pair. Do not roll back only one side while leaving an incompatible adapter or manifest active.
+3. Restore the previous shared binding secret to both runtimes if the failed release rotated it. Never retain a different secret on one side.
+4. Run `scripts/run-brainbase-mcp.sh --check` against the restored API before restarting MCP. Then reconcile the MCP runtime and confirm both the reconcile receipt and running SHA report the restored commit.
+5. Until the restored signed preflight succeeds, report the Judgment path as unmanaged and keep write/external actions stopped.
