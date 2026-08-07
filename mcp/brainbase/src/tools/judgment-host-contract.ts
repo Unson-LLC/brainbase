@@ -49,8 +49,8 @@ export function canProceedWithAction(
   result: JudgmentManagementResult,
   actionKind: 'none' | 'read' | 'write' | 'external',
 ): boolean {
-  if (actionKind === 'write' || actionKind === 'external') return false;
-  return result.management_status === 'managed';
+  return result.management_status === 'managed'
+    && (actionKind === 'none' || actionKind === 'read');
 }
 
 export async function runManagedJudgmentTurn<T>({
@@ -80,13 +80,23 @@ export async function runManagedJudgmentTurn<T>({
       output: null,
     };
   }
+  if (!['none', 'read', 'write', 'external'].includes(actionKind)) {
+    return {
+      management_status: 'managed',
+      execution_status: 'stopped',
+      reason: 'judgment_action_kind_invalid',
+      warning: `Judgment turn has an unsupported action kind (${String(actionKind)}); do not continue the turn.`,
+      receipt,
+      output: null,
+    };
+  }
   if (receipt.status !== 'resolved') {
     const reason = `judgment_${String(receipt.status || 'unresolved')}`;
     return {
-      management_status: 'unmanaged',
+      management_status: 'managed',
       execution_status: 'stopped',
       reason,
-      warning: `Judgment Resolver is unresolved (${reason}); do not continue the turn.`,
+      warning: `Judgment Resolver stopped this managed turn (${reason}); clarification or policy resolution is required.`,
       receipt,
       output: null,
     };

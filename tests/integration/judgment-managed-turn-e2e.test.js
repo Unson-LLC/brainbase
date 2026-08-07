@@ -120,5 +120,65 @@ describe('managed judgment turn end to end', () => {
         for (const plan of consumedPlans) {
             expect(plan.activeNodeDefinitions.map((node) => node.id)).toEqual(plan.receipt.active_nodes);
         }
+
+        const writeInput = {
+            request: '認証APIの設計を承認後に変更して',
+            turn_id: 'host-turn-e2e-write',
+            project_code: 'brainbase',
+            classification_proposal: {
+                intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'high',
+                confidence: 'confirmed', signals: ['authority_boundary']
+            }
+        };
+        const externalInput = {
+            ...writeInput,
+            request: '認証APIの設計を承認後に公開して',
+            turn_id: 'host-turn-e2e-external',
+            classification_proposal: {
+                ...writeInput.classification_proposal,
+                action_kind: 'external'
+            }
+        };
+        const runAction = (input, actionKind, authorizeAction) => runManagedJudgmentTurn({
+            resolve: () => mcpServer.dispatchJudgmentResolutionToolCall(
+                'brainbase_judgment_resolve', input, dependencies
+            ),
+            actionKind,
+            authorizeAction,
+            continueTurn: () => 'write-executed'
+        });
+
+        const writeManagement = await mcpServer.dispatchJudgmentResolutionToolCall(
+            'brainbase_judgment_resolve', writeInput, dependencies
+        );
+        expect(writeManagement, JSON.stringify(writeManagement)).toMatchObject({ management_status: 'managed' });
+
+        const withoutAuthorization = await runAction(writeInput, 'write', undefined);
+        expect(withoutAuthorization.management_status).toBe('managed');
+        expect(withoutAuthorization.execution_status).toBe('stopped');
+        expect(withoutAuthorization.reason).toBe('judgment_receipt_is_not_action_authorization');
+
+        let rejectedContinuationCalls = 0;
+        const rejectedAuthorization = await runManagedJudgmentTurn({
+            resolve: () => mcpServer.dispatchJudgmentResolutionToolCall(
+                'brainbase_judgment_resolve', externalInput, dependencies
+            ),
+            actionKind: 'external',
+            authorizeAction: () => false,
+            continueTurn: () => { rejectedContinuationCalls += 1; return 'must-not-run'; }
+        });
+        expect(rejectedAuthorization.execution_status).toBe('stopped');
+        expect(rejectedContinuationCalls).toBe(0);
+
+        let authorizedKinds = [];
+        const withAuthorization = await runAction(writeInput, 'write', ({ actionKind, receipt, activeNodeDefinitions }) => {
+            authorizedKinds.push(actionKind);
+            expect(receipt.host_binding.status).toBe('managed');
+            expect(activeNodeDefinitions.map((node) => node.id)).toEqual(receipt.active_nodes);
+            return true;
+        });
+        expect(withAuthorization.execution_status).toBe('continued');
+        expect(withAuthorization.output).toBe('write-executed');
+        expect(authorizedKinds).toEqual(['write']);
     });
 });

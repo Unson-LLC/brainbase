@@ -197,6 +197,28 @@ describe('judgment resolution MCP tool', () => {
     assert.ok((unmanaged?.warning ?? '').length > 0);
   });
 
+  for (const [status, overrides] of [
+    ['needs_classification', {
+      status: 'needs_classification', classification: null, classification_assurance: 'unknown',
+      unresolved: ['classification'], rationale: ['clarify'],
+    }],
+    ['needs_policy_resolution', {
+      status: 'needs_policy_resolution', unresolved: ['policy_conflict'], rationale: ['resolve policy conflict'],
+    }],
+  ] as const) {
+    it(`${status} receiptをMCPシリアライズ後もmanagedとして表示する`, async () => {
+      const result = await serverTesting.dispatchJudgmentResolutionToolCall('brainbase_judgment_resolve', args, {
+        apiUrl: 'http://brainbase.test', configuredProjectCodes: ['brainbase'], bindingSecret: 'secret',
+        adapterId: 'brainbase-mcp', adapterVersion: '1', now: () => new Date('2026-08-07T00:00:00.000Z'),
+        tokenManager: { getToken: async () => jwt({ projectCodes: ['brainbase'] }) },
+        fetch: async () => new Response(JSON.stringify(receipt(overrides)), { status: 200 }),
+      });
+      const serialized = JSON.parse(JSON.stringify(result));
+      assert.equal(serialized.management_status, 'managed');
+      assert.equal(serialized.receipt.status, status);
+    });
+  }
+
   it('GRAPH_API_URL-only構成でpreflightと同じURLを本番dispatcherが使う', async () => {
     const originalEnv = { ...process.env };
     try {
@@ -319,8 +341,26 @@ describe('judgment host contract', () => {
       assert.equal(result.output, null);
       assert.equal(continueCalls, 0);
       assert.ok(result.warning.length > 0);
+      if (label === 'unresolved receipt') assert.equal(result.management_status, 'managed');
     });
   }
+
+  it('列挙外action kindを独立認可や後続処理へ渡さずfail-closedにする', async () => {
+    const management = normalizeJudgmentHostResult({ status: 'ok', scope: { project_codes: ['brainbase'] }, data: receipt() });
+    let authorizationCalls = 0;
+    let continueCalls = 0;
+    const result = await runManagedJudgmentTurn({
+      resolve: async () => management,
+      actionKind: 'delete' as unknown as 'read',
+      authorizeAction: () => { authorizationCalls += 1; return true; },
+      continueTurn: () => { continueCalls += 1; return 'must-not-run'; },
+    });
+    assert.equal(result.management_status, 'managed');
+    assert.equal(result.execution_status, 'stopped');
+    assert.equal(result.reason, 'judgment_action_kind_invalid');
+    assert.equal(authorizationCalls, 0);
+    assert.equal(continueCalls, 0);
+  });
 
   it('resolved receiptでもwrite・externalは別のaction authorizationなしに実行しない', async () => {
     const management = normalizeJudgmentHostResult({ status: 'ok', scope: { project_codes: ['brainbase'] }, data: receipt() });

@@ -228,7 +228,7 @@ MCP toolは`brainbase_judgment_resolve`。HTTP APIと同じ公開input schemaを
 - `CLAUDE.md`と`AGENTS.md`へ、Brainbase管理対象turnは回答前にJudgment Resolverを呼ぶthin ruleを同一内容で追加する。
 - `.claude/skills/brainbase-judgment-resolver/SKILL.md`はcapability YAML、MCP call、receipt active DAG、Knowledge handoff、unmanaged時停止だけを案内する。
 - `docs/brainbase-capabilities/capabilities/judgment.resolve.yml`、runbook、README indexへsurface、visibility、failure semantics、receiptがaction evidenceではないことを記録する。
-- host contractの共通resultは`{management_status: managed|unmanaged, reason, warning, receipt}`とし、unavailable tool、missing receipt、403 binding rejectionでは`management_status=unmanaged`、`receipt=null`、非空warningを返す。`canProceedWithAction`はJudgment receipt単体による`write|external`を必ずfalseにする。共通turn runnerは、Judgmentとは独立したaction authorizationが明示的に成功した場合に限り、managedな`write|external`を継続できる。
+- host contractの共通resultは`{management_status: managed|unmanaged, reason, warning, receipt}`とし、unavailable tool、missing receipt、403 binding rejectionでは`management_status=unmanaged`、`receipt=null`、非空warningを返す。署名・再束縛済みの`needs_classification|needs_policy_resolution` receiptは`management_status=managed`を維持し、共通turn runnerが`execution_status=stopped`、非空warningで後続処理を止める。`canProceedWithAction`は`none|read`だけをread-only候補とし、列挙外action kindおよびJudgment receipt単体による`write|external`を必ずfalseにする。共通turn runnerは、Judgmentとは独立したaction authorizationが明示的に成功した場合に限り、managedな`write|external`を継続できる。
 
 ## 12. Tests
 
@@ -256,6 +256,8 @@ MCP toolは`brainbase_judgment_resolve`。HTTP APIと同じ公開input schemaを
 - MCP schema、正常receipt、auth/scope/network/4xx/5xx/invalid receipt、dispatcher fallback。
 - CLAUDE/AGENTS byte-identical、always-loaded rule、Skill/capability/runbook/index参照。
 - unavailable tool、missing receipt、403 binding rejectionの各host fixtureでvisible unmanaged warningとwrite/external非実行をassertする。
+- `needs_classification|needs_policy_resolution`をMCP出力へシリアライズしてもmanaged表示を維持し、turn runnerがstoppedにすることをassertする。
+- 列挙外action kindがaction authorizationにも後続処理にも到達しないことと、production dispatcher由来receiptでwrite/externalの未認可停止・明示拒否・独立認可成功をassertする。
 
 ### Regression
 

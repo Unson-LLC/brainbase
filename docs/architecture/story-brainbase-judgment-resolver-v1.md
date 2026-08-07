@@ -36,7 +36,7 @@ Brainbase serverはCodex app、Claude Code、その他hostが生成する任意�
 - **host-contract enforcement**: `CLAUDE.md`とbyte-identicalな`AGENTS.md`のalways-loaded instruction、およびthin Skillが通常turnの回答前に`brainbase_judgment_resolve`を一度呼ぶ。contract testはinstructionとSkillの存在・一致を確認する。exactly-onceはhost契約であり、stateless serverが未呼び出しを検知したという主張はしない。
 - **trusted binding transport**: MCP adapterは、現在の問いと任意の`conversation_context`を含むpublic bodyを配列順まで保存してcanonical化する。そのexact request digestと`adapter_id`, `adapter_version`, `turn_id`, UTC millisecond RFC 3339の`issued_at`を、domain tagを含むcanonical JSON arrayへencodeし、`BRAINBASE_JUDGMENT_BINDING_SECRET`でHMAC-SHA256署名して専用HTTP headerへ送る。serverはmanifest登録、body digest一致、malformed/future/expired時刻、constant-time署名比較を検証する。MCPとserverはnested/Unicodeを含む同じgolden vectorを持つ。anti-replay max ageとfuture skewはsecurity transport設定であり、判断selectorの数値閾値ではない。
 - **server enforcement**: APIはhost署名、認証、project scope、personal owner visibility、input reconciliation、manifest integrityを必ず強制する。receiptはaction authorizationではなく、既存toolのauth/approvalを置換しない。host runnerはwrite/external時に独立したaction authorizationを要求し、その成功後だけ実行へ進む。
-- **coverage truth**: 検証済みcontextのreceiptだけが`host_binding.status=managed`と`enforcement_level=host_contract`を返す。bindingを読み込まないhost、未登録/mismatch/stale署名、tool不達、receipt未取得は共通host resultの`management_status=unmanaged`、`receipt=null`、非空warningとなり、Brainbase管理済みと表示できない。host contract helperはその場合write/externalをfalseにし、failureを報告する。tool unavailable、missing receipt、403 binding rejectionをbehavioral fixtureで固定する。
+- **coverage truth**: 検証済みcontextのreceiptだけが`host_binding.status=managed`と`enforcement_level=host_contract`を返す。bindingを読み込まないhost、未登録/mismatch/stale署名、tool不達、receipt未取得は共通host resultの`management_status=unmanaged`、`receipt=null`、非空warningとなり、Brainbase管理済みと表示できない。検証済みの`needs_classification|needs_policy_resolution` receiptは`managed`のまま`execution_status=stopped`とし、未導入hostと分類を混同しない。host contract helperは列挙外action kindを含む未認可actionを停止し、failureを報告する。tool unavailable、missing receipt、403 binding rejectionをbehavioral fixtureで固定する。
 
 この境界により「判断」と「強制」を混同しない。全action toolへのreceipt gateは別Storyであり、v1は未実装のserver enforcementを主張しない。
 
@@ -128,5 +128,5 @@ policyは`visibility: owner|organization`と任意の`owner_person_id`を持つ�
 - service unit testsでreconciliation、全domain/signal route、policy access/conflict、決定性、非循環性、manifest pairを確認する。
 - API integration testsでhost署名の未登録/mismatch/malformed/future/stale/request不一致、strict auth、project scope、personal owner、400/403/500変換を確認する。
 - MCP testsでschema、cross-runtime署名golden vector、認証、scope、upstream error、receipt、dispatcher順序を確認する。
-- host contract testsでCLAUDE/AGENTS一致、always-loaded entry rule、Skill/capability/runbook参照と、tool unavailable・missing receipt・binding 403時のunmanaged/write-external停止を確認する。
+- host contract testsでCLAUDE/AGENTS一致、always-loaded entry rule、Skill/capability/runbook参照と、tool unavailable・missing receipt・binding 403時のunmanaged、分類待ち・policy競合時のmanaged/stopped、列挙外action kind、独立認可なしのwrite/external停止を確認する。
 - Knowledge Resolver regression、server関連tests、MCP全tests、typecheckを確認する。
