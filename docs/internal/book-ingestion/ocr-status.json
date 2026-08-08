@@ -98,6 +98,33 @@
       "source_pages": 342,
       "characters": 289767,
       "sha256": "392fee7272d1cf55835e1c12b386d1ffab6e03c364d1183de9d1b679efd2ebab"
+    },
+    {
+      "index": 14,
+      "title": "マーケティング手法大全",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 279,
+      "source_pages": 279,
+      "characters": 210707,
+      "sha256": "3433fddb16073278c22632b03277de3b813e1aaf72f05d50613ad9024baff58c"
+    },
+    {
+      "index": 15,
+      "title": "実践 顧客起点マーケティング",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 255,
+      "source_pages": 255,
+      "characters": 239434,
+      "sha256": "15cf41be5ba7c6a1c4693ad3ac8fea9f06b1c959d0ef553b827b67fedcb93dab"
+    },
+    {
+      "index": 16,
+      "title": "危険だからこそ知っておくべきカルトマーケティング",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 141,
+      "source_pages": 141,
+      "characters": 121957,
+      "sha256": "ff0c26a0f82dd2f8b621d3c1f44ef306da054775fd0fdd332504ae013c24dd68"
     }
   ]
 }

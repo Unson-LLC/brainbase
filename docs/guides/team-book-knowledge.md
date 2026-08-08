@@ -14,7 +14,7 @@ Google Driveでチームが参照できる購入済み書籍を、Brainbaseの�
 - 対象: 38冊（[`manifest.yml`](../internal/book-ingestion/manifest.yml)）
 - Drive解決結果: 38/38件（[`resolved.json`](../internal/book-ingestion/resolved.json)）
 - PDF抽出監査: [`extraction-report.json`](../internal/book-ingestion/extraction-report.json)
-- OCR完了証跡: 11冊2,109ページ（[`ocr-status.json`](../internal/book-ingestion/ocr-status.json)）。残りは未完了として扱う
+- OCR完了証跡: 14冊2,784ページ（[`ocr-status.json`](../internal/book-ingestion/ocr-status.json)）。残りは未完了として扱う
 - Drive読み取りアカウント: `info@unson.jp`
 - 原本所有者: `k.sato.unson@gmail.com`
 
@@ -37,10 +37,13 @@ Google Driveでチームが参照できる購入済み書籍を、Brainbaseの�
 | ブランディング22の法則 | [`branding-22-laws.md`](./branding-22-laws.md) | 第4バッチ・OCR出典確認済み・既存Skillへ接続 |
 | ポチらせる文章術 | [`pochiruseru-writing.md`](./pochiruseru-writing.md) | 第4バッチ・OCR出典確認済み・既存Skillへ接続 |
 | MBAマーケティング必読書50冊 | [`mba-marketing-50-books.md`](./mba-marketing-50-books.md) | 第4バッチ・OCR出典確認済み |
+| マーケティング手法大全 | [`marketing-methods-encyclopedia.md`](./marketing-methods-encyclopedia.md) | 第5バッチ・OCR出典確認済み |
+| 実践 顧客起点マーケティング | [`customer-driven-marketing.md`](./customer-driven-marketing.md) | 第5バッチ・OCR出典確認済み |
+| 危険だからこそ知っておくべきカルトマーケティング | [`cult-marketing-safety.md`](./cult-marketing-safety.md) | 第5バッチ・OCR出典確認済み・既存Skillへ接続 |
 
 横断的な使い分けは[`systemization-selection-guide.md`](./systemization-selection-guide.md)を参照する。
 
-既存の`.claude/skills`には、`WORK THE SYSTEM`、`TRACTION`、`ブランディング22の法則`、`ポチらせる文章術`、`危険だからこそ知っておくべきカルトマーケティング`、`THE MODEL`、`なぜあの商品、サービスは売れたのか？`に近い実務ナレッジがある。前4冊は今回のOCRと主要概念を照合し、Drive原本への来歴を本台帳で接続済み。残る3冊は、今回のPDFから生成されたことを示す来歴がないため同一出典と断定せず、OCR結果との照合後に台帳へ関連付ける。
+既存の`.claude/skills`には、`WORK THE SYSTEM`、`TRACTION`、`ブランディング22の法則`、`ポチらせる文章術`、`危険だからこそ知っておくべきカルトマーケティング`、`THE MODEL`、`なぜあの商品、サービスは売れたのか？`に近い実務ナレッジがある。前5冊は今回のOCRと主要概念を照合し、Drive原本への来歴を本台帳で接続済み。残る2冊は、今回のPDFから生成されたことを示す来歴がないため同一出典と断定せず、OCR結果との照合後に台帳へ関連付ける。
 
 ## 取り込みフロー
 
