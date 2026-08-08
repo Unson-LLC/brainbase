@@ -19,16 +19,20 @@ The proposal is untrusted routing input. Do not provide DAG IDs, policy IDs, act
 
 Treat a verb mention and an action request separately. For example, `人間が全件マージできる` is an authority/enforcement constraint, not a merge request; `マージして` is a write request. Likewise, `PR採用` is engineering adoption, while explicit human-hiring phrases belong to the organization domain.
 
+Treat a historical reference and a retrieval request separately. `Story履歴を踏まえて判断する` stays in the active engineering judgment unless the turn also asks to search, look up, or retrieve knowledge; bare words such as `履歴` or `事実上` do not select the knowledge branch.
+
 ## Execute the resolved subgraph
 
 1. Call `brainbase_judgment_resolve`.
 2. Verify `management_status=managed` and retain the receipt with the current turn.
-3. Confirm `context_digest` matches whether conversation context was supplied, then follow only `active_nodes` and `active_edges` using the one-to-one `active_node_definitions[].instruction`; do not execute node IDs from an independent prompt library.
+3. Confirm `context_digest` matches whether conversation context was supplied, then follow only `active_nodes` and `active_edges` using the one-to-one `active_node_definitions[].instruction`; all incoming edges are conjunctive dependencies, and node IDs must not be reinterpreted through an independent prompt library.
 4. If `required_capabilities` contains `knowledge.resolve`, call `brainbase_knowledge_resolve` and keep its separate retrieval-routing receipt.
 5. If status is `needs_classification` or `needs_policy_resolution`, resolve the listed `unresolved` items before proceeding.
 6. Perform any independent authorization, approval, and enforcement checks required by the eventual action.
 
-For `cumulative_effect` or `complexity_growth`, execute `controller-scope` before proposing another Story: read recent Story history, cumulative complexity, and external outcomes, then route the next work to normal development or simplification. Do not introduce a PR fan-in subsystem merely to implement this routing, and do not serialize candidate generation.
+For `cumulative_effect` or `complexity_growth`, execute `controller-scope` before proposing another Story: read recent Story history, cumulative complexity, and external outcomes, then select normal development or simplification once. Keep candidate generation parallel inside the selected mode; adoption must not choose the mode again. Use existing Story/PR/merge checks to verify the selected mode and prevent manual all-PR merge bypass. The common merge node is only a receipt join, so do not introduce a PR fan-in subsystem.
+
+For `threshold_proposal`, missing evidence or measurability remains unresolved. Never replace an unsupported threshold with another number, ratio, count, duration, budget, or inequality.
 
 ## Failure semantics
 
@@ -39,6 +43,16 @@ For `cumulative_effect` or `complexity_growth`, execute `controller-scope` befor
 ## Runtime changes
 
 When changing the manifest, increment `runtime_version` and append the new version/digest pair to `config/judgment-runtime-manifest-lock.json`. Never rewrite or remove an earlier lock entry. Run the cross-runtime digest and host-binding tests before publication.
+
+## Codex global turn entry
+
+Codex is the primary host. Register `scripts/codex-hooks/judgment-resolver-entry.sh` in the user-level `~/.codex/hooks.json` `UserPromptSubmit` list so every Codex turn receives the mandatory resolver contract, regardless of the current repository. Preserve existing user hooks. The command must use the canonical deployed path:
+
+```text
+bash /Users/ksato/workspace/code/brainbase/scripts/codex-hooks/judgment-resolver-entry.sh
+```
+
+The hook injects the Codex-owned `turn_id`, `session_id`, and `cwd`; the model still proposes the semantic classification and the server reconciles it. This does not run every judgment stage: the returned receipt selects only the context-relevant active DAG. A hook instruction is host-contract enforcement, not proof that the stateless server observed an omitted call; missing tool or receipt remains visibly `unmanaged` and blocks write/external action.
 
 ## Binding secret provisioning and rotation
 

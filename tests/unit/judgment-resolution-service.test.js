@@ -73,7 +73,32 @@ function expectedGraph(dagIds, manifest = MANIFEST) {
     }
     activeNodes.push('merge', 'receipt');
     addEdge('merge', 'receipt');
-    return { activeNodes, activeEdges };
+    const activeNodeSet = new Set(activeNodes);
+    for (const [from, to] of manifest.composition_edges) {
+        if (activeNodeSet.has(from) && activeNodeSet.has(to)) addEdge(from, to);
+    }
+
+    const originalOrder = new Map(activeNodes.map((node, index) => [node, index]));
+    const indegree = new Map(activeNodes.map((node) => [node, 0]));
+    const outgoing = new Map(activeNodes.map((node) => [node, []]));
+    for (const [from, to] of activeEdges) {
+        indegree.set(to, indegree.get(to) + 1);
+        outgoing.get(from).push(to);
+    }
+    const queue = activeNodes.filter((node) => indegree.get(node) === 0);
+    const orderedNodes = [];
+    while (queue.length > 0) {
+        const node = queue.shift();
+        orderedNodes.push(node);
+        for (const target of outgoing.get(node)) {
+            indegree.set(target, indegree.get(target) - 1);
+            if (indegree.get(target) === 0) {
+                queue.push(target);
+                queue.sort((left, right) => originalOrder.get(left) - originalOrder.get(right));
+            }
+        }
+    }
+    return { activeNodes: orderedNodes, activeEdges };
 }
 
 function expectExactResolvedPlan(receipt, { dagIds, policyIds = [], capabilities = [] }) {
@@ -304,9 +329,82 @@ describe('JudgmentResolutionService', () => {
             'external-outcome.v1'
         ]);
         expect(receipt.selected_dag_ids).not.toContain('organization.v1');
-        expect(receipt.active_node_definitions.find((node) => node.id === 'controller-scope')?.instruction).toBe(
-            'Before Story creation, use one top-level development-mode controller to read recent Story history, cumulative complexity, and external outcomes across the affected scope, then route the next work to normal development or simplification.'
-        );
+        expect(receipt.active_edges).toEqual(expect.arrayContaining([
+            ['constraints', 'controller-scope'],
+            ['false-decision-cost', 'controller-scope'],
+            ['downstream-outcome', 'controller-scope'],
+            ['controller-scope', 'generate'],
+            ['controller-scope', 'separate-generation-adoption'],
+            ['controller-scope', 'enforcement-point'],
+            ['decide', 'external-outcome-check']
+        ]));
+
+        const nodeIndex = new Map(receipt.active_nodes.map((node, index) => [node, index]));
+        for (const [before, after] of [
+            ['constraints', 'controller-scope'],
+            ['false-decision-cost', 'controller-scope'],
+            ['downstream-outcome', 'controller-scope'],
+            ['controller-scope', 'generate'],
+            ['controller-scope', 'separate-generation-adoption'],
+            ['controller-scope', 'enforcement-point'],
+            ['decide', 'external-outcome-check']
+        ]) {
+            expect(nodeIndex.get(before)).toBeLessThan(nodeIndex.get(after));
+        }
+        expect(receipt.active_node_definitions.map((node) => node.id)).toEqual(receipt.active_nodes);
+
+        const definitions = new Map(receipt.active_node_definitions.map((node) => [node.id, node.instruction]));
+        expect(definitions.get('controller-scope')).toContain('NORMAL or SIMPLIFICATION');
+        expect(definitions.get('generate')).toContain('selected development mode');
+        expect(definitions.get('separate-generation-adoption')).toContain('inside the selected development mode');
+        expect(definitions.get('parallel-adoption-control')).toContain('must not re-decide the mode');
+        expect(definitions.get('enforcement-point')).toContain('manual all-PR merge');
+        expect(definitions.get('merge')).toContain('not Git or PR fan-in');
+        expect(definitions.get('threshold-source')).toContain('unresolved');
+        expect(definitions.get('measurability')).toContain('unresolved');
+        expect(definitions.get('false-decision-cost')).toContain('Never substitute');
+    });
+
+    it('累積signalがない通常engineeringに上位controllerの合成辺を混入しない', () => {
+        const receipt = service.resolve(input('API設計をレビューして', proposal({
+            intent: 'review', domains: ['engineering'], action_kind: 'read'
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.selected_dag_ids).toEqual(['engineering.v1']);
+        expect(receipt.active_nodes).not.toContain('controller-scope');
+        expect(receipt.active_edges).not.toContainEqual(['constraints', 'controller-scope']);
+        expect(receipt.active_edges).not.toContainEqual(['controller-scope', 'generate']);
+    });
+
+    it('短い追従質問はStory履歴という語だけでknowledgeへ誤配送せず直前のengineering判断を継続する', () => {
+        const context = 'VibeProのリファクタリングStory履歴では、根本原因である累積した複雑性と外部成果を確認し、根拠のない30日や3回という閾値を置かず、並列な候補生成を維持したい。';
+        const receipt = service.resolve(input('それが最もシンプルな仕組みとしての解決策？', proposal({
+            intent: 'design',
+            domains: ['engineering'],
+            action_kind: 'none',
+            risk: 'high',
+            signals: [
+                'cumulative_effect',
+                'complexity_growth',
+                'threshold_proposal',
+                'parallel_exploration',
+                'problem_frame_uncertain',
+                'external_outcome'
+            ]
+        }), {
+            conversation_context: {
+                text: context,
+                source_turn_ids: ['prior-vibepro-reflection']
+            }
+        }), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.reconciliation_reasons).toEqual([]);
+        expect(receipt.classification.domains).toEqual(['engineering']);
+        expect(receipt.selected_dag_ids).not.toContain('knowledge.v1');
+        expect(receipt.selected_dag_ids).toContain('cumulative-complexity.v1');
+        expect(receipt.selected_dag_ids).toContain('authority.v1');
     });
 
     it('PR採用は人材採用ではなくengineeringとして分類する', () => {
@@ -562,19 +660,18 @@ describe('judgment manifest validation', () => {
         ['DAG policy reference', (manifest) => { manifest.dags[0].policy_ids.push('missing.policy'); }, /missing policy/],
         ['DAG cycle', (manifest) => { manifest.dags[0].path.push(manifest.dags[0].path[0]); }, /contains a cycle/],
         ['selector reference', (manifest) => { manifest.selectors.domain_dags.engineering = 'missing.dag'; }, /missing DAG/],
-        ['matcher reference', (manifest) => { manifest.semantic_matchers.signals.unsupported = ['x']; }, /unsupported selector or matcher/]
+        ['matcher reference', (manifest) => { manifest.semantic_matchers.signals.unsupported = ['x']; }, /unsupported selector or matcher/],
+        ['composition edge reference', (manifest) => { manifest.composition_edges.push(['missing-node', 'generate']); }, /composition edge references/],
+        ['composition edge self reference', (manifest) => { manifest.composition_edges.push(['generate', 'generate']); }, /cannot reference itself/],
+        ['composition edge duplicate', (manifest) => { manifest.composition_edges.push([...manifest.composition_edges[0]]); }, /duplicate composition edge/]
     ])('%sの破損manifestを起動時に拒否する', (_label, mutate, expected) => {
         expect(() => serviceWithManifest(mutate)).toThrowError(expected);
     });
 
-    it('個別DAGはacyclicでも合成時に生じるcycleを拒否する', () => {
-        const custom = serviceWithManifest((manifest) => {
-            manifest.dags.find((dag) => dag.id === 'engineering.v1').path = ['goal', 'direct-answer'];
-            manifest.dags.find((dag) => dag.id === 'threshold.v1').path = ['direct-answer', 'goal'];
-        });
-        expect(() => custom.resolve(input('API設計の閾値を確認して', proposal({
-            intent: 'review', domains: ['engineering'], action_kind: 'read', signals: ['threshold_proposal']
-        })), { access: ACCESS, hostBinding: binding() })).toThrowError(/active judgment graph contains a cycle/);
+    it('個別DAGはacyclicでも選択可能な合成グラフに生じるcycleをservice生成時に拒否する', () => {
+        expect(() => serviceWithManifest((manifest) => {
+            manifest.composition_edges.push(['generate', 'constraints']);
+        })).toThrowError(/selectable judgment graph contains a cycle/);
     });
 });
 
