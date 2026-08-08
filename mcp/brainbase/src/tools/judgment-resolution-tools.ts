@@ -158,11 +158,13 @@ function isClassification(value: unknown): value is Record<string, unknown> {
 
 function normalizedProposal(args: Record<string, unknown>): Record<string, unknown> | null {
   const proposal = args.classification_proposal;
-  if (!isClassification(proposal)) return null;
+  if (!isRecord(proposal)) return null;
+  const proposalWithSignals: Record<string, unknown> = { ...proposal, signals: proposal.signals ?? [] };
+  if (!isClassification(proposalWithSignals)) return null;
   return {
-    ...proposal,
-    domains: ordered(proposal.domains as string[], DOMAINS),
-    signals: ordered(proposal.signals as string[], SIGNALS),
+    ...proposalWithSignals,
+    domains: ordered(proposalWithSignals.domains as string[], DOMAINS),
+    signals: ordered(proposalWithSignals.signals as string[], SIGNALS),
   };
 }
 
