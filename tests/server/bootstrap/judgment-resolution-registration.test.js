@@ -1,9 +1,10 @@
 import express from 'express';
 import request from 'supertest';
 import { createHmac } from 'node:crypto';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { registerJudgmentResolutionApiRoute } from '../../../server/bootstrap/register-api-routes.js';
+import { csrfMiddleware } from '../../../server/middleware/csrf.js';
 import { canonicalJson, computeRequestDigest } from '../../../server/services/judgment-resolution-service.js';
 
 const secret = 'registration-secret';
@@ -27,6 +28,7 @@ function createApp() {
     const resolve = vi.fn(() => ({ resolution_id: 'jr_registered', status: 'resolved' }));
     const app = express();
     app.use(express.json());
+    app.use(csrfMiddleware());
     registerJudgmentResolutionApiRoute(app, {
         authService: {
             verifyToken: vi.fn((token) => {
@@ -40,10 +42,36 @@ function createApp() {
 }
 
 describe('judgment resolution production API registration', () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+
+    beforeEach(() => {
+        process.env.NODE_ENV = 'production';
+    });
+
+    afterEach(() => {
+        process.env.NODE_ENV = originalNodeEnv;
+    });
+
     it('unauthenticated requestをresolver前で拒否する', async () => {
         const { app, resolve } = createApp();
-        await request(app).post('/api/judgment/resolve').set(headers()).send(payload).expect(401);
+        const response = await request(app).post('/api/judgment/resolve').set(headers()).send(payload).expect(403);
+        expect(response.body).toMatchObject({ message: 'CSRF token required' });
         expect(resolve).not.toHaveBeenCalled();
+    });
+
+    it('invalid BearerはCSRFを通過してもauth boundaryで拒否する', async () => {
+        const { app, resolve } = createApp();
+        await request(app).post('/api/judgment/resolve')
+            .set('authorization', 'Bearer invalid-token').set(headers()).send(payload).expect(401);
+        expect(resolve).not.toHaveBeenCalled();
+    });
+
+    it('Bearer exemptionを近接pathや別methodへ広げない', async () => {
+        const { app } = createApp();
+        await request(app).post('/api/judgment/resolve/other')
+            .set('authorization', 'Bearer test-token').send(payload).expect(403);
+        await request(app).put('/api/judgment/resolve')
+            .set('authorization', 'Bearer test-token').send(payload).expect(403);
     });
 
     it('strict authとbinding検証後だけresolverを呼ぶ', async () => {
