@@ -10,25 +10,29 @@ Provide the user's request and a host-generated classification proposal:
 - `project_code`: include when the turn belongs to a project
 - `conversation_context`: for a follow-up utterance, include only the prior text needed to resolve its meaning plus the exact `source_turn_ids`; omit it for self-contained turns
 - `intent`: answer, investigate, diagnose, design, implement, review, or operate
-- `domains`: the smallest plausible domain set
+- `domains`: the smallest server-matcher-supported domain set; conceptual similarity alone is not support
 - `action_kind` and `risk`: never understate the intended effect
-- `signals`: only context-supported cumulative, complexity, threshold, parallelism, authority, framing, or external-outcome signals
+- `signals`: only values whose runtime-manifest matcher occurs in the request or explicitly supplied conversation context
 - `knowledge_context`: required for a knowledge domain
 
 The proposal is untrusted routing input. Do not provide DAG IDs, policy IDs, active nodes, runtime version, host binding, or assurance.
 
 Treat a verb mention and an action request separately. For example, `人間が全件マージできる` is an authority/enforcement constraint, not a merge request; `マージして` is a write request. Likewise, `PR採用` is engineering adoption, while explicit human-hiring phrases belong to the organization domain.
 
+Treat a historical reference and a retrieval request separately. `Story履歴を踏まえて判断する` stays in the active engineering judgment unless the turn also asks to search, look up, or retrieve knowledge; bare words such as `履歴` or `事実上` do not select the knowledge branch.
+
 ## Execute the resolved subgraph
 
 1. Call `brainbase_judgment_resolve`.
 2. Verify `management_status=managed` and retain the receipt with the current turn.
-3. Confirm `context_digest` matches whether conversation context was supplied, then follow only `active_nodes` and `active_edges` using the one-to-one `active_node_definitions[].instruction`; do not execute node IDs from an independent prompt library.
+3. Confirm `context_digest` matches whether conversation context was supplied, then follow only `active_nodes` and `active_edges` using the one-to-one `active_node_definitions[].instruction`; all incoming edges are conjunctive dependencies, and node IDs must not be reinterpreted through an independent prompt library.
 4. If `required_capabilities` contains `knowledge.resolve`, call `brainbase_knowledge_resolve` and keep its separate retrieval-routing receipt.
 5. If status is `needs_classification` or `needs_policy_resolution`, resolve the listed `unresolved` items before proceeding.
 6. Perform any independent authorization, approval, and enforcement checks required by the eventual action.
 
-For `cumulative_effect` or `complexity_growth`, execute `controller-scope` before proposing another Story: read recent Story history, cumulative complexity, and external outcomes, then route the next work to normal development or simplification. Do not introduce a PR fan-in subsystem merely to implement this routing, and do not serialize candidate generation.
+For `cumulative_effect` or `complexity_growth`, execute `controller-scope` before proposing another Story: read recent Story history, cumulative complexity, and external outcomes, then select normal development or simplification once. Keep candidate generation parallel inside the selected mode; adoption must not choose the mode again. Use existing Story/PR/merge checks to verify the selected mode and prevent manual all-PR merge bypass. The common merge node is only a receipt join, so do not introduce a PR fan-in subsystem.
+
+For `threshold_proposal`, missing evidence or measurability remains unresolved. Never replace an unsupported threshold with another number, ratio, count, duration, budget, or inequality.
 
 ## Failure semantics
 
@@ -39,6 +43,16 @@ For `cumulative_effect` or `complexity_growth`, execute `controller-scope` befor
 ## Runtime changes
 
 When changing the manifest, increment `runtime_version` and append the new version/digest pair to `config/judgment-runtime-manifest-lock.json`. Never rewrite or remove an earlier lock entry. Run the cross-runtime digest and host-binding tests before publication.
+
+## Codex global turn entry
+
+Codex is the primary host. Register `scripts/codex-hooks/judgment-resolver-entry.sh` in the user-level `~/.codex/hooks.json` `UserPromptSubmit` list so every Codex turn receives the mandatory resolver contract, regardless of the current repository. Preserve existing user hooks. The command must use the canonical deployed path:
+
+```text
+bash /Users/ksato/workspace/code/brainbase/scripts/codex-hooks/judgment-resolver-entry.sh
+```
+
+The hook injects the Codex-owned `turn_id`; session and cwd are host context, not resolver arguments. The call must follow the MCP schema exactly: `classification_proposal` is one nested object, every classification value must be one of the schema's lowercase enum tokens, and numeric confidence, invented domain/signal values, `session_id`, `cwd`, and flat `proposed_*` fields are forbidden. The hook reads the deployed runtime manifest and injects its domain/signal matcher map, so the model proposes only classifications that have an explicit matcher in the current request or supplied conversation context; it must not broaden `personal_judgment` or `organization` from generic ideas such as judgment, preference, approval, or authority. The server still owns reconciliation and fails closed when the proposal lacks matcher support. Negated safety language is classified by requested effect, so “do not write or act externally” does not itself raise `action_kind` to `write` or `external`. This does not run every judgment stage: the returned receipt selects only the context-relevant active DAG. A hook instruction is host-contract enforcement, not proof that the stateless server observed an omitted call; missing tool or receipt remains visibly `unmanaged` and blocks write/external action.
 
 ## Binding secret provisioning and rotation
 
