@@ -14,7 +14,7 @@ Google Driveでチームが参照できる購入済み書籍を、Brainbaseの�
 - 対象: 38冊（[`manifest.yml`](../internal/book-ingestion/manifest.yml)）
 - Drive解決結果: 38/38件（[`resolved.json`](../internal/book-ingestion/resolved.json)）
 - PDF抽出監査: [`extraction-report.json`](../internal/book-ingestion/extraction-report.json)
-- OCR完了証跡: 14冊2,784ページ（[`ocr-status.json`](../internal/book-ingestion/ocr-status.json)）。残りは未完了として扱う
+- OCR完了証跡: 17冊3,675ページ・3,797,837文字（[`ocr-status.json`](../internal/book-ingestion/ocr-status.json)）。残る21冊は未完了として扱う
 - Drive読み取りアカウント: `info@unson.jp`
 - 原本所有者: `k.sato.unson@gmail.com`
 
@@ -40,10 +40,13 @@ Google Driveでチームが参照できる購入済み書籍を、Brainbaseの�
 | マーケティング手法大全 | [`marketing-methods-encyclopedia.md`](./marketing-methods-encyclopedia.md) | 第5バッチ・OCR出典確認済み |
 | 実践 顧客起点マーケティング | [`customer-driven-marketing.md`](./customer-driven-marketing.md) | 第5バッチ・OCR出典確認済み |
 | 危険だからこそ知っておくべきカルトマーケティング | [`cult-marketing-safety.md`](./cult-marketing-safety.md) | 第5バッチ・OCR出典確認済み・既存Skillへ接続 |
+| THE MODEL | [`the-model-revenue-process.md`](./the-model-revenue-process.md) | 第6バッチ・OCR出典確認済み・既存Skillへ接続 |
+| なぜあの商品、サービスは売れたのか？ | [`hit-product-case-patterns.md`](./hit-product-case-patterns.md) | 第6バッチ・OCR出典確認済み・既存Skillへ接続 |
+| 失敗から学ぶマーケティング | [`marketing-failure-patterns.md`](./marketing-failure-patterns.md) | 第6バッチ・OCR出典確認済み |
 
 横断的な使い分けは[`systemization-selection-guide.md`](./systemization-selection-guide.md)を参照する。
 
-既存の`.claude/skills`には、`WORK THE SYSTEM`、`TRACTION`、`ブランディング22の法則`、`ポチらせる文章術`、`危険だからこそ知っておくべきカルトマーケティング`、`THE MODEL`、`なぜあの商品、サービスは売れたのか？`に近い実務ナレッジがある。前5冊は今回のOCRと主要概念を照合し、Drive原本への来歴を本台帳で接続済み。残る2冊は、今回のPDFから生成されたことを示す来歴がないため同一出典と断定せず、OCR結果との照合後に台帳へ関連付ける。
+既存の`.claude/skills`には、`WORK THE SYSTEM`、`TRACTION`、`ブランディング22の法則`、`ポチらせる文章術`、`危険だからこそ知っておくべきカルトマーケティング`、`THE MODEL`、`なぜあの商品、サービスは売れたのか？`に近い実務ナレッジがある。7冊すべてについて今回のOCRと主要概念を照合し、Skill本文そのものの生成元とは断定せず、Drive原本へ遡れる派生ガイドとして本台帳に接続済み。
 
 ## 取り込みフロー
 

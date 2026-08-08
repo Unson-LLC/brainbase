@@ -125,6 +125,33 @@
       "source_pages": 141,
       "characters": 121957,
       "sha256": "ff0c26a0f82dd2f8b621d3c1f44ef306da054775fd0fdd332504ae013c24dd68"
+    },
+    {
+      "index": 17,
+      "title": "THE MODEL",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 244,
+      "source_pages": 244,
+      "characters": 258261,
+      "sha256": "910538b601e1a8bc5cab7c6fdca23bd69e993e170e6a97bb156f2ac87649efb4"
+    },
+    {
+      "index": 18,
+      "title": "なぜあの商品、サービスは売れたのか？",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 239,
+      "source_pages": 239,
+      "characters": 271893,
+      "sha256": "7ab29cbc78ac0548c07ac8fb6a560ccd0b4bc8047fd516c4a0a3552162c7a552"
+    },
+    {
+      "index": 19,
+      "title": "失敗から学ぶマーケティング",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 408,
+      "source_pages": 408,
+      "characters": 413430,
+      "sha256": "cb6d3aa99f8bee098e5272cc41f31982c6fe9fe369876b2d6690636eacace86e"
     }
   ]
 }
