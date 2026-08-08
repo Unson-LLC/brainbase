@@ -52,7 +52,7 @@ v1の保証対象は、repoのalways-loaded instruction/Skillを読み、回答�
 public classificationはproposalであり、確定値ではない。callerの`confidence`はserver保証水準を上げない。serverは次を所有する。
 
 - intent minimum effect: `implement`と`operate`は最低`write`、`investigate`と`diagnose`と`review`は最低`read`。
-- semantic context matcher: engineering、knowledge、personal judgment、organization、operationsと各signalのmanifest管理語彙を、`conversation_context.text`があればそれと現在requestを連結した文脈から検出する。例えば前turnの「認証設計をレビューして」に続く「それを実装して」は`engineering`を継続する。
+- semantic context matcher: engineering、knowledge、personal judgment、organization、operationsと各signalのmanifest管理語彙を、`conversation_context.text`があればそれと現在requestを連結した文脈から検出する。例えば前turnの「認証設計をレビューして」に続く「それを実装して」は`engineering`を継続する。knowledgeは`調べる`、`検索`、`資料を探す`のような取得意図で検出し、engineering判断内の`Story履歴`や`事実上`のような一般語だけでは選択しない。
 - safe-general matcher: 挨拶、明示的な文章説明・要約、定義確認など、manifestに列挙した低作用の一般依頼だけを肯定的に検出する。専門領域matcherが不一致だったという消極的理由だけでは`general`にしない。
 - current-request safety matcher: merge/delete/update/send/publish/purchaseの明示的な命令形と日本語同義語を現在requestだけから検出し、minimum action/risk/signalを追加する。可能性・制約・反例として作用語へ言及しただけではwrite floorを上げず、`intent=implement|operate`のfloorは別に維持する。会話文脈中の過去の作用語だけで現在turnのfloorを上げない。
 - risk order: `low < medium < high < critical`、action order: `none < read < write < external`。
@@ -64,7 +64,7 @@ proposalのaction/riskがfloorより弱い、confidenceがunknown、server検出
 
 ## 4. Runtime manifest
 
-manifestは`schema_version`, `runtime_version`, `host_bindings[]`, `policies[]`, `nodes[]`, `dags[]`, `selectors`, `semantic_matchers`を持つ。期待digestはmanifest内に持たない。
+manifestは`schema_version`, `runtime_version`, `host_bindings[]`, `policies[]`, `nodes[]`, `dags[]`, `composition_edges[]`, `selectors`, `semantic_matchers`を持つ。期待digestはmanifest内に持たない。`composition_edges`は、複数DAGが同時に選ばれた時だけ有効になるnode間の先行制約である。両endpointがactiveなedgeだけを投影し、単独DAGの経路を増やさない。
 
 policyは`id`, `version`, `priority`, `strength`, `scope: {type, id}`, `visibility`, `owner_person_id`, `evidence_requirement`, `effect: {decision, target}`, `instruction`を持つ。`strength`は`hard|soft`、`scope.type`は`global|organization|project|owner`、`effect.decision`は`require|forbid|prefer`。`hard`は`require|forbid`だけ、`soft`は`prefer`だけを許す。global scopeの`id`はnull、それ以外は空でないstringとする。nodeは`id`, `kind`, `instruction`, `required_capability_template`を持つ。DAGは`id`, `kind`, `path`, `policy_ids`を持つ。
 
@@ -74,7 +74,7 @@ canonical JSON algorithm `brainbase-canonical-json-v1`は、object keyをUnicode
 
 shared golden vectorはnested object、array、Unicode keyを含む`{"z":[3,{"あ":"値","a":true}],"a":null}`を両runtimeでcanonical化し、bytesが`{"a":null,"z":[3,{"a":true,"あ":"値"}]}`、SHA-256が`720c426a8d984447034a85227cf9eb25e3fed20b27af6c41c246c2be8edac67f`になることをassertする。manifestとlockにも固定fixtureと期待digestを持たせる。
 
-service生成時に重複ID、参照切れ、空path、selector/matcher参照切れ、cycle、runtime-version/digest pair不一致を拒否する。
+service生成時に重複ID、参照切れ、空path、selector/matcher参照切れ、不正・重複・自己参照のcomposition edge、cycle、runtime-version/digest pair不一致を拒否する。
 
 ## 5. Deterministic selection and policy merge
 
@@ -83,13 +83,13 @@ service生成時に重複ID、参照切れ、空path、selector/matcher参照切
 3. signalは固定mappingのconstraint DAGを選ぶ。
 4. reconciled riskがhigh/critical、actionがwrite/external、または`authority_boundary`ならauthority DAGを選ぶ。
 5. domainとsignalはcanonical orderへ正規化し、入力配列順に依存しない。
-6. common entryから選択DAGへ分岐し、terminalをmerge、最後をreceiptへ接続する。
+6. common entryから選択DAGへ分岐し、両endpointがactiveな`composition_edges`を先行制約として加え、terminalをmerge、最後をreceiptへ接続する。複数incoming edgeはOR分岐ではなくAND依存であり、全predecessor完了後にnodeを実行する。`active_nodes`はmanifest順をtie-breakにしたstable topological orderで返す。
 7. policy applicabilityは、globalは常に、organizationは`scope.id === req.access.tenantId`、projectは`scope.id`が`req.access.projectCodes`に含まれる時、ownerは`scope.id === req.access.personId`の時だけ成立する。認証contextに対応値がなければ適用しない。
 8. 適用policyは`hard before soft -> priority desc -> scope specificity desc(global=0, organization=1, project=2, owner=3) -> id asc`でsortする。
 9. 同じ`effect.target`への`require`と`forbid`がhard同士なら、高priority、同priorityでは高specificityを採用する。敗者は`applicable_policies`から除き、`suppressed_policies: [{policy_id, suppressed_by_policy_id, reason}]`へ`lower_priority|lower_specificity`の理由とともに移す。priorityとspecificityが同じ時だけHTTP 200の`needs_policy_resolution` receiptとしてfail-closedにする。
 10. 同じtargetにhard policyがある時はsoft `prefer`を`suppressed_policies`へ`hard_over_soft`として移す。hardがなければ複数のsoft `prefer`をcanonical orderで保持する。
 
-選択は根拠未検証の数値threshold、Story回数、変更件数を用いない。
+選択は根拠未検証の数値threshold、Story回数、変更件数を用いない。数値根拠または測定可能性が欠ける場合は、その欠落自体を`unresolved`として扱い、別の数値・比率・回数・期間・予算へ置換しない。
 
 ## 6. Decision path matrix
 
@@ -108,9 +108,9 @@ service生成時に重複ID、参照切れ、空path、selector/matcher参照切
 | `problem_frame_uncertain` | `problem-frame.v1` | problem definitionを独立に反証し、違反時はrederive | proposalへの局所patch |
 | `external_outcome` | `external-outcome.v1` | internal outputとuser/downstream outcomeを分離 | testsを顧客価値扱い |
 
-複数domain/signalは並列branchとして選択され、一つのmerge nodeへfan-inする。選ばれなかったDAGはactive graphへ含めない。active node IDはmanifestから投影された実行可能な定義を伴わなければならない。
+複数domain/signalは原則として並列branchだが、activeな`composition_edges`が指定する先行関係だけは直列化する。累積複雑性controllerが選ばれた場合、通常開発かsimplificationかをStory作成前に一度選択してから、そのmode内で候補を並列生成し、採用・強制点へ進む。選ばれなかったDAGと、そのendpointを欠くcomposition edgeはactive graphへ含めない。active node IDはmanifestから投影された実行可能な定義を伴わなければならない。
 
-ここでいうactive graphのmergeは判断branchの結果統合であり、生成済みPRを集約・採用する新しい開発基盤を意味しない。累積肥大化の解決では、候補生成後のPR採用制御では遅いため、`cumulative-complexity.v1`がStory作成前にdevelopment modeを選ぶ。並列候補生成は選択後の各mode内で維持し、判断receiptと実際のmerge enforcementは別境界とする。
+ここでいうactive graphのmergeは判断branchのreceipt統合であり、生成済みPRを集約・採用する新しい開発基盤やGit/PR fan-inを意味しない。採用側がdevelopment modeを再決定してはならず、既存のStory/PR/merge境界は、選択済みmodeとの一致を検証し、手動の全PRマージを含む迂回を防ぐ強制点として使う。判断receiptと実際のmerge enforcementは別境界とする。
 
 ## 7. Knowledge handoff
 

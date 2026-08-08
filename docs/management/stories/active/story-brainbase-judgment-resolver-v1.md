@@ -24,7 +24,7 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 
 ## 変更内容
 
-- REST/MCP共通のJudgment Resolverと、Codex/Claude向けの常時入口契約を追加する。
+- REST/MCP共通のJudgment Resolverと、Codex global `UserPromptSubmit` hookを主経路にした常時入口契約を追加する。
 - 各ターンの現在の問いと、hostが明示した会話文脈、認証主体、対象領域、行為、リスク、確度から、適用すべき判断基準と判断経路を決定的に解決する。
 - 呼び出し元の分類は提案として扱い、サーバー側の意味matcherで裏づけられないdomain/signalや、安全floorと矛盾する分類では実行経路へ進めない。
 - 単純な問いでは直接経路だけを選び、事実確認、個人判断、技術設計、累積的複雑性、高リスク行為では必要な経路だけを追加する。
@@ -37,7 +37,7 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 
 ## 受け入れ基準
 
-- [ ] repoに登録されたBrainbase host bindingは、通常回答・調査・設計・実行の前にJudgment Resolverを一度呼び、現在の問いと必要な会話文脈を署名対象のpublic bodyへ含め、署名検証済みreceiptへ当該turn IDとexact request digestを返して結び付ける。
+- [ ] Codexのglobal `UserPromptSubmit` hookは全turnへhook-owned turn ID付き入口契約を注入し、登録済みhost bindingは通常回答・調査・設計・実行の前にJudgment Resolverを一度呼ぶ。現在の問いと必要な会話文脈を署名対象のpublic bodyへ含め、署名検証済みreceiptへ当該turn IDとexact request digestを返して結び付ける。
 - [ ] 未登録adapter、version不一致、署名不正、request不一致、鮮度切れをserverが拒否し、caller自己申告だけで`managed`にならない。
 - [ ] binding未登録、Resolver不達、receipt未取得のターンは共通host resultで`unmanaged`、receiptなし、非空warningとして可視化され、Brainbase管理済みと主張せず、write/external actionへ進まない。
 - [ ] 解決結果は問いと会話文脈に必要な判断ノードだけを含み、無関係な全判断段階を一律には含まない。短い追従発話でも明示された会話文脈から同じ問題領域を継続できる。

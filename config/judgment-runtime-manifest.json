@@ -1,6 +1,6 @@
 {
   "schema_version": "brainbase-judgment-runtime-v1",
-  "runtime_version": "judgment-runtime-1.0.1",
+  "runtime_version": "judgment-runtime-1.0.3",
   "host_bindings": [
     { "adapter_id": "brainbase-mcp", "adapter_version": "1" }
   ],
@@ -117,7 +117,7 @@
     { "id": "prediction", "kind": "judgment", "instruction": "Derive observable consequences from the hypothesis.", "required_capability_template": null },
     { "id": "falsify", "kind": "judgment", "instruction": "Try the strongest counterexample.", "required_capability_template": null },
     { "id": "constraints", "kind": "judgment", "instruction": "Fix hard constraints and priorities.", "required_capability_template": null },
-    { "id": "generate", "kind": "judgment", "instruction": "Generate candidates inside the surviving space.", "required_capability_template": null },
+    { "id": "generate", "kind": "judgment", "instruction": "Generate candidates in parallel inside the surviving space and, when a development-mode controller is active, only inside the selected development mode.", "required_capability_template": null },
     { "id": "reject", "kind": "judgment", "instruction": "Reject candidates that violate hard constraints.", "required_capability_template": null },
     { "id": "decide", "kind": "judgment", "instruction": "Select and state remaining uncertainty.", "required_capability_template": null },
     { "id": "organization-actor", "kind": "judgment", "instruction": "Identify actors and decision owners.", "required_capability_template": null },
@@ -129,16 +129,16 @@
     { "id": "runbook", "kind": "judgment", "instruction": "Select the current runbook.", "required_capability_template": null },
     { "id": "reversibility", "kind": "judgment", "instruction": "Classify reversibility before intervention.", "required_capability_template": null },
     { "id": "evidence", "kind": "judgment", "instruction": "Define evidence for success and failure.", "required_capability_template": null },
-    { "id": "controller-scope", "kind": "constraint", "instruction": "Before Story creation, use one top-level development-mode controller to read recent Story history, cumulative complexity, and external outcomes across the affected scope, then route the next work to normal development or simplification.", "required_capability_template": null },
+    { "id": "controller-scope", "kind": "constraint", "instruction": "Before Story creation, use one top-level development-mode controller to read recent Story history, cumulative complexity, and external outcomes across the affected scope, then select NORMAL or SIMPLIFICATION once for the next work.", "required_capability_template": null },
     { "id": "subtract-first", "kind": "constraint", "instruction": "Compare delete, consolidate, redesign, and retire before add.", "required_capability_template": null },
     { "id": "external-outcome-check", "kind": "constraint", "instruction": "Measure downstream outcome after simplification.", "required_capability_template": null },
-    { "id": "threshold-source", "kind": "constraint", "instruction": "Require a source for a proposed threshold.", "required_capability_template": null },
-    { "id": "measurability", "kind": "constraint", "instruction": "Verify the threshold can be measured consistently.", "required_capability_template": null },
-    { "id": "false-decision-cost", "kind": "constraint", "instruction": "Compare false-positive and false-negative decision cost.", "required_capability_template": null },
-    { "id": "separate-generation-adoption", "kind": "constraint", "instruction": "Separate parallel generation from adoption.", "required_capability_template": null },
-    { "id": "parallel-adoption-control", "kind": "constraint", "instruction": "Apply control at adoption without serializing exploration.", "required_capability_template": null },
+    { "id": "threshold-source", "kind": "constraint", "instruction": "Require a cited source for a proposed threshold; when absent, keep the trigger unresolved and do not invent a fallback.", "required_capability_template": null },
+    { "id": "measurability", "kind": "constraint", "instruction": "Require a consistent measurement method for the threshold; when absent, keep the trigger unresolved.", "required_capability_template": null },
+    { "id": "false-decision-cost", "kind": "constraint", "instruction": "Compare false-positive and false-negative decision cost before specification. Never substitute a number, ratio, count, duration, budget, or inequality when source, measurement, or cost evidence is missing.", "required_capability_template": null },
+    { "id": "separate-generation-adoption", "kind": "constraint", "instruction": "Keep parallel candidate generation inside the selected development mode and separate it from adoption; adoption does not choose the mode.", "required_capability_template": null },
+    { "id": "parallel-adoption-control", "kind": "constraint", "instruction": "Verify adoption against the already selected development mode without serializing exploration; adoption must not re-decide the mode.", "required_capability_template": null },
     { "id": "authority-check", "kind": "constraint", "instruction": "Identify actor, scope, and approval authority.", "required_capability_template": null },
-    { "id": "enforcement-point", "kind": "constraint", "instruction": "Locate the actual enforcement point separately from judgment.", "required_capability_template": null },
+    { "id": "enforcement-point", "kind": "constraint", "instruction": "Use the existing Story, PR, or merge boundary to verify and enforce the already selected development mode, never to choose it; prevent or detect a manual all-PR merge bypass without adding a new fan-in subsystem.", "required_capability_template": null },
     { "id": "human-approval", "kind": "constraint", "instruction": "Require human approval where the action boundary demands it.", "required_capability_template": null },
     { "id": "problem-definition", "kind": "constraint", "instruction": "State the current problem definition.", "required_capability_template": null },
     { "id": "challenge-problem-frame", "kind": "constraint", "instruction": "Test whether the problem definition itself is wrong.", "required_capability_template": null },
@@ -146,7 +146,7 @@
     { "id": "internal-output", "kind": "constraint", "instruction": "Measure internal output separately.", "required_capability_template": null },
     { "id": "downstream-outcome", "kind": "constraint", "instruction": "Measure first user or downstream outcome.", "required_capability_template": null },
     { "id": "clarification", "kind": "fail_closed", "instruction": "Ask only for the missing classification or context.", "required_capability_template": null },
-    { "id": "merge", "kind": "common", "instruction": "Merge only selected branches.", "required_capability_template": null },
+    { "id": "merge", "kind": "common", "instruction": "Join only selected judgment branches into the receipt; this is not Git or PR fan-in and cannot choose a development mode.", "required_capability_template": null },
     { "id": "receipt", "kind": "common", "instruction": "Emit a request-bound judgment resolution receipt.", "required_capability_template": null }
   ],
   "dags": [
@@ -163,6 +163,15 @@
     { "id": "problem-frame.v1", "kind": "constraint", "path": ["problem-definition", "challenge-problem-frame", "rederive"], "policy_ids": ["global.problem-frame-rederive.v1"] },
     { "id": "external-outcome.v1", "kind": "constraint", "path": ["internal-output", "downstream-outcome"], "policy_ids": ["global.external-outcome-first.v1"] },
     { "id": "clarification.v1", "kind": "fail_closed", "path": ["clarification"], "policy_ids": [] }
+  ],
+  "composition_edges": [
+    ["constraints", "controller-scope"],
+    ["false-decision-cost", "controller-scope"],
+    ["downstream-outcome", "controller-scope"],
+    ["controller-scope", "generate"],
+    ["controller-scope", "separate-generation-adoption"],
+    ["controller-scope", "enforcement-point"],
+    ["decide", "external-outcome-check"]
   ],
   "selectors": {
     "domain_order": ["general", "knowledge", "personal_judgment", "engineering", "organization", "operations"],
@@ -190,7 +199,7 @@
   "semantic_matchers": {
     "domains": {
       "engineering": ["実装", "コード", "api", "認証", "設計", "バグ", "テスト", "pr", "architecture", "リファクタ"],
-      "knowledge": ["調べ", "検索", "事実", "資料", "情報", "knowledge", "履歴"],
+      "knowledge": ["調べ", "検索", "knowledge", "事実を確認", "資料を探", "資料を確認", "情報を探", "情報を確認"],
       "personal_judgment": ["俺の判断", "私の判断", "思考アルゴリズム", "判断基準"],
       "organization": ["組織", "人材採用", "採用活動", "採用面接", "採用候補者", "採用戦略", "採用問題", "人事", "権限構造", "インセンティブ"],
       "operations": ["運用", "監視", "障害", "復旧", "デプロイ", "再起動", "runbook"]

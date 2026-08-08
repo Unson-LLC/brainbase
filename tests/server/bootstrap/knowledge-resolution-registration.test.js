@@ -1,13 +1,15 @@
 import express from 'express';
 import request from 'supertest';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { registerKnowledgeResolutionApiRoute } from '../../../server/bootstrap/register-api-routes.js';
+import { csrfMiddleware } from '../../../server/middleware/csrf.js';
 
 function createApp() {
     const resolve = vi.fn(() => ({ resolution_id: 'kr_registered', status: 'resolved' }));
     const app = express();
     app.use(express.json());
+    app.use(csrfMiddleware());
     registerKnowledgeResolutionApiRoute(app, {
         authService: {
             verifyToken: vi.fn((token) => {
@@ -21,9 +23,40 @@ function createApp() {
 }
 
 describe('knowledge resolution production API registration', () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+
+    beforeEach(() => {
+        process.env.NODE_ENV = 'production';
+    });
+
+    afterEach(() => {
+        process.env.NODE_ENV = originalNodeEnv;
+    });
+
     it('unauthenticated requestをauth boundaryで拒否する', async () => {
         const { app, resolve } = createApp();
-        await request(app).post('/api/knowledge/resolve').send({}).expect(401);
+        const response = await request(app).post('/api/knowledge/resolve').send({}).expect(403);
+        expect(response.body).toMatchObject({ message: 'CSRF token required' });
+        expect(resolve).not.toHaveBeenCalled();
+    });
+
+    it('invalid BearerはCSRF通過後のauth boundaryで拒否する', async () => {
+        const { app, resolve } = createApp();
+        await request(app).post('/api/knowledge/resolve')
+            .set('authorization', 'Bearer invalid-token')
+            .send({ intent: 'x', audience: 'team', content_type: 'team_document' })
+            .expect(401);
+        expect(resolve).not.toHaveBeenCalled();
+    });
+
+    it('Bearer exemptionを近接pathや別methodへ広げない', async () => {
+        const { app, resolve } = createApp();
+        await request(app).post('/api/knowledge/resolve/other')
+            .set('authorization', 'Bearer test-token')
+            .send({}).expect(403);
+        await request(app).put('/api/knowledge/resolve')
+            .set('authorization', 'Bearer test-token')
+            .send({}).expect(403);
         expect(resolve).not.toHaveBeenCalled();
     });
 

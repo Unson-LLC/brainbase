@@ -151,6 +151,28 @@ function includesTerm(request, terms) {
     });
 }
 
+function includesRequestedEffectTerm(request, terms) {
+    const normalized = request.toLocaleLowerCase('ja');
+    return terms.some((term) => {
+        const normalizedTerm = term.toLocaleLowerCase('ja');
+        if (/^[a-z0-9_.-]+$/u.test(normalizedTerm)) {
+            return new RegExp(`(?<![a-z0-9_])${escapeRegExp(normalizedTerm)}(?![a-z0-9_])`, 'u').test(normalized);
+        }
+
+        let offset = 0;
+        while (offset < normalized.length) {
+            const index = normalized.indexOf(normalizedTerm, offset);
+            if (index < 0) return false;
+            const continuation = normalized.slice(index + normalizedTerm.length).trimStart();
+            const isConditionalTeForm = normalizedTerm.endsWith('して')
+                && /^(?:も(?!ら)|しま|いる|いた|ある|あった|おり|はいけ|はなら|よい|良い|いい|問題ない|可能|でき)/u.test(continuation);
+            if (!isConditionalTeForm) return true;
+            offset = index + normalizedTerm.length;
+        }
+        return false;
+    });
+}
+
 function sortByOrder(values, order) {
     const indexes = new Map(order.map((value, index) => [value, index]));
     return [...values].sort((left, right) => (indexes.get(left) ?? Number.MAX_SAFE_INTEGER) - (indexes.get(right) ?? Number.MAX_SAFE_INTEGER));
@@ -187,6 +209,27 @@ function validateExactKeys(value, expected, name) {
     if (actual.length !== expected.size || actual.some((key) => !expected.has(key))) throw new TypeError(`${name} references an unsupported selector or matcher`);
 }
 
+function validateSelectableGraphs(manifest) {
+    const signalDagIds = Object.values(manifest.selectors.signal_dags);
+    const commonDagIds = [...signalDagIds, manifest.selectors.authority_dag];
+    const domainGroups = [
+        [manifest.selectors.domain_dags.general],
+        manifest.selectors.domain_order
+            .filter((domain) => domain !== 'general')
+            .map((domain) => manifest.selectors.domain_dags[domain])
+    ];
+    for (const domainDagIds of domainGroups) {
+        try {
+            buildGraph([...new Set([...domainDagIds, ...commonDagIds])], manifest);
+        } catch (error) {
+            if (error instanceof TypeError && error.message === 'active judgment graph contains a cycle') {
+                throw new TypeError('selectable judgment graph contains a cycle');
+            }
+            throw error;
+        }
+    }
+}
+
 export function validateManifestLock(lock, previous = null, current = null) {
     if (!lock || lock.schema_version !== 'brainbase-judgment-manifest-lock-v1' || !Array.isArray(lock.entries) || lock.entries.length === 0) {
         throw new TypeError('judgment manifest lock schema is invalid');
@@ -215,7 +258,7 @@ export function validateManifestLock(lock, previous = null, current = null) {
 
 function validateManifest(manifest, lock) {
     if (!manifest || manifest.schema_version !== 'brainbase-judgment-runtime-v1' || typeof manifest.runtime_version !== 'string' || !manifest.runtime_version) throw new TypeError('judgment manifest schema is invalid');
-    if (!Array.isArray(manifest.host_bindings) || !Array.isArray(manifest.policies) || !Array.isArray(manifest.nodes) || !Array.isArray(manifest.dags)) throw new TypeError('judgment manifest collections are invalid');
+    if (!Array.isArray(manifest.host_bindings) || !Array.isArray(manifest.policies) || !Array.isArray(manifest.nodes) || !Array.isArray(manifest.dags) || !Array.isArray(manifest.composition_edges)) throw new TypeError('judgment manifest collections are invalid');
     const hostIds = new Set();
     for (const host of manifest.host_bindings) {
         if (!host || !ADAPTER_ID_PATTERN.test(host.adapter_id) || !ADAPTER_VERSION_PATTERN.test(host.adapter_version)) throw new TypeError('judgment manifest host binding is invalid');
@@ -244,6 +287,16 @@ function validateManifest(manifest, lock) {
         for (const nodeId of dag.path) if (!nodes.has(nodeId)) throw new TypeError(`judgment DAG ${dag.id} references missing node ${nodeId}`);
         for (const policyId of dag.policy_ids) if (!policies.has(policyId)) throw new TypeError(`judgment DAG ${dag.id} references missing policy ${policyId}`);
     }
+    const compositionEdges = new Set();
+    for (const edge of manifest.composition_edges) {
+        if (!Array.isArray(edge) || edge.length !== 2 || edge.some((nodeId) => typeof nodeId !== 'string' || !nodes.has(nodeId))) {
+            throw new TypeError('judgment composition edge references a missing or invalid node');
+        }
+        if (edge[0] === edge[1]) throw new TypeError('judgment composition edge cannot reference itself');
+        const key = `${edge[0]}\u0000${edge[1]}`;
+        if (compositionEdges.has(key)) throw new TypeError('judgment manifest has duplicate composition edge');
+        compositionEdges.add(key);
+    }
     const selectors = manifest.selectors;
     validateStringTerms(selectors?.domain_order, 'judgment domain order');
     validateStringTerms(selectors?.signal_order, 'judgment signal order');
@@ -266,6 +319,7 @@ function validateManifest(manifest, lock) {
     for (const [key, terms] of Object.entries(matchers.signals)) validateStringTerms(terms, `judgment signal matcher ${key}`);
     for (const [key, terms] of Object.entries(matchers.safety)) validateStringTerms(terms, `judgment safety matcher ${key}`);
     validateStringTerms(matchers.safe_general, 'judgment safe-general matcher');
+    validateSelectableGraphs(manifest);
     const digest = sha256Hex(canonicalJson(manifest));
     validateManifestLock(lock, null, { runtimeVersion: manifest.runtime_version, manifestDigest: digest });
     return digest;
@@ -328,9 +382,9 @@ function reconcile(input, manifest) {
         .filter(([, terms]) => includesTerm(semanticContext, terms))
         .map(([signal]) => signal);
     const safeGeneral = includesTerm(input.request, matchers.safe_general);
-    const detectedAction = includesTerm(input.request, matchers.safety.external)
+    const detectedAction = includesRequestedEffectTerm(input.request, matchers.safety.external)
         ? 'external'
-        : includesTerm(input.request, matchers.safety.write)
+        : includesRequestedEffectTerm(input.request, matchers.safety.write)
             ? 'write'
             : 'none';
     const minimumAction = indexFloor(ACTIONS, actionFloor(proposal.intent), detectedAction);
@@ -500,8 +554,12 @@ function buildGraph(dagIds, manifest, { clarification = false } = {}) {
     addNode('merge');
     addNode('receipt');
     addEdge('merge', 'receipt');
-    assertAcyclic(activeNodes, activeEdges);
-    return { active_nodes: activeNodes, active_edges: activeEdges };
+    const activeNodeSet = new Set(activeNodes);
+    for (const [from, to] of manifest.composition_edges) {
+        if (activeNodeSet.has(from) && activeNodeSet.has(to)) addEdge(from, to);
+    }
+    const orderedNodes = topologicallySortNodes(activeNodes, activeEdges);
+    return { active_nodes: orderedNodes, active_edges: activeEdges };
 }
 
 function materializeActiveNodeDefinitions(activeNodes, manifest) {
@@ -518,25 +576,30 @@ function materializeActiveNodeDefinitions(activeNodes, manifest) {
     });
 }
 
-function assertAcyclic(nodes, edges) {
+function topologicallySortNodes(nodes, edges) {
     const indegree = new Map(nodes.map((node) => [node, 0]));
     const outgoing = new Map(nodes.map((node) => [node, []]));
+    const originalOrder = new Map(nodes.map((node, index) => [node, index]));
     for (const [from, to] of edges) {
         if (!indegree.has(from) || !indegree.has(to)) throw new TypeError('active judgment graph references a missing node');
         indegree.set(to, indegree.get(to) + 1);
         outgoing.get(from).push(to);
     }
     const queue = nodes.filter((node) => indegree.get(node) === 0);
-    let consumed = 0;
+    const ordered = [];
     while (queue.length > 0) {
         const node = queue.shift();
-        consumed += 1;
+        ordered.push(node);
         for (const target of outgoing.get(node)) {
             indegree.set(target, indegree.get(target) - 1);
-            if (indegree.get(target) === 0) queue.push(target);
+            if (indegree.get(target) === 0) {
+                queue.push(target);
+                queue.sort((left, right) => originalOrder.get(left) - originalOrder.get(right));
+            }
         }
     }
-    if (consumed !== nodes.length) throw new TypeError('active judgment graph contains a cycle');
+    if (ordered.length !== nodes.length) throw new TypeError('active judgment graph contains a cycle');
+    return ordered;
 }
 
 function knowledgeCapabilities(input, classification) {

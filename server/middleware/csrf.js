@@ -168,6 +168,18 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Knowledge resolution is a read-only routing request from the MCP host.
+        // The exact machine endpoint proceeds to strict Bearer authentication and
+        // project-scope authorization; browser cookie fallback remains behind CSRF.
+        if (
+            req.method === 'POST'
+            && req.path === '/api/knowledge/resolve'
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
+            return next();
+        }
+
         // Admin context preview is read-only but uses POST for its structured query.
         // Agent/native clients authenticate with a bearer token and do not have a
         // browser CSRF session. Authentication and project scope are still enforced

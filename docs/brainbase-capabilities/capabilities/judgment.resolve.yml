@@ -12,6 +12,7 @@ surfaces:
     - server/routes/judgment-resolution.js
     - mcp/brainbase/src/tools/judgment-resolution-tools.ts
     - mcp/brainbase/src/tools/judgment-host-contract.ts
+    - scripts/codex-hooks/judgment-resolver-entry.sh
     - .claude/skills/brainbase-judgment-resolver/SKILL.md
   data:
     - config/judgment-runtime-manifest.json
@@ -22,12 +23,16 @@ depends_on:
   - graph.ssot
   - knowledge.resolve
 visibility_rules:
-  - Every Brainbase-managed turn calls the resolver once, but only the selected active DAG branches run; the full judgment library is never a mandatory linear checklist.
+  - Every Codex UserPromptSubmit receives the mandatory resolver entry contract and hook-owned turn anchor; only the selected active DAG branches run, never the full judgment library as a mandatory linear checklist.
   - Follow-up turns pass only the necessary signed conversation_context with source turn IDs; domain and signal routing may use that context while current-turn action and risk floors use the current request.
+  - Knowledge routing requires retrieval intent; bare historical or factual wording inside an engineering context does not add a Knowledge Resolver dependency.
   - Each active node is accompanied by a manifest-owned executable definition; node IDs alone are not the execution contract.
   - The caller proposes classification while the server owns semantic reconciliation, action and risk floors, DAG selection, policy merge, and receipt provenance.
-  - Cumulative complexity selects a controller whose observation scope covers the cumulative problem and compares delete, consolidate, redesign, and retire before adding machinery.
-  - Parallel candidate generation remains separate from adoption control; the resolver does not impose unsupported numeric thresholds.
+  - Cumulative complexity selects a controller whose observation scope covers the cumulative problem, compares delete, consolidate, redesign, and retire before adding machinery, and selects normal development or simplification before Story creation.
+  - Conditional composition edges apply only when both endpoint nodes are active; all incoming edges are conjunctive dependencies and active nodes are returned in a stable topological order.
+  - Parallel candidate generation remains inside the selected development mode and separate from adoption control; adoption must not reselect the mode.
+  - Unsupported numeric thresholds remain unresolved and are never replaced by another number, ratio, count, duration, budget, or inequality.
+  - The common merge is a receipt join, not a Git/PR fan-in; existing Story/PR/merge enforcement verifies the selected mode and prevents manual all-PR merge bypass.
   - Personal judgment policies are owner-only and are never exposed to another person or service identity.
   - A managed receipt does not authorize write or external action; existing authorization, approval, and enforcement points remain independent.
   - Missing tool, rejected binding, invalid receipt, or unavailable service is visibly unmanaged and blocks write or external action under the host contract.
