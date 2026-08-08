@@ -6,7 +6,7 @@ Brainbaseに、登録済みhost bindingが推論・行為の前に利用する�
 
 判断の実行構造は次の責務へ分離する。
 
-1. repoのalways-loaded instruction/Skillが、Brainbase管理対象turnをResolver入口へ送り、MCP adapterが現在の問いと必要な会話文脈を含むpublic body全体を署名する。
+1. Codexのglobal `UserPromptSubmit` hookが全turnへhook-owned turn anchor付き入口契約を注入し、repoのalways-loaded instruction/Skillが契約を補完する。MCP adapterは現在の問いと必要な会話文脈を含むpublic body全体を署名する。
 2. host側は自然言語の分類を提案できるが、DAG、policy、provenance、安全floor、検証済み分類を指定できない。
 3. server-side Reconcilerがrequest、認証済みentry context、manifestの意味matcherからdomain/signalとminimum action/riskを導出し、提案はserver detectionで裏づけられた時だけ使う。
 4. Resolverが適用policyとDAGを選び、active node、edge、各active nodeの実行定義、後続capability call、未確認事項、binding状態をreceiptとして返す。
@@ -33,7 +33,7 @@ flowchart LR
 
 Brainbase serverはCodex app、Claude Code、その他hostが生成する任意のmessageを直接interceptできない。したがってv1は次を明示的に分離する。
 
-- **host-contract enforcement**: `CLAUDE.md`とbyte-identicalな`AGENTS.md`のalways-loaded instruction、およびthin Skillが通常turnの回答前に`brainbase_judgment_resolve`を一度呼ぶ。contract testはinstructionとSkillの存在・一致を確認する。exactly-onceはhost契約であり、stateless serverが未呼び出しを検知したという主張はしない。
+- **host-contract enforcement**: 主経路のCodexではglobal `UserPromptSubmit` hookが全turnへ`brainbase_judgment_resolve`の一度呼び出し契約とhook-owned turn anchorを追加する。`CLAUDE.md`とbyte-identicalな`AGENTS.md`のalways-loaded instruction、およびthin Skillはこの契約を補完する。contract testはhook、instruction、Skillの存在・一致を確認する。exactly-onceはhost契約であり、stateless serverが未呼び出しを検知したという主張はしない。
 - **trusted binding transport**: MCP adapterは、現在の問いと任意の`conversation_context`を含むpublic bodyを配列順まで保存してcanonical化する。そのexact request digestと`adapter_id`, `adapter_version`, `turn_id`, UTC millisecond RFC 3339の`issued_at`を、domain tagを含むcanonical JSON arrayへencodeし、`BRAINBASE_JUDGMENT_BINDING_SECRET`でHMAC-SHA256署名して専用HTTP headerへ送る。serverはmanifest登録、body digest一致、malformed/future/expired時刻、constant-time署名比較を検証する。MCPとserverはnested/Unicodeを含む同じgolden vectorを持つ。anti-replay max ageとfuture skewはsecurity transport設定であり、判断selectorの数値閾値ではない。
 - **server enforcement**: APIはhost署名、認証、project scope、personal owner visibility、input reconciliation、manifest integrityを必ず強制する。receiptはaction authorizationではなく、既存toolのauth/approvalを置換しない。host runnerはwrite/external時に独立したaction authorizationを要求し、その成功後だけ実行へ進む。
 - **coverage truth**: 検証済みcontextのreceiptだけが`host_binding.status=managed`と`enforcement_level=host_contract`を返す。bindingを読み込まないhost、未登録/mismatch/stale署名、tool不達、receipt未取得は共通host resultの`management_status=unmanaged`、`receipt=null`、非空warningとなり、Brainbase管理済みと表示できない。検証済みの`needs_classification|needs_policy_resolution` receiptは`managed`のまま`execution_status=stopped`とし、未導入hostと分類を混同しない。host contract helperは列挙外action kindを含む未認可actionを停止し、failureを報告する。tool unavailable、missing receipt、403 binding rejectionをbehavioral fixtureで固定する。
@@ -58,6 +58,7 @@ Git管理された単一の版付きmanifestに次を保持する。
 - Constitution: policy ID、version、priority、strength、型付きscope、visibility、owner、evidence requirement、型付きeffect、instruction
 - Node registry: node ID、kind、instruction、required capability template
 - DAG registry: common entry、domain DAG、conditional constraint DAG、適用policy
+- Composition registry: 同時に選択されたDAG間だけへ適用するnode先行制約
 - Selector mapping: server-owned意味matcherと、列挙済みdomain、signal、action、riskからDAGを選ぶ決定規則
 - Host binding registry: adapter ID、version、enforcement level、fail behavior
 
@@ -65,7 +66,9 @@ manifestはrequestから上書きできない。digestはmanifest自身に期待
 
 ## Minimal DAG compilation
 
-管理対象turnはentry、reconciliation、Constitution resolve、DAG compileを通る。その後は選ばれたdomain DAGとconstraint DAGだけへ分岐し、canonical merge nodeで合流する。複数domainも並列branchとして表し、全10段階を直列に実行しない。短い追従発話はhostが渡した`conversation_context`からdomain/signalを継続できるが、文脈は暗黙に復元せず、`source_turn_ids`で出所を束縛する。
+管理対象turnはentry、reconciliation、Constitution resolve、DAG compileを通る。その後は選ばれたdomain DAGとconstraint DAGだけへ分岐し、canonical merge nodeで合流する。複数domainも原則として並列branchであり、全10段階を直列に実行しない。ただし両endpointがactiveなconditional composition edgeはDAG間の先行制約として追加し、全incoming dependencyを満たしてからnodeを実行する。`active_nodes`はmanifest順をtie-breakにしたstable topological orderで返す。短い追従発話はhostが渡した`conversation_context`からdomain/signalを継続できるが、文脈は暗黙に復元せず、`source_turn_ids`で出所を束縛する。
+
+累積複雑性がactiveなら、上位controllerは直近Story履歴、累積複雑性、外部成果を読み、Story作成前に`NORMAL`か`SIMPLIFICATION`を一度選ぶ。候補生成の並列性は選択されたmode内で維持し、採用側はmodeを再決定しない。common mergeはreceipt joinでありGit/PR fan-inではない。既存のStory/PR/merge境界が選択済みmodeとの一致と、手動全PRマージを含む迂回を検証する。
 
 receiptは`active_nodes`と同順・同数の`active_node_definitions`を含む。各定義はmanifestのnode registryから投影した`id`, `kind`, `instruction`, `required_capability_template`であり、hostはnode IDだけを見て独自のpromptへ再解釈してはならない。
 
@@ -103,8 +106,9 @@ policyは`visibility: owner|organization`と任意の`owner_person_id`を持つ�
 - 全段階を毎回実行せず、未選択DAGとpolicyはactive planへ入れない。
 - policy、DAG、node、provenance、安全floorを公開requestから注入できない。
 - 不明・未確認を「存在しない」「安全」「実行可能」へ変換しない。
-- 根拠のない数値閾値をselectorへ置かない。
+- 根拠のない数値閾値をselectorへ置かず、根拠不足を別の数値・比率・回数・期間・予算へ置換しない。
 - 候補生成の並列性と候補採用の制御を分離する。
+- 累積複雑性controllerが選ばれた場合、候補生成・採用・強制点より前にdevelopment modeを確定する。
 - 判断結果と強制権限を混同しない。
 - 累積問題では問題の時間・範囲以上を観測できる制御階層を要求する。
 - 追加前に削除、統合、再設計、廃止を比較する。

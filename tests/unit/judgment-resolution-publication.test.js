@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 
 function read(path) {
@@ -12,9 +13,74 @@ describe('judgment resolver publication surfaces', () => {
         const agents = read('AGENTS.md');
         expect(agents).toBe(claude);
         expect(claude).toContain('brainbase_judgment_resolve');
-        expect(claude).toContain('各Brainbase管理対象turn');
+        expect(claude).toContain('各Codex turn');
         expect(claude).toContain('選択されたactive DAGだけ');
         expect(claude).toContain('write/external');
+    });
+
+    it('Codex UserPromptSubmit hookがturnごとの最小DAG入口を注入する', () => {
+        const result = spawnSync('bash', ['scripts/codex-hooks/judgment-resolver-entry.sh'], {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit',
+                session_id: 'session-1',
+                turn_id: 'turn-2',
+                cwd: '/workspace/vibepro',
+                prompt: '続けて',
+            }),
+        });
+
+        expect(result.status).toBe(0);
+        const output = JSON.parse(result.stdout);
+        expect(output.continue).toBe(true);
+        expect(output.suppressOutput).toBe(true);
+        expect(output.hookSpecificOutput.hookEventName).toBe('UserPromptSubmit');
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'mcp__brainbase__brainbase_judgment_resolve exactly once',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain('"turn_id":"turn-2"');
+        expect(output.hookSpecificOutput.additionalContext).not.toContain('"session_id":"session-1"');
+        expect(output.hookSpecificOutput.additionalContext).not.toContain('"cwd":"/workspace/vibepro"');
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'classification_proposal must be one nested object',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'Never send session_id, cwd, flat proposed_* fields',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'not to write or act externally is none or read',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'Validate the complete argument object against the tool schema',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'intent=answer|investigate|diagnose|design|implement|review|operate',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'confidence=confirmed|inferred|unknown, never a number',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'Never invent or translate enum values',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'Domain and signal support is lexical and server-owned',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'Every proposed domain and signal must have a matching term',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            '"personal_judgment":["俺の判断","私の判断","思考アルゴリズム","判断基準"]',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            '"problem_frame_uncertain":["前提がおかしい","問題設定","根本原因","そもそも"]',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'an exact authority signal selects authority_boundary instead',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain('active_node_definitions');
+        expect(output.hookSpecificOutput.additionalContext).toContain('not the entire judgment library');
+        expect(output.hookSpecificOutput.additionalContext).toContain('never authorizes write or external action');
     });
 
     it('Skill・capability・runbook・catalogを相互参照可能にする', () => {
