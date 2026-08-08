@@ -275,6 +275,84 @@ describe('JudgmentResolutionService', () => {
         expectExactResolvedPlan(receipt, { dagIds, policyIds });
     });
 
+    it('VibeProの累積問題をStory作成前の最上位制御へ一度で解決する', () => {
+        const request = 'VibeProの自己改善が、問題を見つけるたびにStory・Gate・証跡・例外処理を追加し続け、内部改善は増える一方で外部成果が増えず、全体が肥大化した。高速な並列候補生成は維持したい。根拠のない固定閾値は置きたくない。新しいfan-in基盤自体が複雑性を増やし得る。また人間が生成PRを手動で全件マージできるため、判断と強制は同一ではない。この条件から、正味複雑性が最小になる制御構造を一度で設計せよ。';
+        const receipt = service.resolve(input(request, proposal({
+            intent: 'design',
+            domains: ['engineering'],
+            action_kind: 'none',
+            risk: 'high',
+            signals: [
+                'cumulative_effect',
+                'complexity_growth',
+                'threshold_proposal',
+                'parallel_exploration',
+                'authority_boundary',
+                'external_outcome'
+            ]
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification.action_kind).toBe('none');
+        expect(receipt.classification.domains).toEqual(['engineering']);
+        expect(receipt.selected_dag_ids).toEqual([
+            'engineering.v1',
+            'cumulative-complexity.v1',
+            'threshold.v1',
+            'parallel.v1',
+            'authority.v1',
+            'external-outcome.v1'
+        ]);
+        expect(receipt.selected_dag_ids).not.toContain('organization.v1');
+        expect(receipt.active_node_definitions.find((node) => node.id === 'controller-scope')?.instruction).toBe(
+            'Before Story creation, use one top-level development-mode controller to read recent Story history, cumulative complexity, and external outcomes across the affected scope, then route the next work to normal development or simplification.'
+        );
+    });
+
+    it('PR採用は人材採用ではなくengineeringとして分類する', () => {
+        const receipt = service.resolve(input('PR採用制御を設計して', proposal({
+            intent: 'design', domains: ['engineering'], action_kind: 'none', risk: 'low'
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification.domains).toEqual(['engineering']);
+        expect(receipt.selected_dag_ids).toEqual(['engineering.v1']);
+    });
+
+    it('明示的な人材採用はorganizationとして分類する', () => {
+        const receipt = service.resolve(input('人材採用をレビューして', proposal({
+            intent: 'review', domains: ['organization'], action_kind: 'read', risk: 'low'
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification.domains).toEqual(['organization']);
+        expect(receipt.selected_dag_ids).toEqual(['organization.v1']);
+    });
+
+    it('マージ可能性への言及をwrite要求にせず判断と強制の分離を選ぶ', () => {
+        const receipt = service.resolve(input('人間が生成PRを手動で全件マージできる場合のAPI設計を考えて。判断と強制は同一ではない。', proposal({
+            intent: 'design',
+            domains: ['engineering'],
+            action_kind: 'none',
+            risk: 'high',
+            signals: ['authority_boundary']
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification.action_kind).toBe('none');
+        expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+    });
+
+    it('明示的なマージ命令は引き続きwrite要求として分類する', () => {
+        const receipt = service.resolve(input('認証APIをマージして', proposal({
+            intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification.action_kind).toBe('write');
+        expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+    });
+
     // Trace: story-brainbase-judgment-resolver-v1:ac:9
     it('専門依頼をgeneral提案してもserver検出を迂回できない', () => {
         const receipt = service.resolve(input('認証APIを実装して', proposal({

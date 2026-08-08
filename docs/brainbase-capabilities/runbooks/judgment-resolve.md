@@ -17,6 +17,8 @@ Provide the user's request and a host-generated classification proposal:
 
 The proposal is untrusted routing input. Do not provide DAG IDs, policy IDs, active nodes, runtime version, host binding, or assurance.
 
+Treat a verb mention and an action request separately. For example, `人間が全件マージできる` is an authority/enforcement constraint, not a merge request; `マージして` is a write request. Likewise, `PR採用` is engineering adoption, while explicit human-hiring phrases belong to the organization domain.
+
 ## Execute the resolved subgraph
 
 1. Call `brainbase_judgment_resolve`.
@@ -25,6 +27,8 @@ The proposal is untrusted routing input. Do not provide DAG IDs, policy IDs, act
 4. If `required_capabilities` contains `knowledge.resolve`, call `brainbase_knowledge_resolve` and keep its separate retrieval-routing receipt.
 5. If status is `needs_classification` or `needs_policy_resolution`, resolve the listed `unresolved` items before proceeding.
 6. Perform any independent authorization, approval, and enforcement checks required by the eventual action.
+
+For `cumulative_effect` or `complexity_growth`, execute `controller-scope` before proposing another Story: read recent Story history, cumulative complexity, and external outcomes, then route the next work to normal development or simplification. Do not introduce a PR fan-in subsystem merely to implement this routing, and do not serialize candidate generation.
 
 ## Failure semantics
 
