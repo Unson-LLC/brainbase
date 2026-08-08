@@ -71,6 +71,33 @@
       "source_pages": 250,
       "characters": 175957,
       "sha256": "35a7e22b3fd6eca6c59b89c749351e58c85b5481978ea9d138cfed6d8ac5f12b"
+    },
+    {
+      "index": 11,
+      "title": "ブランディング22の法則",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 146,
+      "source_pages": 146,
+      "characters": 158567,
+      "sha256": "48d527133655953312f2ad882f259ab981aa8c1f83cfe250e96f7d2fc29735df"
+    },
+    {
+      "index": 12,
+      "title": "ポチらせる文章術",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 115,
+      "source_pages": 115,
+      "characters": 100998,
+      "sha256": "4c13a6655851493edac63c61b47a2e4c0bfcd5e6b1da93570918dee76eb91c29"
+    },
+    {
+      "index": 13,
+      "title": "世界のエリートが学んでいるMBAマーケティング必読書50冊を1冊にまとめてみた",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 342,
+      "source_pages": 342,
+      "characters": 289767,
+      "sha256": "392fee7272d1cf55835e1c12b386d1ffab6e03c364d1183de9d1b679efd2ebab"
     }
   ]
 }
