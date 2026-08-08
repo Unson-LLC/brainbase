@@ -36,6 +36,39 @@ describe('judgment resolver publication surfaces', () => {
         }
     });
 
+    it('回答完結のreceipt後にproject名だけでSkill・repo・memory取得へ広げない', () => {
+        const result = spawnSync('bash', ['scripts/codex-hooks/judgment-resolver-entry.sh'], {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit',
+                turn_id: 'context-complete-turn',
+                prompt: 'VibeProの制御構造を導いて',
+            }),
+        });
+        const hookContext = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
+        const resolverSkill = read('.claude/skills/brainbase-judgment-resolver/SKILL.md');
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const surfaces = [hookContext, resolverSkill, runbook];
+
+        for (const surface of surfaces) {
+            expect(surface).toContain(
+                'An answer-only design request is context-complete when its goal and constraints are explicit, required_capabilities and unresolved are empty, and the selected node instructions directly determine the answer.',
+            );
+            expect(surface).toContain(
+                'For a context-complete request, treat the receipt as the project judgment context and answer without loading project workflow skills, repo files, or memory merely because a project name appears.',
+            );
+            expect(surface).toContain(
+                'Retrieve more context only when the user explicitly requests current repository or history evidence, or an active node, required capability, or unresolved item requires it.',
+            );
+        }
+
+        const vibeproWorkflow = read('.claude/skills/vibepro-workflow/SKILL.md');
+        expect(vibeproWorkflow).toContain(
+            'Do not use for answer-only conceptual architecture or judgment questions that merely mention VibePro and are context-complete in a Brainbase Judgment Resolver receipt.',
+        );
+    });
+
     // Trace: story-brainbase-judgment-resolver-v1:ac:14
     it('CLAUDEとAGENTSのalways-loaded host contractを同一に保つ', () => {
         const claude = read('CLAUDE.md');

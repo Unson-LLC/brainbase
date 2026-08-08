@@ -1,6 +1,6 @@
 ---
 name: vibepro-workflow
-description: Use when working with VibePro CLI, Graphify, Story diagnosis, task planning, PR preparation, Gate evidence, or VibePro review artifacts.
+description: Use only when the requested work runs or interprets VibePro CLI, Graphify, Story diagnosis, task planning, PR preparation, Gate evidence, or VibePro review artifacts. Do not use for answer-only conceptual architecture or judgment questions that merely mention VibePro and are context-complete in a Brainbase Judgment Resolver receipt.
 ---
 
 # VibePro Workflow
