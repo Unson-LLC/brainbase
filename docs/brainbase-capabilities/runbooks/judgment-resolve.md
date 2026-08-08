@@ -52,7 +52,7 @@ Codex is the primary host. Register `scripts/codex-hooks/judgment-resolver-entry
 bash /Users/ksato/workspace/code/brainbase/scripts/codex-hooks/judgment-resolver-entry.sh
 ```
 
-The hook injects the Codex-owned `turn_id`, `session_id`, and `cwd`; the model still proposes the semantic classification and the server reconciles it. This does not run every judgment stage: the returned receipt selects only the context-relevant active DAG. A hook instruction is host-contract enforcement, not proof that the stateless server observed an omitted call; missing tool or receipt remains visibly `unmanaged` and blocks write/external action.
+The hook injects the Codex-owned `turn_id`; session and cwd are host context, not resolver arguments. The call must follow the MCP schema exactly: `classification_proposal` is one nested object, and `session_id`, `cwd`, and flat `proposed_*` fields are forbidden. The model still proposes the semantic classification and the server reconciles it. Negated safety language is classified by requested effect, so “do not write or act externally” does not itself raise `action_kind` to `write` or `external`. This does not run every judgment stage: the returned receipt selects only the context-relevant active DAG. A hook instruction is host-contract enforcement, not proof that the stateless server observed an omitted call; missing tool or receipt remains visibly `unmanaged` and blocks write/external action.
 
 ## Binding secret provisioning and rotation
 

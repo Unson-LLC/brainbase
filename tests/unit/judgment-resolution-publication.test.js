@@ -40,6 +40,20 @@ describe('judgment resolver publication surfaces', () => {
             'mcp__brainbase__brainbase_judgment_resolve exactly once',
         );
         expect(output.hookSpecificOutput.additionalContext).toContain('"turn_id":"turn-2"');
+        expect(output.hookSpecificOutput.additionalContext).not.toContain('"session_id":"session-1"');
+        expect(output.hookSpecificOutput.additionalContext).not.toContain('"cwd":"/workspace/vibepro"');
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'classification_proposal must be one nested object',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'Never send session_id, cwd, flat proposed_* fields',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'not to write or act externally is none or read',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'Validate the complete argument object against the tool schema',
+        );
         expect(output.hookSpecificOutput.additionalContext).toContain('active_node_definitions');
         expect(output.hookSpecificOutput.additionalContext).toContain('not the entire judgment library');
         expect(output.hookSpecificOutput.additionalContext).toContain('never authorizes write or external action');
