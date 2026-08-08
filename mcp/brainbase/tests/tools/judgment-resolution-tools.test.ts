@@ -75,6 +75,27 @@ describe('judgment resolution MCP tool', () => {
     assert.equal(result?.status, 'ok');
   });
 
+  it('optional signalsを省略したhost proposalも空配列へ正規化してreceiptを検証する', async () => {
+    const { signals: _signals, ...proposalWithoutSignals } = args.classification_proposal;
+    const argsWithoutSignals = {
+      ...args,
+      classification_proposal: proposalWithoutSignals,
+    };
+    const normalizedProposal = { ...proposalWithoutSignals, signals: [] };
+    const normalizedReceipt = receipt({
+      request_digest: computeJudgmentRequestDigest(argsWithoutSignals),
+      classification_proposal: normalizedProposal,
+      classification: normalizedProposal,
+    });
+    const result = await handleJudgmentResolutionToolCall('brainbase_judgment_resolve', argsWithoutSignals, {
+      apiUrl: 'http://brainbase.test', configuredProjectCodes: ['brainbase'], bindingSecret: 'mcp-secret',
+      adapterId: 'brainbase-mcp', adapterVersion: '1', now: () => new Date('2026-08-07T00:00:00.000Z'),
+      tokenManager: { getToken: async () => jwt({ projectCodes: ['brainbase'] }) },
+      fetch: async () => new Response(JSON.stringify(normalizedReceipt), { status: 200 }),
+    });
+    assert.equal(result?.status, 'ok');
+  });
+
   it('repository共有goldenとcross-runtime bindingを満たす', () => {
     const goldenPath = fileURLToPath(new URL('../../../../config/judgment-runtime-golden-vectors.json', import.meta.url));
     const golden = JSON.parse(readFileSync(goldenPath, 'utf8')) as {
