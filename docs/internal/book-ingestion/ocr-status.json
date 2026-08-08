@@ -1,0 +1,49 @@
+{
+  "books": [
+    {
+      "index": 3,
+      "title": "ファシリテーション入門 第2版",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 136,
+      "source_pages": 136,
+      "characters": 155561,
+      "sha256": "e47043690101b33f24b2997bdd41e497c57c7428612505826717f019a0494c35"
+    },
+    {
+      "index": 4,
+      "title": "小さな会社の「仕組み化」はなぜやりきれないのか",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 129,
+      "source_pages": 129,
+      "characters": 140412,
+      "sha256": "95edb45b9cb877e067f8a05f879fc87f68e56ae2c0086b5acaaf076128ffbd92"
+    },
+    {
+      "index": 5,
+      "title": "ガーバー流 社長が会社にいなくても回る「仕組み」経営",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 143,
+      "source_pages": 143,
+      "characters": 95016,
+      "sha256": "715d74df4066f76875fbf563bfda8e9a8525991da61076b5bedd684e2474a8d9"
+    },
+    {
+      "index": 6,
+      "title": "WHO NOT HOW 「どうやるか」ではなく「誰とやるか」",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 182,
+      "source_pages": 182,
+      "characters": 226015,
+      "sha256": "c3cedd64e8d29d4dfea04845b7c1e013c1d770095c6adee4de1f9ff8f9aa48b9"
+    },
+    {
+      "index": 7,
+      "title": "WORK THE SYSTEM",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 225,
+      "source_pages": 225,
+      "characters": 349397,
+      "sha256": "e832dd9e3f4c3755a4dad89a238ed5c11cfe599d0d9acbbbcec1d87801b4e0ce"
+    }
+  ]
+}

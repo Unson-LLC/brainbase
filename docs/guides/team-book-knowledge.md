@@ -1,0 +1,70 @@
+# Team Book Knowledge
+
+Google Driveでチームが参照できる購入済み書籍を、Brainbaseの共有ナレッジとして検索・適用するための入口。
+
+## 正本と配置
+
+- 原本PDFの正本はGoogle Drive。PDFや全文OCRはGitへ複製しない。
+- 本ディレクトリには、出典を追跡できる要約、チェックリスト、比較表、取り込み台帳だけを置く。
+- 個人固有の判断・履歴ではなく、チームが再利用する一般ナレッジとして扱う。
+- 実行時のSkillへ昇格する場合も、書籍ナレッジとSkillの所有関係・出典を残す。
+
+## 現在の台帳
+
+- 対象: 38冊（[`manifest.yml`](../internal/book-ingestion/manifest.yml)）
+- Drive解決結果: 38/38件（[`resolved.json`](../internal/book-ingestion/resolved.json)）
+- PDF抽出監査: [`extraction-report.json`](../internal/book-ingestion/extraction-report.json)
+- OCR完了証跡: 5冊815ページ（[`ocr-status.json`](../internal/book-ingestion/ocr-status.json)）。残りは未完了として扱う
+- Drive読み取りアカウント: `info@unson.jp`
+- 原本所有者: `k.sato.unson@gmail.com`
+
+## 実務ナレッジ
+
+| 書籍 | 配置 | 状態 |
+|---|---|---|
+| UX戦略 第2版 | [`../design/ux-strategy-2nd-edition.md`](../design/ux-strategy-2nd-edition.md) | 既存・出典確認済み |
+| UXデザインの法則 第2版 | [`../design/laws-of-ux-2nd-edition.md`](../design/laws-of-ux-2nd-edition.md) | 既存・出典確認済み |
+| ファシリテーション入門 第2版 | [`facilitation-introduction-2nd-edition.md`](./facilitation-introduction-2nd-edition.md) | 新規・OCR出典確認済み |
+| LLMのプロンプトエンジニアリング | [`../ai/llm-prompt-engineering.md`](../ai/llm-prompt-engineering.md) | 新規・出典確認済み |
+| Effective TypeScript 第2版 | [`effective-typescript-2nd-edition.md`](./effective-typescript-2nd-edition.md) | 新規・出典確認済み |
+
+既存の`.claude/skills`には、`WORK THE SYSTEM`、`TRACTION`、`ブランディング22の法則`、`ポチらせる文章術`、`危険だからこそ知っておくべきカルトマーケティング`、`THE MODEL`、`なぜあの商品、サービスは売れたのか？`に近い実務ナレッジがある。ただし、今回のPDFから生成されたことを示す来歴がないものは同一出典と断定せず、OCR結果との照合後に台帳へ関連付ける。
+
+## 取り込みフロー
+
+```text
+manifestの承認済みタイトル
+  → gogでinfo@unson.jpの閲覧範囲を検索
+  → 所有者・MIME・サイズ・Drive IDを解決
+  → 一時領域へダウンロード、SHA-256を記録
+  → pdfplumberで埋め込み文字層を全ページ監査
+  → 文字層が弱いページのみローカルOCR
+       横書き・図表: macOS Vision
+       縦書き本文: Tesseract jpn_vert
+  → OCRページ数・文字数・ハッシュを検証
+  → 本文を複製せず、実務向け派生ナレッジへ要約
+  → 原本リンク・抽出方法・ハッシュ付きでレビュー
+```
+
+## コマンド
+
+```bash
+# Drive上の正本を解決（読み取り専用）
+/Users/ksato/workspace/.venv/bin/python scripts/book-ingestion/resolve_drive_books.py --out docs/internal/book-ingestion/resolved.json
+
+# PDFを一時キャッシュへ取得し、文字層を監査
+/Users/ksato/workspace/.venv/bin/python scripts/book-ingestion/extract_drive_books.py
+
+# 画像PDFを一時キャッシュへOCR。中断・再開可能
+/Users/ksato/workspace/.venv/bin/python scripts/book-ingestion/ocr_drive_books.py --workers 6 --refresh
+```
+
+OCR原文は`/private/tmp/brainbase-team-book-ocr`へ置き、リポジトリへコミットしない。処理失敗、権限不足、ページ欠落は成功件数へ含めず、`未確認`または`blocked`として残す。
+
+## 派生ナレッジの完了条件
+
+1. Drive ID、原本リンク、所有者、SHA-256が記録されている。
+2. 全ページの抽出方式と、文字なしページの扱いが説明されている。
+3. 書籍本文のコピーではなく、判断原則・手順・チェックリストへ変換されている。
+4. 事実、解釈、適用提案が混同されていない。
+5. チーム正本へコミットされ、レビュー可能になっている。
