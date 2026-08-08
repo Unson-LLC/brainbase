@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -148,6 +148,21 @@ describe('brainbase MCP launcher judgment binding process contract', () => {
         expect(result.stderr).toContain('BRAINBASE_JUDGMENT_BINDING_AVAILABLE: brainbase-mcp@1');
         expect(result.stderr).toContain('BRAINBASE_MCP_AVAILABLE');
         expect(existsSync(marker)).toBe(false);
+    });
+
+    it('symlink経由のrepo rootでもbinding probe本体を実行する', async () => {
+        const apiUrl = await healthyServer();
+        const symlinkRoot = join(fixtureDir, 'repo-symlink');
+        symlinkSync(REPO_ROOT, symlinkRoot, 'dir');
+        const result = await run('bash', [LAUNCHER, '--check'], {
+            env: environment({
+                BRAINBASE_GRAPH_API_URL: apiUrl,
+                BRAINBASE_REPO_ROOT: symlinkRoot
+            })
+        });
+        expect(result.code).toBe(0);
+        expect(result.stderr).toContain('BRAINBASE_JUDGMENT_BINDING_AVAILABLE: brainbase-mcp@1');
+        expect(result.stderr).toContain('BRAINBASE_MCP_AVAILABLE');
     });
 
     it('--checkは未buildのcandidate checkoutでもsigned preflightを実行できる', async () => {

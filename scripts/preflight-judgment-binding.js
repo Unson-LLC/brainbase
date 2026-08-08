@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createHmac, randomUUID } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -130,6 +131,9 @@ async function main() {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+if (
+  process.argv[1]
+  && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(path.resolve(process.argv[1]))
+) {
   await main();
 }

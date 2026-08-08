@@ -155,6 +155,19 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Judgment resolution is called by managed agent hosts with a Bearer
+        // service token plus a request-bound HMAC. Browser cookie fallback must
+        // remain behind CSRF, while the exact machine endpoint can proceed to
+        // requireAuth and host-binding verification.
+        if (
+            req.method === 'POST'
+            && req.path === '/api/judgment/resolve'
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
+            return next();
+        }
+
         // Admin context preview is read-only but uses POST for its structured query.
         // Agent/native clients authenticate with a bearer token and do not have a
         // browser CSRF session. Authentication and project scope are still enforced
