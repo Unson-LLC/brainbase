@@ -441,6 +441,33 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
     });
 
+    it('制約内の手動マージ言及をwrite命令と誤認せずVibeProの判断DAGを一度で解決する', () => {
+        const receipt = service.resolve(input('VibeProの自己開発で、問題を発見するたびStory・Gate・証跡・例外処理が追加され、累積複雑性が増えた。高速な並列候補生成は維持したい。根拠のない固定閾値や新しいfan-in基盤は増やしたくない。人間がPRを手動マージしても判断を迂回できない形で、正味複雑性が最小の制御構造を一発で導いて。', proposal({
+            intent: 'design',
+            domains: ['engineering'],
+            action_kind: 'none',
+            risk: 'high',
+            signals: [
+                'cumulative_effect',
+                'complexity_growth',
+                'threshold_proposal',
+                'parallel_exploration',
+                'authority_boundary'
+            ]
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.reconciliation_reasons).toEqual([]);
+        expect(receipt.classification.action_kind).toBe('none');
+        expect(receipt.selected_dag_ids).toEqual([
+            'engineering.v1',
+            'cumulative-complexity.v1',
+            'threshold.v1',
+            'parallel.v1',
+            'authority.v1'
+        ]);
+    });
+
     it('明示的なマージ命令は引き続きwrite要求として分類する', () => {
         const receipt = service.resolve(input('認証APIをマージして', proposal({
             intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
@@ -449,6 +476,15 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.status).toBe('resolved');
         expect(receipt.classification.action_kind).toBe('write');
         expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+    });
+
+    it('依頼表現のマージしてもらえるを条件言及に落とさない', () => {
+        const receipt = service.resolve(input('認証APIをマージしてもらえる？', proposal({
+            intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification.action_kind).toBe('write');
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:9

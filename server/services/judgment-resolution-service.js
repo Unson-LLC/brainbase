@@ -151,6 +151,28 @@ function includesTerm(request, terms) {
     });
 }
 
+function includesRequestedEffectTerm(request, terms) {
+    const normalized = request.toLocaleLowerCase('ja');
+    return terms.some((term) => {
+        const normalizedTerm = term.toLocaleLowerCase('ja');
+        if (/^[a-z0-9_.-]+$/u.test(normalizedTerm)) {
+            return new RegExp(`(?<![a-z0-9_])${escapeRegExp(normalizedTerm)}(?![a-z0-9_])`, 'u').test(normalized);
+        }
+
+        let offset = 0;
+        while (offset < normalized.length) {
+            const index = normalized.indexOf(normalizedTerm, offset);
+            if (index < 0) return false;
+            const continuation = normalized.slice(index + normalizedTerm.length).trimStart();
+            const isConditionalTeForm = normalizedTerm.endsWith('して')
+                && /^(?:も(?!ら)|しま|いる|いた|ある|あった|おり|はいけ|はなら|よい|良い|いい|問題ない|可能|でき)/u.test(continuation);
+            if (!isConditionalTeForm) return true;
+            offset = index + normalizedTerm.length;
+        }
+        return false;
+    });
+}
+
 function sortByOrder(values, order) {
     const indexes = new Map(order.map((value, index) => [value, index]));
     return [...values].sort((left, right) => (indexes.get(left) ?? Number.MAX_SAFE_INTEGER) - (indexes.get(right) ?? Number.MAX_SAFE_INTEGER));
@@ -360,9 +382,9 @@ function reconcile(input, manifest) {
         .filter(([, terms]) => includesTerm(semanticContext, terms))
         .map(([signal]) => signal);
     const safeGeneral = includesTerm(input.request, matchers.safe_general);
-    const detectedAction = includesTerm(input.request, matchers.safety.external)
+    const detectedAction = includesRequestedEffectTerm(input.request, matchers.safety.external)
         ? 'external'
-        : includesTerm(input.request, matchers.safety.write)
+        : includesRequestedEffectTerm(input.request, matchers.safety.write)
             ? 'write'
             : 'none';
     const minimumAction = indexFloor(ACTIONS, actionFloor(proposal.intent), detectedAction);
