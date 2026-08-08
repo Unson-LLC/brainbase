@@ -54,6 +54,15 @@ describe('judgment resolver publication surfaces', () => {
         expect(output.hookSpecificOutput.additionalContext).toContain(
             'Validate the complete argument object against the tool schema',
         );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'intent=answer|investigate|diagnose|design|implement|review|operate',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'confidence=confirmed|inferred|unknown, never a number',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'Never invent or translate enum values',
+        );
         expect(output.hookSpecificOutput.additionalContext).toContain('active_node_definitions');
         expect(output.hookSpecificOutput.additionalContext).toContain('not the entire judgment library');
         expect(output.hookSpecificOutput.additionalContext).toContain('never authorizes write or external action');
