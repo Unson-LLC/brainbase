@@ -1,6 +1,6 @@
 {
   "schema_version": "brainbase-judgment-runtime-v1",
-  "runtime_version": "judgment-runtime-1.0.2",
+  "runtime_version": "judgment-runtime-1.0.3",
   "host_bindings": [
     { "adapter_id": "brainbase-mcp", "adapter_version": "1" }
   ],
