@@ -23,13 +23,8 @@ if event_name != "UserPromptSubmit":
     sys.exit(0)
 
 turn_id = data.get("turn_id") or data.get("turnId") or ""
-session_id = data.get("session_id") or data.get("sessionId") or ""
-cwd = data.get("cwd") or ""
-
 anchor = json.dumps({
     "turn_id": str(turn_id),
-    "session_id": str(session_id),
-    "cwd": str(cwd),
 }, ensure_ascii=False, separators=(",", ":"))
 
 context = (
@@ -37,9 +32,17 @@ context = (
     "Before answering the user or invoking any other tool, call "
     "mcp__brainbase__brainbase_judgment_resolve exactly once for this current turn. "
     f"Use this hook-owned turn anchor: {anchor}. "
-    "Use the current user message as request. Propose intent, domains, action_kind, risk, "
-    "confidence, and only context-supported signals; on a follow-up include only the prior "
-    "conversation context necessary to preserve its meaning. Then execute only the returned "
+    "Send only arguments allowed by the MCP tool schema: request, turn_id, optional project_code, "
+    "classification_proposal, optional conversation_context, and optional knowledge_context. "
+    "classification_proposal must be one nested object containing exactly intent, domains, "
+    "action_kind, risk, confidence, and optional signals. Never send session_id, cwd, flat "
+    "proposed_* fields, or any other top-level argument. Use the current user message as request, "
+    "and use the hook-owned turn_id as turn_id. Classify the requested effect, not negated words: "
+    "a read-only or no-action request that says not to write or act externally is none or read, "
+    "never write or external for that wording alone. Validate the complete argument object against "
+    "the tool schema before calling. Propose only context-supported classification values and "
+    "signals; on a follow-up include only the prior conversation context necessary to preserve its "
+    "meaning. Then execute only the returned "
     "active_node_definitions in active_edges order, not the entire judgment library. "
     "A managed receipt constrains judgment but never authorizes write or external action. "
     "If the tool, binding, or receipt is unavailable, explicitly report unmanaged; continue "
