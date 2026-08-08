@@ -10,9 +10,9 @@ Provide the user's request and a host-generated classification proposal:
 - `project_code`: include when the turn belongs to a project
 - `conversation_context`: for a follow-up utterance, include only the prior text needed to resolve its meaning plus the exact `source_turn_ids`; omit it for self-contained turns
 - `intent`: answer, investigate, diagnose, design, implement, review, or operate
-- `domains`: the smallest plausible domain set
+- `domains`: the smallest server-matcher-supported domain set; conceptual similarity alone is not support
 - `action_kind` and `risk`: never understate the intended effect
-- `signals`: only context-supported cumulative, complexity, threshold, parallelism, authority, framing, or external-outcome signals
+- `signals`: only values whose runtime-manifest matcher occurs in the request or explicitly supplied conversation context
 - `knowledge_context`: required for a knowledge domain
 
 The proposal is untrusted routing input. Do not provide DAG IDs, policy IDs, active nodes, runtime version, host binding, or assurance.
@@ -52,7 +52,7 @@ Codex is the primary host. Register `scripts/codex-hooks/judgment-resolver-entry
 bash /Users/ksato/workspace/code/brainbase/scripts/codex-hooks/judgment-resolver-entry.sh
 ```
 
-The hook injects the Codex-owned `turn_id`; session and cwd are host context, not resolver arguments. The call must follow the MCP schema exactly: `classification_proposal` is one nested object, every classification value must be one of the schema's lowercase enum tokens, and numeric confidence, invented domain/signal values, `session_id`, `cwd`, and flat `proposed_*` fields are forbidden. The model still proposes the semantic classification and the server reconciles it. Negated safety language is classified by requested effect, so “do not write or act externally” does not itself raise `action_kind` to `write` or `external`. This does not run every judgment stage: the returned receipt selects only the context-relevant active DAG. A hook instruction is host-contract enforcement, not proof that the stateless server observed an omitted call; missing tool or receipt remains visibly `unmanaged` and blocks write/external action.
+The hook injects the Codex-owned `turn_id`; session and cwd are host context, not resolver arguments. The call must follow the MCP schema exactly: `classification_proposal` is one nested object, every classification value must be one of the schema's lowercase enum tokens, and numeric confidence, invented domain/signal values, `session_id`, `cwd`, and flat `proposed_*` fields are forbidden. The hook reads the deployed runtime manifest and injects its domain/signal matcher map, so the model proposes only classifications that have an explicit matcher in the current request or supplied conversation context; it must not broaden `personal_judgment` or `organization` from generic ideas such as judgment, preference, approval, or authority. The server still owns reconciliation and fails closed when the proposal lacks matcher support. Negated safety language is classified by requested effect, so “do not write or act externally” does not itself raise `action_kind` to `write` or `external`. This does not run every judgment stage: the returned receipt selects only the context-relevant active DAG. A hook instruction is host-contract enforcement, not proof that the stateless server observed an omitted call; missing tool or receipt remains visibly `unmanaged` and blocks write/external action.
 
 ## Binding secret provisioning and rotation
 
