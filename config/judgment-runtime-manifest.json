@@ -1,6 +1,6 @@
 {
   "schema_version": "brainbase-judgment-runtime-v1",
-  "runtime_version": "judgment-runtime-1.0.0",
+  "runtime_version": "judgment-runtime-1.0.1",
   "host_bindings": [
     { "adapter_id": "brainbase-mcp", "adapter_version": "1" }
   ],
@@ -129,7 +129,7 @@
     { "id": "runbook", "kind": "judgment", "instruction": "Select the current runbook.", "required_capability_template": null },
     { "id": "reversibility", "kind": "judgment", "instruction": "Classify reversibility before intervention.", "required_capability_template": null },
     { "id": "evidence", "kind": "judgment", "instruction": "Define evidence for success and failure.", "required_capability_template": null },
-    { "id": "controller-scope", "kind": "constraint", "instruction": "Choose a controller whose observation scope covers at least the problem time and scope.", "required_capability_template": null },
+    { "id": "controller-scope", "kind": "constraint", "instruction": "Before Story creation, use one top-level development-mode controller to read recent Story history, cumulative complexity, and external outcomes across the affected scope, then route the next work to normal development or simplification.", "required_capability_template": null },
     { "id": "subtract-first", "kind": "constraint", "instruction": "Compare delete, consolidate, redesign, and retire before add.", "required_capability_template": null },
     { "id": "external-outcome-check", "kind": "constraint", "instruction": "Measure downstream outcome after simplification.", "required_capability_template": null },
     { "id": "threshold-source", "kind": "constraint", "instruction": "Require a source for a proposed threshold.", "required_capability_template": null },
@@ -192,21 +192,21 @@
       "engineering": ["実装", "コード", "api", "認証", "設計", "バグ", "テスト", "pr", "architecture", "リファクタ"],
       "knowledge": ["調べ", "検索", "事実", "資料", "情報", "knowledge", "履歴"],
       "personal_judgment": ["俺の判断", "私の判断", "思考アルゴリズム", "判断基準"],
-      "organization": ["組織", "採用", "人事", "権限構造", "インセンティブ"],
+      "organization": ["組織", "人材採用", "採用活動", "採用面接", "採用候補者", "採用戦略", "採用問題", "人事", "権限構造", "インセンティブ"],
       "operations": ["運用", "監視", "障害", "復旧", "デプロイ", "再起動", "runbook"]
     },
     "signals": {
-      "cumulative_effect": ["累積", "履歴全体", "複数story", "複数ストーリー"],
+      "cumulative_effect": ["累積", "履歴全体", "複数story", "複数ストーリー", "追加し続け", "増え続け", "全体が肥大化"],
       "complexity_growth": ["複雑性", "肥大化", "過剰", "正味複雑性"],
       "threshold_proposal": ["閾値", "しきい値", "何回", "何件", "3回", "30日"],
       "parallel_exploration": ["並列", "fan-in", "候補生成"],
-      "authority_boundary": ["権限境界", "承認", "強制点", "誰がマージ", "enforcement"],
+      "authority_boundary": ["権限境界", "承認", "強制点", "誰がマージ", "判断と強制", "判断と実行", "手動マージ", "手動で全件マージ", "enforcement"],
       "problem_frame_uncertain": ["前提がおかしい", "問題設定", "根本原因", "そもそも"],
       "external_outcome": ["外部成果", "顧客価値", "利用成果", "downstream", "first value"]
     },
     "safe_general": ["こんにちは", "ありがとう", "意味を説明", "要約して", "定義を教えて"],
     "safety": {
-      "write": ["実装", "変更", "更新", "削除", "マージ", "merge", "commit", "作って"],
+      "write": ["実装して", "実装しろ", "実装せよ", "変更して", "変更しろ", "変更せよ", "更新して", "更新しろ", "更新せよ", "削除して", "削除しろ", "削除せよ", "マージして", "マージしろ", "マージせよ", "mergeして", "mergeしろ", "mergeせよ", "commitして", "commitしろ", "commitせよ", "作って"],
       "external": ["送信", "公開", "publish", "購入", "デプロイして"],
       "critical": ["本番削除", "全削除", "支払い", "購入"]
     }

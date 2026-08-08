@@ -54,11 +54,13 @@ public classificationはproposalであり、確定値ではない。callerの`co
 - intent minimum effect: `implement`と`operate`は最低`write`、`investigate`と`diagnose`と`review`は最低`read`。
 - semantic context matcher: engineering、knowledge、personal judgment、organization、operationsと各signalのmanifest管理語彙を、`conversation_context.text`があればそれと現在requestを連結した文脈から検出する。例えば前turnの「認証設計をレビューして」に続く「それを実装して」は`engineering`を継続する。
 - safe-general matcher: 挨拶、明示的な文章説明・要約、定義確認など、manifestに列挙した低作用の一般依頼だけを肯定的に検出する。専門領域matcherが不一致だったという消極的理由だけでは`general`にしない。
-- current-request safety matcher: merge/delete/update/send/publish/purchaseと日本語同義語を現在requestだけから検出し、minimum action/risk/signalを追加する。会話文脈中の過去の作用語だけで現在turnのfloorを上げない。
+- current-request safety matcher: merge/delete/update/send/publish/purchaseの明示的な命令形と日本語同義語を現在requestだけから検出し、minimum action/risk/signalを追加する。可能性・制約・反例として作用語へ言及しただけではwrite floorを上げず、`intent=implement|operate`のfloorは別に維持する。会話文脈中の過去の作用語だけで現在turnのfloorを上げない。
 - risk order: `low < medium < high < critical`、action order: `none < read < write < external`。
 - reconciled domains/signalsはserver detectionで裏づけられた値であり、proposalはfloorを下げられない。`general`は、safe-general matcherが肯定一致し、他domain/safety matcherが未検出で、intentが`answer|review`かつaction floorが`none|read`の時だけ選べる。
 
 proposalのaction/riskがfloorより弱い、confidenceがunknown、server検出domain/signalを欠く、非general domain/signalがproposalだけで支持される、safe-generalの肯定一致がない、knowledge必須contextまたは`project_code`が不足、またはrequestと構造分類が矛盾する場合、statusは`needs_classification`となる。knowledgeの`project_code`不足は`knowledge_project_code_missing`として記録し、不完全なKnowledge handoffを返さない。callerはtrusted provenanceを指定できず、receiptの`classification_assurance=verified|bounded|unknown`と`reconciliation_reasons`はserverだけが生成する。
+
+語彙は同じ表記でも意味役割を分離する。例えば`PR採用`はengineeringのadoptionであり、人材採用を意味するorganization matcherには使わない。一方、`人材採用`、`採用活動`、`採用面接`のようにactor domainが確定する複合語はorganizationとして扱う。
 
 ## 4. Runtime manifest
 
@@ -99,7 +101,7 @@ service生成時に重複ID、参照切れ、空path、selector/matcher参照切
 | `engineering` | `engineering.v1` | goal→frame→observe→hypothesis→prediction→falsify→constraints→generate→reject→decide | organization incentive node |
 | `organization` | `organization.v1` | goal、actor、incentive、authority、feedback loopを確認 | code-specific hypothesis node |
 | `operations` | `operations.v1` | current state、owner、runbook、reversibility、evidenceを確認 | external action execution |
-| `cumulative_effect` / `complexity_growth` | `cumulative-complexity.v1` | cumulative scope以上のcontroller、delete/consolidate/redesign/retire、external outcome | local fixだけの採用 |
+| `cumulative_effect` / `complexity_growth` | `cumulative-complexity.v1` | Story作成前に、直近Story履歴・累積複雑性・外部成果を読む一つの最上位development-mode controllerで、次の仕事を通常開発かsimplificationへ分岐する。delete/consolidate/redesign/retireを追加より先に比較する | local fixだけの採用、PR fan-in基盤の追加 |
 | `threshold_proposal` | `threshold.v1` | source、measurability、false-decision costを要求 | unsupported fixed number |
 | `parallel_exploration` | `parallel.v1` | generationとadoptionを分離 | exploration停止 |
 | `authority_boundary` or write/external/high risk | `authority.v1` | actor、scope、reversibility、evidence、human approval、enforcement point | receiptによるaction許可 |
@@ -107,6 +109,8 @@ service生成時に重複ID、参照切れ、空path、selector/matcher参照切
 | `external_outcome` | `external-outcome.v1` | internal outputとuser/downstream outcomeを分離 | testsを顧客価値扱い |
 
 複数domain/signalは並列branchとして選択され、一つのmerge nodeへfan-inする。選ばれなかったDAGはactive graphへ含めない。active node IDはmanifestから投影された実行可能な定義を伴わなければならない。
+
+ここでいうactive graphのmergeは判断branchの結果統合であり、生成済みPRを集約・採用する新しい開発基盤を意味しない。累積肥大化の解決では、候補生成後のPR採用制御では遅いため、`cumulative-complexity.v1`がStory作成前にdevelopment modeを選ぶ。並列候補生成は選択後の各mode内で維持し、判断receiptと実際のmerge enforcementは別境界とする。
 
 ## 7. Knowledge handoff
 
