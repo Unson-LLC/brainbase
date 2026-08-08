@@ -14,7 +14,7 @@ Google Driveでチームが参照できる購入済み書籍を、Brainbaseの�
 - 対象: 38冊（[`manifest.yml`](../internal/book-ingestion/manifest.yml)）
 - Drive解決結果: 38/38件（[`resolved.json`](../internal/book-ingestion/resolved.json)）
 - PDF抽出監査: [`extraction-report.json`](../internal/book-ingestion/extraction-report.json)
-- OCR完了証跡: 5冊815ページ（[`ocr-status.json`](../internal/book-ingestion/ocr-status.json)）。残りは未完了として扱う
+- OCR完了証跡: 8冊1,506ページ（[`ocr-status.json`](../internal/book-ingestion/ocr-status.json)）。残りは未完了として扱う
 - Drive読み取りアカウント: `info@unson.jp`
 - 原本所有者: `k.sato.unson@gmail.com`
 
@@ -31,10 +31,13 @@ Google Driveでチームが参照できる購入済み書籍を、Brainbaseの�
 | ガーバー流 社長が会社にいなくても回る「仕組み」経営 | [`gerber-system-management.md`](./gerber-system-management.md) | 第2バッチ・OCR出典確認済み |
 | WHO NOT HOW | [`who-not-how.md`](./who-not-how.md) | 第2バッチ・OCR出典確認済み |
 | WORK THE SYSTEM | [`work-the-system.md`](./work-the-system.md) | 第2バッチ・OCR出典確認済み |
+| TRACTION ビジネスの手綱を握り直す | [`traction-eos.md`](./traction-eos.md) | 第3バッチ・OCR出典確認済み |
+| ALL for SaaS | [`all-for-saas.md`](./all-for-saas.md) | 第3バッチ・OCR出典確認済み |
+| マーケティングの全施策60 | [`b2b-marketing-60-tactics.md`](./b2b-marketing-60-tactics.md) | 第3バッチ・OCR出典確認済み |
 
 横断的な使い分けは[`systemization-selection-guide.md`](./systemization-selection-guide.md)を参照する。
 
-既存の`.claude/skills`には、`WORK THE SYSTEM`、`TRACTION`、`ブランディング22の法則`、`ポチらせる文章術`、`危険だからこそ知っておくべきカルトマーケティング`、`THE MODEL`、`なぜあの商品、サービスは売れたのか？`に近い実務ナレッジがある。`WORK THE SYSTEM`は今回のOCRと主要概念を照合済み。残る6冊は、今回のPDFから生成されたことを示す来歴がないため同一出典と断定せず、OCR結果との照合後に台帳へ関連付ける。
+既存の`.claude/skills`には、`WORK THE SYSTEM`、`TRACTION`、`ブランディング22の法則`、`ポチらせる文章術`、`危険だからこそ知っておくべきカルトマーケティング`、`THE MODEL`、`なぜあの商品、サービスは売れたのか？`に近い実務ナレッジがある。`WORK THE SYSTEM`と`TRACTION`は今回のOCRと主要概念を照合済み。残る5冊は、今回のPDFから生成されたことを示す来歴がないため同一出典と断定せず、OCR結果との照合後に台帳へ関連付ける。
 
 ## 取り込みフロー
 

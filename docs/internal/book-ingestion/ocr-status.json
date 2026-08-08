@@ -44,6 +44,33 @@
       "source_pages": 225,
       "characters": 349397,
       "sha256": "e832dd9e3f4c3755a4dad89a238ed5c11cfe599d0d9acbbbcec1d87801b4e0ce"
+    },
+    {
+      "index": 8,
+      "title": "TRACTION ビジネスの手綱を握り直す",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 240,
+      "source_pages": 240,
+      "characters": 302529,
+      "sha256": "4807bdc13ecf9e68b73c318f346fdc13c10a43f34093ec43aa646cfd1f43d01f"
+    },
+    {
+      "index": 9,
+      "title": "ALL for SaaS",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 201,
+      "source_pages": 201,
+      "characters": 287936,
+      "sha256": "47dcd4de304d1ae837e670e6831c86abfa39b07bb79871ebc16c60570806f2ed"
+    },
+    {
+      "index": 10,
+      "title": "マーケティングの全施策60",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 250,
+      "source_pages": 250,
+      "characters": 175957,
+      "sha256": "35a7e22b3fd6eca6c59b89c749351e58c85b5481978ea9d138cfed6d8ac5f12b"
     }
   ]
 }
