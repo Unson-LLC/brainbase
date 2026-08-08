@@ -21,6 +21,10 @@ description: Brainbase管理対象turnで、問いと文脈に必要な判断DAG
 
 ## Stop conditions
 
+- Managed or resolved status alone is not a stop condition.
+- When selected nodes and required capabilities are complete, the user's requested answer or work is complete, and no unresolved item remains, emit the completed final response immediately.
+- Do not begin self-initiated repo, memory, search, shell, or additional-tool exploration afterward.
+- Continue while an active node, required capability, or explicitly requested investigation, implementation, or operation remains unfinished.
 - tool不達、binding拒否、receipt欠落は`unmanaged`と明示する。
 - `unmanaged`ではread-onlyの説明・診断までに留め、write/external actionを実行しない。
 - `needs_classification`または`needs_policy_resolution`では、示された未解決事項を解消するまでactionへ進まない。

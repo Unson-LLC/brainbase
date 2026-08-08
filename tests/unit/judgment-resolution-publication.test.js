@@ -7,6 +7,35 @@ function read(path) {
 }
 
 describe('judgment resolver publication surfaces', () => {
+    it('成功時のresponse終了契約をhook・Skill・runbookで同期する', () => {
+        const result = spawnSync('bash', ['scripts/codex-hooks/judgment-resolver-entry.sh'], {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit',
+                turn_id: 'terminal-contract-turn',
+                prompt: '回答して',
+            }),
+        });
+        const hookContext = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
+        const skill = read('.claude/skills/brainbase-judgment-resolver/SKILL.md');
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const surfaces = [hookContext, skill, runbook];
+
+        for (const surface of surfaces) {
+            expect(surface).toContain('Managed or resolved status alone is not a stop condition.');
+            expect(surface).toContain(
+                "When selected nodes and required capabilities are complete, the user's requested answer or work is complete, and no unresolved item remains, emit the completed final response immediately.",
+            );
+            expect(surface).toContain(
+                'Do not begin self-initiated repo, memory, search, shell, or additional-tool exploration afterward.',
+            );
+            expect(surface).toContain(
+                'Continue while an active node, required capability, or explicitly requested investigation, implementation, or operation remains unfinished.',
+            );
+        }
+    });
+
     // Trace: story-brainbase-judgment-resolver-v1:ac:14
     it('CLAUDEとAGENTSのalways-loaded host contractを同一に保つ', () => {
         const claude = read('CLAUDE.md');
