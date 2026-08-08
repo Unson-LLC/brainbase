@@ -63,6 +63,21 @@ describe('judgment resolver publication surfaces', () => {
         expect(output.hookSpecificOutput.additionalContext).toContain(
             'Never invent or translate enum values',
         );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'Domain and signal support is lexical and server-owned',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'Every proposed domain and signal must have a matching term',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            '"personal_judgment":["俺の判断","私の判断","思考アルゴリズム","判断基準"]',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            '"problem_frame_uncertain":["前提がおかしい","問題設定","根本原因","そもそも"]',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'an exact authority signal selects authority_boundary instead',
+        );
         expect(output.hookSpecificOutput.additionalContext).toContain('active_node_definitions');
         expect(output.hookSpecificOutput.additionalContext).toContain('not the entire judgment library');
         expect(output.hookSpecificOutput.additionalContext).toContain('never authorizes write or external action');

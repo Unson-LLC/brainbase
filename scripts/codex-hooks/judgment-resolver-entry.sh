@@ -8,7 +8,10 @@ if [ -z "$payload" ]; then
   payload="$(cat || true)"
 fi
 
-PAYLOAD="$payload" python3 - <<'PY'
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+manifest_path="$script_dir/../../config/judgment-runtime-manifest.json"
+
+PAYLOAD="$payload" MANIFEST_PATH="$manifest_path" python3 - <<'PY'
 import json
 import os
 import sys
@@ -25,6 +28,15 @@ if event_name != "UserPromptSubmit":
 turn_id = data.get("turn_id") or data.get("turnId") or ""
 anchor = json.dumps({
     "turn_id": str(turn_id),
+}, ensure_ascii=False, separators=(",", ":"))
+
+with open(os.environ["MANIFEST_PATH"], encoding="utf-8") as manifest_file:
+    manifest = json.load(manifest_file)
+semantic_matchers = manifest["semantic_matchers"]
+matcher_contract = json.dumps({
+    "domains": semantic_matchers["domains"],
+    "signals": semantic_matchers["signals"],
+    "safe_general": semantic_matchers["safe_general"],
 }, ensure_ascii=False, separators=(",", ":"))
 
 context = (
@@ -46,7 +58,15 @@ context = (
     "risk=low|medium|high|critical; confidence=confirmed|inferred|unknown, never a number; "
     "optional signals=cumulative_effect|complexity_growth|threshold_proposal|parallel_exploration|"
     "authority_boundary|problem_frame_uncertain|external_outcome. Never invent or translate enum "
-    "values. Validate the complete argument object against the tool schema before calling. "
+    "values. Domain and signal support is lexical and server-owned, not broad conceptual inference. "
+    "Include a non-general domain or signal only when the current request plus explicitly supplied "
+    "conversation_context contains one of its matcher strings from this exact runtime map: "
+    f"{matcher_contract}. Every proposed domain and signal must have a matching term; omit inferred "
+    "extras. Include every matched domain and signal, but use general alone only when a safe_general "
+    "term matches and no domain or signal term matches. Generic ideas such as judgment, approval, "
+    "user preference, or authority do not select personal_judgment or organization unless an exact "
+    "listed domain matcher is present; an exact authority signal selects authority_boundary instead. "
+    "Validate the complete argument object against the tool schema before calling. "
     "Propose only context-supported classification values and "
     "signals; on a follow-up include only the prior conversation context necessary to preserve its "
     "meaning. Then execute only the returned "
