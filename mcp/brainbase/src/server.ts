@@ -28,7 +28,7 @@ import {
   type EntityType,
 } from './indexer/index.js';
 import { CORE_ENTITY_TYPES } from './indexer/ontology.js';
-import { loadConfig } from './config.js';
+import { loadConfig, resolveBrainbaseApiUrl } from './config.js';
 import { GraphAPISource } from './sources/graphapi-source.js';
 import type { EntitySource } from './sources/entity-source.js';
 import { TokenManager } from './auth/token-manager.js';
@@ -41,15 +41,14 @@ import {
 import { taskTools, handleTaskToolCall } from './tools/task-tools.js';
 import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-tools.js';
 import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './tools/knowledge-resolution-tools.js';
+import { judgmentResolutionTools, handleJudgmentResolutionToolCall } from './tools/judgment-resolution-tools.js';
+import { normalizeJudgmentHostResult } from './tools/judgment-host-contract.js';
 import { dispatchFirst, type ToolHandler } from './tools/tool-dispatcher.js';
 
 // Global index. Runtime lookups rebuild and atomically swap this snapshot.
 let entityIndex: EntityIndex;
 let indexRefreshEnabled = false;
 let indexRefreshPromise: Promise<void> | null = null;
-
-// Brainbase API URL for mesh tools (MCP runs out-of-process, so we use REST)
-const brainbaseApiUrl = process.env.BRAINBASE_API_URL || 'http://localhost:31013';
 
 // Canonical Task store (companion task API on Lightsail). Mutations use a
 // dedicated bbsvc_ service token; without it the task tools report unavailable.
@@ -65,6 +64,18 @@ let configuredProjectCodes: string[] | undefined;
 
 type OnboardingDispatchDependencies = Parameters<typeof handleOnboardingToolCall>[2];
 type KnowledgeResolutionDispatchDependencies = Parameters<typeof handleKnowledgeResolutionToolCall>[2];
+type JudgmentResolutionDispatchDependencies = Parameters<typeof handleJudgmentResolutionToolCall>[2];
+
+function createDefaultJudgmentResolutionDependencies(): JudgmentResolutionDispatchDependencies {
+  return {
+    apiUrl: resolveBrainbaseApiUrl(),
+    configuredProjectCodes,
+    tokenManager: globalTokenManager,
+    bindingSecret: process.env.BRAINBASE_JUDGMENT_BINDING_SECRET || '',
+    adapterId: process.env.BRAINBASE_JUDGMENT_ADAPTER_ID || 'brainbase-mcp',
+    adapterVersion: process.env.BRAINBASE_JUDGMENT_ADAPTER_VERSION || '1',
+  };
+}
 
 async function dispatchOnboardingToolCall(
   name: string,
@@ -72,7 +83,7 @@ async function dispatchOnboardingToolCall(
   dependencies?: OnboardingDispatchDependencies,
 ) {
   return handleOnboardingToolCall(name, args, dependencies ?? {
-    apiUrl: brainbaseApiUrl,
+    apiUrl: resolveBrainbaseApiUrl(),
     configuredProjectCodes,
     tokenManager: globalTokenManager,
   });
@@ -84,10 +95,23 @@ async function dispatchKnowledgeResolutionToolCall(
   dependencies?: KnowledgeResolutionDispatchDependencies,
 ) {
   return handleKnowledgeResolutionToolCall(name, args, dependencies ?? {
-    apiUrl: brainbaseApiUrl,
+    apiUrl: resolveBrainbaseApiUrl(),
     configuredProjectCodes,
     tokenManager: globalTokenManager,
   });
+}
+
+async function dispatchJudgmentResolutionToolCall(
+  name: string,
+  args: Record<string, unknown>,
+  dependencies?: JudgmentResolutionDispatchDependencies,
+) {
+  const result = await handleJudgmentResolutionToolCall(
+    name,
+    args,
+    dependencies ?? createDefaultJudgmentResolutionDependencies(),
+  );
+  return result === null ? null : normalizeJudgmentHostResult(result);
 }
 
 async function dispatchExtensionToolCall(
@@ -919,10 +943,13 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
 }
 
 export const __testing = {
-  tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...knowledgeResolutionTools, ...taskTools],
+  tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...taskTools],
   dispatchOnboardingToolCall,
+  dispatchJudgmentResolutionToolCall,
   dispatchKnowledgeResolutionToolCall,
   dispatchExtensionToolCall,
+  createDefaultJudgmentResolutionDependencies,
+  resolveBrainbaseApiUrl,
   setEntityIndex(index: EntityIndex): void {
     entityIndex = index;
   },
@@ -988,7 +1015,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   // Create the MCP server.
   // Factory (not a singleton) so the stateless Streamable HTTP transport can
   // build one Server per request — the heavy shared state (entityIndex,
-  // brainbaseApiUrl) lives at module scope and is built once above.
+  // resolved Brainbase API URL) lives outside each request handler.
   function createServer() {
   const server = new Server(
     {
@@ -1046,7 +1073,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...knowledgeResolutionTools, ...taskTools, ...meshTools] };
+    return { tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...taskTools, ...meshTools] };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -1056,17 +1083,18 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
       const toolArgs = args as Record<string, unknown>;
       const extensionResult = await dispatchExtensionToolCall(name, toolArgs, [
         (toolName, extensionArgs) => handleControlPlaneToolCall(toolName, extensionArgs, {
-          apiUrl: brainbaseApiUrl,
+          apiUrl: resolveBrainbaseApiUrl(),
           configuredProjectCodes,
           tokenManager: globalTokenManager,
         }),
         (toolName, extensionArgs) => dispatchOnboardingToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => dispatchJudgmentResolutionToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => dispatchKnowledgeResolutionToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleTaskToolCall(toolName, extensionArgs, {
           apiUrl: taskApiUrl,
           token: taskApiToken,
         }),
-        (toolName, extensionArgs) => handleMeshToolCall(toolName, extensionArgs, brainbaseApiUrl),
+        (toolName, extensionArgs) => handleMeshToolCall(toolName, extensionArgs, resolveBrainbaseApiUrl()),
       ]);
       const result = extensionResult === null
         ? await handleToolCall(name, toolArgs)

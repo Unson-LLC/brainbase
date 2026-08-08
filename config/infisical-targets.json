@@ -26,7 +26,8 @@
       ],
       "requiredKeys": [
         "BRAINBASE_API_URL",
-        "BRAINBASE_TASK_API_TOKEN"
+        "BRAINBASE_TASK_API_TOKEN",
+        "BRAINBASE_JUDGMENT_BINDING_SECRET"
       ]
     },
     "nocodb-mcp": {

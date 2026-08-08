@@ -52,6 +52,22 @@ done
 [[ -d "$UI_RUNTIME/.git" || -f "$UI_RUNTIME/.git" ]] || \
   fail "UI runtime checkout not found: $UI_RUNTIME"
 
+ui_checkout_sha="$(git -C "$UI_RUNTIME" rev-parse HEAD 2>/dev/null || true)"
+[[ "$ui_checkout_sha" == "$TARGET_SHA" ]] || \
+  fail "UI runtime checkout does not match target SHA ${TARGET_SHA:0:12}"
+[[ -f "$UI_RUNTIME/scripts/run-brainbase-mcp.sh" ]] || \
+  fail "candidate MCP launcher not found at target SHA: $UI_RUNTIME/scripts/run-brainbase-mcp.sh"
+
+# Prove that the candidate launcher can authenticate and obtain a signed
+# Judgment receipt before changing the currently runnable MCP checkout. This
+# preserves the deployment hold when a merged UI commit is started by launchd
+# before the shared binding secret has been provisioned.
+log "preflighting candidate MCP runtime before mutation"
+BRAINBASE_REPO_ROOT="$UI_RUNTIME" \
+  INFISICAL_BIN="$INFISICAL_BIN" \
+  bash "$UI_RUNTIME/scripts/run-brainbase-mcp.sh" --check >&2 || \
+  fail "MCP candidate authentication preflight failed before runtime mutation"
+
 cd "$MCP_RUNTIME"
 
 tracked_dirty="$(git status --porcelain --untracked-files=no 2>/dev/null || true)"
