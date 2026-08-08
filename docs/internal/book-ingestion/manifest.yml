@@ -1,0 +1,43 @@
+version: 1
+account: info@unson.jp
+source_owner: k.sato.unson@gmail.com
+audience: team
+books:
+  - {category: design, title: UX戦略 第2版}
+  - {category: design, title: UXデザインの法則 第2版}
+  - {category: facilitation, title: ファシリテーション入門 第2版}
+  - {category: management, title: 小さな会社の「仕組み化」はなぜやりきれないのか}
+  - {category: management, title: ガーバー流 社長が会社にいなくても回る「仕組み」経営}
+  - {category: management, title: WHO NOT HOW 「どうやるか」ではなく「誰とやるか」}
+  - {category: management, title: WORK THE SYSTEM}
+  - {category: management, title: TRACTION ビジネスの手綱を握り直す}
+  - {category: management, title: ALL for SaaS}
+  - {category: marketing, title: マーケティングの全施策60}
+  - {category: marketing, title: ブランディング22の法則}
+  - {category: marketing, title: ポチらせる文章術}
+  - {category: marketing, title: 世界のエリートが学んでいるMBAマーケティング必読書50冊を1冊にまとめてみた}
+  - {category: marketing, title: マーケティング手法大全}
+  - {category: marketing, title: 実践 顧客起点マーケティング}
+  - {category: marketing, title: 危険だからこそ知っておくべきカルトマーケティング}
+  - {category: marketing, title: THE MODEL}
+  - {category: marketing, title: なぜあの商品、サービスは売れたのか？}
+  - {category: marketing, title: 失敗から学ぶマーケティング}
+  - {category: marketing, title: マーケティングを学んだけれど、どう使えばいいかわからない人へ}
+  - {category: sales, title: できる営業マンのすごい言語化}
+  - {category: ai-robotics, title: "Foundations of Robotics: A Multidisciplinary Approach with Python and ROS"}
+  - {category: ai-robotics, title: 基盤モデルとロボットの融合 マルチモーダルAIでロボットはどう変わるのか}
+  - {category: ai-robotics, title: ROS 2 from Scratch}
+  - {category: ai, title: AI駆動マーケティング 業務効率化を超える生成AI実践術}
+  - {category: ai, title: コード×AI ソフトウェア開発者のための生成AI実践入門, drive_title: コード×AIーソフトウェア開発者のための生成AI実践入門}
+  - {category: ai, title: LLMのプロンプトエンジニアリング}
+  - {category: technology, title: Google Cloudのしくみと技術がこれ1冊でしっかりわかる教科書［改訂2版］}
+  - {category: technology, title: GitHub CI/CD実践ガイド}
+  - {category: technology, title: プロになるためのWeb技術入門}
+  - {category: technology, title: Amazon Web Servicesのしくみと技術がこれ1冊でしっかりわかる教科書［改訂2版］}
+  - {category: technology, title: 図解まるわかり Web技術のしくみ}
+  - {category: technology, title: React.js＆Next.js超入門 第2版}
+  - {category: technology, title: 全体像と用語がよくわかる！ Microsoft Azure入門ガイド}
+  - {category: technology, title: Effective TypeScript 第2版}
+  - {category: research, title: 完全探偵マニュアル Best}
+  - {category: research, title: 探偵の現場}
+  - {category: research, title: 完全探偵マニュアル Worst}
