@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 
 function read(path) {
@@ -12,9 +13,36 @@ describe('judgment resolver publication surfaces', () => {
         const agents = read('AGENTS.md');
         expect(agents).toBe(claude);
         expect(claude).toContain('brainbase_judgment_resolve');
-        expect(claude).toContain('各Brainbase管理対象turn');
+        expect(claude).toContain('各Codex turn');
         expect(claude).toContain('選択されたactive DAGだけ');
         expect(claude).toContain('write/external');
+    });
+
+    it('Codex UserPromptSubmit hookがturnごとの最小DAG入口を注入する', () => {
+        const result = spawnSync('bash', ['scripts/codex-hooks/judgment-resolver-entry.sh'], {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit',
+                session_id: 'session-1',
+                turn_id: 'turn-2',
+                cwd: '/workspace/vibepro',
+                prompt: '続けて',
+            }),
+        });
+
+        expect(result.status).toBe(0);
+        const output = JSON.parse(result.stdout);
+        expect(output.continue).toBe(true);
+        expect(output.suppressOutput).toBe(true);
+        expect(output.hookSpecificOutput.hookEventName).toBe('UserPromptSubmit');
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'mcp__brainbase__brainbase_judgment_resolve exactly once',
+        );
+        expect(output.hookSpecificOutput.additionalContext).toContain('"turn_id":"turn-2"');
+        expect(output.hookSpecificOutput.additionalContext).toContain('active_node_definitions');
+        expect(output.hookSpecificOutput.additionalContext).toContain('not the entire judgment library');
+        expect(output.hookSpecificOutput.additionalContext).toContain('never authorizes write or external action');
     });
 
     it('Skill・capability・runbook・catalogを相互参照可能にする', () => {
