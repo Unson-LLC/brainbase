@@ -27,8 +27,14 @@ Google Driveでチームが参照できる購入済み書籍を、Brainbaseの�
 | ファシリテーション入門 第2版 | [`facilitation-introduction-2nd-edition.md`](./facilitation-introduction-2nd-edition.md) | 新規・OCR出典確認済み |
 | LLMのプロンプトエンジニアリング | [`../ai/llm-prompt-engineering.md`](../ai/llm-prompt-engineering.md) | 新規・出典確認済み |
 | Effective TypeScript 第2版 | [`effective-typescript-2nd-edition.md`](./effective-typescript-2nd-edition.md) | 新規・出典確認済み |
+| 小さな会社の「仕組み化」はなぜやりきれないのか | [`small-company-systemization.md`](./small-company-systemization.md) | 第2バッチ・OCR出典確認済み |
+| ガーバー流 社長が会社にいなくても回る「仕組み」経営 | [`gerber-system-management.md`](./gerber-system-management.md) | 第2バッチ・OCR出典確認済み |
+| WHO NOT HOW | [`who-not-how.md`](./who-not-how.md) | 第2バッチ・OCR出典確認済み |
+| WORK THE SYSTEM | [`work-the-system.md`](./work-the-system.md) | 第2バッチ・OCR出典確認済み |
 
-既存の`.claude/skills`には、`WORK THE SYSTEM`、`TRACTION`、`ブランディング22の法則`、`ポチらせる文章術`、`危険だからこそ知っておくべきカルトマーケティング`、`THE MODEL`、`なぜあの商品、サービスは売れたのか？`に近い実務ナレッジがある。ただし、今回のPDFから生成されたことを示す来歴がないものは同一出典と断定せず、OCR結果との照合後に台帳へ関連付ける。
+横断的な使い分けは[`systemization-selection-guide.md`](./systemization-selection-guide.md)を参照する。
+
+既存の`.claude/skills`には、`WORK THE SYSTEM`、`TRACTION`、`ブランディング22の法則`、`ポチらせる文章術`、`危険だからこそ知っておくべきカルトマーケティング`、`THE MODEL`、`なぜあの商品、サービスは売れたのか？`に近い実務ナレッジがある。`WORK THE SYSTEM`は今回のOCRと主要概念を照合済み。残る6冊は、今回のPDFから生成されたことを示す来歴がないため同一出典と断定せず、OCR結果との照合後に台帳へ関連付ける。
 
 ## 取り込みフロー
 
