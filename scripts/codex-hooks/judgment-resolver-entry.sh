@@ -72,6 +72,12 @@ context = (
     "meaning. Then execute only the returned "
     "active_node_definitions in active_edges order, not the entire judgment library. "
     "A managed receipt constrains judgment but never authorizes write or external action. "
+    "Managed or resolved status alone is not a stop condition. "
+    "When selected nodes and required capabilities are complete, the user's requested answer or "
+    "work is complete, and no unresolved item remains, emit the completed final response immediately. "
+    "Do not begin self-initiated repo, memory, search, shell, or additional-tool exploration afterward. "
+    "Continue while an active node, required capability, or explicitly requested investigation, "
+    "implementation, or operation remains unfinished. "
     "If the tool, binding, or receipt is unavailable, explicitly report unmanaged; continue "
     "only with read-only explanation or diagnosis and do not perform write/external actions."
 )

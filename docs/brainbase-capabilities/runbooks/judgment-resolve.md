@@ -30,6 +30,8 @@ Treat a historical reference and a retrieval request separately. `Story履歴を
 5. If status is `needs_classification` or `needs_policy_resolution`, resolve the listed `unresolved` items before proceeding.
 6. Perform any independent authorization, approval, and enforcement checks required by the eventual action.
 
+Managed or resolved status alone is not a stop condition. When selected nodes and required capabilities are complete, the user's requested answer or work is complete, and no unresolved item remains, emit the completed final response immediately. Do not begin self-initiated repo, memory, search, shell, or additional-tool exploration afterward. Continue while an active node, required capability, or explicitly requested investigation, implementation, or operation remains unfinished.
+
 For `cumulative_effect` or `complexity_growth`, execute `controller-scope` before proposing another Story: read recent Story history, cumulative complexity, and external outcomes, then select normal development or simplification once. Keep candidate generation parallel inside the selected mode; adoption must not choose the mode again. Use existing Story/PR/merge checks to verify the selected mode and prevent manual all-PR merge bypass. The common merge node is only a receipt join, so do not introduce a PR fan-in subsystem.
 
 For `threshold_proposal`, missing evidence or measurability remains unresolved. Never replace an unsupported threshold with another number, ratio, count, duration, budget, or inequality.
