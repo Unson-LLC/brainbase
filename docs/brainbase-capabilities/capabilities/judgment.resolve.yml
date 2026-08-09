@@ -19,7 +19,7 @@ surfaces:
   data:
     - config/judgment-runtime-manifest.json
     - config/judgment-runtime-manifest-lock.json
-    - User-local atomic receipt journal; raw session IDs and absolute transcript paths are not persisted to shared Brainbase data.
+    - User-local atomic receipt and owner-audit journal; raw session IDs, absolute transcript paths, secrets, and unbounded conversation text are not persisted in the owner audit.
 depends_on:
   - auth.grants
   - graph.ssot
@@ -28,7 +28,7 @@ visibility_rules:
   - Every Codex turn is resolved before model generation because answering is also a judgment.
   - The Host constructs required canonical conversation_context from ordered raw conversation messages, prior receipts, runtime/project data, and instruction digests.
   - The model cannot call Judgment Resolver and cannot submit classification or a model-authored context summary.
-  - The Host deterministically projects receipt evidence into one short Japanese `🧠 Brainbase参照:` line; every user-facing response starts with that exact line.
+  - The Host resolves receipt evidence back to the concrete canonical user turn and projects a redacted, bounded excerpt plus the judgment result into one short Japanese `🧠 Brainbase参照:` line; every user-facing response starts with that exact line.
   - A required `knowledge.resolve` capability is described as retrieval still needed, never as knowledge already retrieved or used.
   - Only one accepted receipt exists per turn; bounded transport retries are allowed before atomic adoption, never after it.
   - Each active node has a manifest-owned executable definition; only selected branches run.
@@ -48,7 +48,8 @@ verification:
     - Follow-ups can inherit a prior receipt while current-request action and risk floors remain current.
     - Project-scope absence omits project policy but does not reject judgment.
     - The same turn reuses its adopted receipt without another Resolver request.
-    - The owner-visible first line names the actual conversation basis and judgment type without exposing IDs or raw receipt JSON.
+    - The owner-visible first line includes a redacted excerpt of the actual conversation basis and the judgment result without exposing IDs, secrets, unbounded text, or raw receipt JSON.
+    - The adopted receipt and rendered owner audit share one atomic journal entry, so a replay cannot drift after renderer changes.
 common_failures:
   - Asking the model to call Resolver after generation has already begun.
   - Asking the model to invent classification input or summarize conversation_context.

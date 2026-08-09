@@ -253,7 +253,20 @@ export function buildJudgmentRequest(payload, { env = process.env } = {}) {
     };
 }
 
-function existingAdoption(args, env) {
+function verifyOwnerAudit(ownerAudit, receipt) {
+    if (!record(ownerAudit) || ownerAudit.schema_version !== 'brainbase-owner-audit-v1') {
+        throw new Error('judgment_owner_audit_missing');
+    }
+    if (ownerAudit.source_receipt_digest !== sha256(canonicalJson(receipt))) {
+        throw new Error('judgment_owner_audit_receipt_mismatch');
+    }
+    if (typeof ownerAudit.display_line !== 'string' || ownerAudit.text_digest !== sha256(ownerAudit.display_line)) {
+        throw new Error('judgment_owner_audit_digest_mismatch');
+    }
+    return ownerAudit;
+}
+
+function existingAdoptionEntry(args, env) {
     const sessionRef = args.conversation_context.session_ref;
     const { target } = journalPaths(sessionRef, args.turn_id, env);
     try {
@@ -261,7 +274,21 @@ function existingAdoption(args, env) {
         if (entry.request_text_digest !== sha256(args.request)) {
             throw new Error('judgment_turn_receipt_conflict');
         }
-        return verifyReceipt(entry.receipt, args);
+        const receipt = verifyReceipt(entry.receipt, args);
+        if (entry.schema_version === 'brainbase-judgment-adoption-v2') {
+            if (entry.receipt_digest !== sha256(canonicalJson(receipt))) {
+                throw new Error('judgment_adoption_receipt_digest_mismatch');
+            }
+            return { ...entry, receipt, owner_audit: verifyOwnerAudit(entry.owner_audit, receipt) };
+        }
+        if (entry.schema_version === 'brainbase-judgment-adoption-v1') {
+            return {
+                ...entry,
+                receipt,
+                owner_audit: buildOwnerAudit(args, receipt, { historicalExact: false })
+            };
+        }
+        throw new Error('judgment_adoption_schema_unsupported');
     } catch (error) {
         if (error?.code === 'ENOENT') return null;
         throw error;
@@ -282,21 +309,24 @@ function adoptReceipt(args, receipt, env) {
     const sessionRef = args.conversation_context.session_ref;
     const { directory, target } = journalPaths(sessionRef, args.turn_id, env);
     mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const ownerAudit = buildOwnerAudit(args, receipt);
     const entry = {
-        schema_version: 'brainbase-judgment-adoption-v1',
+        schema_version: 'brainbase-judgment-adoption-v2',
         accepted_at: new Date().toISOString(),
         request_text_digest: sha256(args.request),
-        receipt
+        receipt_digest: sha256(canonicalJson(receipt)),
+        receipt,
+        owner_audit: ownerAudit
     };
     const temp = join(directory, `.${basename(target)}.${process.pid}.${randomUUID()}.tmp`);
     const descriptor = openSync(temp, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY, 0o600);
     try { writeFileSync(descriptor, `${JSON.stringify(entry)}\n`); } finally { closeSync(descriptor); }
     try {
         linkSync(temp, target);
-        return receipt;
+        return entry;
     } catch (error) {
         if (error?.code !== 'EEXIST') throw error;
-        return existingAdoption(args, env);
+        return existingAdoptionEntry(args, env);
     } finally {
         try { unlinkSync(temp); } catch {}
     }
@@ -323,8 +353,8 @@ async function fetchAttempt(args, { env, fetchImpl }) {
     }
 }
 
-export async function resolveAndAdopt(args, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
-    const accepted = existingAdoption(args, env);
+async function resolveAndAdoptEntry(args, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
+    const accepted = existingAdoptionEntry(args, env);
     if (accepted) return accepted;
     let lastError;
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -340,58 +370,128 @@ export async function resolveAndAdopt(args, { env = process.env, fetchImpl = glo
     throw lastError;
 }
 
-const OWNER_JUDGMENT_LABELS = new Map([
-    ['direct.v1', '回答方針'],
-    ['knowledge.v1', 'Brainbase内の知識検索が必要か'],
-    ['personal-judgment.v1', '個人の判断基準の使い方'],
-    ['engineering.v1', '実装方針'],
-    ['organization.v1', '組織情報の扱い方'],
-    ['operations.v1', '運用方針'],
-    ['cumulative-complexity.v1', '複雑性の捉え方'],
-    ['threshold.v1', '閾値の置き方'],
-    ['parallel.v1', '候補の比較方法'],
-    ['authority.v1', '権限条件'],
-    ['problem-frame.v1', '問題の捉え方'],
-    ['external-outcome.v1', '外部成果の確かめ方'],
-    ['clarification.v1', '追加確認が必要か']
-]);
-
-function ownerReferenceBasis(receipt) {
-    const source = receipt?.classification_evidence?.source;
-    const inherited = receipt?.reconciliation_reasons?.includes('classification_inherited_from_prior_turn');
-    if (source === 'prior_receipt' || source === 'prior_message' || inherited) return '直前の会話を引き継ぎ';
-    return '現在の質問をもとに';
+export async function resolveAndAdopt(args, dependencies = {}) {
+    return (await resolveAndAdoptEntry(args, dependencies)).receipt;
 }
 
-function ownerJudgmentLabels(receipt) {
+const OWNER_EXCERPT_LIMIT = 26;
+const PRIOR_EVIDENCE_SOURCES = new Set(['prior_receipt', 'prior_message']);
+
+function sanitizeOwnerExcerpt(value) {
+    const redacted = String(value ?? '')
+        .replace(/\b(token|api[_-]?key|secret|password)\s*=\s*[^\s]+/giu, '$1=[秘密情報]')
+        .replace(/\b(?:sk-[a-z0-9_-]{8,}|ghp_[a-z0-9_]{8,}|github_pat_[a-z0-9_]{8,}|xox[a-z]-[a-z0-9-]{8,}|AIza[a-z0-9_-]{8,})\b/giu, '[秘密情報]')
+        .replace(/[\u0000-\u001f\u007f]+/gu, ' ')
+        .replace(/[「」]/gu, ' ')
+        .replace(/\s+/gu, ' ')
+        .trim();
+    const points = Array.from(redacted);
+    return points.length > OWNER_EXCERPT_LIMIT
+        ? `${points.slice(0, OWNER_EXCERPT_LIMIT).join('')}…`
+        : redacted;
+}
+
+function ownerEvidenceSource(args, receipt) {
+    const evidence = record(receipt?.classification_evidence) ?? {};
+    const inherited = Array.isArray(receipt?.reconciliation_reasons)
+        && receipt.reconciliation_reasons.includes('classification_inherited_from_prior_turn');
+    const prior = PRIOR_EVIDENCE_SOURCES.has(evidence.source) || inherited;
+    if (!prior) return { sourceKind: 'current_request', text: args.request };
+
+    const sourceTurnIds = Array.isArray(evidence.source_turn_ids)
+        ? evidence.source_turn_ids.filter((turnId) => typeof turnId === 'string')
+        : [];
+    const messages = Array.isArray(args?.conversation_context?.messages)
+        ? args.conversation_context.messages
+        : [];
+    const exact = [...messages].reverse().find((message) => (
+        message?.role === 'user'
+        && message.turn_id !== args.turn_id
+        && sourceTurnIds.includes(message.turn_id)
+    ));
+    const fallback = sourceTurnIds.length === 0
+        ? [...messages].reverse().find((message) => message?.role === 'user' && message.turn_id !== args.turn_id)
+        : null;
+    return {
+        sourceKind: exact ? 'prior_turn' : fallback ? 'prior_turn_fallback' : 'prior_turn_unavailable',
+        text: exact?.text ?? fallback?.text ?? '',
+        sourceTurnIds
+    };
+}
+
+function requiredKnowledgeResolution(receipt) {
+    return Array.isArray(receipt?.required_capabilities) && receipt.required_capabilities.some((entry) => (
+        entry === 'knowledge.resolve' || entry?.capability === 'knowledge.resolve'
+    ));
+}
+
+function ownerDecision(receipt) {
+    if (requiredKnowledgeResolution(receipt)) return 'Brainbase内検索が必要と判断';
+    const intent = receipt?.classification?.intent;
+    const byIntent = {
+        implement: '実装依頼として継続',
+        investigate: '調査として確認',
+        diagnose: '原因診断として確認',
+        review: 'レビューとして確認',
+        design: '設計として検討',
+        answer: '質問として回答',
+        explain: '説明として回答',
+        operate: '運用依頼として対応'
+    };
+    if (byIntent[intent]) return byIntent[intent];
+    return {
+        read: '調査として確認',
+        write: '変更依頼として継続',
+        external: '外部操作として確認',
+        none: '質問として回答'
+    }[receipt?.classification?.action_kind] ?? '回答方針を確認';
+}
+
+export function buildOwnerAudit(args, receipt, { historicalExact = true } = {}) {
+    const evidence = ownerEvidenceSource(args, receipt);
+    const excerpt = sanitizeOwnerExcerpt(evidence.text);
     const dagIds = Array.isArray(receipt?.selected_dag_ids) ? receipt.selected_dag_ids : [];
+    let decision = ownerDecision(receipt);
+    let displayLine;
+
     if (receipt?.status === 'needs_classification' || dagIds.includes('clarification.v1')) {
-        return ['追加確認が必要か'];
+        decision = '確認質問';
+        displayLine = `⚠️ Brainbase参照: 「${excerpt || '現在の依頼'}」の対象を特定できず → ${decision}`;
+    } else if (receipt?.status === 'needs_policy_resolution') {
+        decision = '方針衝突を要確認';
+        displayLine = `⚠️ Brainbase参照: 「${excerpt || '現在の依頼'}」を参照 → ${decision}`;
+    } else if (receipt?.status && receipt.status !== 'resolved') {
+        decision = '状態を要確認';
+        displayLine = `⚠️ Brainbase参照: 「${excerpt || '現在の依頼'}」を参照 → ${decision}`;
+    } else if (evidence.sourceKind === 'prior_turn_unavailable') {
+        decision = '判断証跡を要確認';
+        displayLine = `⚠️ Brainbase参照: 参照元の会話を確認できず → ${decision}`;
+    } else {
+        const prefix = evidence.sourceKind.startsWith('prior_turn') ? '直前の' : '';
+        displayLine = `🧠 Brainbase参照: ${prefix}「${excerpt || '現在の依頼'}」を参照 → ${decision} ✓`;
     }
 
-    const labels = dagIds.map((dagId) => OWNER_JUDGMENT_LABELS.get(dagId)).filter(Boolean);
-    if (labels.length === 0) {
-        const domain = receipt?.classification?.domains?.[0];
-        const fallback = {
-            engineering: '実装方針',
-            knowledge: 'Brainbase内の知識検索が必要か',
-            operations: '運用方針',
-            organization: '組織情報の扱い方',
-            personal_judgment: '個人の判断基準の使い方'
-        }[domain];
-        return [fallback || '回答方針'];
-    }
-    return [...new Set(labels)].slice(0, 3);
+    return {
+        schema_version: 'brainbase-owner-audit-v1',
+        renderer_version: '1',
+        locale: 'ja-JP',
+        historical_exact: historicalExact,
+        source_receipt_digest: sha256(canonicalJson(receipt)),
+        source_kind: evidence.sourceKind,
+        source_turn_ids: evidence.sourceTurnIds ?? [],
+        source_excerpt: excerpt,
+        decision,
+        display_line: displayLine,
+        text_digest: sha256(displayLine)
+    };
 }
 
-export function buildOwnerReferenceLine(receipt) {
-    const basis = ownerReferenceBasis(receipt);
-    const judgment = ownerJudgmentLabels(receipt).join('と');
-    return `🧠 Brainbase参照: ${basis}、${judgment}を判断しました。`;
+export function buildOwnerReferenceLine(args, receipt) {
+    return buildOwnerAudit(args, receipt).display_line;
 }
 
-export function successOutput(receipt) {
-    const ownerReferenceLine = buildOwnerReferenceLine(receipt);
+export function successOutput(args, receipt, ownerAudit = buildOwnerAudit(args, receipt)) {
+    const ownerReferenceLine = ownerAudit.display_line;
     const context = [
         'Brainbase Judgment Resolver Host contract was completed before model generation.',
         'This is the only accepted receipt for the current turn. Do not call Judgment Resolver again and do not reclassify the turn.',
@@ -424,8 +524,8 @@ async function main() {
     if (eventName !== 'UserPromptSubmit') return;
     try {
         const args = buildJudgmentRequest(payload);
-        const receipt = await resolveAndAdopt(args);
-        process.stdout.write(`${JSON.stringify(successOutput(receipt))}\n`);
+        const adoption = await resolveAndAdoptEntry(args);
+        process.stdout.write(`${JSON.stringify(successOutput(args, adoption.receipt, adoption.owner_audit))}\n`);
     } catch (error) {
         process.stdout.write(`${JSON.stringify(blockedOutput(error instanceof Error ? error.message : String(error)))}\n`);
     }
