@@ -14,7 +14,7 @@ Google Driveでチームが参照できる購入済み書籍を、Brainbaseの�
 - 対象: 38冊（[`manifest.yml`](../internal/book-ingestion/manifest.yml)）
 - Drive解決結果: 38/38件（[`resolved.json`](../internal/book-ingestion/resolved.json)）
 - PDF抽出監査: [`extraction-report.json`](../internal/book-ingestion/extraction-report.json)
-- OCR完了証跡: 17冊3,675ページ・3,797,837文字（[`ocr-status.json`](../internal/book-ingestion/ocr-status.json)）。残る21冊は未完了として扱う
+- OCR完了証跡: 20冊4,576ページ・4,924,941文字（[`ocr-status.json`](../internal/book-ingestion/ocr-status.json)）。残る18冊は未完了として扱う
 - Drive読み取りアカウント: `info@unson.jp`
 - 原本所有者: `k.sato.unson@gmail.com`
 
@@ -43,6 +43,9 @@ Google Driveでチームが参照できる購入済み書籍を、Brainbaseの�
 | THE MODEL | [`the-model-revenue-process.md`](./the-model-revenue-process.md) | 第6バッチ・OCR出典確認済み・既存Skillへ接続 |
 | なぜあの商品、サービスは売れたのか？ | [`hit-product-case-patterns.md`](./hit-product-case-patterns.md) | 第6バッチ・OCR出典確認済み・既存Skillへ接続 |
 | 失敗から学ぶマーケティング | [`marketing-failure-patterns.md`](./marketing-failure-patterns.md) | 第6バッチ・OCR出典確認済み |
+| マーケティングを学んだけれど、どう使えばいいかわからない人へ | [`marketing-value-compass.md`](./marketing-value-compass.md) | 第7バッチ・OCR出典確認済み |
+| できる営業マンのすごい言語化 | [`sales-tacit-knowledge-playbook.md`](./sales-tacit-knowledge-playbook.md) | 第7バッチ・OCR出典確認済み・既存Skillへ接続 |
+| Foundations of Robotics | [`robotics-foundations-learning-map.md`](./robotics-foundations-learning-map.md) | 第7バッチ・OCR出典確認済み |
 
 横断的な使い分けは[`systemization-selection-guide.md`](./systemization-selection-guide.md)を参照する。
 
