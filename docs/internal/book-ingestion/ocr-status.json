@@ -152,6 +152,33 @@
       "source_pages": 408,
       "characters": 413430,
       "sha256": "cb6d3aa99f8bee098e5272cc41f31982c6fe9fe369876b2d6690636eacace86e"
+    },
+    {
+      "index": 20,
+      "title": "マーケティングを学んだけれど、どう使えばいいかわからない人へ",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 199,
+      "source_pages": 199,
+      "characters": 183542,
+      "sha256": "18ed02bf3d0ece176a200264fbd9bebfe101a983486b4b676d6d4c19fae0cc74"
+    },
+    {
+      "index": 21,
+      "title": "できる営業マンのすごい言語化",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 165,
+      "source_pages": 165,
+      "characters": 147610,
+      "sha256": "7b6658b9016292db5c9c61888f51e5e5f824f5bd4a10daaf11953edf702c4e58"
+    },
+    {
+      "index": 22,
+      "title": "Foundations of Robotics: A Multidisciplinary Approach with Python and ROS",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 537,
+      "source_pages": 537,
+      "characters": 795952,
+      "sha256": "770eaeb010903ef219f40e33607289a1e820c72592ab68b0931ed199292000ca"
     }
   ]
 }
