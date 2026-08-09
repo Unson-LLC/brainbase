@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -88,7 +88,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                         context_digest: hash(canonicalJson(args.conversation_context)),
                         status: 'resolved',
                         host_binding: { status: 'managed' },
-                        classification_evidence: { source: 'prior_receipt' },
+                        classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
                         classification: { intent: 'implement', domains: ['operations'], action_kind: 'write' },
                         selected_dag_ids: ['operations.v1', 'authority.v1'],
                         active_node_definitions: [{ id: 'answer', kind: 'common', instruction: 'Answer.' }]
@@ -122,11 +122,21 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const additionalContext = JSON.parse(first.stdout).hookSpecificOutput.additionalContext;
         expect(additionalContext).toContain(
             'The first line of every user-facing response must be exactly this Host-generated line, before any other text:\n' +
-            '🧠 Brainbase参照: 直前の会話を引き継ぎ、運用方針と権限条件を判断しました。'
+            '🧠 Brainbase参照: 「Resolverを実行して」を参照 → 実装依頼として継続 ✓'
         );
         expect(first.stdout).toContain('jr_symlink_entrypoint');
         expect(JSON.parse(second.stdout)).toEqual(JSON.parse(first.stdout));
         expect(requestCount).toBe(1);
-        expect(readdirSync(join(journal, hash('session-symlink-entrypoint')))).toHaveLength(1);
+        const journalDirectory = join(journal, hash('session-symlink-entrypoint'));
+        const journalFiles = readdirSync(journalDirectory);
+        expect(journalFiles).toHaveLength(1);
+        expect(JSON.parse(readFileSync(join(journalDirectory, journalFiles[0]), 'utf8'))).toMatchObject({
+            schema_version: 'brainbase-judgment-adoption-v2',
+            owner_audit: {
+                source_excerpt: 'Resolverを実行して',
+                decision: '実装依頼として継続',
+                display_line: '🧠 Brainbase参照: 「Resolverを実行して」を参照 → 実装依頼として継続 ✓'
+            }
+        });
     });
 });

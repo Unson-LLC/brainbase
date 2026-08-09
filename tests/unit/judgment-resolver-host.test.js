@@ -46,54 +46,137 @@ afterEach(() => {
 });
 
 describe('Codex Judgment Resolver Host', () => {
-    it('採用receiptの実根拠をowner向けの短い日本語1文へ投影する', () => {
+    it('prior receiptの根拠turnから具体的な会話をowner向け1行へ投影する', () => {
+        const args = {
+            request: 'そうだね、そのようなメッセージが表示されるように修正して',
+            turn_id: 'turn-current',
+            conversation_context: {
+                messages: [
+                    {
+                        sequence: 0,
+                        turn_id: 'turn-prior',
+                        role: 'user',
+                        phase: 'final',
+                        text: '俺がbrainbaseの運用をどのように監査したいか個人KGを引いてシミュレーションしてみろ'
+                    },
+                    {
+                        sequence: 1,
+                        turn_id: 'turn-current',
+                        role: 'user',
+                        phase: null,
+                        text: 'そうだね、そのようなメッセージが表示されるように修正して'
+                    }
+                ]
+            }
+        };
         const receipt = {
-            classification_evidence: { source: 'prior_receipt' },
+            classification_evidence: { source: 'prior_receipt', source_turn_ids: ['turn-prior'] },
             classification: { intent: 'implement', domains: ['operations'], action_kind: 'write' },
             selected_dag_ids: ['operations.v1', 'authority.v1']
         };
 
-        expect(buildOwnerReferenceLine(receipt)).toBe(
-            '🧠 Brainbase参照: 直前の会話を引き継ぎ、運用方針と権限条件を判断しました。'
+        expect(buildOwnerReferenceLine(args, receipt)).toBe(
+            '🧠 Brainbase参照: 直前の「俺がbrainbaseの運用をどのように監査したいか…」を参照 → 実装依頼として継続 ✓'
         );
     });
 
-    it('knowledge handoffは取得済みと誤表示せず検索の必要性として表示する', () => {
+    it('current requestの具体的な内容とknowledge handoffの判断を表示する', () => {
+        const args = {
+            request: '顧客Aの過去の意思決定をBrainbaseで確認して',
+            turn_id: 'turn-current',
+            conversation_context: {
+                messages: [{
+                    sequence: 0,
+                    turn_id: 'turn-current',
+                    role: 'user',
+                    phase: null,
+                    text: '顧客Aの過去の意思決定をBrainbaseで確認して'
+                }]
+            }
+        };
         const receipt = {
-            classification_evidence: { source: 'current_request' },
+            classification_evidence: { source: 'current_request', source_turn_ids: ['turn-current'] },
             classification: { intent: 'investigate', domains: ['knowledge'], action_kind: 'read' },
             selected_dag_ids: ['knowledge.v1'],
             required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }]
         };
 
-        const line = buildOwnerReferenceLine(receipt);
+        const line = buildOwnerReferenceLine(args, receipt);
         expect(line).toBe(
-            '🧠 Brainbase参照: 現在の質問をもとに、Brainbase内の知識検索が必要かを判断しました。'
+            '🧠 Brainbase参照: 「顧客Aの過去の意思決定をBrainbaseで確認して」を参照 → Brainbase内検索が必要と判断 ✓'
         );
         expect(line).not.toContain('取得しました');
         expect(line).not.toContain('使用しました');
     });
 
     it('clarification receiptは停止ではなく追加確認の判断として表示する', () => {
+        const args = {
+            request: 'それでいい。修正して',
+            turn_id: 'turn-current',
+            conversation_context: { messages: [] }
+        };
         const receipt = {
             status: 'needs_classification',
             classification_evidence: { source: 'current_request' },
             selected_dag_ids: ['clarification.v1']
         };
 
-        expect(buildOwnerReferenceLine(receipt)).toBe(
-            '🧠 Brainbase参照: 現在の質問をもとに、追加確認が必要かを判断しました。'
+        expect(buildOwnerReferenceLine(args, receipt)).toBe(
+            '⚠️ Brainbase参照: 「それでいい。修正して」の対象を特定できず → 確認質問'
+        );
+    });
+
+    it('監査行を1行に保ち、秘密らしい値と長文を表示しない', () => {
+        const args = {
+            request: 'token=sk-secret-value-1234567890\nを使って本番環境を確認し、その後の長い説明も参照して判断して',
+            turn_id: 'turn-current',
+            conversation_context: { messages: [] }
+        };
+        const receipt = {
+            classification_evidence: { source: 'current_request' },
+            classification: { intent: 'investigate', domains: ['operations'], action_kind: 'read' },
+            selected_dag_ids: ['operations.v1']
+        };
+
+        const line = buildOwnerReferenceLine(args, receipt);
+        expect(line).toBe('🧠 Brainbase参照: 「token=[秘密情報] を使って本番環境を確認し、…」を参照 → 調査として確認 ✓');
+        expect(line).not.toContain('sk-secret-value');
+        expect(line.split('\n')).toHaveLength(1);
+    });
+
+    it('receiptが指定したprior turnを見つけられない場合は別の会話へ黙って代替しない', () => {
+        const args = {
+            request: 'それでいい',
+            turn_id: 'turn-current',
+            conversation_context: {
+                messages: [{ turn_id: 'turn-other', role: 'user', text: '別件を実装して' }]
+            }
+        };
+        const receipt = {
+            status: 'resolved',
+            classification_evidence: { source: 'prior_receipt', source_turn_ids: ['turn-missing'] },
+            classification: { intent: 'implement', action_kind: 'write' },
+            selected_dag_ids: ['operations.v1']
+        };
+
+        expect(buildOwnerReferenceLine(args, receipt)).toBe(
+            '⚠️ Brainbase参照: 参照元の会話を確認できず → 判断証跡を要確認'
         );
     });
 
     it('Hostが確定した参照文を全user-facing responseの先頭行に固定する', () => {
+        const args = {
+            request: 'この設計をレビューして',
+            turn_id: 'turn-current',
+            conversation_context: { messages: [] }
+        };
         const receipt = {
             classification_evidence: { source: 'prior_message' },
             classification: { intent: 'answer', domains: ['engineering'], action_kind: 'none' },
             selected_dag_ids: ['problem-frame.v1']
         };
-        const line = buildOwnerReferenceLine(receipt);
-        const output = successOutput(receipt);
+        const line = buildOwnerReferenceLine(args, receipt);
+        const output = successOutput(args, receipt);
 
         expect(output.hookSpecificOutput.additionalContext).toContain(
             `The first line of every user-facing response must be exactly this Host-generated line, before any other text:\n${line}`
@@ -210,7 +293,20 @@ describe('Codex Judgment Resolver Host', () => {
 
         const sessionRef = args.conversation_context.session_ref;
         const journalFiles = readFileSync(join(root, 'journal', sessionRef, `${hash(args.turn_id)}.json`), 'utf8');
-        expect(JSON.parse(journalFiles).receipt.resolution_id).toBe('jr_host_test');
+        const adoption = JSON.parse(journalFiles);
+        expect(adoption).toMatchObject({
+            schema_version: 'brainbase-judgment-adoption-v2',
+            receipt: { resolution_id: 'jr_host_test' },
+            owner_audit: {
+                schema_version: 'brainbase-owner-audit-v1',
+                historical_exact: true,
+                source_kind: 'current_request',
+                source_excerpt: '判断して',
+                display_line: '🧠 Brainbase参照: 「判断して」を参照 → 回答方針を確認 ✓'
+            }
+        });
+        expect(adoption.owner_audit.text_digest).toBe(hash(adoption.owner_audit.display_line));
+        expect(adoption.owner_audit.source_receipt_digest).toBe(hash(canonicalJson(receipt)));
     });
 
     it('requestに束縛されないreceiptを採用しない', async () => {

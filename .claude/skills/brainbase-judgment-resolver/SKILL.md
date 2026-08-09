@@ -20,7 +20,7 @@ description: Brainbase管理対象turnで、Hostがmodel生成前に採用した
 5. `required_capabilities`に`knowledge.resolve`があれば、`brainbase_knowledge_resolve`を別に呼び、そのreceiptを取得する。
 6. `project_code`は判断文脈でありaction authorityではない。project access不能だけで判断全体を拒否せず、project policyは認証済みscope内だけ適用する。
 7. Judgment receiptは判断経路の証拠であり、write/external actionのauthorizationではない。通常のplatform permission・approval・executor authorizationをそのまま使い、Judgment専用の二重guardは追加しない。
-8. Hostは採用したreceiptからowner向けの短文1行（`🧠 Brainbase参照: ...`）を決定論的に描画し、modelはそれを各回答の先頭に改変せずそのまま出力する。modelがこの行を独自に作成・翻訳・整形し直したturnは未検証turnとして扱う。この行は判断evidenceの表示であり、action authorizationやknowledge取得完了を示すものではない。
+8. Hostは採用したreceiptが指定した根拠turnをcanonical contextから引き、秘密らしい値を伏せた26 code point以内の発言抜粋と判断結果を、owner向け短文1行（例: `🧠 Brainbase参照: 直前の「ログイン後の白画面」を参照 → 実装依頼として継続 ✓`）へ決定論的に描画する。receiptと短文は同じturn journal entryへ原子的に保存し、再実行では保存済み短文を使う。modelはそれを各回答の先頭に改変せずそのまま出力する。modelがこの行を独自に作成・翻訳・整形し直したturnは未検証turnとして扱う。この行は判断evidenceの表示であり、action authorizationやknowledge取得完了を示すものではない。
 
 ## Completion and failure
 
