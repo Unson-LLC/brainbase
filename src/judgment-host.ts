@@ -125,12 +125,28 @@ interface LocalResolverOptions {
   id?: () => string;
 }
 
+export interface JudgmentOwnerAudit {
+  schema_version: 'brainbase-owner-audit-v1';
+  renderer_version: '1';
+  locale: 'ja-JP';
+  historical_exact: boolean;
+  source_receipt_digest: string;
+  source_kind: 'current_request' | 'prior_turn' | 'prior_turn_fallback' | 'prior_turn_unavailable';
+  source_turn_ids: string[];
+  source_excerpt: string;
+  decision: string;
+  display_line: string;
+  text_digest: string;
+}
+
 interface JudgmentAdoptionEntry {
-  schema_version: 'brainbase-judgment-adoption-v1';
+  schema_version: 'brainbase-judgment-adoption-v1' | 'brainbase-judgment-adoption-v2';
   accepted_at: string;
   request_text_digest: string;
   request: JudgmentRequest;
   receipt: JudgmentReceipt;
+  receipt_digest?: string;
+  owner_audit: JudgmentOwnerAudit;
 }
 
 const RUNTIME_VERSION = 'portable-judgment-runtime-1.0.0';
@@ -192,17 +208,6 @@ const DOMAIN_TERMS: Array<[JudgmentClassification['domains'][number], string[]]>
 
 const FOLLOW_UP_TERMS = ['that', 'it', 'continue', 'do that', 'それ', 'その形', 'これ', 'こちら', '続けて', 'もう一度', 'では', 'それでいい', 'そうして'];
 const AUTHORITY_INTENTS = new Set<JudgmentClassification['intent']>(['implement', 'operate']);
-
-const OWNER_JUDGMENT_LABELS = new Map([
-  ['direct.v1', '回答方針'],
-  ['knowledge.v1', '参照する知識'],
-  ['engineering.v1', '実装方針'],
-  ['organization.v1', '組織情報の扱い方'],
-  ['operations.v1', '運用方針'],
-  ['personal-judgment.v1', '個人の判断基準の使い方'],
-  ['authority.v1', '権限条件'],
-  ['clarification.v1', '追加確認が必要か']
-]);
 
 export function canonicalJson(value: unknown): string {
   if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value);
@@ -457,7 +462,9 @@ function readAdoptionEntry(path: string): JudgmentAdoptionEntry {
   const entry = record(parsed);
   const request = record(entry?.request) as unknown as JudgmentRequest | null;
   const receipt = record(entry?.receipt) as unknown as JudgmentReceipt | null;
-  if (entry?.schema_version !== 'brainbase-judgment-adoption-v1'
+  const supportedSchema = entry?.schema_version === 'brainbase-judgment-adoption-v1'
+    || entry?.schema_version === 'brainbase-judgment-adoption-v2';
+  if (!supportedSchema
     || typeof entry.accepted_at !== 'string'
     || typeof entry.request_text_digest !== 'string'
     || !request
@@ -470,12 +477,29 @@ function readAdoptionEntry(path: string): JudgmentAdoptionEntry {
   if (entry.request_text_digest !== sha256(request.request)) {
     throw new Error(`judgment_journal_request_digest_mismatch:${basename(path)}`);
   }
+  const verifiedReceipt = verifyReceipt(receipt, request);
+  if (entry.schema_version === 'brainbase-judgment-adoption-v2') {
+    if (typeof entry.receipt_digest !== 'string'
+      || entry.receipt_digest !== sha256(canonicalJson(verifiedReceipt))) {
+      throw new Error(`judgment_adoption_receipt_digest_mismatch:${basename(path)}`);
+    }
+    return {
+      schema_version: 'brainbase-judgment-adoption-v2',
+      accepted_at: entry.accepted_at,
+      request_text_digest: entry.request_text_digest,
+      request,
+      receipt: verifiedReceipt,
+      receipt_digest: entry.receipt_digest,
+      owner_audit: verifyOwnerAudit(entry.owner_audit, verifiedReceipt)
+    };
+  }
   return {
     schema_version: 'brainbase-judgment-adoption-v1',
     accepted_at: entry.accepted_at,
     request_text_digest: entry.request_text_digest,
     request,
-    receipt: verifyReceipt(receipt, request)
+    receipt: verifiedReceipt,
+    owner_audit: buildOwnerAudit(request, verifiedReceipt, { historicalExact: false })
   };
 }
 
@@ -772,7 +796,7 @@ function verifyReceipt(receipt: JudgmentReceipt, request: JudgmentRequest): Judg
   return receipt;
 }
 
-function existingAdoption(request: JudgmentRequest, env: Environment): JudgmentReceipt | null {
+function existingAdoption(request: JudgmentRequest, env: Environment): JudgmentAdoptionEntry | null {
   const { target } = journalPaths(request.conversation_context.session_ref, request.turn_id, env);
   try {
     const entry = readAdoptionEntry(target);
@@ -781,14 +805,14 @@ function existingAdoption(request: JudgmentRequest, env: Environment): JudgmentR
       || entry.request.conversation_context.session_ref !== request.conversation_context.session_ref) {
       throw new Error('judgment_turn_receipt_conflict');
     }
-    return entry.receipt;
+    return entry;
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return null;
     throw error;
   }
 }
 
-function existingAdoptionForPayload(payload: JudgmentHookPayload, env: Environment): JudgmentReceipt | null {
+function existingAdoptionForPayload(payload: JudgmentHookPayload, env: Environment): JudgmentAdoptionEntry | null {
   const request = typeof payload.prompt === 'string' && payload.prompt.trim() ? payload.prompt : '';
   const turnId = typeof payload.turn_id === 'string' ? payload.turn_id.trim() : '';
   const sessionId = typeof payload.session_id === 'string' ? payload.session_id : '';
@@ -802,22 +826,25 @@ function existingAdoptionForPayload(payload: JudgmentHookPayload, env: Environme
       || entry.request.conversation_context.session_ref !== sessionRef) {
       throw new Error('judgment_turn_receipt_conflict');
     }
-    return entry.receipt;
+    return entry;
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return null;
     throw error;
   }
 }
 
-function adoptReceipt(request: JudgmentRequest, receipt: JudgmentReceipt, env: Environment): JudgmentReceipt {
+function adoptReceipt(request: JudgmentRequest, receipt: JudgmentReceipt, env: Environment): JudgmentAdoptionEntry {
   const { directory, target } = journalPaths(request.conversation_context.session_ref, request.turn_id, env);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const entry = {
-    schema_version: 'brainbase-judgment-adoption-v1',
+  const ownerAudit = buildOwnerAudit(request, receipt);
+  const entry: JudgmentAdoptionEntry = {
+    schema_version: 'brainbase-judgment-adoption-v2',
     accepted_at: new Date().toISOString(),
     request_text_digest: sha256(request.request),
     request,
-    receipt
+    receipt,
+    receipt_digest: sha256(canonicalJson(receipt)),
+    owner_audit: ownerAudit
   };
   const temp = join(directory, `.${basename(target)}.${process.pid}.${randomUUID()}.tmp`);
   let descriptor: number | null = null;
@@ -829,10 +856,10 @@ function adoptReceipt(request: JudgmentRequest, receipt: JudgmentReceipt, env: E
     descriptor = null;
     try {
       linkSync(temp, target);
-      return receipt;
+      return entry;
     } catch (error) {
       if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error;
-      return existingAdoption(request, env) as JudgmentReceipt;
+      return existingAdoption(request, env) as JudgmentAdoptionEntry;
     }
   } finally {
     if (descriptor !== null) {
@@ -850,26 +877,143 @@ function adoptReceipt(request: JudgmentRequest, receipt: JudgmentReceipt, env: E
   }
 }
 
-export function buildOwnerReferenceLine(receipt: JudgmentReceipt): string {
-  const inherited = receipt.classification_evidence?.source === 'prior_message'
-    || receipt.classification_evidence?.source === 'prior_receipt'
-    || receipt.reconciliation_reasons?.includes('classification_inherited_from_prior_turn');
-  const basis = inherited ? '直前の会話を引き継ぎ' : '現在の質問をもとに';
-  const labels = receipt.status === 'needs_clarification'
-    ? ['追加確認が必要か']
-    : [...new Set(receipt.selected_dag_ids.map((dagId) => OWNER_JUDGMENT_LABELS.get(dagId)).filter((label): label is string => Boolean(label)))].slice(0, 3);
-  return `🧠 Brainbase参照: ${basis}、${(labels.length > 0 ? labels : ['回答方針']).join('と')}を判断しました。`;
+const OWNER_EXCERPT_LIMIT = 26;
+const PRIOR_EVIDENCE_SOURCES = new Set<JudgmentReceipt['classification_evidence']['source']>([
+  'prior_receipt',
+  'prior_message'
+]);
+
+function sanitizeOwnerExcerpt(value: unknown): string {
+  const redacted = String(value ?? '')
+    .replace(/\b(token|api[_-]?key|secret|password)\s*=\s*[^\s]+/giu, '$1=[秘密情報]')
+    .replace(/\b(?:sk-[a-z0-9_-]{8,}|ghp_[a-z0-9_]{8,}|github_pat_[a-z0-9_]{8,}|xox[a-z]-[a-z0-9-]{8,}|AIza[a-z0-9_-]{8,})\b/giu, '[秘密情報]')
+    .replace(/[\u0000-\u001f\u007f]+/gu, ' ')
+    .replace(/[「」]/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim();
+  const points = Array.from(redacted);
+  return points.length > OWNER_EXCERPT_LIMIT
+    ? `${points.slice(0, OWNER_EXCERPT_LIMIT).join('')}…`
+    : redacted;
 }
 
-function successOutput(receipt: JudgmentReceipt): JudgmentHookOutput {
-  const ownerReferenceLine = buildOwnerReferenceLine(receipt);
+function ownerEvidenceSource(request: JudgmentRequest, receipt: JudgmentReceipt): {
+  sourceKind: JudgmentOwnerAudit['source_kind'];
+  text: string;
+  sourceTurnIds: string[];
+} {
+  const sourceTurnIds = Array.isArray(receipt.classification_evidence?.source_turn_ids)
+    ? receipt.classification_evidence.source_turn_ids.filter((turnId) => typeof turnId === 'string')
+    : [];
+  const inherited = receipt.reconciliation_reasons?.includes('classification_inherited_from_prior_turn');
+  const prior = PRIOR_EVIDENCE_SOURCES.has(receipt.classification_evidence?.source) || inherited;
+  if (!prior) {
+    return { sourceKind: 'current_request', text: request.request, sourceTurnIds };
+  }
+
+  const messages = Array.isArray(request.conversation_context?.messages)
+    ? request.conversation_context.messages
+    : [];
+  const exact = [...messages].reverse().find((message) => (
+    message.role === 'user'
+    && message.turn_id !== request.turn_id
+    && typeof message.turn_id === 'string'
+    && sourceTurnIds.includes(message.turn_id)
+  ));
+  const fallback = sourceTurnIds.length === 0
+    ? [...messages].reverse().find((message) => message.role === 'user' && message.turn_id !== request.turn_id)
+    : undefined;
+  return {
+    sourceKind: exact ? 'prior_turn' : fallback ? 'prior_turn_fallback' : 'prior_turn_unavailable',
+    text: exact?.text ?? fallback?.text ?? '',
+    sourceTurnIds
+  };
+}
+
+function ownerDecision(receipt: JudgmentReceipt): string {
+  if (receipt.selected_dag_ids?.includes('knowledge.v1')) return 'Brainbase内検索が必要と判断';
+  const byIntent: Partial<Record<JudgmentClassification['intent'], string>> = {
+    implement: '実装依頼として継続',
+    investigate: '調査として確認',
+    diagnose: '原因診断として確認',
+    review: 'レビューとして確認',
+    design: '設計として検討',
+    answer: '質問として回答',
+    operate: '運用依頼として対応'
+  };
+  return receipt.classification?.intent
+    ? byIntent[receipt.classification.intent] ?? '回答方針を確認'
+    : '回答方針を確認';
+}
+
+function verifyOwnerAudit(ownerAuditValue: unknown, receipt: JudgmentReceipt): JudgmentOwnerAudit {
+  const ownerAudit = record(ownerAuditValue) as unknown as JudgmentOwnerAudit | null;
+  if (!ownerAudit || ownerAudit.schema_version !== 'brainbase-owner-audit-v1') {
+    throw new Error('judgment_owner_audit_missing');
+  }
+  if (ownerAudit.source_receipt_digest !== sha256(canonicalJson(receipt))) {
+    throw new Error('judgment_owner_audit_receipt_mismatch');
+  }
+  if (typeof ownerAudit.display_line !== 'string'
+    || ownerAudit.text_digest !== sha256(ownerAudit.display_line)) {
+    throw new Error('judgment_owner_audit_digest_mismatch');
+  }
+  return ownerAudit;
+}
+
+export function buildOwnerAudit(
+  request: JudgmentRequest,
+  receipt: JudgmentReceipt,
+  { historicalExact = true }: { historicalExact?: boolean } = {}
+): JudgmentOwnerAudit {
+  const evidence = ownerEvidenceSource(request, receipt);
+  const excerpt = sanitizeOwnerExcerpt(evidence.text);
+  let decision = ownerDecision(receipt);
+  let displayLine: string;
+
+  if (receipt.status === 'needs_clarification' || receipt.selected_dag_ids.includes('clarification.v1')) {
+    decision = '確認質問';
+    displayLine = `⚠️ Brainbase参照: 「${excerpt || '現在の依頼'}」の対象を特定できず → ${decision}`;
+  } else if (evidence.sourceKind === 'prior_turn_unavailable') {
+    decision = '判断証跡を要確認';
+    displayLine = `⚠️ Brainbase参照: 参照元の会話を確認できず → ${decision}`;
+  } else {
+    const prefix = evidence.sourceKind.startsWith('prior_turn') ? '直前の' : '';
+    displayLine = `🧠 Brainbase参照: ${prefix}「${excerpt || '現在の依頼'}」を参照 → ${decision} ✓`;
+  }
+
+  return {
+    schema_version: 'brainbase-owner-audit-v1',
+    renderer_version: '1',
+    locale: 'ja-JP',
+    historical_exact: historicalExact,
+    source_receipt_digest: sha256(canonicalJson(receipt)),
+    source_kind: evidence.sourceKind,
+    source_turn_ids: evidence.sourceTurnIds,
+    source_excerpt: excerpt,
+    decision,
+    display_line: displayLine,
+    text_digest: sha256(displayLine)
+  };
+}
+
+export function buildOwnerReferenceLine(request: JudgmentRequest, receipt: JudgmentReceipt): string {
+  return buildOwnerAudit(request, receipt).display_line;
+}
+
+function successOutput(
+  request: JudgmentRequest,
+  receipt: JudgmentReceipt,
+  ownerAudit: JudgmentOwnerAudit = buildOwnerAudit(request, receipt)
+): JudgmentHookOutput {
+  const ownerReferenceLine = ownerAudit.display_line;
   const context = [
     'Brainbase Judgment Resolver Host contract completed before model generation.',
     'This is the only accepted receipt for the current turn. Do not call a resolver again or reclassify the turn.',
     'Use active_node_definitions in active_edges order. A clarification receipt means ask only the clarification selected by the receipt and continue the response.',
     'A judgment receipt is not action authorization. Normal host permissions and approval boundaries remain in force.',
     `The first line of every user-facing response must be exactly this Host-generated line:\n${ownerReferenceLine}`,
-    'Do not alter, translate, summarize, omit, or repeat that owner-visible line.',
+    'Do not alter, translate, summarize, omit, or repeat that owner-visible line. It reports judgment evidence, not action authorization or completed knowledge retrieval.',
     `Accepted judgment receipt: ${JSON.stringify(receipt)}`
   ].join('\n');
   return {
@@ -883,18 +1027,18 @@ function successOutput(receipt: JudgmentReceipt): JudgmentHookOutput {
 export async function runJudgmentHost(payload: JudgmentHookPayload, options: JudgmentHostOptions = {}): Promise<JudgmentHookOutput> {
   const env = options.env ?? process.env;
   const adopted = existingAdoptionForPayload(payload, env);
-  if (adopted) return successOutput(adopted);
+  if (adopted) return successOutput(adopted.request, adopted.receipt, adopted.owner_audit);
   const request = buildJudgmentRequest(payload, {
     env,
     trustedConversationMessages: options.trustedConversationMessages
   });
   const existing = existingAdoption(request, env);
-  const receipt = existing ?? adoptReceipt(
+  const adoption = existing ?? adoptReceipt(
     request,
     verifyReceipt(await (options.resolver ?? resolveLocalJudgment)(request), request),
     env
   );
-  return successOutput(receipt);
+  return successOutput(adoption.request, adoption.receipt, adoption.owner_audit);
 }
 
 export function blockedJudgmentOutput(reason: string): { continue: false; suppressOutput: false; stopReason: string } {

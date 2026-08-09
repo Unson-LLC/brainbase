@@ -402,13 +402,15 @@ Preview the Codex `UserPromptSubmit` hook snippet:
 brainbase judgment:install --target codex --dry-run
 ```
 
-Review and merge the printed snippet into `~/.codex/hooks.json`. The command is preview-only unless `--output` is provided; it never overwrites an existing config. After installation, each response begins with a short owner-visible line such as:
+Review and merge the printed snippet into `~/.codex/hooks.json`. The command is preview-only unless `--output` is provided; it never overwrites an existing config. After installation, the Host instructs the AI to begin every user-facing response with an exact owner-visible audit line such as:
 
 ```text
-🧠 Brainbase参照: 直前の会話を引き継ぎ、実装方針と権限条件を判断しました。
+🧠 Brainbase参照: 直前の「ログイン後の白画面を直して」を参照 → 実装依頼として継続 ✓
 ```
 
-That line tells the owner what kind of context and judgment Brainbase used without exposing the full receipt. Detailed receipts are journaled locally under `~/.brainbase/personal-os/judgment-journal/`, keyed by session and turn, so only one receipt is adopted for a turn and later duplicate hook calls reuse it.
+The line identifies the concrete current or prior user statement used as judgment evidence and the decision made from it. The excerpt is collapsed to one line, limited to 26 Unicode characters, and redacts secret-like assignments and token formats. For example, a question may show `「この仕組みを説明して」を参照 → 質問として回答 ✓`; an unresolved follow-up shows `⚠️ Brainbase参照: 「それでいい」の対象を特定できず → 確認質問` instead of looking like a successful resolution.
+
+Detailed receipts and the exact owner-visible line are journaled together under `~/.brainbase/personal-os/judgment-journal/`, keyed by session and turn. Only one receipt is adopted for a turn, and later duplicate hook calls reuse the stored line instead of rendering a possibly different summary. The line reports Resolver judgment evidence; it does not claim that Personal OS knowledge was already retrieved.
 
 Every turn is judged, including questions and follow-up instructions. If a follow-up has no usable referent, the receipt selects clarification and the AI asks what the user meant; it does not refuse merely because classification or project context is incomplete. A receipt is judgment evidence, not permission to write files, send messages, deploy, purchase, or perform any other external effect. Normal host permissions and user approvals still apply.
 
