@@ -121,8 +121,8 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
         const additionalContext = JSON.parse(first.stdout).hookSpecificOutput.additionalContext;
         expect(additionalContext).toContain(
-            'The first line of every user-facing response must be exactly this Host-generated line, before any other text:\n' +
-            '🧠 Brainbase参照: 「Resolverを実行して」を参照 → 実装依頼として継続 ✓'
+            'The first user-facing assistant message for this turn must start with exactly this Host-generated line, before any other text:\n' +
+            '🧠 判断参照: 「Resolverを実行して」を参照 → 実装依頼として継続 ✓'
         );
         expect(first.stdout).toContain('jr_symlink_entrypoint');
         expect(JSON.parse(second.stdout)).toEqual(JSON.parse(first.stdout));
@@ -135,7 +135,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             owner_audit: {
                 source_excerpt: 'Resolverを実行して',
                 decision: '実装依頼として継続',
-                display_line: '🧠 Brainbase参照: 「Resolverを実行して」を参照 → 実装依頼として継続 ✓'
+                display_line: '🧠 判断参照: 「Resolverを実行して」を参照 → 実装依頼として継続 ✓'
             }
         });
     });

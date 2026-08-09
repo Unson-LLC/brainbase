@@ -426,7 +426,7 @@ function requiredKnowledgeResolution(receipt) {
 }
 
 function ownerDecision(receipt) {
-    if (requiredKnowledgeResolution(receipt)) return 'Brainbase内検索が必要と判断';
+    if (requiredKnowledgeResolution(receipt)) return 'Brainbase検索が必要と判断';
     const intent = receipt?.classification?.intent;
     const byIntent = {
         implement: '実装依頼として継続',
@@ -456,24 +456,24 @@ export function buildOwnerAudit(args, receipt, { historicalExact = true } = {}) 
 
     if (receipt?.status === 'needs_classification' || dagIds.includes('clarification.v1')) {
         decision = '確認質問';
-        displayLine = `⚠️ Brainbase参照: 「${excerpt || '現在の依頼'}」の対象を特定できず → ${decision}`;
+        displayLine = `⚠️ 判断参照: 「${excerpt || '現在の依頼'}」の対象を特定できず → ${decision}`;
     } else if (receipt?.status === 'needs_policy_resolution') {
         decision = '方針衝突を要確認';
-        displayLine = `⚠️ Brainbase参照: 「${excerpt || '現在の依頼'}」を参照 → ${decision}`;
+        displayLine = `⚠️ 判断参照: 「${excerpt || '現在の依頼'}」を参照 → ${decision}`;
     } else if (receipt?.status && receipt.status !== 'resolved') {
         decision = '状態を要確認';
-        displayLine = `⚠️ Brainbase参照: 「${excerpt || '現在の依頼'}」を参照 → ${decision}`;
+        displayLine = `⚠️ 判断参照: 「${excerpt || '現在の依頼'}」を参照 → ${decision}`;
     } else if (evidence.sourceKind === 'prior_turn_unavailable') {
         decision = '判断証跡を要確認';
-        displayLine = `⚠️ Brainbase参照: 参照元の会話を確認できず → ${decision}`;
+        displayLine = `⚠️ 判断参照: 参照元の会話を確認できず → ${decision}`;
     } else {
         const prefix = evidence.sourceKind.startsWith('prior_turn') ? '直前の' : '';
-        displayLine = `🧠 Brainbase参照: ${prefix}「${excerpt || '現在の依頼'}」を参照 → ${decision} ✓`;
+        displayLine = `🧠 判断参照: ${prefix}「${excerpt || '現在の依頼'}」を参照 → ${decision} ✓`;
     }
 
     return {
         schema_version: 'brainbase-owner-audit-v1',
-        renderer_version: '1',
+        renderer_version: '2',
         locale: 'ja-JP',
         historical_exact: historicalExact,
         source_receipt_digest: sha256(canonicalJson(receipt)),
@@ -497,8 +497,9 @@ export function successOutput(args, receipt, ownerAudit = buildOwnerAudit(args, 
         'This is the only accepted receipt for the current turn. Do not call Judgment Resolver again and do not reclassify the turn.',
         'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.',
         'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.',
-        `The first line of every user-facing response must be exactly this Host-generated line, before any other text:\n${ownerReferenceLine}`,
-        'Do not alter, translate, summarize, omit, or repeat that owner-visible line. It reports judgment evidence, not action authorization or completed knowledge retrieval.',
+        `The first user-facing assistant message for this turn must start with exactly this Host-generated line, before any other text:\n${ownerReferenceLine}`,
+        'Do not alter, translate, summarize, or omit that owner-visible line. Do not repeat that line in later commentary or the final response for the same turn.',
+        'It reports a turn-level judgment, not a Brainbase retrieval, action authorization, or completed knowledge retrieval. Actual successful retrievals have separate tool-generated 📚 Brainbase検索 or 📚 Brainbase取得 lines.',
         `Accepted judgment receipt: ${JSON.stringify(receipt)}`
     ].join('\n');
     return {

@@ -44,6 +44,10 @@ import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './t
 import { judgmentResolutionTools, resolveJudgmentBeforeModel } from './tools/judgment-resolution-tools.js';
 import { normalizeJudgmentHostResult } from './tools/judgment-host-contract.js';
 import { dispatchFirst, type ToolHandler } from './tools/tool-dispatcher.js';
+import {
+  buildKnowledgeOwnerAudit,
+  buildKnowledgeToolContent,
+} from './tools/knowledge-owner-audit.js';
 
 // Global index. Runtime lookups rebuild and atomically swap this snapshot.
 let entityIndex: EntityIndex;
@@ -1097,14 +1101,10 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         : typeof extensionResult === 'string'
           ? extensionResult
           : JSON.stringify(extensionResult, null, 2);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: result,
-          },
-        ],
-      };
+      const ownerAudit = extensionResult === null
+        ? buildKnowledgeOwnerAudit(name, toolArgs, result)
+        : null;
+      return { content: buildKnowledgeToolContent(result, ownerAudit) };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
