@@ -88,6 +88,9 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                         context_digest: hash(canonicalJson(args.conversation_context)),
                         status: 'resolved',
                         host_binding: { status: 'managed' },
+                        classification_evidence: { source: 'prior_receipt' },
+                        classification: { intent: 'implement', domains: ['operations'], action_kind: 'write' },
+                        selected_dag_ids: ['operations.v1', 'authority.v1'],
                         active_node_definitions: [{ id: 'answer', kind: 'common', instruction: 'Answer.' }]
                     }
                 }));
@@ -116,6 +119,11 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             suppressOutput: true,
             hookSpecificOutput: { hookEventName: 'UserPromptSubmit' }
         });
+        const additionalContext = JSON.parse(first.stdout).hookSpecificOutput.additionalContext;
+        expect(additionalContext).toContain(
+            'The first line of every user-facing response must be exactly this Host-generated line, before any other text:\n' +
+            '🧠 Brainbase参照: 直前の会話を引き継ぎ、運用方針と権限条件を判断しました。'
+        );
         expect(first.stdout).toContain('jr_symlink_entrypoint');
         expect(JSON.parse(second.stdout)).toEqual(JSON.parse(first.stdout));
         expect(requestCount).toBe(1);
