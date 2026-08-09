@@ -77,7 +77,7 @@ describe('Codex Judgment Resolver Host', () => {
         };
 
         expect(buildOwnerReferenceLine(args, receipt)).toBe(
-            '🧠 Brainbase参照: 直前の「俺がbrainbaseの運用をどのように監査したいか…」を参照 → 実装依頼として継続 ✓'
+            '🧠 判断参照: 直前の「俺がbrainbaseの運用をどのように監査したいか…」を参照 → 実装依頼として継続 ✓'
         );
     });
 
@@ -104,7 +104,7 @@ describe('Codex Judgment Resolver Host', () => {
 
         const line = buildOwnerReferenceLine(args, receipt);
         expect(line).toBe(
-            '🧠 Brainbase参照: 「顧客Aの過去の意思決定をBrainbaseで確認して」を参照 → Brainbase内検索が必要と判断 ✓'
+            '🧠 判断参照: 「顧客Aの過去の意思決定をBrainbaseで確認して」を参照 → Brainbase検索が必要と判断 ✓'
         );
         expect(line).not.toContain('取得しました');
         expect(line).not.toContain('使用しました');
@@ -123,7 +123,7 @@ describe('Codex Judgment Resolver Host', () => {
         };
 
         expect(buildOwnerReferenceLine(args, receipt)).toBe(
-            '⚠️ Brainbase参照: 「それでいい。修正して」の対象を特定できず → 確認質問'
+            '⚠️ 判断参照: 「それでいい。修正して」の対象を特定できず → 確認質問'
         );
     });
 
@@ -140,7 +140,7 @@ describe('Codex Judgment Resolver Host', () => {
         };
 
         const line = buildOwnerReferenceLine(args, receipt);
-        expect(line).toBe('🧠 Brainbase参照: 「token=[秘密情報] を使って本番環境を確認し、…」を参照 → 調査として確認 ✓');
+        expect(line).toBe('🧠 判断参照: 「token=[秘密情報] を使って本番環境を確認し、…」を参照 → 調査として確認 ✓');
         expect(line).not.toContain('sk-secret-value');
         expect(line.split('\n')).toHaveLength(1);
     });
@@ -161,11 +161,11 @@ describe('Codex Judgment Resolver Host', () => {
         };
 
         expect(buildOwnerReferenceLine(args, receipt)).toBe(
-            '⚠️ Brainbase参照: 参照元の会話を確認できず → 判断証跡を要確認'
+            '⚠️ 判断参照: 参照元の会話を確認できず → 判断証跡を要確認'
         );
     });
 
-    it('Hostが確定した参照文を全user-facing responseの先頭行に固定する', () => {
+    it('Hostが確定した判断文をturn最初のassistant messageだけに固定する', () => {
         const args = {
             request: 'この設計をレビューして',
             turn_id: 'turn-current',
@@ -180,8 +180,12 @@ describe('Codex Judgment Resolver Host', () => {
         const output = successOutput(args, receipt);
 
         expect(output.hookSpecificOutput.additionalContext).toContain(
-            `The first line of every user-facing response must be exactly this Host-generated line, before any other text:\n${line}`
+            `The first user-facing assistant message for this turn must start with exactly this Host-generated line, before any other text:\n${line}`
         );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'Do not repeat that line in later commentary or the final response for the same turn.'
+        );
+        expect(output.hookSpecificOutput.additionalContext).not.toContain('every user-facing response');
     });
 
     it('raw transcriptから順序付き文脈を作り、host envelopeと内部情報を除外する', () => {
@@ -304,7 +308,7 @@ describe('Codex Judgment Resolver Host', () => {
                 source_kind: 'current_request',
                 source_turn_ids: ['turn-retry'],
                 source_excerpt: '判断して',
-                display_line: '🧠 Brainbase参照: 「判断して」を参照 → 回答方針を確認 ✓'
+                display_line: '🧠 判断参照: 「判断して」を参照 → 回答方針を確認 ✓'
             }
         });
         expect(adoption.owner_audit.text_digest).toBe(hash(adoption.owner_audit.display_line));
