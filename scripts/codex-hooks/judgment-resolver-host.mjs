@@ -393,14 +393,14 @@ function sanitizeOwnerExcerpt(value) {
 
 function ownerEvidenceSource(args, receipt) {
     const evidence = record(receipt?.classification_evidence) ?? {};
-    const inherited = Array.isArray(receipt?.reconciliation_reasons)
-        && receipt.reconciliation_reasons.includes('classification_inherited_from_prior_turn');
-    const prior = PRIOR_EVIDENCE_SOURCES.has(evidence.source) || inherited;
-    if (!prior) return { sourceKind: 'current_request', text: args.request };
-
     const sourceTurnIds = Array.isArray(evidence.source_turn_ids)
         ? evidence.source_turn_ids.filter((turnId) => typeof turnId === 'string')
         : [];
+    const inherited = Array.isArray(receipt?.reconciliation_reasons)
+        && receipt.reconciliation_reasons.includes('classification_inherited_from_prior_turn');
+    const prior = PRIOR_EVIDENCE_SOURCES.has(evidence.source) || inherited;
+    if (!prior) return { sourceKind: 'current_request', text: args.request, sourceTurnIds };
+
     const messages = Array.isArray(args?.conversation_context?.messages)
         ? args.conversation_context.messages
         : [];

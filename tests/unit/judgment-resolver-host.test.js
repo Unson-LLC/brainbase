@@ -36,6 +36,7 @@ function validReceipt(args) {
         context_digest: hash(canonicalJson(args.conversation_context)),
         status: 'resolved',
         host_binding: { status: 'managed' },
+        classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
         active_node_definitions: [{ id: 'entry', kind: 'common', instruction: 'Judge first.' }]
     };
 }
@@ -301,6 +302,7 @@ describe('Codex Judgment Resolver Host', () => {
                 schema_version: 'brainbase-owner-audit-v1',
                 historical_exact: true,
                 source_kind: 'current_request',
+                source_turn_ids: ['turn-retry'],
                 source_excerpt: '判断して',
                 display_line: '🧠 Brainbase参照: 「判断して」を参照 → 回答方針を確認 ✓'
             }
