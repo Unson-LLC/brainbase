@@ -14,8 +14,8 @@ Google Driveでチームが参照できる購入済み書籍を、Brainbaseの�
 - 対象: 38冊（[`manifest.yml`](../internal/book-ingestion/manifest.yml)）
 - Drive解決結果: 38/38件（[`resolved.json`](../internal/book-ingestion/resolved.json)）
 - PDF抽出監査: [`extraction-report.json`](../internal/book-ingestion/extraction-report.json)
-- 画像PDFの全ページOCR完了証跡: 25冊5,856ページ・6,420,154文字（[`ocr-status.json`](../internal/book-ingestion/ocr-status.json)）
-- 残る13冊はOCR台帳未登録。埋め込み文字抽出済みの書籍も含むため、未完了冊数とはみなさず、抽出監査と派生ガイドの証跡を個別に確認する
+- 画像PDFの全ページOCR完了証跡: 28冊6,889ページ・7,394,653文字（[`ocr-status.json`](../internal/book-ingestion/ocr-status.json)）
+- 残る10冊はOCR台帳未登録。埋め込み文字抽出済みの書籍も含むため、未完了冊数とはみなさず、抽出監査と派生ガイドの証跡を個別に確認する
 - Drive読み取りアカウント: `info@unson.jp`
 - 原本所有者: `k.sato.unson@gmail.com`
 
@@ -52,6 +52,9 @@ Google Driveでチームが参照できる購入済み書籍を、Brainbaseの�
 | AI駆動マーケティング | [`ai-driven-marketing-operating-loop.md`](./ai-driven-marketing-operating-loop.md) | 第8バッチ・OCR出典確認済み |
 | コード×AI | [`ai-assisted-software-development.md`](./ai-assisted-software-development.md) | 第9バッチ・OCR出典確認済み |
 | Google Cloudのしくみと技術 改訂2版 | [`google-cloud-service-selection-map.md`](./google-cloud-service-selection-map.md) | 第9バッチ・OCR出典確認済み |
+| GitHub CI/CD実践ガイド | [`github-actions-cicd-operating-guide.md`](./github-actions-cicd-operating-guide.md) | 第10バッチ・OCR出典確認済み |
+| プロになるためのWeb技術入門 | [`web-technology-request-lifecycle.md`](./web-technology-request-lifecycle.md) | 第10バッチ・OCR出典確認済み |
+| AWSのしくみと技術 改訂2版 | [`aws-service-selection-map.md`](./aws-service-selection-map.md) | 第10バッチ・OCR出典確認済み |
 
 横断的な使い分けは[`systemization-selection-guide.md`](./systemization-selection-guide.md)を参照する。
 
