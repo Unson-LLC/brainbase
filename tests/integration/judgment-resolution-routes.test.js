@@ -15,14 +15,26 @@ const SECRET = 'test-binding-secret';
 const NOW = new Date('2026-08-07T00:00:00.000Z');
 
 function body(overrides = {}) {
+    const requestText = overrides.request ?? 'この文章の意味を説明して';
+    const turnId = overrides.turn_id ?? 'host-turn-api';
+    const hasProjectCode = Object.hasOwn(overrides, 'project_code');
+    const projectCode = hasProjectCode ? overrides.project_code : 'brainbase';
+    const contextWithoutDigest = {
+        schema_version: 'brainbase-conversation-context-v1',
+        session_ref: 'b'.repeat(64),
+        messages: [{ sequence: 0, turn_id: turnId, role: 'user', phase: null, text: requestText }],
+        prior_receipts: [],
+        runtime: { host: 'codex', model: 'gpt-5', permission_mode: 'workspace-write', project_binding: projectCode ?? null },
+        instruction_bindings: [],
+        completeness: 'complete'
+    };
+    const { request: _request, turn_id: _turnId, project_code: _projectCode, ...rest } = overrides;
     return {
-        request: 'この文章の意味を説明して',
-        turn_id: 'host-turn-api',
-        project_code: 'brainbase',
-        classification_proposal: {
-            intent: 'answer', domains: ['general'], action_kind: 'none', risk: 'low', confidence: 'confirmed', signals: []
-        },
-        ...overrides
+        request: requestText,
+        turn_id: turnId,
+        ...(projectCode === undefined ? {} : { project_code: projectCode }),
+        conversation_context: { ...contextWithoutDigest, source_digest: computeRequestDigest(contextWithoutDigest) },
+        ...rest
     };
 }
 
@@ -97,11 +109,12 @@ describe('judgment resolution API', () => {
         await request(app()).post('/api/judgment/resolve').set(bindingHeaders(payload, issuedAt)).send(payload).expect(200);
     });
 
-    it('scope外projectを403で拒否する', async () => {
+    it('scope外projectでも判断自体は継続しproject policyだけを適用しない', async () => {
         const payload = body({ project_code: 'salestailor' });
         const response = await request(app()).post('/api/judgment/resolve').set(bindingHeaders(payload)).send(payload);
-        expect(response.status).toBe(403);
-        expect(response.body.error.code).toBe('judgment_resolution_project_not_accessible');
+        expect(response.status).toBe(200);
+        expect(response.body).toMatchObject({ status: 'resolved', project_code: 'salestailor' });
+        expect(response.body.applicable_policies.some((policy) => policy.scope.type === 'project')).toBe(false);
     });
 
     it('invalid public inputを400へ写像する', async () => {
@@ -114,13 +127,8 @@ describe('judgment resolution API', () => {
     it('knowledge requestのproject不足を不完全handoffではなくclarificationへ写像する', async () => {
         const payload = body({
             request: 'Brainbaseの判断履歴を調べて',
-            project_code: undefined,
-            classification_proposal: {
-                intent: 'investigate', domains: ['knowledge'], action_kind: 'read', risk: 'low', confidence: 'confirmed', signals: []
-            },
-            knowledge_context: { audience: 'team', content_type: 'canonical_fact' }
+            project_code: undefined
         });
-        delete payload.project_code;
         const response = await request(app()).post('/api/judgment/resolve').set(bindingHeaders(payload)).send(payload);
         expect(response.status).toBe(200);
         expect(response.body.status).toBe('needs_classification');
@@ -134,10 +142,7 @@ describe('judgment resolution API', () => {
         ['service credential', 'internal_api']
     ])('personal judgmentを%sへ公開しない', async (_label, personId) => {
         const payload = body({
-            request: '俺の思考アルゴリズムで判断して',
-            classification_proposal: {
-                intent: 'review', domains: ['personal_judgment'], action_kind: 'read', risk: 'low', confidence: 'confirmed', signals: []
-            }
+            request: '俺の思考アルゴリズムで判断して'
         });
         const response = await request(app({
             access: { personId, tenantId: 'unson', projectCodes: ['brainbase'] }

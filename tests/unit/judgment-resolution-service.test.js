@@ -32,12 +32,54 @@ function proposal(overrides = {}) {
 }
 
 function input(request, classificationProposal = proposal(), overrides = {}) {
+    void classificationProposal;
+    const hasProjectCode = Object.hasOwn(overrides, 'project_code');
+    const projectCode = hasProjectCode ? overrides.project_code : 'brainbase';
+    const legacyContext = overrides.conversation_context;
+    const priorMessages = legacyContext?.schema_version
+        ? null
+        : legacyContext?.text
+            ? [{
+                sequence: 0,
+                turn_id: legacyContext.source_turn_ids?.[0] || 'host-turn-previous',
+                role: 'user',
+                phase: null,
+                text: legacyContext.text
+            }]
+            : [];
+    const contextWithoutDigest = legacyContext?.schema_version
+        ? null
+        : {
+            schema_version: 'brainbase-conversation-context-v1',
+            session_ref: 'a'.repeat(64),
+            messages: [
+                ...priorMessages,
+                {
+                    sequence: priorMessages.length,
+                    turn_id: 'host-turn-1',
+                    role: 'user',
+                    phase: null,
+                    text: request
+                }
+            ],
+            prior_receipts: [],
+            runtime: {
+                host: 'codex', model: 'gpt-5', permission_mode: 'workspace-write',
+                project_binding: projectCode ?? null
+            },
+            instruction_bindings: [],
+            completeness: 'complete'
+        };
+    const conversationContext = legacyContext?.schema_version
+        ? legacyContext
+        : { ...contextWithoutDigest, source_digest: sha256Hex(canonicalJson(contextWithoutDigest)) };
+    const { conversation_context: _context, knowledge_context: _knowledgeContext, project_code: _projectCode, ...rest } = overrides;
     return {
         request,
         turn_id: 'host-turn-1',
-        project_code: 'brainbase',
-        classification_proposal: classificationProposal,
-        ...overrides
+        ...(projectCode === undefined ? {} : { project_code: projectCode }),
+        conversation_context: conversationContext,
+        ...rest
     };
 }
 
@@ -237,7 +279,7 @@ describe('JudgmentResolutionService', () => {
         })), { access: ACCESS, hostBinding: binding() });
 
         expect(receipt.status).toBe('needs_classification');
-        expect(receipt.reconciliation_reasons).toContain('domain_supported_only_by_proposal');
+        expect(receipt.reconciliation_reasons).toContain('conversation_referent_missing');
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:6 story-brainbase-judgment-resolver-v1:ac:15
@@ -279,7 +321,7 @@ describe('JudgmentResolutionService', () => {
         const capabilities = dagIds[0] === 'knowledge.v1' ? [{
             capability: 'knowledge.resolve',
             status: 'required',
-            input: { intent: 'lookup', audience: 'team', content_type: 'canonical_fact', project_code: 'brainbase' },
+            input: { intent: 'lookup', audience: 'team', content_type: 'unknown', project_code: 'brainbase' },
             receipt_required: true
         }] : [];
         expectExactResolvedPlan(receipt, { dagIds, policyIds, capabilities });
@@ -400,11 +442,52 @@ describe('JudgmentResolutionService', () => {
         }), { access: ACCESS, hostBinding: binding() });
 
         expect(receipt.status).toBe('resolved');
-        expect(receipt.reconciliation_reasons).toEqual([]);
+        expect(receipt.reconciliation_reasons).toEqual(['classification_inherited_from_prior_turn']);
         expect(receipt.classification.domains).toEqual(['engineering']);
         expect(receipt.selected_dag_ids).not.toContain('knowledge.v1');
         expect(receipt.selected_dag_ids).toContain('cumulative-complexity.v1');
-        expect(receipt.selected_dag_ids).toContain('authority.v1');
+        expect(receipt.selected_dag_ids).toContain('problem-frame.v1');
+    });
+
+    it('直前のgeneral receiptより前の生発話にあるengineering文脈を短い修正依頼へ継承する', () => {
+        const contextWithoutDigest = {
+            schema_version: 'brainbase-conversation-context-v1',
+            session_ref: 'c'.repeat(64),
+            messages: [
+                { sequence: 0, turn_id: 'turn-engineering', role: 'user', phase: null, text: 'Resolverの実装に進んで' },
+                { sequence: 1, turn_id: 'turn-general', role: 'user', phase: null, text: '文脈は入る？' },
+                { sequence: 2, turn_id: 'host-turn-1', role: 'user', phase: null, text: 'それでいい。修正して' }
+            ],
+            prior_receipts: [{
+                turn_id: 'turn-general',
+                resolution_id: 'jr_general',
+                request_digest: '1'.repeat(64),
+                context_digest: '2'.repeat(64),
+                plan_digest: '3'.repeat(64),
+                classification: proposal(),
+                selected_dag_ids: ['direct.v1']
+            }],
+            runtime: { host: 'codex', model: 'gpt-5', permission_mode: 'workspace-write', project_binding: 'brainbase' },
+            instruction_bindings: [],
+            completeness: 'complete'
+        };
+        const rawInput = input('それでいい。修正して', proposal(), {
+            conversation_context: {
+                ...contextWithoutDigest,
+                source_digest: sha256Hex(canonicalJson(contextWithoutDigest))
+            }
+        });
+
+        const receipt = service.resolve(rawInput, { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification).toMatchObject({
+            intent: 'implement', domains: ['engineering'], action_kind: 'write'
+        });
+        expect(receipt.classification_evidence).toMatchObject({
+            source: 'prior_message', source_turn_ids: ['turn-engineering']
+        });
+        expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
     });
 
     it('PR採用は人材採用ではなくengineeringとして分類する', () => {
@@ -488,38 +571,28 @@ describe('JudgmentResolutionService', () => {
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:9
-    it('専門依頼をgeneral提案してもserver検出を迂回できない', () => {
-        const receipt = service.resolve(input('認証APIを実装して', proposal({
-            intent: 'implement', action_kind: 'none', risk: 'low'
-        })), { access: ACCESS, hostBinding: binding() });
+    it('専門依頼はmodel提案なしでserverが分類しaction floorを適用する', () => {
+        const receipt = service.resolve(input('認証APIを実装して'), { access: ACCESS, hostBinding: binding() });
 
-        expect(receipt.status).toBe('needs_classification');
-        expect(receipt.reconciliation_reasons).toEqual(expect.arrayContaining([
-            'server_detected_domain_missing', 'action_below_server_floor'
-        ]));
-        expect(receipt.selected_dag_ids).toEqual(['clarification.v1']);
-        expect(receipt.active_nodes).toEqual(['entry', 'reconcile', 'clarification', 'receipt']);
-        expect(receipt.active_nodes).not.toContain('authority-check');
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification).toMatchObject({
+            intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
+        });
+        expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
     });
 
-    it('server matcherに裏づけられないdomainとsignalをfail closedにする', () => {
-        const receipt = service.resolve(input('もっと良くして', proposal({
-            intent: 'review',
-            domains: ['engineering'],
-            action_kind: 'read',
-            signals: ['threshold_proposal']
-        })), { access: ACCESS, hostBinding: binding() });
-        expect(receipt.status).toBe('needs_classification');
-        expect(receipt.reconciliation_reasons).toEqual(expect.arrayContaining([
-            'domain_supported_only_by_proposal', 'signal_supported_only_by_proposal'
-        ]));
+    it('modelがclassification_proposalを注入できない', () => {
+        expect(() => service.resolve({
+            ...input('もっと良くして'),
+            classification_proposal: proposal({ domains: ['engineering'], signals: ['threshold_proposal'] })
+        }, { access: ACCESS, hostBinding: binding() })).toThrowError(/classification_proposal is not allowed/u);
     });
 
-    it('safe generalに肯定一致しない一般提案を明示理由でfail closedにする', () => {
-        const receipt = service.resolve(input('もっと良くして', proposal()), { access: ACCESS, hostBinding: binding() });
-        expect(receipt.status).toBe('needs_classification');
-        expect(receipt.reconciliation_reasons).toEqual(['general_not_server_supported']);
-        expect(receipt.selected_dag_ids).toEqual(['clarification.v1']);
+    it('proposalがなくても一般依頼を毎turn判断する', () => {
+        const receipt = service.resolve(input('もっと良くして'), { access: ACCESS, hostBinding: binding() });
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification).toMatchObject({ intent: 'answer', domains: ['general'], action_kind: 'none' });
+        expect(receipt.classification_evidence.source).toBe('current_request');
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:8
@@ -536,26 +609,22 @@ describe('JudgmentResolutionService', () => {
             capability: 'knowledge.resolve',
             status: 'required',
             input: {
-                intent: 'lookup', audience: 'team', content_type: 'canonical_fact', project_code: 'brainbase'
+                intent: 'lookup', audience: 'team', content_type: 'unknown', project_code: 'brainbase'
             },
             receipt_required: true
         }]);
     });
 
-    it('knowledge context不足はclarificationへ落とす', () => {
-        const receipt = service.resolve(input('判断履歴を調べて', proposal({
-            intent: 'investigate', domains: ['knowledge'], action_kind: 'read'
-        })), { access: ACCESS, hostBinding: binding() });
-        expect(receipt.status).toBe('needs_classification');
-        expect(receipt.reconciliation_reasons).toContain('knowledge_context_missing');
-        expect(receipt.required_capabilities).toEqual([]);
+    it('knowledgeの検索詳細は後段Knowledge Resolverへ委譲する', () => {
+        const receipt = service.resolve(input('判断履歴を調べて'), { access: ACCESS, hostBinding: binding() });
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.required_capabilities[0]).toMatchObject({
+            capability: 'knowledge.resolve', input: { content_type: 'unknown', project_code: 'brainbase' }
+        });
     });
 
     it('knowledge project不足は不完全なhandoffを返さずclarificationへ落とす', () => {
-        const rawInput = input('判断履歴を調べて', proposal({
-            intent: 'investigate', domains: ['knowledge'], action_kind: 'read'
-        }), { knowledge_context: { audience: 'team', content_type: 'canonical_fact' } });
-        delete rawInput.project_code;
+        const rawInput = input('判断履歴を調べて', proposal(), { project_code: undefined });
         const receipt = service.resolve(rawInput, { access: ACCESS, hostBinding: binding() });
         expect(receipt.status).toBe('needs_classification');
         expect(receipt.reconciliation_reasons).toContain('knowledge_project_code_missing');
@@ -600,7 +669,42 @@ describe('JudgmentResolutionService', () => {
         }
     });
 
-    it('domainとsignalの入力順にplan digestが依存しない', () => {
+    it('canonical conversation contextなしでは判断を開始しない', () => {
+        const rawInput = input('意味を説明して');
+        delete rawInput.conversation_context;
+        expect(() => service.resolve(rawInput, { access: ACCESS, hostBinding: binding() }))
+            .toThrowError(/conversation_context is required/u);
+    });
+
+    it('current requestの改変・重複・source digest改変を拒否する', () => {
+        const changed = input('意味を説明して');
+        changed.conversation_context.messages.at(-1).text = '別の依頼';
+        expect(() => service.resolve(changed, { access: ACCESS, hostBinding: binding() }))
+            .toThrowError(/exact current request exactly once/u);
+
+        const duplicated = input('意味を説明して');
+        duplicated.conversation_context.messages.push({
+            sequence: 1, turn_id: duplicated.turn_id, role: 'user', phase: null, text: duplicated.request
+        });
+        expect(() => service.resolve(duplicated, { access: ACCESS, hostBinding: binding() }))
+            .toThrowError(/exact current request exactly once/u);
+
+        const tampered = input('意味を説明して');
+        tampered.conversation_context.completeness = 'partial';
+        expect(() => service.resolve(tampered, { access: ACCESS, hostBinding: binding() }))
+            .toThrowError(/source_digest does not match/u);
+    });
+
+    it('project bindingを判断文脈として一致させる', () => {
+        const rawInput = input('意味を説明して');
+        rawInput.conversation_context.runtime.project_binding = 'other';
+        const { source_digest: _digest, ...sourceContext } = rawInput.conversation_context;
+        rawInput.conversation_context.source_digest = sha256Hex(canonicalJson(sourceContext));
+        expect(() => service.resolve(rawInput, { access: ACCESS, hostBinding: binding() }))
+            .toThrowError(/project_binding must match project_code/u);
+    });
+
+    it('同じcanonical contextから同じplan digestを再現する', () => {
         const first = input('認証APIの運用設計で権限境界と外部成果を確認して', proposal({
             intent: 'review', domains: ['operations', 'engineering'], action_kind: 'read', risk: 'high',
             signals: ['external_outcome', 'authority_boundary']
@@ -611,7 +715,7 @@ describe('JudgmentResolutionService', () => {
         }));
         const firstReceipt = service.resolve(first, { access: ACCESS, hostBinding: binding() });
         const secondReceipt = service.resolve(second, { access: ACCESS, hostBinding: binding() });
-        expect(firstReceipt.request_digest).not.toBe(secondReceipt.request_digest);
+        expect(firstReceipt.request_digest).toBe(secondReceipt.request_digest);
         expect(firstReceipt.plan_digest).toBe(secondReceipt.plan_digest);
         expectExactResolvedPlan(firstReceipt, {
             dagIds: ['engineering.v1', 'operations.v1', 'authority.v1', 'external-outcome.v1'],

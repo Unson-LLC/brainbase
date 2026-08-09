@@ -1,6 +1,4 @@
 import { createHash, createHmac } from 'node:crypto';
-import type { Tool } from '@modelcontextprotocol/sdk/types.js';
-
 import {
   authenticateProject,
   fetchAuthenticatedJson,
@@ -24,51 +22,8 @@ export type JudgmentResolutionDependencies = AuthenticatedApiDependencies & {
   now?: () => Date;
 };
 
-export const judgmentResolutionTools: Tool[] = [{
-  name: 'brainbase_judgment_resolve',
-  description: 'Resolve the smallest context-relevant Brainbase judgment DAG for this turn. The receipt constrains reasoning but never authorizes write or external actions.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      request: { type: 'string', minLength: 1 },
-      turn_id: { type: 'string', minLength: 1, maxLength: 128 },
-      project_code: { type: 'string', minLength: 1 },
-      conversation_context: {
-        type: 'object',
-        properties: {
-          text: { type: 'string', minLength: 1 },
-          source_turn_ids: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string', minLength: 1 } },
-        },
-        required: ['text', 'source_turn_ids'],
-        additionalProperties: false,
-      },
-      classification_proposal: {
-        type: 'object',
-        properties: {
-          intent: { type: 'string', enum: [...INTENTS] },
-          domains: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string', enum: [...DOMAINS] } },
-          action_kind: { type: 'string', enum: [...ACTIONS] },
-          risk: { type: 'string', enum: [...RISKS] },
-          confidence: { type: 'string', enum: [...CONFIDENCES] },
-          signals: { type: 'array', uniqueItems: true, items: { type: 'string', enum: [...SIGNALS] } },
-        },
-        required: ['intent', 'domains', 'action_kind', 'risk', 'confidence'],
-        additionalProperties: false,
-      },
-      knowledge_context: {
-        type: 'object',
-        properties: {
-          audience: { type: 'string', enum: ['personal', 'team', 'organization'] },
-          content_type: { type: 'string', enum: ['canonical_fact', 'team_document', 'source_document', 'personal_knowledge', 'operational_state', 'unknown'] },
-        },
-        required: ['audience', 'content_type'],
-        additionalProperties: false,
-      },
-    },
-    required: ['request', 'turn_id', 'classification_proposal'],
-    additionalProperties: false,
-  },
-}];
+// Judgment resolution is a Host pre-model contract, not a model-callable MCP tool.
+export const judgmentResolutionTools = [];
 
 function compareCodePoints(left: string, right: string): number {
   const a = Array.from(left, (value) => value.codePointAt(0) as number);
@@ -156,16 +111,12 @@ function isClassification(value: unknown): value is Record<string, unknown> {
     && value.signals.every((signal) => SIGNALS.includes(signal as typeof SIGNALS[number]));
 }
 
-function normalizedProposal(args: Record<string, unknown>): Record<string, unknown> | null {
-  const proposal = args.classification_proposal;
-  if (!isRecord(proposal)) return null;
-  const proposalWithSignals: Record<string, unknown> = { ...proposal, signals: proposal.signals ?? [] };
-  if (!isClassification(proposalWithSignals)) return null;
-  return {
-    ...proposalWithSignals,
-    domains: ordered(proposalWithSignals.domains as string[], DOMAINS),
-    signals: ordered(proposalWithSignals.signals as string[], SIGNALS),
-  };
+function isClassificationEvidence(value: unknown): boolean {
+  return isRecord(value)
+    && hasOnlyKeys(value, ['source', 'source_turn_ids', 'matcher_ids'])
+    && ['current_request', 'prior_receipt', 'prior_message', 'resolver'].includes(String(value.source))
+    && isStringArray(value.source_turn_ids, { unique: true })
+    && isStringArray(value.matcher_ids, { unique: true });
 }
 
 function isPolicy(value: unknown): boolean {
@@ -239,7 +190,7 @@ function isJudgmentReceipt(
 ): value is Record<string, unknown> {
   const fields = [
     'resolution_id', 'resolved_at', 'turn_id', 'request_digest', 'context_digest', 'status', 'runtime_version',
-    'manifest_digest', 'host_binding', 'project_code', 'classification_proposal', 'classification',
+    'manifest_digest', 'host_binding', 'project_code', 'classification', 'classification_evidence',
     'classification_assurance', 'reconciliation_reasons', 'selected_dag_ids', 'applicable_policies',
     'suppressed_policies', 'required_capabilities', 'active_nodes', 'active_edges', 'active_node_definitions',
     'unresolved', 'rationale', 'plan_digest',
@@ -260,9 +211,8 @@ function isJudgmentReceipt(
   if (value.host_binding.status !== 'managed' || value.host_binding.enforcement_level !== 'host_contract'
     || value.host_binding.adapter_id !== expected.adapterId || value.host_binding.adapter_version !== expected.adapterVersion) return false;
   if (value.project_code !== (expected.args.project_code ?? null)) return false;
-  const expectedProposal = normalizedProposal(expected.args);
-  if (!expectedProposal || !isClassification(value.classification_proposal) || canonicalJson(value.classification_proposal) !== canonicalJson(expectedProposal)) return false;
   if (value.classification !== null && !isClassification(value.classification)) return false;
+  if (!isClassificationEvidence(value.classification_evidence)) return false;
   if (!['verified', 'bounded', 'unknown'].includes(String(value.classification_assurance))) return false;
   if (!isStringArray(value.reconciliation_reasons, { unique: true }) || !isStringArray(value.selected_dag_ids, { nonEmpty: true, unique: true })) return false;
   if (!Array.isArray(value.applicable_policies) || !value.applicable_policies.every(isPolicy)) return false;
@@ -287,13 +237,13 @@ function isJudgmentReceipt(
   return createHash('sha256').update(canonicalJson(planValue)).digest('hex') === value.plan_digest;
 }
 
-export async function handleJudgmentResolutionToolCall(
-  name: string,
+export async function resolveJudgmentBeforeModel(
   args: Record<string, unknown>,
   dependencies: JudgmentResolutionDependencies,
-): Promise<ToolResult | null> {
-  if (name !== 'brainbase_judgment_resolve') return null;
-  const context = await authenticateProject(args, dependencies);
+): Promise<ToolResult> {
+  // project_code is judgment context, not action authority. Authentication still
+  // supplies the access scope used when the server selects visible policies.
+  const context = await authenticateProject({}, dependencies);
   if ('status' in context) return context;
   if (!dependencies.bindingSecret) {
     return toolError('unavailable', 'brainbase_judgment_binding_unavailable', 'Brainbase judgment host binding secret is not configured', context.scope);
@@ -312,10 +262,11 @@ export async function handleJudgmentResolutionToolCall(
   const { response, payload } = fetched;
   if (!response.ok) {
     const errorPayload = isRecord(payload) && isRecord(payload.error) ? payload.error : null;
+    const code = typeof errorPayload?.code === 'string' ? errorPayload.code : null;
     const message = typeof errorPayload?.message === 'string' ? errorPayload.message : `${response.status} ${response.statusText}`.trim();
     return toolError(
       response.status >= 500 ? 'unavailable' : 'error',
-      response.status >= 500 ? 'brainbase_api_unavailable' : 'brainbase_api_error',
+      response.status >= 500 ? 'brainbase_api_unavailable' : code ?? 'brainbase_api_error',
       message, context.scope, response.status,
     );
   }
@@ -328,4 +279,14 @@ export async function handleJudgmentResolutionToolCall(
     return toolError('error', 'brainbase_api_response_invalid', 'Brainbase API returned an invalid judgment resolution receipt', context.scope, response.status);
   }
   return { status: 'ok', scope: { project_codes: context.scope }, data: payload };
+}
+
+/** @deprecated Judgment Resolver is no longer model-callable. */
+export async function handleJudgmentResolutionToolCall(
+  name: string,
+  args: Record<string, unknown>,
+  dependencies: JudgmentResolutionDependencies,
+): Promise<ToolResult | null> {
+  if (name !== 'brainbase_judgment_resolve_internal') return null;
+  return resolveJudgmentBeforeModel(args, dependencies);
 }

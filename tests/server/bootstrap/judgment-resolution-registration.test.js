@@ -9,9 +9,15 @@ import { canonicalJson, computeRequestDigest } from '../../../server/services/ju
 
 const secret = 'registration-secret';
 const now = new Date('2026-08-07T00:00:00.000Z');
+const contextWithoutDigest = {
+    schema_version: 'brainbase-conversation-context-v1', session_ref: 'a'.repeat(64),
+    messages: [{ sequence: 0, turn_id: 'turn-registration', role: 'user', phase: null, text: '意味を説明して' }],
+    prior_receipts: [], runtime: { host: 'codex', model: 'gpt-5', permission_mode: 'workspace-write', project_binding: 'brainbase' },
+    instruction_bindings: [], completeness: 'complete'
+};
 const payload = {
     request: '意味を説明して', turn_id: 'turn-registration', project_code: 'brainbase',
-    classification_proposal: { intent: 'answer', domains: ['general'], action_kind: 'none', risk: 'low', confidence: 'confirmed', signals: [] }
+    conversation_context: { ...contextWithoutDigest, source_digest: computeRequestDigest(contextWithoutDigest) }
 };
 
 function headers() {
