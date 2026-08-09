@@ -1,6 +1,6 @@
 {
   "schema_version": "brainbase-judgment-runtime-v1",
-  "runtime_version": "judgment-runtime-1.0.3",
+  "runtime_version": "judgment-runtime-2.0.0",
   "host_bindings": [
     { "adapter_id": "brainbase-mcp", "adapter_version": "1" }
   ],
@@ -104,7 +104,7 @@
   ],
   "nodes": [
     { "id": "entry", "kind": "common", "instruction": "Enter once for this managed turn.", "required_capability_template": null },
-    { "id": "reconcile", "kind": "common", "instruction": "Reconcile caller proposal with server-owned semantics and floors.", "required_capability_template": null },
+    { "id": "reconcile", "kind": "common", "instruction": "Classify the current request from canonical conversation context using Resolver-owned semantics and safety floors.", "required_capability_template": null },
     { "id": "goal", "kind": "judgment", "instruction": "Fix the actual goal and success condition.", "required_capability_template": null },
     { "id": "direct-answer", "kind": "judgment", "instruction": "Answer the bounded general question directly.", "required_capability_template": null },
     { "id": "source-intent", "kind": "judgment", "instruction": "Determine what knowledge class and audience are required.", "required_capability_template": null },
@@ -197,6 +197,15 @@
     "clarification_dag": "clarification.v1"
   },
   "semantic_matchers": {
+    "intents": {
+      "answer": ["説明", "教えて", "答えて", "とは", "意味"],
+      "investigate": ["調べ", "検索", "探して", "ログを見", "確認して"],
+      "diagnose": ["なぜ", "原因", "診断", "何が問題", "欠陥"],
+      "design": ["設計", "考えて", "どうすべき", "導いて", "演繹"],
+      "implement": ["実装", "修正", "変更", "更新", "削除", "作って"],
+      "review": ["レビュー", "評価して", "監査"],
+      "operate": ["デプロイ", "再起動", "送信", "公開", "実行して", "マージして", "commitして"]
+    },
     "domains": {
       "engineering": ["実装", "コード", "api", "認証", "設計", "バグ", "テスト", "pr", "architecture", "リファクタ"],
       "knowledge": ["調べ", "検索", "knowledge", "事実を確認", "資料を探", "資料を確認", "情報を探", "情報を確認"],
@@ -214,6 +223,7 @@
       "external_outcome": ["外部成果", "顧客価値", "利用成果", "downstream", "first value"]
     },
     "safe_general": ["こんにちは", "ありがとう", "意味を説明", "要約して", "定義を教えて"],
+    "follow_up": ["それ", "その形", "これ", "こちら", "続けて", "続けよう", "もう一度", "では", "それでいい", "そうして"],
     "safety": {
       "write": ["実装して", "実装しろ", "実装せよ", "変更して", "変更しろ", "変更せよ", "更新して", "更新しろ", "更新せよ", "削除して", "削除しろ", "削除せよ", "マージして", "マージしろ", "マージせよ", "mergeして", "mergeしろ", "mergeせよ", "commitして", "commitしろ", "commitせよ", "作って"],
       "external": ["送信", "公開", "publish", "購入", "デプロイして"],

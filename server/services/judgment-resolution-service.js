@@ -1,21 +1,34 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const MANIFEST_PATH = resolve(process.cwd(), 'config/judgment-runtime-manifest.json');
-const MANIFEST_LOCK_PATH = resolve(process.cwd(), 'config/judgment-runtime-manifest-lock.json');
+const MODULE_DIRECTORY = import.meta.url.startsWith('file:')
+    ? dirname(fileURLToPath(import.meta.url))
+    : resolve(process.cwd(), 'server/services');
+const MANIFEST_PATH = resolve(MODULE_DIRECTORY, '../../config/judgment-runtime-manifest.json');
+const MANIFEST_LOCK_PATH = resolve(MODULE_DIRECTORY, '../../config/judgment-runtime-manifest-lock.json');
 
-const INPUT_FIELDS = new Set(['request', 'turn_id', 'project_code', 'classification_proposal', 'conversation_context', 'knowledge_context']);
+const INPUT_FIELDS = new Set(['request', 'turn_id', 'project_code', 'conversation_context']);
 const CLASSIFICATION_FIELDS = new Set(['intent', 'domains', 'action_kind', 'risk', 'confidence', 'signals']);
-const CONVERSATION_CONTEXT_FIELDS = new Set(['text', 'source_turn_ids']);
-const KNOWLEDGE_FIELDS = new Set(['audience', 'content_type']);
+const CONVERSATION_CONTEXT_FIELDS = new Set([
+    'schema_version', 'session_ref', 'messages', 'prior_receipts', 'runtime',
+    'instruction_bindings', 'completeness', 'source_digest'
+]);
+const MESSAGE_FIELDS = new Set(['sequence', 'turn_id', 'role', 'phase', 'text']);
+const PRIOR_RECEIPT_FIELDS = new Set([
+    'turn_id', 'resolution_id', 'request_digest', 'context_digest', 'plan_digest',
+    'classification', 'selected_dag_ids'
+]);
+const RUNTIME_FIELDS = new Set(['host', 'model', 'permission_mode', 'project_binding']);
+const INSTRUCTION_BINDING_FIELDS = new Set(['scope', 'source_ref', 'digest']);
 const INTENTS = new Set(['answer', 'investigate', 'diagnose', 'design', 'implement', 'review', 'operate']);
+const INTENT_ORDER = ['operate', 'implement', 'review', 'diagnose', 'design', 'investigate', 'answer'];
 const DOMAINS = new Set(['general', 'knowledge', 'personal_judgment', 'engineering', 'organization', 'operations']);
 const ACTIONS = ['none', 'read', 'write', 'external'];
 const RISKS = ['low', 'medium', 'high', 'critical'];
 const CONFIDENCES = new Set(['confirmed', 'inferred', 'unknown']);
 const SIGNALS = new Set(['cumulative_effect', 'complexity_growth', 'threshold_proposal', 'parallel_exploration', 'authority_boundary', 'problem_frame_uncertain', 'external_outcome']);
-const AUDIENCES = new Set(['personal', 'team', 'organization']);
 const CONTENT_TYPES = new Set(['canonical_fact', 'team_document', 'source_document', 'personal_knowledge', 'operational_state', 'unknown']);
 const SCOPE_SPECIFICITY = { global: 0, organization: 1, project: 2, owner: 3 };
 const POLICY_VISIBILITIES = new Set(['organization', 'owner']);
@@ -23,6 +36,7 @@ const NODE_KINDS = new Set(['common', 'judgment', 'capability', 'constraint', 'f
 const DAG_KINDS = new Set(['domain', 'constraint', 'fail_closed']);
 const DOMAIN_MATCHERS = new Set(['engineering', 'knowledge', 'personal_judgment', 'organization', 'operations']);
 const SAFETY_MATCHERS = new Set(['write', 'external', 'critical']);
+const INTENT_MATCHERS = new Set(INTENT_ORDER);
 const ADAPTER_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const ADAPTER_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
 
@@ -93,6 +107,11 @@ function requiredString(value, name) {
     return value.trim();
 }
 
+function requiredText(value, name) {
+    if (typeof value !== 'string' || !value.trim()) fail(`${name} is required`);
+    return value;
+}
+
 function uniqueEnumArray(value, name, allowed, { optional = false } = {}) {
     if (value === undefined && optional) return [];
     if (!Array.isArray(value) || (!optional && value.length === 0)) fail(`${name} must be a non-empty array`);
@@ -119,6 +138,11 @@ function uniqueStringArray(value, name) {
         output.push(normalized);
     }
     return output;
+}
+
+function stringArray(value, name, { allowEmpty = false } = {}) {
+    if (!Array.isArray(value) || (!allowEmpty && value.length === 0)) fail(`${name} must be a${allowEmpty ? '' : ' non-empty'} array`);
+    return value.map((entry) => requiredString(entry, name));
 }
 
 function enumValue(value, name, allowed) {
@@ -176,6 +200,23 @@ function includesRequestedEffectTerm(request, terms) {
 function sortByOrder(values, order) {
     const indexes = new Map(order.map((value, index) => [value, index]));
     return [...values].sort((left, right) => (indexes.get(left) ?? Number.MAX_SAFE_INTEGER) - (indexes.get(right) ?? Number.MAX_SAFE_INTEGER));
+}
+
+function validatedClassification(value, name, manifest) {
+    exactFields(value, CLASSIFICATION_FIELDS, name);
+    const domains = uniqueEnumArray(value.domains, `${name}.domains`, DOMAINS);
+    if (domains.includes('general') && domains.length > 1) fail('general cannot be combined with another domain');
+    return {
+        intent: enumValue(value.intent, `${name}.intent`, INTENTS),
+        domains: sortByOrder(domains, manifest.selectors.domain_order),
+        action_kind: enumValue(value.action_kind, `${name}.action_kind`, new Set(ACTIONS)),
+        risk: enumValue(value.risk, `${name}.risk`, new Set(RISKS)),
+        confidence: enumValue(value.confidence, `${name}.confidence`, CONFIDENCES),
+        signals: sortByOrder(
+            uniqueEnumArray(value.signals, `${name}.signals`, SIGNALS, { optional: true }),
+            manifest.selectors.signal_order
+        )
+    };
 }
 
 function validatePolicy(policy, seen) {
@@ -312,13 +353,16 @@ function validateManifest(manifest, lock) {
     ];
     for (const dagId of selectorDagIds) if (!dags.has(dagId)) throw new TypeError(`judgment selector references missing DAG ${dagId}`);
     const matchers = manifest.semantic_matchers;
+    validateExactKeys(matchers?.intents, INTENT_MATCHERS, 'judgment intent matchers');
     validateExactKeys(matchers?.domains, DOMAIN_MATCHERS, 'judgment domain matchers');
     validateExactKeys(matchers?.signals, SIGNALS, 'judgment signal matchers');
     validateExactKeys(matchers?.safety, SAFETY_MATCHERS, 'judgment safety matchers');
+    for (const [key, terms] of Object.entries(matchers.intents)) validateStringTerms(terms, `judgment intent matcher ${key}`);
     for (const [key, terms] of Object.entries(matchers.domains)) validateStringTerms(terms, `judgment domain matcher ${key}`);
     for (const [key, terms] of Object.entries(matchers.signals)) validateStringTerms(terms, `judgment signal matcher ${key}`);
     for (const [key, terms] of Object.entries(matchers.safety)) validateStringTerms(terms, `judgment safety matcher ${key}`);
     validateStringTerms(matchers.safe_general, 'judgment safe-general matcher');
+    validateStringTerms(matchers.follow_up, 'judgment follow-up matcher');
     validateSelectableGraphs(manifest);
     const digest = sha256Hex(canonicalJson(manifest));
     validateManifestLock(lock, null, { runtimeVersion: manifest.runtime_version, manifestDigest: digest });
@@ -327,67 +371,182 @@ function validateManifest(manifest, lock) {
 
 function validateInput(rawInput, manifest) {
     exactFields(rawInput, INPUT_FIELDS, 'input');
-    const request = requiredString(rawInput.request, 'request');
+    const request = requiredText(rawInput.request, 'request');
     const turnId = requiredString(rawInput.turn_id, 'turn_id');
     if (turnId.length > 128 || /[\u0000-\u001f\u007f]/u.test(turnId)) fail('turn_id is invalid');
-    exactFields(rawInput.classification_proposal, CLASSIFICATION_FIELDS, 'classification_proposal');
-    const rawProposal = rawInput.classification_proposal;
-    const domains = uniqueEnumArray(rawProposal.domains, 'classification_proposal.domains', DOMAINS);
-    if (domains.includes('general') && domains.length > 1) fail('general cannot be combined with another domain');
-    const signals = uniqueEnumArray(rawProposal.signals, 'classification_proposal.signals', SIGNALS, { optional: true });
+    if (rawInput.conversation_context === undefined) {
+        fail('conversation_context is required');
+    }
     let conversationContext = null;
-    if (rawInput.conversation_context !== undefined) {
+    {
         exactFields(rawInput.conversation_context, CONVERSATION_CONTEXT_FIELDS, 'conversation_context');
+        if (rawInput.conversation_context.schema_version !== 'brainbase-conversation-context-v1') {
+            fail('conversation_context.schema_version is invalid');
+        }
+        const messages = rawInput.conversation_context.messages;
+        if (!Array.isArray(messages)) fail('conversation_context.messages must be an array');
+        const validatedMessages = messages.map((message, index) => {
+            exactFields(message, MESSAGE_FIELDS, `conversation_context.messages[${index}]`);
+            if (message.sequence !== index) fail('conversation_context.messages sequence is invalid');
+            if (!['user', 'assistant'].includes(message.role)) fail('conversation_context.messages role is invalid');
+            if (message.turn_id !== null && (typeof message.turn_id !== 'string' || !message.turn_id)) fail('conversation_context.messages turn_id is invalid');
+            if (message.phase !== null && (typeof message.phase !== 'string' || !message.phase)) fail('conversation_context.messages phase is invalid');
+            return {
+                sequence: index,
+                turn_id: message.turn_id,
+                role: message.role,
+                phase: message.phase,
+                text: requiredText(message.text, `conversation_context.messages[${index}].text`)
+            };
+        });
+        const priorReceipts = rawInput.conversation_context.prior_receipts;
+        if (!Array.isArray(priorReceipts)) fail('conversation_context.prior_receipts must be an array');
+        const validatedPriorReceipts = priorReceipts.map((receipt, index) => {
+            exactFields(receipt, PRIOR_RECEIPT_FIELDS, `conversation_context.prior_receipts[${index}]`);
+            const digestFields = ['request_digest', 'plan_digest'];
+            for (const field of digestFields) if (!/^[a-f0-9]{64}$/u.test(String(receipt[field]))) fail(`conversation_context.prior_receipts[${index}].${field} is invalid`);
+            if (receipt.context_digest !== null && !/^[a-f0-9]{64}$/u.test(String(receipt.context_digest))) fail(`conversation_context.prior_receipts[${index}].context_digest is invalid`);
+            return {
+                turn_id: requiredString(receipt.turn_id, `conversation_context.prior_receipts[${index}].turn_id`),
+                resolution_id: requiredString(receipt.resolution_id, `conversation_context.prior_receipts[${index}].resolution_id`),
+                request_digest: receipt.request_digest,
+                context_digest: receipt.context_digest,
+                plan_digest: receipt.plan_digest,
+                classification: validatedClassification(receipt.classification, `conversation_context.prior_receipts[${index}].classification`, manifest),
+                selected_dag_ids: stringArray(receipt.selected_dag_ids, `conversation_context.prior_receipts[${index}].selected_dag_ids`)
+            };
+        });
+        exactFields(rawInput.conversation_context.runtime, RUNTIME_FIELDS, 'conversation_context.runtime');
+        const runtime = rawInput.conversation_context.runtime;
+        if (runtime.host !== 'codex') fail('conversation_context.runtime.host is invalid');
+        for (const nullable of ['model', 'permission_mode', 'project_binding']) {
+            if (runtime[nullable] !== null && (typeof runtime[nullable] !== 'string' || !runtime[nullable])) fail(`conversation_context.runtime.${nullable} is invalid`);
+        }
+        const instructionBindings = rawInput.conversation_context.instruction_bindings;
+        if (!Array.isArray(instructionBindings)) fail('conversation_context.instruction_bindings must be an array');
+        const validatedInstructionBindings = instructionBindings.map((binding, index) => {
+            exactFields(binding, INSTRUCTION_BINDING_FIELDS, `conversation_context.instruction_bindings[${index}]`);
+            if (!/^[a-f0-9]{64}$/u.test(String(binding.digest))) fail(`conversation_context.instruction_bindings[${index}].digest is invalid`);
+            return {
+                scope: requiredString(binding.scope, `conversation_context.instruction_bindings[${index}].scope`),
+                source_ref: requiredString(binding.source_ref, `conversation_context.instruction_bindings[${index}].source_ref`),
+                digest: binding.digest
+            };
+        });
+        if (!['complete', 'partial'].includes(rawInput.conversation_context.completeness)) fail('conversation_context.completeness is invalid');
+        if (!/^[a-f0-9]{64}$/u.test(String(rawInput.conversation_context.session_ref))) fail('conversation_context.session_ref is invalid');
+        if (!/^[a-f0-9]{64}$/u.test(String(rawInput.conversation_context.source_digest))) fail('conversation_context.source_digest is invalid');
+        const currentMessages = validatedMessages.filter((message) => message.turn_id === turnId);
+        const currentMessage = validatedMessages.at(-1);
+        if (currentMessages.length !== 1 || currentMessage?.role !== 'user' || currentMessage.turn_id !== turnId || currentMessage.text !== request) {
+            fail('conversation_context must end with the exact current request exactly once');
+        }
+        const { source_digest: _sourceDigest, ...sourceContext } = rawInput.conversation_context;
+        if (sha256Hex(canonicalJson(sourceContext)) !== rawInput.conversation_context.source_digest) {
+            fail('conversation_context.source_digest does not match canonical context');
+        }
+        if (rawInput.project_code !== undefined && runtime.project_binding !== rawInput.project_code) {
+            fail('conversation_context.runtime.project_binding must match project_code');
+        }
         conversationContext = {
-            text: requiredString(rawInput.conversation_context.text, 'conversation_context.text'),
-            source_turn_ids: uniqueStringArray(rawInput.conversation_context.source_turn_ids, 'conversation_context.source_turn_ids')
+            schema_version: rawInput.conversation_context.schema_version,
+            session_ref: rawInput.conversation_context.session_ref,
+            messages: validatedMessages,
+            prior_receipts: validatedPriorReceipts,
+            runtime: {
+                host: runtime.host,
+                model: runtime.model,
+                permission_mode: runtime.permission_mode,
+                project_binding: runtime.project_binding
+            },
+            instruction_bindings: validatedInstructionBindings,
+            completeness: rawInput.conversation_context.completeness,
+            source_digest: rawInput.conversation_context.source_digest
         };
     }
-    let knowledgeContext = null;
-    if (rawInput.knowledge_context !== undefined) {
-        exactFields(rawInput.knowledge_context, KNOWLEDGE_FIELDS, 'knowledge_context');
-        knowledgeContext = {
-            audience: enumValue(rawInput.knowledge_context.audience, 'knowledge_context.audience', AUDIENCES),
-            content_type: enumValue(rawInput.knowledge_context.content_type, 'knowledge_context.content_type', CONTENT_TYPES)
-        };
-    }
-    const proposal = {
-        intent: enumValue(rawProposal.intent, 'classification_proposal.intent', INTENTS),
-        domains: sortByOrder(domains, manifest.selectors.domain_order),
-        action_kind: enumValue(rawProposal.action_kind, 'classification_proposal.action_kind', new Set(ACTIONS)),
-        risk: enumValue(rawProposal.risk, 'classification_proposal.risk', new Set(RISKS)),
-        confidence: enumValue(rawProposal.confidence, 'classification_proposal.confidence', CONFIDENCES),
-        signals: sortByOrder(signals, manifest.selectors.signal_order)
-    };
     return {
         request,
         turn_id: turnId,
         project_code: rawInput.project_code === undefined ? null : requiredString(rawInput.project_code, 'project_code'),
-        classification_proposal: proposal,
-        conversation_context: conversationContext,
-        knowledge_context: knowledgeContext
+        conversation_context: conversationContext
     };
 }
 
-function reconcile(input, manifest) {
-    const proposal = input.classification_proposal;
+function matchingKeys(text, matchers, order) {
+    return order.filter((key) => includesTerm(text, matchers[key]));
+}
+
+function matchingIntent(text, manifest) {
+    return INTENT_ORDER.find((intent) => {
+        const terms = manifest.semantic_matchers.intents[intent];
+        return ['implement', 'operate'].includes(intent)
+            ? includesRequestedEffectTerm(text, terms)
+            : includesTerm(text, terms);
+    }) || null;
+}
+
+function classificationFromPriorContext(input, manifest) {
+    const context = input.conversation_context;
+    if (!context) return null;
+    const priorReceipts = [...context.prior_receipts].reverse().filter((receipt) => receipt.turn_id !== input.turn_id);
+    const domainReceipt = priorReceipts.find((receipt) => receipt.classification.domains.some((domain) => domain !== 'general'));
+    if (domainReceipt) return { classification: domainReceipt.classification, turn_ids: [domainReceipt.turn_id], source: 'prior_receipt' };
+    for (let index = context.messages.length - 1; index >= 0; index -= 1) {
+        const message = context.messages[index];
+        if (message.role !== 'user' || message.turn_id === input.turn_id) continue;
+        const domains = matchingKeys(message.text, manifest.semantic_matchers.domains, manifest.selectors.domain_order.filter((domain) => domain !== 'general'));
+        if (domains.length === 0) continue;
+        const signals = matchingKeys(message.text, manifest.semantic_matchers.signals, manifest.selectors.signal_order);
+        const intent = matchingIntent(message.text, manifest) || 'answer';
+        return {
+            classification: {
+                intent,
+                domains,
+                action_kind: actionFloor(intent),
+                risk: actionFloor(intent) === 'write' ? 'medium' : 'low',
+                confidence: 'inferred',
+                signals
+            },
+            turn_ids: message.turn_id ? [message.turn_id] : [],
+            source: 'prior_message'
+        };
+    }
+    const fallbackReceipt = priorReceipts[0];
+    if (fallbackReceipt) return { classification: fallbackReceipt.classification, turn_ids: [fallbackReceipt.turn_id], source: 'prior_receipt' };
+    return null;
+}
+
+function classify(input, manifest) {
     const matchers = manifest.semantic_matchers;
-    const semanticContext = input.conversation_context
-        ? `${input.conversation_context.text}\n${input.request}`
-        : input.request;
-    const detectedDomains = Object.entries(matchers.domains)
-        .filter(([, terms]) => includesTerm(semanticContext, terms))
-        .map(([domain]) => domain);
-    const detectedSignals = Object.entries(matchers.signals)
-        .filter(([, terms]) => includesTerm(semanticContext, terms))
-        .map(([signal]) => signal);
-    const safeGeneral = includesTerm(input.request, matchers.safe_general);
+    const detectedDomains = matchingKeys(input.request, matchers.domains, manifest.selectors.domain_order.filter((domain) => domain !== 'general'));
+    const detectedSignals = matchingKeys(input.request, matchers.signals, manifest.selectors.signal_order);
+    const detectedIntent = matchingIntent(input.request, manifest);
+    const followsPrior = includesTerm(input.request, matchers.follow_up);
+    const prior = followsPrior ? classificationFromPriorContext(input, manifest) : null;
+    const inheritedDomains = detectedDomains.length === 0 && prior ? prior.classification.domains.filter((domain) => domain !== 'general') : [];
+    const inheritedSignals = detectedSignals.length === 0 && prior ? prior.classification.signals : [];
+    const domains = detectedDomains.length > 0
+        ? detectedDomains
+        : inheritedDomains.length > 0
+            ? inheritedDomains
+            : followsPrior && !prior
+                ? []
+                : ['general'];
+    const signals = detectedSignals.length > 0 ? detectedSignals : inheritedSignals;
+    const intent = detectedIntent || (prior ? prior.classification.intent : followsPrior ? null : 'answer');
+    if (!intent || domains.length === 0) {
+        return {
+            status: 'needs_classification', classification: null, assurance: 'unknown',
+            reasons: ['conversation_referent_missing'],
+            evidence: { source: 'resolver', source_turn_ids: [], matcher_ids: [] }
+        };
+    }
     const detectedAction = includesRequestedEffectTerm(input.request, matchers.safety.external)
         ? 'external'
         : includesRequestedEffectTerm(input.request, matchers.safety.write)
             ? 'write'
             : 'none';
-    const minimumAction = indexFloor(ACTIONS, actionFloor(proposal.intent), detectedAction);
+    const minimumAction = indexFloor(ACTIONS, actionFloor(intent), detectedAction);
     const minimumRisk = includesTerm(input.request, matchers.safety.critical)
         ? 'critical'
         : minimumAction === 'external'
@@ -395,50 +554,40 @@ function reconcile(input, manifest) {
             : minimumAction === 'write'
                 ? 'medium'
                 : 'low';
-    const reasons = [];
-
-    if (proposal.confidence === 'unknown') reasons.push('classification_confidence_unknown');
-    if (ACTIONS.indexOf(proposal.action_kind) < ACTIONS.indexOf(minimumAction)) reasons.push('action_below_server_floor');
-    if (RISKS.indexOf(proposal.risk) < RISKS.indexOf(minimumRisk)) reasons.push('risk_below_server_floor');
-
-    const proposedNonGeneral = proposal.domains.filter((domain) => domain !== 'general');
-    for (const domain of detectedDomains) if (!proposedNonGeneral.includes(domain)) reasons.push('server_detected_domain_missing');
-    for (const domain of proposedNonGeneral) if (!detectedDomains.includes(domain)) reasons.push('domain_supported_only_by_proposal');
-    for (const signal of detectedSignals) if (!proposal.signals.includes(signal)) reasons.push('server_detected_signal_missing');
-    for (const signal of proposal.signals) if (!detectedSignals.includes(signal)) reasons.push('signal_supported_only_by_proposal');
-
-    if (proposal.domains.includes('general')) {
-        if (!safeGeneral) reasons.push('general_not_server_supported');
-        if (detectedDomains.length > 0 || detectedSignals.length > 0 || !['answer', 'review'].includes(proposal.intent) || ACTIONS.indexOf(minimumAction) > ACTIONS.indexOf('read')) {
-            reasons.push('general_conflicts_with_request');
-        }
-    } else if (safeGeneral && detectedDomains.length === 0) {
-        reasons.push('request_classification_conflict');
+    if (domains.includes('knowledge') && !input.project_code) {
+        return {
+            status: 'needs_classification', classification: null, assurance: 'unknown',
+            reasons: ['knowledge_project_code_missing'],
+            evidence: {
+                source: 'resolver', source_turn_ids: prior?.turn_ids || [],
+                matcher_ids: ['domain:knowledge']
+            }
+        };
     }
-    const wantsKnowledge = detectedDomains.includes('knowledge') || proposal.domains.includes('knowledge');
-    if (wantsKnowledge && !input.knowledge_context) reasons.push('knowledge_context_missing');
-    if (wantsKnowledge && !input.project_code) reasons.push('knowledge_project_code_missing');
-
-    const uniqueReasons = [...new Set(reasons)];
-    if (uniqueReasons.length > 0) {
-        return { status: 'needs_classification', classification: null, assurance: 'unknown', reasons: uniqueReasons };
-    }
-    const domains = proposal.domains.includes('general')
-        ? ['general']
-        : sortByOrder(detectedDomains, manifest.selectors.domain_order);
-    const signals = sortByOrder(detectedSignals, manifest.selectors.signal_order);
+    const inherited = detectedDomains.length === 0 && Boolean(prior);
+    const matcherIds = [
+        ...(detectedIntent ? [`intent:${detectedIntent}`] : []),
+        ...detectedDomains.map((domain) => `domain:${domain}`),
+        ...detectedSignals.map((signal) => `signal:${signal}`),
+        ...(detectedAction !== 'none' ? [`effect:${detectedAction}`] : [])
+    ];
     return {
         status: 'resolved',
         classification: {
-            intent: proposal.intent,
-            domains,
-            action_kind: indexFloor(ACTIONS, proposal.action_kind, minimumAction),
-            risk: indexFloor(RISKS, proposal.risk, minimumRisk),
-            confidence: proposal.confidence,
-            signals
+            intent,
+            domains: sortByOrder(domains, manifest.selectors.domain_order),
+            action_kind: minimumAction,
+            risk: minimumRisk,
+            confidence: inherited ? 'inferred' : 'confirmed',
+            signals: sortByOrder(signals, manifest.selectors.signal_order)
         },
-        assurance: proposal.confidence === 'confirmed' ? 'verified' : 'bounded',
-        reasons: []
+        assurance: inherited ? 'bounded' : 'verified',
+        reasons: inherited ? ['classification_inherited_from_prior_turn'] : [],
+        evidence: {
+            source: inherited ? prior.source : 'current_request',
+            source_turn_ids: inherited ? prior.turn_ids : [input.turn_id],
+            matcher_ids: matcherIds
+        }
     };
 }
 
@@ -609,8 +758,8 @@ function knowledgeCapabilities(input, classification) {
         status: 'required',
         input: {
             intent: 'lookup',
-            audience: input.knowledge_context.audience,
-            content_type: input.knowledge_context.content_type,
+            audience: classification.domains.includes('personal_judgment') ? 'personal' : 'team',
+            content_type: 'unknown',
             project_code: input.project_code
         },
         receipt_required: true
@@ -645,9 +794,11 @@ export class JudgmentResolutionService {
     resolve(rawInput = {}, { access = {}, hostBinding } = {}) {
         const input = validateInput(rawInput, this.manifest);
         if (!hostBinding || hostBinding.status !== 'managed') fail('verified host binding is required', 'judgment_host_binding_untrusted', 403);
-        const reconciliation = reconcile(input, this.manifest);
-        const wantsPersonal = input.classification_proposal.domains.includes('personal_judgment')
-            || reconciliation.classification?.domains.includes('personal_judgment');
+        if (!this.hasHostBinding(hostBinding.adapter_id, hostBinding.adapter_version)) {
+            fail('host binding is not registered', 'judgment_host_binding_untrusted', 403);
+        }
+        const reconciliation = classify(input, this.manifest);
+        const wantsPersonal = reconciliation.classification?.domains.includes('personal_judgment');
         const allowedOwnerIds = new Set([this.personalOwnerPersonId, ...this.personalOwnerAliasIds].filter(Boolean));
         if (wantsPersonal && (access.personId === 'internal_api' || !allowedOwnerIds.has(access.personId))) {
             fail('personal judgment is not accessible', 'personal_judgment_not_accessible', 403);
@@ -692,8 +843,8 @@ export class JudgmentResolutionService {
                 enforcement_level: 'host_contract'
             },
             project_code: input.project_code,
-            classification_proposal: input.classification_proposal,
             classification: reconciliation.classification,
+            classification_evidence: reconciliation.evidence,
             classification_assurance: reconciliation.assurance,
             reconciliation_reasons: reconciliation.reasons,
             selected_dag_ids: dagIds,

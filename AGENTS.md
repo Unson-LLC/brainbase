@@ -57,7 +57,7 @@ This file is the thin, always-loaded entrypoint for brainbase agents. Keep it un
 ## 3. Brainbase Non-Negotiables
 
 - **Graph SSOT first**: For people, orgs, customers, partners, projects, terms, decisions, and CRM facts, check brainbase Graph (`https://bb.unson.jp`) before writing or deciding. Use `brainbase-graph-philosophy-context`.
-- **Judgment Resolver**: 各Codex turnはglobal `UserPromptSubmit` hookから入口契約を受け、回答・action前に`brainbase_judgment_resolve`を1回呼ぶ。追従発話では必要な`conversation_context`だけを渡し、返された`active_node_definitions`で選択されたactive DAGだけを実行する。全判断段階を毎回通さない。receiptはaction許可ではなく、unmanagedではwrite/externalを止める。詳細は`brainbase-judgment-resolver`。
+- **Judgment Resolver**: 各Codex turnはglobal `UserPromptSubmit` Hostが生の会話履歴・current request・prior receipt・runtime/instruction bindingからcanonical contextを作り、model生成前にResolverを実行して1つのreceiptを採用する。modelはResolverを呼ばず、分類や文脈を作らない。返された`active_node_definitions`で選択されたactive DAGだけを実行し、clarification receiptでも回答生成へ進む。project bindingは判断文脈であり、project access不能だけで判断を止めない。receiptはaction許可ではなく、通常の権限・承認を置き換えない。詳細は`brainbase-judgment-resolver`。
 - **Capability map first**: For Brainbase capability, project/session creation, auth grant, port `31013`, launchd runtime, terminal/xterm transport, or "not visible/not working" issues, use `brainbase-capability-map`.
 - **Skills first**: Load only the smallest relevant Skill. Do not bulk-load Skill folders.
 - **Local vs Lightsail matters**: For `/oyasumi` Graph/candidate writes, use the canonical local control-plane path backed by the Lightsail tunnel, not an accidental local database. Wiki writes are retired.

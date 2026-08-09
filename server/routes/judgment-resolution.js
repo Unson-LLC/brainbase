@@ -98,15 +98,6 @@ export function createJudgmentResolutionRouter({
     const router = Router();
     router.post('/resolve', (req, res) => {
         try {
-            const projectCode = req.body?.project_code;
-            const allowedProjects = Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [];
-            if (projectCode && !allowedProjects.includes(projectCode)) {
-                throw new JudgmentResolutionError(
-                    'judgment_resolution_project_not_accessible',
-                    `project '${projectCode}' is not accessible`,
-                    403
-                );
-            }
             const hostBinding = verifyJudgmentHostBinding({
                 req, service, bindingSecret, now, maxAgeMs, maxFutureSkewMs
             });

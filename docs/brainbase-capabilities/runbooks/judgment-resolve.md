@@ -1,81 +1,78 @@
 # Judgment resolution runbook
 
-Use `brainbase_judgment_resolve` once before answering or acting on each Brainbase-managed turn. The call resolves which branches are relevant; it does not require every judgment stage on every turn.
+Judgment Resolver is a Host pre-model boundary. Every Codex turn is judged because choosing how to answer is itself a judgment. The model does not call Resolver and does not author its classification or conversation context.
 
-## Prepare the proposal
+## Turn flow
 
-Provide the user's request and a host-generated classification proposal:
+1. Codex sends `UserPromptSubmit` data to `scripts/codex-hooks/judgment-resolver-entry.sh`.
+2. `judgment-resolver-host.mjs` validates `session_id`, `turn_id`, `prompt`, `transcript_path`, and `cwd`.
+3. The Host reads the canonical JSONL transcript and preserves ordered raw user/assistant text. It mechanically excludes developer envelopes, summaries, reasoning, tool arguments, and tool output.
+4. The Host adds current `prompt` exactly once as the final user message, projects prior accepted receipts, hashes the session ID, records runtime/project/instruction bindings, and computes `source_digest`.
+5. Before model generation, the Host calls the loopback-only `POST /host/judgment/resolve` bridge. The persistent Brainbase MCP runtime signs and forwards the exact body to `POST /api/judgment/resolve`.
+6. The Host verifies `turn_id`, request digest, context digest, managed binding, and active node definitions, then atomically adopts one receipt in the per-session journal.
+7. Codex receives only the accepted receipt and follows its active DAG. Resolver is absent from the model-visible MCP tool list.
 
-- `turn_id`: unique host turn identifier
-- `project_code`: include when the turn belongs to a project
-- `conversation_context`: for a follow-up utterance, include only the prior text needed to resolve its meaning plus the exact `source_turn_ids`; omit it for self-contained turns
-- `intent`: answer, investigate, diagnose, design, implement, review, or operate
-- `domains`: the smallest server-matcher-supported domain set; conceptual similarity alone is not support
-- `action_kind` and `risk`: never understate the intended effect
-- `signals`: only values whose runtime-manifest matcher occurs in the request or explicitly supplied conversation context
-- `knowledge_context`: required for a knowledge domain
+## Canonical conversation context
 
-The proposal is untrusted routing input. Do not provide DAG IDs, policy IDs, active nodes, runtime version, host binding, or assurance.
+`conversation_context` is required and has schema `brainbase-conversation-context-v1`:
 
-Treat a verb mention and an action request separately. For example, `人間が全件マージできる` is an authority/enforcement constraint, not a merge request; `マージして` is a write request. Likewise, `PR採用` is engineering adoption, while explicit human-hiring phrases belong to the organization domain.
+- hashed `session_ref`; no raw session ID or absolute transcript path is sent
+- ordered `messages` with sequence, turn ID, role, phase, and exact text
+- projections of prior accepted receipts
+- runtime host, model, permission mode, and project binding
+- repo-relative instruction bindings with content digests
+- completeness marker and canonical `source_digest`
 
-Treat a historical reference and a retrieval request separately. `Story履歴を踏まえて判断する` stays in the active engineering judgment unless the turn also asks to search, look up, or retrieve knowledge; bare words such as `履歴` or `事実上` do not select the knowledge branch.
+The Host performs structural filtering only. It does not summarize history or guess which prior utterances are semantically relevant; Resolver owns relevance selection. The current request must be the only message for the current turn and the final user message.
 
-## Execute the resolved subgraph
+## Resolver behavior
 
-1. Call `brainbase_judgment_resolve`.
-2. Verify `management_status=managed` and retain the receipt with the current turn.
-3. Confirm `context_digest` matches whether conversation context was supplied, then follow only `active_nodes` and `active_edges` using the one-to-one `active_node_definitions[].instruction`; all incoming edges are conjunctive dependencies, and node IDs must not be reinterpreted through an independent prompt library.
-4. If `required_capabilities` contains `knowledge.resolve`, call `brainbase_knowledge_resolve` and keep its separate retrieval-routing receipt.
-5. If status is `needs_classification` or `needs_policy_resolution`, resolve the listed `unresolved` items before proceeding.
-6. Perform any independent authorization, approval, and enforcement checks required by the eventual action.
+- Resolver owns intent, domain, action kind, risk, confidence, signal classification, policy selection, and DAG selection.
+- Explicit current-request evidence wins. Short follow-ups may inherit from a prior accepted receipt or a prior raw user message.
+- An unresolved referent returns a managed `needs_classification` receipt with a clarification DAG. This continues to model generation so the assistant can ask the necessary question.
+- Only returned `active_nodes`, `active_edges`, and one-to-one `active_node_definitions` are executed; the full judgment library is not a per-turn checklist.
+- A `knowledge.resolve` required capability is a handoff, not proof that retrieval happened.
+- `project_code` is judgment context. Project-specific policies are visible only through authenticated access, but lack of project access does not make judgment itself unavailable.
 
-Managed or resolved status alone is not a stop condition. An answer-only design request is context-complete when its goal and constraints are explicit, required_capabilities and unresolved are empty, and the selected node instructions directly determine the answer. For a context-complete request, treat the receipt as the project judgment context and answer without loading project workflow skills, repo files, or memory merely because a project name appears. Retrieve more context only when the user explicitly requests current repository or history evidence, or an active node, required capability, or unresolved item requires it. When selected nodes and required capabilities are complete, the user's requested answer or work is complete, and no unresolved item remains, emit the completed final response immediately. Do not begin self-initiated repo, memory, search, shell, or additional-tool exploration afterward. Continue while an active node, required capability, or explicitly requested investigation, implementation, or operation remains unfinished.
+## Exactly one accepted receipt
 
-For `cumulative_effect` or `complexity_growth`, execute `controller-scope` before proposing another Story: read recent Story history, cumulative complexity, and external outcomes, then select normal development or simplification once. Keep candidate generation parallel inside the selected mode; adoption must not choose the mode again. Use existing Story/PR/merge checks to verify the selected mode and prevent manual all-PR merge bypass. The common merge node is only a receipt join, so do not introduce a PR fan-in subsystem.
+The invariant is one effective receipt per turn, not one network attempt. Before adoption, timeout, connection failure, 429, 502, 503, or 504 may be retried up to the bounded Host limit. After atomic adoption, the same turn reuses the journaled receipt and never re-resolves. A conflicting request for the same turn fails closed.
 
-For `threshold_proposal`, missing evidence or measurability remains unresolved. Never replace an unsupported threshold with another number, ratio, count, duration, budget, or inequality.
+## Authorization boundary
+
+The receipt constrains reasoning but does not authorize write or external effects. Existing platform permissions, user approvals, and executor authorization remain authoritative. Do not add a Judgment-specific action-authorization layer or ask Host/model to judge the action a second time.
 
 ## Failure semantics
 
-- Tool unavailable, API failure, binding rejection, request mismatch, or invalid/missing receipt becomes visibly `unmanaged`; never flatten it into a normal result.
-- In `unmanaged`, read-only explanation or diagnosis may continue with an explicit warning, but write/external actions stop.
-- A receipt proves the selected judgment path and policy version. It does not prove Knowledge retrieval, external outcome, human approval, or action authorization.
+- Missing/invalid hook input, untrusted transcript, bridge failure after bounded retry, binding rejection, digest mismatch, or invalid receipt blocks model generation and reports the exact reason.
+- A managed clarification or policy-resolution receipt is not transport failure and must reach the model.
+- Preserve API 4xx codes such as `judgment_resolution_input_invalid`; do not flatten them into a generic API error.
+- `brainbase_project_not_accessible` must not be produced merely because `project_code` is outside the caller's policy scope. Such policy data is omitted; judgment continues.
 
-## Runtime changes
+## Runtime and deployment
 
-When changing the manifest, increment `runtime_version` and append the new version/digest pair to `config/judgment-runtime-manifest-lock.json`. Never rewrite or remove an earlier lock entry. Run the cross-runtime digest and host-binding tests before publication.
-
-## Codex global turn entry
-
-Codex is the primary host. Register `scripts/codex-hooks/judgment-resolver-entry.sh` in the user-level `~/.codex/hooks.json` `UserPromptSubmit` list so every Codex turn receives the mandatory resolver contract, regardless of the current repository. Preserve existing user hooks. The command must use the canonical deployed path:
+Register the canonical deployed wrapper in user-level `~/.codex/hooks.json`:
 
 ```text
 bash /Users/ksato/workspace/code/brainbase/scripts/codex-hooks/judgment-resolver-entry.sh
 ```
 
-The hook injects the Codex-owned `turn_id`; session and cwd are host context, not resolver arguments. The call must follow the MCP schema exactly: `classification_proposal` is one nested object, every classification value must be one of the schema's lowercase enum tokens, and numeric confidence, invented domain/signal values, `session_id`, `cwd`, and flat `proposed_*` fields are forbidden. The hook reads the deployed runtime manifest and injects its domain/signal matcher map, so the model proposes only classifications that have an explicit matcher in the current request or supplied conversation context; it must not broaden `personal_judgment` or `organization` from generic ideas such as judgment, preference, approval, or authority. The server still owns reconciliation and fails closed when the proposal lacks matcher support. Negated safety language is classified by requested effect, so “do not write or act externally” does not itself raise `action_kind` to `write` or `external`. This does not run every judgment stage: the returned receipt selects only the context-relevant active DAG. A hook instruction is host-contract enforcement, not proof that the stateless server observed an omitted call; missing tool or receipt remains visibly `unmanaged` and blocks write/external action.
+The bridge defaults to `http://127.0.0.1:39002/host/judgment/resolve` and must remain loopback-only. The API/MCP signing secret is `BRAINBASE_JUDGMENT_BINDING_SECRET`; never place it in model context, command arguments, logs, or receipts.
 
-## Binding secret provisioning and rotation
+When changing the manifest, increment `runtime_version` and append the new version/digest pair to `config/judgment-runtime-manifest-lock.json`. Never rewrite an earlier lock entry.
 
-- Provision the same high-entropy `BRAINBASE_JUDGMENT_BINDING_SECRET` to the Brainbase API runtime and the Brainbase MCP Infisical path. Never log or return it.
-- Keep `BRAINBASE_JUDGMENT_ADAPTER_ID=brainbase-mcp` and `BRAINBASE_JUDGMENT_ADAPTER_VERSION=1` aligned with the manifest registry. A version change requires a manifest/runtime version update.
-- `scripts/run-brainbase-mcp.sh --check` must pass before declaring the MCP managed. It fails closed when the binding secret is missing, then sends a signed read-only probe to `/api/judgment/resolve` and accepts only a request-bound `managed` receipt. This detects API/MCP secret mismatch before the first user turn.
-- The launcher resolves one API URL in the order `BRAINBASE_GRAPH_API_URL`, `BRAINBASE_API_URL`, then `BRAINBASE_API_BASE_URL`, exports it as `BRAINBASE_RESOLVED_API_URL`, and uses that exact value for the task preflight, Judgment preflight, and production MCP dispatcher. Do not configure different endpoints for those paths.
-- Rotate by deploying a manifest/version that accepts the intended adapter, replacing the API and MCP secret in one controlled window, restarting both runtimes, and verifying a signed receipt. During mismatch, report `unmanaged` and block write/external action.
+### Verification
 
-### Initial release order
+```bash
+scripts/run-brainbase-mcp.sh --check
+npm run test:judgment-resolution
+npm --prefix mcp/brainbase run typecheck
+npm run typecheck
+cmp -s CLAUDE.md AGENTS.md
+```
 
-1. Generate one high-entropy secret of at least 32 characters without printing it to logs. Provision that exact value to both the Brainbase API runtime and the `brainbase-mcp` Infisical target before changing either runtime.
-2. Run the Infisical target readiness check and confirm that `BRAINBASE_JUDGMENT_BINDING_SECRET` is present alongside `BRAINBASE_API_URL` and `BRAINBASE_TASK_API_TOKEN`. Check key presence only; never read the value into an artifact.
-3. Deploy the API at the intended commit SHA. Confirm the deployed SHA and that authenticated requests can reach `/api/judgment/resolve`; an unsigned request must still be rejected.
-4. From the same commit SHA intended for the MCP runtime, run `scripts/run-brainbase-mcp.sh --check` **before mutating the currently runnable MCP checkout**. The automated reconciler runs this candidate launcher from the UI checkout first and only fast-forwards/builds the MCP runtime after both the task API preflight and the signed Judgment binding preflight succeed against the deployed API.
-5. Update and restart the MCP runtime, then verify the reconcile receipt and running MCP SHA match the intended commit. Do not declare the host managed from deployment success alone; retain the successful signed preflight evidence.
+The preflight is a signed read-only probe. A successful probe is not proof that the global hook or persistent runtime is using the new checkout; verify the deployed commit and restart/reconcile evidence separately.
 
 ### Rollback
 
-1. Stop the rollout before restarting additional MCP processes if the API deployment, signed preflight, reconcile receipt, or runtime SHA check fails.
-2. Restore the last known-good API and MCP commit SHAs as a pair. Do not roll back only one side while leaving an incompatible adapter or manifest active.
-3. Restore the previous shared binding secret to both runtimes if the failed release rotated it. Never retain a different secret on one side.
-4. Run `scripts/run-brainbase-mcp.sh --check` against the restored API before restarting MCP. Then reconcile the MCP runtime and confirm both the reconcile receipt and running SHA report the restored commit.
-5. Until the restored signed preflight succeeds, report the Judgment path as unmanaged and keep write/external actions stopped.
+Restore API and persistent MCP/Host runtime to a compatible known-good pair, restore the shared binding secret on both sides if it changed, rerun the signed preflight, and verify the running commit. Until the Host can adopt a valid receipt, model generation remains stopped.

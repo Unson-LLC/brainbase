@@ -22,16 +22,22 @@ export function buildJudgmentBindingProbe({
   turnId = `judgment-preflight-${randomUUID()}`,
 } = {}) {
   required(bindingSecret, 'BRAINBASE_JUDGMENT_BINDING_SECRET');
+  const request = 'この文章の意味を説明して';
+  const contextWithoutDigest = {
+    schema_version: 'brainbase-conversation-context-v1',
+    session_ref: computeRequestDigest({ kind: 'judgment-binding-preflight', turn_id: turnId }),
+    messages: [{ sequence: 0, turn_id: turnId, role: 'user', phase: null, text: request }],
+    prior_receipts: [],
+    runtime: { host: 'codex', model: null, permission_mode: null, project_binding: null },
+    instruction_bindings: [],
+    completeness: 'complete',
+  };
   const body = {
-    request: 'この文章の意味を説明して',
+    request,
     turn_id: turnId,
-    classification_proposal: {
-      intent: 'answer',
-      domains: ['general'],
-      action_kind: 'none',
-      risk: 'low',
-      confidence: 'confirmed',
-      signals: [],
+    conversation_context: {
+      ...contextWithoutDigest,
+      source_digest: computeRequestDigest(contextWithoutDigest),
     },
   };
   const requestDigest = computeRequestDigest(body);

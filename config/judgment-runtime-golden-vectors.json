@@ -6,29 +6,21 @@
     "expected_sha256": "720c426a8d984447034a85227cf9eb25e3fed20b27af6c41c246c2be8edac67f"
   },
   "manifest": {
-    "runtime_version": "judgment-runtime-1.0.3",
-    "expected_sha256": "378251f08679211802837989225aa8d81f1cb381ec73e2fc29ef9390e9e0b2e4"
+    "runtime_version": "judgment-runtime-2.0.0",
+    "expected_sha256": "ee79ed572ae0fafde58c74786a50349576e4199d05d8b3a30291e94f321850ec"
   },
   "binding": {
     "request": {
       "request": "この文章の意味を説明して",
       "turn_id": "host-turn-mcp",
-      "project_code": "brainbase",
-      "classification_proposal": {
-        "intent": "answer",
-        "domains": ["general"],
-        "action_kind": "none",
-        "risk": "low",
-        "confidence": "confirmed",
-        "signals": []
-      }
+      "project_code": "brainbase"
     },
     "secret": "secret",
     "adapter_id": "brainbase-mcp",
     "adapter_version": "1",
     "issued_at": "2026-08-07T00:00:00.000Z",
-    "expected_request_digest": "de5df94c9ac524d5fa9f5835c3481f81b78b1adab72639956803162ac3f5b652",
-    "expected_payload_bytes": "[\"brainbase-judgment-binding-v1\",\"brainbase-mcp\",\"1\",\"host-turn-mcp\",\"2026-08-07T00:00:00.000Z\",\"de5df94c9ac524d5fa9f5835c3481f81b78b1adab72639956803162ac3f5b652\"]",
-    "expected_signature": "9c161938fa90021c3970357d4c3bc2892b3ef0213d59000bdac0ecbcaf487d1d"
+    "expected_request_digest": "376e1546ad94575ca592ea7768c6626163158ba17b56b192f041af6a0864643f",
+    "expected_payload_bytes": "[\"brainbase-judgment-binding-v1\",\"brainbase-mcp\",\"1\",\"host-turn-mcp\",\"2026-08-07T00:00:00.000Z\",\"376e1546ad94575ca592ea7768c6626163158ba17b56b192f041af6a0864643f\"]",
+    "expected_signature": "804663d1d09ade9273ff7c3aafcd84f53b9dd4146b6af1cf1de043865affb6ca"
   }
 }

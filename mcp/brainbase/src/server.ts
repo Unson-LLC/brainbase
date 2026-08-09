@@ -41,7 +41,7 @@ import {
 import { taskTools, handleTaskToolCall } from './tools/task-tools.js';
 import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-tools.js';
 import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './tools/knowledge-resolution-tools.js';
-import { judgmentResolutionTools, handleJudgmentResolutionToolCall } from './tools/judgment-resolution-tools.js';
+import { judgmentResolutionTools, resolveJudgmentBeforeModel } from './tools/judgment-resolution-tools.js';
 import { normalizeJudgmentHostResult } from './tools/judgment-host-contract.js';
 import { dispatchFirst, type ToolHandler } from './tools/tool-dispatcher.js';
 
@@ -64,7 +64,7 @@ let configuredProjectCodes: string[] | undefined;
 
 type OnboardingDispatchDependencies = Parameters<typeof handleOnboardingToolCall>[2];
 type KnowledgeResolutionDispatchDependencies = Parameters<typeof handleKnowledgeResolutionToolCall>[2];
-type JudgmentResolutionDispatchDependencies = Parameters<typeof handleJudgmentResolutionToolCall>[2];
+type JudgmentResolutionDispatchDependencies = Parameters<typeof resolveJudgmentBeforeModel>[1];
 
 function createDefaultJudgmentResolutionDependencies(): JudgmentResolutionDispatchDependencies {
   return {
@@ -101,17 +101,14 @@ async function dispatchKnowledgeResolutionToolCall(
   });
 }
 
-async function dispatchJudgmentResolutionToolCall(
-  name: string,
+async function dispatchJudgmentResolutionBeforeModel(
   args: Record<string, unknown>,
   dependencies?: JudgmentResolutionDispatchDependencies,
 ) {
-  const result = await handleJudgmentResolutionToolCall(
-    name,
-    args,
-    dependencies ?? createDefaultJudgmentResolutionDependencies(),
+  const result = await resolveJudgmentBeforeModel(
+    args, dependencies ?? createDefaultJudgmentResolutionDependencies(),
   );
-  return result === null ? null : normalizeJudgmentHostResult(result);
+  return normalizeJudgmentHostResult(result);
 }
 
 async function dispatchExtensionToolCall(
@@ -945,7 +942,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
 export const __testing = {
   tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...taskTools],
   dispatchOnboardingToolCall,
-  dispatchJudgmentResolutionToolCall,
+  dispatchJudgmentResolutionBeforeModel,
   dispatchKnowledgeResolutionToolCall,
   dispatchExtensionToolCall,
   createDefaultJudgmentResolutionDependencies,
@@ -1088,7 +1085,6 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
           tokenManager: globalTokenManager,
         }),
         (toolName, extensionArgs) => dispatchOnboardingToolCall(toolName, extensionArgs),
-        (toolName, extensionArgs) => dispatchJudgmentResolutionToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => dispatchKnowledgeResolutionToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleTaskToolCall(toolName, extensionArgs, {
           apiUrl: taskApiUrl,
@@ -1140,6 +1136,35 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
       if (req.method === 'GET' && req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('ok');
+        return;
+      }
+      if (req.method === 'POST' && req.url === '/host/judgment/resolve') {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        for await (const chunk of req) {
+          const buffer = chunk as Buffer;
+          size += buffer.length;
+          if (size > 10 * 1024 * 1024) {
+            res.writeHead(413, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ management_status: 'unmanaged', reason: 'judgment_host_payload_too_large', receipt: null }));
+            return;
+          }
+          chunks.push(buffer);
+        }
+        try {
+          const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>;
+          const result = await dispatchJudgmentResolutionBeforeModel(body);
+          res.writeHead(result.management_status === 'managed' ? 200 : 503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(result));
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            management_status: 'unmanaged',
+            reason: 'judgment_host_bridge_failed',
+            warning: error instanceof Error ? error.message : String(error),
+            receipt: null,
+          }));
+        }
         return;
       }
       if (!req.url || !req.url.startsWith('/mcp')) {
