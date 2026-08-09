@@ -179,6 +179,33 @@
       "source_pages": 537,
       "characters": 795952,
       "sha256": "770eaeb010903ef219f40e33607289a1e820c72592ab68b0931ed199292000ca"
+    },
+    {
+      "index": 23,
+      "title": "基盤モデルとロボットの融合 マルチモーダルAIでロボットはどう変わるのか",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 256,
+      "source_pages": 256,
+      "characters": 257372,
+      "sha256": "09df74ca001f29e0339365015ead1874822274735b4f238716f12b29343578bf"
+    },
+    {
+      "index": 24,
+      "title": "ROS 2 from Scratch",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 342,
+      "source_pages": 342,
+      "characters": 497303,
+      "sha256": "ae7110a34bc7af9eca20932faebe98679cf70146071e0cbfe802456a1015e6f6"
+    },
+    {
+      "index": 25,
+      "title": "AI駆動マーケティング 業務効率化を超える生成AI実践術",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 162,
+      "source_pages": 162,
+      "characters": 228788,
+      "sha256": "691f23c8bcb63cee5ba81d70d2fd053462236040a3a735b831c14ebd7ec699a4"
     }
   ]
 }

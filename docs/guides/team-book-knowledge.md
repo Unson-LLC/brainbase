@@ -14,7 +14,7 @@ Google Driveでチームが参照できる購入済み書籍を、Brainbaseの�
 - 対象: 38冊（[`manifest.yml`](../internal/book-ingestion/manifest.yml)）
 - Drive解決結果: 38/38件（[`resolved.json`](../internal/book-ingestion/resolved.json)）
 - PDF抽出監査: [`extraction-report.json`](../internal/book-ingestion/extraction-report.json)
-- OCR完了証跡: 20冊4,576ページ・4,924,941文字（[`ocr-status.json`](../internal/book-ingestion/ocr-status.json)）。残る18冊は未完了として扱う
+- OCR完了証跡: 23冊5,336ページ・5,908,404文字（[`ocr-status.json`](../internal/book-ingestion/ocr-status.json)）。残る15冊は未完了として扱う
 - Drive読み取りアカウント: `info@unson.jp`
 - 原本所有者: `k.sato.unson@gmail.com`
 
@@ -46,6 +46,9 @@ Google Driveでチームが参照できる購入済み書籍を、Brainbaseの�
 | マーケティングを学んだけれど、どう使えばいいかわからない人へ | [`marketing-value-compass.md`](./marketing-value-compass.md) | 第7バッチ・OCR出典確認済み |
 | できる営業マンのすごい言語化 | [`sales-tacit-knowledge-playbook.md`](./sales-tacit-knowledge-playbook.md) | 第7バッチ・OCR出典確認済み・既存Skillへ接続 |
 | Foundations of Robotics | [`robotics-foundations-learning-map.md`](./robotics-foundations-learning-map.md) | 第7バッチ・OCR出典確認済み |
+| 基盤モデルとロボットの融合 | [`robot-foundation-model-integration.md`](./robot-foundation-model-integration.md) | 第8バッチ・OCR出典確認済み |
+| ROS 2 from Scratch | [`ros2-application-foundations.md`](./ros2-application-foundations.md) | 第8バッチ・OCR出典確認済み |
+| AI駆動マーケティング | [`ai-driven-marketing-operating-loop.md`](./ai-driven-marketing-operating-loop.md) | 第8バッチ・OCR出典確認済み |
 
 横断的な使い分けは[`systemization-selection-guide.md`](./systemization-selection-guide.md)を参照する。
 
