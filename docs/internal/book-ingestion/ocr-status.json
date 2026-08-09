@@ -278,6 +278,33 @@
       "source_pages": 139,
       "characters": 206603,
       "sha256": "d67aa84d6a95bd57b2e1b69db397e13c1351c00acea4c219d583e64c46f2bbbc"
+    },
+    {
+      "index": 36,
+      "title": "完全探偵マニュアル Best",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 342,
+      "source_pages": 342,
+      "characters": 306275,
+      "sha256": "4805046213e029a67c174cc9b8630d04237a24ea6b3659d601785db2a823a722"
+    },
+    {
+      "index": 37,
+      "title": "探偵の現場",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 168,
+      "source_pages": 168,
+      "characters": 174844,
+      "sha256": "2aeec623f9db8f17da80abb2c44b81e65a4495dc6667fa17fffc26922fc914ca"
+    },
+    {
+      "index": 38,
+      "title": "完全探偵マニュアル Worst",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 274,
+      "source_pages": 274,
+      "characters": 199846,
+      "sha256": "949c7cc087a5def84031b30d8adcfa7b1b8d5595539d9bcb8ae8906fe8f6f556"
     }
   ]
 }

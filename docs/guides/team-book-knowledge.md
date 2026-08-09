@@ -14,8 +14,8 @@ Google Driveでチームが参照できる購入済み書籍を、Brainbaseの�
 - 対象: 38冊（[`manifest.yml`](../internal/book-ingestion/manifest.yml)）
 - Drive解決結果: 38/38件（[`resolved.json`](../internal/book-ingestion/resolved.json)）
 - PDF抽出監査: [`extraction-report.json`](../internal/book-ingestion/extraction-report.json)
-- 画像PDFの全ページOCR完了証跡: 31冊7,533ページ・8,161,036文字（[`ocr-status.json`](../internal/book-ingestion/ocr-status.json)）
-- 残る7冊はOCR台帳未登録。埋め込み文字抽出済みの書籍も含むため、未完了冊数とはみなさず、抽出監査と派生ガイドの証跡を個別に確認する
+- 画像PDFの全ページOCR完了証跡: 34冊8,317ページ・8,842,001文字（[`ocr-status.json`](../internal/book-ingestion/ocr-status.json)）
+- 残る4冊はOCR台帳未登録。埋め込み文字抽出済みの書籍であり、未完了冊数とはみなさず、抽出監査と派生ガイドの証跡を個別に確認する
 - Drive読み取りアカウント: `info@unson.jp`
 - 原本所有者: `k.sato.unson@gmail.com`
 
@@ -58,6 +58,9 @@ Google Driveでチームが参照できる購入済み書籍を、Brainbaseの�
 | 図解まるわかり Web技術のしくみ | [`web-system-architecture-operations-map.md`](./web-system-architecture-operations-map.md) | 第11バッチ・OCR出典確認済み |
 | React.js＆Next.js超入門 第2版 | [`react-nextjs-component-state-design.md`](./react-nextjs-component-state-design.md) | 第11バッチ・OCR出典確認済み |
 | 全体像と用語がよくわかる！ Microsoft Azure入門ガイド | [`azure-service-selection-map.md`](./azure-service-selection-map.md) | 第11バッチ・OCR出典確認済み |
+| 完全探偵マニュアル Best | [`investigation-intake-evidence-guardrails.md`](./investigation-intake-evidence-guardrails.md) | 第12バッチ・OCR出典確認済み・安全運用へ再構成 |
+| 探偵の現場 | [`investigation-intake-evidence-guardrails.md`](./investigation-intake-evidence-guardrails.md) | 第12バッチ・OCR出典確認済み・安全運用へ再構成 |
+| 完全探偵マニュアル Worst | [`investigation-intake-evidence-guardrails.md`](./investigation-intake-evidence-guardrails.md) | 第12バッチ・OCR出典確認済み・安全運用へ再構成 |
 
 横断的な使い分けは[`systemization-selection-guide.md`](./systemization-selection-guide.md)を参照する。
 
