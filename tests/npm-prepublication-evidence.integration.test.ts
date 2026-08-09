@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 describe('npm prepublication evidence', () => {
@@ -13,11 +14,15 @@ describe('npm prepublication evidence', () => {
       cwd: root,
       encoding: 'utf8'
     }).trim();
+    const { name, version } = JSON.parse(readFileSync(`${root}/package.json`, 'utf8')) as {
+      name: string;
+      version: string;
+    };
 
     expect(evidence).toMatchObject({
       status: 'pass',
       head_sha: head,
-      package: '@unson/brainbase-mcp@0.1.0',
+      package: `${name}@${version}`,
       production_dependency_audit: { vulnerabilities: 0 },
       registry: { target_version_absent: true, evidence: 'E404' }
     });
