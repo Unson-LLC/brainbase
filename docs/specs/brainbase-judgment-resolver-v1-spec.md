@@ -1,144 +1,101 @@
-# Brainbase Judgment Resolver Host pre-turn specification
+# Brainbase Judgment Resolver episode lifecycle specification
 
 ## 1. Invariant
 
-Every managed Codex turn has exactly one accepted Judgment receipt before model generation. A turn may have up to three transient transport attempts before adoption. It has no Resolver call after adoption and no model-initiated Resolver call.
+Every managed Codex turn has exactly one judgment episode. The Host opens it before model generation with one context-bound initial route receipt, records 0..N actual Brainbase tool events, and creates exactly one final receipt at `Stop`. The model cannot call Judgment Resolver or author classification/`conversation_context`.
 
-## 2. Host event
+The invariant is not one network call or one knowledge call per turn. Bounded transport retry is allowed before episode creation, and knowledge/retrieval calls may repeat as new evidence changes the next question.
 
-The global `UserPromptSubmit` wrapper receives:
+## 2. Host events
 
-- `session_id`
-- `turn_id`
-- `prompt`
-- nullable `transcript_path`
-- `cwd`
-- `model`
-- `permission_mode`
+### UserPromptSubmit
 
-`session_id`, `turn_id`, and non-empty `prompt` are mandatory. An absent, unreadable, outside-root, non-regular, malformed, or session-mismatched transcript produces a partial context; it never causes the Host to invent history.
+Required input is `session_id`, `turn_id`, non-empty `prompt`, optional `transcript_path`, `cwd`, `model`, and `permission_mode`. The Host constructs canonical context and resolves the initial route before model generation. An invalid payload or untrusted/mismatched context fails closed.
 
-## 3. Resolver input
+### PostToolUse
 
-The exact public body is:
+For matching `mcp__brainbase__*` tools, input includes the session/turn binding, `tool_name`, `tool_use_id`, input, and response. The Host persists a safe projection and digests only. The exact same event is idempotent; reuse of one ID with different content is a conflict.
 
-```json
-{
-  "request": "それでいい。修正して",
-  "turn_id": "turn-2",
-  "project_code": "brainbase",
-  "conversation_context": {
-    "schema_version": "brainbase-conversation-context-v1",
-    "session_ref": "sha256-of-session-id",
-    "messages": [
-      {"sequence": 0, "turn_id": "turn-1", "role": "user", "phase": null, "text": "文脈は入る？"},
-      {"sequence": 1, "turn_id": "turn-1", "role": "assistant", "phase": "final", "text": "生の会話履歴を渡します。"},
-      {"sequence": 2, "turn_id": "turn-2", "role": "user", "phase": null, "text": "それでいい。修正して"}
-    ],
-    "prior_receipts": [],
-    "runtime": {
-      "host": "codex",
-      "model": "gpt-5",
-      "permission_mode": "workspace-write",
-      "project_binding": "brainbase"
-    },
-    "instruction_bindings": [
-      {"scope": "repository", "source_ref": "AGENTS.md", "digest": "sha256-of-file"}
-    ],
-    "completeness": "complete",
-    "source_digest": "sha256-of-context-without-source-digest"
-  }
-}
-```
+### Stop
 
-Unknown top-level or nested fields are rejected. The current turn appears exactly once and is the final user message with text exactly equal to `request`. `project_code`, when present, equals `runtime.project_binding`.
+Input includes the session/turn binding, `stop_hook_active`, and optional answer text. The Host evaluates required capabilities against immutable events and finalizes complete or incomplete. Missing required knowledge blocks the first Stop only; `stop_hook_active=true` finalizes incomplete.
 
-The Host includes raw ordered user/assistant message text. It excludes injected host envelopes, developer messages, compaction summaries, reasoning, function/tool calls, tool arguments, and tool output. It sends a hashed session reference and repo-relative instruction references, never personal absolute paths.
+Orphan PostToolUse or Stop events do not create an episode.
+
+## 3. Canonical Resolver input
+
+The public request contains only `request`, `turn_id`, optional `project_code`, and required `conversation_context` using `brainbase-conversation-context-v1`. Context preserves ordered exact user/assistant text, current request exactly once, prior complete episode projections, runtime/project binding, repo-relative instruction digests, completeness, and `source_digest`.
+
+The Host performs structural filtering. It excludes developer envelopes, compaction summaries, reasoning, tool arguments, tool output, raw session identity, and personal absolute paths. Resolver determines classification and semantic relevance; there is no caller-supplied classification.
 
 ## 4. Canonical JSON and digests
 
-`brainbase-canonical-json-v1` recursively sorts object keys by Unicode code point, preserves array order, serializes JSON primitives with standard JSON representation, and rejects non-finite numbers and undefined.
+`brainbase-canonical-json-v1` recursively sorts object keys by Unicode code point, preserves array order, serializes JSON primitives normally, and rejects non-finite numbers and undefined.
 
-- `source_digest`: SHA-256 of canonical context without its `source_digest`
-- `context_digest`: SHA-256 of the exact canonical `conversation_context`
-- `request_digest`: SHA-256 of the exact canonical Resolver body
-- `plan_digest`: SHA-256 of the normalized receipt plan without volatile receipt identity/time and digest fields
+- `source_digest`: canonical context without `source_digest`
+- `context_digest`: exact canonical `conversation_context`
+- `request_digest`: exact canonical Resolver request
+- `plan_digest`: normalized initial route without volatile identity/time/digest fields
+- `event_fingerprint`: bound safe event projection
+- `event_set_digest`: ordered immutable final event set
 
-All digests are lowercase 64-character hexadecimal strings.
+All digests are lowercase SHA-256 hexadecimal strings.
 
-## 5. Server-owned classification
+## 5. Server-owned classification and DAG
 
-The runtime manifest owns intent, domain, signal, safety, and follow-up matchers. Resolver determines classification; there is no caller-supplied classification field.
+Resolver determines classification. It owns intent, domain, signal, effect, risk, confidence, policy, and active-DAG selection. Explicit current evidence wins; an under-specified follow-up may inherit domain from the latest prior complete episode or prior raw user message. Current request always determines the minimum action/risk floor.
 
-1. Detect explicit intent/domain/signal/effect in the current request.
-2. For implement/operate and write/external effects, match requested effect rather than conditional, quoted, negated, or merely mentioned verbs.
-3. If the request is a follow-up and lacks a domain, inherit from the latest prior accepted receipt; otherwise inspect the latest prior raw user message with a supported domain matcher.
-4. Current explicit evidence overrides inherited values. Current request always determines the minimum action/risk floor.
-5. With no resolvable referent, return managed `needs_classification` and the clarification DAG.
-6. General answer is the safe fallback only for self-contained requests, not unresolved follow-up references.
+No resolvable referent returns managed `needs_classification` with a clarification DAG. This is not a transport failure. Only returned `active_nodes`, `active_edges`, and matching `active_node_definitions` execute.
 
-## 6. DAG and policy resolution
+Project binding is judgment context, not action authorization. An inaccessible project only removes that project's policies from the applicable set; it does not make general judgment unavailable.
 
-Domain and signal selectors map classification to manifest DAGs. High/critical risk, write/external effect, or authority signal adds the authority DAG. Conditional composition edges apply only when both endpoints are active. All incoming edges are conjunctive dependencies; nodes use stable topological order.
+## 6. Episode journal
 
-Policy visibility uses authenticated access only:
+The journal path uses hashed session and turn IDs with owner-only permissions:
 
-- global: always
-- organization: matching tenant
-- project: project code is in authenticated project scope
-- owner: matching person
+```text
+<turn>.episode.json
+<turn>.events/<sha256(tool_use_id)>.json
+<turn>.continuation.json
+<turn>.final.json
+```
 
-Project binding is judgment context, not action authority. An out-of-scope `project_code` does not reject judgment. It only makes that project's policies inapplicable. Personal owner-only policy remains protected by its existing access rules.
+Creation uses unique temporary files and hard links, so concurrent writers cannot overwrite first-writer evidence. `episode.json` contains the verified initial route and owner judgment audit. Event files never persist raw tool input/response. `final.json` binds event count, qualifying count, event-set digest, final status, and answer digest without storing the answer body.
 
-## 7. Receipt
+Legacy v1/v2 adopted receipt journals remain readable. Only `complete` finalized episode projections may enter later `conversation_context`; open or incomplete episodes cannot silently become prior accepted judgment.
 
-Receipt fields are:
+## 7. Capability satisfaction
 
-- identity/provenance: `resolution_id`, `resolved_at`, `turn_id`, `request_digest`, `context_digest`, `runtime_version`, `manifest_digest`, `plan_digest`, `host_binding`, `project_code`
-- result: `status`, `classification`, `classification_evidence`, `classification_assurance`, `reconciliation_reasons`
-- plan: `selected_dag_ids`, `applicable_policies`, `suppressed_policies`, `required_capabilities`, `active_nodes`, `active_edges`, `active_node_definitions`, `unresolved`, `rationale`
+Required `knowledge.resolve` is satisfied only by a successful exact `mcp__brainbase__brainbase_knowledge_resolve` event with a resolved or unconfirmed route status. Unrelated Brainbase calls, failed route calls, search calls, Graph reads, and retrievals do not substitute for choosing the source route.
 
-`active_node_definitions` is one-to-one and in the same order as `active_nodes`. `status=resolved` requires a classification and no unresolved entries. `status=needs_classification` requires a null classification, unknown assurance, `unresolved=["classification"]`, and a clarification graph.
+`brainbase_knowledge_resolve` means reference-destination routing, not retrieval. Its visible event line uses `📚 Brainbase参照先:`. Search, retrieval, and write tools use distinct wording based on the actual tool event.
 
 ## 8. Transport and Host bridge
 
-The persistent Brainbase MCP runtime exposes loopback-only `POST /host/judgment/resolve`. This endpoint is not an MCP tool. It authenticates the configured runtime, signs the exact request with the registered adapter binding, calls `POST /api/judgment/resolve`, validates the full receipt shape/digests/DAG, and normalizes the result to `managed|unmanaged`.
+The persistent Brainbase runtime exposes loopback-only `POST /host/judgment/resolve`; it is not an MCP tool. It authenticates runtime state, signs the exact request with the adapter binding, calls `POST /api/judgment/resolve`, verifies full receipt digests/DAGs, and returns `managed|unmanaged`.
 
-Signing uses HMAC-SHA256 over canonical:
+Recognized transient timeout/connection/429/502/503/504 failures may retry only before episode creation. After creation, the Host reuses the episode and never re-resolves the turn.
 
-```text
-["brainbase-judgment-binding-v1", adapter_id, adapter_version, turn_id, issued_at, request_digest]
-```
+## 9. Finalization and authorization boundary
 
-The API verifies registered adapter/version, request digest, UTC millisecond timestamp window, and constant-time signature comparison. Secrets never enter Host hook output or model context.
+At Stop, the Host creates one immutable final receipt. When required knowledge is absent, the first Stop returns `decision:block` with a continuation reason. The repeated Stop indicated by `stop_hook_active=true` creates `status=incomplete` and permits termination, preventing an infinite hook loop. A replay reuses the same final.
 
-API error codes remain specific. In particular, invalid canonical context stays `judgment_resolution_input_invalid` rather than becoming a generic API error.
+Initial and final receipts are judgment and audit evidence. They do not authorize writes or external action. Platform permission, explicit approval, and executor authorization remain unchanged; no separate Effect Guard is added.
 
-## 9. Receipt adoption
+## 10. Failure behavior
 
-The journal path is derived from hashed session and hashed turn IDs. Files and directories use owner-only permissions. Adoption writes a unique temporary file and hard-links it to the final target, so concurrent attempts cannot overwrite the first accepted receipt.
+- terminal before episode: invalid hook input, untrusted context, binding rejection, malformed response, digest mismatch, unmanaged binding, missing active definitions, or same-turn conflict
+- terminal event: same `tool_use_id` with a different fingerprint
+- incomplete completion: required capability still absent after the single continuation
+- replay: verified immutable episode/event/final is returned without new Resolver or tool evidence
 
-Before returning an existing entry, Host re-verifies request text digest, turn binding, request digest, context digest, managed binding, and active definitions. A conflicting same-turn request fails closed.
+Specific API errors remain distinct. `brainbase_project_not_accessible` is not used merely because project policy is outside the caller's scope.
 
-## 10. Model and action boundaries
+## 11. Verification matrix
 
-On success, the hook passes the accepted receipt to model context and instructs the model not to call or reclassify Resolver. Managed clarification still begins model generation.
-
-Judgment does not grant effects. Platform permissions, explicit approval, and executor authorization remain unchanged. The Host contract contains no separate action-kind gate and does not turn a write/external classification into permission.
-
-## 11. Failure behavior
-
-- transient: timeout, connection reset/refusal, or recognized 429/502/503/504 before adoption; bounded retry
-- terminal: invalid hook input, untrusted context source, 4xx validation/binding rejection, malformed response, digest mismatch, unmanaged binding, missing active definitions, or same-turn conflict
-- after adoption: never retry or re-resolve; return the verified journaled receipt
-
-Terminal Host failure returns `continue=false`, so no unjudged model response is generated.
-
-## 12. Verification matrix
-
-- service: strict schema/digests, server-owned classification, action floors, follow-up inheritance, clarification, policy scope, DAG topology, manifest lock
-- API: signing, timestamp boundaries, exact request binding, error mapping, out-of-scope project behavior
-- internal runtime: Resolver absent from model tools, signed pre-model dispatch, full receipt validation
-- Host: raw transcript extraction, structural exclusion, privacy, exact current message, retry/adoption/reuse/conflict
-- end-to-end: Host dispatch -> authenticated API -> receipt -> active DAG model boundary, including follow-up, clarification, write classification, and inaccessible project policy
-- publication: `CLAUDE.md`/`AGENTS.md` identity and consistent Skill/capability/runbook contract
+- service/API: strict schema, signing, server-owned classification, follow-up inheritance, policy scope, DAG topology
+- UserPromptSubmit Host: transcript extraction, structural exclusion, privacy, exact current message, retry/create/reuse/conflict
+- PostToolUse Host: 0..N events, exact capability qualification, replay, conflict, safe projection, accurate reference/search/retrieval wording
+- Stop Host: zero-call completion when allowed, one continuation, incomplete second Stop, complete final, replay
+- end-to-end: Host initial dispatch -> repeated model/tool loop -> final episode receipt
+- publication: `CLAUDE.md`/`AGENTS.md`, Skill, capability, runbook, story, and tests expose the same lifecycle

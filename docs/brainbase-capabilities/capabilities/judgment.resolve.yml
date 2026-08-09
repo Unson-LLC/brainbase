@@ -1,11 +1,13 @@
 id: judgment.resolve
-name: Host pre-model judgment resolver
-purpose: Resolve one context-bound judgment receipt before model generation on every Codex turn, expose only the selected active DAG to the model, and show the owner a short readable trace of the judgment evidence.
+name: Host judgment episode lifecycle
+purpose: Open one context-bound judgment episode before model generation, record 0..N actual Brainbase calls, finalize one auditable episode receipt at Stop, and expose only the selected active DAG without authorizing the eventual action.
 surfaces:
   ui: []
   mcp: []
   host:
-    - POST http://127.0.0.1:39002/host/judgment/resolve
+    - UserPromptSubmit -> POST http://127.0.0.1:39002/host/judgment/resolve
+    - PostToolUse -> append-only Brainbase tool event
+    - Stop -> atomic final episode receipt
   api:
     - POST /api/judgment/resolve
   code:
@@ -19,19 +21,20 @@ surfaces:
   data:
     - config/judgment-runtime-manifest.json
     - config/judgment-runtime-manifest-lock.json
-    - User-local atomic receipt and owner-audit journal; raw session IDs, absolute transcript paths, secrets, and unbounded conversation text are not persisted in the owner audit.
+    - User-local episode, event, continuation, and final journals; raw session IDs, absolute paths, secrets, raw tool payloads, and unbounded conversation text are not persisted.
 depends_on:
   - auth.grants
   - graph.ssot
   - knowledge.resolve
 visibility_rules:
-  - Every Codex turn is resolved before model generation because answering is also a judgment.
-  - The Host constructs required canonical conversation_context from ordered raw conversation messages, prior receipts, runtime/project data, and instruction digests.
+  - Every Codex turn opens one judgment episode before model generation because answering is also a judgment.
+  - The Host constructs canonical conversation_context from ordered raw conversation messages, prior finalized episodes, runtime/project data, and instruction digests.
   - The model cannot call Judgment Resolver and cannot submit classification or a model-authored context summary.
-  - The Host resolves receipt evidence back to the concrete canonical user turn and projects a redacted, bounded excerpt plus the judgment result into one short Japanese `🧠 判断参照:` line; only the first user-facing assistant message of the turn starts with that exact line.
-  - Later commentary and the final response in the same turn never repeat the judgment line. Actual knowledge tool calls have separate `📚 Brainbase検索:` or `📚 Brainbase取得:` traces.
-  - A required `knowledge.resolve` capability is described as retrieval still needed, never as knowledge already retrieved or used.
-  - Only one accepted receipt exists per turn; bounded transport retries are allowed before atomic adoption, never after it.
+  - UserPromptSubmit adopts exactly one initial route receipt; retries are bounded before episode creation and no reclassification occurs afterwards.
+  - The model may call Brainbase knowledge/retrieval tools 0..N times as results create new questions; there is no one-call-per-turn limit.
+  - PostToolUse records only actual `mcp__brainbase__*` outcomes and emits a short owner-visible line that accurately distinguishes reference routing, searching, retrieval, and writes.
+  - Only successful exact `mcp__brainbase__brainbase_knowledge_resolve` calls satisfy a required `knowledge.resolve`; unrelated or failed calls do not.
+  - Stop finalizes exactly one complete or incomplete episode receipt. A missing required route gets one continuation, then finalizes incomplete when `stop_hook_active=true`.
   - Each active node has a manifest-owned executable definition; only selected branches run.
   - A managed clarification receipt continues to model generation and selects the clarification DAG.
   - Project binding is judgment context, not action authority; project policies remain access-scoped without blocking general judgment.
@@ -46,15 +49,17 @@ verification:
   expected:
     - Resolver is absent from model-visible MCP tools.
     - Host preserves exact ordered user/assistant text and removes host envelopes and tool internals structurally.
-    - Follow-ups can inherit a prior receipt while current-request action and risk floors remain current.
-    - Project-scope absence omits project policy but does not reject judgment.
-    - The same turn reuses its adopted receipt without another Resolver request.
-    - The owner-visible first line includes a redacted excerpt of the actual conversation basis and the judgment result without exposing IDs, secrets, unbounded text, or raw receipt JSON.
-    - The adopted receipt and rendered owner audit share one atomic journal entry, so a replay cannot drift after renderer changes.
+    - The same turn reuses its initial route without another Resolver request.
+    - Multiple distinct Brainbase calls create multiple immutable events; replay creates no duplicate.
+    - Raw tool input/output and secret-like values are absent from journals and owner-visible lines.
+    - Zero Brainbase calls is complete when no Brainbase capability is required.
+    - Required `knowledge.resolve` is complete only after a successful exact route call.
+    - A replayed Stop reuses the same final receipt, and continuation cannot loop indefinitely.
 common_failures:
   - Asking the model to call Resolver after generation has already begun.
-  - Asking the model to invent classification input or summarize conversation_context.
-  - Treating one network attempt as the invariant instead of one accepted receipt.
+  - Treating the initial route receipt as proof that Brainbase knowledge was retrieved.
+  - Counting any Brainbase tool call as satisfying `knowledge.resolve`.
+  - Treating one network attempt or one tool call as the per-turn invariant.
   - Treating brainbase_project_not_accessible as a reason judgment cannot run.
   - Adding a second Judgment-specific action guard that re-judges the receipt.
 runbooks:

@@ -11,7 +11,9 @@ describe('judgment resolver publication surfaces', () => {
         const claude = read('CLAUDE.md');
         const agents = read('AGENTS.md');
         expect(agents).toBe(claude);
-        expect(claude).toContain('model生成前にResolverを実行');
+        expect(claude).toContain('model生成前に1つのjudgment episodeを開始');
+        expect(claude).toContain('PostToolUse');
+        expect(claude).toContain('Stop');
         expect(claude).toContain('modelはResolverを呼ばず');
         expect(claude).toContain('canonical context');
         expect(claude).toContain('clarification receiptでも回答生成へ進む');
@@ -19,7 +21,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(claude).toContain('通常の権限・承認を置き換えない');
     });
 
-    it('UserPromptSubmit wrapperがpre-model Host実装だけを起動する', () => {
+    it('wrapperがUserPromptSubmit・PostToolUse・Stopのepisode lifecycleを起動する', () => {
         const wrapper = read('scripts/codex-hooks/judgment-resolver-entry.sh');
         const host = read('scripts/codex-hooks/judgment-resolver-host.mjs');
 
@@ -28,8 +30,10 @@ describe('judgment resolver publication surfaces', () => {
         expect(host).toContain('readCanonicalTranscript');
         expect(host).toContain('buildJudgmentRequest');
         expect(host).toContain('/host/judgment/resolve');
-        expect(host).toContain('resolveAndAdopt');
-        expect(host).toContain('This is the only accepted receipt for the current turn');
+        expect(host).toContain('startEpisode');
+        expect(host).toContain('recordBrainbaseToolUse');
+        expect(host).toContain('finalizeEpisode');
+        expect(host).toContain('there is no one-call-per-turn limit');
         expect(host).not.toContain('classification_proposal');
     });
 
@@ -45,7 +49,10 @@ describe('judgment resolver publication surfaces', () => {
             expect(surface).toMatch(/model.*(call|呼|Resolver)/iu);
             expect(surface).toMatch(/before model generation|model生成前|pre-model/iu);
             expect(surface).toContain('conversation_context');
-            expect(surface).toMatch(/one accepted receipt|1件だけ採用|1つのreceipt|exactly one accepted/iu);
+            expect(surface).toMatch(/judgment episode|判断episode|判断エピソード/iu);
+            expect(surface).toContain('PostToolUse');
+            expect(surface).toContain('Stop');
+            expect(surface).toMatch(/0\.\.N|0-N|何度でも|複数回/iu);
             expect(surface).toMatch(/project.*(context|文脈)/iu);
             expect(surface).toMatch(/authorize|authorization|権限|許可/iu);
         }

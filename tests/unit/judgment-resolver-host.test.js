@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -8,7 +8,10 @@ import {
     buildOwnerReferenceLine,
     buildJudgmentRequest,
     canonicalJson,
+    finalizeEpisode,
+    recordBrainbaseToolUse,
     resolveAndAdopt,
+    startEpisode,
     successOutput
 } from '../../scripts/codex-hooks/judgment-resolver-host.mjs';
 
@@ -104,7 +107,7 @@ describe('Codex Judgment Resolver Host', () => {
 
         const line = buildOwnerReferenceLine(args, receipt);
         expect(line).toBe(
-            '🧠 判断参照: 「顧客Aの過去の意思決定をBrainbaseで確認して」を参照 → Brainbase検索が必要と判断 ✓'
+            '🧠 判断参照: 「顧客Aの過去の意思決定をBrainbaseで確認して」を参照 → Brainbase参照先の判断が必要 ✓'
         );
         expect(line).not.toContain('取得しました');
         expect(line).not.toContain('使用しました');
@@ -313,6 +316,303 @@ describe('Codex Judgment Resolver Host', () => {
         });
         expect(adoption.owner_audit.text_digest).toBe(hash(adoption.owner_audit.display_line));
         expect(adoption.owner_audit.source_receipt_digest).toBe(hash(canonicalJson(receipt)));
+    });
+
+    it('UserPromptSubmitでepisodeを1件だけ開始し、Stopまではfinal receiptを作らない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-episode', turn_id: 'turn-episode',
+            prompt: 'Brainbaseの設計を確認して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            classification: { intent: 'investigate', action_kind: 'read', domains: ['knowledge'] },
+            selected_dag_ids: ['knowledge.v1'],
+            required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }]
+        };
+        const fetchImpl = vi.fn().mockResolvedValue({
+            ok: true, status: 200,
+            json: async () => ({ management_status: 'managed', receipt })
+        });
+
+        const first = await startEpisode(payload, { env, fetchImpl });
+        const second = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn(() => { throw new Error('must not resolve an open episode twice'); })
+        });
+
+        expect(first).toEqual(second);
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        await expect(startEpisode({ ...payload, prompt: '同じturnの別依頼' }, {
+            env,
+            fetchImpl: vi.fn(() => { throw new Error('must not resolve a conflicting episode'); })
+        })).rejects.toThrow('judgment_episode_start_conflict');
+        expect(first).toMatchObject({
+            schema_version: 'brainbase-judgment-episode-v1',
+            state: 'open',
+            initial_route_receipt: { resolution_id: 'jr_host_test' }
+        });
+        const journalDirectory = join(root, 'journal', hash(payload.session_id));
+        expect(readdirSync(journalDirectory)).toEqual([`${hash(payload.turn_id)}.episode.json`]);
+        expect(existsSync(join(journalDirectory, `${hash(payload.turn_id)}.final.json`))).toBe(false);
+    });
+
+    it('PostToolUseを複数回記録し、routingを取得済みと誤表示せずraw payloadも保存しない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-tools', turn_id: 'turn-tools', prompt: '意思決定の正本を確認して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }]
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+
+        const unrelated = recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__get_context', tool_use_id: 'tool-graph',
+            tool_input: { topic: 'token=sk-secret-value' },
+            tool_response: { content: [{ type: 'text', text: 'raw graph answer that must not be journaled' }] }
+        }, { env });
+        const routingPayload = {
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'tool-route',
+            tool_input: { intent: '意思決定の正本 token=sk-secret-value', audience: 'team', content_type: 'team_document' },
+            tool_response: {
+                status: 'ok',
+                data: {
+                    resolution_id: 'kr_1', status: 'resolved', source_class: 'owning_repo',
+                    canonical_location: { repository: 'project:brainbase', path: 'docs/' },
+                    retrieval_capability: 'repository.read', searched_scope: [], absence_confirmed: false
+                }
+            }
+        };
+        const routed = recordBrainbaseToolUse(routingPayload, { env });
+        const replay = recordBrainbaseToolUse(routingPayload, { env });
+        const searched = recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__search', tool_use_id: 'tool-search',
+            tool_input: { query: 'Judgment Resolver' },
+            tool_response: { content: [{ type: 'text', text: '📚 Brainbase検索: Graphで「Judgment Resolver」を検索 → 2件 ✓' }] }
+        }, { env });
+
+        expect(unrelated.event_kind).toBe('retrieve');
+        expect(routed).toEqual(replay);
+        expect(routed).toMatchObject({
+            event_kind: 'route', success: true, satisfies: ['knowledge.resolve'],
+            safe_metadata: { resolution_id: 'kr_1', source_class: 'owning_repo' }
+        });
+        expect(routed.display_line).toBe('📚 Brainbase参照先: 「意思決定の正本 [秘密情報]」→ owning_repoのdocs/を選択 ✓');
+        expect(routed.display_line).not.toMatch(/検索済み|取得/);
+        expect(searched.display_line).toBe('📚 Brainbase検索: Graphで「Judgment Resolver」を検索 → 2件 ✓');
+
+        const eventsDirectory = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.events`);
+        expect(readdirSync(eventsDirectory)).toHaveLength(3);
+        const journalText = readdirSync(eventsDirectory)
+            .map((name) => readFileSync(join(eventsDirectory, name), 'utf8')).join('\n');
+        expect(journalText).not.toContain('sk-secret-value');
+        expect(journalText).not.toContain('raw graph answer');
+
+        expect(() => recordBrainbaseToolUse({
+            ...routingPayload,
+            tool_response: { status: 'error', error: { code: 'changed' } }
+        }, { env })).toThrow('judgment_tool_event_conflict');
+    });
+
+    it('Stopは必要なrouting証拠がなければ一度だけ継続し、再Stopで無限ループしない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-stop', turn_id: 'turn-stop', prompt: '正本を確認して答えて', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }]
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+        recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__get_context', tool_use_id: 'tool-unrelated',
+            tool_input: { topic: 'Brainbase' }, tool_response: { content: [{ type: 'text', text: 'context' }] }
+        }, { env });
+
+        const first = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false, last_assistant_message: '仮回答'
+        }, { env });
+        const replay = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false, last_assistant_message: '仮回答'
+        }, { env });
+        expect(first.output).toMatchObject({ decision: 'block' });
+        expect(replay.output).toEqual(first.output);
+
+        const second = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true, last_assistant_message: '証拠未取得を明示した回答'
+        }, { env });
+        const finalReplay = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true, last_assistant_message: '別の回答'
+        }, { env });
+        expect(second.output).toEqual({});
+        expect(second.final).toMatchObject({ completion_status: 'incomplete', qualifying_event_count: 0 });
+        expect(finalReplay.final).toEqual(second.final);
+    });
+
+    it('継続中にknowledge routeを取得すればcompleteとして一度だけ確定する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-complete', turn_id: 'turn-complete', prompt: '正本を確認', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }]
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+        expect(finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false, last_assistant_message: '仮回答'
+        }, { env }).output).toMatchObject({ decision: 'block' });
+        const routePayload = {
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'tool-route',
+            tool_input: { intent: '正本を確認', audience: 'team', content_type: 'team_document' },
+            tool_response: {
+                status: 'ok', data: {
+                    resolution_id: 'kr_complete', status: 'unconfirmed', source_class: null,
+                    canonical_location: null, retrieval_capability: null, next_route: 'clarify',
+                    searched_scope: [], absence_confirmed: false
+                }
+            }
+        };
+        const routed = recordBrainbaseToolUse(routePayload, { env });
+
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true, last_assistant_message: '参照先が未確定だと説明'
+        }, { env });
+        expect(result.output).toEqual({});
+        expect(result.final).toMatchObject({
+            schema_version: 'brainbase-judgment-episode-final-v1',
+            completion_status: 'complete', event_count: 1, qualifying_event_count: 1
+        });
+        expect(recordBrainbaseToolUse(routePayload, { env })).toEqual(routed);
+        expect(() => recordBrainbaseToolUse({
+            ...routePayload,
+            tool_use_id: 'tool-after-final'
+        }, { env })).toThrow('judgment_episode_already_finalized');
+    });
+
+    it('Brainbase capabilityが不要ならtool call 0件でもcompleteにし、orphan eventは証拠化しない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        expect(recordBrainbaseToolUse({
+            session_id: 'orphan-session', turn_id: 'orphan-turn',
+            tool_name: 'mcp__brainbase__search', tool_use_id: 'orphan-tool',
+            tool_input: { query: 'orphan' }, tool_response: { status: 'ok' }
+        }, { env })).toBeNull();
+        expect(finalizeEpisode({
+            session_id: 'orphan-session', turn_id: 'orphan-turn', stop_hook_active: false
+        }, { env })).toEqual({ output: {}, final: null });
+
+        const payload = { session_id: 'session-zero', turn_id: 'turn-zero', prompt: 'こんにちは', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+            selected_dag_ids: ['general.v1']
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false, last_assistant_message: 'こんにちは'
+        }, { env });
+        expect(result.output).toEqual({});
+        expect(result.final).toMatchObject({
+            completion_status: 'complete', event_count: 0, qualifying_event_count: 0
+        });
+    });
+
+    it('失敗したknowledge routeはrequired capabilityを満たさず、complete finalだけを次turnへ渡す', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-prior', turn_id: 'turn-first', prompt: '正本を確認して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            plan_digest: 'a'.repeat(64),
+            classification: { intent: 'investigate', action_kind: 'read', domains: ['knowledge'] },
+            selected_dag_ids: ['knowledge.v1'],
+            required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }]
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+        const failed = recordBrainbaseToolUse({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'tool-failed-route',
+            tool_input: { intent: '正本を確認して' },
+            tool_response: { status: 'error', error: { code: 'unavailable' } }
+        }, { env });
+        expect(failed).toMatchObject({ success: false, satisfies: [] });
+        expect(finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false
+        }, { env }).output).toMatchObject({ decision: 'block' });
+
+        recordBrainbaseToolUse({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'tool-good-route',
+            tool_input: { intent: '正本を確認して' },
+            tool_response: { data: {
+                resolution_id: 'kr_prior', status: 'resolved', source_class: 'owning_repo',
+                canonical_location: { repository: 'project:brainbase', path: 'docs/' }
+            } }
+        }, { env });
+        expect(finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true
+        }, { env }).final).toMatchObject({ completion_status: 'complete', qualifying_event_count: 1 });
+
+        const next = buildJudgmentRequest({
+            session_id: payload.session_id, turn_id: 'turn-next', prompt: '続けて', cwd: process.cwd()
+        }, { env });
+        expect(next.conversation_context.prior_receipts).toEqual([
+            expect.objectContaining({ turn_id: 'turn-first', resolution_id: 'jr_host_test' })
+        ]);
     });
 
     it('requestに束縛されないreceiptを採用しない', async () => {

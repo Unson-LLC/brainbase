@@ -189,7 +189,40 @@ function journalRoot(env) {
 
 function journalPaths(sessionRef, turnId, env) {
     const directory = join(journalRoot(env), sessionRef);
-    return { directory, target: join(directory, `${sha256(turnId)}.json`) };
+    const turnRef = sha256(turnId);
+    return {
+        directory,
+        turnRef,
+        target: join(directory, `${turnRef}.json`),
+        episode: join(directory, `${turnRef}.episode.json`),
+        events: join(directory, `${turnRef}.events`),
+        continuation: join(directory, `${turnRef}.continuation.json`),
+        final: join(directory, `${turnRef}.final.json`),
+        lock: join(directory, `${turnRef}.episode.lock`)
+    };
+}
+
+function readJson(path) {
+    return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+function createImmutableJson(target, value, conflictReason) {
+    const directory = dirname(target);
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const temp = join(directory, `.${basename(target)}.${process.pid}.${randomUUID()}.tmp`);
+    const descriptor = openSync(temp, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY, 0o600);
+    try { writeFileSync(descriptor, `${JSON.stringify(value)}\n`); } finally { closeSync(descriptor); }
+    try {
+        linkSync(temp, target);
+        return value;
+    } catch (error) {
+        if (error?.code !== 'EEXIST') throw error;
+        const existing = readJson(target);
+        if (canonicalJson(existing) !== canonicalJson(value)) throw new Error(conflictReason);
+        return existing;
+    } finally {
+        try { unlinkSync(temp); } catch {}
+    }
 }
 
 function acceptedProjection(receipt) {
@@ -200,15 +233,30 @@ function acceptedProjection(receipt) {
 }
 
 function priorReceipts(sessionRef, currentTurnId, env) {
-    const { directory, target } = journalPaths(sessionRef, currentTurnId, env);
+    const { directory, turnRef } = journalPaths(sessionRef, currentTurnId, env);
     let names;
     try { names = readdirSync(directory).filter((name) => name.endsWith('.json')); } catch { return []; }
-    return names.filter((name) => name !== basename(target)).flatMap((name) => {
+    return names.filter((name) => !name.startsWith(`${turnRef}.`)).flatMap((name) => {
         try {
-            const entry = JSON.parse(readFileSync(join(directory, name), 'utf8'));
-            const projection = acceptedProjection(entry.receipt);
-            return projection ? [{ accepted_at: entry.accepted_at, projection }] : [];
-        } catch { return []; }
+            const entry = readJson(join(directory, name));
+            if (['brainbase-judgment-adoption-v1', 'brainbase-judgment-adoption-v2'].includes(entry.schema_version)) {
+                const projection = acceptedProjection(entry.receipt);
+                return projection ? [{ accepted_at: entry.accepted_at, projection }] : [];
+            }
+            if (entry.schema_version !== 'brainbase-judgment-episode-final-v1' || entry.completion_status !== 'complete') return [];
+            const episodeName = name.replace(/\.final\.json$/u, '.episode.json');
+            if (episodeName === name) return [];
+            const episode = readJson(join(directory, episodeName));
+            if (episode.schema_version !== 'brainbase-judgment-episode-v1') return [];
+            if (entry.initial_route_receipt_digest !== episode.initial_route_receipt_digest) {
+                throw new Error('judgment_episode_final_route_mismatch');
+            }
+            const projection = acceptedProjection(episode.initial_route_receipt);
+            return projection ? [{ accepted_at: entry.finalized_at, projection }] : [];
+        } catch (error) {
+            if (String(error?.message ?? '').startsWith('judgment_episode_')) throw error;
+            return [];
+        }
     }).sort((left, right) => String(left.accepted_at).localeCompare(String(right.accepted_at)))
         .map((entry) => entry.projection);
 }
@@ -374,6 +422,346 @@ export async function resolveAndAdopt(args, dependencies = {}) {
     return (await resolveAndAdoptEntry(args, dependencies)).receipt;
 }
 
+function payloadIdentity(payload) {
+    const sessionId = typeof payload?.session_id === 'string' ? payload.session_id : '';
+    const turnId = typeof payload?.turn_id === 'string' ? payload.turn_id.trim() : '';
+    if (!sessionId || !turnId) return null;
+    return { sessionRef: sha256(sessionId), turnId };
+}
+
+function verifyEpisode(entry) {
+    if (!record(entry) || entry.schema_version !== 'brainbase-judgment-episode-v1' || entry.state !== 'open') {
+        throw new Error('judgment_episode_schema_invalid');
+    }
+    if (!record(entry.initial_route_receipt)) throw new Error('judgment_episode_route_missing');
+    if (entry.initial_route_receipt_digest !== sha256(canonicalJson(entry.initial_route_receipt))) {
+        throw new Error('judgment_episode_route_digest_mismatch');
+    }
+    verifyOwnerAudit(entry.owner_audit, entry.initial_route_receipt);
+    return entry;
+}
+
+function existingEpisode(payload, env) {
+    const identity = payloadIdentity(payload);
+    if (!identity) return null;
+    const { episode } = journalPaths(identity.sessionRef, identity.turnId, env);
+    try {
+        const entry = verifyEpisode(readJson(episode));
+        if (typeof payload?.prompt === 'string' && payload.prompt.trim()
+            && entry.request_text_digest !== sha256(payload.prompt)) {
+            throw new Error('judgment_episode_start_conflict');
+        }
+        return entry;
+    } catch (error) {
+        if (error?.code === 'ENOENT') return null;
+        throw error;
+    }
+}
+
+async function resolveInitialRoute(args, { env, fetchImpl }) {
+    let lastError;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+            return verifyReceipt(await fetchAttempt(args, { env, fetchImpl }), args);
+        } catch (error) {
+            lastError = error;
+            const transportFailure = error?.name === 'AbortError'
+                || error?.cause?.code === 'ECONNRESET'
+                || error?.cause?.code === 'ECONNREFUSED';
+            if (attempt === 2 || (!transportFailure && error?.transient !== true)) throw error;
+        }
+    }
+    throw lastError;
+}
+
+async function waitForEpisode(payload, env) {
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+        const episode = existingEpisode(payload, env);
+        if (episode) return episode;
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, 10));
+    }
+    throw new Error('judgment_episode_start_timeout');
+}
+
+export async function startEpisode(payload, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
+    const identity = payloadIdentity(payload);
+    if (!identity) throw new TypeError('UserPromptSubmit requires session_id and turn_id');
+    const existing = existingEpisode(payload, env);
+    if (existing) return existing;
+    const paths = journalPaths(identity.sessionRef, identity.turnId, env);
+    mkdirSync(paths.directory, { recursive: true, mode: 0o700 });
+    let lockDescriptor;
+    try {
+        lockDescriptor = openSync(paths.lock, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY, 0o600);
+    } catch (error) {
+        if (error?.code !== 'EEXIST') throw error;
+        return waitForEpisode(payload, env);
+    }
+    try {
+        const afterLock = existingEpisode(payload, env);
+        if (afterLock) return afterLock;
+        const args = buildJudgmentRequest(payload, { env });
+        const initialRouteReceipt = await resolveInitialRoute(args, { env, fetchImpl });
+        const entry = {
+            schema_version: 'brainbase-judgment-episode-v1',
+            state: 'open',
+            started_at: new Date().toISOString(),
+            request_text_digest: sha256(args.request),
+            initial_route_receipt_digest: sha256(canonicalJson(initialRouteReceipt)),
+            initial_route_receipt: initialRouteReceipt,
+            owner_audit: buildOwnerAudit(args, initialRouteReceipt)
+        };
+        return verifyEpisode(createImmutableJson(paths.episode, entry, 'judgment_episode_start_conflict'));
+    } finally {
+        if (lockDescriptor !== undefined) closeSync(lockDescriptor);
+        try { unlinkSync(paths.lock); } catch {}
+    }
+}
+
+const TOOL_EXCERPT_LIMIT = 40;
+
+function sanitizeToolExcerpt(value, limit = TOOL_EXCERPT_LIMIT) {
+    const redacted = String(value ?? '')
+        .replace(/\b(?:token|api[_-]?key|secret|password)\s*=\s*[^\s]+/giu, '[秘密情報]')
+        .replace(/\b(?:sk-[a-z0-9_-]{8,}|ghp_[a-z0-9_]{8,}|github_pat_[a-z0-9_]{8,}|xox[a-z]-[a-z0-9-]{8,}|AIza[a-z0-9_-]{8,})\b/giu, '[秘密情報]')
+        .replace(/[「」\u0000-\u001f\u007f]+/gu, ' ')
+        .replace(/\s+/gu, ' ')
+        .trim();
+    const points = Array.from(redacted || '対象未指定');
+    return points.length > limit
+        ? `${points.slice(0, limit).join('')}…`
+        : points.join('');
+}
+
+function sanitizeToolAuditLine(value) {
+    const redacted = String(value ?? '')
+        .replace(/\b(?:token|api[_-]?key|secret|password)\s*=\s*[^\s]+/giu, '[秘密情報]')
+        .replace(/\b(?:sk-[a-z0-9_-]{8,}|ghp_[a-z0-9_]{8,}|github_pat_[a-z0-9_]{8,}|xox[a-z]-[a-z0-9-]{8,}|AIza[a-z0-9_-]{8,})\b/giu, '[秘密情報]')
+        .replace(/[\u0000-\u001f\u007f]+/gu, ' ')
+        .replace(/\s+/gu, ' ')
+        .trim();
+    const points = Array.from(redacted);
+    return points.length > 160 ? `${points.slice(0, 160).join('')}…` : points.join('');
+}
+
+function toolQuery(input) {
+    const args = record(input) ?? {};
+    const keys = ['intent', 'query', 'topic', 'path', 'type', 'entity_id', 'id'];
+    const value = keys.map((key) => args[key]).find((candidate) => typeof candidate === 'string' && candidate.trim());
+    return sanitizeToolExcerpt(value);
+}
+
+function nestedRecords(value, depth = 0) {
+    if (depth > 5) return [];
+    const item = record(value);
+    if (!item) return [];
+    const direct = [item];
+    for (const key of ['data', 'structuredContent', 'result', 'receipt']) {
+        if (record(item[key])) direct.push(...nestedRecords(item[key], depth + 1));
+    }
+    if (Array.isArray(item.content)) {
+        for (const block of item.content) {
+            const text = record(block)?.text;
+            if (typeof text !== 'string' || !text.trim().startsWith('{')) continue;
+            try { direct.push(...nestedRecords(JSON.parse(text), depth + 1)); } catch {}
+        }
+    }
+    return direct;
+}
+
+function responseFailed(response) {
+    return nestedRecords(response).some((item) => (
+        item.isError === true
+        || ['error', 'unavailable', 'failed'].includes(String(item.status))
+        || (record(item.error) && item.status !== 'ok')
+    ));
+}
+
+function knowledgeResolutionData(response) {
+    return nestedRecords(response).find((item) => (
+        typeof item.resolution_id === 'string'
+        && ['resolved', 'unconfirmed'].includes(String(item.status))
+    )) ?? null;
+}
+
+function embeddedAuditLine(response) {
+    for (const item of nestedRecords(response)) {
+        if (!Array.isArray(item.content)) continue;
+        for (const block of item.content) {
+            const text = record(block)?.text;
+            if (typeof text !== 'string') continue;
+            const line = text.split('\n').find((entry) => entry.startsWith('📚 Brainbase'));
+            if (line) return sanitizeToolAuditLine(line);
+        }
+    }
+    return null;
+}
+
+function eventKind(toolName) {
+    const name = String(toolName).replace(/^mcp__brainbase__/u, '');
+    if (name === 'brainbase_knowledge_resolve') return 'route';
+    if (/(?:create|update|delete|write|record|link|unlink)/iu.test(name)) return 'write';
+    if (/(?:get|list|search|resolve|context|read)/iu.test(name)) return 'retrieve';
+    return 'call';
+}
+
+function routeDisplayLine(input, data, success) {
+    const query = toolQuery(input);
+    if (!success || !data) return `⚠️ Brainbase参照先: 「${query}」→ 選択に失敗`;
+    if (data.status === 'unconfirmed') return `⚠️ Brainbase参照先: 「${query}」→ 参照先を確定できず`;
+    const source = sanitizeToolExcerpt(data.source_class ?? '参照先');
+    const location = record(data.canonical_location);
+    const path = typeof location?.path === 'string' ? sanitizeToolExcerpt(location.path) : '';
+    return `📚 Brainbase参照先: 「${query}」→ ${source}${path ? `の${path}` : ''}を選択 ✓`;
+}
+
+export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
+    const identity = payloadIdentity(payload);
+    const toolName = typeof payload?.tool_name === 'string' ? payload.tool_name : '';
+    const toolUseId = typeof payload?.tool_use_id === 'string' ? payload.tool_use_id : '';
+    if (!identity || !toolUseId || !/^mcp__brainbase__/u.test(toolName)) return null;
+    const episode = existingEpisode(payload, env);
+    if (!episode) return null;
+    const paths = journalPaths(identity.sessionRef, identity.turnId, env);
+    mkdirSync(paths.events, { recursive: true, mode: 0o700 });
+    const inputValue = payload.tool_input === undefined ? null : payload.tool_input;
+    const responseValue = payload.tool_response === undefined ? null : payload.tool_response;
+    const inputDigest = sha256(canonicalJson(inputValue));
+    const responseDigest = sha256(canonicalJson(responseValue));
+    const fingerprint = sha256(canonicalJson({ tool_name: toolName, tool_use_id: toolUseId, input_digest: inputDigest, response_digest: responseDigest }));
+    const target = join(paths.events, `${sha256(toolUseId)}.json`);
+    const finalized = existingFinal(paths, episode);
+    if (finalized) {
+        try {
+            const existing = readJson(target);
+            if (existing.event_fingerprint === fingerprint) return existing;
+        } catch (error) {
+            if (error?.code !== 'ENOENT') throw error;
+        }
+        throw new Error('judgment_episode_already_finalized');
+    }
+    const success = !responseFailed(responseValue);
+    const kind = eventKind(toolName);
+    const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
+    const qualifies = kind === 'route' && success && Boolean(resolution);
+    const safeMetadata = resolution ? {
+        resolution_id: resolution.resolution_id,
+        status: resolution.status,
+        source_class: resolution.source_class ?? null,
+        canonical_ref: record(resolution.canonical_location) ? {
+            repository: typeof resolution.canonical_location.repository === 'string' ? resolution.canonical_location.repository : null,
+            path: typeof resolution.canonical_location.path === 'string' ? resolution.canonical_location.path : null
+        } : null,
+        retrieval_capability: typeof resolution.retrieval_capability === 'string' ? resolution.retrieval_capability : null
+    } : {};
+    const displayLine = kind === 'route'
+        ? routeDisplayLine(inputValue, resolution, success)
+        : embeddedAuditLine(responseValue)
+            ?? `${success ? '📚' : '⚠️'} Brainbase呼出: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${toolQuery(inputValue)}」→ ${success ? '成功 ✓' : '失敗'}`;
+    const entry = {
+        schema_version: 'brainbase-judgment-tool-event-v1',
+        recorded_at: new Date().toISOString(),
+        tool_name: toolName,
+        tool_use_id: toolUseId,
+        event_kind: kind,
+        success,
+        satisfies: qualifies ? ['knowledge.resolve'] : [],
+        input_digest: inputDigest,
+        response_digest: responseDigest,
+        event_fingerprint: fingerprint,
+        query_excerpt: toolQuery(inputValue),
+        safe_metadata: safeMetadata,
+        display_line: displayLine
+    };
+    try {
+        return createImmutableJson(target, entry, 'judgment_tool_event_conflict');
+    } catch (error) {
+        if (error?.message !== 'judgment_tool_event_conflict') throw error;
+        const existing = readJson(target);
+        if (existing.event_fingerprint === fingerprint) return existing;
+        throw error;
+    }
+}
+
+function episodeEvents(paths) {
+    let names;
+    try { names = readdirSync(paths.events).filter((name) => name.endsWith('.json')).sort(compareCodePoints); } catch { return []; }
+    return names.map((name) => readJson(join(paths.events, name))).map((entry) => {
+        if (entry.schema_version !== 'brainbase-judgment-tool-event-v1') throw new Error('judgment_tool_event_schema_invalid');
+        return entry;
+    }).sort((left, right) => compareCodePoints(String(left.tool_use_id), String(right.tool_use_id)));
+}
+
+function existingFinal(paths, episode) {
+    try {
+        const entry = readJson(paths.final);
+        if (entry.schema_version !== 'brainbase-judgment-episode-final-v1') throw new Error('judgment_episode_final_schema_invalid');
+        if (episode && entry.initial_route_receipt_digest !== episode.initial_route_receipt_digest) {
+            throw new Error('judgment_episode_final_route_mismatch');
+        }
+        return entry;
+    } catch (error) {
+        if (error?.code === 'ENOENT') return null;
+        throw error;
+    }
+}
+
+export function finalizeEpisode(payload, { env = process.env } = {}) {
+    const identity = payloadIdentity(payload);
+    if (!identity) return { output: {}, final: null };
+    const episode = existingEpisode(payload, env);
+    if (!episode) return { output: {}, final: null };
+    const paths = journalPaths(identity.sessionRef, identity.turnId, env);
+    const events = episodeEvents(paths);
+    const eventFingerprints = events.map((entry) => entry.event_fingerprint).sort(compareCodePoints);
+    const finalized = existingFinal(paths, episode);
+    if (finalized) {
+        const qualifyingCount = events.filter((entry) => entry.success && entry.satisfies.includes('knowledge.resolve')).length;
+        if (finalized.event_count !== events.length
+            || finalized.qualifying_event_count !== qualifyingCount
+            || finalized.event_set_digest !== sha256(canonicalJson(eventFingerprints))) {
+            throw new Error('judgment_episode_final_event_set_mismatch');
+        }
+        return { output: {}, final: finalized };
+    }
+    const requiredKnowledge = requiredKnowledgeResolution(episode.initial_route_receipt);
+    const qualifyingEvents = events.filter((entry) => entry.success && entry.satisfies.includes('knowledge.resolve'));
+    const missingKnowledge = requiredKnowledge && qualifyingEvents.length === 0;
+    const stopHookActive = payload.stop_hook_active === true;
+    if (missingKnowledge && !stopHookActive) {
+        let marker;
+        try { marker = readJson(paths.continuation); } catch (error) {
+            if (error?.code !== 'ENOENT') throw error;
+            marker = createImmutableJson(paths.continuation, {
+                schema_version: 'brainbase-judgment-continuation-v1',
+                requested_at: new Date().toISOString(),
+                missing_capabilities: ['knowledge.resolve']
+            }, 'judgment_episode_continuation_conflict');
+        }
+        return {
+            output: {
+                decision: 'block',
+                reason: 'Brainbaseの参照先判断がまだ記録されていません。brainbase_knowledge_resolveで正本の参照先を確認してから回答を完了してください。'
+            },
+            continuation: marker,
+            final: null
+        };
+    }
+    const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : null;
+    const entry = {
+        schema_version: 'brainbase-judgment-episode-final-v1',
+        finalized_at: new Date().toISOString(),
+        completion_status: missingKnowledge ? 'incomplete' : 'complete',
+        initial_route_receipt_digest: episode.initial_route_receipt_digest,
+        event_count: events.length,
+        qualifying_event_count: qualifyingEvents.length,
+        event_set_digest: sha256(canonicalJson(eventFingerprints)),
+        answer_digest: answer === null ? null : sha256(answer)
+    };
+    const final = createImmutableJson(paths.final, entry, 'judgment_episode_final_conflict');
+    return { output: {}, final };
+}
+
 const OWNER_EXCERPT_LIMIT = 26;
 const PRIOR_EVIDENCE_SOURCES = new Set(['prior_receipt', 'prior_message']);
 
@@ -426,7 +814,7 @@ function requiredKnowledgeResolution(receipt) {
 }
 
 function ownerDecision(receipt) {
-    if (requiredKnowledgeResolution(receipt)) return 'Brainbase検索が必要と判断';
+    if (requiredKnowledgeResolution(receipt)) return 'Brainbase参照先の判断が必要';
     const intent = receipt?.classification?.intent;
     const byIntent = {
         implement: '実装依頼として継続',
@@ -493,14 +881,16 @@ export function buildOwnerReferenceLine(args, receipt) {
 export function successOutput(args, receipt, ownerAudit = buildOwnerAudit(args, receipt)) {
     const ownerReferenceLine = ownerAudit.display_line;
     const context = [
-        'Brainbase Judgment Resolver Host contract was completed before model generation.',
-        'This is the only accepted receipt for the current turn. Do not call Judgment Resolver again and do not reclassify the turn.',
+        'Brainbase Judgment Resolver Host opened one judgment episode before model generation.',
+        'The initial route receipt below fixes the current intent and active DAG for this episode; it is not the final episode receipt.',
+        'Do not call Judgment Resolver again and do not reclassify the route. Use Brainbase knowledge and retrieval tools repeatedly when later evidence makes another lookup useful; there is no one-call-per-turn limit.',
         'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.',
         'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.',
         `The first user-facing assistant message for this turn must start with exactly this Host-generated line, before any other text:\n${ownerReferenceLine}`,
         'Do not alter, translate, summarize, or omit that owner-visible line. Do not repeat that line in later commentary or the final response for the same turn.',
         'It reports a turn-level judgment, not a Brainbase retrieval, action authorization, or completed knowledge retrieval. Actual successful retrievals have separate tool-generated 📚 Brainbase検索 or 📚 Brainbase取得 lines.',
-        `Accepted judgment receipt: ${JSON.stringify(receipt)}`
+        'PostToolUse records each actual Brainbase call, and Stop finalizes exactly one episode receipt after the tool loop.',
+        `Initial route receipt: ${JSON.stringify(receipt)}`
     ].join('\n');
     return {
         continue: true,
@@ -517,18 +907,38 @@ function blockedOutput(reason) {
     };
 }
 
+export async function processHookPayload(payload, dependencies = {}) {
+    const eventName = payload?.hook_event_name || payload?.hookEventName;
+    if (eventName === 'UserPromptSubmit') {
+        const episode = await startEpisode(payload, dependencies);
+        return successOutput({}, episode.initial_route_receipt, episode.owner_audit);
+    }
+    if (eventName === 'PostToolUse') {
+        const event = recordBrainbaseToolUse(payload, dependencies);
+        return event ? { systemMessage: event.display_line } : {};
+    }
+    if (eventName === 'Stop') return finalizeEpisode(payload, dependencies).output;
+    return {};
+}
+
 async function main() {
     const input = readFileSync(0, 'utf8');
     let payload;
     try { payload = JSON.parse(input || '{}'); } catch { process.stdout.write(`${JSON.stringify(blockedOutput('hook_payload_invalid'))}\n`); return; }
     const eventName = payload.hook_event_name || payload.hookEventName;
-    if (eventName !== 'UserPromptSubmit') return;
     try {
-        const args = buildJudgmentRequest(payload);
-        const adoption = await resolveAndAdoptEntry(args);
-        process.stdout.write(`${JSON.stringify(successOutput(args, adoption.receipt, adoption.owner_audit))}\n`);
+        process.stdout.write(`${JSON.stringify(await processHookPayload(payload))}\n`);
     } catch (error) {
-        process.stdout.write(`${JSON.stringify(blockedOutput(error instanceof Error ? error.message : String(error)))}\n`);
+        const reason = error instanceof Error ? error.message : String(error);
+        if (eventName === 'UserPromptSubmit') {
+            process.stdout.write(`${JSON.stringify(blockedOutput(reason))}\n`);
+        } else if (eventName === 'PostToolUse') {
+            process.stdout.write(`${JSON.stringify({ systemMessage: `⚠️ Brainbase監査記録に失敗: ${reason}` })}\n`);
+        } else if (eventName === 'Stop' && payload.stop_hook_active !== true) {
+            process.stdout.write(`${JSON.stringify({ decision: 'block', reason: `Brainbase judgment episodeの確定に失敗: ${reason}` })}\n`);
+        } else {
+            process.stdout.write('{}\n');
+        }
     }
 }
 
