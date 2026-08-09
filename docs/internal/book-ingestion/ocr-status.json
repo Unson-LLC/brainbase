@@ -224,6 +224,33 @@
       "source_pages": 162,
       "characters": 219238,
       "sha256": "ccb807d3895d0cb0f02dbbdc98e6b0fda0cba73fd00e4122ee163684df074f99"
+    },
+    {
+      "index": 29,
+      "title": "GitHub CI/CD実践ガイド",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 477,
+      "source_pages": 477,
+      "characters": 394524,
+      "sha256": "9efbf283ed10a5d348ce1cbf95bf9575499fc33731a94db1baf97d11ae3d8566"
+    },
+    {
+      "index": 30,
+      "title": "プロになるためのWeb技術入門",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 379,
+      "source_pages": 379,
+      "characters": 321506,
+      "sha256": "ef07c1f6372b305b3969a76af8a891036741031ad3fa6bb6079ea2f8e91ac136"
+    },
+    {
+      "index": 31,
+      "title": "Amazon Web Servicesのしくみと技術がこれ1冊でしっかりわかる教科書［改訂2版］",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 177,
+      "source_pages": 177,
+      "characters": 258469,
+      "sha256": "02c764defc7253d7df4fe400f419d887c44864b3094c1b7047505d1f6299b74a"
     }
   ]
 }
