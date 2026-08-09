@@ -225,9 +225,10 @@ cd /home/ubuntu/honcho && docker compose logs -f api
 cd /opt/infisical && docker compose -p infisical ps
 cd /opt/infisical && docker compose -p infisical logs -f backend
 
-# brainbase server (ホストプロセス)
-ps aux | grep "node.*server.js"
-# 再起動は systemd ではなく手動 (TODO: systemd化)
+# brainbase server (ホストプロセス, systemd管理)
+systemctl status brainbase-ssot.service
+sudo systemctl restart brainbase-ssot.service
+# デプロイ手順: docs/brainbase-capabilities/runbooks/deploy-lightsail-production.md
 
 # PostgreSQL (System)
 PGPASSWORD='<Infisicalまたは運用secret storeから取得>' psql -h localhost -U brainbase_app -d brainbase_ssot
