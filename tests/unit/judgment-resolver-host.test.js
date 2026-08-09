@@ -5,9 +5,11 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+    buildOwnerReferenceLine,
     buildJudgmentRequest,
     canonicalJson,
-    resolveAndAdopt
+    resolveAndAdopt,
+    successOutput
 } from '../../scripts/codex-hooks/judgment-resolver-host.mjs';
 
 const temporaryPaths = [];
@@ -44,6 +46,60 @@ afterEach(() => {
 });
 
 describe('Codex Judgment Resolver Host', () => {
+    it('採用receiptの実根拠をowner向けの短い日本語1文へ投影する', () => {
+        const receipt = {
+            classification_evidence: { source: 'prior_receipt' },
+            classification: { intent: 'implement', domains: ['operations'], action_kind: 'write' },
+            selected_dag_ids: ['operations.v1', 'authority.v1']
+        };
+
+        expect(buildOwnerReferenceLine(receipt)).toBe(
+            '🧠 Brainbase参照: 直前の会話を引き継ぎ、運用方針と権限条件を判断しました。'
+        );
+    });
+
+    it('knowledge handoffは取得済みと誤表示せず検索の必要性として表示する', () => {
+        const receipt = {
+            classification_evidence: { source: 'current_request' },
+            classification: { intent: 'investigate', domains: ['knowledge'], action_kind: 'read' },
+            selected_dag_ids: ['knowledge.v1'],
+            required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }]
+        };
+
+        const line = buildOwnerReferenceLine(receipt);
+        expect(line).toBe(
+            '🧠 Brainbase参照: 現在の質問をもとに、Brainbase内の知識検索が必要かを判断しました。'
+        );
+        expect(line).not.toContain('取得しました');
+        expect(line).not.toContain('使用しました');
+    });
+
+    it('clarification receiptは停止ではなく追加確認の判断として表示する', () => {
+        const receipt = {
+            status: 'needs_classification',
+            classification_evidence: { source: 'current_request' },
+            selected_dag_ids: ['clarification.v1']
+        };
+
+        expect(buildOwnerReferenceLine(receipt)).toBe(
+            '🧠 Brainbase参照: 現在の質問をもとに、追加確認が必要かを判断しました。'
+        );
+    });
+
+    it('Hostが確定した参照文を全user-facing responseの先頭行に固定する', () => {
+        const receipt = {
+            classification_evidence: { source: 'prior_message' },
+            classification: { intent: 'answer', domains: ['engineering'], action_kind: 'none' },
+            selected_dag_ids: ['problem-frame.v1']
+        };
+        const line = buildOwnerReferenceLine(receipt);
+        const output = successOutput(receipt);
+
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            `The first line of every user-facing response must be exactly this Host-generated line, before any other text:\n${line}`
+        );
+    });
+
     it('raw transcriptから順序付き文脈を作り、host envelopeと内部情報を除外する', () => {
         const root = temporaryDirectory();
         const transcript = join(root, 'session.jsonl');

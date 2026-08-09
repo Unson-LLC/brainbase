@@ -340,14 +340,67 @@ export async function resolveAndAdopt(args, { env = process.env, fetchImpl = glo
     throw lastError;
 }
 
-function successOutput(receipt) {
+const OWNER_JUDGMENT_LABELS = new Map([
+    ['direct.v1', '回答方針'],
+    ['knowledge.v1', 'Brainbase内の知識検索が必要か'],
+    ['personal-judgment.v1', '個人の判断基準の使い方'],
+    ['engineering.v1', '実装方針'],
+    ['organization.v1', '組織情報の扱い方'],
+    ['operations.v1', '運用方針'],
+    ['cumulative-complexity.v1', '複雑性の捉え方'],
+    ['threshold.v1', '閾値の置き方'],
+    ['parallel.v1', '候補の比較方法'],
+    ['authority.v1', '権限条件'],
+    ['problem-frame.v1', '問題の捉え方'],
+    ['external-outcome.v1', '外部成果の確かめ方'],
+    ['clarification.v1', '追加確認が必要か']
+]);
+
+function ownerReferenceBasis(receipt) {
+    const source = receipt?.classification_evidence?.source;
+    const inherited = receipt?.reconciliation_reasons?.includes('classification_inherited_from_prior_turn');
+    if (source === 'prior_receipt' || source === 'prior_message' || inherited) return '直前の会話を引き継ぎ';
+    return '現在の質問をもとに';
+}
+
+function ownerJudgmentLabels(receipt) {
+    const dagIds = Array.isArray(receipt?.selected_dag_ids) ? receipt.selected_dag_ids : [];
+    if (receipt?.status === 'needs_classification' || dagIds.includes('clarification.v1')) {
+        return ['追加確認が必要か'];
+    }
+
+    const labels = dagIds.map((dagId) => OWNER_JUDGMENT_LABELS.get(dagId)).filter(Boolean);
+    if (labels.length === 0) {
+        const domain = receipt?.classification?.domains?.[0];
+        const fallback = {
+            engineering: '実装方針',
+            knowledge: 'Brainbase内の知識検索が必要か',
+            operations: '運用方針',
+            organization: '組織情報の扱い方',
+            personal_judgment: '個人の判断基準の使い方'
+        }[domain];
+        return [fallback || '回答方針'];
+    }
+    return [...new Set(labels)].slice(0, 3);
+}
+
+export function buildOwnerReferenceLine(receipt) {
+    const basis = ownerReferenceBasis(receipt);
+    const judgment = ownerJudgmentLabels(receipt).join('と');
+    return `🧠 Brainbase参照: ${basis}、${judgment}を判断しました。`;
+}
+
+export function successOutput(receipt) {
+    const ownerReferenceLine = buildOwnerReferenceLine(receipt);
     const context = [
         'Brainbase Judgment Resolver Host contract was completed before model generation.',
         'This is the only accepted receipt for the current turn. Do not call Judgment Resolver again and do not reclassify the turn.',
         'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.',
         'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.',
+        `The first line of every user-facing response must be exactly this Host-generated line, before any other text:\n${ownerReferenceLine}`,
+        'Do not alter, translate, summarize, omit, or repeat that owner-visible line. It reports judgment evidence, not action authorization or completed knowledge retrieval.',
         `Accepted judgment receipt: ${JSON.stringify(receipt)}`
-    ].join(' ');
+    ].join('\n');
     return {
         continue: true,
         suppressOutput: true,
