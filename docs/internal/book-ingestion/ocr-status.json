@@ -251,6 +251,33 @@
       "source_pages": 177,
       "characters": 258469,
       "sha256": "02c764defc7253d7df4fe400f419d887c44864b3094c1b7047505d1f6299b74a"
+    },
+    {
+      "index": 32,
+      "title": "図解まるわかり Web技術のしくみ",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 272,
+      "source_pages": 272,
+      "characters": 192245,
+      "sha256": "d78f8d27c1d348097597a8891991f01577f740f94fda745f8edfd740916a3b94"
+    },
+    {
+      "index": 33,
+      "title": "React.js＆Next.js超入門 第2版",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 233,
+      "source_pages": 233,
+      "characters": 367535,
+      "sha256": "7ffc6a6f9386f9c8d480989f90cfedffc9f08d4b45353c03a3e98e32af74ca61"
+    },
+    {
+      "index": 34,
+      "title": "全体像と用語がよくわかる！ Microsoft Azure入門ガイド",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 139,
+      "source_pages": 139,
+      "characters": 206603,
+      "sha256": "d67aa84d6a95bd57b2e1b69db397e13c1351c00acea4c219d583e64c46f2bbbc"
     }
   ]
 }
