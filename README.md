@@ -354,6 +354,7 @@ brainbase onboard:routines --target codex --cwd /path/to/brainbase
 brainbase onboard:skills --target codex
 brainbase ontology:show
 brainbase ontology:audit
+brainbase judgment:install --target codex --dry-run
 brainbase doctor
 ```
 
@@ -373,6 +374,7 @@ node dist/cli.js onboard:apply --from <candidate-file> --select <id> --write
 node dist/cli.js onboard:routines --target codex --cwd "$(pwd)"
 node dist/cli.js onboard:skills --target codex
 node dist/cli.js onboard:recommend --email gmail --calendar google-calendar --drive google-drive --tasks notion
+node dist/cli.js judgment:install --target codex --dry-run
 npm run onboard:init
 npm run onboard:seed -- --name "Your Name"
 npm run onboard:install -- --target codex --dry-run
@@ -389,6 +391,26 @@ brainbase onboard:seed \
   --project "Personal AI operating system" \
   --relationship "Key Partner|collaborator|Works with me on AI adoption"
 ```
+
+## Judgment Resolver Host (Codex preview)
+
+Brainbase includes a local Judgment Resolver core and a Codex pre-model Host adapter. The Host receives the current request and available conversation transcript before the model answers, builds one canonical context, adopts exactly one receipt for the turn, and gives the model only the selected judgment nodes to follow. It does not call a hosted Brainbase service, require a secret, or check project access.
+
+Preview the Codex `UserPromptSubmit` hook snippet:
+
+```bash
+brainbase judgment:install --target codex --dry-run
+```
+
+Review and merge the printed snippet into `~/.codex/hooks.json`. The command is preview-only unless `--output` is provided; it never overwrites an existing config. After installation, each response begins with a short owner-visible line such as:
+
+```text
+🧠 Brainbase参照: 直前の会話を引き継ぎ、実装方針と権限条件を判断しました。
+```
+
+That line tells the owner what kind of context and judgment Brainbase used without exposing the full receipt. Detailed receipts are journaled locally under `~/.brainbase/personal-os/judgment-journal/`, keyed by session and turn, so only one receipt is adopted for a turn and later duplicate hook calls reuse it.
+
+Every turn is judged, including questions and follow-up instructions. If a follow-up has no usable referent, the receipt selects clarification and the AI asks what the user meant; it does not refuse merely because classification or project context is incomplete. A receipt is judgment evidence, not permission to write files, send messages, deploy, purchase, or perform any other external effect. Normal host permissions and user approvals still apply.
 
 ## Install MCP Config
 
