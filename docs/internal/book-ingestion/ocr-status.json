@@ -206,6 +206,24 @@
       "source_pages": 162,
       "characters": 228788,
       "sha256": "691f23c8bcb63cee5ba81d70d2fd053462236040a3a735b831c14ebd7ec699a4"
+    },
+    {
+      "index": 26,
+      "title": "コード×AI ソフトウェア開発者のための生成AI実践入門",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 358,
+      "source_pages": 358,
+      "characters": 292512,
+      "sha256": "b4e9f7b2a32315ea6ab35937897e4b0b54121fbf01cfa4cf381df9a6d36b24ac"
+    },
+    {
+      "index": 28,
+      "title": "Google Cloudのしくみと技術がこれ1冊でしっかりわかる教科書［改訂2版］",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 162,
+      "source_pages": 162,
+      "characters": 219238,
+      "sha256": "ccb807d3895d0cb0f02dbbdc98e6b0fda0cba73fd00e4122ee163684df074f99"
     }
   ]
 }
