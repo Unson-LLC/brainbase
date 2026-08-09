@@ -46,9 +46,11 @@ import {
   type ProjectRegistrationPlan
 } from './projects.js';
 import { renderGuidedFirstRun, type GuidedTarget } from './guided-onboarding.js';
+import { blockedJudgmentOutput, runJudgmentHost, type JudgmentHookPayload } from './judgment-host.js';
 import type { DecisionRecord, GraphEntity, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
 interface CliIo {
+  stdin?: AsyncIterable<string | Uint8Array>;
   stdout?: { write(chunk: string): unknown };
   stderr?: { write(chunk: string): unknown };
 }
@@ -103,6 +105,10 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return 0;
       case 'ontology:audit':
         return await ontologyAudit(parsed, io);
+      case 'judgment:hook':
+        return await judgmentHook(io);
+      case 'judgment:install':
+        return await judgmentInstall(parsed, io);
       case 'doctor':
         return await doctor(parsed, io);
       case 'mcp':
@@ -116,6 +122,52 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
     writeError(io, `${error instanceof Error ? error.message : String(error)}\n`);
     return 1;
   }
+}
+
+async function judgmentHook(io: CliIo): Promise<number> {
+  try {
+    const input = await readHookStdin(io.stdin ?? process.stdin);
+    const payload = JSON.parse(input || '{}') as JudgmentHookPayload;
+    const eventName = payload.hook_event_name ?? payload.hookEventName ?? 'UserPromptSubmit';
+    if (eventName !== 'UserPromptSubmit') return 0;
+    write(io, `${JSON.stringify(await runJudgmentHost(payload))}\n`);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    write(io, `${JSON.stringify(blockedJudgmentOutput(reason))}\n`);
+  }
+  return 0;
+}
+
+async function judgmentInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const target = first(parsed, 'target');
+  if (target !== 'codex') throw new Error('judgment:install currently requires --target codex');
+  const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
+  const payload = `${JSON.stringify({
+    hooks: {
+      UserPromptSubmit: [{
+        hooks: [{
+          type: 'command',
+          command: `${JSON.stringify(process.execPath)} ${JSON.stringify(cliPath)} judgment:hook`,
+          statusMessage: 'brainbase judgment resolver'
+        }]
+      }]
+    }
+  }, null, 2)}\n`;
+  const outputPath = first(parsed, 'output');
+  if (parsed.flags.has('dry-run') || !outputPath) {
+    write(io, payload);
+    return 0;
+  }
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeConfigSnippet(outputPath, payload);
+  write(io, `Wrote Codex Judgment Host config snippet to ${outputPath}\n`);
+  return 0;
+}
+
+async function readHookStdin(input: AsyncIterable<string | Uint8Array>): Promise<string> {
+  let text = '';
+  for await (const chunk of input) text += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
+  return text;
 }
 
 async function onboardInit(parsed: ParsedArgs, io: CliIo): Promise<number> {
@@ -928,6 +980,8 @@ function usage(): string {
   brainbase onboard:skills --target codex|claude|portable [--skills id,id] [--out dir] [--format markdown|json]
   brainbase ontology:show
   brainbase ontology:audit [--dir path] [--ontology-version 0.0.0|1.0.0]
+  brainbase judgment:install --target codex [--dry-run] [--output path]
+  brainbase judgment:hook
   brainbase doctor [--dir path]
 `;
 }
