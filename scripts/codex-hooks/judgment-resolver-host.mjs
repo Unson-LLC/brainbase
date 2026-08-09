@@ -378,4 +378,4 @@ async function main() {
     }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === SCRIPT_PATH) await main();
+if (process.argv[1] && realpathSync(resolve(process.argv[1])) === realpathSync(SCRIPT_PATH)) await main();
