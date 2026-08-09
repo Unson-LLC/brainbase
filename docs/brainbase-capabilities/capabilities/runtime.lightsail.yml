@@ -1,0 +1,45 @@
+id: runtime.lightsail
+name: Lightsail production SSOT runtime (bb.unson.jp)
+purpose: Keep the production Brainbase SSOT server on bb.unson.jp running from a clean detached checkout of merged develop code under systemd.
+surfaces:
+  ui: []
+  api:
+    - GET https://bb.unson.jp/api/health
+    - GET https://bb.unson.jp/api/version
+    - GET https://bb.unson.jp/api/info/graph/entities
+  code:
+    - server.js
+  data:
+    - ubuntu@176.34.20.239:/home/ubuntu/brainbase
+    - /etc/systemd/system/brainbase-ssot.service
+    - /etc/systemd/system/brainbase-ssot.service.d/ (infisical-env.conf, memory.conf, project-catalog-mode.conf)
+    - /home/ubuntu/brainbase/.env
+    - /home/ubuntu/brainbase/.env.infisical
+    - System PostgreSQL 14 database brainbase_ssot (localhost:5432 on the instance)
+depends_on:
+  - origin/develop
+  - graph.ssot
+  - secrets.infisical
+visibility_rules:
+  - bb.unson.jp is the production Graph SSOT surface; deploys are manual git fast-forward plus systemd restart, not launchd and not CI-driven.
+  - The checkout at /home/ubuntu/brainbase runs detached at a develop commit; only --ff-only merges to origin/develop are allowed.
+  - Traffic path is nginx-proxy -> brainbase-ssot-proxy (Docker) -> host port 55123; the node process itself is a host process managed by systemd, not a container.
+  - Secrets come from EnvironmentFile drop-ins; never echo or export them in deploy shells.
+verification:
+  commands:
+    - ssh -i ~/.ssh/lightsail-brainbase.pem ubuntu@176.34.20.239 'systemctl status brainbase-ssot.service --no-pager | head -8'
+    - ssh -i ~/.ssh/lightsail-brainbase.pem ubuntu@176.34.20.239 'curl -s http://127.0.0.1:55123/api/version' | jq '.runtime.git'
+    - curl -s -o /dev/null -w "%{http_code}" https://bb.unson.jp/api/health
+  expected:
+    - brainbase-ssot.service is active (running)
+    - /api/version runtime.cwd is /home/ubuntu/brainbase, runtime.port is 55123
+    - runtime.git.sha matches the intended origin/develop commit and runtime.git.dirty is false
+    - https://bb.unson.jp/api/health returns 200
+common_failures:
+  - ff-only merge fails because the server checkout diverged or picked up local changes; investigate instead of resetting.
+  - Service restarts in a loop after OOM kill (MemoryMax=1200M, OOMPolicy=kill); check journalctl -u brainbase-ssot.service.
+  - bb.unson.jp is down while 127.0.0.1:55123 works, meaning the nginx-proxy / brainbase-ssot-proxy Docker chain is broken.
+  - Stale ~/.ssh/config Host paperclip pointing at the retired IP 54.249.13.70 instead of 176.34.20.239.
+runbooks:
+  - ../runbooks/deploy-lightsail-production.md
+troubleshooting: []
