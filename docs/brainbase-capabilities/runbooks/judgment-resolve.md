@@ -1,79 +1,100 @@
-# Judgment resolution runbook
+# Judgment episode runbook
 
-Judgment Resolver is a Host pre-model boundary. Every Codex turn is judged because choosing how to answer is itself a judgment. The model does not call Resolver and does not author its classification or conversation context.
+Judgment Resolver is a Host lifecycle boundary. Every Codex turn opens one judgment episode because choosing how to answer is itself a judgment. The model does not call Resolver and does not author classification or `conversation_context`.
 
 ## Turn flow
 
-1. Codex sends `UserPromptSubmit` data to `scripts/codex-hooks/judgment-resolver-entry.sh`.
-2. `judgment-resolver-host.mjs` validates `session_id`, `turn_id`, `prompt`, `transcript_path`, and `cwd`.
-3. The Host reads the canonical JSONL transcript and preserves ordered raw user/assistant text. It mechanically excludes developer envelopes, summaries, reasoning, tool arguments, and tool output.
-4. The Host adds current `prompt` exactly once as the final user message, projects prior accepted receipts, hashes the session ID, records runtime/project/instruction bindings, and computes `source_digest`.
-5. Before model generation, the Host calls the loopback-only `POST /host/judgment/resolve` bridge. The persistent Brainbase MCP runtime signs and forwards the exact body to `POST /api/judgment/resolve`.
-6. The Host verifies `turn_id`, request digest, context digest, managed binding, and active node definitions, resolves the receipt evidence to a canonical user turn, and atomically adopts the receipt plus owner audit in the per-session journal.
-7. The owner audit contains a redacted excerpt of at most 26 Unicode code points and the judgment result. Codex places its exact `🧠 判断参照:` display line first in the turn's first user-facing assistant message only.
-8. Codex does not repeat that line in later commentary or the final response, and follows the active DAG. Resolver is absent from the model-visible MCP tool list.
+1. `UserPromptSubmit` sends the turn to `scripts/codex-hooks/judgment-resolver-entry.sh`.
+2. The Host validates the hook payload, reads the canonical JSONL transcript, and performs structural filtering. It preserves ordered raw user/assistant text while excluding envelopes, summaries, reasoning, tool arguments, and tool output.
+3. Before model generation, the Host builds canonical `conversation_context`, calls loopback `POST /host/judgment/resolve`, verifies the response, and atomically opens one episode with its initial route receipt.
+4. The model follows only the returned active DAG. It may call Brainbase knowledge/retrieval tools 0..N times, using each result to decide the next lookup. It never calls or reclassifies Judgment Resolver.
+5. Every completed `mcp__brainbase__*` call triggers `PostToolUse`. The Host stores one immutable safe event and displays an accurate short line. `brainbase_knowledge_resolve` selects a reference destination; it is not itself a search or retrieval.
+6. `Stop` validates the event set and atomically creates one final episode receipt. If required `knowledge.resolve` is missing, the first Stop asks the model to continue. A repeated Stop with `stop_hook_active=true` finalizes the episode as incomplete so the hook cannot loop forever.
 
 ## Canonical conversation context
 
-`conversation_context` is required and has schema `brainbase-conversation-context-v1`:
+`conversation_context` uses schema `brainbase-conversation-context-v1` and contains:
 
-- hashed `session_ref`; no raw session ID or absolute transcript path is sent
-- ordered `messages` with sequence, turn ID, role, phase, and exact text
-- projections of prior accepted receipts
+- hashed `session_ref`; no raw session ID or absolute transcript path
+- ordered user/assistant messages with turn identity and exact text
+- projections of prior complete finalized episodes
 - runtime host, model, permission mode, and project binding
 - repo-relative instruction bindings with content digests
 - completeness marker and canonical `source_digest`
 
-The Host performs structural filtering only. It does not summarize history or guess which prior utterances are semantically relevant; Resolver owns relevance selection. The current request must be the only message for the current turn and the final user message.
+The Host does not summarize history or guess semantic relevance. Resolver owns classification and relevance selection. Project binding is judgment context, not action authority; inaccessible project policy is omitted without making general judgment unavailable.
 
-## Resolver behavior
+## Episode journal
 
-- Resolver owns intent, domain, action kind, risk, confidence, signal classification, policy selection, and DAG selection.
-- Explicit current-request evidence wins. Short follow-ups may inherit from a prior accepted receipt or a prior raw user message.
-- An unresolved referent returns a managed `needs_classification` receipt with a clarification DAG. This continues to model generation so the assistant can ask the necessary question.
-- Only returned `active_nodes`, `active_edges`, and one-to-one `active_node_definitions` are executed; the full judgment library is not a per-turn checklist.
-- A `knowledge.resolve` required capability is a handoff, not proof that retrieval happened.
-- The owner-visible line therefore says that Brainbase knowledge retrieval is needed; it must not claim that Graph, Personal KG, or another source was already retrieved or used.
-- `project_code` is judgment context. Project-specific policies are visible only through authenticated access, but lack of project access does not make judgment itself unavailable.
+For each hashed session/turn, the Host maintains owner-only append-only files:
 
-## Owner-visible reference line
+```text
+<turn>.episode.json
+<turn>.events/<sha256(tool_use_id)>.json
+<turn>.continuation.json
+<turn>.final.json
+```
 
-The first user-facing assistant message of each turn begins with one short line generated by the Host from the adopted receipt, for example:
+- `episode.json` binds the turn to its canonical request/context and initial route.
+- Every event stores tool identity, outcome, bounded safe projection, and digests; raw arguments, raw responses, secrets, absolute paths, and unbounded text are not saved.
+- `continuation.json` proves that one required-capability continuation was requested.
+- `final.json` binds the immutable event-set digest and records `complete` or `incomplete`.
+
+Initial route and final episode receipt are different facts. The initial route says what should guide the turn. The final receipt says what actually happened before Stop. Only complete finalized episodes become prior-receipt context; legacy v1/v2 adoption journals remain readable.
+
+## Owner-visible traces
+
+The first user-facing message uses the stored initial judgment line once:
 
 ```text
 🧠 判断参照: 直前の「ログイン後の白画面」を参照 → 実装依頼として継続 ✓
 ```
 
-The excerpt comes from the concrete current or prior user turn selected by receipt evidence. It is collapsed to one physical line, secret-like values are redacted, and text after 26 Unicode code points is replaced with an ellipsis. If a receipt points to prior context that the Host cannot resolve, the line shows a warning instead of silently claiming that the current request was the source. A clarification receipt also uses a warning form and names the need for a confirmation question.
+Each actual Brainbase call gets its own `PostToolUse` trace. The wording must match the operation:
 
-The model must reproduce the stored line exactly once and must not create its own source claim. Later commentary and the final response in the same turn omit it. The adopted receipt and owner audit share one atomic journal entry, so the same turn reuses the same line even if renderer code changes later. Machine identifiers, DAG IDs, and the raw receipt remain model-only details. When the receipt only requires a later Knowledge Resolver handoff, the line reports that knowledge retrieval is needed and does not say retrieval has completed. Completed knowledge tool calls use separate `📚 Brainbase検索:` or `📚 Brainbase取得:` traces.
+```text
+📚 Brainbase参照先: 「監査方法」→ owning_repoのdocs/を選択 ✓
+📚 Brainbase検索: 「Judgment Resolver」→ Graphを検索 ✓
+📚 Brainbase取得: decision:abc123を取得 ✓
+```
 
-## Exactly one accepted receipt
+Never show `検索` or `取得` for `brainbase_knowledge_resolve`; it only selects a route. A failed or unconfirmed call uses a warning form and cannot satisfy a required capability.
 
-The invariant is one effective receipt per turn, not one network attempt. Before adoption, timeout, connection failure, 429, 502, 503, or 504 may be retried up to the bounded Host limit. After atomic adoption, the same turn reuses the journaled receipt and never re-resolves. A conflicting request for the same turn fails closed.
+## Completion invariant
+
+The invariant is exactly one episode and one final receipt per turn, not one Resolver network attempt and not one Brainbase tool call. Before episode creation, recognized transient failures may be retried within the Host limit. After creation, the same turn reuses the initial route. Tool calls may occur 0..N times. Replayed `PostToolUse` and `Stop` events reuse their immutable records.
+
+If `required_capabilities` contains `knowledge.resolve`, only a successful exact `mcp__brainbase__brainbase_knowledge_resolve` event with resolved/unconfirmed status satisfies it. Search, Graph reads, Personal KG reads, unrelated Brainbase calls, and failed route calls do not substitute for the routing decision.
 
 ## Authorization boundary
 
-The receipt constrains reasoning but does not authorize write or external effects. Existing platform permissions, user approvals, and executor authorization remain authoritative. Do not add a Judgment-specific action-authorization layer or ask Host/model to judge the action a second time.
+Initial and final receipts constrain reasoning and provide audit evidence. They do not authorize writes or external effects. Existing platform permissions, explicit approvals, and executor authorization remain authoritative. Do not add a Judgment-specific action guard or ask Host/model to judge the effect a second time.
 
 ## Failure semantics
 
-- Missing/invalid hook input, untrusted transcript, bridge failure after bounded retry, binding rejection, digest mismatch, or invalid receipt blocks model generation and reports the exact reason.
-- A managed clarification or policy-resolution receipt is not transport failure and must reach the model.
-- Preserve API 4xx codes such as `judgment_resolution_input_invalid`; do not flatten them into a generic API error.
-- `brainbase_project_not_accessible` must not be produced merely because `project_code` is outside the caller's policy scope. Such policy data is omitted; judgment continues.
+- Invalid `UserPromptSubmit` input, bridge failure after bounded retry, binding rejection, digest mismatch, unmanaged binding, or invalid active definitions blocks model generation visibly.
+- A managed clarification receipt proceeds to model generation.
+- A conflicting same-turn episode or tool-use event fails loudly; it is never overwritten.
+- Orphan `PostToolUse`/`Stop` events with no matching episode are ignored rather than fabricating evidence.
+- Missing required knowledge causes one continuation. The repeated Stop finalizes `incomplete`, preserving the failure as audit evidence without an infinite hook loop.
+- Preserve specific 4xx codes such as `judgment_resolution_input_invalid`; do not flatten them into a generic API error.
+- `brainbase_project_not_accessible` must not arise merely because project policy is outside the caller scope.
 
 ## Runtime and deployment
 
-Register the canonical deployed wrapper in user-level `~/.codex/hooks.json`:
+Register the canonical deployed wrapper for all three user-level hooks in `~/.codex/hooks.json`:
 
-```text
-bash /Users/ksato/workspace/code/brainbase/scripts/codex-hooks/judgment-resolver-entry.sh
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/code/brainbase/scripts/codex-hooks/judgment-resolver-entry.sh"}]}],
+    "PostToolUse": [{"matcher": "^mcp__brainbase__.*$", "hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/code/brainbase/scripts/codex-hooks/judgment-resolver-entry.sh"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/code/brainbase/scripts/codex-hooks/judgment-resolver-entry.sh"}]}]
+  }
+}
 ```
 
-The bridge defaults to `http://127.0.0.1:39002/host/judgment/resolve` and must remain loopback-only. The API/MCP signing secret is `BRAINBASE_JUDGMENT_BINDING_SECRET`; never place it in model context, command arguments, logs, or receipts.
-
-When changing the manifest, increment `runtime_version` and append the new version/digest pair to `config/judgment-runtime-manifest-lock.json`. Never rewrite an earlier lock entry.
+The bridge defaults to `http://127.0.0.1:39002/host/judgment/resolve` and remains loopback-only. The API/MCP signing secret is `BRAINBASE_JUDGMENT_BINDING_SECRET`; never put it in model context, command arguments, logs, or receipts. A fresh Codex session may require the new Hook definitions to be trusted through `/hooks`.
 
 ### Verification
 
@@ -85,10 +106,8 @@ npm run typecheck
 cmp -s CLAUDE.md AGENTS.md
 ```
 
-The preflight is a signed read-only probe. A successful probe is not proof that the global hook or persistent runtime is using the new checkout; verify the deployed commit and restart/reconcile evidence separately.
-
-After deploying, start a fresh Codex turn with both commentary and a final response. Verify that only the first visible assistant message begins with `🧠 判断参照:`, later messages do not repeat it, and the line describes the receipt's actual evidence source and selected judgment type in plain Japanese.
+The preflight is a signed read-only probe. A successful probe is not proof that the global hook, all lifecycle events, or persistent runtime uses the new checkout. Verify deployed commit, actual Hook config, one fresh turn, PostToolUse event count, Stop final status, and owner-visible wording separately.
 
 ### Rollback
 
-Restore API and persistent MCP/Host runtime to a compatible known-good pair, restore the shared binding secret on both sides if it changed, rerun the signed preflight, and verify the running commit. Until the Host can adopt a valid receipt, model generation remains stopped.
+Restore the previous user hook file and compatible deployed checkout, rerun the signed preflight, and verify a fresh turn. Until `UserPromptSubmit` can open a valid episode, model generation stays stopped. PostToolUse/Stop rollback must not delete existing journals; they remain audit evidence.

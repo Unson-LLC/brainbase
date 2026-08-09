@@ -60,7 +60,7 @@ afterEach(async () => {
 });
 
 describe('Codex Judgment Resolver Host process entrypoint', () => {
-    it('symlink経由のwrapperでもHostを実行し、同じturnでは採用receiptを再利用する', async () => {
+    it('symlink経由でepisode開始・複数Brainbase参照・Stop確定を1つのturnへ束縛する', async () => {
         const root = temporaryDirectory();
         const repositoryLink = join(root, 'code', 'brainbase');
         mkdirSync(join(root, 'code'));
@@ -91,16 +91,20 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                         classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
                         classification: { intent: 'implement', domains: ['operations'], action_kind: 'write' },
                         selected_dag_ids: ['operations.v1', 'authority.v1'],
+                        required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }],
                         active_node_definitions: [{ id: 'answer', kind: 'common', instruction: 'Answer.' }]
                     }
                 }));
             });
         });
         const wrapper = join(repositoryLink, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const identity = {
+            session_id: 'session-symlink-entrypoint',
+            turn_id: 'turn-symlink-entrypoint'
+        };
         const payload = JSON.stringify({
             hook_event_name: 'UserPromptSubmit',
-            session_id: 'session-symlink-entrypoint',
-            turn_id: 'turn-symlink-entrypoint',
+            ...identity,
             cwd: REPO_ROOT,
             prompt: 'Resolverを実行して'
         });
@@ -122,21 +126,83 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const additionalContext = JSON.parse(first.stdout).hookSpecificOutput.additionalContext;
         expect(additionalContext).toContain(
             'The first user-facing assistant message for this turn must start with exactly this Host-generated line, before any other text:\n' +
-            '🧠 判断参照: 「Resolverを実行して」を参照 → 実装依頼として継続 ✓'
+            '🧠 判断参照: 「Resolverを実行して」を参照 → Brainbase参照先の判断が必要 ✓'
         );
+        expect(additionalContext).toContain('opened one judgment episode');
+        expect(additionalContext).toContain('there is no one-call-per-turn limit');
         expect(first.stdout).toContain('jr_symlink_entrypoint');
         expect(JSON.parse(second.stdout)).toEqual(JSON.parse(first.stdout));
         expect(requestCount).toBe(1);
+
+        const unrelated = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'PostToolUse', ...identity,
+            tool_name: 'mcp__brainbase__get_context', tool_use_id: 'tool-unrelated',
+            tool_input: { topic: 'resolver' }, tool_response: { content: [{ type: 'text', text: 'context' }] }
+        }) });
+        expect(JSON.parse(unrelated.stdout).systemMessage).toContain('Brainbase呼出');
+
+        const firstStopPayload = JSON.stringify({
+            hook_event_name: 'Stop', ...identity, stop_hook_active: false, last_assistant_message: '仮回答'
+        });
+        const firstStop = await run('bash', [wrapper], { env, input: firstStopPayload });
+        const firstStopReplay = await run('bash', [wrapper], { env, input: firstStopPayload });
+        expect(JSON.parse(firstStop.stdout)).toMatchObject({ decision: 'block' });
+        expect(JSON.parse(firstStopReplay.stdout)).toEqual(JSON.parse(firstStop.stdout));
+
+        const routePayload = JSON.stringify({
+            hook_event_name: 'PostToolUse', ...identity,
+            tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'tool-route',
+            tool_input: { intent: 'Resolver仕様', audience: 'team', content_type: 'team_document' },
+            tool_response: {
+                status: 'ok', data: {
+                    resolution_id: 'kr_entrypoint', status: 'resolved', source_class: 'owning_repo',
+                    canonical_location: { repository: 'project:brainbase', path: 'docs/' },
+                    retrieval_capability: 'repository.read', searched_scope: [], absence_confirmed: false
+                }
+            }
+        });
+        const route = await run('bash', [wrapper], { env, input: routePayload });
+        const routeReplay = await run('bash', [wrapper], { env, input: routePayload });
+        expect(JSON.parse(route.stdout)).toEqual({
+            systemMessage: '📚 Brainbase参照先: 「Resolver仕様」→ owning_repoのdocs/を選択 ✓'
+        });
+        expect(JSON.parse(routeReplay.stdout)).toEqual(JSON.parse(route.stdout));
+
+        await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'PostToolUse', ...identity,
+            tool_name: 'mcp__brainbase__search', tool_use_id: 'tool-search',
+            tool_input: { query: 'Judgment Resolver' }, tool_response: { content: [{ type: 'text', text: 'results' }] }
+        }) });
+        const finalStopPayload = JSON.stringify({
+            hook_event_name: 'Stop', ...identity, stop_hook_active: true, last_assistant_message: '確認後の回答'
+        });
+        const finalStop = await run('bash', [wrapper], { env, input: finalStopPayload });
+        const finalStopReplay = await run('bash', [wrapper], { env, input: finalStopPayload });
+        expect(JSON.parse(finalStop.stdout)).toEqual({});
+        expect(JSON.parse(finalStopReplay.stdout)).toEqual({});
+
         const journalDirectory = join(journal, hash('session-symlink-entrypoint'));
         const journalFiles = readdirSync(journalDirectory);
-        expect(journalFiles).toHaveLength(1);
-        expect(JSON.parse(readFileSync(join(journalDirectory, journalFiles[0]), 'utf8'))).toMatchObject({
-            schema_version: 'brainbase-judgment-adoption-v2',
+        expect(journalFiles.sort()).toEqual([
+            `${hash('turn-symlink-entrypoint')}.continuation.json`,
+            `${hash('turn-symlink-entrypoint')}.episode.json`,
+            `${hash('turn-symlink-entrypoint')}.events`,
+            `${hash('turn-symlink-entrypoint')}.final.json`
+        ]);
+        expect(JSON.parse(readFileSync(join(journalDirectory, `${hash('turn-symlink-entrypoint')}.episode.json`), 'utf8'))).toMatchObject({
+            schema_version: 'brainbase-judgment-episode-v1',
+            state: 'open',
             owner_audit: {
                 source_excerpt: 'Resolverを実行して',
-                decision: '実装依頼として継続',
-                display_line: '🧠 判断参照: 「Resolverを実行して」を参照 → 実装依頼として継続 ✓'
+                decision: 'Brainbase参照先の判断が必要',
+                display_line: '🧠 判断参照: 「Resolverを実行して」を参照 → Brainbase参照先の判断が必要 ✓'
             }
+        });
+        expect(JSON.parse(readFileSync(join(journalDirectory, `${hash('turn-symlink-entrypoint')}.final.json`), 'utf8'))).toMatchObject({
+            schema_version: 'brainbase-judgment-episode-final-v1',
+            completion_status: 'complete',
+            event_count: 3,
+            qualifying_event_count: 1
         });
     });
 });

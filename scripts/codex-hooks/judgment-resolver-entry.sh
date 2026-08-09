@@ -1,5 +1,6 @@
 #!/bin/bash
-# Codex UserPromptSubmit entrypoint: resolve and adopt judgment before model generation.
+# Codex judgment lifecycle entrypoint: open on UserPromptSubmit, record Brainbase
+# calls on PostToolUse, and finalize once on Stop.
 
 set -euo pipefail
 
