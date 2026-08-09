@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -131,6 +131,9 @@ describe('portable Judgment Resolver Host contract', () => {
     expect(receipt.selected_dag_ids).toEqual(['clarification.v1']);
     expect(output.continue).toBe(true);
     expect(output.hookSpecificOutput.additionalContext).toContain('A clarification receipt means ask');
+    expect(output.hookSpecificOutput.additionalContext).toContain(
+      '⚠️ Brainbase参照: 「それでいい」の対象を特定できず → 確認質問'
+    );
   });
 
   it('adopts exactly one receipt for a turn and reuses it without resolving again', async () => {
@@ -153,6 +156,29 @@ describe('portable Judgment Resolver Host contract', () => {
     expect(resolver).toHaveBeenCalledTimes(1);
     expect(first.receipt.resolution_id).toBe('receipt-once');
     expect(second.receipt).toEqual(first.receipt);
+    expect(second.hookSpecificOutput.additionalContext).toContain(
+      '🧠 Brainbase参照: 「この仕組みを説明して」を参照 → 質問として回答 ✓'
+    );
+
+    const [sessionDirectory] = await readdir(env.BRAINBASE_JUDGMENT_JOURNAL_DIR);
+    const [journalName] = await readdir(join(env.BRAINBASE_JUDGMENT_JOURNAL_DIR, sessionDirectory));
+    const adoption = JSON.parse(await readFile(
+      join(env.BRAINBASE_JUDGMENT_JOURNAL_DIR, sessionDirectory, journalName),
+      'utf8'
+    ));
+    expect(adoption).toMatchObject({
+      schema_version: 'brainbase-judgment-adoption-v2',
+      receipt: { resolution_id: 'receipt-once' },
+      owner_audit: {
+        schema_version: 'brainbase-owner-audit-v1',
+        historical_exact: true,
+        source_kind: 'current_request',
+        source_turn_ids: ['turn-1'],
+        source_excerpt: 'この仕組みを説明して',
+        decision: '質問として回答',
+        display_line: '🧠 Brainbase参照: 「この仕組みを説明して」を参照 → 質問として回答 ✓'
+      }
+    });
   });
 
   it('reuses the adopted canonical request after later turns have added receipts', async () => {
@@ -180,6 +206,36 @@ describe('portable Judgment Resolver Host contract', () => {
 
     expect(resolver).not.toHaveBeenCalled();
     expect(replayed.receipt).toEqual(first.receipt);
+  });
+
+  it('keeps v1 journal entries replayable while deriving a non-historical owner audit', async () => {
+    const root = await tempDir();
+    const journal = join(root, 'journal');
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
+    const payload = {
+      prompt: 'この仕組みを説明して',
+      session_id: 'session-legacy-journal',
+      turn_id: 'turn-1',
+      cwd: root
+    };
+    const first = await runJudgmentHost(payload, { env });
+    const [sessionDirectory] = await readdir(journal);
+    const [journalName] = await readdir(join(journal, sessionDirectory));
+    const path = join(journal, sessionDirectory, journalName);
+    const adoption = JSON.parse(await readFile(path, 'utf8'));
+    delete adoption.receipt_digest;
+    delete adoption.owner_audit;
+    adoption.schema_version = 'brainbase-judgment-adoption-v1';
+    await writeFile(path, `${JSON.stringify(adoption)}\n`);
+    const resolver = vi.fn(async () => { throw new Error('legacy journal replay must not resolve again'); });
+
+    const replayed = await runJudgmentHost(payload, { env, resolver });
+
+    expect(resolver).not.toHaveBeenCalled();
+    expect(replayed.receipt).toEqual(first.receipt);
+    expect(replayed.hookSpecificOutput.additionalContext).toContain(
+      '🧠 Brainbase参照: 「この仕組みを説明して」を参照 → 質問として回答 ✓'
+    );
   });
 
   it('keeps valid transcript context when only the final JSONL line is incomplete', async () => {
@@ -274,16 +330,31 @@ describe('portable Judgment Resolver Host contract', () => {
     ]);
   });
 
-  it('shows a short owner-visible summary without treating judgment as action authorization', async () => {
+  it('shows the concrete prior statement and judgment without treating judgment as action authorization', async () => {
+    const root = await tempDir();
+    const request = buildJudgmentRequest({
+      prompt: 'それでいい。修正して',
+      session_id: 'session-owner-line',
+      turn_id: 'turn-current',
+      cwd: root
+    }, {
+      env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') },
+      trustedConversationMessages: [{
+        role: 'user',
+        turn_id: 'turn-prior',
+        text: 'ログイン後の白画面を直して'
+      }]
+    });
     const receipt = {
       status: 'resolved',
+      classification_evidence: { source: 'prior_message', source_turn_ids: ['turn-prior'], matcher_ids: [] },
       reconciliation_reasons: ['classification_inherited_from_prior_turn'],
       selected_dag_ids: ['engineering.v1', 'authority.v1'],
       classification: { intent: 'implement', domains: ['engineering'] }
     } as JudgmentReceipt;
 
-    expect(buildOwnerReferenceLine(receipt)).toBe(
-      '🧠 Brainbase参照: 直前の会話を引き継ぎ、実装方針と権限条件を判断しました。'
+    expect(buildOwnerReferenceLine(request, receipt)).toBe(
+      '🧠 Brainbase参照: 直前の「ログイン後の白画面を直して」を参照 → 実装依頼として継続 ✓'
     );
 
     const output = capture();
@@ -293,6 +364,58 @@ describe('portable Judgment Resolver Host contract', () => {
     const hook = config.hooks.UserPromptSubmit[0].hooks[0];
     expect(hook.command).toContain('judgment:hook');
     expect(JSON.stringify(config)).not.toMatch(/https?:\/\/|Infisical|Lightsail|Unson/iu);
+  });
+
+  it('redacts secrets, truncates long excerpts, and keeps the owner audit on one line', async () => {
+    const root = await tempDir();
+    const request = buildJudgmentRequest({
+      prompt: 'token=sk-secret-value-1234567890\nを使って本番環境を確認し、その後の長い説明も参照して判断して',
+      session_id: 'session-owner-redaction',
+      turn_id: 'turn-current',
+      cwd: root
+    }, {
+      env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') },
+      trustedConversationMessages: []
+    });
+    const receipt = {
+      status: 'resolved',
+      classification_evidence: { source: 'current_request', source_turn_ids: ['turn-current'], matcher_ids: [] },
+      reconciliation_reasons: [],
+      selected_dag_ids: ['operations.v1'],
+      classification: { intent: 'investigate', domains: ['operations'] }
+    } as JudgmentReceipt;
+
+    const line = buildOwnerReferenceLine(request, receipt);
+
+    expect(line).toBe(
+      '🧠 Brainbase参照: 「token=[秘密情報] を使って本番環境を確認し、…」を参照 → 調査として確認 ✓'
+    );
+    expect(line).not.toContain('sk-secret-value');
+    expect(line.split('\n')).toHaveLength(1);
+  });
+
+  it('warns instead of silently substituting another turn when receipt evidence is missing', async () => {
+    const root = await tempDir();
+    const request = buildJudgmentRequest({
+      prompt: 'それでいい',
+      session_id: 'session-owner-missing',
+      turn_id: 'turn-current',
+      cwd: root
+    }, {
+      env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') },
+      trustedConversationMessages: [{ role: 'user', turn_id: 'turn-other', text: '別件を実装して' }]
+    });
+    const receipt = {
+      status: 'resolved',
+      classification_evidence: { source: 'prior_receipt', source_turn_ids: ['turn-missing'], matcher_ids: [] },
+      reconciliation_reasons: ['classification_inherited_from_prior_turn'],
+      selected_dag_ids: ['engineering.v1'],
+      classification: { intent: 'implement', domains: ['engineering'] }
+    } as JudgmentReceipt;
+
+    expect(buildOwnerReferenceLine(request, receipt)).toBe(
+      '⚠️ Brainbase参照: 参照元の会話を確認できず → 判断証跡を要確認'
+    );
   });
 
   it('runs the installed CLI hook locally and emits a managed pre-model result', async () => {
