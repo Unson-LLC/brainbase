@@ -221,6 +221,70 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
     }, 20_000);
 
+    it('同一turnの並列UserPromptSubmitを1回のResolver呼出と同一episodeへ畳み込む', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        let requestCount = 0;
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                requestCount += 1;
+                const args = JSON.parse(body);
+                setTimeout(() => {
+                    response.setHeader('content-type', 'application/json');
+                    response.end(JSON.stringify({
+                        management_status: 'managed',
+                        receipt: {
+                            resolution_id: 'jr_parallel_start_entrypoint',
+                            turn_id: args.turn_id,
+                            request_digest: hash(canonicalJson(args)),
+                            context_digest: hash(canonicalJson(args.conversation_context)),
+                            status: 'resolved',
+                            host_binding: { status: 'managed' },
+                            classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                            classification: { intent: 'answer', domains: ['general'], action_kind: 'none' },
+                            selected_dag_ids: ['general.v1'],
+                            required_capabilities: [],
+                            active_node_definitions: [{ id: 'answer', kind: 'common', instruction: 'Answer.' }]
+                        }
+                    }));
+                }, 150);
+            });
+        });
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const identity = { session_id: 'session-parallel-start', turn_id: 'turn-parallel-start' };
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: journal
+        };
+        const payload = JSON.stringify({
+            hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT, prompt: '同時開始を検証して'
+        });
+
+        const [first, second] = await Promise.all([
+            run('bash', [wrapper], { env, input: payload }),
+            run('bash', [wrapper], { env, input: payload })
+        ]);
+
+        expect(first).toMatchObject({ code: 0, signal: null, stderr: '' });
+        expect(second).toMatchObject({ code: 0, signal: null, stderr: '' });
+        expect(JSON.parse(second.stdout)).toEqual(JSON.parse(first.stdout));
+        expect(requestCount).toBe(1);
+
+        const episode = JSON.parse(readFileSync(join(
+            journal,
+            hash(identity.session_id),
+            `${hash(identity.turn_id)}.episode.json`
+        ), 'utf8'));
+        expect(episode).toMatchObject({
+            schema_version: 'brainbase-judgment-episode-v1',
+            state: 'open',
+            initial_route_receipt: { resolution_id: 'jr_parallel_start_entrypoint' }
+        });
+    }, 20_000);
+
     it('別processの並列PostToolUseを重複ないjournal commit順に直列化する', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
