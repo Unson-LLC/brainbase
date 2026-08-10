@@ -40,7 +40,7 @@ For matching `mcp__brainbase__*` tools, input includes the session/turn binding,
 
 ### Stop
 
-Input includes the session/turn binding, `stop_hook_active`, and optional answer text. The Host evaluates required capabilities against immutable events and requires the final answer to begin with the stored owner judgment line plus every stored tool-event line in atomic journal-commit order, with no extra copies. Event commits and Stop finalization for the same turn share one transition lock. Missing required knowledge or an invalid owner-visible prefix blocks the first Stop only; `stop_hook_active=true` finalizes incomplete.
+Input includes the session/turn binding, `stop_hook_active`, and optional answer text. The Host evaluates required capabilities against immutable events and requires the final answer to begin with the stored owner judgment line plus every stored tool-event line in atomic journal-commit order, with no extra copies. Event commits and Stop finalization for the same turn share one transition lock. Process locks atomically publish complete metadata containing owner PID, acquisition time, and a unique token; a confirmed dead owner is reclaimed immediately, a legacy ownerless lock only after the bounded stale interval, and a live owner never. Missing required knowledge or an invalid owner-visible prefix blocks the first Stop only; `stop_hook_active=true` finalizes incomplete.
 
 Orphan PostToolUse or Stop events do not create an episode.
 
@@ -110,6 +110,7 @@ Initial and final receipts are judgment and audit evidence. They do not authoriz
 
 - terminal before episode: invalid hook input, untrusted context, binding rejection, malformed response, digest mismatch, unmanaged binding, missing active definitions, or same-turn conflict
 - terminal event: same `tool_use_id` with a different fingerprint
+- recoverable Host crash: a process lock whose recorded owner is confirmed dead is reclaimed; a live owner is never displaced, and an ownerless legacy lock must exceed the bounded stale interval
 - incomplete completion: required capability or owner-visible audit prefix still absent after the single continuation
 - replay: verified immutable episode/event/final is returned without new Resolver or tool evidence
 

@@ -84,7 +84,7 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 - Project binding is judgment context, not authorization. Inaccessible project policy is omitted without rejecting general judgment.
 - Managed clarification is a valid initial route and proceeds to model generation.
 - Binding/context/route integrity failure blocks before model generation.
-- Concurrent `PostToolUse` processes are totally ordered by the Host's atomic journal commit, not by an unverifiable wall-clock call-start time. Stop finalization shares the same transition lock, so no committed event can be inserted into an already finalized episode.
+- Concurrent `PostToolUse` processes are totally ordered by the Host's atomic journal commit, not by an unverifiable wall-clock call-start time. Stop finalization shares the same transition lock, so no committed event can be inserted into an already finalized episode. Each process lock atomically publishes complete metadata containing its owner PID, acquisition time, and unique token. A lock whose owner is confirmed dead is recoverable immediately; a legacy ownerless lock is recoverable only after the bounded stale interval, and a live owner's lock is never reclaimed.
 - A missing required route or a final answer that omits, duplicates, or reorders a stored owner-visible audit line blocks only the first Stop. The second Stop finalizes incomplete and terminates normally.
 - Normal platform permissions, approvals, and executor authorization remain responsible for effects. There is no Effect Guard.
 

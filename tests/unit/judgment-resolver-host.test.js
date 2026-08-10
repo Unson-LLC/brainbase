@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -479,6 +479,115 @@ describe('Codex Judgment Resolver Host', () => {
         expect(second.output).toEqual({});
         expect(second.final).toMatchObject({ completion_status: 'incomplete', qualifying_event_count: 0 });
         expect(finalReplay.final).toEqual(second.final);
+    });
+
+    it('owner processが終了したtransition lockを回収し、Stopをfinal receiptへ収束させる', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-stale-transition', turn_id: 'turn-stale-transition',
+            prompt: '判断結果を返して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+        const journalDirectory = join(root, 'journal', hash(payload.session_id));
+        const transitionLock = join(journalDirectory, `${hash(payload.turn_id)}.transition.lock`);
+        writeFileSync(transitionLock, `${JSON.stringify({
+            schema_version: 'brainbase-judgment-lock-v1',
+            owner_pid: 2147483647,
+            acquired_at: new Date().toISOString(),
+            token: 'dead-owner-lock'
+        })}\n`, { mode: 0o600 });
+
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true,
+            last_assistant_message: `${episode.owner_audit.display_line}\n回答`
+        }, { env });
+
+        expect(result.output).toEqual({});
+        expect(result.final).toMatchObject({ completion_status: 'complete' });
+        expect(existsSync(transitionLock)).toBe(false);
+        expect(existsSync(join(journalDirectory, `${hash(payload.turn_id)}.final.json`))).toBe(true);
+    });
+
+    it('live ownerのtransition lockは回収せずfinal receiptも偽造しない', async () => {
+        const root = temporaryDirectory();
+        const env = {
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+            BRAINBASE_JUDGMENT_LOCK_WAIT_ATTEMPTS: '2',
+            BRAINBASE_JUDGMENT_LOCK_WAIT_MS: '0'
+        };
+        const payload = {
+            session_id: 'session-live-transition', turn_id: 'turn-live-transition',
+            prompt: '判断結果を返して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+        const journalDirectory = join(root, 'journal', hash(payload.session_id));
+        const transitionLock = join(journalDirectory, `${hash(payload.turn_id)}.transition.lock`);
+        writeFileSync(transitionLock, `${JSON.stringify({
+            schema_version: 'brainbase-judgment-lock-v1',
+            owner_pid: process.pid,
+            acquired_at: new Date().toISOString(),
+            token: 'live-owner-lock'
+        })}\n`, { mode: 0o600 });
+
+        expect(() => finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true,
+            last_assistant_message: `${episode.owner_audit.display_line}\n回答`
+        }, { env })).toThrow('judgment_episode_transition_timeout');
+        expect(readFileSync(transitionLock, 'utf8')).toContain('live-owner-lock');
+        expect(existsSync(join(journalDirectory, `${hash(payload.turn_id)}.final.json`))).toBe(false);
+    });
+
+    it('旧形式のownerless episode lockもstale判定後に回収して開始できる', async () => {
+        const root = temporaryDirectory();
+        const env = {
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+            BRAINBASE_JUDGMENT_LOCK_STALE_MS: '0'
+        };
+        const payload = {
+            session_id: 'session-legacy-lock', turn_id: 'turn-legacy-lock',
+            prompt: '判断を開始して', cwd: process.cwd()
+        };
+        const journalDirectory = join(root, 'journal', hash(payload.session_id));
+        const episodeLock = join(journalDirectory, `${hash(payload.turn_id)}.episode.lock`);
+        mkdirSync(journalDirectory, { recursive: true, mode: 0o700 });
+        writeFileSync(episodeLock, '', { mode: 0o600 });
+        const args = buildJudgmentRequest(payload, { env });
+
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: validReceipt(args) })
+            })
+        });
+
+        expect(episode).toMatchObject({ schema_version: 'brainbase-judgment-episode-v1', state: 'open' });
+        expect(existsSync(episodeLock)).toBe(false);
     });
 
     it('継続中にknowledge routeを取得すればcompleteとして一度だけ確定する', async () => {
