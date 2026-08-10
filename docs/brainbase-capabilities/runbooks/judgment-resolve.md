@@ -129,7 +129,29 @@ test -z "$(git -C "$BRAINBASE_MCP_RUNTIME_ROOT" status --porcelain --untracked-f
 cp "$HOME/.codex/hooks.json" "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json"
 chmod 600 "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json"
 shasum -a 256 "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" > "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.sha256"
-git -C "$BRAINBASE_CANONICAL_ROOT" rev-parse HEAD > "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.sha"
+HOOKS_FILE="$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" node <<'NODE' \
+  > "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.entrypoint"
+const hooks = JSON.parse(require('node:fs').readFileSync(process.env.HOOKS_FILE, 'utf8')).hooks ?? {};
+const events = ['UserPromptSubmit', 'PostToolUse', 'Stop'];
+const resolved = events.map((event) => {
+  const commands = (hooks[event] ?? []).flatMap((group) => group.hooks ?? [])
+    .filter((hook) => hook.type === 'command')
+    .map((hook) => String(hook.command ?? ''));
+  const paths = commands.flatMap((command) => {
+    const match = command.match(/(\/[^\s"']+\/scripts\/codex-hooks\/judgment-resolver-entry\.sh)\b/);
+    return match ? [match[1]] : [];
+  });
+  if (paths.length !== 1) throw new Error(`expected one Resolver entrypoint for ${event}`);
+  return paths[0];
+});
+if (new Set(resolved).size !== 1) throw new Error('Resolver lifecycle hooks resolve to different entrypoints');
+process.stdout.write(resolved[0]);
+NODE
+BRAINBASE_HOOK_ENTRYPOINT="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.entrypoint")"
+BRAINBASE_HOOK_ROOT="$(git -C "$(dirname "$BRAINBASE_HOOK_ENTRYPOINT")" rev-parse --show-toplevel)"
+test -z "$(git -C "$BRAINBASE_HOOK_ROOT" status --porcelain --untracked-files=no)"
+printf '%s\n' "$BRAINBASE_HOOK_ROOT" > "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.root"
+git -C "$BRAINBASE_HOOK_ROOT" rev-parse HEAD > "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.sha"
 curl -fsS http://127.0.0.1:31013/api/version | node -e '
 const value=JSON.parse(require("node:fs").readFileSync(0,"utf8"));
 const git=value.runtime?.git;
@@ -144,7 +166,6 @@ ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 \
 for file in global-hook.sha local-ui.sha mcp-runtime.sha lightsail.sha; do
   grep -Eq '^[0-9a-f]{40}$' "$BRAINBASE_ROLLBACK_STATE_DIR/$file"
 done
-cmp -s "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.sha" "$BRAINBASE_ROLLBACK_STATE_DIR/local-ui.sha"
 printf 'Rollback state: %s\n' "$BRAINBASE_ROLLBACK_STATE_DIR"
 ```
 
@@ -215,15 +236,19 @@ set -euo pipefail
 : "${BRAINBASE_ROLLBACK_STATE_DIR:?Set this to the captured rollback directory}"
 export BRAINBASE_CANONICAL_ROOT=/Users/ksato/workspace/code/brainbase
 export BRAINBASE_MCP_RUNTIME_ROOT=/Users/ksato/workspace/code/.worktrees/brainbase-mcp-runtime-45ec989ba
-for file in hooks.json hooks.sha256 global-hook.sha local-ui.sha mcp-runtime.sha lightsail.sha; do
+for file in hooks.json hooks.sha256 global-hook.entrypoint global-hook.root global-hook.sha local-ui.sha mcp-runtime.sha lightsail.sha; do
   test -s "$BRAINBASE_ROLLBACK_STATE_DIR/$file"
 done
 test -z "$(git -C "$BRAINBASE_CANONICAL_ROOT" status --porcelain)"
 test -z "$(git -C "$BRAINBASE_MCP_RUNTIME_ROOT" status --porcelain --untracked-files=no)"
+BRAINBASE_HOOK_ENTRYPOINT="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.entrypoint")"
+BRAINBASE_HOOK_ROOT="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.root")"
+test -f "$BRAINBASE_HOOK_ENTRYPOINT"
+test "$(git -C "$(dirname "$BRAINBASE_HOOK_ENTRYPOINT")" rev-parse --show-toplevel)" = "$BRAINBASE_HOOK_ROOT"
 
-# 1. Restore the checkout used by the global Hook and local :31013 runtime.
+# 1. Restore the checkout used by the local :31013 runtime.
 FAILED_CANONICAL_SHA="$(git -C "$BRAINBASE_CANONICAL_ROOT" rev-parse HEAD)"
-CANONICAL_ROLLBACK_SHA="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.sha")"
+CANONICAL_ROLLBACK_SHA="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/local-ui.sha")"
 git -C "$BRAINBASE_CANONICAL_ROOT" cat-file -e "${CANONICAL_ROLLBACK_SHA}^{commit}"
 git -C "$BRAINBASE_CANONICAL_ROOT" switch --detach "$CANONICAL_ROLLBACK_SHA"
 if ! git -C "$BRAINBASE_CANONICAL_ROOT" diff --quiet \
@@ -255,7 +280,23 @@ launchctl print "gui/$(id -u)/com.brainbase.mcp-brainbase" | grep -q 'state = ru
 printf 'sha=%s\ncompleted_at=%s\n' "$MCP_ROLLBACK_SHA" "$(date -u +%FT%TZ)" \
   > /Users/ksato/workspace/var/brainbase-mcp-reconcile.last
 
-# 3. Restore Lightsail, reinstall dependencies only when its manifest changed,
+# 3. Restore a separately installed global Hook checkout when it is neither the
+# local UI nor persistent MCP checkout. The current deployment may share either.
+HOOK_ROLLBACK_SHA="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.sha")"
+if [ "$BRAINBASE_HOOK_ROOT" != "$BRAINBASE_CANONICAL_ROOT" ] \
+  && [ "$BRAINBASE_HOOK_ROOT" != "$BRAINBASE_MCP_RUNTIME_ROOT" ]; then
+  test -z "$(git -C "$BRAINBASE_HOOK_ROOT" status --porcelain --untracked-files=no)"
+  FAILED_HOOK_SHA="$(git -C "$BRAINBASE_HOOK_ROOT" rev-parse HEAD)"
+  git -C "$BRAINBASE_HOOK_ROOT" cat-file -e "${HOOK_ROLLBACK_SHA}^{commit}"
+  git -C "$BRAINBASE_HOOK_ROOT" switch --detach "$HOOK_ROLLBACK_SHA"
+  if ! git -C "$BRAINBASE_HOOK_ROOT" diff --quiet \
+    "$HOOK_ROLLBACK_SHA" "$FAILED_HOOK_SHA" -- package.json package-lock.json; then
+    npm --prefix "$BRAINBASE_HOOK_ROOT" ci
+  fi
+fi
+test "$(git -C "$BRAINBASE_HOOK_ROOT" rev-parse HEAD)" = "$HOOK_ROLLBACK_SHA"
+
+# 4. Restore Lightsail, reinstall dependencies only when its manifest changed,
 # and prove both the instance and public proxy report the captured SHA.
 ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
   "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail.sha")" <<'REMOTE'
@@ -284,10 +325,11 @@ const git=value.runtime?.git;
 if (git?.sha!==process.env.TARGET_SHA || git?.dirty!==false) process.exit(1);
 '
 
-# 4. Restore the exact previous Hook config last, then verify every surface.
+# 5. Restore the exact previous Hook config last, then verify every surface.
 install -m 600 "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" "$HOME/.codex/hooks.json"
 (cd "$BRAINBASE_ROLLBACK_STATE_DIR" && shasum -a 256 -c hooks.sha256)
-test "$(git -C "$BRAINBASE_CANONICAL_ROOT" rev-parse HEAD)" = "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.sha")"
+test "$(git -C "$BRAINBASE_HOOK_ROOT" rev-parse HEAD)" = "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.sha")"
+test -z "$(git -C "$BRAINBASE_HOOK_ROOT" status --porcelain --untracked-files=no)"
 test -z "$(git -C "$BRAINBASE_CANONICAL_ROOT" status --porcelain)"
 (cd "$BRAINBASE_CANONICAL_ROOT" && scripts/run-brainbase-mcp.sh --check)
 curl -fsS -o /dev/null https://bb.unson.jp/api/health
