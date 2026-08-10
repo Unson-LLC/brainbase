@@ -345,8 +345,22 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     }
 
     const candidate = readBoundEpisode();
+    const runtimeManifest = readJson(join(process.cwd(), 'config/judgment-runtime-manifest.json'));
+    const expectedManifestDigest = createHash('sha256')
+        .update(canonicalJson(runtimeManifest))
+        .digest('hex');
     assert.equal(candidate.episode.state, 'open', 'Episode remains immutable after finalization');
     assert.equal(candidate.episode.initial_route_receipt?.status, 'resolved');
+    assert.equal(
+        candidate.episode.initial_route_receipt?.runtime_version,
+        runtimeManifest.runtime_version,
+        'Live evidence must use the Resolver runtime version declared by current HEAD'
+    );
+    assert.equal(
+        candidate.episode.initial_route_receipt?.manifest_digest,
+        expectedManifestDigest,
+        'Live evidence must use the Resolver manifest declared by current HEAD'
+    );
     assert.deepEqual(candidate.events.map((event) => event.tool_name), EXPECTED_TOOLS);
     assert.ok(candidate.events.every((event) => event.success === true));
     for (const [index, expected] of EXPECTED_QUERY_EXCERPTS.entries()) {
