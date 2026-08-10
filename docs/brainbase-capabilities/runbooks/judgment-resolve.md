@@ -124,7 +124,7 @@ The preflight is a signed read-only probe. A successful probe is not proof that 
 To verify the live Codex path, start a fresh turn and make the model perform this bounded result-dependent lookup: resolve the canonical source for the Judgment Resolver contract, search Graph for `Judgment Resolver`, broaden a zero-result search to `判断`, then retrieve the returned `glossary_term` entity. Within one hour of that turn, run:
 
 ```bash
-node --test tests/e2e/judgment-resolver-live-session.e2e.mjs
+node --test tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts
 ```
 
 This check reads the installed global Hook bindings and the owner-only journal. It passes only when `UserPromptSubmit`, `PostToolUse`, and `Stop` use the canonical entrypoint, the fresh episode has a verified initial route, and the four successful Brainbase events preserve the result-dependent query sequence. It does not manufacture tool events or treat a synthetic entrypoint test as live model evidence.

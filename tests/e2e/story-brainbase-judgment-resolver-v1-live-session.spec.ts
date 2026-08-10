@@ -71,7 +71,7 @@ function findFreshAdaptiveEpisode() {
     return candidates.sort((left, right) => right.newestEventAt - left.newestEventAt)[0] || null;
 }
 
-test('global hookが実turnの結果依存Brainbase検索を1つのepisodeへ記録する', () => {
+test('story-brainbase-judgment-resolver-v1 ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 ac:9 ac:10 ac:11 ac:12 ac:13 ac:14 ac:15 ac:16 ac:17 global hookが実turnの結果依存Brainbase検索を1つのepisodeへ記録する', () => {
     assert.ok(existsSync(HOOK_CONFIG), `Codex global hook config is missing: ${HOOK_CONFIG}`);
     assert.ok(existsSync(JOURNAL_ROOT), `Judgment journal is missing: ${JOURNAL_ROOT}`);
 

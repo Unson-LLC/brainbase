@@ -3,6 +3,10 @@ spec_id: SPEC-BRAINBASE-JUDGMENT-RESOLVER-V1
 story_id: story-brainbase-judgment-resolver-v1
 status: accepted
 updated_at: 2026-08-10
+diagrams:
+  - kind: threat_model
+    path: docs/specs/brainbase-judgment-resolver-v1-spec.md
+    purpose: Codex lifecycle Host、persistent Brainbase bridge、Resolver API、Brainbase tools、owner-only journalのtrust boundaryを示す。
 ---
 
 # Brainbase Judgment Resolver episode lifecycle specification
@@ -108,3 +112,26 @@ Specific API errors remain distinct. `brainbase_project_not_accessible` is not u
 - Stop Host: zero-call completion when allowed, one continuation, incomplete second Stop, complete final, replay
 - end-to-end: Codex Host initial dispatch -> Codex open-ended reasoning and repeated model/tool loop -> final episode receipt
 - publication: `CLAUDE.md`/`AGENTS.md`, Skill, capability, runbook, story, and tests expose the same lifecycle
+
+## 12. Threat model (`kind: threat_model`)
+
+```mermaid
+flowchart LR
+  subgraph CodexBoundary["Codex lifecycle boundary"]
+    UI["User turn"] --> HOST["Lifecycle Host adapter\nno binding secret"]
+    MODEL["Codex model"] --> TOOLS["Brainbase MCP tools"]
+  end
+  subgraph BrainbaseRuntime["Persistent Brainbase runtime boundary"]
+    BRIDGE["Host bridge\nsigner copy"] --> API["Resolver API\nverifier copy"]
+    API --> RESOLVER["Deterministic Resolver"]
+  end
+  subgraph OwnerAudit["Owner-only audit boundary"]
+    JOURNAL["Episode / event / final journal\n0700 directory, 0600 files"]
+  end
+  HOST -->|"loopback canonical request"| BRIDGE
+  HOST -->|"safe projection and digest only"| JOURNAL
+  TOOLS -->|"PostToolUse event"| HOST
+  RESOLVER -->|"signed route receipt"| HOST
+  ATTACKER["Caller-supplied classification\nor forged receipt"] -.->|"schema, HMAC, digest rejection"| API
+  RAW["Raw tool input / response"] -.->|"must not persist"| JOURNAL
+```
