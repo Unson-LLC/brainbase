@@ -9,6 +9,12 @@ export const EXPECTED_VIBEPRO_VERSION = "0.2.0-beta.5";
 export const EXPECTED_VIBEPRO_SOURCE_COMMIT = "5e19da4a890a6ae607241d40bbbb438dae6f5124";
 export const CANONICAL_VIBEPRO_LAUNCHER = path.join(homedir(), ".local", "bin", "vibepro");
 
+export function sanitizeHookEnvironment(env = process.env) {
+  return Object.fromEntries(
+    Object.entries(env).filter(([name]) => !name.startsWith("GIT_")),
+  );
+}
+
 export function validateRuntimeIdentity(identity) {
   const failures = [];
   if (!identity || typeof identity !== "object") failures.push("runtime identity is missing");
@@ -45,6 +51,7 @@ export function parseJsonOutput(stdout, label) {
 function invokeVibePro(args, cwd, runner = spawnSync) {
   const result = runner(CANONICAL_VIBEPRO_LAUNCHER, args, {
     cwd,
+    env: sanitizeHookEnvironment(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     timeout: 120000,

@@ -5,6 +5,8 @@ import {
   EXPECTED_VIBEPRO_SOURCE_COMMIT,
   EXPECTED_VIBEPRO_VERSION,
   prepareWithCanonicalRuntime,
+  queryCanonicalIdentity,
+  sanitizeHookEnvironment,
   validateRuntimeIdentity,
 } from "../../.claude/scripts/hooks/lib/vibepro-runtime-contract.mjs";
 
@@ -53,6 +55,23 @@ describe("VibePro canonical runtime hook contract", () => {
     });
     expect(() => prepareWithCanonicalRuntime(process.cwd(), "origin/develop", runner))
       .toThrow(/identity digest differs/);
+  });
+
+  it("does not leak Git hook repository selectors into the canonical runtime", () => {
+    expect(sanitizeHookEnvironment({
+      PATH: "/usr/bin",
+      GIT_DIR: ".git",
+      GIT_WORK_TREE: "/tmp/caller",
+      GIT_INDEX_FILE: "/tmp/caller-index",
+    })).toEqual({ PATH: "/usr/bin" });
+
+    let childOptions;
+    const runner = (_launcher, _args, options) => {
+      childOptions = options;
+      return { status: 0, stdout: JSON.stringify(trustedIdentity()), stderr: "" };
+    };
+    queryCanonicalIdentity(process.cwd(), runner);
+    expect(Object.keys(childOptions.env).some((name) => name.startsWith("GIT_"))).toBe(false);
   });
 
   it("wires both push hooks through the shared validator without the old source checkout", async () => {
