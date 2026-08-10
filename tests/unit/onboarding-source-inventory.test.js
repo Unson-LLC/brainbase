@@ -587,7 +587,7 @@ describe('brainbase-onboarding Skill contract', () => {
     expect(skill).toContain('single_document');
     expect(skill).toContain('Promotion Gate');
     expect(skill).toContain('未確認');
-    expect(capability).toContain('status: implemented_agent_workflow');
+    expect(capability).toContain('status: runtime_contract_implemented_host_entry_blocked');
     expect(capability).toContain('production_e2e: unverified');
   });
 
