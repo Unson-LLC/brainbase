@@ -59,7 +59,7 @@ The Host performs structural filtering. It excludes developer envelopes, compact
 - `request_digest`: exact canonical Resolver request
 - `plan_digest`: normalized initial route without volatile identity/time/digest fields
 - `event_fingerprint`: bound safe event projection
-- `event_set_digest`: ordered immutable final event set
+- `event_set_digest`: `brainbase-judgment-episode-final-v2`が`event_sequence`と`event_fingerprint`の順序付きペアを束縛するimmutable final event set。既存のv1 final receiptは読み取り互換だけを維持し、新規には書かない
 
 All digests are lowercase SHA-256 hexadecimal strings.
 

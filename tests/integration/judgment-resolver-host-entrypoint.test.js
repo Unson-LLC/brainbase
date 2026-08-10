@@ -212,7 +212,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             }
         });
         expect(JSON.parse(readFileSync(join(journalDirectory, `${hash('turn-symlink-entrypoint')}.final.json`), 'utf8'))).toMatchObject({
-            schema_version: 'brainbase-judgment-episode-final-v1',
+            schema_version: 'brainbase-judgment-episode-final-v2',
             completion_status: 'complete',
             event_count: 3,
             qualifying_event_count: 1,

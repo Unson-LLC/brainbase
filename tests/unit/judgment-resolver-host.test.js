@@ -563,7 +563,7 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env });
         expect(result.output).toEqual({});
         expect(result.final).toMatchObject({
-            schema_version: 'brainbase-judgment-episode-final-v1',
+            schema_version: 'brainbase-judgment-episode-final-v2',
             completion_status: 'complete', event_count: 1, qualifying_event_count: 1
         });
         expect(recordBrainbaseToolUse(routePayload, { env })).toEqual(routed);
@@ -571,6 +571,109 @@ describe('Codex Judgment Resolver Host', () => {
             ...routePayload,
             tool_use_id: 'tool-after-final'
         }, { env })).toThrow('judgment_episode_already_finalized');
+    });
+
+    it('final receiptはevent fingerprintの集合だけでなくjournal commit順序も束縛する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-event-order', turn_id: 'turn-event-order',
+            prompt: '判断証跡の順序を確認', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+        const first = recordBrainbaseToolUse({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__search', tool_use_id: 'tool-order-first',
+            tool_input: { query: 'first' },
+            tool_response: { content: [{ type: 'text', text: '📚 Brainbase検索: first → 1件 ✓' }] }
+        }, { env });
+        const second = recordBrainbaseToolUse({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__search', tool_use_id: 'tool-order-second',
+            tool_input: { query: 'second' },
+            tool_response: { content: [{ type: 'text', text: '📚 Brainbase検索: second → 1件 ✓' }] }
+        }, { env });
+
+        expect(finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                first.display_line,
+                second.display_line,
+                '回答'
+            ].join('\n')
+        }, { env }).final).toMatchObject({ completion_status: 'complete', event_count: 2 });
+
+        const eventsDirectory = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.events`);
+        const eventPaths = readdirSync(eventsDirectory).map((name) => join(eventsDirectory, name));
+        const events = eventPaths.map((path) => JSON.parse(readFileSync(path, 'utf8')));
+        for (const [index, eventPath] of eventPaths.entries()) {
+            const event = events[index];
+            const peer = events[1 - index];
+            writeFileSync(eventPath, `${JSON.stringify({ ...event, event_sequence: peer.event_sequence }, null, 2)}\n`);
+        }
+
+        expect(() => finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+            last_assistant_message: 'replay'
+        }, { env })).toThrow('judgment_episode_final_event_set_mismatch');
+    });
+
+    it('既存のv1 final receiptはlegacy digestで読み取り互換を保つ', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-final-v1', turn_id: 'turn-final-v1',
+            prompt: '既存receiptを再生', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+        const recorded = recordBrainbaseToolUse({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__search', tool_use_id: 'tool-final-v1',
+            tool_input: { query: 'legacy' },
+            tool_response: { content: [{ type: 'text', text: '📚 Brainbase検索: legacy → 1件 ✓' }] }
+        }, { env });
+        const answer = [episode.owner_audit.display_line, recorded.display_line, '回答'].join('\n');
+        const created = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false, last_assistant_message: answer
+        }, { env }).final;
+        const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
+        writeFileSync(finalPath, `${JSON.stringify({
+            ...created,
+            schema_version: 'brainbase-judgment-episode-final-v1',
+            event_set_digest: hash(canonicalJson([recorded.event_fingerprint].sort()))
+        }, null, 2)}\n`);
+
+        expect(finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true, last_assistant_message: answer
+        }, { env }).final).toMatchObject({
+            schema_version: 'brainbase-judgment-episode-final-v1',
+            completion_status: 'complete'
+        });
     });
 
     it('Brainbase capabilityが不要ならtool call 0件でもcompleteにし、orphan eventは証拠化しない', async () => {

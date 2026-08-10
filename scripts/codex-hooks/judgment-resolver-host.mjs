@@ -328,7 +328,8 @@ function priorReceipts(sessionRef, currentTurnId, env) {
                 const projection = acceptedProjection(entry.receipt);
                 return projection ? [{ accepted_at: entry.accepted_at, projection }] : [];
             }
-            if (entry.schema_version !== 'brainbase-judgment-episode-final-v1' || entry.completion_status !== 'complete') return [];
+            if (!['brainbase-judgment-episode-final-v1', 'brainbase-judgment-episode-final-v2'].includes(entry.schema_version)
+                || entry.completion_status !== 'complete') return [];
             const episodeName = name.replace(/\.final\.json$/u, '.episode.json');
             if (episodeName === name) return [];
             const episode = readJson(join(directory, episodeName));
@@ -780,6 +781,19 @@ function requiredAuditLines(episode, events) {
     return [episode.owner_audit.display_line, ...events.map((event) => event.display_line)];
 }
 
+function orderedEventSetDigest(events) {
+    const orderedBindings = events.map((entry, index) => {
+        if (entry.event_sequence !== index || !/^[0-9a-f]{64}$/u.test(entry.event_fingerprint)) {
+            throw new Error('judgment_tool_event_order_invalid');
+        }
+        return {
+            event_sequence: entry.event_sequence,
+            event_fingerprint: entry.event_fingerprint
+        };
+    });
+    return sha256(canonicalJson(orderedBindings));
+}
+
 function answerContainsExactAuditPrefix(answer, expectedLines) {
     if (typeof answer !== 'string') return false;
     const lines = answer.replaceAll('\r\n', '\n').split('\n');
@@ -796,7 +810,9 @@ function answerContainsExactAuditPrefix(answer, expectedLines) {
 function existingFinal(paths, episode) {
     try {
         const entry = readJson(paths.final);
-        if (entry.schema_version !== 'brainbase-judgment-episode-final-v1') throw new Error('judgment_episode_final_schema_invalid');
+        if (!['brainbase-judgment-episode-final-v1', 'brainbase-judgment-episode-final-v2'].includes(entry.schema_version)) {
+            throw new Error('judgment_episode_final_schema_invalid');
+        }
         if (episode && entry.initial_route_receipt_digest !== episode.initial_route_receipt_digest) {
             throw new Error('judgment_episode_final_route_mismatch');
         }
@@ -818,13 +834,15 @@ export function finalizeEpisode(payload, { env = process.env } = {}) {
 
 function finalizeEpisodeLocked(payload, episode, paths) {
     const events = episodeEvents(paths);
-    const eventFingerprints = events.map((entry) => entry.event_fingerprint).sort(compareCodePoints);
     const finalized = existingFinal(paths, episode);
     if (finalized) {
         const qualifyingCount = events.filter((entry) => entry.success && entry.satisfies.includes('knowledge.resolve')).length;
+        const eventSetDigest = finalized.schema_version === 'brainbase-judgment-episode-final-v1'
+            ? sha256(canonicalJson(events.map((entry) => entry.event_fingerprint).sort(compareCodePoints)))
+            : orderedEventSetDigest(events);
         if (finalized.event_count !== events.length
             || finalized.qualifying_event_count !== qualifyingCount
-            || finalized.event_set_digest !== sha256(canonicalJson(eventFingerprints))) {
+            || finalized.event_set_digest !== eventSetDigest) {
             throw new Error('judgment_episode_final_event_set_mismatch');
         }
         return { output: {}, final: finalized };
@@ -866,13 +884,13 @@ function finalizeEpisodeLocked(payload, episode, paths) {
         };
     }
     const entry = {
-        schema_version: 'brainbase-judgment-episode-final-v1',
+        schema_version: 'brainbase-judgment-episode-final-v2',
         finalized_at: new Date().toISOString(),
         completion_status: missingKnowledge || missingOwnerAudit ? 'incomplete' : 'complete',
         initial_route_receipt_digest: episode.initial_route_receipt_digest,
         event_count: events.length,
         qualifying_event_count: qualifyingEvents.length,
-        event_set_digest: sha256(canonicalJson(eventFingerprints)),
+        event_set_digest: orderedEventSetDigest(events),
         owner_audit_complete: !missingOwnerAudit,
         owner_audit_line_count: expectedAuditLines.length,
         answer_digest: answer === null ? null : sha256(answer)
