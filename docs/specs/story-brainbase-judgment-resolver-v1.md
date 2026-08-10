@@ -117,7 +117,16 @@ Initial and final receipts are judgment and audit evidence. They do not authoriz
 
 Specific API errors remain distinct. `brainbase_project_not_accessible` is not used merely because project policy is outside the caller's scope.
 
-## 11. Verification matrix
+## 11. Release and rollback contract
+
+- `release_note`: This release changes the Codex judgment lifecycle Host so it uses Node's built-in SQLite when available, preserves atomic episode/event/final transitions, and fails loudly when an active second `Stop` cannot acquire the per-turn transaction. It does not change the public Resolver request schema or add an internal Resolver LLM.
+- `rollout_plan`: After merge, align the canonical global Hook checkout, local `:31013` runtime, persistent MCP runtime, and Lightsail `brainbase-ssot.service` to the same merge SHA. Update the three lifecycle Hook bindings only after the canonical checkout is at that SHA, then run one fresh Codex turn.
+- `observability_evidence`: Success requires `dirty=false` plus the target SHA from local and public `/api/version`, healthy local/public endpoints, a successful MCP runtime check, and one fresh transcript whose episode contains the expected actual Brainbase events and whose final receipt has `owner_audit_complete=true` with an answer digest matching the final assistant message.
+- `rollback_instruction`: Before rollout, capture the exact Hook file and the independently observed SHA for all four runtime surfaces. On failure, follow `docs/brainbase-capabilities/runbooks/judgment-resolve.md#rollback`: restore the canonical Hook/UI checkout, reconcile the persistent MCP runtime, restore Lightsail to its recorded SHA, restore the exact prior Hook file last, and verify one fresh turn. Never delete the owner journal during rollback.
+
+The operator commands and the four-surface rollback order are canonical in `docs/brainbase-capabilities/runbooks/judgment-resolve.md`; Lightsail-specific deployment and rollback commands are canonical in `docs/brainbase-capabilities/runbooks/deploy-lightsail-production.md`.
+
+## 12. Verification matrix
 
 - service/API: strict schema, signing, deterministic manifest-backed classification without an LLM dependency, follow-up inheritance, policy scope, DAG topology
 - UserPromptSubmit Host: transcript extraction, structural exclusion, privacy, exact current message, retry/create/reuse/conflict
@@ -126,7 +135,7 @@ Specific API errors remain distinct. `brainbase_project_not_accessible` is not u
 - end-to-end: Codex Host initial dispatch -> Codex open-ended reasoning and repeated model/tool loop -> final episode receipt
 - publication: `CLAUDE.md`/`AGENTS.md`, Skill, capability, runbook, story, and tests expose the same lifecycle
 
-## 12. Threat model (`kind: threat_model`)
+## 13. Threat model (`kind: threat_model`)
 
 ```mermaid
 flowchart LR

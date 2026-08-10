@@ -78,6 +78,15 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 - [ ] capability YAML、runbook、README index、agent entry Skill/always-loaded instructionが実装境界と一致する。
 - [ ] 根拠のない固定閾値を追加せず、分類、reconciliation、適用理由を監査できる。
 
+## Release operation
+
+- `release_note`: Codexのjudgment lifecycle Hostは、利用可能なruntimeではNode組み込みSQLiteを使い、episode/event/finalの原子的遷移を維持し、activeな2回目の`Stop`がtransactionを取得できない場合は明示的に失敗する。Resolverの公開request schemaと「内部Resolver LLMなし」の境界は変えない。
+- `rollout_plan`: merge SHAを正本としてglobal Hook checkout、local `:31013`、persistent MCP runtime、Lightsail `brainbase-ssot.service`の4面を同じSHAへ揃え、最後にfresh Codex turnで実動確認する。
+- `observability_evidence`: local/public `/api/version`のtarget SHAと`dirty=false`、health、MCP runtime check、fresh transcript、actual Brainbase event、`owner_audit_complete=true`、final answer digest一致を成功条件とする。
+- `rollback_instruction`: 変更前のHook fileと4面のSHAを保存し、失敗時は`docs/brainbase-capabilities/runbooks/judgment-resolve.md#rollback`の順序でHook/UI checkout、MCP runtime、Lightsail、最後に元のHook fileを復元する。journalは削除しない。
+
+実コマンドの正本は`docs/brainbase-capabilities/runbooks/judgment-resolve.md`と`docs/brainbase-capabilities/runbooks/deploy-lightsail-production.md`である。
+
 ## スコープ外
 
 - 汎用のLLM自然言語分類サービス
