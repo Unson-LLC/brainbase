@@ -121,13 +121,42 @@ cmp -s CLAUDE.md AGENTS.md
 
 The preflight is a signed read-only probe. A successful probe is not proof that the global hook, all lifecycle events, or persistent runtime uses the new checkout. Verify deployed commit, actual Hook config, one fresh turn, PostToolUse event count, Stop final status, and owner-visible wording separately.
 
-To verify the live Codex path, start a fresh turn and make the model perform this bounded result-dependent lookup: resolve the canonical source for the Judgment Resolver contract, search Graph for `Judgment Resolver`, broaden a zero-result search to `判断`, then retrieve the returned `glossary_term` entity. Within one hour of that turn, run:
+To verify the live Codex path, first bind the contract checkout and a unique nonce:
 
 ```bash
+export BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD="$(git rev-parse HEAD)"
+export BRAINBASE_JUDGMENT_E2E_NONCE="jr-e2e-$(date +%s)"
+export BRAINBASE_JUDGMENT_E2E_RUN_QUERY="E2E-${BRAINBASE_JUDGMENT_E2E_NONCE}-${BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD}"
+printf 'Use this exact verification query in the first two lookups: %s\n' "$BRAINBASE_JUDGMENT_E2E_RUN_QUERY"
+```
+
+Start a fresh Codex turn and include that printed query in a request that makes the model perform this bounded result-dependent lookup: resolve the canonical source for the Judgment Resolver contract with that query, search Graph with the same query, broaden the expected zero-result search to `判断`, then retrieve the returned `glossary_term` entity. After the turn completes, bind the one episode containing that nonce and run the check:
+
+```bash
+JUDGMENT_E2E_CANDIDATES="$(
+  rg -l --fixed-strings "$BRAINBASE_JUDGMENT_E2E_NONCE" \
+    "${CODEX_HOME:-$HOME/.codex}/var/judgment-resolver" -g '*.json' \
+    | sed -E 's#\.events/[^/]+\.json$#.episode.json#' \
+    | grep '\.episode\.json$' \
+    | sort -u
+)"
+test "$(printf '%s\n' "$JUDGMENT_E2E_CANDIDATES" | sed '/^$/d' | wc -l | tr -d ' ')" = 1
+export BRAINBASE_JUDGMENT_E2E_EPISODE_PATH="$JUDGMENT_E2E_CANDIDATES"
 node --test tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts
 ```
 
-This check reads the installed global Hook bindings and the owner-only journal. It passes only when `UserPromptSubmit`, `PostToolUse`, and `Stop` use the canonical entrypoint, the installed lifecycle adapter files are content-equivalent to the current contract checkout, the fresh episode has a verified initial route, and the four successful Brainbase events preserve the result-dependent query sequence. This is not proof that the installed Hook checkout has the same Git SHA as the contract checkout. Verify the merged/deployed checkout SHA separately after deployment. The check does not manufacture tool events or treat a synthetic entrypoint test as live model evidence.
+The command fails if the nonce resolves to zero or multiple episodes or if the query-embedded source HEAD differs from `BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD`; it also requires that the final receipt is at most one hour old. It reads the installed global Hook bindings and the owner-only journal, and passes only when `UserPromptSubmit`, `PostToolUse`, and `Stop` resolve to the same installed entrypoint, both lifecycle adapter files at every resolved Hook root are content-equivalent to the current contract checkout, the fresh episode has a verified initial route, and the four successful Brainbase events preserve the result-dependent query sequence. This is not proof that the installed Hook checkout has the same Git SHA as the contract checkout. The check does not manufacture tool events or treat a synthetic entrypoint test as live model evidence.
+
+Verify the merged/deployed checkout SHA separately after deployment. Use one target SHA and prove each deployment surface independently; do not infer complete deployment from only one row:
+
+| Surface | Proof |
+| --- | --- |
+| Global Codex lifecycle Hook checkout | Resolve all three entrypoint commands from `~/.codex/hooks.json`; they must name the same absolute entrypoint. Run `git -C <resolved-checkout-root> rev-parse HEAD` and `git -C <resolved-checkout-root> status --short`; the SHA must equal the merged target and the checkout must be clean. |
+| Canonical local UI/API | Follow [`verify-31013-source.md`](./verify-31013-source.md). `GET http://127.0.0.1:31013/api/version` must report the target SHA with `dirty=false`; use [`restart-31013-launchd.md`](./restart-31013-launchd.md) when restart is required. |
+| Persistent MCP Host bridge | Run `scripts/reconcile-brainbase-mcp-runtime.sh "$TARGET_SHA"`, then `scripts/run-brainbase-mcp.sh --check`. `/Users/ksato/workspace/var/brainbase-mcp-reconcile.last` must contain `sha=$TARGET_SHA`, and `launchctl print gui/$(id -u)/com.brainbase.mcp-brainbase` must report a running job. |
+| Lightsail Resolver API/server | Follow [`deploy-lightsail-production.md`](./deploy-lightsail-production.md). Both the instance and public `GET /api/version` must report the target SHA with `dirty=false`, and public health plus the authenticated Graph probe must pass. |
+
+Set `TARGET_SHA` from the merge result, not from an unmerged review checkout. Content-equivalent installed Hook files prove adapter activation before merge; only the checkout, reconciliation receipt, and version checks above prove post-merge SHA alignment.
 
 ### Rollback
 

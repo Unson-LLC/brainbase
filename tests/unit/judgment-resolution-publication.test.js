@@ -130,5 +130,21 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('content-equivalent to the current contract checkout');
         expect(runbook).toContain('not proof that the installed Hook checkout has the same Git SHA');
         expect(runbook).toContain('Verify the merged/deployed checkout SHA separately after deployment');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_EPISODE_PATH');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_NONCE');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_RUN_QUERY');
+        expect(runbook).toContain('query-embedded source HEAD differs');
+        expect(runbook).toContain('final receipt is at most one hour old');
+        expect(runbook).toContain('scripts/reconcile-brainbase-mcp-runtime.sh "$TARGET_SHA"');
+        expect(runbook).toContain('brainbase-mcp-reconcile.last');
+        expect(runbook).toContain('deploy-lightsail-production.md');
+
+        const lightsailRunbook = read('docs/brainbase-capabilities/runbooks/deploy-lightsail-production.md');
+        expect(lightsailRunbook).toContain('TARGET_SHA="$(git rev-parse HEAD)"');
+        expect(lightsailRunbook).toContain('git?.sha !== process.env.TARGET_SHA');
+        expect(lightsailRunbook).toContain('Unexpected public runtime Git state');
+        expect(lightsailRunbook).toContain('https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node');
+        expect(lightsailRunbook).not.toContain('127.0.0.1:55123/api/version | jq');
     });
 });

@@ -13,6 +13,7 @@ const CANONICAL_ENTRYPOINT = 'scripts/codex-hooks/judgment-resolver-entry.sh';
 const EVIDENCE_EPISODE_PATH = process.env.BRAINBASE_JUDGMENT_E2E_EPISODE_PATH || '';
 const EXPECTED_HEAD = process.env.BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD || '';
 const EXPECTED_NONCE = process.env.BRAINBASE_JUDGMENT_E2E_NONCE || '';
+const EXPECTED_RUN_QUERY = process.env.BRAINBASE_JUDGMENT_E2E_RUN_QUERY || '';
 const REGRESSION_SCRIPT = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'))
     .scripts['test:judgment-resolution'];
 
@@ -58,8 +59,8 @@ function hookCommands(config, hookName) {
         .map((hook) => hook.command || '');
 }
 
-function canonicalEntrypointPath(config) {
-    const command = hookCommands(config, 'UserPromptSubmit')
+function canonicalEntrypointPath(config, hookName) {
+    const command = hookCommands(config, hookName)
         .find((candidate) => candidate.includes(CANONICAL_ENTRYPOINT));
     const match = command?.match(/(?:^|\s)["']?(\/[^\s"']*\/scripts\/codex-hooks\/judgment-resolver-entry\.sh)["']?/u);
     return match?.[1] || '';
@@ -92,6 +93,29 @@ function regressionCovers(file, evidenceText, regressionStatus) {
         && REGRESSION_SCRIPT.includes(file)
         && readFileSync(join(process.cwd(), file), 'utf8').includes(evidenceText);
 }
+
+function assertLiveEvidenceBinding(expectedHead, expectedNonce, expectedRunQuery) {
+    assert.match(expectedHead, /^[0-9a-f]{40}$/u, 'Expected current HEAD must be a full SHA');
+    assert.match(expectedNonce, /^[0-9a-z-]{8,64}$/u, 'Expected run nonce must be explicit');
+    const evidenceSourceHead = expectedRunQuery.slice(-40);
+    assert.match(evidenceSourceHead, /^[0-9a-f]{40}$/u, 'Run query must retain its source HEAD');
+    assert.equal(expectedRunQuery, `E2E-${expectedNonce}-${evidenceSourceHead}`);
+    assert.equal(
+        evidenceSourceHead,
+        expectedHead,
+        'Live episode evidence must be generated for the same HEAD as the contract under test'
+    );
+}
+
+test('story-brainbase-judgment-resolver-v1 は旧HEADのlive episode証跡を拒否する', () => {
+    const currentHead = 'a'.repeat(40);
+    const staleHead = 'b'.repeat(40);
+
+    assert.throws(
+        () => assertLiveEvidenceBinding(currentHead, 'jr-e2e-stale-head', `E2E-jr-e2e-stale-head-${staleHead}`),
+        /same HEAD as the contract under test/u
+    );
+});
 
 test('story-brainbase-judgment-resolver-v1 AC-4 ac:4 follow-up minimal DAG coverage marker', () => {
     const serviceTestPath = 'tests/unit/judgment-resolution-service.test.js';
@@ -205,8 +229,7 @@ test('story-brainbase-judgment-resolver-v1 AC-17 ac:17 auditable threshold cover
 test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する', () => {
     assert.ok(existsSync(HOOK_CONFIG), `Codex global hook config is missing: ${HOOK_CONFIG}`);
     assert.ok(existsSync(JOURNAL_ROOT), `Judgment journal is missing: ${JOURNAL_ROOT}`);
-    assert.ok(EXPECTED_HEAD.match(/^[0-9a-f]{40}$/u), 'Expected current HEAD must be a full SHA');
-    assert.ok(EXPECTED_NONCE.match(/^[0-9a-z-]{8,64}$/u), 'Expected run nonce must be explicit');
+    assertLiveEvidenceBinding(EXPECTED_HEAD, EXPECTED_NONCE, EXPECTED_RUN_QUERY);
     const currentHead = spawnSync('git', ['rev-parse', 'HEAD'], {
         cwd: process.cwd(),
         encoding: 'utf8'
@@ -230,18 +253,34 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         );
     }
 
-    const installedEntrypoint = canonicalEntrypointPath(config);
-    assert.ok(installedEntrypoint && existsSync(installedEntrypoint), 'Installed canonical Hook entrypoint is not resolvable');
-    const installedHookRoot = resolve(dirname(installedEntrypoint), '..', '..');
-    for (const runtimeFile of [
-        CANONICAL_ENTRYPOINT,
-        'scripts/codex-hooks/judgment-resolver-host.mjs'
-    ]) {
-        assert.equal(
-            fileDigest(join(installedHookRoot, runtimeFile)),
-            fileDigest(join(process.cwd(), runtimeFile)),
-            `Installed lifecycle adapter must be content-equivalent to current HEAD: ${runtimeFile}`
+    const installedEntrypoints = ['UserPromptSubmit', 'PostToolUse', 'Stop']
+        .map((hookName) => ({
+            hookName,
+            path: canonicalEntrypointPath(config, hookName)
+        }));
+    for (const installed of installedEntrypoints) {
+        assert.ok(
+            installed.path && existsSync(installed.path),
+            `${installed.hookName} canonical Hook entrypoint is not resolvable`
         );
+    }
+    assert.equal(
+        new Set(installedEntrypoints.map((installed) => installed.path)).size,
+        1,
+        'UserPromptSubmit, PostToolUse, and Stop must use the same installed lifecycle adapter checkout'
+    );
+    for (const installed of installedEntrypoints) {
+        const installedHookRoot = resolve(dirname(installed.path), '..', '..');
+        for (const runtimeFile of [
+            CANONICAL_ENTRYPOINT,
+            'scripts/codex-hooks/judgment-resolver-host.mjs'
+        ]) {
+            assert.equal(
+                fileDigest(join(installedHookRoot, runtimeFile)),
+                fileDigest(join(process.cwd(), runtimeFile)),
+                `${installed.hookName} lifecycle adapter must be content-equivalent to current HEAD: ${runtimeFile}`
+            );
+        }
     }
 
     const candidate = readBoundEpisode();
@@ -253,7 +292,7 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         const excerpt = candidate.events[index].query_excerpt || '';
         assert.ok(expected.includes().every((token) => excerpt.includes(token)));
     }
-    const runQuery = `E2E-${EXPECTED_NONCE}-${EXPECTED_HEAD}`;
+    const runQuery = EXPECTED_RUN_QUERY;
     assert.equal(candidate.events[0].input_digest, inputDigest({
         audience: 'team',
         content_type: 'unknown',
@@ -276,6 +315,13 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assert.equal(candidate.final.event_count, 4);
     assert.equal(candidate.final.qualifying_event_count, 1);
     assert.match(candidate.final.answer_digest, /^[0-9a-f]{64}$/u);
+    const finalizedAt = Date.parse(candidate.final.finalized_at);
+    const evidenceAgeMs = Date.now() - finalizedAt;
+    assert.ok(Number.isFinite(finalizedAt), 'Final receipt must have a valid finalized_at timestamp');
+    assert.ok(
+        evidenceAgeMs >= -5 * 60 * 1000 && evidenceAgeMs <= 60 * 60 * 1000,
+        'Live evidence must be finalized within the last hour'
+    );
 
     const regression = spawnSync('npm', ['run', 'test:judgment-resolution'], {
         cwd: process.cwd(),

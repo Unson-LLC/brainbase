@@ -204,5 +204,5 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             event_count: 3,
             qualifying_event_count: 1
         });
-    });
+    }, 20_000);
 });

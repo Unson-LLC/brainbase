@@ -22,7 +22,10 @@ cd /home/ubuntu/brainbase
 git status -sb            # must be clean; HEAD is normally detached at a develop commit
 git log --oneline -3
 systemctl status brainbase-ssot.service --no-pager | head -8
-curl -s http://127.0.0.1:55123/api/version | jq '.version, .runtime.git'
+curl -fsS http://127.0.0.1:55123/api/version | node -e '
+const value = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+console.log(JSON.stringify({ version: value.version, git: value.runtime?.git }, null, 2));
+'
 ```
 
 Do not proceed if the worktree is dirty — inspect the diff first and decide whether it is server-only state that must be preserved or stale changes.
@@ -58,12 +61,35 @@ The unit is `/etc/systemd/system/brainbase-ssot.service` with drop-ins (`infisic
 
 ```bash
 # On the instance
-curl -s http://127.0.0.1:55123/api/health
-curl -s http://127.0.0.1:55123/api/version | jq '.runtime.git.sha, .runtime.git.dirty'
+TARGET_SHA="$(git rev-parse HEAD)"
+curl -fsS http://127.0.0.1:55123/api/health
+curl -fsS http://127.0.0.1:55123/api/version | TARGET_SHA="$TARGET_SHA" node -e '
+const value = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+const git = value.runtime?.git;
+if (git?.sha !== process.env.TARGET_SHA || git?.dirty !== false) {
+  console.error(`Unexpected runtime Git state: ${JSON.stringify(git)}`);
+  process.exit(1);
+}
+console.log(JSON.stringify(git));
+'
 journalctl -u brainbase-ssot.service --since "-5 min" --no-pager | tail -20
+```
 
-# From your Mac
-curl -s -o /dev/null -w "%{http_code}\n" https://bb.unson.jp/api/health
+From your Mac, bind the same merged develop SHA explicitly and verify the public proxy path independently:
+
+```bash
+TARGET_SHA="<40-character merged develop SHA>"
+[[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
+curl -fsS https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node -e '
+const value = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+const git = value.runtime?.git;
+if (git?.sha !== process.env.TARGET_SHA || git?.dirty !== false) {
+  console.error(`Unexpected public runtime Git state: ${JSON.stringify(git)}`);
+  process.exit(1);
+}
+console.log(JSON.stringify(git));
+'
+curl -fsS -o /dev/null -w "%{http_code}\n" https://bb.unson.jp/api/health
 TOKEN=$(jq -r .access_token ~/.brainbase/tokens.json)
 curl -s -H "Authorization: Bearer $TOKEN" \
   "https://bb.unson.jp/api/info/graph/entities?type=project&limit=1" | jq '.[0].entity_id? // .'
