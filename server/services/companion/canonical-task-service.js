@@ -731,7 +731,7 @@ export class CanonicalTaskService {
 
     async updateTask(taskId, input = {}, context) {
         context = this.normalizeOwnerContext(context);
-        const allowed = ['title', 'description', 'priority', 'assignee_person_id', 'due_at'];
+        const allowed = ['title', 'description', 'priority', 'assignee_person_id', 'due_at', 'project_codes'];
         const errors = {};
         const patch = {};
         for (const key of Object.keys(input)) {
@@ -747,6 +747,11 @@ export class CanonicalTaskService {
         }
         if ('due_at' in input) patch.due_at = iso(input.due_at, errors, 'due_at');
         if ('assignee_person_id' in input) patch.assignee_person_id = input.assignee_person_id;
+        if ('project_codes' in input) {
+            if (!Array.isArray(input.project_codes)) errors.project_codes = ['must_be_array'];
+            else if (hasInvalidProjectCode(input.project_codes)) errors.project_codes = ['invalid_project_code'];
+            else patch.project_codes = normalizeProjectCodes(input.project_codes);
+        }
         if (Object.keys(errors).length) throw validationError(errors);
         if (this.isOwner(context) && 'assignee_person_id' in patch && patch.assignee_person_id !== this.ownerPersonId) {
             throw new CanonicalTaskError('forbidden_assignee', 'Owner credentials cannot change Task ownership', 403);

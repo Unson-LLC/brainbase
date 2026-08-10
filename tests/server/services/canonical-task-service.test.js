@@ -186,6 +186,26 @@ describe('CanonicalTaskService', () => {
         )).rejects.toMatchObject({ code: 'validation_failed' });
     });
 
+    it('normalizes project codes when updating an existing task', async () => {
+        await fixture.service.updateTask(
+            'task_1',
+            { expected_version: 1, project_codes: [' mana ', 'brainbase', 'mana'] },
+            ownerContext()
+        );
+
+        expect(fixture.repository.update).toHaveBeenCalledWith('task_1', expect.objectContaining({
+            project_codes: ['mana', 'brainbase']
+        }));
+    });
+
+    it('rejects malformed project codes when updating an existing task', async () => {
+        await expect(fixture.service.updateTask(
+            'task_1',
+            { expected_version: 1, project_codes: ['mana', ''] },
+            ownerContext()
+        )).rejects.toMatchObject({ code: 'validation_failed' });
+    });
+
     it('audits create, update, transition, and delete with actor and changes', async () => {
         await fixture.service.createTask(
             { title: '監査対象', priority: 'high', source_refs: [{ type: 'manual', id: 'source-1' }] },
