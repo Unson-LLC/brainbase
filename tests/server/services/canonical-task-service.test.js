@@ -8,6 +8,7 @@ function task(overrides = {}) {
     return {
         id: 'task_1', version: 1, title: '確認する', description: null,
         status: 'pending', priority: 'medium', assignee_person_id: OWNER,
+        project_codes: [],
         assignee_display_name: '佐藤圭吾', due_at: null, waiting_on: null,
         review_at: null, completed_at: null, source_refs: [], created_at: '2026-07-14T00:00:00.000Z',
         updated_at: '2026-07-14T00:00:00.000Z', web_url: null, normalization_warnings: [],
@@ -161,6 +162,28 @@ describe('CanonicalTaskService', () => {
             assignee_person_id: OWNER,
             idempotency_key: expect.stringMatching(/^api:v1\..+:request-1$/)
         }));
+    });
+
+    it('normalizes project codes on create and passes their union to list', async () => {
+        await fixture.service.createTask(
+            { title: '複数案件', project_codes: [' mana ', 'brainbase', 'mana'] },
+            { ...ownerContext(), idempotencyKey: 'project-union' }
+        );
+        expect(fixture.repository.create).toHaveBeenCalledWith(expect.objectContaining({
+            project_codes: ['mana', 'brainbase']
+        }));
+
+        await fixture.service.listTasks({ project_code: ['mana', 'brainbase'] }, ownerContext());
+        expect(fixture.repository.list).toHaveBeenLastCalledWith(expect.objectContaining({
+            projectCodes: ['mana', 'brainbase']
+        }));
+    });
+
+    it('rejects malformed project codes', async () => {
+        await expect(fixture.service.createTask(
+            { title: '不正', project_codes: ['mana', ''] },
+            { ...ownerContext(), idempotencyKey: 'bad-project' }
+        )).rejects.toMatchObject({ code: 'validation_failed' });
     });
 
     it('audits create, update, transition, and delete with actor and changes', async () => {

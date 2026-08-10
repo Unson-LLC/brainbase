@@ -13,7 +13,7 @@ const SCHEMA_PATH = path.join(ROOT, 'server/sql/canonical-task-store-schema.sql'
 const REQUIRED_COLUMNS = [
     'id', 'legacy_nocodb_id', 'title', 'description', 'status', 'priority',
     'assignee_person_id', 'assignee_display_name', 'due_at', 'waiting_on',
-    'review_at', 'completed_at', 'source_refs', 'version', 'idempotency_key',
+    'review_at', 'completed_at', 'source_refs', 'project_codes', 'version', 'idempotency_key',
     'payload_fingerprint', 'last_operation_key', 'last_operation_fingerprint',
     'created_at', 'updated_at'
 ];
@@ -51,7 +51,7 @@ export async function checkCanonicalTaskPostgresSchema(pool) {
          WHERE schemaname = current_schema() AND tablename = 'canonical_tasks'`
     );
     const indexes = new Set(indexResult.rows.map((row) => row.indexname));
-    for (const required of ['canonical_tasks_status_priority_idx', 'canonical_tasks_assignee_due_idx']) {
+    for (const required of ['canonical_tasks_status_priority_idx', 'canonical_tasks_assignee_due_idx', 'canonical_tasks_project_codes_idx']) {
         if (!indexes.has(required)) throw new Error(`Canonical Task PostgreSQL schema is missing ${required}`);
     }
     return { ok: true, table: 'canonical_tasks', columns: REQUIRED_COLUMNS.length };
@@ -81,6 +81,7 @@ async function sourceRows(repository) {
             review_at: task.review_at,
             completed_at: task.completed_at,
             source_refs: task.source_refs,
+            project_codes: task.project_codes ?? [],
             version: task.version,
             idempotency_key: String(idempotencyKey),
             payload_fingerprint: task._payload_fingerprint,
@@ -160,17 +161,17 @@ async function insertRows(pool, rows) {
                 `INSERT INTO canonical_tasks (
                     id, legacy_nocodb_id, title, description, status, priority,
                     assignee_person_id, assignee_display_name, due_at, waiting_on,
-                    review_at, completed_at, source_refs, version, idempotency_key,
+                    review_at, completed_at, source_refs, project_codes, version, idempotency_key,
                     payload_fingerprint, last_operation_key, last_operation_fingerprint,
                     created_at, updated_at
                  ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-                    $11, $12, $13::jsonb, $14, $15, $16, $17, $18, $19, $20
+                    $11, $12, $13::jsonb, $14::text[], $15, $16, $17, $18, $19, $20, $21
                  )`,
                 [
                     row.id, row.legacy_nocodb_id, row.title, row.description, row.status, row.priority,
                     row.assignee_person_id, row.assignee_display_name, row.due_at, row.waiting_on,
-                    row.review_at, row.completed_at, JSON.stringify(row.source_refs), row.version,
+                    row.review_at, row.completed_at, JSON.stringify(row.source_refs), row.project_codes, row.version,
                     row.idempotency_key, row.payload_fingerprint, row.last_operation_key,
                     row.last_operation_fingerprint, row.created_at, row.updated_at
                 ]

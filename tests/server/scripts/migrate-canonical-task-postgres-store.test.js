@@ -9,7 +9,7 @@ import {
 const columns = [
     'id', 'legacy_nocodb_id', 'title', 'description', 'status', 'priority',
     'assignee_person_id', 'assignee_display_name', 'due_at', 'waiting_on',
-    'review_at', 'completed_at', 'source_refs', 'version', 'idempotency_key',
+    'review_at', 'completed_at', 'source_refs', 'project_codes', 'version', 'idempotency_key',
     'payload_fingerprint', 'last_operation_key', 'last_operation_fingerprint',
     'created_at', 'updated_at'
 ];
@@ -29,6 +29,7 @@ function sourceRepository(records) {
             review_at: null,
             completed_at: null,
             source_refs: [],
+            project_codes: [],
             version: 1,
             created_at: '2026-07-28T00:00:00.000Z',
             updated_at: '2026-07-28T00:00:00.000Z',
@@ -47,7 +48,8 @@ function checkingPool({ existingRows = [], targetCount = 0 } = {}) {
             if (sql.includes('pg_indexes')) {
                 return { rows: [
                     { indexname: 'canonical_tasks_status_priority_idx' },
-                    { indexname: 'canonical_tasks_assignee_due_idx' }
+                    { indexname: 'canonical_tasks_assignee_due_idx' },
+                    { indexname: 'canonical_tasks_project_codes_idx' }
                 ] };
             }
             if (sql.includes('SELECT legacy_nocodb_id, idempotency_key, payload_fingerprint')) {

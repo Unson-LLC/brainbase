@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS canonical_tasks (
     review_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
     source_refs JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(source_refs) = 'array'),
+    project_codes TEXT[] NOT NULL DEFAULT '{}'::text[],
     version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0),
     idempotency_key TEXT NOT NULL UNIQUE,
     payload_fingerprint TEXT,
@@ -21,7 +22,12 @@ CREATE TABLE IF NOT EXISTS canonical_tasks (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE canonical_tasks
+    ADD COLUMN IF NOT EXISTS project_codes TEXT[] NOT NULL DEFAULT '{}'::text[];
+
 CREATE INDEX IF NOT EXISTS canonical_tasks_status_priority_idx
     ON canonical_tasks (status, priority);
 CREATE INDEX IF NOT EXISTS canonical_tasks_assignee_due_idx
     ON canonical_tasks (assignee_person_id, due_at);
+CREATE INDEX IF NOT EXISTS canonical_tasks_project_codes_idx
+    ON canonical_tasks USING GIN (project_codes);

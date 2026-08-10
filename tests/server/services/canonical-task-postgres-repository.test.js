@@ -15,6 +15,7 @@ const persisted = Object.freeze({
     description: null,
     status: 'pending',
     priority: 'medium',
+    project_codes: ['mana', 'brainbase'],
     assignee_person_id: 'person-1',
     assignee_display_name: 'Owner',
     due_at: null,
@@ -60,6 +61,7 @@ describe('CanonicalTaskPostgresRepository', () => {
         const page = await repository(pool).list({
             statuses: ['pending'],
             priorities: ['medium'],
+            projectCodes: ['mana', 'brainbase'],
             assigneePersonId: 'person-1',
             dueAfter: '2026-07-01T00:00:00Z',
             dueBefore: '2026-08-01T00:00:00Z',
@@ -73,7 +75,8 @@ describe('CanonicalTaskPostgresRepository', () => {
         });
         expect(page.nextCursor).toBeTruthy();
         expect(pool.query.mock.calls[0][0]).toContain('status = ANY($1::text[])');
-        expect(pool.query.mock.calls[1][0]).toContain('LIMIT $6 OFFSET $7');
+        expect(pool.query.mock.calls[0][0]).toContain('project_codes && $3::text[]');
+        expect(pool.query.mock.calls[1][0]).toContain('LIMIT $7 OFFSET $8');
     });
 
     it('creates idempotently and preserves operation markers', async () => {
@@ -91,6 +94,7 @@ describe('CanonicalTaskPostgresRepository', () => {
         expect(created).toMatchObject({ title: persisted.title, version: 1 });
         expect(created._payload_fingerprint).toBe('payload');
         expect(pool.query.mock.calls[0][0]).toContain('ON CONFLICT (idempotency_key) DO NOTHING');
+        expect(pool.query.mock.calls[0][0]).toContain('project_codes');
     });
 
     it('updates fields and version atomically using a legacy locator', async () => {
