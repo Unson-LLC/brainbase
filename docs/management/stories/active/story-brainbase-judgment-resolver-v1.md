@@ -43,7 +43,7 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 
 ## 影響範囲
 
-今回の変更は、実装済みのJudgment Resolver契約をStory、Architecture、Spec、Skill、always-loaded instruction、capability、runbook、README indexへ同期し、publication testでその一致を固定する。runtime source、API、DB schema、UI挙動は変更しない。現行Codex integrationと将来のClaude Code adapter候補、判断receiptとaction authorization、routeと実際のknowledge/retrieval callの境界がreview対象である。ローカルUI再起動は不要で、本番反映はmerge済みcommitと公開契約のSHAを揃えるために行う。
+今回の変更は、実装済みのJudgment Resolver契約をStory、Architecture、Spec、Skill、always-loaded instruction、capability、runbook、README indexへ同期し、publication testでその一致を固定する。加えて、global Hook設定とowner-only journalを使い、実Codex turnの結果依存0..N検索を検証するlive-session E2Eを追加する。runtime source、API、DB schema、UI挙動は変更しない。現行Codex integrationと将来のClaude Code adapter候補、判断receiptとaction authorization、routeと実際のknowledge/retrieval callの境界がreview対象である。ローカルUI再起動は不要で、本番反映はmerge済みcommitと公開契約のSHAを揃えるために行う。
 
 ## 受け入れ基準
 
