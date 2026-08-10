@@ -5,8 +5,19 @@ status: accepted
 updated_at: 2026-08-10
 diagrams:
   - kind: threat_model
-    path: docs/specs/brainbase-judgment-resolver-v1-spec.md
+    path: docs/specs/story-brainbase-judgment-resolver-v1.md
     purpose: Codex lifecycle Host、persistent Brainbase bridge、Resolver API、Brainbase tools、owner-only journalのtrust boundaryを示す。
+    mermaid: |
+      flowchart LR
+        Host["Codex lifecycle Host"] --> Bridge["Loopback Brainbase bridge"]
+        Bridge -->|"HMAC request"| API["Resolver API"]
+        API --> Resolver["Deterministic Resolver"]
+        Resolver --> API
+        API --> Bridge
+        Bridge -->|"validated receipt"| Host
+        Host --> Journal["Owner-only episode/event/final journal"]
+        Model["Codex model"] --> Tools["Brainbase MCP tools 0..N"]
+        Tools --> Host
 ---
 
 # Brainbase Judgment Resolver episode lifecycle specification
@@ -122,16 +133,28 @@ flowchart LR
     MODEL["Codex model"] --> TOOLS["Brainbase MCP tools"]
   end
   subgraph BrainbaseRuntime["Persistent Brainbase runtime boundary"]
-    BRIDGE["Host bridge\nsigner copy"] --> API["Resolver API\nverifier copy"]
-    API --> RESOLVER["Deterministic Resolver"]
+    BRIDGE["Host bridge\nrequest signer copy"]
+    API["Resolver API\nrequest verifier copy"]
+    RESOLVER["Deterministic Resolver"]
   end
   subgraph OwnerAudit["Owner-only audit boundary"]
-    JOURNAL["Episode / event / final journal\n0700 directory, 0600 files"]
+    EPISODE["Episode journal\nverified initial route + owner audit"]
+    EVENTS["Event journal\nsafe projection + input/response digests"]
+    FINAL["Final journal\ncounts + event/answer digests"]
   end
   HOST -->|"loopback canonical request"| BRIDGE
-  HOST -->|"safe projection and digest only"| JOURNAL
+  BRIDGE -->|"HMAC-signed canonical request"| API
+  API -->|"verified request"| RESOLVER
+  RESOLVER -->|"route response"| API
+  API -->|"untrusted response body"| BRIDGE
+  BRIDGE -->|"schema, binding, digest, DAG validated receipt"| HOST
+  HOST -->|"full verified route receipt"| EPISODE
+  HOST -->|"PostToolUse projection"| EVENTS
+  HOST -->|"immutable completion summary"| FINAL
   TOOLS -->|"PostToolUse event"| HOST
-  RESOLVER -->|"signed route receipt"| HOST
-  ATTACKER["Caller-supplied classification\nor forged receipt"] -.->|"schema, HMAC, digest rejection"| API
-  RAW["Raw tool input / response"] -.->|"must not persist"| JOURNAL
+  ATTACKER["Caller-supplied classification\nor forged request"] -.->|"schema, HMAC, digest rejection"| API
+  FORGED["Forged or mismatched response"] -.->|"schema, binding, digest, DAG rejection"| BRIDGE
+  FORGED -.->|"receipt binding recheck"| HOST
+  RAW["Raw tool input / response"] -.->|"must not persist"| EVENTS
+  ANSWER["Raw answer body"] -.->|"must not persist"| FINAL
 ```

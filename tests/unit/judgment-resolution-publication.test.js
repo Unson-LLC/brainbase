@@ -47,7 +47,7 @@ describe('judgment resolver publication surfaces', () => {
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
         const architecture = read('docs/architecture/story-brainbase-judgment-resolver-v1.md');
         const story = read('docs/management/stories/active/story-brainbase-judgment-resolver-v1.md');
-        const spec = read('docs/specs/brainbase-judgment-resolver-v1-spec.md');
+        const spec = read('docs/specs/story-brainbase-judgment-resolver-v1.md');
         const surfaces = [skill, capability, runbook, architecture, story, spec];
 
         for (const surface of surfaces) {

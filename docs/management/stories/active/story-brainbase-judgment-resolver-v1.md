@@ -8,7 +8,7 @@ architecture_docs:
   - path: docs/architecture/story-brainbase-judgment-resolver-v1.md
     status: accepted
 spec_docs:
-  - docs/specs/brainbase-judgment-resolver-v1-spec.md
+  - docs/specs/story-brainbase-judgment-resolver-v1.md
 status: active
 created_at: 2026-08-07
 updated_at: 2026-08-10
