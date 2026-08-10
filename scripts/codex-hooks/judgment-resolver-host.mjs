@@ -18,7 +18,24 @@ import {
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Database from 'better-sqlite3';
+
+let Database;
+const builtInSqlite = process.getBuiltinModule?.('node:sqlite');
+if (builtInSqlite) {
+    const { DatabaseSync } = builtInSqlite;
+    Database = class NodeSqliteDatabase {
+        constructor(path, { timeout = 0 } = {}) {
+            this.database = new DatabaseSync(path);
+            this.database.exec(`PRAGMA busy_timeout = ${timeout}`);
+        }
+
+        pragma(statement) { this.database.exec(`PRAGMA ${statement}`); }
+        exec(statement) { return this.database.exec(statement); }
+        close() { return this.database.close(); }
+    };
+} else {
+    Database = (await import('better-sqlite3')).default;
+}
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(SCRIPT_PATH), '../..');
@@ -259,7 +276,11 @@ function withEpisodeTransitionLock(
         database.exec('BEGIN IMMEDIATE');
     } catch (error) {
         database.close();
-        if (['SQLITE_BUSY', 'SQLITE_LOCKED'].includes(error?.code)) {
+        if (
+            ['SQLITE_BUSY', 'SQLITE_LOCKED'].includes(error?.code)
+            || ['database is locked', 'database table is locked'].includes(error?.errstr)
+            || /database(?: table)? is locked/u.test(String(error?.message ?? ''))
+        ) {
             throw new Error(timeoutReason, { cause: error });
         }
         throw error;
