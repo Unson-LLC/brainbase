@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { isAbsolute, join, relative } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import test from 'node:test';
 
 const CODEX_HOME = process.env.CODEX_HOME || join(homedir(), '.codex');
@@ -48,10 +48,21 @@ function inputDigest(input) {
     return createHash('sha256').update(canonicalJson(input)).digest('hex');
 }
 
+function fileDigest(path) {
+    return createHash('sha256').update(readFileSync(path)).digest('hex');
+}
+
 function hookCommands(config, hookName) {
     return (config.hooks?.[hookName] || [])
         .flatMap((group) => group.hooks || [])
         .map((hook) => hook.command || '');
+}
+
+function canonicalEntrypointPath(config) {
+    const command = hookCommands(config, 'UserPromptSubmit')
+        .find((candidate) => candidate.includes(CANONICAL_ENTRYPOINT));
+    const match = command?.match(/(?:^|\s)["']?(\/[^\s"']*\/scripts\/codex-hooks\/judgment-resolver-entry\.sh)["']?/u);
+    return match?.[1] || '';
 }
 
 function evidencePathIsBoundToJournal(path) {
@@ -201,7 +212,11 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         encoding: 'utf8'
     });
     assert.equal(currentHead.status, 0, currentHead.stderr || 'Unable to resolve current HEAD');
-    assert.equal(currentHead.stdout.trim(), EXPECTED_HEAD, 'Evidence must be generated for the current HEAD');
+    assert.equal(
+        currentHead.stdout.trim(),
+        EXPECTED_HEAD,
+        'Contract regression evidence must be generated for current HEAD; installed Hook checkout SHA is verified separately at deployment'
+    );
     assert.ok(
         evidencePathIsBoundToJournal(EVIDENCE_EPISODE_PATH) && existsSync(EVIDENCE_EPISODE_PATH),
         'Evidence must name one exact episode inside the owner journal'
@@ -212,6 +227,20 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         assert.ok(
             hookCommands(config, hookName).some((command) => command.includes(CANONICAL_ENTRYPOINT)),
             `${hookName} is not bound to ${CANONICAL_ENTRYPOINT}`
+        );
+    }
+
+    const installedEntrypoint = canonicalEntrypointPath(config);
+    assert.ok(installedEntrypoint && existsSync(installedEntrypoint), 'Installed canonical Hook entrypoint is not resolvable');
+    const installedHookRoot = resolve(dirname(installedEntrypoint), '..', '..');
+    for (const runtimeFile of [
+        CANONICAL_ENTRYPOINT,
+        'scripts/codex-hooks/judgment-resolver-host.mjs'
+    ]) {
+        assert.equal(
+            fileDigest(join(installedHookRoot, runtimeFile)),
+            fileDigest(join(process.cwd(), runtimeFile)),
+            `Installed lifecycle adapter must be content-equivalent to current HEAD: ${runtimeFile}`
         );
     }
 

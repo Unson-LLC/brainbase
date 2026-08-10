@@ -127,7 +127,7 @@ To verify the live Codex path, start a fresh turn and make the model perform thi
 node --test tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts
 ```
 
-This check reads the installed global Hook bindings and the owner-only journal. It passes only when `UserPromptSubmit`, `PostToolUse`, and `Stop` use the canonical entrypoint, the fresh episode has a verified initial route, and the four successful Brainbase events preserve the result-dependent query sequence. It does not manufacture tool events or treat a synthetic entrypoint test as live model evidence.
+This check reads the installed global Hook bindings and the owner-only journal. It passes only when `UserPromptSubmit`, `PostToolUse`, and `Stop` use the canonical entrypoint, the installed lifecycle adapter files are content-equivalent to the current contract checkout, the fresh episode has a verified initial route, and the four successful Brainbase events preserve the result-dependent query sequence. This is not proof that the installed Hook checkout has the same Git SHA as the contract checkout. Verify the merged/deployed checkout SHA separately after deployment. The check does not manufacture tool events or treat a synthetic entrypoint test as live model evidence.
 
 ### Rollback
 

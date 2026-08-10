@@ -127,5 +127,8 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('scripts/run-brainbase-mcp.sh --check');
         expect(runbook).toContain('signed read-only probe');
         expect(runbook).toContain('not proof that the global hook');
+        expect(runbook).toContain('content-equivalent to the current contract checkout');
+        expect(runbook).toContain('not proof that the installed Hook checkout has the same Git SHA');
+        expect(runbook).toContain('Verify the merged/deployed checkout SHA separately after deployment');
     });
 });
