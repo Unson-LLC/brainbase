@@ -1,11 +1,11 @@
 ---
-decision_id: decision-1786344776051-8e181ab1
+decision_id: decision-1786355049132-8a2f8c98
 story_id: story-brainbase-judgment-resolver-v1
 type: budget_override_approval
 status: accepted
 approver: 佐藤圭吾
 approver_kind: human
-approved_at: 2026-08-10T06:52:56.051Z
+approved_at: 2026-08-10T09:44:09.132Z
 override_digest: 850fff5e645d67c7c400327e0fd93ae8ae3f40174e20c43d6b7540b608f93d58
 recorded_by:
   agent_system: codex
@@ -24,8 +24,8 @@ therefore a new document.
 
 ## Reason
 
-佐藤圭吾が2026-08-10にゲート解消、マージ、デプロイまでを明示指示した。max_subagent_count 60は旧HEADで消費されたレビューを置換し、最終HEADのimplementation 2職能、gate 3職能、独立adjudication、失敗時の各1回再試行だけに使い、ゲート免除や検証省略には使わない。
+ユーザーがゲート解消からマージ・デプロイまでを明示指示し、直前レビューで見つかった2件のhigh finding修正をcurrent HEADで再検証する必要があるため
 
 ## Summary
 
-最終HEADのimplementation 2件・gate 3件・独立adjudication再実行予算を承認
+SQLite transaction修正後の最終architecture再レビューを1回許可
