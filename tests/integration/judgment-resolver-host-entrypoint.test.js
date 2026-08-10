@@ -132,7 +132,9 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(additionalContext).toContain('Intermediate commentary may omit the owner-visible audit block.');
         expect(additionalContext).toContain('opened one judgment episode');
         expect(additionalContext).toContain('there is no one-call-per-turn limit');
-        expect(first.stdout).toContain('jr_symlink_entrypoint');
+        expect(first.stdout).not.toContain('jr_symlink_entrypoint');
+        expect(first.stdout).not.toContain('Initial route receipt:');
+        expect(additionalContext).toContain('The full route receipt stays in the per-session judgment journal');
         expect(JSON.parse(second.stdout)).toEqual(JSON.parse(first.stdout));
         expect(requestCount).toBe(1);
 

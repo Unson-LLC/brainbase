@@ -194,6 +194,23 @@ describe('Codex Judgment Resolver Host', () => {
         expect(output.hookSpecificOutput.additionalContext).not.toContain('The first user-facing assistant message');
     });
 
+    it('successOutputはフルreceipt JSONをモデル文脈に含めない', () => {
+        const args = { request: '修正して', conversation_context: { messages: [] } };
+        const receipt = {
+            resolution_id: 'jr_private-1',
+            classification: { intent: 'implement', domains: ['engineering'], action_kind: 'write' },
+            selected_dag_ids: ['engineering.v1', 'authority.v1'],
+            applicable_policies: [{ id: 'global.goal-before-solution.v1' }]
+        };
+        const output = successOutput(args, receipt);
+        const context = output.hookSpecificOutput.additionalContext;
+        expect(context).toContain('Brainbase Judgment Resolver Host opened one judgment episode');
+        expect(context).not.toContain('jr_private-1');
+        expect(context).not.toContain('global.goal-before-solution.v1');
+        expect(context).not.toContain('Initial route receipt:');
+        expect(context).toContain('The full route receipt stays in the per-session judgment journal');
+    });
+
     it('raw transcriptから順序付き文脈を作り、host envelopeと内部情報を除外する', () => {
         const root = temporaryDirectory();
         const transcript = join(root, 'session.jsonl');

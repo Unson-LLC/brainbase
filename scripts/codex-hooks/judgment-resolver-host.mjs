@@ -1018,8 +1018,7 @@ export function buildOwnerReferenceLine(args, receipt) {
 export function successOutput(args, receipt, ownerAudit = buildOwnerAudit(args, receipt)) {
     const ownerReferenceLine = ownerAudit.display_line;
     const context = [
-        'Brainbase Judgment Resolver Host opened one judgment episode before model generation.',
-        'The initial route receipt below fixes the current intent and active DAG for this episode; it is not the final episode receipt.',
+        'Brainbase Judgment Resolver Host opened one judgment episode before model generation. The route receipt fixes the current intent and active DAG for this episode; it is not the final episode receipt.',
         'Do not call Judgment Resolver again and do not reclassify the route. Use Brainbase knowledge and retrieval tools repeatedly when later evidence makes another lookup useful; there is no one-call-per-turn limit.',
         'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.',
         'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.',
@@ -1028,7 +1027,7 @@ export function successOutput(args, receipt, ownerAudit = buildOwnerAudit(args, 
         'Do not alter, translate, summarize, omit, invent, or duplicate an owner-visible audit line. Include every Host-generated PostToolUse audit line after the judgment line in journal commit order and with recorded multiplicity.',
         'It reports a turn-level judgment, not a Brainbase retrieval, action authorization, or completed knowledge retrieval. Actual successful retrievals have separate tool-generated 📚 Brainbase検索 or 📚 Brainbase取得 lines.',
         'PostToolUse records each actual Brainbase call, and Stop finalizes exactly one episode receipt after the tool loop.',
-        `Initial route receipt: ${JSON.stringify(receipt)}`
+        `The full route receipt stays in the per-session judgment journal and is never printed into model context.`
     ].join('\n');
     return {
         continue: true,
