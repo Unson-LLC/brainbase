@@ -27,6 +27,13 @@ test_files:
 - **C-2**: `pr-prepare` validates current identity before execution and validates the returned preparation identity after execution.
 - **C-3**: `BRAINBASE_ALLOW_PUSH_WITHOUT_GATE=1` skips PR preparation only after canonical runtime validation succeeds.
 
+## Acceptance traceability
+
+- Both hooks use the same validator and canonical launcher (`.claude/scripts/hooks/lib/vibepro-runtime-contract.mjs`).
+- Normal hook execution reports the version, source commit, and identity digest; `tests/unit/vibepro-runtime-hook-contract.test.js` verifies those fields.
+- 両hookが同じvalidatorとcanonical launcherを使う。
+- 通常hook実行時にversion、source commit、identity digestを報告できる。
+
 ## Scenarios
 
 - **S-1**: The published `vibepro@0.2.0-beta.5` identity passes and both hooks report the same digest.

@@ -32,11 +32,11 @@ fail-openしていた。
 ## 受け入れ基準
 
 - [ ] 両hookから古いVibePro source checkoutの絶対パス参照がなくなる。
-- [ ] 両hookが同じvalidatorとcanonical launcherを使う。
+- [ ] 両hookが同じ `.claude/scripts/hooks/lib/vibepro-runtime-contract.mjs` validatorとcanonical launcherを使う。
 - [ ] 公開済み `vibepro@0.2.0-beta.5`、source commit
   `5e19da4a890a6ae607241d40bbbb438dae6f5124` 以外を拒否する。
 - [ ] dirty Git runtime、missing/invalid identity、`pr prepare` identity mismatchをfail-closedで拒否する。
-- [ ] 通常hook実行時にversion、source commit、identity digestを報告できる。
+- [ ] 通常hook実行時に `exact_version`、`source_git.commit`、`identity_digest` を報告できる。
 - [ ] validatorのunit testと、公開npm runtimeを使ったverify/PR smokeを残す。
 
 ## スコープ外
