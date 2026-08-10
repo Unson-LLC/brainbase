@@ -84,7 +84,7 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 - Project binding is judgment context, not authorization. Inaccessible project policy is omitted without rejecting general judgment.
 - Managed clarification is a valid initial route and proceeds to model generation.
 - Binding/context/route integrity failure blocks before model generation.
-- A missing required route blocks only the first Stop. The second Stop finalizes incomplete and terminates normally.
+- A missing required route or a final answer that omits, duplicates, or reorders a stored owner-visible audit line blocks only the first Stop. The second Stop finalizes incomplete and terminates normally.
 - Normal platform permissions, approvals, and executor authorization remain responsible for effects. There is no Effect Guard.
 
 ## Acceptance criteria
@@ -98,8 +98,8 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 7. A replayed identical event is a no-op; a conflicting event fails loudly.
 8. Journals and visible traces exclude raw payloads/secrets and accurately distinguish route, search, retrieval, and write.
 9. Only a successful exact knowledge-route event satisfies required `knowledge.resolve`.
-10. `Stop` creates exactly one immutable complete or incomplete final receipt.
-11. Missing required knowledge triggers one continuation and never an infinite Stop loop.
+10. `Stop` accepts owner-visible evidence only when the final answer starts with the stored `🧠` line and all stored `📚`/`⚠️` lines exactly in invocation order, then creates one immutable complete or incomplete final receipt.
+11. Missing required knowledge or an invalid rendered audit prefix triggers one continuation and never an infinite Stop loop.
 12. Zero Brainbase calls is valid when the selected judgment requires none.
 13. Open and incomplete episodes do not become prior accepted receipts; legacy journals remain readable.
 14. Project scope absence does not reject judgment itself.
@@ -109,4 +109,4 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 
 ## Deployment boundary
 
-A merged code change is not proof that lifecycle Hooks are active. Activation requires the canonical deployed checkout plus user-level `UserPromptSubmit`, `PostToolUse`, and `Stop` definitions. Verification needs a fresh turn, at least one actual Brainbase tool call, an event sidecar, a final receipt, and an owner-visible line whose wording matches the real operation.
+A merged code change is not proof that lifecycle Hooks are active. Activation requires the canonical deployed checkout plus user-level `UserPromptSubmit`, `PostToolUse`, and `Stop` definitions. Verification needs a fresh turn, at least one actual Brainbase tool call, an event sidecar, a final receipt, and the exact Codex JSONL transcript proving that the final assistant message begins with every stored owner-visible line in invocation order and that its digest matches the final receipt.

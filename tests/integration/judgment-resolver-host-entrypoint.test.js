@@ -140,6 +140,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             tool_input: { topic: 'resolver' }, tool_response: { content: [{ type: 'text', text: 'context' }] }
         }) });
         expect(JSON.parse(unrelated.stdout).systemMessage).toContain('Brainbase呼出');
+        const unrelatedLine = JSON.parse(unrelated.stdout).systemMessage;
 
         const firstStopPayload = JSON.stringify({
             hook_event_name: 'Stop', ...identity, stop_hook_active: false, last_assistant_message: '仮回答'
@@ -167,14 +168,23 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             systemMessage: '📚 Brainbase参照先: 「Resolver仕様」→ owning_repoのdocs/を選択 ✓'
         });
         expect(JSON.parse(routeReplay.stdout)).toEqual(JSON.parse(route.stdout));
+        const routeLine = JSON.parse(route.stdout).systemMessage;
 
-        await run('bash', [wrapper], { env, input: JSON.stringify({
+        const search = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'PostToolUse', ...identity,
             tool_name: 'mcp__brainbase__search', tool_use_id: 'tool-search',
             tool_input: { query: 'Judgment Resolver' }, tool_response: { content: [{ type: 'text', text: 'results' }] }
         }) });
+        const searchLine = JSON.parse(search.stdout).systemMessage;
         const finalStopPayload = JSON.stringify({
-            hook_event_name: 'Stop', ...identity, stop_hook_active: true, last_assistant_message: '確認後の回答'
+            hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+            last_assistant_message: [
+                '🧠 判断参照: 「Resolverを実行して」を参照 → Brainbase参照先の判断が必要 ✓',
+                unrelatedLine,
+                routeLine,
+                searchLine,
+                '確認後の回答'
+            ].join('\n')
         });
         const finalStop = await run('bash', [wrapper], { env, input: finalStopPayload });
         const finalStopReplay = await run('bash', [wrapper], { env, input: finalStopPayload });
@@ -202,7 +212,9 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             schema_version: 'brainbase-judgment-episode-final-v1',
             completion_status: 'complete',
             event_count: 3,
-            qualifying_event_count: 1
+            qualifying_event_count: 1,
+            owner_audit_complete: true,
+            owner_audit_line_count: 4
         });
     }, 20_000);
 });

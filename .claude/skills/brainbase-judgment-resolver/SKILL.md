@@ -19,7 +19,7 @@ description: Brainbase管理対象turnを1つのjudgment episodeとして扱い�
 4. 現行はCodex modelが選択済みDAG内のopen-ended判断loopを担う。初期receiptの`active_nodes`、`active_edges`、`active_node_definitions`だけを判断手順として実行し、取得結果からqueryを組み替えながらBrainbase knowledge/retrieval toolを0..N回呼べる。1 turn 1 callという制限は設けない。Claude Codeは同じ責務分割を適用できる将来のHost adapter候補だが、現行episode lifecycle hook integrationには含まれない。
 5. `PostToolUse` Hostは実際に完了した各`mcp__brainbase__*` callをappend-only eventとして記録する。raw tool入出力やsecretは保存せず、tool名・成功状態・安全な短い要約・digestだけを保存する。同じ`tool_use_id`の再送は再利用し、異なる内容との衝突は明示的に失敗する。
 6. `brainbase_knowledge_resolve`は決定的な参照先routeの選択であり、検索そのものではない。成功したこのexact toolだけがrequired `knowledge.resolve`を満たす。表示は`📚 Brainbase参照先:`とし、検索・取得済みとは書かない。実際の検索・取得はそのtool callごとに別表示する。
-7. `Stop` Hostがevent集合を検証し、completeまたはincompleteのfinal episode receiptを原子的に1件だけ確定する。required `knowledge.resolve`が欠けていれば最初のStopは継続を要求し、`stop_hook_active=true`の再Stopではincompleteとして確定して無限loopを防ぐ。
+7. `Stop` Hostがevent集合と最終回答を検証し、completeまたはincompleteのfinal episode receiptを原子的に1件だけ確定する。最終回答は保存済み`🧠`行と全`📚`/`⚠️`行を呼出順に先頭表示する。required `knowledge.resolve`が欠けるか、そのowner表示が欠落・重複・順序違いなら最初のStopは継続を要求し、`stop_hook_active=true`の再Stopではincompleteとして確定して無限loopを防ぐ。
 8. `needs_classification`はResolver障害ではない。参照先のないfollow-upや、knowledge分類に必要なproject contextがない場合はclarification DAGに従い、質問へ答えるためのmodel生成を続ける。matcher未一致の非follow-up入力は`needs_classification`ではなく上記`general/answer` fallbackになる。binding拒否、receipt欠落、request/context不一致だけはmodel生成前にfail closedする。
 9. `project_code`は判断文脈でありaction authorityではない。project access不能だけで判断全体を拒否せず、project policyは認証済みscope内だけ適用する。
 10. Initial/final receiptは判断経路と完了状態の証拠であり、write/external actionのauthorizationではない。通常のplatform permission・approval・executor authorizationを使い、Judgment専用の二重guardは追加しない。
@@ -27,7 +27,7 @@ description: Brainbase管理対象turnを1つのjudgment episodeとして扱い�
 
 ## Completion and failure
 
-- selected node、required capability、ユーザー依頼が完了したら最終応答を返す。
+- selected node、required capability、ユーザー依頼が完了したら、Hostが保存したowner監査行を先頭に各一回表示して最終応答を返す。
 - managed/resolvedという状態だけを理由に処理を止めない。
 - active nodeまたは明示された調査・実装・操作が未完なら継続する。
 - Host pre-turnが`unmanaged`ならmodel生成は始めない。modelが後からResolverを呼んで回復したことにしない。

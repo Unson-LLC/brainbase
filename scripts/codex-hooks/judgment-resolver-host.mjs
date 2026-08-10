@@ -658,9 +658,17 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         ? routeDisplayLine(inputValue, resolution, success)
         : embeddedAuditLine(responseValue)
             ?? `${success ? '📚' : '⚠️'} Brainbase呼出: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${toolQuery(inputValue)}」→ ${success ? '成功 ✓' : '失敗'}`;
+    const eventSequence = readdirSync(paths.events)
+        .filter((name) => name.endsWith('.json'))
+        .map((name) => {
+            try { return readJson(join(paths.events, name)).event_sequence; } catch { return null; }
+        })
+        .filter(Number.isSafeInteger)
+        .reduce((maximum, sequence) => Math.max(maximum, sequence), -1) + 1;
     const entry = {
         schema_version: 'brainbase-judgment-tool-event-v1',
         recorded_at: new Date().toISOString(),
+        event_sequence: eventSequence,
         tool_name: toolName,
         tool_use_id: toolUseId,
         event_kind: kind,
@@ -689,7 +697,32 @@ function episodeEvents(paths) {
     return names.map((name) => readJson(join(paths.events, name))).map((entry) => {
         if (entry.schema_version !== 'brainbase-judgment-tool-event-v1') throw new Error('judgment_tool_event_schema_invalid');
         return entry;
-    }).sort((left, right) => compareCodePoints(String(left.tool_use_id), String(right.tool_use_id)));
+    }).sort((left, right) => {
+        const leftSequence = Number.isSafeInteger(left.event_sequence) ? left.event_sequence : null;
+        const rightSequence = Number.isSafeInteger(right.event_sequence) ? right.event_sequence : null;
+        if (leftSequence !== null && rightSequence !== null && leftSequence !== rightSequence) {
+            return leftSequence - rightSequence;
+        }
+        const recordedOrder = String(left.recorded_at).localeCompare(String(right.recorded_at));
+        return recordedOrder || compareCodePoints(String(left.tool_use_id), String(right.tool_use_id));
+    });
+}
+
+function requiredAuditLines(episode, events) {
+    return [episode.owner_audit.display_line, ...events.map((event) => event.display_line)];
+}
+
+function answerContainsExactAuditPrefix(answer, expectedLines) {
+    if (typeof answer !== 'string') return false;
+    const lines = answer.replaceAll('\r\n', '\n').split('\n');
+    if (!expectedLines.every((expected, index) => lines[index] === expected)) return false;
+    const expectedCounts = new Map(expectedLines.map((line) => [
+        line,
+        expectedLines.filter((candidate) => candidate === line).length
+    ]));
+    return [...expectedCounts].every(([expected, count]) => (
+        lines.filter((line) => line === expected).length === count
+    ));
 }
 
 function existingFinal(paths, episode) {
@@ -727,35 +760,49 @@ export function finalizeEpisode(payload, { env = process.env } = {}) {
     const requiredKnowledge = requiredKnowledgeResolution(episode.initial_route_receipt);
     const qualifyingEvents = events.filter((entry) => entry.success && entry.satisfies.includes('knowledge.resolve'));
     const missingKnowledge = requiredKnowledge && qualifyingEvents.length === 0;
+    const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : null;
+    const expectedAuditLines = requiredAuditLines(episode, events);
+    const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines);
     const stopHookActive = payload.stop_hook_active === true;
-    if (missingKnowledge && !stopHookActive) {
+    if ((missingKnowledge || missingOwnerAudit) && !stopHookActive) {
+        const missingCapabilities = [
+            ...(missingKnowledge ? ['knowledge.resolve'] : []),
+            ...(missingOwnerAudit ? ['owner.audit.display'] : [])
+        ];
         let marker;
         try { marker = readJson(paths.continuation); } catch (error) {
             if (error?.code !== 'ENOENT') throw error;
             marker = createImmutableJson(paths.continuation, {
                 schema_version: 'brainbase-judgment-continuation-v1',
                 requested_at: new Date().toISOString(),
-                missing_capabilities: ['knowledge.resolve']
+                missing_capabilities: missingCapabilities
             }, 'judgment_episode_continuation_conflict');
         }
+        const reasons = [
+            ...(missingKnowledge ? ['brainbase_knowledge_resolveによる参照先判断を実行する'] : []),
+            ...(missingOwnerAudit ? [
+                `最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${expectedAuditLines.join('\n')}`
+            ] : [])
+        ];
         return {
             output: {
                 decision: 'block',
-                reason: 'Brainbaseの参照先判断がまだ記録されていません。brainbase_knowledge_resolveで正本の参照先を確認してから回答を完了してください。'
+                reason: `Brainbase judgment episodeを完了する前に${reasons.join('、その後')}。監査行の後にユーザーへの回答を続けてください。`
             },
             continuation: marker,
             final: null
         };
     }
-    const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : null;
     const entry = {
         schema_version: 'brainbase-judgment-episode-final-v1',
         finalized_at: new Date().toISOString(),
-        completion_status: missingKnowledge ? 'incomplete' : 'complete',
+        completion_status: missingKnowledge || missingOwnerAudit ? 'incomplete' : 'complete',
         initial_route_receipt_digest: episode.initial_route_receipt_digest,
         event_count: events.length,
         qualifying_event_count: qualifyingEvents.length,
         event_set_digest: sha256(canonicalJson(eventFingerprints)),
+        owner_audit_complete: !missingOwnerAudit,
+        owner_audit_line_count: expectedAuditLines.length,
         answer_digest: answer === null ? null : sha256(answer)
     };
     const final = createImmutableJson(paths.final, entry, 'judgment_episode_final_conflict');

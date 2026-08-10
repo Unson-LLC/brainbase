@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import test from 'node:test';
@@ -11,6 +11,7 @@ const HOOK_CONFIG = join(CODEX_HOME, 'hooks.json');
 const JOURNAL_ROOT = join(CODEX_HOME, 'var', 'judgment-resolver');
 const CANONICAL_ENTRYPOINT = 'scripts/codex-hooks/judgment-resolver-entry.sh';
 const EVIDENCE_EPISODE_PATH = process.env.BRAINBASE_JUDGMENT_E2E_EPISODE_PATH || '';
+const EVIDENCE_TRANSCRIPT_PATH = process.env.BRAINBASE_JUDGMENT_E2E_TRANSCRIPT_PATH || '';
 const EXPECTED_HEAD = process.env.BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD || '';
 const EXPECTED_NONCE = process.env.BRAINBASE_JUDGMENT_E2E_NONCE || '';
 const EXPECTED_RUN_QUERY = process.env.BRAINBASE_JUDGMENT_E2E_RUN_QUERY || '';
@@ -75,6 +76,58 @@ function evidencePathIsBoundToJournal(path) {
         && path.endsWith('.episode.json');
 }
 
+function evidenceTranscriptIsBoundToSessions(path) {
+    if (!path || !isAbsolute(path) || !existsSync(path)) return false;
+    const sessionRoot = realpathSync(join(CODEX_HOME, 'sessions'));
+    const canonicalPath = realpathSync(path);
+    const sessionRelativePath = relative(sessionRoot, canonicalPath);
+    return sessionRelativePath !== ''
+        && !sessionRelativePath.startsWith('..')
+        && !isAbsolute(sessionRelativePath)
+        && path.endsWith('.jsonl');
+}
+
+function readFinalAssistantMessage(path, turnId) {
+    const messages = readFileSync(path, 'utf8').split('\n').flatMap((line) => {
+        if (!line.trim()) return [];
+        const entry = JSON.parse(line);
+        const payload = entry?.type === 'response_item' ? entry.payload : null;
+        if (payload?.type !== 'message' || payload.role !== 'assistant') return [];
+        const metadata = payload.internal_chat_message_metadata_passthrough || payload.metadata || {};
+        const messageTurnId = metadata.turn_id || payload.turn_id || null;
+        const phase = metadata.phase || payload.phase || null;
+        const text = Array.isArray(payload.content)
+            ? payload.content
+                .filter((content) => content?.type === 'output_text' && typeof content.text === 'string')
+                .map((content) => content.text)
+                .join('\n')
+            : '';
+        return messageTurnId === turnId && phase === 'final_answer' && text ? [{ text }] : [];
+    });
+    assert.ok(messages.length > 0, `No final assistant response_item found for turn ${turnId}`);
+    return messages.at(-1).text;
+}
+
+function assertRenderedAuditTrace(answer, expectedLines) {
+    const lines = answer.replaceAll('\r\n', '\n').split('\n');
+    assert.deepEqual(
+        lines.slice(0, expectedLines.length),
+        expectedLines,
+        'The final user-visible answer must begin with the stored owner/tool audit lines in invocation order'
+    );
+    const expectedCounts = new Map(expectedLines.map((line) => [
+        line,
+        expectedLines.filter((candidate) => candidate === line).length
+    ]));
+    for (const [line, count] of expectedCounts) {
+        assert.equal(
+            lines.filter((candidate) => candidate === line).length,
+            count,
+            `Stored audit line must appear exactly as many times as its recorded event: ${line}`
+        );
+    }
+}
+
 function readBoundEpisode() {
     const eventDirectory = EVIDENCE_EPISODE_PATH.replace(/\.episode\.json$/u, '.events');
     const finalPath = EVIDENCE_EPISODE_PATH.replace(/\.episode\.json$/u, '.final.json');
@@ -83,7 +136,11 @@ function readBoundEpisode() {
         events: readdirSync(eventDirectory)
             .filter((eventFile) => eventFile.endsWith('.json'))
             .map((eventFile) => readJson(join(eventDirectory, eventFile)))
-            .sort((left, right) => left.recorded_at.localeCompare(right.recorded_at)),
+            .sort((left, right) => (
+                Number.isSafeInteger(left.event_sequence) && Number.isSafeInteger(right.event_sequence)
+                    ? left.event_sequence - right.event_sequence
+                    : left.recorded_at.localeCompare(right.recorded_at)
+            )),
         final: readJson(finalPath)
     };
 }
@@ -244,6 +301,10 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         evidencePathIsBoundToJournal(EVIDENCE_EPISODE_PATH) && existsSync(EVIDENCE_EPISODE_PATH),
         'Evidence must name one exact episode inside the owner journal'
     );
+    assert.ok(
+        evidenceTranscriptIsBoundToSessions(EVIDENCE_TRANSCRIPT_PATH),
+        'Evidence must name one exact Codex JSONL transcript inside CODEX_HOME/sessions'
+    );
 
     const config = readJson(HOOK_CONFIG);
     for (const hookName of ['UserPromptSubmit', 'PostToolUse', 'Stop']) {
@@ -312,9 +373,25 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assert.match(candidate.events[3].display_line, /^📚 Brainbase取得:/u);
     assert.match(candidate.episode.owner_audit?.display_line || '', /^🧠 判断参照:/u);
     assert.equal(candidate.final.completion_status, 'complete');
+    assert.equal(candidate.final.owner_audit_complete, true);
+    assert.equal(candidate.final.owner_audit_line_count, 5);
     assert.equal(candidate.final.event_count, 4);
     assert.equal(candidate.final.qualifying_event_count, 1);
     assert.match(candidate.final.answer_digest, /^[0-9a-f]{64}$/u);
+    const renderedAnswer = readFinalAssistantMessage(
+        EVIDENCE_TRANSCRIPT_PATH,
+        candidate.episode.initial_route_receipt.turn_id
+    );
+    const expectedAuditLines = [
+        candidate.episode.owner_audit.display_line,
+        ...candidate.events.map((event) => event.display_line)
+    ];
+    assertRenderedAuditTrace(renderedAnswer, expectedAuditLines);
+    assert.equal(
+        candidate.final.answer_digest,
+        createHash('sha256').update(renderedAnswer).digest('hex'),
+        'Final receipt must bind the exact user-visible final answer'
+    );
     const finalizedAt = Date.parse(candidate.final.finalized_at);
     const evidenceAgeMs = Date.now() - finalizedAt;
     assert.ok(Number.isFinite(finalizedAt), 'Final receipt must have a valid finalized_at timestamp');

@@ -26,6 +26,9 @@ curl -fsS http://127.0.0.1:55123/api/version | node -e '
 const value = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
 console.log(JSON.stringify({ version: value.version, git: value.runtime?.git }, null, 2));
 '
+ROLLBACK_SHA="$(git rev-parse HEAD)"
+grep -Eq '^[0-9a-f]{40}$' <<<"$ROLLBACK_SHA"
+printf 'Record this Lightsail rollback SHA before deployment: %s\n' "$ROLLBACK_SHA"
 ```
 
 Do not proceed if the worktree is dirty — inspect the diff first and decide whether it is server-only state that must be preserved or stale changes.
@@ -102,7 +105,37 @@ Expected:
 - `https://bb.unson.jp/api/health` returns `200`
 - Graph API returns entities with a valid token
 
-## 5. Recovery notes
+## 5. Roll back to the recorded SHA
+
+Use only the SHA recorded in the pre-check. A branch reset is unnecessary and prohibited. Preserve server logs and `~/.codex/var/judgment-resolver` journals.
+
+```bash
+ROLLBACK_SHA="<40-character SHA printed during pre-check>"
+grep -Eq '^[0-9a-f]{40}$' <<<"$ROLLBACK_SHA"
+cd /home/ubuntu/brainbase
+test -z "$(git status --porcelain)"
+FAILED_SHA="$(git rev-parse HEAD)"
+git cat-file -e "${ROLLBACK_SHA}^{commit}"
+git switch --detach "$ROLLBACK_SHA"
+if ! git diff --quiet "$ROLLBACK_SHA" "$FAILED_SHA" -- package.json package-lock.json; then
+  npm ci --omit=dev
+fi
+sudo systemctl restart brainbase-ssot.service
+sleep 3
+curl -fsS http://127.0.0.1:55123/api/health
+curl -fsS http://127.0.0.1:55123/api/version | TARGET_SHA="$ROLLBACK_SHA" node -e '
+const value = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+const git = value.runtime?.git;
+if (git?.sha !== process.env.TARGET_SHA || git?.dirty !== false) process.exit(1);
+console.log(JSON.stringify(git));
+'
+```
+
+From the Mac, repeat the public `/api/version`, `/api/health`, and authenticated Graph checks from section 4 with `TARGET_SHA="$ROLLBACK_SHA"`. A successful instance check alone does not complete rollback.
+
+For a Judgment Resolver deployment, this is only the Lightsail step. Follow the four-surface rollback order in [`judgment-resolve.md`](./judgment-resolve.md#rollback) to restore the global Hook checkout, local `:31013`, persistent MCP runtime, Lightsail, and exact prior Hook file as one compatible set.
+
+## 6. Recovery notes
 
 - `Restart=always` / `RestartSec=5`: the service self-restarts on crash; a crash loop is visible in `journalctl -u brainbase-ssot.service`.
 - Memory guard: `MemoryHigh=900M`, `MemoryMax=1200M`, `OOMPolicy=kill` — OOM kills show up as unit restarts.

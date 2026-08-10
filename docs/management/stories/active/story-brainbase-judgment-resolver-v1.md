@@ -49,14 +49,14 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 - 並列な候補生成と候補採用の制御を分離し、探索速度を不要に落とさない。
 - 根拠のない数値閾値、対象以上に重いガバナンス、判断と強制の混同、内部高度化だけを成果とみなす判断を防ぐ。
 - 選択された判断経路、各active nodeの実行指示、適用基準、後続capability、その入力、未確認事項、host binding状態を監査可能なreceiptとして返す。
-- model生成前に1つのjudgment episodeを開始し、実際に完了したdirect `mcp__brainbase__*` callを`PostToolUse`で0..N件記録し、`Stop`でcompleteまたはincompleteのfinal receiptを1件だけ確定する。local file readや別connectorは現行event matcherの対象外とする。
+- model生成前に1つのjudgment episodeを開始し、実際に完了したdirect `mcp__brainbase__*` callを`PostToolUse`で0..N件記録する。`Stop`は最終回答が保存済み`🧠`行と全`📚`/`⚠️`行で呼出順に始まることを検証し、completeまたはincompleteのfinal receiptを1件だけ確定する。local file readや別connectorは現行event matcherの対象外とする。
 - initial/final receiptは判断と監査の証拠であり、writeや外部作用をauthorizeしない。既存の権限、承認、executor境界を置き換えない。
 - project bindingは判断文脈であり、action authorityではない。project access不能時は該当project policyだけを適用対象から外し、一般判断を停止しない。
 - 現行episode lifecycle integrationはCodex Host hookだけを対象とする。Claude Codeは同じ責務分割を適用できる将来のHost adapter候補だが、現行対応として扱わない。
 
 ## 影響範囲
 
-今回の変更は、実装済みのJudgment Resolver契約をStory、Architecture、Spec、Skill、always-loaded instruction、capability、runbook、README indexへ同期し、publication testでその一致を固定する。加えて、global Hook設定とowner-only journalを使い、実Codex turnの結果依存0..N検索を検証するlive-session E2Eを追加する。このlive evidenceは、導入済みlifecycle adapterの対象ファイルがcurrent HEADとcontent-equivalentであることを証明するが、Hook元checkout自体のSHA一致を証明するものではない。merge後のdeployed checkout SHAは本番デプロイ検証で別に確認する。runtime source、API、DB schema、UI挙動は変更しない。現行Codex integrationと将来のClaude Code adapter候補、判断receiptとaction authorization、routeと実際のknowledge/retrieval callの境界がreview対象である。ローカルUI再起動は不要で、本番反映はmerge済みcommitと公開契約のSHAを揃えるために行う。
+今回の変更は、実装済みのJudgment Resolver契約をStory、Architecture、Spec、Skill、always-loaded instruction、capability、runbook、README indexへ同期し、publication testでその一致を固定する。加えて、global Hook設定とowner-only journalを使い、実Codex turnの結果依存0..N検索を検証するlive-session E2Eを追加し、Codex Host adapter runtimeとowner-visible final-answer contractを変更する。このlive evidenceは、導入済みlifecycle adapterの対象ファイルがcurrent HEADとcontent-equivalentであることを証明するが、Hook元checkout自体のSHA一致を証明するものではない。merge後のdeployed checkout SHAは本番デプロイ検証で別に確認する。Resolver API、DB schema、Brainbase UIは変更しない。現行Codex integrationと将来のClaude Code adapter候補、判断receiptとaction authorization、routeと実際のknowledge/retrieval callの境界がreview対象である。ローカルUI、persistent MCP runtime、global Hook元checkout、Lightsailを同一merge SHAへ揃えて本番反映を検証する。
 
 ## 受け入れ基準
 
@@ -73,7 +73,7 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 - [ ] personal judgment policyは認証されたownerだけへ返り、非ownerとowner不明のservice credentialへ漏れない。
 - [ ] 選択された部分グラフはDAGであり、循環を含まず、request bodyの配列順を保存したexact digestでbindingし、意味的に同じ正規化判断入力と同じmanifest digestからはrequest digestに依存しない同じplan digestを得る。
 - [ ] Host専用APIとMCP runtime内Host bridgeからmodel provider非依存で利用できる一方、現行Codex modelへJudgment Resolver toolを公開しない。認証、project scope、既存機能の互換性を維持する。
-- [ ] 現行Codex modelは採用済みinitial routeだけを実行し、途中結果を踏まえてBrainbase knowledge/retrieval toolを0..N回呼び、検索queryを必要なだけ組み替える。Knowledge Resolverは正本候補を決定的に選ぶだけで、実際の取得は各retrieval toolが担う。
+- [ ] 現行Codex modelは採用済みinitial routeだけを実行し、途中結果を踏まえてBrainbase knowledge/retrieval toolを0..N回呼び、検索queryを必要なだけ組み替える。Knowledge Resolverは正本候補を決定的に選ぶだけで、実際の取得は各retrieval toolが担う。`Stop`は最終回答が保存済みowner判断行と全tool監査行で呼出順に始まり、同文言の反復も実呼出回数どおり含むことを検証する。
 - [ ] Claude Codeは将来のHost adapter候補として明記し、現行episode lifecycle hook integrationの対応範囲に含めない。
 - [ ] capability YAML、runbook、README index、agent entry Skill/always-loaded instructionが実装境界と一致する。
 - [ ] 根拠のない固定閾値を追加せず、分類、reconciliation、適用理由を監査できる。

@@ -37,6 +37,8 @@ describe('judgment resolver publication surfaces', () => {
         expect(host).toContain('startEpisode');
         expect(host).toContain('recordBrainbaseToolUse');
         expect(host).toContain('finalizeEpisode');
+        expect(host).toContain('answerContainsExactAuditPrefix');
+        expect(host).toContain('owner.audit.display');
         expect(host).toContain('there is no one-call-per-turn limit');
         expect(host).not.toContain('classification_proposal');
     });
@@ -131,6 +133,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('not proof that the installed Hook checkout has the same Git SHA');
         expect(runbook).toContain('Verify the merged/deployed checkout SHA separately after deployment');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_EPISODE_PATH');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_TRANSCRIPT_PATH');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_NONCE');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_RUN_QUERY');
@@ -139,12 +142,23 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('scripts/reconcile-brainbase-mcp-runtime.sh "$TARGET_SHA"');
         expect(runbook).toContain('brainbase-mcp-reconcile.last');
         expect(runbook).toContain('deploy-lightsail-production.md');
+        expect(runbook).toContain('Pre-deployment rollback capture');
+        expect(runbook).toContain('global-hook.sha');
+        expect(runbook).toContain('local-ui.sha');
+        expect(runbook).toContain('mcp-runtime.sha');
+        expect(runbook).toContain('lightsail.sha');
+        expect(runbook).toContain('git -C "$BRAINBASE_CANONICAL_ROOT" switch --detach "$CANONICAL_ROLLBACK_SHA"');
+        expect(runbook).toContain('git -C "$BRAINBASE_MCP_RUNTIME_ROOT" switch --detach "$MCP_ROLLBACK_SHA"');
+        expect(runbook).toContain('install -m 600 "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" "$HOME/.codex/hooks.json"');
+        expect(runbook).toContain('Never remove `~/.codex/var/judgment-resolver`');
 
         const lightsailRunbook = read('docs/brainbase-capabilities/runbooks/deploy-lightsail-production.md');
         expect(lightsailRunbook).toContain('TARGET_SHA="$(git rev-parse HEAD)"');
         expect(lightsailRunbook).toContain('git?.sha !== process.env.TARGET_SHA');
         expect(lightsailRunbook).toContain('Unexpected public runtime Git state');
         expect(lightsailRunbook).toContain('https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node');
+        expect(lightsailRunbook).toContain('git switch --detach "$ROLLBACK_SHA"');
+        expect(lightsailRunbook).toContain('four-surface rollback order');
         expect(lightsailRunbook).not.toContain('127.0.0.1:55123/api/version | jq');
     });
 });

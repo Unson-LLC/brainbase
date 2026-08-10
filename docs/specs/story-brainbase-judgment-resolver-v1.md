@@ -40,7 +40,7 @@ For matching `mcp__brainbase__*` tools, input includes the session/turn binding,
 
 ### Stop
 
-Input includes the session/turn binding, `stop_hook_active`, and optional answer text. The Host evaluates required capabilities against immutable events and finalizes complete or incomplete. Missing required knowledge blocks the first Stop only; `stop_hook_active=true` finalizes incomplete.
+Input includes the session/turn binding, `stop_hook_active`, and optional answer text. The Host evaluates required capabilities against immutable events and requires the final answer to begin with the stored owner judgment line plus every stored tool-event line in invocation order, with no extra copies. Missing required knowledge or an invalid owner-visible prefix blocks the first Stop only; `stop_hook_active=true` finalizes incomplete.
 
 Orphan PostToolUse or Stop events do not create an episode.
 
@@ -102,7 +102,7 @@ Recognized transient timeout/connection/429/502/503/504 failures may retry only 
 
 ## 9. Finalization and authorization boundary
 
-At Stop, the Host creates one immutable final receipt. When required knowledge is absent, the first Stop returns `decision:block` with a continuation reason. The repeated Stop indicated by `stop_hook_active=true` creates `status=incomplete` and permits termination, preventing an infinite hook loop. A replay reuses the same final.
+At Stop, the Host creates one immutable final receipt. When required knowledge is absent, or the exact stored audit lines are missing, duplicated, or out of invocation order in `last_assistant_message`, the first Stop returns `decision:block` with a continuation reason and the exact safe lines to render. The repeated Stop indicated by `stop_hook_active=true` creates `status=incomplete` and permits termination, preventing an infinite hook loop. A replay reuses the same final. A complete final records `owner_audit_complete=true`, the expected line count, and an answer digest that live verification binds to the final assistant `response_item` in the canonical JSONL transcript.
 
 Initial and final receipts are judgment and audit evidence. They do not authorize writes or external action. Platform permission, explicit approval, and executor authorization remain unchanged; no separate Effect Guard is added.
 
@@ -110,7 +110,7 @@ Initial and final receipts are judgment and audit evidence. They do not authoriz
 
 - terminal before episode: invalid hook input, untrusted context, binding rejection, malformed response, digest mismatch, unmanaged binding, missing active definitions, or same-turn conflict
 - terminal event: same `tool_use_id` with a different fingerprint
-- incomplete completion: required capability still absent after the single continuation
+- incomplete completion: required capability or owner-visible audit prefix still absent after the single continuation
 - replay: verified immutable episode/event/final is returned without new Resolver or tool evidence
 
 Specific API errors remain distinct. `brainbase_project_not_accessible` is not used merely because project policy is outside the caller's scope.
@@ -120,7 +120,7 @@ Specific API errors remain distinct. `brainbase_project_not_accessible` is not u
 - service/API: strict schema, signing, deterministic manifest-backed classification without an LLM dependency, follow-up inheritance, policy scope, DAG topology
 - UserPromptSubmit Host: transcript extraction, structural exclusion, privacy, exact current message, retry/create/reuse/conflict
 - PostToolUse Host: 0..N events, exact capability qualification, replay, conflict, safe projection, accurate reference/search/retrieval wording
-- Stop Host: zero-call completion when allowed, one continuation, incomplete second Stop, complete final, replay
+- Stop Host: zero-call completion when allowed, exact ordered owner-audit prefix, one continuation, incomplete second Stop, complete final, replay
 - end-to-end: Codex Host initial dispatch -> Codex open-ended reasoning and repeated model/tool loop -> final episode receipt
 - publication: `CLAUDE.md`/`AGENTS.md`, Skill, capability, runbook, story, and tests expose the same lifecycle
 
