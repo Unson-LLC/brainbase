@@ -95,6 +95,76 @@ test('story-brainbase-judgment-resolver-v1 AC-4 ac:4 follow-up minimal DAG cover
     );
 });
 
+test('story-brainbase-judgment-resolver-v1 AC-2 ac:2 binding rejection coverage marker', () => {
+    const routeTestPath = 'tests/integration/judgment-resolution-routes.test.js';
+
+    assert.ok(
+        REGRESSION_SCRIPT.includes(routeTestPath)
+            && readFileSync(join(process.cwd(), routeTestPath), 'utf8').includes('unregistered adapter'),
+        'AC-2/ac:2 binding rejection regression must remain in the release suite'
+    );
+});
+
+test('story-brainbase-judgment-resolver-v1 AC-5 ac:5 active node definition coverage marker', () => {
+    const serviceTestPath = 'tests/unit/judgment-resolution-service.test.js';
+
+    assert.ok(
+        REGRESSION_SCRIPT.includes(serviceTestPath)
+            && readFileSync(join(process.cwd(), serviceTestPath), 'utf8').includes('active_node_definitions.map((node) => node.id)'),
+        'AC-5/ac:5 active node definition regression must remain in the release suite'
+    );
+});
+
+test('story-brainbase-judgment-resolver-v1 AC-7 ac:7 policy conflict coverage marker', () => {
+    const serviceTestPath = 'tests/unit/judgment-resolution-service.test.js';
+
+    assert.ok(
+        REGRESSION_SCRIPT.includes(serviceTestPath)
+            && readFileSync(join(process.cwd(), serviceTestPath), 'utf8').includes('hard conflictはpriority・specificity'),
+        'AC-7/ac:7 policy conflict regression must remain in the release suite'
+    );
+});
+
+test('story-brainbase-judgment-resolver-v1 AC-9 ac:9 clarification continuation coverage marker', () => {
+    const managedTurnTestPath = 'tests/integration/judgment-managed-turn-e2e.test.js';
+
+    assert.ok(
+        REGRESSION_SCRIPT.includes(managedTurnTestPath)
+            && readFileSync(join(process.cwd(), managedTurnTestPath), 'utf8').includes('clarification.execution_status'),
+        'AC-9/ac:9 clarification continuation regression must remain in the release suite'
+    );
+});
+
+test('story-brainbase-judgment-resolver-v1 AC-12 ac:12 stable digest coverage marker', () => {
+    const serviceTestPath = 'tests/unit/judgment-resolution-service.test.js';
+
+    assert.ok(
+        REGRESSION_SCRIPT.includes(serviceTestPath)
+            && readFileSync(join(process.cwd(), serviceTestPath), 'utf8').includes('同じcanonical contextから同じplan digestを再現する'),
+        'AC-12/ac:12 stable digest regression must remain in the release suite'
+    );
+});
+
+test('story-brainbase-judgment-resolver-v1 AC-15 ac:15 future adapter boundary coverage marker', () => {
+    const publicationTestPath = 'tests/unit/judgment-resolution-publication.test.js';
+
+    assert.ok(
+        REGRESSION_SCRIPT.includes(publicationTestPath)
+            && readFileSync(join(process.cwd(), publicationTestPath), 'utf8').includes('Claude Codeは将来のHost adapter候補'),
+        'AC-15/ac:15 future adapter boundary regression must remain in the release suite'
+    );
+});
+
+test('story-brainbase-judgment-resolver-v1 AC-16 ac:16 publication consistency coverage marker', () => {
+    const publicationTestPath = 'tests/unit/judgment-resolution-publication.test.js';
+
+    assert.ok(
+        REGRESSION_SCRIPT.includes(publicationTestPath)
+            && readFileSync(join(process.cwd(), publicationTestPath), 'utf8').includes('Skill・capability・runbook・specがmodel非依存の同じ境界を公開する'),
+        'AC-16/ac:16 publication consistency regression must remain in the release suite'
+    );
+});
+
 test('story-brainbase-judgment-resolver-v1 AC-10 ac:10 caller injection coverage marker', () => {
     const serviceTestPath = 'tests/unit/judgment-resolution-service.test.js';
     const serviceTest = readFileSync(join(process.cwd(), serviceTestPath), 'utf8');
