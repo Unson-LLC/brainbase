@@ -38,7 +38,8 @@ visibility_rules:
   - Knowledge Resolver deterministically chooses a canonical source route and required retrieval capability; it does not search or retrieve content.
   - PostToolUse records only actual `mcp__brainbase__*` outcomes and emits a short owner-visible line that accurately distinguishes reference routing, searching, retrieval, and writes.
   - Only successful exact `mcp__brainbase__brainbase_knowledge_resolve` calls satisfy a required `knowledge.resolve`; unrelated or failed calls do not.
-  - Stop verifies that the final answer begins with the stored owner judgment line and every stored Brainbase event line exactly in invocation order, then finalizes one complete or incomplete episode receipt. A missing required route or invalid owner-visible prefix gets one continuation, then finalizes incomplete when `stop_hook_active=true`.
+  - Same-turn PostToolUse commits and Stop finalization share an atomic transition lock; concurrent calls receive a unique event sequence in journal-commit order.
+  - Stop verifies that the final answer begins with the stored owner judgment line and every stored Brainbase event line exactly in journal-commit order, then finalizes one complete or incomplete episode receipt. A missing required route or invalid owner-visible prefix gets one continuation, then finalizes incomplete when `stop_hook_active=true`.
   - Each active node has a manifest-owned executable definition; only selected branches run.
   - A managed clarification receipt continues to model generation and selects the clarification DAG.
   - Project binding is judgment context, not action authority; project policies remain access-scoped without blocking general judgment.
@@ -56,7 +57,7 @@ verification:
     - Host preserves exact ordered user/assistant text and removes host envelopes and tool internals structurally.
     - The same turn reuses its initial route without another Resolver request.
     - Multiple distinct Brainbase calls create multiple immutable events; replay creates no duplicate.
-    - The final user-visible answer starts with the stored owner judgment and tool-event lines exactly in invocation order; the final receipt answer digest binds that rendered message.
+    - The final user-visible answer starts with the stored owner judgment and tool-event lines exactly in journal-commit order; the final receipt answer digest binds that rendered message.
     - Raw tool input/output and secret-like values are absent from journals and owner-visible lines.
     - Zero Brainbase calls is complete when no Brainbase capability is required.
     - Required `knowledge.resolve` is complete only after a successful exact route call.

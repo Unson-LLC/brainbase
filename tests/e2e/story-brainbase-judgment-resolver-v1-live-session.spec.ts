@@ -113,7 +113,7 @@ function assertRenderedAuditTrace(answer, expectedLines) {
     assert.deepEqual(
         lines.slice(0, expectedLines.length),
         expectedLines,
-        'The final user-visible answer must begin with the stored owner/tool audit lines in invocation order'
+        'The final user-visible answer must begin with the stored owner/tool audit lines in journal commit order'
     );
     const expectedCounts = new Map(expectedLines.map((line) => [
         line,

@@ -125,9 +125,10 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
         const additionalContext = JSON.parse(first.stdout).hookSpecificOutput.additionalContext;
         expect(additionalContext).toContain(
-            'The first user-facing assistant message for this turn must start with exactly this Host-generated line, before any other text:\n' +
+            'The final user-facing response for this turn must start with exactly this Host-generated line, before any other text:\n' +
             '🧠 判断参照: 「Resolverを実行して」を参照 → Brainbase参照先の判断が必要 ✓'
         );
+        expect(additionalContext).toContain('Intermediate commentary may omit the owner-visible audit block.');
         expect(additionalContext).toContain('opened one judgment episode');
         expect(additionalContext).toContain('there is no one-call-per-turn limit');
         expect(first.stdout).toContain('jr_symlink_entrypoint');
@@ -216,5 +217,80 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             owner_audit_complete: true,
             owner_audit_line_count: 4
         });
+    }, 20_000);
+
+    it('別processの並列PostToolUseを重複ないjournal commit順に直列化する', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const hostUrl = await listen((request, response) => {
+            if (request.method !== 'POST' || request.url !== '/host/judgment/resolve') {
+                response.statusCode = 404;
+                response.end();
+                return;
+            }
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                const args = JSON.parse(body);
+                response.setHeader('content-type', 'application/json');
+                response.end(JSON.stringify({
+                    management_status: 'managed',
+                    receipt: {
+                        resolution_id: 'jr_parallel_entrypoint',
+                        turn_id: args.turn_id,
+                        request_digest: hash(canonicalJson(args)),
+                        context_digest: hash(canonicalJson(args.conversation_context)),
+                        status: 'resolved',
+                        host_binding: { status: 'managed' },
+                        classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                        classification: { intent: 'answer', domains: ['knowledge'], action_kind: 'none' },
+                        selected_dag_ids: ['direct.v1'],
+                        required_capabilities: [],
+                        active_node_definitions: [{ id: 'answer', kind: 'common', instruction: 'Answer.' }]
+                    }
+                }));
+            });
+        });
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const identity = { session_id: 'session-parallel-entrypoint', turn_id: 'turn-parallel-entrypoint' };
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: journal
+        };
+        const start = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT, prompt: '並列参照を検証して'
+            })
+        });
+        expect(start).toMatchObject({ code: 0, signal: null, stderr: '' });
+
+        const calls = ['parallel-a', 'parallel-b'].map((toolUseId) => run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'PostToolUse', ...identity,
+                tool_name: 'mcp__brainbase__search', tool_use_id: toolUseId,
+                tool_input: { query: toolUseId },
+                tool_response: { content: [{ type: 'text', text: `${toolUseId}-result` }] }
+            })
+        }));
+        const results = await Promise.all(calls);
+        expect(results).toEqual(expect.arrayContaining([
+            expect.objectContaining({ code: 0, signal: null, stderr: '' }),
+            expect.objectContaining({ code: 0, signal: null, stderr: '' })
+        ]));
+
+        const eventsDirectory = join(
+            journal,
+            hash(identity.session_id),
+            `${hash(identity.turn_id)}.events`
+        );
+        const events = readdirSync(eventsDirectory)
+            .filter((name) => name.endsWith('.json'))
+            .map((name) => JSON.parse(readFileSync(join(eventsDirectory, name), 'utf8')))
+            .sort((left, right) => left.event_sequence - right.event_sequence);
+        expect(events.map((event) => event.event_sequence)).toEqual([0, 1]);
+        expect(new Set(events.map((event) => event.tool_use_id))).toEqual(new Set(['parallel-a', 'parallel-b']));
     }, 20_000);
 });

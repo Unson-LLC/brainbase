@@ -361,7 +361,6 @@ function validateManifest(manifest, lock) {
     for (const [key, terms] of Object.entries(matchers.domains)) validateStringTerms(terms, `judgment domain matcher ${key}`);
     for (const [key, terms] of Object.entries(matchers.signals)) validateStringTerms(terms, `judgment signal matcher ${key}`);
     for (const [key, terms] of Object.entries(matchers.safety)) validateStringTerms(terms, `judgment safety matcher ${key}`);
-    validateStringTerms(matchers.safe_general, 'judgment safe-general matcher');
     validateStringTerms(matchers.follow_up, 'judgment follow-up matcher');
     validateSelectableGraphs(manifest);
     const digest = sha256Hex(canonicalJson(manifest));

@@ -168,7 +168,7 @@ describe('Codex Judgment Resolver Host', () => {
         );
     });
 
-    it('Hostが確定した判断文をturn最初のassistant messageだけに固定する', () => {
+    it('複数message turnでは監査ブロックを最終回答だけに固定する', () => {
         const args = {
             request: 'この設計をレビューして',
             turn_id: 'turn-current',
@@ -183,12 +183,15 @@ describe('Codex Judgment Resolver Host', () => {
         const output = successOutput(args, receipt);
 
         expect(output.hookSpecificOutput.additionalContext).toContain(
-            `The first user-facing assistant message for this turn must start with exactly this Host-generated line, before any other text:\n${line}`
+            `The final user-facing response for this turn must start with exactly this Host-generated line, before any other text:\n${line}`
         );
         expect(output.hookSpecificOutput.additionalContext).toContain(
-            'Do not repeat that line in later commentary or the final response for the same turn.'
+            'Intermediate commentary may omit the owner-visible audit block.'
         );
-        expect(output.hookSpecificOutput.additionalContext).not.toContain('every user-facing response');
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'Put the complete audit block only at the start of the final response, after all Brainbase tool calls are known.'
+        );
+        expect(output.hookSpecificOutput.additionalContext).not.toContain('The first user-facing assistant message');
     });
 
     it('raw transcriptから順序付き文脈を作り、host envelopeと内部情報を除外する', () => {

@@ -26,6 +26,7 @@ const TRANSIENT_REASONS = new Set([
     'judgment_host_bridge_failed',
     'judgment_host_transport_failed'
 ]);
+const TRANSITION_LOCK_WAIT = new Int32Array(new SharedArrayBuffer(4));
 
 function compareCodePoints(left, right) {
     const a = Array.from(left, (value) => value.codePointAt(0));
@@ -198,7 +199,8 @@ function journalPaths(sessionRef, turnId, env) {
         events: join(directory, `${turnRef}.events`),
         continuation: join(directory, `${turnRef}.continuation.json`),
         final: join(directory, `${turnRef}.final.json`),
-        lock: join(directory, `${turnRef}.episode.lock`)
+        lock: join(directory, `${turnRef}.episode.lock`),
+        transitionLock: join(directory, `${turnRef}.transition.lock`)
     };
 }
 
@@ -222,6 +224,31 @@ function createImmutableJson(target, value, conflictReason) {
         return existing;
     } finally {
         try { unlinkSync(temp); } catch {}
+    }
+}
+
+function withEpisodeTransitionLock(paths, callback) {
+    mkdirSync(paths.directory, { recursive: true, mode: 0o700 });
+    let descriptor;
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+        try {
+            descriptor = openSync(
+                paths.transitionLock,
+                fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
+                0o600
+            );
+            break;
+        } catch (error) {
+            if (error?.code !== 'EEXIST') throw error;
+            if (attempt === 299) throw new Error('judgment_episode_transition_timeout');
+            Atomics.wait(TRANSITION_LOCK_WAIT, 0, 0, 10);
+        }
+    }
+    try {
+        return callback();
+    } finally {
+        if (descriptor !== undefined) closeSync(descriptor);
+        try { unlinkSync(paths.transitionLock); } catch {}
     }
 }
 
@@ -620,26 +647,13 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const toolName = typeof payload?.tool_name === 'string' ? payload.tool_name : '';
     const toolUseId = typeof payload?.tool_use_id === 'string' ? payload.tool_use_id : '';
     if (!identity || !toolUseId || !/^mcp__brainbase__/u.test(toolName)) return null;
-    const episode = existingEpisode(payload, env);
-    if (!episode) return null;
+    if (!existingEpisode(payload, env)) return null;
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
-    mkdirSync(paths.events, { recursive: true, mode: 0o700 });
     const inputValue = payload.tool_input === undefined ? null : payload.tool_input;
     const responseValue = payload.tool_response === undefined ? null : payload.tool_response;
     const inputDigest = sha256(canonicalJson(inputValue));
     const responseDigest = sha256(canonicalJson(responseValue));
     const fingerprint = sha256(canonicalJson({ tool_name: toolName, tool_use_id: toolUseId, input_digest: inputDigest, response_digest: responseDigest }));
-    const target = join(paths.events, `${sha256(toolUseId)}.json`);
-    const finalized = existingFinal(paths, episode);
-    if (finalized) {
-        try {
-            const existing = readJson(target);
-            if (existing.event_fingerprint === fingerprint) return existing;
-        } catch (error) {
-            if (error?.code !== 'ENOENT') throw error;
-        }
-        throw new Error('judgment_episode_already_finalized');
-    }
     const success = !responseFailed(responseValue);
     const kind = eventKind(toolName);
     const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
@@ -658,37 +672,53 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         ? routeDisplayLine(inputValue, resolution, success)
         : embeddedAuditLine(responseValue)
             ?? `${success ? '📚' : '⚠️'} Brainbase呼出: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${toolQuery(inputValue)}」→ ${success ? '成功 ✓' : '失敗'}`;
-    const eventSequence = readdirSync(paths.events)
-        .filter((name) => name.endsWith('.json'))
-        .map((name) => {
-            try { return readJson(join(paths.events, name)).event_sequence; } catch { return null; }
-        })
-        .filter(Number.isSafeInteger)
-        .reduce((maximum, sequence) => Math.max(maximum, sequence), -1) + 1;
-    const entry = {
-        schema_version: 'brainbase-judgment-tool-event-v1',
-        recorded_at: new Date().toISOString(),
-        event_sequence: eventSequence,
-        tool_name: toolName,
-        tool_use_id: toolUseId,
-        event_kind: kind,
-        success,
-        satisfies: qualifies ? ['knowledge.resolve'] : [],
-        input_digest: inputDigest,
-        response_digest: responseDigest,
-        event_fingerprint: fingerprint,
-        query_excerpt: toolQuery(inputValue),
-        safe_metadata: safeMetadata,
-        display_line: displayLine
-    };
-    try {
+    return withEpisodeTransitionLock(paths, () => {
+        const episode = existingEpisode(payload, env);
+        if (!episode) return null;
+        mkdirSync(paths.events, { recursive: true, mode: 0o700 });
+        const target = join(paths.events, `${sha256(toolUseId)}.json`);
+        const finalized = existingFinal(paths, episode);
+        if (finalized) {
+            try {
+                const existing = readJson(target);
+                if (existing.event_fingerprint === fingerprint) return existing;
+            } catch (error) {
+                if (error?.code !== 'ENOENT') throw error;
+            }
+            throw new Error('judgment_episode_already_finalized');
+        }
+        try {
+            const existing = readJson(target);
+            if (existing.event_fingerprint === fingerprint) return existing;
+            throw new Error('judgment_tool_event_conflict');
+        } catch (error) {
+            if (error?.code !== 'ENOENT') throw error;
+        }
+        const eventSequence = readdirSync(paths.events)
+            .filter((name) => name.endsWith('.json'))
+            .map((name) => {
+                try { return readJson(join(paths.events, name)).event_sequence; } catch { return null; }
+            })
+            .filter(Number.isSafeInteger)
+            .reduce((maximum, sequence) => Math.max(maximum, sequence), -1) + 1;
+        const entry = {
+            schema_version: 'brainbase-judgment-tool-event-v1',
+            recorded_at: new Date().toISOString(),
+            event_sequence: eventSequence,
+            tool_name: toolName,
+            tool_use_id: toolUseId,
+            event_kind: kind,
+            success,
+            satisfies: qualifies ? ['knowledge.resolve'] : [],
+            input_digest: inputDigest,
+            response_digest: responseDigest,
+            event_fingerprint: fingerprint,
+            query_excerpt: toolQuery(inputValue),
+            safe_metadata: safeMetadata,
+            display_line: displayLine
+        };
         return createImmutableJson(target, entry, 'judgment_tool_event_conflict');
-    } catch (error) {
-        if (error?.message !== 'judgment_tool_event_conflict') throw error;
-        const existing = readJson(target);
-        if (existing.event_fingerprint === fingerprint) return existing;
-        throw error;
-    }
+    });
 }
 
 function episodeEvents(paths) {
@@ -745,6 +775,10 @@ export function finalizeEpisode(payload, { env = process.env } = {}) {
     const episode = existingEpisode(payload, env);
     if (!episode) return { output: {}, final: null };
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
+    return withEpisodeTransitionLock(paths, () => finalizeEpisodeLocked(payload, episode, paths));
+}
+
+function finalizeEpisodeLocked(payload, episode, paths) {
     const events = episodeEvents(paths);
     const eventFingerprints = events.map((entry) => entry.event_fingerprint).sort(compareCodePoints);
     const finalized = existingFinal(paths, episode);
@@ -933,8 +967,9 @@ export function successOutput(args, receipt, ownerAudit = buildOwnerAudit(args, 
         'Do not call Judgment Resolver again and do not reclassify the route. Use Brainbase knowledge and retrieval tools repeatedly when later evidence makes another lookup useful; there is no one-call-per-turn limit.',
         'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.',
         'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.',
-        `The first user-facing assistant message for this turn must start with exactly this Host-generated line, before any other text:\n${ownerReferenceLine}`,
-        'Do not alter, translate, summarize, or omit that owner-visible line. Do not repeat that line in later commentary or the final response for the same turn.',
+        `The final user-facing response for this turn must start with exactly this Host-generated line, before any other text:\n${ownerReferenceLine}`,
+        'Intermediate commentary may omit the owner-visible audit block. Put the complete audit block only at the start of the final response, after all Brainbase tool calls are known.',
+        'Do not alter, translate, summarize, omit, invent, or duplicate an owner-visible audit line. Include every Host-generated PostToolUse audit line after the judgment line in journal commit order and with recorded multiplicity.',
         'It reports a turn-level judgment, not a Brainbase retrieval, action authorization, or completed knowledge retrieval. Actual successful retrievals have separate tool-generated 📚 Brainbase検索 or 📚 Brainbase取得 lines.',
         'PostToolUse records each actual Brainbase call, and Stop finalizes exactly one episode receipt after the tool loop.',
         `Initial route receipt: ${JSON.stringify(receipt)}`

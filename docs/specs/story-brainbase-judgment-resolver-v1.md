@@ -40,7 +40,7 @@ For matching `mcp__brainbase__*` tools, input includes the session/turn binding,
 
 ### Stop
 
-Input includes the session/turn binding, `stop_hook_active`, and optional answer text. The Host evaluates required capabilities against immutable events and requires the final answer to begin with the stored owner judgment line plus every stored tool-event line in invocation order, with no extra copies. Missing required knowledge or an invalid owner-visible prefix blocks the first Stop only; `stop_hook_active=true` finalizes incomplete.
+Input includes the session/turn binding, `stop_hook_active`, and optional answer text. The Host evaluates required capabilities against immutable events and requires the final answer to begin with the stored owner judgment line plus every stored tool-event line in atomic journal-commit order, with no extra copies. Event commits and Stop finalization for the same turn share one transition lock. Missing required knowledge or an invalid owner-visible prefix blocks the first Stop only; `stop_hook_active=true` finalizes incomplete.
 
 Orphan PostToolUse or Stop events do not create an episode.
 
@@ -102,7 +102,7 @@ Recognized transient timeout/connection/429/502/503/504 failures may retry only 
 
 ## 9. Finalization and authorization boundary
 
-At Stop, the Host creates one immutable final receipt. When required knowledge is absent, or the exact stored audit lines are missing, duplicated, or out of invocation order in `last_assistant_message`, the first Stop returns `decision:block` with a continuation reason and the exact safe lines to render. The repeated Stop indicated by `stop_hook_active=true` creates `status=incomplete` and permits termination, preventing an infinite hook loop. A replay reuses the same final. A complete final records `owner_audit_complete=true`, the expected line count, and an answer digest that live verification binds to the final assistant `response_item` in the canonical JSONL transcript.
+At Stop, the Host creates one immutable final receipt. When required knowledge is absent, or the exact stored audit lines are missing, duplicated, or out of journal-commit order in `last_assistant_message`, the first Stop returns `decision:block` with a continuation reason and the exact safe lines to render. The repeated Stop indicated by `stop_hook_active=true` creates `status=incomplete` and permits termination, preventing an infinite hook loop. A replay reuses the same final. A complete final records `owner_audit_complete=true`, the expected line count, and an answer digest that live verification binds to the final assistant `response_item` in the canonical JSONL transcript.
 
 Initial and final receipts are judgment and audit evidence. They do not authorize writes or external action. Platform permission, explicit approval, and executor authorization remain unchanged; no separate Effect Guard is added.
 

@@ -20,6 +20,10 @@
     {
       "runtime_version": "judgment-runtime-2.0.0",
       "manifest_digest": "ee79ed572ae0fafde58c74786a50349576e4199d05d8b3a30291e94f321850ec"
+    },
+    {
+      "runtime_version": "judgment-runtime-2.0.1",
+      "manifest_digest": "fd84c9714c79abbead70a84b16e50b3378d791001b7175cf8f0fde3fff6dd8bf"
     }
   ]
 }

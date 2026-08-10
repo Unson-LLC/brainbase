@@ -21,7 +21,7 @@ The purpose is to apply Brainbase judgment to every answer and make actual knowl
 2. The Host owns canonical `conversation_context`; Resolver deterministically classifies that context and selects the initial route from the runtime manifest.
 3. One turn is one judgment episode, not one Resolver attempt and not one Brainbase call.
 4. The model cannot call Judgment Resolver, but may call Brainbase knowledge/retrieval tools 0..N times as results create new questions.
-5. `PostToolUse` records actual Brainbase outcomes; `Stop` finalizes one episode receipt.
+5. `PostToolUse` records actual Brainbase outcomes in an atomic journal-commit order; `Stop` shares that transition boundary and finalizes one episode receipt.
 6. Required knowledge gets one continuation opportunity, then incomplete evidence instead of an infinite loop.
 7. Judgment evidence constrains reasoning but is not action authorization.
 
@@ -84,6 +84,7 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 - Project binding is judgment context, not authorization. Inaccessible project policy is omitted without rejecting general judgment.
 - Managed clarification is a valid initial route and proceeds to model generation.
 - Binding/context/route integrity failure blocks before model generation.
+- Concurrent `PostToolUse` processes are totally ordered by the Host's atomic journal commit, not by an unverifiable wall-clock call-start time. Stop finalization shares the same transition lock, so no committed event can be inserted into an already finalized episode.
 - A missing required route or a final answer that omits, duplicates, or reorders a stored owner-visible audit line blocks only the first Stop. The second Stop finalizes incomplete and terminates normally.
 - Normal platform permissions, approvals, and executor authorization remain responsible for effects. There is no Effect Guard.
 
@@ -98,7 +99,7 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 7. A replayed identical event is a no-op; a conflicting event fails loudly.
 8. Journals and visible traces exclude raw payloads/secrets and accurately distinguish route, search, retrieval, and write.
 9. Only a successful exact knowledge-route event satisfies required `knowledge.resolve`.
-10. `Stop` accepts owner-visible evidence only when the final answer starts with the stored `🧠` line and all stored `📚`/`⚠️` lines exactly in invocation order, then creates one immutable complete or incomplete final receipt.
+10. `Stop` accepts owner-visible evidence only when the final answer starts with the stored `🧠` line and all stored `📚`/`⚠️` lines exactly in journal-commit order, then creates one immutable complete or incomplete final receipt.
 11. Missing required knowledge or an invalid rendered audit prefix triggers one continuation and never an infinite Stop loop.
 12. Zero Brainbase calls is valid when the selected judgment requires none.
 13. Open and incomplete episodes do not become prior accepted receipts; legacy journals remain readable.
@@ -109,4 +110,4 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 
 ## Deployment boundary
 
-A merged code change is not proof that lifecycle Hooks are active. Activation requires the canonical deployed checkout plus user-level `UserPromptSubmit`, `PostToolUse`, and `Stop` definitions. Verification needs a fresh turn, at least one actual Brainbase tool call, an event sidecar, a final receipt, and the exact Codex JSONL transcript proving that the final assistant message begins with every stored owner-visible line in invocation order and that its digest matches the final receipt.
+A merged code change is not proof that lifecycle Hooks are active. Activation requires the canonical deployed checkout plus user-level `UserPromptSubmit`, `PostToolUse`, and `Stop` definitions. Verification needs a fresh turn, at least one actual Brainbase tool call, an event sidecar, a final receipt, and the exact Codex JSONL transcript proving that the final assistant message begins with every stored owner-visible line in journal-commit order and that its digest matches the final receipt.

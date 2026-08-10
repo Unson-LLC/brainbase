@@ -49,7 +49,7 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 - 並列な候補生成と候補採用の制御を分離し、探索速度を不要に落とさない。
 - 根拠のない数値閾値、対象以上に重いガバナンス、判断と強制の混同、内部高度化だけを成果とみなす判断を防ぐ。
 - 選択された判断経路、各active nodeの実行指示、適用基準、後続capability、その入力、未確認事項、host binding状態を監査可能なreceiptとして返す。
-- model生成前に1つのjudgment episodeを開始し、実際に完了したdirect `mcp__brainbase__*` callを`PostToolUse`で0..N件記録する。`Stop`は最終回答が保存済み`🧠`行と全`📚`/`⚠️`行で呼出順に始まることを検証し、completeまたはincompleteのfinal receiptを1件だけ確定する。local file readや別connectorは現行event matcherの対象外とする。
+- model生成前に1つのjudgment episodeを開始し、実際に完了したdirect `mcp__brainbase__*` callを`PostToolUse`で0..N件記録する。同一turnの並列callはHostが原子的にjournal commit順へ直列化する。`Stop`は最終回答が保存済み`🧠`行と全`📚`/`⚠️`行でその順序どおりに始まることを検証し、completeまたはincompleteのfinal receiptを1件だけ確定する。local file readや別connectorは現行event matcherの対象外とする。
 - initial/final receiptは判断と監査の証拠であり、writeや外部作用をauthorizeしない。既存の権限、承認、executor境界を置き換えない。
 - project bindingは判断文脈であり、action authorityではない。project access不能時は該当project policyだけを適用対象から外し、一般判断を停止しない。
 - 現行episode lifecycle integrationはCodex Host hookだけを対象とする。Claude Codeは同じ責務分割を適用できる将来のHost adapter候補だが、現行対応として扱わない。
@@ -73,7 +73,7 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 - [ ] personal judgment policyは認証されたownerだけへ返り、非ownerとowner不明のservice credentialへ漏れない。
 - [ ] 選択された部分グラフはDAGであり、循環を含まず、request bodyの配列順を保存したexact digestでbindingし、意味的に同じ正規化判断入力と同じmanifest digestからはrequest digestに依存しない同じplan digestを得る。
 - [ ] Host専用APIとMCP runtime内Host bridgeからmodel provider非依存で利用できる一方、現行Codex modelへJudgment Resolver toolを公開しない。認証、project scope、既存機能の互換性を維持する。
-- [ ] 現行Codex modelは採用済みinitial routeだけを実行し、途中結果を踏まえてBrainbase knowledge/retrieval toolを0..N回呼び、検索queryを必要なだけ組み替える。Knowledge Resolverは正本候補を決定的に選ぶだけで、実際の取得は各retrieval toolが担う。`Stop`は最終回答が保存済みowner判断行と全tool監査行で呼出順に始まり、同文言の反復も実呼出回数どおり含むことを検証する。
+- [ ] 現行Codex modelは採用済みinitial routeだけを実行し、途中結果を踏まえてBrainbase knowledge/retrieval toolを0..N回呼び、検索queryを必要なだけ組み替える。Knowledge Resolverは正本候補を決定的に選ぶだけで、実際の取得は各retrieval toolが担う。`Stop`は最終回答が保存済みowner判断行と全tool監査行でjournal commit順に始まり、同文言の反復も記録済みevent回数どおり含むことを検証する。
 - [ ] Claude Codeは将来のHost adapter候補として明記し、現行episode lifecycle hook integrationの対応範囲に含めない。
 - [ ] capability YAML、runbook、README index、agent entry Skill/always-loaded instructionが実装境界と一致する。
 - [ ] 根拠のない固定閾値を追加せず、分類、reconciliation、適用理由を監査できる。

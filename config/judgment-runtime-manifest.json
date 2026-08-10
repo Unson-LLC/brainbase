@@ -1,6 +1,6 @@
 {
   "schema_version": "brainbase-judgment-runtime-v1",
-  "runtime_version": "judgment-runtime-2.0.0",
+  "runtime_version": "judgment-runtime-2.0.1",
   "host_bindings": [
     { "adapter_id": "brainbase-mcp", "adapter_version": "1" }
   ],
@@ -222,7 +222,6 @@
       "problem_frame_uncertain": ["前提がおかしい", "問題設定", "根本原因", "そもそも"],
       "external_outcome": ["外部成果", "顧客価値", "利用成果", "downstream", "first value"]
     },
-    "safe_general": ["こんにちは", "ありがとう", "意味を説明", "要約して", "定義を教えて"],
     "follow_up": ["それ", "その形", "これ", "こちら", "続けて", "続けよう", "もう一度", "では", "それでいい", "そうして"],
     "safety": {
       "write": ["実装して", "実装しろ", "実装せよ", "変更して", "変更しろ", "変更せよ", "更新して", "更新しろ", "更新せよ", "削除して", "削除しろ", "削除せよ", "マージして", "マージしろ", "マージせよ", "mergeして", "mergeしろ", "mergeせよ", "commitして", "commitしろ", "commitせよ", "作って"],
