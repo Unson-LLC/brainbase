@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { canonicalJson } from '../../scripts/codex-hooks/judgment-resolver-host.mjs';
@@ -125,9 +126,10 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
         const additionalContext = JSON.parse(first.stdout).hookSpecificOutput.additionalContext;
         expect(additionalContext).toContain(
-            'The first user-facing assistant message for this turn must start with exactly this Host-generated line, before any other text:\n' +
+            'The final user-facing response for this turn must start with exactly this Host-generated line, before any other text:\n' +
             '🧠 判断参照: 「Resolverを実行して」を参照 → Brainbase参照先の判断が必要 ✓'
         );
+        expect(additionalContext).toContain('Intermediate commentary may omit the owner-visible audit block.');
         expect(additionalContext).toContain('opened one judgment episode');
         expect(additionalContext).toContain('there is no one-call-per-turn limit');
         expect(first.stdout).not.toContain('jr_symlink_entrypoint');
@@ -142,6 +144,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             tool_input: { topic: 'resolver' }, tool_response: { content: [{ type: 'text', text: 'context' }] }
         }) });
         expect(JSON.parse(unrelated.stdout).systemMessage).toContain('Brainbase呼出');
+        const unrelatedLine = JSON.parse(unrelated.stdout).systemMessage;
 
         const firstStopPayload = JSON.stringify({
             hook_event_name: 'Stop', ...identity, stop_hook_active: false, last_assistant_message: '仮回答'
@@ -169,14 +172,23 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             systemMessage: '📚 Brainbase参照先: 「Resolver仕様」→ owning_repoのdocs/を選択 ✓'
         });
         expect(JSON.parse(routeReplay.stdout)).toEqual(JSON.parse(route.stdout));
+        const routeLine = JSON.parse(route.stdout).systemMessage;
 
-        await run('bash', [wrapper], { env, input: JSON.stringify({
+        const search = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'PostToolUse', ...identity,
             tool_name: 'mcp__brainbase__search', tool_use_id: 'tool-search',
             tool_input: { query: 'Judgment Resolver' }, tool_response: { content: [{ type: 'text', text: 'results' }] }
         }) });
+        const searchLine = JSON.parse(search.stdout).systemMessage;
         const finalStopPayload = JSON.stringify({
-            hook_event_name: 'Stop', ...identity, stop_hook_active: true, last_assistant_message: '確認後の回答'
+            hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+            last_assistant_message: [
+                '🧠 判断参照: 「Resolverを実行して」を参照 → Brainbase参照先の判断が必要 ✓',
+                unrelatedLine,
+                routeLine,
+                searchLine,
+                '確認後の回答'
+            ].join('\n')
         });
         const finalStop = await run('bash', [wrapper], { env, input: finalStopPayload });
         const finalStopReplay = await run('bash', [wrapper], { env, input: finalStopPayload });
@@ -189,7 +201,8 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             `${hash('turn-symlink-entrypoint')}.continuation.json`,
             `${hash('turn-symlink-entrypoint')}.episode.json`,
             `${hash('turn-symlink-entrypoint')}.events`,
-            `${hash('turn-symlink-entrypoint')}.final.json`
+            `${hash('turn-symlink-entrypoint')}.final.json`,
+            `${hash('turn-symlink-entrypoint')}.transition.sqlite`
         ]);
         expect(JSON.parse(readFileSync(join(journalDirectory, `${hash('turn-symlink-entrypoint')}.episode.json`), 'utf8'))).toMatchObject({
             schema_version: 'brainbase-judgment-episode-v1',
@@ -201,10 +214,229 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             }
         });
         expect(JSON.parse(readFileSync(join(journalDirectory, `${hash('turn-symlink-entrypoint')}.final.json`), 'utf8'))).toMatchObject({
-            schema_version: 'brainbase-judgment-episode-final-v1',
+            schema_version: 'brainbase-judgment-episode-final-v2',
             completion_status: 'complete',
             event_count: 3,
-            qualifying_event_count: 1
+            qualifying_event_count: 1,
+            owner_audit_complete: true,
+            owner_audit_line_count: 4
         });
-    });
+    }, 20_000);
+
+    it('同一turnの並列UserPromptSubmitを1回のResolver呼出と同一episodeへ畳み込む', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        let requestCount = 0;
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                requestCount += 1;
+                const args = JSON.parse(body);
+                setTimeout(() => {
+                    response.setHeader('content-type', 'application/json');
+                    response.end(JSON.stringify({
+                        management_status: 'managed',
+                        receipt: {
+                            resolution_id: 'jr_parallel_start_entrypoint',
+                            turn_id: args.turn_id,
+                            request_digest: hash(canonicalJson(args)),
+                            context_digest: hash(canonicalJson(args.conversation_context)),
+                            status: 'resolved',
+                            host_binding: { status: 'managed' },
+                            classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                            classification: { intent: 'answer', domains: ['general'], action_kind: 'none' },
+                            selected_dag_ids: ['general.v1'],
+                            required_capabilities: [],
+                            active_node_definitions: [{ id: 'answer', kind: 'common', instruction: 'Answer.' }]
+                        }
+                    }));
+                }, 150);
+            });
+        });
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const identity = { session_id: 'session-parallel-start', turn_id: 'turn-parallel-start' };
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: journal
+        };
+        const payload = JSON.stringify({
+            hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT, prompt: '同時開始を検証して'
+        });
+
+        const [first, second] = await Promise.all([
+            run('bash', [wrapper], { env, input: payload }),
+            run('bash', [wrapper], { env, input: payload })
+        ]);
+
+        expect(first).toMatchObject({ code: 0, signal: null, stderr: '' });
+        expect(second).toMatchObject({ code: 0, signal: null, stderr: '' });
+        expect(JSON.parse(second.stdout)).toEqual(JSON.parse(first.stdout));
+        expect(requestCount).toBe(1);
+
+        const episode = JSON.parse(readFileSync(join(
+            journal,
+            hash(identity.session_id),
+            `${hash(identity.turn_id)}.episode.json`
+        ), 'utf8'));
+        expect(episode).toMatchObject({
+            schema_version: 'brainbase-judgment-episode-v1',
+            state: 'open',
+            initial_route_receipt: { resolution_id: 'jr_parallel_start_entrypoint' }
+        });
+    }, 20_000);
+
+    it('別processの並列PostToolUseを重複ないjournal commit順に直列化する', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const hostUrl = await listen((request, response) => {
+            if (request.method !== 'POST' || request.url !== '/host/judgment/resolve') {
+                response.statusCode = 404;
+                response.end();
+                return;
+            }
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                const args = JSON.parse(body);
+                response.setHeader('content-type', 'application/json');
+                response.end(JSON.stringify({
+                    management_status: 'managed',
+                    receipt: {
+                        resolution_id: 'jr_parallel_entrypoint',
+                        turn_id: args.turn_id,
+                        request_digest: hash(canonicalJson(args)),
+                        context_digest: hash(canonicalJson(args.conversation_context)),
+                        status: 'resolved',
+                        host_binding: { status: 'managed' },
+                        classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                        classification: { intent: 'answer', domains: ['knowledge'], action_kind: 'none' },
+                        selected_dag_ids: ['direct.v1'],
+                        required_capabilities: [],
+                        active_node_definitions: [{ id: 'answer', kind: 'common', instruction: 'Answer.' }]
+                    }
+                }));
+            });
+        });
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const identity = { session_id: 'session-parallel-entrypoint', turn_id: 'turn-parallel-entrypoint' };
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: journal
+        };
+        const start = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT, prompt: '並列参照を検証して'
+            })
+        });
+        expect(start).toMatchObject({ code: 0, signal: null, stderr: '' });
+
+        const calls = ['parallel-a', 'parallel-b'].map((toolUseId) => run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'PostToolUse', ...identity,
+                tool_name: 'mcp__brainbase__search', tool_use_id: toolUseId,
+                tool_input: { query: toolUseId },
+                tool_response: { content: [{ type: 'text', text: `${toolUseId}-result` }] }
+            })
+        }));
+        const results = await Promise.all(calls);
+        expect(results).toEqual(expect.arrayContaining([
+            expect.objectContaining({ code: 0, signal: null, stderr: '' }),
+            expect.objectContaining({ code: 0, signal: null, stderr: '' })
+        ]));
+
+        const eventsDirectory = join(
+            journal,
+            hash(identity.session_id),
+            `${hash(identity.turn_id)}.events`
+        );
+        const events = readdirSync(eventsDirectory)
+            .filter((name) => name.endsWith('.json'))
+            .map((name) => JSON.parse(readFileSync(join(eventsDirectory, name), 'utf8')))
+            .sort((left, right) => left.event_sequence - right.event_sequence);
+        expect(events.map((event) => event.event_sequence)).toEqual([0, 1]);
+        expect(new Set(events.map((event) => event.tool_use_id))).toEqual(new Set(['parallel-a', 'parallel-b']));
+    }, 20_000);
+
+    it('live transition transactionとの競合をactive Stopで無音成功に変換しない', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                const args = JSON.parse(body);
+                response.setHeader('content-type', 'application/json');
+                response.end(JSON.stringify({
+                    management_status: 'managed',
+                    receipt: {
+                        resolution_id: 'jr_live_transaction_entrypoint',
+                        turn_id: args.turn_id,
+                        request_digest: hash(canonicalJson(args)),
+                        context_digest: hash(canonicalJson(args.conversation_context)),
+                        status: 'resolved',
+                        host_binding: { status: 'managed' },
+                        classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                        classification: { intent: 'answer', domains: ['general'], action_kind: 'none' },
+                        selected_dag_ids: ['general.v1'],
+                        required_capabilities: [],
+                        active_node_definitions: [{ id: 'answer', kind: 'common', instruction: 'Answer.' }]
+                    }
+                }));
+            });
+        });
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const identity = { session_id: 'session-live-transaction', turn_id: 'turn-live-transaction' };
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: journal,
+            BRAINBASE_JUDGMENT_LOCK_TIMEOUT_MS: '10'
+        };
+        const started = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT, prompt: '競合時の確定を検証して'
+            })
+        });
+        const ownerLine = JSON.parse(started.stdout).hookSpecificOutput.additionalContext
+            .split('\n')
+            .find((line) => line.startsWith('🧠 判断参照:'));
+        const journalDirectory = join(journal, hash(identity.session_id));
+        const turnRef = hash(identity.turn_id);
+        const transitionDatabase = join(journalDirectory, `${turnRef}.transition.sqlite`);
+        const lockHolder = new Database(transitionDatabase);
+        lockHolder.exec('BEGIN IMMEDIATE');
+        try {
+            const blocked = await run('bash', [wrapper], {
+                env,
+                input: JSON.stringify({
+                    hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+                    last_assistant_message: `${ownerLine}\n回答`
+                })
+            });
+            expect(blocked.code).not.toBe(0);
+            expect(blocked.stdout).toBe('');
+            expect(blocked.stderr).toContain('judgment_episode_transition_timeout');
+            expect(readdirSync(journalDirectory)).not.toContain(`${turnRef}.final.json`);
+        } finally {
+            lockHolder.exec('ROLLBACK');
+            lockHolder.close();
+        }
+
+        const recovered = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+                last_assistant_message: `${ownerLine}\n回答`
+            })
+        });
+        expect(recovered).toMatchObject({ code: 0, stderr: '', stdout: '{}\n' });
+        expect(JSON.parse(readFileSync(join(journalDirectory, `${turnRef}.final.json`), 'utf8')))
+            .toMatchObject({ completion_status: 'complete' });
+    }, 20_000);
 });

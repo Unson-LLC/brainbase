@@ -168,7 +168,7 @@ describe('Codex Judgment Resolver Host', () => {
         );
     });
 
-    it('Hostが確定した判断文をturn最初のassistant messageだけに固定する', () => {
+    it('複数message turnでは監査ブロックを最終回答だけに固定する', () => {
         const args = {
             request: 'この設計をレビューして',
             turn_id: 'turn-current',
@@ -183,12 +183,15 @@ describe('Codex Judgment Resolver Host', () => {
         const output = successOutput(args, receipt);
 
         expect(output.hookSpecificOutput.additionalContext).toContain(
-            `The first user-facing assistant message for this turn must start with exactly this Host-generated line, before any other text:\n${line}`
+            `The final user-facing response for this turn must start with exactly this Host-generated line, before any other text:\n${line}`
         );
         expect(output.hookSpecificOutput.additionalContext).toContain(
-            'Do not repeat that line in later commentary or the final response for the same turn.'
+            'Intermediate commentary may omit the owner-visible audit block.'
         );
-        expect(output.hookSpecificOutput.additionalContext).not.toContain('every user-facing response');
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            'Put the complete audit block only at the start of the final response, after all Brainbase tool calls are known.'
+        );
+        expect(output.hookSpecificOutput.additionalContext).not.toContain('The first user-facing assistant message');
     });
 
     it('successOutputはフルreceipt JSONをモデル文脈に含めない', () => {
@@ -372,7 +375,10 @@ describe('Codex Judgment Resolver Host', () => {
             initial_route_receipt: { resolution_id: 'jr_host_test' }
         });
         const journalDirectory = join(root, 'journal', hash(payload.session_id));
-        expect(readdirSync(journalDirectory)).toEqual([`${hash(payload.turn_id)}.episode.json`]);
+        expect(readdirSync(journalDirectory).sort()).toEqual([
+            `${hash(payload.turn_id)}.episode.json`,
+            `${hash(payload.turn_id)}.transition.sqlite`
+        ]);
         expect(existsSync(join(journalDirectory, `${hash(payload.turn_id)}.final.json`))).toBe(false);
     });
 
@@ -423,15 +429,16 @@ describe('Codex Judgment Resolver Host', () => {
             tool_response: { content: [{ type: 'text', text: '📚 Brainbase検索: Graphで「Judgment Resolver」を検索 → 2件 ✓' }] }
         }, { env });
 
-        expect(unrelated.event_kind).toBe('retrieve');
+        expect(unrelated).toMatchObject({ event_kind: 'retrieve', event_sequence: 0 });
         expect(routed).toEqual(replay);
         expect(routed).toMatchObject({
-            event_kind: 'route', success: true, satisfies: ['knowledge.resolve'],
+            event_kind: 'route', event_sequence: 1, success: true, satisfies: ['knowledge.resolve'],
             safe_metadata: { resolution_id: 'kr_1', source_class: 'owning_repo' }
         });
         expect(routed.display_line).toBe('📚 Brainbase参照先: 「意思決定の正本 [秘密情報]」→ owning_repoのdocs/を選択 ✓');
         expect(routed.display_line).not.toMatch(/検索済み|取得/);
         expect(searched.display_line).toBe('📚 Brainbase検索: Graphで「Judgment Resolver」を検索 → 2件 ✓');
+        expect(searched.event_sequence).toBe(2);
 
         const eventsDirectory = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.events`);
         expect(readdirSync(eventsDirectory)).toHaveLength(3);
@@ -494,6 +501,40 @@ describe('Codex Judgment Resolver Host', () => {
         expect(finalReplay.final).toEqual(second.final);
     });
 
+    it('SQLite transition transactionでStopをfinal receiptへ収束させる', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-transition', turn_id: 'turn-transition',
+            prompt: '判断結果を返して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+        const journalDirectory = join(root, 'journal', hash(payload.session_id));
+        const transitionDatabase = join(journalDirectory, `${hash(payload.turn_id)}.transition.sqlite`);
+
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true,
+            last_assistant_message: `${episode.owner_audit.display_line}\n回答`
+        }, { env });
+
+        expect(result.output).toEqual({});
+        expect(result.final).toMatchObject({ completion_status: 'complete' });
+        expect(existsSync(transitionDatabase)).toBe(true);
+        expect(existsSync(join(journalDirectory, `${hash(payload.turn_id)}.final.json`))).toBe(true);
+    });
+
     it('継続中にknowledge routeを取得すればcompleteとして一度だけ確定する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
@@ -503,7 +544,7 @@ describe('Codex Judgment Resolver Host', () => {
             ...validReceipt(args),
             required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }]
         };
-        await startEpisode(payload, {
+        const episode = await startEpisode(payload, {
             env,
             fetchImpl: vi.fn().mockResolvedValue({
                 ok: true, status: 200,
@@ -530,11 +571,16 @@ describe('Codex Judgment Resolver Host', () => {
 
         const result = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id,
-            stop_hook_active: true, last_assistant_message: '参照先が未確定だと説明'
+            stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                routed.display_line,
+                '参照先が未確定だと説明'
+            ].join('\n')
         }, { env });
         expect(result.output).toEqual({});
         expect(result.final).toMatchObject({
-            schema_version: 'brainbase-judgment-episode-final-v1',
+            schema_version: 'brainbase-judgment-episode-final-v2',
             completion_status: 'complete', event_count: 1, qualifying_event_count: 1
         });
         expect(recordBrainbaseToolUse(routePayload, { env })).toEqual(routed);
@@ -542,6 +588,109 @@ describe('Codex Judgment Resolver Host', () => {
             ...routePayload,
             tool_use_id: 'tool-after-final'
         }, { env })).toThrow('judgment_episode_already_finalized');
+    });
+
+    it('final receiptはevent fingerprintの集合だけでなくjournal commit順序も束縛する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-event-order', turn_id: 'turn-event-order',
+            prompt: '判断証跡の順序を確認', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+        const first = recordBrainbaseToolUse({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__search', tool_use_id: 'tool-order-first',
+            tool_input: { query: 'first' },
+            tool_response: { content: [{ type: 'text', text: '📚 Brainbase検索: first → 1件 ✓' }] }
+        }, { env });
+        const second = recordBrainbaseToolUse({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__search', tool_use_id: 'tool-order-second',
+            tool_input: { query: 'second' },
+            tool_response: { content: [{ type: 'text', text: '📚 Brainbase検索: second → 1件 ✓' }] }
+        }, { env });
+
+        expect(finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                first.display_line,
+                second.display_line,
+                '回答'
+            ].join('\n')
+        }, { env }).final).toMatchObject({ completion_status: 'complete', event_count: 2 });
+
+        const eventsDirectory = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.events`);
+        const eventPaths = readdirSync(eventsDirectory).map((name) => join(eventsDirectory, name));
+        const events = eventPaths.map((path) => JSON.parse(readFileSync(path, 'utf8')));
+        for (const [index, eventPath] of eventPaths.entries()) {
+            const event = events[index];
+            const peer = events[1 - index];
+            writeFileSync(eventPath, `${JSON.stringify({ ...event, event_sequence: peer.event_sequence }, null, 2)}\n`);
+        }
+
+        expect(() => finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+            last_assistant_message: 'replay'
+        }, { env })).toThrow('judgment_episode_final_event_set_mismatch');
+    });
+
+    it('既存のv1 final receiptはlegacy digestで読み取り互換を保つ', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-final-v1', turn_id: 'turn-final-v1',
+            prompt: '既存receiptを再生', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+        const recorded = recordBrainbaseToolUse({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__search', tool_use_id: 'tool-final-v1',
+            tool_input: { query: 'legacy' },
+            tool_response: { content: [{ type: 'text', text: '📚 Brainbase検索: legacy → 1件 ✓' }] }
+        }, { env });
+        const answer = [episode.owner_audit.display_line, recorded.display_line, '回答'].join('\n');
+        const created = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false, last_assistant_message: answer
+        }, { env }).final;
+        const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
+        writeFileSync(finalPath, `${JSON.stringify({
+            ...created,
+            schema_version: 'brainbase-judgment-episode-final-v1',
+            event_set_digest: hash(canonicalJson([recorded.event_fingerprint].sort()))
+        }, null, 2)}\n`);
+
+        expect(finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true, last_assistant_message: answer
+        }, { env }).final).toMatchObject({
+            schema_version: 'brainbase-judgment-episode-final-v1',
+            completion_status: 'complete'
+        });
     });
 
     it('Brainbase capabilityが不要ならtool call 0件でもcompleteにし、orphan eventは証拠化しない', async () => {
@@ -563,7 +712,7 @@ describe('Codex Judgment Resolver Host', () => {
             classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
             selected_dag_ids: ['general.v1']
         };
-        await startEpisode(payload, {
+        const episode = await startEpisode(payload, {
             env,
             fetchImpl: vi.fn().mockResolvedValue({
                 ok: true, status: 200,
@@ -573,11 +722,53 @@ describe('Codex Judgment Resolver Host', () => {
 
         const result = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id,
-            stop_hook_active: false, last_assistant_message: 'こんにちは'
+            stop_hook_active: false,
+            last_assistant_message: `${episode.owner_audit.display_line}\nこんにちは`
         }, { env });
         expect(result.output).toEqual({});
         expect(result.final).toMatchObject({
-            completion_status: 'complete', event_count: 0, qualifying_event_count: 0
+            completion_status: 'complete', event_count: 0, qualifying_event_count: 0,
+            owner_audit_complete: true, owner_audit_line_count: 1
+        });
+    });
+
+    it('Stopは保存済み監査行の欠落・順序違い・過剰表示を一度だけ再生成させる', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-audit', turn_id: 'turn-audit', prompt: '判断証跡を見せて', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+        const eventEntry = recordBrainbaseToolUse({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__search', tool_use_id: 'tool-audit-search',
+            tool_input: { query: '判断' },
+            tool_response: { content: [{ type: 'text', text: '📚 Brainbase検索: Graphで「判断」を検索 → 2件 ✓' }] }
+        }, { env });
+
+        const malformed = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: `${eventEntry.display_line}\n${episode.owner_audit.display_line}\n${eventEntry.display_line}\n回答`
+        }, { env });
+        expect(malformed.output).toMatchObject({ decision: 'block' });
+        expect(malformed.output.reason).toContain(`${episode.owner_audit.display_line}\n${eventEntry.display_line}`);
+        expect(malformed.continuation).toMatchObject({ missing_capabilities: ['owner.audit.display'] });
+
+        const corrected = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+            last_assistant_message: `${episode.owner_audit.display_line}\n${eventEntry.display_line}\n回答`
+        }, { env });
+        expect(corrected.final).toMatchObject({
+            completion_status: 'complete', owner_audit_complete: true, owner_audit_line_count: 2
         });
     });
 
@@ -593,7 +784,7 @@ describe('Codex Judgment Resolver Host', () => {
             selected_dag_ids: ['knowledge.v1'],
             required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }]
         };
-        await startEpisode(payload, {
+        const episode = await startEpisode(payload, {
             env,
             fetchImpl: vi.fn().mockResolvedValue({
                 ok: true, status: 200,
@@ -611,7 +802,7 @@ describe('Codex Judgment Resolver Host', () => {
             session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false
         }, { env }).output).toMatchObject({ decision: 'block' });
 
-        recordBrainbaseToolUse({
+        const routed = recordBrainbaseToolUse({
             session_id: payload.session_id, turn_id: payload.turn_id,
             tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'tool-good-route',
             tool_input: { intent: '正本を確認して' },
@@ -621,7 +812,13 @@ describe('Codex Judgment Resolver Host', () => {
             } }
         }, { env });
         expect(finalizeEpisode({
-            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                failed.display_line,
+                routed.display_line,
+                '参照結果'
+            ].join('\n')
         }, { env }).final).toMatchObject({ completion_status: 'complete', qualifying_event_count: 1 });
 
         const next = buildJudgmentRequest({

@@ -239,8 +239,9 @@ describe('JudgmentResolutionService', () => {
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:5
-    it('肯定一致したsafe generalだけをdirect DAGへ通す', () => {
-        const receipt = service.resolve(input('この文章の意味を説明して'), { access: ACCESS, hostBinding: binding() });
+    it('専門matcher未一致の非follow-up入力をdirect DAGへ通す', () => {
+        const request = '今日の過ごし方を考えて';
+        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
         expect(receipt.status).toBe('resolved');
         expect(receipt.selected_dag_ids).toEqual(['direct.v1']);
         expect(receipt.active_nodes).toEqual(expect.arrayContaining(['entry', 'reconcile', 'goal', 'direct-answer', 'merge', 'receipt']));
@@ -252,7 +253,7 @@ describe('JudgmentResolutionService', () => {
             instruction: 'Answer the bounded general question directly.',
             required_capability_template: null
         });
-        expect(receipt.request_digest).toBe(computeRequestDigest(input('この文章の意味を説明して')));
+        expect(receipt.request_digest).toBe(computeRequestDigest(input(request)));
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:4
