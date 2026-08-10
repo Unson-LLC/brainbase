@@ -2,11 +2,10 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 import {
+    chmodSync,
     closeSync,
     constants as fsConstants,
-    fstatSync,
     linkSync,
-    lstatSync,
     mkdirSync,
     openSync,
     readdirSync,
@@ -19,6 +18,7 @@ import {
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import Database from 'better-sqlite3';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(SCRIPT_PATH), '../..');
@@ -28,10 +28,8 @@ const TRANSIENT_REASONS = new Set([
     'judgment_host_bridge_failed',
     'judgment_host_transport_failed'
 ]);
-const TRANSITION_LOCK_WAIT = new Int32Array(new SharedArrayBuffer(4));
 const DEFAULT_LOCK_WAIT_ATTEMPTS = 300;
 const DEFAULT_LOCK_WAIT_MS = 10;
-const DEFAULT_LEGACY_LOCK_STALE_MS = 30_000;
 
 function compareCodePoints(left, right) {
     const a = Array.from(left, (value) => value.codePointAt(0));
@@ -204,8 +202,7 @@ function journalPaths(sessionRef, turnId, env) {
         events: join(directory, `${turnRef}.events`),
         continuation: join(directory, `${turnRef}.continuation.json`),
         final: join(directory, `${turnRef}.final.json`),
-        lock: join(directory, `${turnRef}.episode.lock`),
-        transitionLock: join(directory, `${turnRef}.transition.lock`)
+        transitionDatabase: join(directory, `${turnRef}.transition.sqlite`)
     };
 }
 
@@ -232,129 +229,64 @@ function createImmutableJson(target, value, conflictReason) {
     }
 }
 
-function lockTiming(env) {
+function lockTimeoutMs(env) {
     const positiveInteger = (value, fallback) => {
         const parsed = Number(value);
         return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : fallback;
     };
-    return {
-        attempts: Math.max(1, positiveInteger(env.BRAINBASE_JUDGMENT_LOCK_WAIT_ATTEMPTS, DEFAULT_LOCK_WAIT_ATTEMPTS)),
-        waitMs: positiveInteger(env.BRAINBASE_JUDGMENT_LOCK_WAIT_MS, DEFAULT_LOCK_WAIT_MS),
-        legacyStaleMs: positiveInteger(env.BRAINBASE_JUDGMENT_LOCK_STALE_MS, DEFAULT_LEGACY_LOCK_STALE_MS)
+    const configured = positiveInteger(env.BRAINBASE_JUDGMENT_LOCK_TIMEOUT_MS, -1);
+    if (configured >= 0) return configured;
+    const attempts = Math.max(1, positiveInteger(
+        env.BRAINBASE_JUDGMENT_LOCK_WAIT_ATTEMPTS,
+        DEFAULT_LOCK_WAIT_ATTEMPTS
+    ));
+    const waitMs = positiveInteger(env.BRAINBASE_JUDGMENT_LOCK_WAIT_MS, DEFAULT_LOCK_WAIT_MS);
+    return attempts * waitMs;
+}
+
+function withEpisodeTransitionLock(
+    paths,
+    callback,
+    env,
+    timeoutReason = 'judgment_episode_transition_timeout'
+) {
+    mkdirSync(paths.directory, { recursive: true, mode: 0o700 });
+    const timeout = lockTimeoutMs(env);
+    const database = new Database(paths.transitionDatabase, { timeout });
+    chmodSync(paths.transitionDatabase, 0o600);
+    database.pragma(`busy_timeout = ${timeout}`);
+    try {
+        database.exec('BEGIN IMMEDIATE');
+    } catch (error) {
+        database.close();
+        if (['SQLITE_BUSY', 'SQLITE_LOCKED'].includes(error?.code)) {
+            throw new Error(timeoutReason, { cause: error });
+        }
+        throw error;
+    }
+    let closed = false;
+    const finish = (command) => {
+        if (closed) return;
+        try { database.exec(command); } finally {
+            closed = true;
+            database.close();
+        }
     };
-}
-
-function lockOwnerState(ownerPid) {
-    if (!Number.isSafeInteger(ownerPid) || ownerPid <= 0) return 'unknown';
+    let result;
     try {
-        process.kill(ownerPid, 0);
-        return 'alive';
+        result = callback();
     } catch (error) {
-        if (error?.code === 'ESRCH') return 'dead';
-        if (error?.code === 'EPERM') return 'alive';
-        return 'unknown';
-    }
-}
-
-function staleLockSnapshot(path, env) {
-    let descriptor;
-    try {
-        descriptor = openSync(path, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
-    } catch (error) {
-        if (error?.code === 'ENOENT') return null;
+        finish('ROLLBACK');
         throw error;
     }
-    try {
-        const stats = fstatSync(descriptor);
-        if (!stats.isFile()) throw new Error('judgment_episode_lock_type_invalid');
-        const raw = readFileSync(descriptor, 'utf8');
-        let metadata = null;
-        try { metadata = record(JSON.parse(raw)); } catch {}
-        const ownerState = lockOwnerState(metadata?.owner_pid);
-        const ageMs = Math.max(0, Date.now() - stats.mtimeMs);
-        const recoverable = ownerState === 'dead'
-            || (ownerState === 'unknown' && ageMs >= lockTiming(env).legacyStaleMs);
-        return { stats, raw, recoverable };
-    } finally {
-        closeSync(descriptor);
+    if (result && typeof result.then === 'function') {
+        return result.then(
+            (value) => { finish('COMMIT'); return value; },
+            (error) => { finish('ROLLBACK'); throw error; }
+        );
     }
-}
-
-function reclaimStaleLock(path, env) {
-    const snapshot = staleLockSnapshot(path, env);
-    if (!snapshot?.recoverable) return false;
-    try {
-        const current = lstatSync(path);
-        if (!current.isFile()
-            || current.dev !== snapshot.stats.dev
-            || current.ino !== snapshot.stats.ino
-            || readFileSync(path, 'utf8') !== snapshot.raw) return false;
-        unlinkSync(path);
-        return true;
-    } catch (error) {
-        if (error?.code === 'ENOENT') return true;
-        throw error;
-    }
-}
-
-function acquireProcessLock(path, env, timeoutReason) {
-    mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-    const timing = lockTiming(env);
-    for (let attempt = 0; attempt < timing.attempts; attempt += 1) {
-        const token = randomUUID();
-        const temp = join(dirname(path), `.${basename(path)}.${process.pid}.${token}.tmp`);
-        const descriptor = openSync(temp, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY, 0o600);
-        try {
-            try {
-                writeFileSync(descriptor, `${JSON.stringify({
-                    schema_version: 'brainbase-judgment-lock-v1',
-                    owner_pid: process.pid,
-                    acquired_at: new Date().toISOString(),
-                    token
-                })}\n`);
-            } finally {
-                closeSync(descriptor);
-            }
-        } catch (error) {
-            try { unlinkSync(temp); } catch {}
-            throw error;
-        }
-        try {
-            linkSync(temp, path);
-            return { stats: lstatSync(path), token };
-        } catch (error) {
-            if (error?.code !== 'EEXIST') throw error;
-            if (reclaimStaleLock(path, env)) continue;
-            if (attempt === timing.attempts - 1) throw new Error(timeoutReason);
-            Atomics.wait(TRANSITION_LOCK_WAIT, 0, 0, timing.waitMs);
-        } finally {
-            try { unlinkSync(temp); } catch {}
-        }
-    }
-    throw new Error(timeoutReason);
-}
-
-function releaseProcessLock(path, lock) {
-    try {
-        const current = lstatSync(path);
-        let metadata = null;
-        try { metadata = record(JSON.parse(readFileSync(path, 'utf8'))); } catch {}
-        if (current.isFile()
-            && current.dev === lock.stats.dev
-            && current.ino === lock.stats.ino
-            && metadata?.token === lock.token) unlinkSync(path);
-    } catch (error) {
-        if (error?.code !== 'ENOENT') throw error;
-    }
-}
-
-function withEpisodeTransitionLock(paths, callback, env) {
-    const lock = acquireProcessLock(paths.transitionLock, env, 'judgment_episode_transition_timeout');
-    try {
-        return callback();
-    } finally {
-        releaseProcessLock(paths.transitionLock, lock);
-    }
+    finish('COMMIT');
+    return result;
 }
 
 function acceptedProjection(receipt) {
@@ -612,8 +544,7 @@ export async function startEpisode(payload, { env = process.env, fetchImpl = glo
     const existing = existingEpisode(payload, env);
     if (existing) return existing;
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
-    const lock = acquireProcessLock(paths.lock, env, 'judgment_episode_start_timeout');
-    try {
+    return withEpisodeTransitionLock(paths, async () => {
         const afterLock = existingEpisode(payload, env);
         if (afterLock) return afterLock;
         const args = buildJudgmentRequest(payload, { env });
@@ -628,9 +559,7 @@ export async function startEpisode(payload, { env = process.env, fetchImpl = glo
             owner_audit: buildOwnerAudit(args, initialRouteReceipt)
         };
         return verifyEpisode(createImmutableJson(paths.episode, entry, 'judgment_episode_start_conflict'));
-    } finally {
-        releaseProcessLock(paths.lock, lock);
-    }
+    }, env, 'judgment_episode_start_timeout');
 }
 
 const TOOL_EXCERPT_LIMIT = 40;
@@ -1104,8 +1033,13 @@ async function main() {
             process.stdout.write(`${JSON.stringify(blockedOutput(reason))}\n`);
         } else if (eventName === 'PostToolUse') {
             process.stdout.write(`${JSON.stringify({ systemMessage: `⚠️ Brainbase監査記録に失敗: ${reason}` })}\n`);
-        } else if (eventName === 'Stop' && payload.stop_hook_active !== true) {
-            process.stdout.write(`${JSON.stringify({ decision: 'block', reason: `Brainbase judgment episodeの確定に失敗: ${reason}` })}\n`);
+        } else if (eventName === 'Stop') {
+            if (payload.stop_hook_active === true) {
+                process.stderr.write(`Brainbase judgment episodeの確定に失敗: ${reason}\n`);
+                process.exitCode = 1;
+            } else {
+                process.stdout.write(`${JSON.stringify({ decision: 'block', reason: `Brainbase judgment episodeの確定に失敗: ${reason}` })}\n`);
+            }
         } else {
             process.stdout.write('{}\n');
         }

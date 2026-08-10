@@ -40,7 +40,7 @@ For matching `mcp__brainbase__*` tools, input includes the session/turn binding,
 
 ### Stop
 
-Input includes the session/turn binding, `stop_hook_active`, and optional answer text. The Host evaluates required capabilities against immutable events and requires the final answer to begin with the stored owner judgment line plus every stored tool-event line in atomic journal-commit order, with no extra copies. Event commits and Stop finalization for the same turn share one transition lock. Process locks atomically publish complete metadata containing owner PID, acquisition time, and a unique token; a confirmed dead owner is reclaimed immediately, a legacy ownerless lock only after the bounded stale interval, and a live owner never. Missing required knowledge or an invalid owner-visible prefix blocks the first Stop only; `stop_hook_active=true` finalizes incomplete.
+Input includes the session/turn binding, `stop_hook_active`, and optional answer text. The Host evaluates required capabilities against immutable events and requires the final answer to begin with the stored owner judgment line plus every stored tool-event line in atomic journal-commit order, with no extra copies. Episode start, event commits, and Stop finalization for the same turn share one per-turn SQLite `BEGIN IMMEDIATE` transaction. The OS releases the transaction lock on process exit, so the Host never reclaims or deletes a guessed-stale process lock file. Missing required knowledge or an invalid owner-visible prefix blocks the first Stop only; after transaction acquisition, `stop_hook_active=true` finalizes incomplete. A bounded transaction-acquisition failure on that active Stop exits non-zero with an explicit diagnostic instead of returning `{}` without a final receipt.
 
 Orphan PostToolUse or Stop events do not create an episode.
 
@@ -102,7 +102,7 @@ Recognized transient timeout/connection/429/502/503/504 failures may retry only 
 
 ## 9. Finalization and authorization boundary
 
-At Stop, the Host creates one immutable final receipt. When required knowledge is absent, or the exact stored audit lines are missing, duplicated, or out of journal-commit order in `last_assistant_message`, the first Stop returns `decision:block` with a continuation reason and the exact safe lines to render. The repeated Stop indicated by `stop_hook_active=true` creates `status=incomplete` and permits termination, preventing an infinite hook loop. A replay reuses the same final. A complete final records `owner_audit_complete=true`, the expected line count, and an answer digest that live verification binds to the final assistant `response_item` in the canonical JSONL transcript.
+At Stop, the Host creates one immutable final receipt. When required knowledge is absent, or the exact stored audit lines are missing, duplicated, or out of journal-commit order in `last_assistant_message`, the first Stop returns `decision:block` with a continuation reason and the exact safe lines to render. After acquiring the per-turn transaction, the repeated Stop indicated by `stop_hook_active=true` creates `status=incomplete` and permits termination, preventing an infinite hook loop. A transaction-acquisition timeout is an explicit non-zero hook failure, not a successful empty response. A replay reuses the same final. A complete final records `owner_audit_complete=true`, the expected line count, and an answer digest that live verification binds to the final assistant `response_item` in the canonical JSONL transcript.
 
 Initial and final receipts are judgment and audit evidence. They do not authorize writes or external action. Platform permission, explicit approval, and executor authorization remain unchanged; no separate Effect Guard is added.
 
@@ -110,7 +110,8 @@ Initial and final receipts are judgment and audit evidence. They do not authoriz
 
 - terminal before episode: invalid hook input, untrusted context, binding rejection, malformed response, digest mismatch, unmanaged binding, missing active definitions, or same-turn conflict
 - terminal event: same `tool_use_id` with a different fingerprint
-- recoverable Host crash: a process lock whose recorded owner is confirmed dead is reclaimed; a live owner is never displaced, and an ownerless legacy lock must exceed the bounded stale interval
+- recoverable Host crash: SQLite and the OS release the per-turn transaction lock when the process exits; no stale-lock reclamation or path deletion is performed
+- explicit active-Stop contention: failure to acquire the per-turn transaction within the bounded wait exits non-zero and writes a diagnostic without fabricating a final receipt
 - incomplete completion: required capability or owner-visible audit prefix still absent after the single continuation
 - replay: verified immutable episode/event/final is returned without new Resolver or tool evidence
 

@@ -38,9 +38,9 @@ describe('judgment resolver publication surfaces', () => {
         expect(host).toContain('recordBrainbaseToolUse');
         expect(host).toContain('finalizeEpisode');
         expect(host).toContain('answerContainsExactAuditPrefix');
-        expect(host).toContain('brainbase-judgment-lock-v1');
-        expect(host).toContain('owner_pid');
-        expect(host).toContain('reclaimStaleLock');
+        expect(host).toContain('BEGIN IMMEDIATE');
+        expect(host).toContain('transition.sqlite');
+        expect(host).toContain('judgment_episode_transition_timeout');
         expect(host).toContain('owner.audit.display');
         expect(host).toContain('there is no one-call-per-turn limit');
         expect(host).not.toContain('classification_proposal');
@@ -94,11 +94,11 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toMatch(/Claude Code.*future Host-adapter candidate/iu);
         expect(capability).toMatch(/Claude Code.*future Host-adapter candidate/iu);
         expect(skill).toContain('Claude Codeは同じ責務分割を適用できる将来のHost adapter候補');
-        expect(skill).toContain('dead owner');
-        expect(skill).toContain('live owner');
+        expect(skill).toContain('SQLite');
+        expect(skill).toContain('非zero exit');
         expect(architecture).toContain('Codex lifecycle Host adapter');
-        expect(architecture).toContain('confirmed dead');
-        expect(architecture).toContain('live owner');
+        expect(architecture).toContain('BEGIN IMMEDIATE');
+        expect(architecture).toContain('silently returning `{}`');
         expect(architecture).toContain('Persistent Brainbase Host bridge');
         expect(architecture).toContain('Resolver API/server');
         expect(architecture).toContain('Resolver API/server owns the verifier copy');
@@ -108,10 +108,10 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('Resolver API/server');
         expect(runbook).toContain('Resolver API/server verifier hold the two runtime copies');
         expect(runbook).toContain('future Claude Code adapter must not hold or receive either copy');
-        expect(runbook).toContain('confirmed dead');
-        expect(runbook).toContain('live owner');
-        expect(spec).toContain('confirmed dead owner');
-        expect(spec).toContain('live owner');
+        expect(runbook).toContain('SQLite');
+        expect(runbook).toContain('active Stop exits non-zero');
+        expect(spec).toContain('BEGIN IMMEDIATE');
+        expect(spec).toContain('explicit non-zero hook failure');
     });
 
     it('capability README indexが現行integrationと将来候補を区別する', () => {
