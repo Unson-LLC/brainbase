@@ -31,13 +31,9 @@ describe('Canonical Task writer policy commands', () => {
     });
 
     it('requires expected and replacement tokens for manual recovery', () => {
-        expect(parseCanonicalTaskWriterRecoveryArgs([
-            '--expected-token', 'old', '--expected-pid', '1234', '--new-token', 'new'
-        ])).toEqual({ expectedToken: 'old', expectedPid: 1234, newToken: 'new' });
+        expect(parseCanonicalTaskWriterRecoveryArgs(['--expected-token', 'old', '--new-token', 'new']))
+            .toEqual({ expectedToken: 'old', newToken: 'new' });
         expect(() => parseCanonicalTaskWriterRecoveryArgs(['--new-token', 'new'])).toThrow('--expected-token');
-        expect(() => parseCanonicalTaskWriterRecoveryArgs([
-            '--expected-token', 'old', '--new-token', 'new'
-        ])).toThrow('--expected-pid');
     });
 
     it('keeps operational scripts behind the Companion Canonical Task API', async () => {

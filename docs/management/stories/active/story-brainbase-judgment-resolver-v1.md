@@ -10,18 +10,16 @@ architecture_docs:
 spec_docs:
   - docs/specs/story-brainbase-judgment-resolver-v1.md
 pr_scope_strategy: atomic_single_pr
-pr_scope_reason: "The repo control instructions, requirements SSOT, published runtime contract, current-head contract gate, content-equivalent installed-Hook live evidence, separately verified deployment SHA, and budget approval records describe and verify one Judgment Resolver lifecycle. Splitting these facets would permit a revision whose public contract, agent behavior, verification evidence, or delivery authority cannot be reviewed against the same commit."
+pr_scope_reason: "The repo control instructions, requirements SSOT, runtime contract, and current-head lifecycle test describe one Judgment Resolver lifecycle. Splitting them would allow the published contract and runtime behavior to drift across revisions."
 pr_scope_review_facets:
   - repo-control
   - requirements-ssot
   - runtime-behavior
   - e2e-gate
-  - misc-follow-up
 pr_scope_dependency_boundaries:
   - requirements-ssot->repo-control
   - requirements-ssot->runtime-behavior
   - runtime-behavior->e2e-gate
-  - requirements-ssot->misc-follow-up
 status: active
 created_at: 2026-08-07
 updated_at: 2026-08-10
