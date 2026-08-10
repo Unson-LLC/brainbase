@@ -1,3 +1,10 @@
+---
+spec_id: SPEC-BRAINBASE-JUDGMENT-RESOLVER-V1
+story_id: story-brainbase-judgment-resolver-v1
+status: accepted
+updated_at: 2026-08-10
+---
+
 # Brainbase Judgment Resolver episode lifecycle specification
 
 ## 1. Invariant
@@ -26,7 +33,7 @@ Orphan PostToolUse or Stop events do not create an episode.
 
 The public request contains only `request`, `turn_id`, optional `project_code`, and required `conversation_context` using `brainbase-conversation-context-v1`. Context preserves ordered exact user/assistant text, current request exactly once, prior complete episode projections, runtime/project binding, repo-relative instruction digests, completeness, and `source_digest`.
 
-The Host performs structural filtering. It excludes developer envelopes, compaction summaries, reasoning, tool arguments, tool output, raw session identity, and personal absolute paths. Resolver determines classification and semantic relevance; there is no caller-supplied classification.
+The Host performs structural filtering. It excludes developer envelopes, compaction summaries, reasoning, tool arguments, tool output, raw session identity, and personal absolute paths. Resolver deterministically determines classification and the initial route from that canonical context; there is no caller-supplied classification and no Host-generated semantic summary.
 
 ## 4. Canonical JSON and digests
 
@@ -43,9 +50,11 @@ All digests are lowercase SHA-256 hexadecimal strings.
 
 ## 5. Server-owned classification and DAG
 
-Resolver determines classification. It owns intent, domain, signal, effect, risk, confidence, policy, and active-DAG selection. Explicit current evidence wins; an under-specified follow-up may inherit domain from the latest prior complete episode or prior raw user message. Current request always determines the minimum action/risk floor.
+Resolver determines classification with manifest-backed deterministic code. It matches explicit request/context evidence against `semantic_matchers`, may inherit a bounded classification for an under-specified follow-up from the latest prior complete episode or prior raw user message, and applies the current request's minimum action/risk floor. When a request is not a follow-up and has no explicit specialist domain or intent match, v1 applies a server-owned `general/answer` fallback; this is a deterministic default, not evidence of semantic model inference. It owns intent, domain, signal, effect, risk, confidence, policy, and active-DAG selection. It has no LLM provider or model API dependency; `semantic` describes the classification purpose, not the implementation mechanism.
 
-No resolvable referent returns managed `needs_classification` with a clarification DAG. This is not a transport failure. Only returned `active_nodes`, `active_edges`, and matching `active_node_definitions` execute.
+A follow-up with no resolvable referent, or a knowledge classification without the required project context, returns managed `needs_classification` with a clarification DAG. Plain non-follow-up matcher misses use the `general/answer` fallback instead. This is not a transport failure. Only returned `active_nodes`, `active_edges`, and matching `active_node_definitions` execute.
+
+After the initial route, the current Codex model is the open-ended reasoning loop. It follows the selected DAG, decides how to answer, formulates and refines knowledge queries from observed results, and may call knowledge/retrieval tools 0..N times. It cannot reclassify or replace the initial route. Knowledge Resolver separately chooses a canonical source route with deterministic rules; it does not retrieve content. Claude Code is a future Host-adapter candidate for the same responsibility split, but is not part of the current episode-lifecycle hook integration.
 
 Project binding is judgment context, not action authorization. An inaccessible project only removes that project's policies from the applicable set; it does not make general judgment unavailable.
 
@@ -93,9 +102,9 @@ Specific API errors remain distinct. `brainbase_project_not_accessible` is not u
 
 ## 11. Verification matrix
 
-- service/API: strict schema, signing, server-owned classification, follow-up inheritance, policy scope, DAG topology
+- service/API: strict schema, signing, deterministic manifest-backed classification without an LLM dependency, follow-up inheritance, policy scope, DAG topology
 - UserPromptSubmit Host: transcript extraction, structural exclusion, privacy, exact current message, retry/create/reuse/conflict
 - PostToolUse Host: 0..N events, exact capability qualification, replay, conflict, safe projection, accurate reference/search/retrieval wording
 - Stop Host: zero-call completion when allowed, one continuation, incomplete second Stop, complete final, replay
-- end-to-end: Host initial dispatch -> repeated model/tool loop -> final episode receipt
+- end-to-end: Codex Host initial dispatch -> Codex open-ended reasoning and repeated model/tool loop -> final episode receipt
 - publication: `CLAUDE.md`/`AGENTS.md`, Skill, capability, runbook, story, and tests expose the same lifecycle

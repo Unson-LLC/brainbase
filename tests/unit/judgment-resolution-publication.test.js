@@ -41,9 +41,10 @@ describe('judgment resolver publication surfaces', () => {
         const skill = read('.claude/skills/brainbase-judgment-resolver/SKILL.md');
         const capability = read('docs/brainbase-capabilities/capabilities/judgment.resolve.yml');
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
-        const story = read('docs/architecture/story-brainbase-judgment-resolver-v1.md');
+        const architecture = read('docs/architecture/story-brainbase-judgment-resolver-v1.md');
+        const story = read('docs/management/stories/active/story-brainbase-judgment-resolver-v1.md');
         const spec = read('docs/specs/brainbase-judgment-resolver-v1-spec.md');
-        const surfaces = [skill, capability, runbook, story, spec];
+        const surfaces = [skill, capability, runbook, architecture, story, spec];
 
         for (const surface of surfaces) {
             expect(surface).toMatch(/model.*(call|呼|Resolver)/iu);
@@ -55,13 +56,44 @@ describe('judgment resolver publication surfaces', () => {
             expect(surface).toMatch(/0\.\.N|0-N|何度でも|複数回/iu);
             expect(surface).toMatch(/project.*(context|文脈)/iu);
             expect(surface).toMatch(/authorize|authorization|権限|許可/iu);
+            expect(surface).toMatch(
+                /(内部|internal).*(LLM|model)|LLM.*(ない|持たない|使わない)|no LLM/iu
+            );
+            expect(surface).toMatch(/Codex/iu);
+            expect(surface).toContain('general/answer');
+            expect(surface).not.toContain('classification_proposal');
         }
 
         expect(capability).toContain('mcp: []');
         expect(capability).toContain('POST http://127.0.0.1:39002/host/judgment/resolve');
         expect(runbook).toContain('structural filtering');
+        expect(runbook).toContain('records only direct `mcp__brainbase__*` outcomes');
+        expect(runbook).toContain('successful `unconfirmed` result does satisfy the routing capability');
+        expect(runbook).not.toContain('A failed or unconfirmed call');
         expect(spec).toContain('Resolver determines classification');
-        expect(story).toContain('trust-boundary defect');
+        expect(spec).toContain('Plain non-follow-up matcher misses use the `general/answer` fallback instead');
+        expect(architecture).toContain('trust-boundary defect');
+        expect(architecture).toContain('local file reads and other connectors are not yet covered');
+        expect(story).toContain('model-callable toolとして公開しない');
+        expect(story).toContain('Brainbase knowledge/retrieval toolを0..N回');
+        expect(story).toContain('initial/final receiptは判断と監査の証拠');
+        expect(story).toContain('project bindingは判断文脈であり、action authorityではない');
+        expect(story).toContain('専門domain/intent matcherに一致しない非follow-up入力');
+        expect(architecture).toMatch(/Claude Code.*future Host-adapter candidate/iu);
+        expect(spec).toMatch(/Claude Code.*future Host-adapter candidate/iu);
+        expect(runbook).toMatch(/Claude Code.*future Host-adapter candidate/iu);
+        expect(capability).toMatch(/Claude Code.*future Host-adapter candidate/iu);
+        expect(skill).toContain('Claude Codeは同じ責務分割を適用できる将来のHost adapter候補');
+        expect(architecture).toContain('Codex lifecycle Host adapter');
+        expect(architecture).toContain('Persistent Brainbase Host bridge');
+        expect(architecture).toContain('Resolver API/server');
+        expect(architecture).toContain('Resolver API/server owns the verifier copy');
+        expect(architecture).toContain('would not receive either copy of the shared secret');
+        expect(runbook).toContain('Codex lifecycle Host adapter');
+        expect(runbook).toContain('Persistent Brainbase Host bridge');
+        expect(runbook).toContain('Resolver API/server');
+        expect(runbook).toContain('Resolver API/server verifier hold the two runtime copies');
+        expect(runbook).toContain('future Claude Code adapter must not hold or receive either copy');
     });
 
     it('binding secret・preflight・deployment boundaryを維持する', () => {

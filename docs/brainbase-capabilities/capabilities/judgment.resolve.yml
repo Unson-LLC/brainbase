@@ -30,8 +30,12 @@ visibility_rules:
   - Every Codex turn opens one judgment episode before model generation because answering is also a judgment.
   - The Host constructs canonical conversation_context from ordered raw conversation messages, prior finalized episodes, runtime/project data, and instruction digests.
   - The model cannot call Judgment Resolver and cannot submit classification or a model-authored context summary.
+  - Judgment Resolver has no internal LLM; deterministic manifest-owned semantic_matchers, bounded prior-context inheritance, safety floors, and policies select the initial route.
+  - Non-follow-up input with no explicit specialist domain or intent match uses the server-owned `general/answer` fallback; unresolved follow-up references or knowledge routes missing required project context use the clarification DAG.
   - UserPromptSubmit adopts exactly one initial route receipt; retries are bounded before episode creation and no reclassification occurs afterwards.
-  - The model may call Brainbase knowledge/retrieval tools 0..N times as results create new questions; there is no one-call-per-turn limit.
+  - The current Codex model is the open-ended LLM in the execution loop. It decides how to answer inside the selected DAG and may formulate, refine, and call Brainbase knowledge/retrieval tools 0..N times as results create new questions; there is no one-call-per-turn limit.
+  - Claude Code is a future Host-adapter candidate for the same responsibility split, but is not part of the current episode-lifecycle hook integration.
+  - Knowledge Resolver deterministically chooses a canonical source route and required retrieval capability; it does not search or retrieve content.
   - PostToolUse records only actual `mcp__brainbase__*` outcomes and emits a short owner-visible line that accurately distinguishes reference routing, searching, retrieval, and writes.
   - Only successful exact `mcp__brainbase__brainbase_knowledge_resolve` calls satisfy a required `knowledge.resolve`; unrelated or failed calls do not.
   - Stop finalizes exactly one complete or incomplete episode receipt. A missing required route gets one continuation, then finalizes incomplete when `stop_hook_active=true`.
@@ -48,6 +52,7 @@ verification:
     - cmp -s CLAUDE.md AGENTS.md
   expected:
     - Resolver is absent from model-visible MCP tools.
+    - Resolver classification is manifest-backed and has no LLM provider or model API dependency.
     - Host preserves exact ordered user/assistant text and removes host envelopes and tool internals structurally.
     - The same turn reuses its initial route without another Resolver request.
     - Multiple distinct Brainbase calls create multiple immutable events; replay creates no duplicate.
@@ -57,6 +62,7 @@ verification:
     - A replayed Stop reuses the same final receipt, and continuation cannot loop indefinitely.
 common_failures:
   - Asking the model to call Resolver after generation has already begun.
+  - Describing an internal "Resolver LLM" even though the current Resolver is deterministic and the Codex model owns open-ended investigation.
   - Treating the initial route receipt as proof that Brainbase knowledge was retrieved.
   - Counting any Brainbase tool call as satisfying `knowledge.resolve`.
   - Treating one network attempt or one tool call as the per-turn invariant.
