@@ -56,7 +56,7 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 
 ## 影響範囲
 
-今回の変更は、実装済みのJudgment Resolver契約をStory、Architecture、Spec、Skill、always-loaded instruction、capability、runbook、README indexへ同期し、publication testでその一致を固定する。加えて、global Hook設定とowner-only journalを使い、実Codex turnの結果依存0..N検索を検証するlive-session E2Eを追加し、Codex Host adapter runtimeとowner-visible final-answer contractを変更する。このlive evidenceは、導入済みlifecycle adapterの対象ファイルがcurrent HEADとcontent-equivalentであることを証明するが、Hook元checkout自体のSHA一致を証明するものではない。merge後のdeployed checkout SHAは本番デプロイ検証で別に確認する。Resolverのpublic request schemaとBrainbase UIは変更しない。同梱するCanonical Task project bindingでは、`canonical_tasks.project_codes`とGIN index、migration/repository/serviceのproject-scoped read/write contractを変更する。現行Codex integrationと将来のClaude Code adapter候補、判断receiptとaction authorization、routeと実際のknowledge/retrieval callの境界がreview対象である。ローカルUI、persistent MCP runtime、global Hook元checkout、Lightsailを同一merge SHAへ揃えて本番反映を検証する。
+今回の変更は、実装済みのJudgment Resolver契約をStory、Architecture、Spec、Skill、always-loaded instruction、capability、runbook、README indexへ同期し、publication testでその一致を固定する。加えて、global Hook設定とowner-only journalを使い、実Codex turnの結果依存0..N検索を検証するlive-session E2Eを追加し、Codex Host adapter runtimeとowner-visible final-answer contractを変更する。このlive evidenceは、導入済みlifecycle adapterの対象ファイルがcurrent HEADとcontent-equivalentであることを証明するが、Hook元checkout自体のSHA一致を証明するものではない。merge後のdeployed checkout SHAは本番デプロイ検証で別に確認する。Resolver API、DB schema、Brainbase UIは変更しない。現行Codex integrationと将来のClaude Code adapter候補、判断receiptとaction authorization、routeと実際のknowledge/retrieval callの境界がreview対象である。ローカルUI、persistent MCP runtime、global Hook元checkout、Lightsailを同一merge SHAへ揃えて本番反映を検証する。
 
 ## 受け入れ基準
 

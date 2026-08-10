@@ -4,18 +4,6 @@ story_id: story-brainbase-judgment-resolver-v1
 status: accepted
 updated_at: 2026-08-10
 diagrams:
-  - kind: er
-    path: docs/specs/story-brainbase-judgment-resolver-v1.md
-    purpose: 同梱するCanonical Task project bindingのPostgreSQL永続化と検索境界を示す。
-    mermaid: |
-      erDiagram
-        CANONICAL_TASK {
-          text id PK
-          text_array project_codes
-          jsonb source_refs
-          text idempotency_key UK
-          integer version
-        }
   - kind: threat_model
     path: docs/specs/story-brainbase-judgment-resolver-v1.md
     purpose: Codex lifecycle Host、persistent Brainbase bridge、Resolver API、Brainbase tools、owner-only journalのtrust boundaryを示す。
@@ -148,22 +136,7 @@ The operator commands and the four-surface rollback order are canonical in `docs
 - S-006 `workflow state transition`: activeな再Stopがbounded wait内にSQLite transactionを取得できない場合は非zeroで明示的に失敗し、open episodeをcompleteまたはincompleteへ偽装しない。
 - S-007 `workflow state transition`: process crashではOSがSQLite transaction lockを解放し、次processは既存のimmutable episode/eventを再利用して継続する。推測したstale lock fileの削除は行わない。
 
-## 13. Canonical Task project binding ER (`kind: er`)
-
-このStory PRに同梱するproject-scoped Canonical Task検索は、既存`canonical_tasks`正本へ`project_codes TEXT[] NOT NULL`を追加し、GIN indexでoverlap検索する。`project_codes`はGraph Projectの複製や外部キーではなく、Taskが属するproject codeの検索可能なsnapshotである。
-
-```mermaid
-erDiagram
-  CANONICAL_TASK {
-    text id PK
-    text_array project_codes
-    jsonb source_refs
-    text idempotency_key UK
-    integer version
-  }
-```
-
-## 14. Verification matrix
+## 13. Verification matrix
 
 - service/API: strict schema, signing, deterministic manifest-backed classification without an LLM dependency, follow-up inheritance, policy scope, DAG topology
 - UserPromptSubmit Host: transcript extraction, structural exclusion, privacy, exact current message, retry/create/reuse/conflict
@@ -172,7 +145,7 @@ erDiagram
 - end-to-end: Codex Host initial dispatch -> Codex open-ended reasoning and repeated model/tool loop -> final episode receipt
 - publication: `CLAUDE.md`/`AGENTS.md`, Skill, capability, runbook, story, and tests expose the same lifecycle
 
-## 15. Threat model (`kind: threat_model`)
+## 14. Threat model (`kind: threat_model`)
 
 ```mermaid
 flowchart LR
