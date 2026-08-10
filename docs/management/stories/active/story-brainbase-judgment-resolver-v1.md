@@ -41,6 +41,10 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 - project bindingは判断文脈であり、action authorityではない。project access不能時は該当project policyだけを適用対象から外し、一般判断を停止しない。
 - 現行episode lifecycle integrationはCodex Host hookだけを対象とする。Claude Codeは同じ責務分割を適用できる将来のHost adapter候補だが、現行対応として扱わない。
 
+## 影響範囲
+
+今回の変更は、実装済みのJudgment Resolver契約をStory、Architecture、Spec、Skill、always-loaded instruction、capability、runbook、README indexへ同期し、publication testでその一致を固定する。runtime source、API、DB schema、UI挙動は変更しない。現行Codex integrationと将来のClaude Code adapter候補、判断receiptとaction authorization、routeと実際のknowledge/retrieval callの境界がreview対象である。ローカルUI再起動は不要で、本番反映はmerge済みcommitと公開契約のSHAを揃えるために行う。
+
 ## 受け入れ基準
 
 - [ ] Codexのglobal `UserPromptSubmit` hookは全turnへhook-owned turn ID付き入口契約を注入し、登録済みhost bindingは通常回答・調査・設計・実行の前に1つのjudgment episodeを開始して、exactly oneのinitial route receiptを採用する。採用前のtransport retryはboundedに許容し、network call数を「1 turn 1回」に固定しない。現在の問いと必要な会話文脈を署名対象のpublic bodyへ含め、署名検証済みreceiptへ当該turn IDとexact request digestを返して結び付ける。

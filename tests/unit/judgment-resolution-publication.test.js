@@ -19,6 +19,10 @@ describe('judgment resolver publication surfaces', () => {
         expect(claude).toContain('clarification receiptでも回答生成へ進む');
         expect(claude).toContain('project access不能だけで判断を止めない');
         expect(claude).toContain('通常の権限・承認を置き換えない');
+        expect(claude).toContain('現行Resolverは内部LLMを持たず');
+        expect(claude).toContain('専門matcher未一致の非follow-up入力はserver-owned `general/answer` fallback');
+        expect(claude).toContain('Claude Codeは将来のHost adapter候補');
+        expect(claude).toContain('現行episode lifecycle hook integrationには含まれない');
     });
 
     it('wrapperがUserPromptSubmit・PostToolUse・Stopのepisode lifecycleを起動する', () => {
@@ -79,6 +83,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(story).toContain('initial/final receiptは判断と監査の証拠');
         expect(story).toContain('project bindingは判断文脈であり、action authorityではない');
         expect(story).toContain('専門domain/intent matcherに一致しない非follow-up入力');
+        expect(story).toContain('## 影響範囲');
         expect(architecture).toMatch(/Claude Code.*future Host-adapter candidate/iu);
         expect(spec).toMatch(/Claude Code.*future Host-adapter candidate/iu);
         expect(runbook).toMatch(/Claude Code.*future Host-adapter candidate/iu);
@@ -94,6 +99,16 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('Resolver API/server');
         expect(runbook).toContain('Resolver API/server verifier hold the two runtime copies');
         expect(runbook).toContain('future Claude Code adapter must not hold or receive either copy');
+    });
+
+    it('capability README indexが現行integrationと将来候補を区別する', () => {
+        const readme = read('docs/brainbase-capabilities/README.md');
+
+        expect(readme).toContain('Codex Host opens one canonical-context-bound judgment episode');
+        expect(readme).toContain('internal-LLM-free Resolver deterministically selects the initial route');
+        expect(readme).toContain('0..N actual Brainbase calls recorded through `PostToolUse`');
+        expect(readme).toContain('one non-authorizing receipt');
+        expect(readme).toContain('Claude Code remains a future Host-adapter candidate');
     });
 
     it('binding secret・preflight・deployment boundaryを維持する', () => {
