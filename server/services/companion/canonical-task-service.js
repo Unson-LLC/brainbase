@@ -4,6 +4,18 @@ import { principalNamespace } from './canonical-task-principal.js';
 
 const STATUSES = new Set(['pending', 'in_progress', 'waiting', 'completed']);
 const PRIORITIES = new Set(['low', 'medium', 'high', 'urgent']);
+
+function normalizeProjectCodes(value) {
+    const values = Array.isArray(value) ? value : (value == null ? [] : [value]);
+    return [...new Set(values.flatMap((item) => String(item).split(','))
+        .map((item) => item.trim()).filter(Boolean))];
+}
+
+function hasInvalidProjectCode(value) {
+    const values = Array.isArray(value) ? value : (value == null ? [] : [value]);
+    return values.some((item) => typeof item !== 'string'
+        || item.split(',').some((code) => !code.trim() || code.trim().length > 100));
+}
 const TRANSITIONS = Object.freeze({
     pending: new Set(['in_progress', 'waiting', 'completed']),
     in_progress: new Set(['waiting', 'completed']),
@@ -243,8 +255,10 @@ export class CanonicalTaskService {
         const errors = {};
         const statuses = Array.isArray(query.status) ? query.status : (query.status ? [query.status] : []);
         const priorities = Array.isArray(query.priority) ? query.priority : (query.priority ? [query.priority] : []);
+        const projectCodes = normalizeProjectCodes(query.project_code);
         if (statuses.some((value) => !STATUSES.has(value))) errors.status = ['invalid_status'];
         if (priorities.some((value) => !PRIORITIES.has(value))) errors.priority = ['invalid_priority'];
+        if (hasInvalidProjectCode(query.project_code)) errors.project_code = ['invalid_project_code'];
         const limit = query.limit == null ? 50 : Number(query.limit);
         if (!Number.isInteger(limit) || limit < 1 || limit > 50) errors.limit = ['must_be_between_1_and_50'];
         const dueAfter = iso(query.due_after, errors, 'due_after');
@@ -256,7 +270,7 @@ export class CanonicalTaskService {
             assigneePersonId = this.ownerPersonId;
         }
         if (Object.keys(errors).length) throw validationError(errors);
-        return { statuses, priorities, limit, cursor: query.cursor, dueAfter, dueBefore, assigneePersonId };
+        return { statuses, priorities, projectCodes, limit, cursor: query.cursor, dueAfter, dueBefore, assigneePersonId };
     }
 
     async listTasks(query, context) {
@@ -337,8 +351,17 @@ export class CanonicalTaskService {
         if (!PRIORITIES.has(priority)) errors.priority = ['invalid_priority'];
         const dueAt = iso(input.due_at, errors, 'due_at');
         if (input.source_refs !== undefined && !Array.isArray(input.source_refs)) errors.source_refs = ['must_be_array'];
+        if (input.project_codes !== undefined && !Array.isArray(input.project_codes)) errors.project_codes = ['must_be_array'];
+        if (Array.isArray(input.project_codes) && hasInvalidProjectCode(input.project_codes)) {
+            errors.project_codes = ['invalid_project_code'];
+        }
         if (Object.keys(errors).length) throw validationError(errors);
-        return { title, description: input.description ?? null, priority, assignee_person_id: input.assignee_person_id, due_at: dueAt, source_refs: input.source_refs || [] };
+        return {
+            title, description: input.description ?? null, priority,
+            assignee_person_id: input.assignee_person_id, due_at: dueAt,
+            source_refs: input.source_refs || [],
+            project_codes: normalizeProjectCodes(input.project_codes)
+        };
     }
 
     assertIdempotencyKey(key) {
@@ -708,7 +731,7 @@ export class CanonicalTaskService {
 
     async updateTask(taskId, input = {}, context) {
         context = this.normalizeOwnerContext(context);
-        const allowed = ['title', 'description', 'priority', 'assignee_person_id', 'due_at'];
+        const allowed = ['title', 'description', 'priority', 'assignee_person_id', 'due_at', 'project_codes'];
         const errors = {};
         const patch = {};
         for (const key of Object.keys(input)) {
@@ -724,6 +747,11 @@ export class CanonicalTaskService {
         }
         if ('due_at' in input) patch.due_at = iso(input.due_at, errors, 'due_at');
         if ('assignee_person_id' in input) patch.assignee_person_id = input.assignee_person_id;
+        if ('project_codes' in input) {
+            if (!Array.isArray(input.project_codes)) errors.project_codes = ['must_be_array'];
+            else if (hasInvalidProjectCode(input.project_codes)) errors.project_codes = ['invalid_project_code'];
+            else patch.project_codes = normalizeProjectCodes(input.project_codes);
+        }
         if (Object.keys(errors).length) throw validationError(errors);
         if (this.isOwner(context) && 'assignee_person_id' in patch && patch.assignee_person_id !== this.ownerPersonId) {
             throw new CanonicalTaskError('forbidden_assignee', 'Owner credentials cannot change Task ownership', 403);

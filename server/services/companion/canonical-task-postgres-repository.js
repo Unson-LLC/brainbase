@@ -16,6 +16,7 @@ const MUTABLE_COLUMNS = Object.freeze({
     review_at: 'review_at',
     completed_at: 'completed_at',
     source_refs: 'source_refs',
+    project_codes: 'project_codes',
     version: 'version',
     idempotency_key: 'idempotency_key',
     payload_fingerprint: 'payload_fingerprint',
@@ -151,6 +152,7 @@ export class CanonicalTaskPostgresRepository {
             description: row.description ?? null,
             status,
             priority,
+            project_codes: Array.isArray(row.project_codes) ? row.project_codes : [],
             assignee_person_id: row.assignee_person_id ?? null,
             assignee_display_name: row.assignee_display_name ?? null,
             due_at: isoOrNull(row.due_at),
@@ -184,6 +186,7 @@ export class CanonicalTaskPostgresRepository {
     async list({
         statuses = [],
         priorities = [],
+        projectCodes = [],
         assigneePersonId,
         dueAfter,
         dueBefore,
@@ -199,6 +202,7 @@ export class CanonicalTaskPostgresRepository {
         };
         if (statuses.length) add('status = ANY(?::text[])', statuses);
         if (priorities.length) add('priority = ANY(?::text[])', priorities);
+        if (projectCodes.length) add('project_codes && ?::text[]', projectCodes);
         if (assigneePersonId !== undefined) add('assignee_person_id IS NOT DISTINCT FROM ?', assigneePersonId);
         if (dueAfter) add('due_at >= ?::timestamptz', dueAfter);
         if (dueBefore) add('due_at <= ?::timestamptz', dueBefore);
@@ -244,11 +248,11 @@ export class CanonicalTaskPostgresRepository {
             `INSERT INTO canonical_tasks (
                 id, title, description, status, priority, assignee_person_id,
                 assignee_display_name, due_at, waiting_on, review_at, completed_at,
-                source_refs, version, idempotency_key, payload_fingerprint,
+                source_refs, project_codes, version, idempotency_key, payload_fingerprint,
                 last_operation_key, last_operation_fingerprint
              ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-                $12::jsonb, $13, $14, $15, $16, $17
+                $12::jsonb, $13::text[], $14, $15, $16, $17, $18
              )
              ON CONFLICT (idempotency_key) DO NOTHING
              RETURNING *`,
@@ -257,7 +261,7 @@ export class CanonicalTaskPostgresRepository {
                 input.assignee_person_id ?? null, input.assignee_display_name ?? null,
                 input.due_at ?? null, input.waiting_on ?? null, input.review_at ?? null,
                 input.completed_at ?? null, JSON.stringify(input.source_refs ?? []),
-                input.version ?? 1, input.idempotency_key, input.payload_fingerprint ?? null,
+                input.project_codes ?? [], input.version ?? 1, input.idempotency_key, input.payload_fingerprint ?? null,
                 input.last_operation_key ?? null, input.last_operation_fingerprint ?? null
             ]
         );
@@ -273,7 +277,7 @@ export class CanonicalTaskPostgresRepository {
         const values = entries.map(([field]) =>
             field === 'source_refs' ? JSON.stringify(input[field]) : input[field]);
         const assignments = entries.map(([field, column], index) =>
-            `${column} = $${index + 1}${field === 'source_refs' ? '::jsonb' : ''}`);
+            `${column} = $${index + 1}${field === 'source_refs' ? '::jsonb' : field === 'project_codes' ? '::text[]' : ''}`);
         values.push(locator.value);
         const result = await this.query(
             `UPDATE canonical_tasks
