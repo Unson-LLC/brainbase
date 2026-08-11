@@ -1051,6 +1051,13 @@ function blockedOutput(reason) {
     };
 }
 
+function stopFailureMessage(reason) {
+    if (reason === 'judgment_episode_not_found') {
+        return `⚠️ Brainbase監査を確定できませんでした。このtaskはBrainbase Hookを有効にする前に始まった可能性があります。新しいCodex taskを作り、同じ依頼を送ってください。（詳細: ${reason}）`;
+    }
+    return `⚠️ Brainbase監査を確定できませんでした。新しいCodex taskで同じ依頼を再送してください。再発する場合は、Settings → HooksでBrainbaseのユーザーHookを信頼し直してください。（詳細: ${reason}）`;
+}
+
 export async function processHookPayload(payload, dependencies = {}) {
     const eventName = payload?.hook_event_name || payload?.hookEventName;
     if (eventName === 'UserPromptSubmit') {
@@ -1079,11 +1086,12 @@ async function main() {
         } else if (eventName === 'PostToolUse') {
             process.stdout.write(`${JSON.stringify({ systemMessage: `⚠️ Brainbase監査記録に失敗: ${reason}` })}\n`);
         } else if (eventName === 'Stop') {
+            const message = stopFailureMessage(reason);
             if (payload.stop_hook_active === true) {
-                process.stderr.write(`Brainbase judgment episodeの確定に失敗: ${reason}\n`);
+                process.stderr.write(`${message}\n`);
                 process.exitCode = 1;
             } else {
-                process.stdout.write(`${JSON.stringify({ decision: 'block', reason: `Brainbase judgment episodeの確定に失敗: ${reason}` })}\n`);
+                process.stdout.write(`${JSON.stringify({ decision: 'block', reason: message })}\n`);
             }
         } else {
             process.stdout.write('{}\n');
