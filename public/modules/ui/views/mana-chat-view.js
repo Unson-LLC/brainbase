@@ -135,8 +135,8 @@ export class ManaChatView {
         button.id = 'mana-memory-review-btn';
         button.type = 'button';
         button.className = 'mana-memory-review-btn';
-        button.title = 'Memory review';
-        button.textContent = 'Review';
+        button.title = '記憶候補を確認';
+        button.textContent = '候補確認';
         const minimizeBtn = header.querySelector('#mana-chat-minimize');
         header.insertBefore(button, minimizeBtn || null);
         this.reviewBtnEl = button;
@@ -256,7 +256,7 @@ export class ManaChatView {
             });
             const normalized = candidates.map((item) => this._normalizeMemoryCandidate(item));
             if (normalized.length === 0) {
-                this._appendMessage('system', '承認待ちのMemory Candidateはありません。');
+                this._appendMessage('system', '承認待ちの記憶候補はありません。');
                 return;
             }
             this.memoryCandidateModal.currentPersonId = currentPersonId;
@@ -265,7 +265,7 @@ export class ManaChatView {
                 relatedItems: normalized
             });
         } catch (err) {
-            this._appendMessage('system', 'Memory Candidateの取得に失敗しました。');
+            this._appendMessage('system', '記憶候補の取得に失敗しました。');
         } finally {
             this._sending = false;
             this._updateSendState();
@@ -279,7 +279,7 @@ export class ManaChatView {
             decision_owner_person_id: item.ownerPersonId || item.owner_person_id,
             reason: 'approved_from_mana_review'
         });
-        this._appendMessage('system', 'Memory Candidateを承認しました。');
+        this._appendMessage('system', '正式登録を承認しました。正本への登録処理は別工程です。');
     }
 
     async _rejectMemoryCandidate(item) {
@@ -289,7 +289,7 @@ export class ManaChatView {
             decision_owner_person_id: item.ownerPersonId || item.owner_person_id,
             reason: 'rejected_from_mana_review'
         });
-        this._appendMessage('system', 'Memory Candidateを却下しました。');
+        this._appendMessage('system', '記憶候補を見送りました。');
     }
 
     async _expireMemoryCandidate(item) {
@@ -299,7 +299,7 @@ export class ManaChatView {
             decision_owner_person_id: item.ownerPersonId || item.owner_person_id,
             reason: 'expired_from_mana_review'
         });
-        this._appendMessage('system', 'Memory Candidateを期限切れにしました。');
+        this._appendMessage('system', '記憶候補を期限切れにしました。');
     }
 
     async _requestMemoryCandidateRedaction(item) {
@@ -308,7 +308,7 @@ export class ManaChatView {
             actor_person_id: this._getCurrentPersonId(),
             decision_owner_person_id: item.ownerPersonId || item.owner_person_id
         });
-        this._appendMessage('system', 'Memory Candidateをredaction差し戻しにしました。');
+        this._appendMessage('system', '記憶候補を機密情報の修正待ちにしました。');
     }
 
     _getHistory() {

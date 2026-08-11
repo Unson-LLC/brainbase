@@ -81,6 +81,20 @@ The Memory Promotion Kernel owns:
 - Graph promotion eligibility
 - deny-by-default retrieval boundary
 
+### User-facing terminology
+
+`promotion` remains the internal umbrella term for compatibility and audit. User-facing surfaces must name the concrete transition instead of showing a generic “promotion” or “apply” action.
+
+- raw observation to Candidate Store: `候補として記録する`
+- pending candidate to approved candidate: `正式登録を承認する`
+- approved candidate to Graph SSOT: `Graphへ正式登録する`
+- candidate to owning policy document: `方針文書へ反映する`
+- candidate to Skill: `再利用できる手順にする`
+- broader visibility on the same SSOT: `他チームにも共有する`
+- advisory rule to runtime control: `必須チェックにする`
+
+Approval, materialization, and deployment are separate events. In particular, `approved` must not be presented as a completed Graph write, file creation, or production deployment. The full Japanese terminology boundary is defined in `docs/architecture/story-knowledge-formalization-language.md`.
+
 ## Consequences
 
 - `candidate-store-mvp` remains the implementation path for STR-006 First Slice.

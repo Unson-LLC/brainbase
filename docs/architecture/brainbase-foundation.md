@@ -119,10 +119,12 @@ Brainbase の学習ループは二本柱で戻す。
 概念モデルは [Brainbase フィードバックループ](./feedback-loop.md) を正本とする。
 
 1. `review` / `explicit_learn` から episode を作る
-2. reusable な知識を legacy `wiki candidate` と `skill candidate` に分ける
+2. reusable な知識を正本候補とSkill候補に分ける
 3. candidate はいったん manual inbox に上がる
 4. legacy wiki candidate は自動適用せず、Graph・所有repo・Drive・workspace homeへ分類する
-5. skills は既存 skill patch か新規 skill に昇格する
+5. skills は既存Skillのpatchか新規Skillとして、再利用できる手順へ反映する
+
+内部実装ではこの候補から正本への遷移を `promotion` と総称する。利用者向けには「昇格」とだけ表示せず、Graphへ正式登録する、方針文書へ反映する、再利用できる手順にする、他チームにも共有する、必須チェックにする、のように遷移先を表示する。承認、ファイル保存、本番反映はそれぞれ別工程である。
 
 運用入口:
 
@@ -131,7 +133,7 @@ Brainbase の学習ループは二本柱で戻す。
 - `brainbase learn daily`
 - `brainbase learn inbox`
 
-### wiki への昇格
+### legacy Wiki候補の分類
 
 - 対象:
   - 定義
@@ -140,12 +142,13 @@ Brainbase の学習ループは二本柱で戻す。
   - 仕様差分
   - ストーリー差分
 - 書き戻り先:
-  - サーバ DB の `wiki_pages`
+  - 組織の事実はGraph
+  - 方針・仕様・runbookは所有Git repo、または所有team Drive
 - 注意:
-  - repo の `docs/` を直接更新するループではない
-  - 各メンバーの手元へは `wiki pull/sync` で配る
+  - legacy Wikiへの新規書き込みは行わない
+  - 保存先が決まるまでは候補のまま扱う
 
-### skills への昇格
+### 再利用できる手順への反映
 
 - 対象:
   - 手順

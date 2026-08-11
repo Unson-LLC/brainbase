@@ -1,10 +1,12 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+    applyApprovedPromotions,
     collectBulletLines,
     deriveReviewOutcome,
+    ensurePromotionCanBeApplied,
     materializePromotions,
     normalizeVerifyFirstArtifact,
     renderPromotionManifest
@@ -12,8 +14,11 @@ import {
 
 describe('learning CLI helpers', () => {
     let tempDir;
+    const originalCwd = process.cwd();
 
     afterEach(() => {
+        process.chdir(originalCwd);
+        vi.restoreAllMocks();
         if (tempDir && fs.existsSync(tempDir)) {
             fs.rmSync(tempDir, { recursive: true, force: true });
         }
@@ -40,6 +45,9 @@ describe('learning CLI helpers', () => {
 
         expect(output).toContain('candidate_id: prm_1');
         expect(output).toContain('doc_type: architecture');
+        expect(output).toContain('# 知識候補');
+        expect(output).toContain('## 反映先');
+        expect(output).not.toContain('# Promotion Candidate');
         expect(output).toContain('```md');
     });
 
@@ -106,5 +114,60 @@ describe('learning CLI helpers', () => {
         expect(deriveReviewOutcome({
             review_result: { phase1: { status: 'approved' } }
         })).toBe('success');
+    });
+
+    it('story-knowledge-formalization-language:AC-007 approvedなlegacy Wiki候補をWikiへ書かず分類待ちとして残す', async () => {
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bb-learning-approved-'));
+        const manifestDir = path.join(tempDir, 'docs', 'learning-promotions');
+        fs.mkdirSync(manifestDir, { recursive: true });
+        fs.writeFileSync(path.join(manifestDir, 'prm_wiki.md'), [
+            '---',
+            'candidate_id: prm_wiki',
+            'pillar: wiki',
+            'status: approved',
+            'target_ref: contracts/storage-policy',
+            '---',
+            '',
+            '# 知識候補'
+        ].join('\n'), 'utf-8');
+        process.chdir(tempDir);
+        const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+        await applyApprovedPromotions();
+
+        expect(log).toHaveBeenCalledWith(
+            'legacy Wiki候補は保存先の分類が必要です: prm_wiki -> contracts/storage-policy'
+        );
+    });
+
+    it('story-knowledge-formalization-language:AC-007 legacy Wiki候補の直接applyは日本語の分類待ち理由を伴う失敗にする', () => {
+        expect(() => ensurePromotionCanBeApplied({
+            id: 'prm_wiki',
+            pillar: 'wiki',
+            target_ref: 'contracts/storage-policy'
+        })).toThrow(
+            'legacy Wiki候補は適用できません。保存先の分類が必要です: prm_wiki -> contracts/storage-policy'
+        );
+    });
+
+    it('story-knowledge-formalization-language:AC-005 CLIヘルプはapplyとrejectの遷移を日本語で説明する', () => {
+        const help = fs.readFileSync(path.join(originalCwd, 'cli', 'index.js'), 'utf-8');
+        expect(help).toContain('候補を保存先に応じて正式登録・手順化する');
+        expect(help).toContain('候補を今回は見送る');
+        expect(help).not.toContain('Apply one candidate');
+        expect(help).not.toContain('Reject one candidate');
+    });
+
+    it('story-knowledge-formalization-language:AC-004 正本境界をArchitecture文書で一意に確認できる', () => {
+        const architecture = fs.readFileSync(
+            path.join(originalCwd, 'docs', 'architecture', 'story-knowledge-formalization-language.md'),
+            'utf-8'
+        );
+        expect(architecture).toContain('Graph');
+        expect(architecture).toContain('所有repo');
+        expect(architecture).toContain('Drive');
+        expect(architecture).toContain('Skill');
+        expect(architecture).toContain('DAG');
+        expect(architecture).toContain('Gate');
     });
 });

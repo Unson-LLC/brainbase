@@ -74,7 +74,7 @@ describe('InboxService', () => {
             expect(count).toBe(0);
         });
 
-        it('loadInbox呼び出し時_learning candidate を先頭にマージする', async () => {
+        it('story-knowledge-formalization-language:AC-002 loadInbox呼び出し時_learning candidate を具体的な操作名で投影する', async () => {
             httpClient.get
                 .mockResolvedValueOnce([
                     {
@@ -99,7 +99,30 @@ describe('InboxService', () => {
             expect(result[0].kind).toBe('learning');
             expect(result[0].mergedEpisodeCount).toBe(3);
             expect(result[0].canonicalSummary).toBe('readme 画像 解決 ルール');
+            expect(result[0].presentation).toEqual(expect.objectContaining({
+                actionKind: 'skillize',
+                primaryActionLabel: '再利用できる手順にする'
+            }));
             expect(result).toHaveLength(1);
+        });
+
+        it('story-knowledge-formalization-language:AC-007 loadInbox呼び出し時_legacy Wiki候補を分類待ちとして投影する', async () => {
+            httpClient.get
+                .mockResolvedValueOnce([{
+                    id: 'prm_wiki',
+                    pillar: 'wiki',
+                    target_ref: 'contracts/storage-policy',
+                    title: '契約書の保存場所'
+                }])
+                .mockResolvedValueOnce({ status: 'healthy' });
+
+            const result = await inboxService.loadInbox();
+
+            expect(result[0].presentation).toEqual(expect.objectContaining({
+                actionKind: 'classify_destination',
+                primaryActionLabel: '保存先の分類が必要',
+                primaryActionEnabled: false
+            }));
         });
 
         it('loadInbox呼び出し時_health alert を先頭にマージする', async () => {
