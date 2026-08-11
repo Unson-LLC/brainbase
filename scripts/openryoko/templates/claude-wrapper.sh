@@ -9,6 +9,8 @@ set -a
 source "$environment_file"
 set +a
 
-unset OPENRYOKO_SLACK_APP_TOKEN OPENRYOKO_SLACK_BOT_TOKEN
+for variable_name in "${!OPENRYOKO_SLACK_@}"; do
+  unset "$variable_name"
+done
 
 exec "$claude_binary" "$@"

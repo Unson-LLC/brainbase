@@ -54,11 +54,12 @@ OAuth tokens, or Slack tokens here.
    OPENRYOKO_SLACK_BOT_TOKEN=<Infisical-injected value>
    ```
 
-   Install it as `/home/ryoko/.config/openryoko/gateway-environment`. Both
-   files must be regular files owned by `ryoko:ryoko`, mode `600`. Never print
-   or copy a value into a command log. The files reduce automatic inheritance;
-   the pinned runtime and Claude wrapper also remove Slack credentials before
-   starting Claude.
+   Install it as `/home/ryoko/.config/openryoko/gateway-environment`, owned by
+   `root:root`, mode `600`. The Claude file must be a regular file owned by
+   `ryoko:ryoko`, mode `600`. Never print or copy a value into a command log.
+   The pinned runtime and Claude wrapper remove Slack credentials before
+   starting Claude, while the root-owned gateway file prevents direct reads by
+   the `ryoko` user.
 4. Complete Claude Code's one-time interactive screens as `ryoko`:
 
    ```bash
@@ -88,6 +89,12 @@ Slack credentials are resolved from `OPENRYOKO_SLACK_*` and removed from
 - mention-only channel handling, with IM and MPIM disabled
 - Interactive PTY enabled
 - `engines.claude.interactivePermissionMode = plan`
+
+This prevents routine child-environment inheritance and direct reads of the
+gateway projection. It is not a separate OS trust boundary: the gateway and
+Claude still run under the same service identity. Keep Claude in `plan` mode;
+use separate users or services before allowing an execution-capable engine in
+this pilot.
 
 After each runtime change, create a disposable web session that asks Claude to
 write a unique sentinel file. The session may complete with a plan, but the

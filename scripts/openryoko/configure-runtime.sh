@@ -5,14 +5,17 @@ RYOKO_USER="${RYOKO_USER:-ryoko}"
 SLACK_ALLOW_USER_ID="${SLACK_ALLOW_USER_ID:?Set SLACK_ALLOW_USER_ID}"
 GATEWAY_ENVIRONMENT_FILE="${GATEWAY_ENVIRONMENT_FILE:-/home/$RYOKO_USER/.config/openryoko/gateway-environment}"
 CLAUDE_ENVIRONMENT_FILE="${CLAUDE_ENVIRONMENT_FILE:-/home/$RYOKO_USER/.config/openryoko/claude-environment}"
-REQUIRED_OPENRYOKO_SECURITY_REF="${REQUIRED_OPENRYOKO_SECURITY_REF:-4e7582e503b55b3ebd09b84a16b36b70af090bb6}"
+readonly REQUIRED_OPENRYOKO_SECURITY_REF="4e7582e503b55b3ebd09b84a16b36b70af090bb6"
 HOME_DIR="/home/$RYOKO_USER"
 
 if [[ "${EUID}" -ne 0 ]]; then
   echo "Run as root: sudo --preserve-env=SLACK_ALLOW_USER_ID,GATEWAY_ENVIRONMENT_FILE,CLAUDE_ENVIRONMENT_FILE $0" >&2
   exit 1
 fi
-for protected_file in "$GATEWAY_ENVIRONMENT_FILE" "$CLAUDE_ENVIRONMENT_FILE"; do
+validate_protected_file() {
+  local protected_file="$1"
+  local expected_owner="$2"
+
   if [[ ! -f "$protected_file" || -L "$protected_file" || ! -s "$protected_file" ]]; then
     echo "Missing protected environment file: $protected_file" >&2
     exit 1
@@ -21,11 +24,14 @@ for protected_file in "$GATEWAY_ENVIRONMENT_FILE" "$CLAUDE_ENVIRONMENT_FILE"; do
     echo "Environment file must have mode 600: $protected_file" >&2
     exit 1
   fi
-  if [[ "$(stat -c '%U:%G' "$protected_file")" != "$RYOKO_USER:$RYOKO_USER" ]]; then
-    echo "Environment file must be owned by $RYOKO_USER:$RYOKO_USER: $protected_file" >&2
+  if [[ "$(stat -c '%U:%G' "$protected_file")" != "$expected_owner" ]]; then
+    echo "Environment file must be owned by $expected_owner: $protected_file" >&2
     exit 1
   fi
-done
+}
+
+validate_protected_file "$GATEWAY_ENVIRONMENT_FILE" "root:root"
+validate_protected_file "$CLAUDE_ENVIRONMENT_FILE" "$RYOKO_USER:$RYOKO_USER"
 grep -q '^OPENRYOKO_SLACK_APP_TOKEN=' "$GATEWAY_ENVIRONMENT_FILE"
 grep -q '^OPENRYOKO_SLACK_BOT_TOKEN=' "$GATEWAY_ENVIRONMENT_FILE"
 grep -q '^CLAUDE_CODE_OAUTH_TOKEN=' "$CLAUDE_ENVIRONMENT_FILE"
