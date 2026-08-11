@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,6 +14,15 @@ const REQUIRED_HOOKS = [
 const CANONICAL_ENTRYPOINT = 'scripts/codex-hooks/judgment-resolver-entry.sh';
 const READY_TRUST_STATUSES = new Set(['trusted', 'managed']);
 const TRUST_ACTION = 'Open /hooks and approve the three current Resolver hooks.';
+const CODEX_DESKTOP_BIN = '/Applications/ChatGPT.app/Contents/Resources/codex';
+
+export function resolveDefaultCodexBin({
+    platform = process.platform,
+    exists = existsSync
+} = {}) {
+    if (platform === 'darwin' && exists(CODEX_DESKTOP_BIN)) return CODEX_DESKTOP_BIN;
+    return 'codex';
+}
 
 function record(value) {
     return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
@@ -136,7 +146,11 @@ function send(child, message) {
     child.stdin.write(`${JSON.stringify(message)}\n`);
 }
 
-export function queryCodexHooks({ cwd = process.cwd(), codexBin = 'codex', timeoutMs = 10_000 } = {}) {
+export function queryCodexHooks({
+    cwd = process.cwd(),
+    codexBin = resolveDefaultCodexBin(),
+    timeoutMs = 10_000
+} = {}) {
     return new Promise((resolvePromise, rejectPromise) => {
         const child = spawn(codexBin, ['app-server', '--listen', 'stdio://'], {
             cwd,
@@ -221,7 +235,12 @@ export async function checkHookReadiness(options = {}) {
 }
 
 function parseArguments(argv) {
-    const options = { cwd: process.cwd(), codexBin: 'codex', timeoutMs: 10_000, json: false };
+    const options = {
+        cwd: process.cwd(),
+        codexBin: resolveDefaultCodexBin(),
+        timeoutMs: 10_000,
+        json: false
+    };
     for (let index = 0; index < argv.length; index += 1) {
         const argument = argv[index];
         if (argument === '--json') options.json = true;
