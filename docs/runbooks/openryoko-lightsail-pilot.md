@@ -80,7 +80,10 @@ The wrapper installed by `configure-runtime.sh` is required for OpenRyoko
 2026.7.10: its Interactive PTY strips every `CLAUDE_CODE_*` variable before
 spawning Claude. The wrapper reloads only the Claude OAuth projection, removes
 any inherited `OPENRYOKO_SLACK_*` values, and never embeds or logs a token. The
-pinned runtime also strips Slack credentials on Claude child-process paths.
+pinned runtime also strips Slack credentials from the standard one-shot and
+Interactive PTY paths. Session forking still inherits the gateway environment
+inside the runtime and therefore depends on the required wrapper for the final
+scrub. Gateway-owned helper processes also share the service environment.
 Slack credentials are resolved from `OPENRYOKO_SLACK_*` and removed from
 `config.yaml`. The same script enforces:
 
@@ -95,6 +98,11 @@ gateway projection. It is not a separate OS trust boundary: the gateway and
 Claude still run under the same service identity. Keep Claude in `plan` mode;
 use separate users or services before allowing an execution-capable engine in
 this pilot.
+
+Before enabling an execution-capable engine, also route every Claude spawn path
+through a common child-environment sanitizer, remove Slack credentials from
+helper-process environments, and verify from the model-runner identity that the
+gateway file and parent-process environment are inaccessible.
 
 After each runtime change, create a disposable web session that asks Claude to
 write a unique sentinel file. The session may complete with a plan, but the
