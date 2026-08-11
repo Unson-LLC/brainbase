@@ -18,12 +18,12 @@
       "owned_surfaces": {
         "paths": [
           "server/bootstrap/core-services.js",
-          "server/services/workflow/workflow-service.js",
-          "server/services/info-ssot-service.js",
-          "public/workflows.html"
+          "server/services/meeting-automation/meeting-task-owner-resolver.js",
+          "server/services/meeting-automation/meeting-automation-service.js",
+          "server/services/info-ssot-service.js"
         ],
         "symbols": [
-          "WorkflowService.resolveMeetingReviewTaskOwnersFromSSOT",
+          "MeetingTaskOwnerResolver.resolveReviewTaskOwners",
           "InfoSSOTService.listGraphEntities",
           "selected_owner_id",
           "owner_resolution"

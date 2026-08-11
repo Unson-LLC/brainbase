@@ -1,0 +1,1480 @@
+{
+  "schema_version": "0.2.0",
+  "model": "vibepro-judgment-dag-adjudication-v2",
+  "story_id": "story-brainbase-ontology-production-activation",
+  "updated_at": "2026-08-03T03:51:55.647Z",
+  "events": [
+    {
+      "event_id": "3c7f536e-9947-4029-b6e4-252b4d33e761",
+      "type": "verdict",
+      "item_id": "spine:intent",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Storyは実データ・権限・署名・復旧手順に結合し、全Gate合格時のみ有効化する目的と停止条件を明記している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/activation_judgment_current",
+        "session_ref": "collaboration:/root/activation_judgment_current"
+      },
+      "head_commit": "8833789a7b323b46485107068cdf77592731a4eb",
+      "recorded_at": "2026-08-02T21:51:11.962Z"
+    },
+    {
+      "event_id": "973e6a22-dd2d-4be7-9a97-ba0c50c20933",
+      "type": "verdict",
+      "item_id": "spine:current_reality",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "本番Graph read-only snapshotは7410 entities、6716 edges、0 violationsで、署名済みcurrent 1.0.0と未merge・未deploy境界が記録されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/activation_judgment_current",
+        "session_ref": "collaboration:/root/activation_judgment_current"
+      },
+      "head_commit": "8833789a7b323b46485107068cdf77592731a4eb",
+      "recorded_at": "2026-08-02T21:51:12.106Z"
+    },
+    {
+      "event_id": "7f2c6cfb-a3f1-43ba-bea2-af179f6ae4dd",
+      "type": "verdict",
+      "item_id": "spine:invariants",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "snapshot digest、transaction、lock、delete禁止、authority binding、publisher-only current、direct-child commit、署名、rollbackが実装とテストに対応する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/activation_judgment_current",
+        "session_ref": "collaboration:/root/activation_judgment_current"
+      },
+      "head_commit": "8833789a7b323b46485107068cdf77592731a4eb",
+      "recorded_at": "2026-08-02T21:51:12.240Z"
+    },
+    {
+      "event_id": "a31ec559-5c26-4470-acef-d311e29a8215",
+      "type": "verdict",
+      "item_id": "spine:boundaries",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Git、Graph、Infisical、receipt/indexのSSOT境界と秘密鍵非収録、candidateとdeployed runtimeの状態分離が明記されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/activation_judgment_current",
+        "session_ref": "collaboration:/root/activation_judgment_current"
+      },
+      "head_commit": "8833789a7b323b46485107068cdf77592731a4eb",
+      "recorded_at": "2026-08-02T21:51:12.373Z"
+    },
+    {
+      "event_id": "bddfe677-3ea6-4b75-8971-1921a4dcdaa2",
+      "type": "verdict",
+      "item_id": "spine:failure_modes",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "precondition drift、authority不一致、署名不整合、partial publication、provider failure、deploy不整合をfail closedまたはrollbackへ結合している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/activation_judgment_current",
+        "session_ref": "collaboration:/root/activation_judgment_current"
+      },
+      "head_commit": "8833789a7b323b46485107068cdf77592731a4eb",
+      "recorded_at": "2026-08-02T21:51:12.507Z"
+    },
+    {
+      "event_id": "28f1c708-3fd9-41f0-8df7-7446e037dcda",
+      "type": "verdict",
+      "item_id": "spine:done_evidence",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "premerge証跡と本番完了を分離し、merge、CI、deploy、runtime readbackが未完のため最終ACを未チェックに保っている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/activation_judgment_current",
+        "session_ref": "collaboration:/root/activation_judgment_current"
+      },
+      "head_commit": "8833789a7b323b46485107068cdf77592731a4eb",
+      "recorded_at": "2026-08-02T21:51:12.643Z"
+    },
+    {
+      "event_id": "6d244a4f-ef17-486f-989f-ec47171260cd",
+      "type": "verdict",
+      "item_id": "axis:public_contract",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "既存readとlegacy responseを維持してguard/versionを加算し、canonical writeのみactive currentへfail closedで結合している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/activation_judgment_current",
+        "session_ref": "collaboration:/root/activation_judgment_current"
+      },
+      "head_commit": "8833789a7b323b46485107068cdf77592731a4eb",
+      "recorded_at": "2026-08-02T21:51:12.780Z"
+    },
+    {
+      "event_id": "60d959d4-7660-4fa5-a09f-9241d64b6c17",
+      "type": "verdict",
+      "item_id": "axis:rollback_sensitive",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "publication commitはsourceの直接の子で3 pathのみを変更し、独立worktreeのrevert rehearsalでcurrent null、receipt absent、verify passを確認した。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/activation_judgment_current",
+        "session_ref": "collaboration:/root/activation_judgment_current"
+      },
+      "head_commit": "8833789a7b323b46485107068cdf77592731a4eb",
+      "recorded_at": "2026-08-02T21:51:12.916Z"
+    },
+    {
+      "event_id": "9969f276-c105-4a59-b66b-1680c4573f1d",
+      "type": "verdict",
+      "item_id": "axis:scope_reviewability",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "remediation、authority、signed publication、rollback、operator evidenceは直接親子署名を保つ単一activation chainとして追跡可能である。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/activation_judgment_current",
+        "session_ref": "collaboration:/root/activation_judgment_current"
+      },
+      "head_commit": "8833789a7b323b46485107068cdf77592731a4eb",
+      "recorded_at": "2026-08-02T21:51:13.054Z"
+    },
+    {
+      "event_id": "a2ade5bf-d79e-447b-8520-727de4de79bf",
+      "type": "verdict",
+      "item_id": "axis:release_ops",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "owner、restart、health、digest、signature、full audit、journal、rollback targetが定義され、未deployのblockを正しく維持している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/activation_judgment_current",
+        "session_ref": "collaboration:/root/activation_judgment_current"
+      },
+      "head_commit": "8833789a7b323b46485107068cdf77592731a4eb",
+      "recorded_at": "2026-08-02T21:51:13.192Z"
+    },
+    {
+      "event_id": "6121917a-9199-471c-afad-6a37de17cdf8",
+      "type": "verdict",
+      "item_id": "failure_mode:provider_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "DB、authority endpoint、secret projectionの欠落・network failure・incomplete responseでreceipt/currentを生成しない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/activation_judgment_current",
+        "session_ref": "collaboration:/root/activation_judgment_current"
+      },
+      "head_commit": "8833789a7b323b46485107068cdf77592731a4eb",
+      "recorded_at": "2026-08-02T21:51:13.332Z"
+    },
+    {
+      "event_id": "575f5dd2-c886-406b-91d5-3d7ad1e8e0e7",
+      "type": "verdict",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "candidate SHAとpremerge/deployed境界、最終AC未完、digest-bound予算Decisionによりgreen artifactを本番完了と誤表示しない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/activation_judgment_current",
+        "session_ref": "collaboration:/root/activation_judgment_current"
+      },
+      "head_commit": "8833789a7b323b46485107068cdf77592731a4eb",
+      "recorded_at": "2026-08-02T21:51:13.469Z"
+    },
+    {
+      "event_id": "5ea59656-4510-4f23-b107-d58efeb35424",
+      "type": "verdict",
+      "item_id": "spine:intent",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Storyの目的は署名済みrelease、Graph authority、fail-closed write、rollbackをdigestとcommit lineageで結ぶことで、実装差分に対応し、production activation未完了も明示する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/audit_head_8294_correction_review",
+        "session_ref": "/root/audit_head_8294_correction_review"
+      },
+      "head_commit": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+      "recorded_at": "2026-08-02T23:35:55.535Z"
+    },
+    {
+      "event_id": "61bcb58d-437f-4e13-b4d9-cdcc312ddf3f",
+      "type": "verdict",
+      "item_id": "spine:current_reality",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "needs_evidenceは妥当。現HEADのproduction deploy、version stamp、runtime API、再起動後Graph audit、運用ログはまだ存在しない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/audit_head_8294_correction_review",
+        "session_ref": "/root/audit_head_8294_correction_review"
+      },
+      "head_commit": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+      "recorded_at": "2026-08-02T23:35:55.767Z"
+    },
+    {
+      "event_id": "b951e551-affb-43cc-a719-852592f54816",
+      "type": "verdict",
+      "item_id": "spine:invariants",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "digest/source commit、署名/key_id、Decision/RACI/actor、snapshot/transaction、write guard、rollback current nullの不変条件が実装とtestsに対応する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/audit_head_8294_correction_review",
+        "session_ref": "/root/audit_head_8294_correction_review"
+      },
+      "head_commit": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+      "recorded_at": "2026-08-02T23:35:56.011Z"
+    },
+    {
+      "event_id": "1f229436-42bc-4971-b281-83cd539fe610",
+      "type": "verdict",
+      "item_id": "spine:boundaries",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Git、Graph、Infisical、signed receipt/indexの正本境界とactor spoof防止、authority失敗時fail-closedが実装とtestで確認される。premerge境界の判断である。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/audit_head_8294_correction_review",
+        "session_ref": "/root/audit_head_8294_correction_review"
+      },
+      "head_commit": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+      "recorded_at": "2026-08-02T23:35:56.252Z"
+    },
+    {
+      "event_id": "1134ca12-b57a-460d-9a06-927545333d19",
+      "type": "verdict",
+      "item_id": "spine:failure_modes",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "needs_evidenceは妥当。個別testは改ざんやrollbackを扱うがproduction deployment、version skew、restart、実Graph write、運用rollbackのreplayはまだない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/audit_head_8294_correction_review",
+        "session_ref": "/root/audit_head_8294_correction_review"
+      },
+      "head_commit": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+      "recorded_at": "2026-08-02T23:35:56.499Z"
+    },
+    {
+      "event_id": "053b9076-4fcf-499f-8186-fba1ec489e80",
+      "type": "verdict",
+      "item_id": "spine:done_evidence",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "needs_evidenceは妥当。最終ACのGate、CI、merge、deploy、current readback、Graph再監査は未完了で、premerge検証とactivation完了を分離する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/audit_head_8294_correction_review",
+        "session_ref": "/root/audit_head_8294_correction_review"
+      },
+      "head_commit": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+      "recorded_at": "2026-08-02T23:35:56.794Z"
+    },
+    {
+      "event_id": "6627eb9f-bf2a-4445-89e8-a23b95039a70",
+      "type": "verdict",
+      "item_id": "axis:public_contract",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "認証追加はpromotion routeをrequireAuth必須、guard欠落503、actor不在403へ変える意図的な安全強化で、外部contract不変というpassed前提は成立しない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/audit_head_8294_correction_review",
+        "session_ref": "/root/audit_head_8294_correction_review"
+      },
+      "head_commit": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+      "recorded_at": "2026-08-02T23:35:57.035Z"
+    },
+    {
+      "event_id": "50af21eb-3d5d-4249-89b6-0ff655761966",
+      "type": "verdict",
+      "item_id": "axis:rollback_sensitive",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "needs_evidenceは妥当。rehearsalはpremergeかつ旧candidateで、production runtime、stored Graph facts、version skew、restart後readbackは未確認。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/audit_head_8294_correction_review",
+        "session_ref": "/root/audit_head_8294_correction_review"
+      },
+      "head_commit": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+      "recorded_at": "2026-08-02T23:35:57.286Z"
+    },
+    {
+      "event_id": "2c0bc2ef-a8cf-4e6c-be47-71125362e05d",
+      "type": "verdict",
+      "item_id": "axis:scope_reviewability",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "44 files規模でrequirements、release、Graph scripts、authority、runtime auth、tests、証拠が混在し、split planもあるため単一reviewerで十分というpassed前提は成立しない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/audit_head_8294_correction_review",
+        "session_ref": "/root/audit_head_8294_correction_review"
+      },
+      "head_commit": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+      "recorded_at": "2026-08-02T23:35:57.517Z"
+    },
+    {
+      "event_id": "f7036f48-b0d5-4ef3-9f68-a013540a3788",
+      "type": "verdict",
+      "item_id": "axis:release_ops",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "blockは妥当。operator、deploy、observability、rollbackは定義済みだがmerge/deploy/version stamp/health/current API/restart audit/logは未取得。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/audit_head_8294_correction_review",
+        "session_ref": "/root/audit_head_8294_correction_review"
+      },
+      "head_commit": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+      "recorded_at": "2026-08-02T23:35:57.780Z"
+    },
+    {
+      "event_id": "c4619af1-4e00-4bac-84d2-6650efc1fa6b",
+      "type": "verdict",
+      "item_id": "failure_mode:provider_failure",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "Postgres Graph、authority endpoint、Infisical、署名鍵/trust解決に依存するためnot_requiredは誤り。fail-closed testsは重要failure modeの存在を示す。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/audit_head_8294_correction_review",
+        "session_ref": "/root/audit_head_8294_correction_review"
+      },
+      "head_commit": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+      "recorded_at": "2026-08-02T23:35:58.050Z"
+    },
+    {
+      "event_id": "b5b0495e-5867-40db-886f-6273bfb47a65",
+      "type": "verdict",
+      "item_id": "failure_mode:persistence_failure",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "production Graph transaction、backup、lock、postcondition、Git receipt/index/current永続化がありpartial write等は中心failure modeなのでnot_requiredは誤り。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/audit_head_8294_correction_review",
+        "session_ref": "/root/audit_head_8294_correction_review"
+      },
+      "head_commit": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+      "recorded_at": "2026-08-02T23:35:58.276Z"
+    },
+    {
+      "event_id": "a80e746e-7d86-490f-abb9-2d32187497ba",
+      "type": "verdict",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "旧candidate証拠、stale reviews、mid-review change履歴があり、premerge evidenceをproduction完了へ誤用するriskが具体的に存在するためnot_requiredは誤り。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/audit_head_8294_correction_review",
+        "session_ref": "/root/audit_head_8294_correction_review"
+      },
+      "head_commit": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+      "recorded_at": "2026-08-02T23:35:58.527Z"
+    },
+    {
+      "event_id": "6e09cf6e-500e-4551-b55f-4db3647787a5",
+      "type": "verdict",
+      "item_id": "spine:intent",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Storyは本番Graph、Decision/RACI、署名publication、rollback、merge/deploy/readbackを同一release lineageへ結合する目的と31件の受け入れ条件を具体化しており、機械判定passedは差分の実体と一致する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:35:04.306Z"
+    },
+    {
+      "event_id": "2697092c-f1e1-4320-b02f-8129acf1c02f",
+      "type": "verdict",
+      "item_id": "spine:current_reality",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "needs_evidenceは前提誤り。production-hostのread-only full Graph auditと署名artifact readbackが、Graph修復済み・candidate artifact検証済み・production serviceは旧revision・未deployという現在状態を明示し、現HEADでは実PostgreSQL競合テストも実行済み。ただしproduction deploy完了証明ではない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:35:05.650Z"
+    },
+    {
+      "event_id": "e542891a-5fec-4b46-a571-467fec5245c7",
+      "type": "verdict",
+      "item_id": "spine:invariants",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "SpecとArchitectureがexact snapshot、Decision/RACI binding、Ed25519 trust、publisher-only current、transactional fail-closed、rollback後current:nullを定義し、現HEADのunit・integration・contract testsが具体的に検証している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:35:07.027Z"
+    },
+    {
+      "event_id": "f5972ee6-0ab4-42aa-a451-db0c5c4026ee",
+      "type": "verdict",
+      "item_id": "spine:boundaries",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Git release bytes、Graph SSOT authority facts、Infisical秘密鍵、Git trust store公開鍵、receipt/index実効状態が分離され、publication・merge・deploy・activation completeも別状態として扱われている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:35:10.415Z"
+    },
+    {
+      "event_id": "2c00fa80-736e-4c9e-8ead-0d1708eaa6b2",
+      "type": "verdict",
+      "item_id": "spine:failure_modes",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "needs_evidenceは照合漏れ。現HEAD検証にはauthority network/incomplete responseの無出力fail-closed、途中置換失敗の全出力復元、既存cardinality競合rollback、実PostgreSQL同一新規aggregate競合のexactly-one-winnerが含まれる。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:35:15.126Z"
+    },
+    {
+      "event_id": "4963e2b7-a714-4d42-b382-dfe7b67b99c4",
+      "type": "verdict",
+      "item_id": "spine:done_evidence",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "現HEADのmodule-contract E2E、unit、typecheckは実装準備を証明するが、本番runtimeの稼働SHA、health、version/current digest、署名、journal、再Graph auditは未確認。Story最終ACも未完了でproduction activationのdone evidence不足という判定は正しい。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:35:23.103Z"
+    },
+    {
+      "event_id": "291494c8-29e9-4a5a-8e49-e9a5b76171f1",
+      "type": "verdict",
+      "item_id": "axis:public_contract",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "needs_evidenceは前提誤り。現HEADでcontroller/APIの安定status・error contract、legacy write response維持、既存read互換、currentなし時fail-closed、active release trust-store解決が対象テストを通過している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:35:39.911Z"
+    },
+    {
+      "event_id": "a49c5e20-f86f-4ded-925d-b6d12c59eb9a",
+      "type": "verdict",
+      "item_id": "axis:rollback_sensitive",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "needs_evidenceは前提誤り。不可逆境界はpublication commitとdeployで特定され、独立detached worktreeでpublication commit revert、receipt消失、current:null、proposed復帰、ontology verify成功を演習済み。本番deploy後rollback readbackは別の未実施運用証跡。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:35:49.179Z"
+    },
+    {
+      "event_id": "7f74c277-c7aa-4681-bcc8-90f7c8f6a331",
+      "type": "verdict",
+      "item_id": "axis:scope_reviewability",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "52ファイル・26コミット・repo-control混在は分割検討を要する規模だが、release digest、direct-child publication、authority、receipt、rollbackを同一lineageとして原子的にレビューする理由が記録され、accepted_followupは成立する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:35:54.151Z"
+    },
+    {
+      "event_id": "f7f22ecc-551c-4783-b6cd-597eda9b6837",
+      "type": "verdict",
+      "item_id": "axis:release_ops",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "blockは現HEADで陳腐化。Story、Spec、Architectureにrelease note、deploy/readback手順、owner、追加操作不要、health・journal・digest・署名・DB audit、support/rollback、current:null復旧条件が明記済み。本番未deployはdone_evidenceの問題でrelease-ops設計欠落ではない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:36:00.100Z"
+    },
+    {
+      "event_id": "f89ed21a-d29e-460a-98bb-dc8ad43e2660",
+      "type": "verdict",
+      "item_id": "failure_mode:provider_failure",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "not_requiredは前提誤り。publicationはGraph authority API/networkと署名runtime projectionに依存し、testはnetwork failureとincomplete authority responseの双方でpublication outputsを生成せずfail closedすることを検証済み。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:36:03.592Z"
+    },
+    {
+      "event_id": "c7ac0623-b86a-4284-8311-d7ea136d1f37",
+      "type": "verdict",
+      "item_id": "failure_mode:persistence_failure",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "not_requiredは前提誤り。Graph remediation、canonical Graph commit、receipt/index/current置換にはpartial persistenceリスクがあり、transaction rollback、全publication output復元、実PostgreSQL同時commitのexactly-one-winnerを確認済み。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:36:04.909Z"
+    },
+    {
+      "event_id": "f89f9970-70e7-4f28-b215-9913a2c7470b",
+      "type": "verdict",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_unsound",
+      "unsound_cause": "classifier_premise_unsound",
+      "responds_to_correction_id": null,
+      "reason": "not_requiredは前提誤り。署名receipt、source/publication lineage、Decision/RACI binding、current selection、VibePro evidenceが中心であり主要failure mode。改変release、偽造・不完全receipt、手動current切替、publication後再編集を拒否し、証跡もclean HEADへstrict binding済み。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:36:06.503Z"
+    },
+    {
+      "event_id": "dcaf647d-b1d9-4790-a676-d02920b6b6da",
+      "type": "premise_correction",
+      "item_id": "spine:current_reality",
+      "corrects_verdict_id": "2697092c-f1e1-4320-b02f-8129acf1c02f",
+      "wrong_premise": "workflow changes have no focused current runtime/path evidence",
+      "corrected_premise": "production-host read-only audit, signed artifact readback, deployed old SHA boundary, and real PostgreSQL current-HEAD test provide focused current-reality evidence",
+      "reason": "production current-reality evidence was generated and reviewed after the classifier premise",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/premerge-production-readback-2026-08-03.json",
+          "sha256": "2f2349b5ed77b7ca4818d6ff126264d28676abd82176b43798388b2edb762d04"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root",
+        "session_ref": null
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:36:48.961Z"
+    },
+    {
+      "event_id": "db94534f-17e4-4875-9991-3d6f0483e9a3",
+      "type": "premise_correction",
+      "item_id": "spine:failure_modes",
+      "corrects_verdict_id": "2c00fa80-736e-4c9e-8ead-0d1708eaa6b2",
+      "wrong_premise": "no matching workflow failure-mode evidence exists",
+      "corrected_premise": "authority failure, publication replacement rollback, persistence rollback, and real PostgreSQL concurrency failures are executable and current-HEAD bound",
+      "reason": "fresh verification contains direct negative-path evidence",
+      "replacement_evidence": [
+        {
+          "artifact": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-evidence.json",
+          "sha256": "b7469a43a36a715eba396cc4019077cd1d8437d1e85fcdb6ecf47c8ce15dce55"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root",
+        "session_ref": null
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:36:49.958Z"
+    },
+    {
+      "event_id": "e6bbc5a9-7e40-43d2-8bf3-d950a2e0ad38",
+      "type": "premise_correction",
+      "item_id": "axis:public_contract",
+      "corrects_verdict_id": "291494c8-29e9-4a5a-8e49-e9a5b76171f1",
+      "wrong_premise": "public contract compatibility lacks evidence",
+      "corrected_premise": "controller/API status and error contracts, legacy response compatibility, current-null fail-closed and active trust resolution are covered at current HEAD",
+      "reason": "focused API and contract verification supersedes the premise",
+      "replacement_evidence": [
+        {
+          "artifact": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-evidence.json",
+          "sha256": "b7469a43a36a715eba396cc4019077cd1d8437d1e85fcdb6ecf47c8ce15dce55"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root",
+        "session_ref": null
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:36:50.945Z"
+    },
+    {
+      "event_id": "9ec3a385-0f29-487b-929e-ae6871fcae87",
+      "type": "premise_correction",
+      "item_id": "axis:rollback_sensitive",
+      "corrects_verdict_id": "a49c5e20-f86f-4ded-925d-b6d12c59eb9a",
+      "wrong_premise": "rollback and irreversible boundaries lack evidence",
+      "corrected_premise": "publication and deploy boundaries are explicit and a detached rollback rehearsal restores current null, proposed status, no receipt and valid verification",
+      "reason": "rollback rehearsal directly demonstrates the code and artifact rollback path",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/rollback-rehearsal-2026-08-03.json",
+          "sha256": "8a73c6ddb46b83c480f532a354d5b59a840db87b710a9c3b311701e5f6c746f1"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root",
+        "session_ref": null
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:36:51.972Z"
+    },
+    {
+      "event_id": "32b9e857-0049-47eb-b56c-527611d97ae8",
+      "type": "premise_correction",
+      "item_id": "axis:release_ops",
+      "corrects_verdict_id": "f7f22ecc-551c-4783-b6cd-597eda9b6837",
+      "wrong_premise": "release notes, operator action, observability and support rollback are absent",
+      "corrected_premise": "current Story and Spec include release note, operator procedure, owners, health journal digest signature DB audit observations and rollback conditions",
+      "reason": "operational sections were added on current HEAD; undeployed runtime remains done-evidence, not release-ops design",
+      "replacement_evidence": [
+        {
+          "artifact": "docs/management/stories/active/story-brainbase-ontology-production-activation.md",
+          "sha256": "2182dc13fdaa71eb0fa94b40b4a5cbc8264a0f1a4ee15a6e129388a78e7ce48d"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root",
+        "session_ref": null
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:36:52.984Z"
+    },
+    {
+      "event_id": "259dcab4-7e5e-47a5-a95d-e7408a27af50",
+      "type": "premise_correction",
+      "item_id": "failure_mode:provider_failure",
+      "corrects_verdict_id": "f89ed21a-d29e-460a-98bb-dc8ad43e2660",
+      "wrong_premise": "provider failure is not required",
+      "corrected_premise": "Graph authority network and signing runtime projection are providers; failures and incomplete responses must and do fail closed without outputs",
+      "reason": "release verification tests cover this applicable failure mode",
+      "replacement_evidence": [
+        {
+          "artifact": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-evidence.json",
+          "sha256": "b7469a43a36a715eba396cc4019077cd1d8437d1e85fcdb6ecf47c8ce15dce55"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root",
+        "session_ref": null
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:36:54.141Z"
+    },
+    {
+      "event_id": "72a33a36-739a-4ec1-a0ad-c890754f8c05",
+      "type": "premise_correction",
+      "item_id": "failure_mode:persistence_failure",
+      "corrects_verdict_id": "c7ac0623-b86a-4284-8311-d7ea136d1f37",
+      "wrong_premise": "persistence failure is not required",
+      "corrected_premise": "Graph commit, remediation and publication replacement can partially persist; transaction rollback and output restoration plus real PostgreSQL concurrency are required and verified",
+      "reason": "current-head verification directly covers persistence failure",
+      "replacement_evidence": [
+        {
+          "artifact": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-evidence.json",
+          "sha256": "b7469a43a36a715eba396cc4019077cd1d8437d1e85fcdb6ecf47c8ce15dce55"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root",
+        "session_ref": null
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:36:55.282Z"
+    },
+    {
+      "event_id": "0e083b03-656e-46a5-8b79-f08f27702de5",
+      "type": "premise_correction",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "corrects_verdict_id": "f89f9970-70e7-4f28-b215-9913a2c7470b",
+      "wrong_premise": "evidence lifecycle regression is not required",
+      "corrected_premise": "signed receipt and commit lineage, Decision RACI binding, current selection and VibePro evidence are central and protected against tamper and stale reuse",
+      "reason": "current-head release verification and strict-head review evidence cover the lifecycle",
+      "replacement_evidence": [
+        {
+          "artifact": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-evidence.json",
+          "sha256": "b7469a43a36a715eba396cc4019077cd1d8437d1e85fcdb6ecf47c8ce15dce55"
+        }
+      ],
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root",
+        "session_ref": null
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:36:56.327Z"
+    },
+    {
+      "event_id": "47535b8b-cae5-4124-acd1-56a0389c7c25",
+      "type": "verdict",
+      "item_id": "spine:current_reality",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "dcaf647d-b1d9-4790-a676-d02920b6b6da",
+      "reason": "本番Graph read-only監査、署名成果物readback、未deploy境界、現HEAD実PostgreSQL testがcurrent reality根拠として妥当。deployed_runtime=falseでpostdeploy完了は意味しない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_ac_adjudication_final",
+        "session_ref": "/root/ontology_ac_adjudication_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:41:33.428Z"
+    },
+    {
+      "event_id": "02cf13a3-86c9-40ca-a059-359fbf63d946",
+      "type": "verdict",
+      "item_id": "spine:failure_modes",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "db94534f-17e4-4875-9991-3d6f0483e9a3",
+      "reason": "権威取得失敗、publication置換失敗、永続化競合、証拠不整合のfail-closed・rollback・復元を現HEADで実行確認しており訂正は妥当。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_ac_adjudication_final",
+        "session_ref": "/root/ontology_ac_adjudication_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:41:34.997Z"
+    },
+    {
+      "event_id": "056304ce-e348-47bf-9127-dabc4ec6df23",
+      "type": "verdict",
+      "item_id": "axis:public_contract",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "e6bbc5a9-7e40-43d2-8bf3-d950a2e0ad38",
+      "reason": "controller/API status・error contract、legacy response、current-null fail-closed、active release解決を現HEADテストで確認し公開契約軸の訂正は妥当。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_ac_adjudication_final",
+        "session_ref": "/root/ontology_ac_adjudication_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:41:37.004Z"
+    },
+    {
+      "event_id": "13a7f5fa-ae13-4006-a918-691c61a8187b",
+      "type": "verdict",
+      "item_id": "axis:rollback_sensitive",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "9ec3a385-0f29-487b-929e-ae6871fcae87",
+      "reason": "detached worktreeでpublication revert、current null、proposed、receipt不在、verify成功を確認し対象成果物は現HEADまで不変である。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_ac_adjudication_final",
+        "session_ref": "/root/ontology_ac_adjudication_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:41:38.774Z"
+    },
+    {
+      "event_id": "89d920c2-6ae1-4340-b0a4-0e0b24b99332",
+      "type": "verdict",
+      "item_id": "axis:release_ops",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "32b9e857-0049-47eb-b56c-527611d97ae8",
+      "reason": "Story/Specにrelease note、担当、deploy手順、health journal SHA digest signature DB audit観測点、rollback条件があり訂正は妥当。実deploy/readbackは未完了done evidence。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_ac_adjudication_final",
+        "session_ref": "/root/ontology_ac_adjudication_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:41:40.773Z"
+    },
+    {
+      "event_id": "3f4223d3-401e-4552-a867-21d58a36d628",
+      "type": "verdict",
+      "item_id": "failure_mode:provider_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "259dcab4-7e5e-47a5-a95d-e7408a27af50",
+      "reason": "Graph authority networkと署名runtime projectionの通信失敗・不完全応答が成果物を出さずfail closedとなる負経路を現HEADで確認した。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_ac_adjudication_final",
+        "session_ref": "/root/ontology_ac_adjudication_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:41:42.563Z"
+    },
+    {
+      "event_id": "c73d6b36-18b0-452e-8618-6913da299ba2",
+      "type": "verdict",
+      "item_id": "failure_mode:persistence_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "72a33a36-739a-4ec1-a0ad-c890754f8c05",
+      "reason": "Graph commit・remediation・publication置換の部分永続化リスクへtransaction rollback、出力復元、実PostgreSQL exactly-one-winnerを確認した。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_ac_adjudication_final",
+        "session_ref": "/root/ontology_ac_adjudication_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:41:44.513Z"
+    },
+    {
+      "event_id": "4068165e-bd59-4ce9-87b4-b500a4626df6",
+      "type": "verdict",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": "0e083b03-656e-46a5-8b79-f08f27702de5",
+      "reason": "署名receipt、commit lineage、Decision/RACI、current選択、strict-head証拠が改ざん・partial metadata・stale reuseを拒否する。PR readinessは別途gateで確認する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_ac_adjudication_final",
+        "session_ref": "/root/ontology_ac_adjudication_final"
+      },
+      "head_commit": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "recorded_at": "2026-08-03T01:41:47.145Z"
+    },
+    {
+      "event_id": "268ef8e5-5974-4366-82a0-d5214572a7d8",
+      "type": "verdict",
+      "item_id": "spine:intent",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Story・Architecture・Specが署名公開、Graph適合、rollback、production readbackまでを一貫して定義し、最終ACを未完了のまま保持している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+      "recorded_at": "2026-08-03T02:20:43.193Z"
+    },
+    {
+      "event_id": "9255f333-09b2-470c-8fbf-e784c57e7a85",
+      "type": "verdict",
+      "item_id": "spine:current_reality",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "14cde655のstrict-head証跡と履歴検証がrepository currentを裏付け、productionは旧revision・未deployと明示的に分離されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+      "recorded_at": "2026-08-03T02:20:48.422Z"
+    },
+    {
+      "event_id": "b64be95b-d86b-4ea2-85d6-be3a44d5fe53",
+      "type": "verdict",
+      "item_id": "spine:invariants",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "ef12ff→e794299のdirect-child、e794299→HEADの到達性、署名・digest・governance bindingを実履歴とontology release verifierで確認した。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+      "recorded_at": "2026-08-03T02:20:56.357Z"
+    },
+    {
+      "event_id": "506a427a-aaa2-4e15-9a01-e7656a3e35bf",
+      "type": "verdict",
+      "item_id": "spine:boundaries",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Git artifact、公開trust store、Infisical秘密鍵、Graph authority、runtimeの境界が設計・実装・strict-head検証で一致している。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+      "recorded_at": "2026-08-03T02:21:02.372Z"
+    },
+    {
+      "event_id": "1c70d8e9-eb1a-4014-a3a0-91ee7d1a0022",
+      "type": "verdict",
+      "item_id": "spine:failure_modes",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "署名履歴改変、authority/provider失敗、current不在、部分永続化、競合をfail-closedにするテストがあり、merge-preserving履歴も実検証済み。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+      "recorded_at": "2026-08-03T02:21:07.140Z"
+    },
+    {
+      "event_id": "5c43f7fb-ec9a-45f6-bed8-e4ad26876e3f",
+      "type": "verdict",
+      "item_id": "spine:done_evidence",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "passedはmoduleとPR前検証証拠の存在を示す状態として妥当。証拠本文はproduction deploy/readback未完了とStory completion=falseを明示し、完了を誤認していない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+      "recorded_at": "2026-08-03T02:21:12.701Z"
+    },
+    {
+      "event_id": "23d9ac11-ddf6-4542-9648-504f98c83d0a",
+      "type": "verdict",
+      "item_id": "axis:public_contract",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "既存read・legacy response互換、canonical write guard、CLI出力、署名済み設定契約がfocused contract testsとrelease verifierで確認されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+      "recorded_at": "2026-08-03T02:21:18.487Z"
+    },
+    {
+      "event_id": "a0139685-6564-4f7c-ba45-9e39fe80bcb9",
+      "type": "verdict",
+      "item_id": "axis:rollback_sensitive",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "needs_evidenceという保守的状態は妥当。旧rehearsal対象のe794299は現HEADにも保持されるが、production未deployなので実稼働SHAのrollback/readback証拠はまだ存在しない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+      "recorded_at": "2026-08-03T02:21:21.816Z"
+    },
+    {
+      "event_id": "9705f05b-5314-4409-83b0-02d801c3ec64",
+      "type": "verdict",
+      "item_id": "axis:scope_reviewability",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "52ファイルと大きいが、署名sourceからpublication履歴、runtime guard、監査・rollbackを一つの原子的activationとして追跡でき、Story/Specとfocused testsで境界が整理されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+      "recorded_at": "2026-08-03T02:21:25.701Z"
+    },
+    {
+      "event_id": "87e69cca-1c66-4c49-9a3f-5d75d2bbda0e",
+      "type": "verdict",
+      "item_id": "axis:release_ops",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "owner、release note、deploy/readback順序、observability、support、rollback停止条件が具体化され、未実行状態も明示されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+      "recorded_at": "2026-08-03T02:21:32.863Z"
+    },
+    {
+      "event_id": "33018c21-2b25-4b04-a61a-3103bcfbfc22",
+      "type": "verdict",
+      "item_id": "failure_mode:provider_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "authority network失敗・不完全応答時にpublication outputを生成しないfail-closed経路がstrict-head testsで検証されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+      "recorded_at": "2026-08-03T02:21:39.683Z"
+    },
+    {
+      "event_id": "39f6c5fa-a9c4-48fc-a2c1-3572125efb3a",
+      "type": "verdict",
+      "item_id": "failure_mode:persistence_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "14cde655の保存済みstrict-head証跡で実PostgreSQL競合テストが非skip合格し、transaction rollbackと部分状態防止も検証されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+      "recorded_at": "2026-08-03T02:21:48.041Z"
+    },
+    {
+      "event_id": "597f000e-d121-4ef9-947d-cb348591882f",
+      "type": "verdict",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "検証証跡は14cde655へstrict-head bindingされ、merge-preserving履歴で署名handoffを再構成可能。旧review artifactはstaleとして検出・blockされ、greenとして誤採用されていない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_judgment_final",
+        "session_ref": "/root/ontology_judgment_final"
+      },
+      "head_commit": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+      "recorded_at": "2026-08-03T02:21:57.311Z"
+    },
+    {
+      "event_id": "91f1ad7e-d617-40c6-b24e-a9e8f2fcf754",
+      "type": "verdict",
+      "item_id": "spine:intent",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "closure差分は本番完了条件の達成と証跡リンクのみでStory意図に一致する",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "independent-fresh-context-2026-08-03"
+      },
+      "head_commit": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+      "recorded_at": "2026-08-03T03:24:45.933Z"
+    },
+    {
+      "event_id": "0b540526-697b-484c-b198-b85e18bff5bd",
+      "type": "verdict",
+      "item_id": "spine:current_reality",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "SSH、公開API、runtime verify、READ ONLY Graph auditでSHA、version、digest、署名、0 violationを再確認した",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "independent-fresh-context-2026-08-03"
+      },
+      "head_commit": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+      "recorded_at": "2026-08-03T03:24:46.761Z"
+    },
+    {
+      "event_id": "f354b219-6dbc-4c20-9d2c-96dbc4f3f451",
+      "type": "verdict",
+      "item_id": "spine:invariants",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "docs-only差分で署名、digest、完全監査、rollback、既存read互換の不変条件を変更しない",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "independent-fresh-context-2026-08-03"
+      },
+      "head_commit": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+      "recorded_at": "2026-08-03T03:24:47.584Z"
+    },
+    {
+      "event_id": "8dae5a31-5797-4358-a563-e6071d1d9fed",
+      "type": "verdict",
+      "item_id": "spine:boundaries",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Storyと非機密監査JSONのみでAPI、DB、secret、authority、runtime境界を変更しない",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "independent-fresh-context-2026-08-03"
+      },
+      "head_commit": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+      "recorded_at": "2026-08-03T03:24:48.433Z"
+    },
+    {
+      "event_id": "12aff5f6-de33-43e8-8289-66fdbf9ddf92",
+      "type": "verdict",
+      "item_id": "spine:failure_modes",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "runtime failure pathを変更せずrollback targetとfail-closed手順に矛盾しない",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "independent-fresh-context-2026-08-03"
+      },
+      "head_commit": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+      "recorded_at": "2026-08-03T03:24:49.519Z"
+    },
+    {
+      "event_id": "34dc3d57-b1ce-4960-b084-ee6498e96961",
+      "type": "verdict",
+      "item_id": "spine:done_evidence",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "稼働SHA、health、署名verify、digest、journal、完全監査がDone条件を満たす",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "independent-fresh-context-2026-08-03"
+      },
+      "head_commit": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+      "recorded_at": "2026-08-03T03:24:50.413Z"
+    },
+    {
+      "event_id": "f0020568-57a8-45fd-be5e-9ea542d66b9d",
+      "type": "verdict",
+      "item_id": "axis:public_contract",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "コード、CLI/API、設定、response形式に差分なく既存public contractを変更しない",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "independent-fresh-context-2026-08-03"
+      },
+      "head_commit": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+      "recorded_at": "2026-08-03T03:24:51.261Z"
+    },
+    {
+      "event_id": "cb22d1f8-2fa1-4f34-8f2e-a0c4d11e29b3",
+      "type": "verdict",
+      "item_id": "failure_mode:parse_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "新規JSONはparse可能でStory参照先も存在し新しいparserを追加しない",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "independent-fresh-context-2026-08-03"
+      },
+      "head_commit": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+      "recorded_at": "2026-08-03T03:24:52.163Z"
+    },
+    {
+      "event_id": "09b056f9-f538-4172-97fc-9cccda723037",
+      "type": "verdict",
+      "item_id": "failure_mode:provider_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "外部provider呼出を追加しない静的証跡で内容はlive readbackにより再確認済み",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "independent-fresh-context-2026-08-03"
+      },
+      "head_commit": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+      "recorded_at": "2026-08-03T03:24:53.226Z"
+    },
+    {
+      "event_id": "5225e7fa-d9f0-4b1c-9e88-0c15be43d7b7",
+      "type": "verdict",
+      "item_id": "failure_mode:persistence_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "同一Git commitにStoryと証跡を保持しruntime persistence pathやGraph writeを変更しない",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "independent-fresh-context-2026-08-03"
+      },
+      "head_commit": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+      "recorded_at": "2026-08-03T03:24:54.313Z"
+    },
+    {
+      "event_id": "eca9b4d6-5d31-46be-8098-854b83a65adb",
+      "type": "verdict",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "完了チェックと機械可読証跡が相互参照されmerge、audit、rollback、runtimeから再構成可能",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "independent-fresh-context-2026-08-03"
+      },
+      "head_commit": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+      "recorded_at": "2026-08-03T03:24:56.482Z"
+    },
+    {
+      "event_id": "6ac17888-0acc-4e84-9f9a-1aef5f5db42f",
+      "type": "verdict",
+      "item_id": "spine:intent",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "差分は本番有効化の完了条件チェックと監査証跡追加のみでStory目的と一致する。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "ontology-completion-5f1a34"
+      },
+      "head_commit": "5f1a34f615520fed59d3d1f691c279560343508d",
+      "recorded_at": "2026-08-03T03:51:36.290Z"
+    },
+    {
+      "event_id": "ef075eec-688f-4f86-8662-0cb71f44b504",
+      "type": "verdict",
+      "item_id": "spine:current_reality",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "稼働SHA、Ontology 1.0.0、署名digest、Graph監査7410 entities・6716 edges・0 violationsをread-onlyで再確認済み。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "ontology-completion-5f1a34"
+      },
+      "head_commit": "5f1a34f615520fed59d3d1f691c279560343508d",
+      "recorded_at": "2026-08-03T03:51:37.836Z"
+    },
+    {
+      "event_id": "e6b0d551-7574-4559-bb04-c74eaff79bfa",
+      "type": "verdict",
+      "item_id": "spine:invariants",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "docs-only差分で署名、fail-closed、互換性、rollbackの既存不変条件を変更しない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "ontology-completion-5f1a34"
+      },
+      "head_commit": "5f1a34f615520fed59d3d1f691c279560343508d",
+      "recorded_at": "2026-08-03T03:51:40.413Z"
+    },
+    {
+      "event_id": "34103338-898a-4056-9b26-d275cf2eff8b",
+      "type": "verdict",
+      "item_id": "spine:boundaries",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Storyと非機密JSONのみでAPI、DB、Graph write、secret、authority、runtime境界に変更なし。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "ontology-completion-5f1a34"
+      },
+      "head_commit": "5f1a34f615520fed59d3d1f691c279560343508d",
+      "recorded_at": "2026-08-03T03:51:42.611Z"
+    },
+    {
+      "event_id": "cae617e8-92b8-4765-b7de-dd64ec63e25e",
+      "type": "verdict",
+      "item_id": "spine:failure_modes",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "runtime障害経路は不変で直前SHA、backup branch、rollback方針が証跡に残る。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "ontology-completion-5f1a34"
+      },
+      "head_commit": "5f1a34f615520fed59d3d1f691c279560343508d",
+      "recorded_at": "2026-08-03T03:51:43.814Z"
+    },
+    {
+      "event_id": "d5cd88f9-a6de-4baa-b0b6-6e6c92872e5a",
+      "type": "verdict",
+      "item_id": "spine:done_evidence",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "merge/runtime SHA、health、version、署名、完全Graph監査がSpecの完了条件を満たす。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "ontology-completion-5f1a34"
+      },
+      "head_commit": "5f1a34f615520fed59d3d1f691c279560343508d",
+      "recorded_at": "2026-08-03T03:51:45.553Z"
+    },
+    {
+      "event_id": "12c95cfb-a763-4405-8c81-542a30df4d15",
+      "type": "verdict",
+      "item_id": "axis:public_contract",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "コード、CLI/API、設定、response形式に差分がなくcurrent-head contract E2Eも合格。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "ontology-completion-5f1a34"
+      },
+      "head_commit": "5f1a34f615520fed59d3d1f691c279560343508d",
+      "recorded_at": "2026-08-03T03:51:47.876Z"
+    },
+    {
+      "event_id": "5e002ba7-4df2-4c3e-a35b-f535ccb345c7",
+      "type": "verdict",
+      "item_id": "failure_mode:parse_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "追加JSONは構文検証済みで参照先も存在し新規parser処理はない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "ontology-completion-5f1a34"
+      },
+      "head_commit": "5f1a34f615520fed59d3d1f691c279560343508d",
+      "recorded_at": "2026-08-03T03:51:50.413Z"
+    },
+    {
+      "event_id": "523f14e4-f111-445c-9e0d-eb4ebdd2352b",
+      "type": "verdict",
+      "item_id": "failure_mode:provider_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "外部provider呼出経路を追加せず記録した外部状態はlive readbackで再確認済み。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "ontology-completion-5f1a34"
+      },
+      "head_commit": "5f1a34f615520fed59d3d1f691c279560343508d",
+      "recorded_at": "2026-08-03T03:51:52.724Z"
+    },
+    {
+      "event_id": "c61f0ae5-dcdc-4bac-8921-b5fe523baf88",
+      "type": "verdict",
+      "item_id": "failure_mode:persistence_failure",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "Storyと監査JSONは同一Git commitに保持されruntime persistenceやGraph writeを伴わない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "ontology-completion-5f1a34"
+      },
+      "head_commit": "5f1a34f615520fed59d3d1f691c279560343508d",
+      "recorded_at": "2026-08-03T03:51:54.191Z"
+    },
+    {
+      "event_id": "861e4049-08f5-49cc-a567-494d6671852c",
+      "type": "verdict",
+      "item_id": "failure_mode:evidence_lifecycle_regression",
+      "verdict": "judged_sound",
+      "unsound_cause": null,
+      "responds_to_correction_id": null,
+      "reason": "VibeProは旧HEADレビューをstale判定し、完了証跡からmerge、runtime、audit、rollbackを再構成できる。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/ontology_completion_judgment",
+        "session_ref": "ontology-completion-5f1a34"
+      },
+      "head_commit": "5f1a34f615520fed59d3d1f691c279560343508d",
+      "recorded_at": "2026-08-03T03:51:55.645Z"
+    }
+  ]
+}

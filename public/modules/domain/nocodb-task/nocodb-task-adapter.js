@@ -27,7 +27,7 @@ export class NocoDBTaskAdapter {
             title: fields['タイトル'] || 'Untitled',
             name: fields['タイトル'] || 'Untitled',
             status: this._mapStatus(fields['ステータス']),
-            priority: PRIORITY_REVERSE[fields['優先度']] || 'medium',
+            priority: PRIORITY_REVERSE[fields['優先度']] || fields['優先度'] || 'medium',
             deadline: fields['期限'] || null,
             due: fields['期限'] || null,
             description: fields['説明'] || '',
@@ -42,6 +42,33 @@ export class NocoDBTaskAdapter {
         };
     }
 
+    /** Canonical Task API response -> existing Task view model. */
+    toInternalCanonicalTask(task) {
+        const sourceProject = task.source_refs?.find((ref) => ref?.project)?.project || 'brainbase';
+        return {
+            id: `canonical:${task.id}`,
+            source: 'canonical_task',
+            project: sourceProject,
+            projectName: sourceProject,
+            title: task.title || 'Untitled',
+            name: task.title || 'Untitled',
+            status: task.status,
+            priority: task.priority,
+            deadline: task.due_at || null,
+            due: task.due_at || null,
+            description: task.description || '',
+            assignee: task.assignee_display_name || '',
+            assigneePersonId: task.assignee_person_id || null,
+            context: '',
+            meetingDate: null,
+            meetingTitle: '',
+            canonicalTaskId: task.id,
+            canonicalVersion: task.version,
+            sourceRefs: task.source_refs || [],
+            createdTime: task.created_at || null
+        };
+    }
+
     /**
      * 内部ステータス → NocoDBステータス
      */
@@ -49,6 +76,7 @@ export class NocoDBTaskAdapter {
         const map = {
             'pending': '未着手',
             'in_progress': '進行中',
+            'waiting': '待ち',
             'completed': '完了'
         };
         return map[status] || status;
@@ -61,9 +89,10 @@ export class NocoDBTaskAdapter {
         const map = {
             '未着手': 'pending',
             '進行中': 'in_progress',
+            '待ち': 'waiting',
             '完了': 'completed'
         };
-        return map[nocoStatus] || 'pending';
+        return map[nocoStatus] || nocoStatus || 'pending';
     }
 
     /**

@@ -1,0 +1,101 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-ontology-production-compatibility",
+  "ledger_path": ".vibepro/pr/story-brainbase-ontology-production-compatibility/decision-outcome-ledger.json",
+  "selector": {
+    "decision_trace_id": "dt_ee93da345f49d20f283ccc7bf1fbbdb9c821d022569df50281051f5460da93bc"
+  },
+  "parent_revision_fingerprint": "4eb63d5f4194668a95263ce77ab0bc69e399523249414906fd3d3bf6060b085c",
+  "revision_fingerprint": "6b7d35cdcaea555c65a608b776cba2e28ed884befdee50cc8fb35468bbe4f518",
+  "trace": {
+    "decision_trace_id": "dt_ee93da345f49d20f283ccc7bf1fbbdb9c821d022569df50281051f5460da93bc",
+    "collision_group": null,
+    "trace_source_ref": "tsr_a0628e5788791258f3c2ab46db2e301c298da2ef0014bd169d990f3ad5e65afa",
+    "normalized_subject_key": "gate:judgment_axis_scope_reviewability",
+    "source_identity": {
+      "source_kind": "linked_sources",
+      "source_ref": ".vibepro/pr/story-brainbase-ontology-production-compatibility/decision-records.json,.vibepro/pr/story-brainbase-ontology-production-compatibility/decision-records.json",
+      "native_id": "decision-1785692739792-6e131674,decision-1785696067589-1c51d2ee",
+      "digest": "85e204f28b27b7f4033381eb3dba581b21d506927f8c5f774c7e66742132235a",
+      "multiplicity": 1
+    },
+    "evidence_head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+    "parent_revision_fingerprint": "4eb63d5f4194668a95263ce77ab0bc69e399523249414906fd3d3bf6060b085c",
+    "revision_fingerprint": "6b7d35cdcaea555c65a608b776cba2e28ed884befdee50cc8fb35468bbe4f518",
+    "observation_identity": null,
+    "observation_read_aliases": [
+      {
+        "trace_selector": {
+          "decision_trace_id": "dt_ee93da345f49d20f283ccc7bf1fbbdb9c821d022569df50281051f5460da93bc"
+        },
+        "parent_revision_fingerprint": "b52ceb3d359ce90a9eda8622de942e2a3513970b656e59738f2cf944431ee942"
+      }
+    ],
+    "trace_status": "partial",
+    "missing_reason": "observation_missing",
+    "finding": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "gate": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "detector": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "disposition": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "decision": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "behavior_delta": {
+      "status": "not_observed",
+      "before": null,
+      "after": null,
+      "change_refs": [],
+      "verification_refs": [],
+      "verification_sources": [],
+      "missing_reason": "explicit_behavior_delta_missing",
+      "excluded_sources": []
+    },
+    "delivery": {
+      "status": "merged",
+      "pr": {
+        "number": 1112,
+        "url": "https://github.com/Unson-LLC/brainbase-unson/pull/1112",
+        "state": "MERGED"
+      },
+      "merge": {
+        "sha": "12502fb0d1c04e7f9c4f070ed9683de4f88f886e",
+        "status": "merged",
+        "merged_at": "2026-08-02T19:08:27Z"
+      },
+      "source_ref": ".vibepro/pr/story-brainbase-ontology-production-compatibility/pr-merge.json"
+    },
+    "downstream_outcome": {
+      "status": "not_observed",
+      "value": null,
+      "reason": null,
+      "source_ref": null,
+      "missing_reason": "observation_missing"
+    },
+    "eligible_outcome_sources": {
+      "total_count": 0,
+      "returned_count": 0,
+      "omitted_count": 0,
+      "truncated": false,
+      "entries": []
+    },
+    "source_errors": []
+  }
+}

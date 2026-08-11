@@ -66,6 +66,20 @@ npm run test
 npm run inspector
 ```
 
+## REST API contract
+
+This MCP deliberately uses more than one NocoDB API shape. Record operations
+use the v1 data endpoint after resolving the Airtable-compatible `baseId` to a
+project ID and table name. Metadata operations use v2 and address a table by
+`tableId`. Do not copy a URL between those API versions or assume that
+`baseId`, project ID, table name, and `tableId` are interchangeable.
+
+Pass `where`, including Japanese text, through the HTTP client's query-parameter
+support (`params` or `URLSearchParams`). Do not concatenate an unescaped filter
+into the URL. For the v1 record endpoint, preserve both resolved project/base
+context and table identity; for v2 endpoints, follow the endpoint's explicit
+`tableId` contract.
+
 ## Tools
 
 ### nocodb_list_records

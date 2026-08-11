@@ -90,21 +90,26 @@ export function classifySessionStreamPhase(events) {
  * `record_meeting_note_generation` tool-call input, verifies it against the
  * `run.metadata.meeting_note_generation` handoff (run_id + source_text_hash),
  * and records it through the local note-generation contract
- * (`workflowService.recordMeetingNoteGeneration`).
+ * (`meetingAutomationService.recordNoteGeneration`).
  */
 export class EveMeetingNoteReconciler {
     constructor({
-        workflowService,
+        meetingAutomationService,
         eveSessionClient,
         repository = null,
         config = {},
         clock = nowIso,
         logger = console
     }) {
-        if (!workflowService) throw new Error('workflowService is required');
-        this.workflowService = workflowService;
-        this.eveSessionClient = eveSessionClient || workflowService.eveSessionClient || null;
-        this.repository = repository || workflowService.repository;
+        this.meetingAutomationService = meetingAutomationService;
+        if (!this.meetingAutomationService?.recordNoteGeneration) {
+            throw new Error('meetingAutomationService.recordNoteGeneration is required');
+        }
+        if (!this.meetingAutomationService?.recordCandidates) {
+            throw new Error('meetingAutomationService.recordCandidates is required');
+        }
+        this.eveSessionClient = eveSessionClient || meetingAutomationService.eveSessionClient || null;
+        this.repository = repository || meetingAutomationService.repository;
         this.clock = clock;
         this.logger = logger;
         this.config = {
@@ -148,7 +153,7 @@ export class EveMeetingNoteReconciler {
                 summary.checked += 1;
                 try {
                     const outcome = await this.reconcileRun(run);
-                    this._markRuntimeRecovered(run);
+                    await this._markRuntimeRecovered(run);
                     if (outcome.status === 'recorded') summary.recorded += 1;
                     else if (outcome.status === 'already_recorded') summary.already_recorded += 1;
                     else if (outcome.status === 'blocked') summary.blocked += 1;
@@ -156,7 +161,7 @@ export class EveMeetingNoteReconciler {
                 } catch (error) {
                     const errorMessage = error?.message || String(error);
                     if (error?.code !== 'EVE_SESSION_STREAM_READ_FAILED') {
-                        this._markRuntimeFailure(run, errorMessage);
+                        await this._markRuntimeFailure(run, errorMessage);
                     }
                     summary.errors.push({
                         run_id: run.id,
@@ -184,13 +189,13 @@ export class EveMeetingNoteReconciler {
             events = await this.eveSessionClient.readSessionStream({ sessionId });
         } catch (error) {
             const errorMessage = error?.message || String(error);
-            this._markStreamReadFailure(dispatchRun, errorMessage);
+            await this._markStreamReadFailure(dispatchRun, errorMessage);
             const streamError = new Error(errorMessage);
             streamError.code = 'EVE_SESSION_STREAM_READ_FAILED';
             streamError.cause = error;
             throw streamError;
         }
-        this._markStreamReadRecovered(dispatchRun);
+        await this._markStreamReadRecovered(dispatchRun);
         const phase = classifySessionStreamPhase(events);
 
         if (noteAlreadyGenerated) {
@@ -201,7 +206,7 @@ export class EveMeetingNoteReconciler {
                 ingestRunId
             });
             if (phase === 'in_progress' && candidatesResult.status !== 'recorded') {
-                this._markCandidateWait(dispatchRun, {
+                await this._markCandidateWait(dispatchRun, {
                     phase,
                     reason: 'awaiting_candidates_after_note',
                     candidates: candidatesResult
@@ -214,7 +219,7 @@ export class EveMeetingNoteReconciler {
                 };
             }
             if (candidatesResult.status === 'failed') {
-                const blocked = this._blockCandidateWriteBack(dispatchRun, {
+                const blocked = await this._blockCandidateWriteBack(dispatchRun, {
                     phase,
                     candidates: candidatesResult
                 });
@@ -225,7 +230,7 @@ export class EveMeetingNoteReconciler {
                     candidates: candidatesResult
                 };
             }
-            this._closeDispatchRun(dispatchRun, {
+            await this._closeDispatchRun(dispatchRun, {
                 status: 'success',
                 reason: 'already_recorded',
                 message: 'Meeting note was already recorded on the ingest run; closing the Eve dispatch run',
@@ -249,7 +254,7 @@ export class EveMeetingNoteReconciler {
 
         if (noteCall) {
             try {
-                await this.workflowService.recordMeetingNoteGeneration({
+                await this.meetingAutomationService.recordNoteGeneration({
                     org_id: dispatchRun.org_id,
                     project_id: dispatchRun.project_id,
                     run_id: ingestRunId,
@@ -266,7 +271,7 @@ export class EveMeetingNoteReconciler {
                 // or the ingest run was deleted): retrying every tick can never
                 // succeed, so surface the run instead of polling it forever.
                 if (error?.statusCode === 400 || error?.statusCode === 404) {
-                    const blocked = this._blockDispatchRun(dispatchRun, {
+                    const blocked = await this._blockDispatchRun(dispatchRun, {
                         phase: 'record_rejected',
                         reason: 'record_failed_permanent',
                         record_error: error?.message || String(error),
@@ -286,7 +291,7 @@ export class EveMeetingNoteReconciler {
                 ingestRunId
             });
             if (phase === 'in_progress' && candidatesResult.status !== 'recorded') {
-                this._markCandidateWait(dispatchRun, {
+                await this._markCandidateWait(dispatchRun, {
                     phase,
                     reason: 'awaiting_candidates_after_note',
                     note_call_id: noteCall.call_id,
@@ -301,7 +306,7 @@ export class EveMeetingNoteReconciler {
                 };
             }
             if (candidatesResult.status === 'failed') {
-                const blocked = this._blockCandidateWriteBack(dispatchRun, {
+                const blocked = await this._blockCandidateWriteBack(dispatchRun, {
                     phase,
                     note_call_id: noteCall.call_id,
                     candidates: candidatesResult
@@ -314,7 +319,7 @@ export class EveMeetingNoteReconciler {
                     candidates: candidatesResult
                 };
             }
-            this._closeDispatchRun(dispatchRun, {
+            await this._closeDispatchRun(dispatchRun, {
                 status: 'success',
                 reason: 'note_reconciled',
                 message: 'Eve session meeting note reconciled into the meeting_note_draft output',
@@ -336,7 +341,7 @@ export class EveMeetingNoteReconciler {
         // The session reached a boundary (parked / completed / failed) without a
         // usable note tool-call: no further output will arrive without operator
         // input, so surface the run instead of polling it forever.
-        const blocked = this._blockDispatchRun(dispatchRun, {
+        const blocked = await this._blockDispatchRun(dispatchRun, {
             phase,
             mismatched_note_calls: noteCalls.length - matching.length
         });
@@ -360,7 +365,7 @@ export class EveMeetingNoteReconciler {
             return { status: 'no_candidate_call', mismatched_candidate_calls: mismatchedCandidateCalls };
         }
         try {
-            const result = await this.workflowService.recordMeetingCandidates({
+            const result = await this.meetingAutomationService.recordCandidates({
                 org_id: dispatchRun.org_id,
                 project_id: dispatchRun.project_id,
                 run_id: ingestRunId,
@@ -420,9 +425,10 @@ export class EveMeetingNoteReconciler {
         }, {});
     }
 
-    _markStreamReadFailure(dispatchRun, errorMessage) {
-        const fresh = this._freshRunningRun(dispatchRun);
-        if (!fresh) return false;
+    async _markStreamReadFailure(dispatchRun, errorMessage) {
+        return this._transaction(() => {
+            const fresh = this._freshRunningRun(dispatchRun);
+            if (!fresh) return false;
         const failedAt = this.clock();
         const previous = fresh.metadata?.eve_note_reconciler || {};
         const pollFailureCount = Number(previous.poll_failure_count || 0) + 1;
@@ -447,18 +453,20 @@ export class EveMeetingNoteReconciler {
             poll_failure_count: pollFailureCount,
             ingest_run_id: dispatchRun.metadata?.meeting_note_generation?.run_id || null
         });
-        return true;
+            return true;
+        });
     }
 
-    _markStreamReadRecovered(dispatchRun) {
-        const fresh = this._freshRunningRun(dispatchRun);
-        const previous = fresh?.metadata?.eve_note_reconciler;
-        if (
-            !fresh
-            || previous?.status !== 'retrying'
-            || previous?.reason !== 'session_stream_read_failed'
-            || !previous.last_poll_error
-        ) return false;
+    async _markStreamReadRecovered(dispatchRun) {
+        return this._transaction(() => {
+            const fresh = this._freshRunningRun(dispatchRun);
+            const previous = fresh?.metadata?.eve_note_reconciler;
+            if (
+                !fresh
+                || previous?.status !== 'retrying'
+                || previous?.reason !== 'session_stream_read_failed'
+                || !previous.last_poll_error
+            ) return false;
         const recoveredAt = this.clock();
         this.repository.updateRun(fresh.id, {
             message: 'Eve session stream recovered; waiting for the meeting result',
@@ -478,12 +486,14 @@ export class EveMeetingNoteReconciler {
             poll_failure_count: previous.poll_failure_count || 1,
             ingest_run_id: dispatchRun.metadata?.meeting_note_generation?.run_id || null
         });
-        return true;
+            return true;
+        });
     }
 
-    _markRuntimeFailure(dispatchRun, errorMessage) {
-        const fresh = this._freshRunningRun(dispatchRun);
-        if (!fresh) return false;
+    async _markRuntimeFailure(dispatchRun, errorMessage) {
+        return this._transaction(() => {
+            const fresh = this._freshRunningRun(dispatchRun);
+            if (!fresh) return false;
         const failedAt = this.clock();
         const previous = fresh.metadata?.eve_note_reconciler || {};
         const runtimeFailureCount = Number(previous.runtime_failure_count || 0) + 1;
@@ -508,17 +518,19 @@ export class EveMeetingNoteReconciler {
             runtime_failure_count: runtimeFailureCount,
             ingest_run_id: dispatchRun.metadata?.meeting_note_generation?.run_id || null
         });
-        return true;
+            return true;
+        });
     }
 
-    _markRuntimeRecovered(dispatchRun) {
-        const fresh = this.repository.getRun(dispatchRun.id);
-        const previous = fresh?.metadata?.eve_note_reconciler;
-        if (!fresh || !previous?.last_runtime_error || !previous.last_runtime_failed_at) return false;
-        if (
-            previous.last_runtime_recovered_at
-            && previous.last_runtime_recovered_at >= previous.last_runtime_failed_at
-        ) return false;
+    async _markRuntimeRecovered(dispatchRun) {
+        return this._transaction(() => {
+            const fresh = this.repository.getRun(dispatchRun.id);
+            const previous = fresh?.metadata?.eve_note_reconciler;
+            if (!fresh || !previous?.last_runtime_error || !previous.last_runtime_failed_at) return false;
+            if (
+                previous.last_runtime_recovered_at
+                && previous.last_runtime_recovered_at >= previous.last_runtime_failed_at
+            ) return false;
         const recoveredAt = this.clock();
         this.repository.updateRun(fresh.id, {
             metadata: {
@@ -535,12 +547,14 @@ export class EveMeetingNoteReconciler {
             runtime_failure_count: previous.runtime_failure_count || 1,
             ingest_run_id: dispatchRun.metadata?.meeting_note_generation?.run_id || null
         });
-        return true;
+            return true;
+        });
     }
 
-    _markCandidateWait(dispatchRun, { phase, reason, note_call_id = null, candidates }) {
-        const fresh = this._freshRunningRun(dispatchRun);
-        if (!fresh) return false;
+    async _markCandidateWait(dispatchRun, { phase, reason, note_call_id = null, candidates }) {
+        return this._transaction(() => {
+            const fresh = this._freshRunningRun(dispatchRun);
+            if (!fresh) return false;
         const observedAt = this.clock();
         this.repository.updateRun(fresh.id, {
             message: 'Meeting note recorded; waiting for Eve meeting candidates from the active session',
@@ -556,12 +570,14 @@ export class EveMeetingNoteReconciler {
                 }
             }
         });
-        return true;
+            return true;
+        });
     }
 
-    _closeDispatchRun(dispatchRun, { status, reason, message, note_call_id = null, candidates = null }) {
-        const fresh = this._freshRunningRun(dispatchRun);
-        if (!fresh) return false;
+    async _closeDispatchRun(dispatchRun, { status, reason, message, note_call_id = null, candidates = null }) {
+        return this._transaction(() => {
+            const fresh = this._freshRunningRun(dispatchRun);
+            if (!fresh) return false;
         const finishedAt = this.clock();
         this.repository.updateRun(fresh.id, {
             status,
@@ -581,17 +597,20 @@ export class EveMeetingNoteReconciler {
                 }
             }
         });
-        this._writeReconcilerAudit(dispatchRun, 'workflow.meeting_pack.note_generation.reconciled', {
+            this._writeReconcilerAudit(dispatchRun, 'workflow.meeting_pack.note_generation.reconciled', {
             reason,
             note_call_id,
             ...(candidates ? { candidates } : {}),
             ingest_run_id: dispatchRun.metadata?.meeting_note_generation?.run_id || null
+            });
+            return true;
         });
     }
 
-    _blockCandidateWriteBack(dispatchRun, { phase, note_call_id = null, candidates }) {
-        const fresh = this._freshRunningRun(dispatchRun);
-        if (!fresh) return false;
+    async _blockCandidateWriteBack(dispatchRun, { phase, note_call_id = null, candidates }) {
+        return this._transaction(() => {
+            const fresh = this._freshRunningRun(dispatchRun);
+            if (!fresh) return false;
         const finishedAt = this.clock();
         this.repository.updateRun(fresh.id, {
             status: 'blocked',
@@ -619,18 +638,20 @@ export class EveMeetingNoteReconciler {
             candidates,
             ingest_run_id: dispatchRun.metadata?.meeting_note_generation?.run_id || null
         });
-        return true;
+            return true;
+        });
     }
 
-    _blockDispatchRun(dispatchRun, {
+    async _blockDispatchRun(dispatchRun, {
         phase,
         mismatched_note_calls = 0,
         reason = 'session_ended_without_note',
         record_error = null,
         record_state_transition = null
     }) {
-        const fresh = this._freshRunningRun(dispatchRun);
-        if (!fresh) return false;
+        return this._transaction(() => {
+            const fresh = this._freshRunningRun(dispatchRun);
+            if (!fresh) return false;
         const finishedAt = this.clock();
         const message = reason === 'record_failed_permanent'
             ? `Meeting note write-back was rejected permanently: ${record_error}`
@@ -664,7 +685,15 @@ export class EveMeetingNoteReconciler {
             ...(record_error ? { record_error, record_state_transition } : {}),
             ingest_run_id: dispatchRun.metadata?.meeting_note_generation?.run_id || null
         });
-        return true;
+            return true;
+        });
+    }
+
+    async _transaction(callback) {
+        if (typeof this.repository?.transaction !== 'function') {
+            throw new Error('EveMeetingNoteReconciler requires a transactional workflow repository');
+        }
+        return this.repository.transaction(callback);
     }
 
     _writeReconcilerAudit(dispatchRun, action, after) {

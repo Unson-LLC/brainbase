@@ -1,0 +1,84 @@
+{
+  "schema_version": "0.1.0",
+  "spec_id": "SPEC-BRAINBASE-ONTOLOGY-PRODUCTION-COMPATIBILITY",
+  "story_id": "story-brainbase-ontology-production-compatibility",
+  "version": "1.0.0",
+  "status": "accepted",
+  "architecture_ref": "docs/architecture/ADR-021-brainbase-ontology-kernel.md",
+  "diagrams": [
+    {
+      "kind": "flow",
+      "title": "Read-only production compatibility audit",
+      "format": "mermaid",
+      "mermaid": "flowchart LR\n  Snapshot[Production Graph snapshot] --> Kernel[Proposed Ontology kernel]\n  Kernel --> Residuals[Verified residual violations]\n  Residuals --> NoGo[Activation remains No-Go]"
+    }
+  ],
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "Only entity types and relation endpoint combinations verified in a complete read-only production snapshot are added as canonical or compatibility vocabulary; unknown endpoints are never inferred from relation names.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "text": "Verified production vocabulary is classified and machine-readable" }],
+        "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }],
+        "test_refs": [{ "file": "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts" }]
+      }
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "belongs_to_project accepts only the verified production source types, remains many-to-many, and requires an existing project endpoint; orphan or non-project endpoints remain violations and cannot become inferred Decision scopes.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "text": "Project membership compatibility removes false endpoint and cardinality violations" }],
+        "code_refs": [{ "file": "server/services/ontology-kernel.js", "anchor": "scopesByDecision" }],
+        "test_refs": [{ "file": "tests/server/services/ontology-kernel.test.js" }]
+      }
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "Decision status active or decided is effective only with an outgoing owned_by edge to a person decider and an outgoing belongs_to_project edge to an existing project scope; entity-only validation cannot approve that aggregate, and inference uses the same declared effective status set.",
+      "inherited_behavior": {
+        "condition": "!isEffectiveSupersession(edge)",
+        "classification": "existing",
+        "files": [
+          "server/services/ontology-kernel.js"
+        ]
+      },
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "text": "Decided Decisions are validated and inferred from canonical Graph edges" }],
+        "code_refs": [{ "file": "server/services/ontology-kernel.js", "anchor": "inferDecisions" }],
+        "test_refs": [{ "file": "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts" }]
+      }
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "Compatibility vocabulary never makes ownerless apps, orphan edges, unknown relations, or Decisions without verified authority and scope valid.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "text": "Actual data defects remain explicit residuals" }],
+        "test_refs": [{ "file": "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts" }]
+      }
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+    "statement": "The production shadow audit collects a complete snapshot inside a read-only transaction, evaluates the baseline and candidate against the same snapshot, records snapshot and observed-inventory digests plus baseline provenance, and reports unverified on incomplete collection instead of treating missing input as zero violations.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "text": "Shadow audit records completeness and residual violations" }],
+        "code_refs": [{ "file": "scripts/ontology-shadow-audit.js", "anchor": "BEGIN READ ONLY" }]
+      }
+    },
+    {
+      "id": "INV-006",
+      "type": "invariant",
+      "statement": "This compatibility release remains proposed with current null and null publication governance; activation requires separate evidence-backed repair, authority, signature, and publication work.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "text": "Production activation remains No-Go" }],
+        "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }],
+        "test_refs": [{ "file": "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts" }]
+      }
+    }
+  ],
+  "open_questions": []
+}

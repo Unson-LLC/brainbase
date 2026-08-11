@@ -125,13 +125,12 @@ test('story-oyasumi-sns-feedback-metrics-gate ac:1 ac:2 ac:3 ac:4 CLI and Ledger
   expect(ledgerRepository.findById(dryRunTarget.id)?.metrics_snapshots).toHaveLength(0);
 
   const oyasumi = await fs.readFile('.claude/commands/oyasumi.md', 'utf8');
-  expect(oyasumi.indexOf('sns:poll-metrics')).toBeLessThan(oyasumi.indexOf('sns:feedback-learning -- --date YYYY-MM-DD'));
-  expect(oyasumi).toContain('SNS_METRICS_POLLING_ENABLED=true');
-  expect(oyasumi).toContain('scanned');
-  expect(oyasumi).toContain('polled=0');
-  expect(oyasumi).toContain('failed>0');
-  expect(oyasumi).toContain('skipped>0');
-  expect(oyasumi).toContain('learning_ready');
+  // The metrics capability remains independently testable, but the Brainbase
+  // day-closing routine no longer owns SNS polling or feedback learning.
+  expect(oyasumi).not.toContain('sns:poll-metrics');
+  expect(oyasumi).not.toContain('sns:feedback-learning');
+  expect(oyasumi).not.toContain('SNS_METRICS_POLLING_ENABLED');
+  expect(oyasumi).toContain('外部サービスを直接巡回しない');
 
   const launchdPlist = await fs.readFile('config/com.brainbase.sns-feedback-metrics-poller.plist', 'utf8');
   expect(launchdPlist).toContain('--date "$(date +%F)"');

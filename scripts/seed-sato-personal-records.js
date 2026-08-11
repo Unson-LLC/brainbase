@@ -28,7 +28,7 @@
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import pg from "pg";
 import yaml from "js-yaml";
 
@@ -48,8 +48,8 @@ const PROJECT_PAYLOAD = {
   description: "佐藤圭吾の個人実績（登壇・メディア・役職・プロダクト・著書・プレス）を集約するprojectスコープ。可読ミラー: common/meta/people/sato_keigo/",
 };
 
-const ORG_ID_BY_TAG = {
-  雲孫: "org_unson",
+export const ORG_ID_BY_TAG = {
+  雲孫: "unson",
   TechKnight: "org_techknight",
 };
 
@@ -246,4 +246,6 @@ async function main() {
   }
 }
 
-main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

@@ -7,6 +7,7 @@ import {
 import { __testing } from '../../src/server.js';
 import type { EntityIndex } from '../../src/indexer/types.js';
 import type { GraphAPISource } from '../../src/sources/graphapi-source.js';
+import type { EntitySource } from '../../src/sources/entity-source.js';
 
 function seedResolverIndex(): EntityIndex {
   const index = createEmptyIndex();
@@ -50,11 +51,90 @@ function seedResolverIndex(): EntityIndex {
     customers: [],
     content: '',
   });
+  index.extensions.set('contact', new Map([
+    ['contact_sato_keigo', {
+      id: 'contact_sato_keigo',
+      filePath: 'graph://contact/contact_sato_keigo',
+      type: 'contact',
+      name: '佐藤 圭吾',
+      title: '代表取締役',
+      content: '',
+      payload: {
+        name: '佐藤 圭吾',
+        company_name: '株式会社雲孫',
+        department: '経営',
+        title: '代表取締役',
+        email: 'keigo@example.com',
+        mobile: '090-0000-0001',
+        exchanged_at: '2026-07-01',
+      },
+    }],
+    ['contact_sato_hanako', {
+      id: 'contact_sato_hanako',
+      filePath: 'graph://contact/contact_sato_hanako',
+      type: 'contact',
+      name: '佐藤 花子',
+      title: '部長',
+      content: '',
+      payload: {
+        name: '佐藤 花子',
+        company_name: '株式会社Example',
+        department: '営業部',
+        title: '部長',
+        email: 'hanako@example.com',
+        tel_company: '03-0000-0000',
+        exchanged_at: '2025-12-10',
+      },
+    }],
+  ]));
 
   return index;
 }
 
 describe('Graph entity resolver', () => {
+  it('refreshes the Graph snapshot atomically before a runtime person lookup', async () => {
+    __testing.setEntityIndex(seedResolverIndex());
+    const refreshed = seedResolverIndex().people.get('per_wakamatsu_fuyumi')!;
+    const source: EntitySource = {
+      async initialize() {},
+      async getProjects() { return []; },
+      async getPeople() {
+        return [{
+          ...refreshed,
+          id: 'per_sugiyama_miki',
+          name: '杉山 美紀',
+          aliases: ['杉山みき', '杉山さん（ユニバーサルアーツ）'],
+        }];
+      },
+      async getOrganizations() { return []; },
+      async getBrands() { return []; },
+      async getRACIs() { return []; },
+      async getApps() { return []; },
+      async getCustomers() { return []; },
+      async getPartners() { return []; },
+      async getDecisions() { return []; },
+      async getGlossaryTerms() { return []; },
+      async getDocuments() { return []; },
+      async getExtensionTypeRegistrations() { return []; },
+      async getExtensionEntities() { return []; },
+    };
+    __testing.setGraphSource(source as GraphAPISource);
+    __testing.setIndexRefreshEnabled(true);
+
+    try {
+      const output = await __testing.handleToolCall('resolve_entity', {
+        query: '杉山美紀',
+        types: ['person'],
+        includePhilosophy: false,
+      });
+      const parsed = JSON.parse(output);
+      assert.strictEqual(parsed.candidates[0]?.entity_id, 'per_sugiyama_miki');
+    } finally {
+      __testing.setIndexRefreshEnabled(false);
+      __testing.setGraphSource(null);
+    }
+  });
+
   it('story-graph-entity-resolver: resolves a noisy compound query by exact person name evidence', () => {
     const result = resolveEntities(seedResolverIndex(), {
       query: '若松 Lecaldo レカルド TechKnight 役員',
@@ -113,24 +193,60 @@ describe('Graph entity resolver', () => {
     assert.ok(project.candidates.some(candidate => candidate.entity_id === 'senpainurse' || candidate.matched_fields.includes('projects')));
   });
 
-  it('story-graph-entity-resolver: reports unsupported type filters instead of silently dropping them', () => {
+  it('resolves an explicitly requested contact surname to every matching candidate', () => {
     const contactOnly = resolveEntities(seedResolverIndex(), {
-      query: '若松',
+      query: '佐藤さん',
       types: ['contact'],
     });
 
-    assert.deepStrictEqual(contactOnly.unsupported_types, ['contact']);
-    assert.ok(contactOnly.fallbacks_used.includes('unsupported_type_reported'));
-    assert.strictEqual(contactOnly.candidates.length, 0);
-    assert.strictEqual(contactOnly.absence_verdict, 'no_candidate_after_resolver_checks');
+    assert.deepStrictEqual(contactOnly.unsupported_types, []);
+    assert.strictEqual(contactOnly.absence_verdict, 'candidates_found');
+    assert.deepStrictEqual(
+      contactOnly.candidates.map(candidate => candidate.entity_id),
+      ['contact_sato_hanako', 'contact_sato_keigo'],
+    );
+  });
 
-    const mixed = resolveEntities(seedResolverIndex(), {
-      query: '若松',
-      types: ['contact', 'person'],
+  it('returns structured contact details needed to disambiguate people', () => {
+    const result = resolveEntities(seedResolverIndex(), {
+      query: '佐藤圭吾',
+      types: ['contact'],
     });
 
-    assert.deepStrictEqual(mixed.unsupported_types, ['contact']);
+    assert.deepStrictEqual(result.candidates[0]?.details, {
+      company_name: '株式会社雲孫',
+      department: '経営',
+      title: '代表取締役',
+      email: 'keigo@example.com',
+      mobile: '090-0000-0001',
+      exchanged_at: '2026-07-01',
+    });
+  });
+
+  it('still reports genuinely unsupported type filters', () => {
+    const mixed = resolveEntities(seedResolverIndex(), {
+      query: '若松',
+      types: ['unknown_type', 'person'],
+    });
+
+    assert.deepStrictEqual(mixed.unsupported_types, ['unknown_type']);
     assert.strictEqual(mixed.candidates[0]?.entity_id, 'per_wakamatsu_fuyumi');
+  });
+
+  it('filters list_extension_entities by query and renders contact details', async () => {
+    __testing.setEntityIndex(seedResolverIndex());
+
+    const output = await __testing.handleToolCall('list_extension_entities', {
+      type: 'contact',
+      query: '佐藤圭吾',
+    });
+
+    assert.match(output, /佐藤 圭吾/);
+    assert.doesNotMatch(output, /佐藤 花子/);
+    assert.match(output, /株式会社雲孫/);
+    assert.match(output, /keigo@example.com/);
+    assert.match(output, /090-0000-0001/);
+    assert.match(output, /2026-07-01/);
   });
 
   it('story-graph-entity-resolver: exposes resolve_entity MCP tool with structured JSON output', async () => {
@@ -194,12 +310,12 @@ describe('Graph entity resolver', () => {
 
     const output = await __testing.handleToolCall('resolve_entity', {
       query: '若松',
-      types: ['contact'],
+      types: ['unknown_type'],
       includePhilosophy: false,
     });
     const parsed = JSON.parse(output);
 
-    assert.deepStrictEqual(parsed.unsupported_types, ['contact']);
+    assert.deepStrictEqual(parsed.unsupported_types, ['unknown_type']);
     assert.ok(parsed.fallbacks_used.includes('unsupported_type_reported'));
     assert.strictEqual(parsed.candidates.length, 0);
   });

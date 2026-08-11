@@ -1,0 +1,45 @@
+{
+  "status": "pass",
+  "summary": "exact HEAD eaa15d11ddc3b8778ce60388ef0c34f63742fa7b の技術的Gate evidenceにブロッカーはありません。Graph昇格経路は厳格な認証を要求し、request bodyのspoofed actorは認証済みpersonIdで上書きされます。active ontology制約は永続化前に検証され、release digest・署名・trust store・rollback rehearsal・production premerge readbackは整合しています。",
+  "findings": [],
+  "inspection_summary": "認証middlewareからlearning route/controller/serviceまでの呼出経路、publication authorization、active制約の永続化境界、release/index/receipt/trust store、CI署名検証、rollback rehearsal、production premerge readback、current-HEAD verification artifactsと対象テストを確認しました。追加の直接実行では4 files・79 testsが成功し、Git trust storeの公開鍵をCI同等の環境変数として渡したontology:verifyも成功しました。",
+  "inspection_evidence": [
+    "HEAD=eaa15d11ddc3b8778ce60388ef0c34f63742fa7b、worktree clean",
+    "learning Graph promotionはstrict auth guardを要求し、req.access由来actorを強制する",
+    "active release制約はGraph/project INSERTとcandidate transitionより前に検証される",
+    "current HEAD verification: unit 100、integration 55、E2E 30、typecheck pass",
+    "focused direct verification: 4 files、79 tests pass、ontology:verify exit 0",
+    "rollback rehearsal: publication revert後current=null、release=proposed、verify成功、Graph/runtime mutationなし",
+    "production premerge readback: 7410 entities、6716 edges、0 violations、signature_verified=true"
+  ],
+  "inspection_inputs": [
+    "server/bootstrap/register-api-routes.js",
+    "server/routes/learning.js",
+    "server/controllers/learning-controller.js",
+    "server/services/learning-service.js",
+    "server/services/info-ssot-service.js",
+    "tests/server/routes/learning.test.js",
+    "tests/server/services/learning-service.test.js",
+    "tests/server/services/ontology-publication.test.js",
+    "tests/server/scripts/ontology-release-verify.test.js",
+    "config/ontology/index.json",
+    "config/ontology/releases/1.0.0.json",
+    "config/ontology/publication-receipts/1.0.0.json",
+    "config/ontology/trusted-public-keys.json",
+    ".vibepro/pr/story-brainbase-ontology-production-activation/verification-evidence.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/premerge-production-readback-2026-08-03.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/rollback-rehearsal-2026-08-03.json"
+  ],
+  "judgment_delta": [
+    "spoofed actor懸念はstrict auth guard、認証context由来actorの強制、回帰テストで解消した。",
+    "active制約違反後の部分永続化懸念はINSERT/transition前検証とnon-persistence testで解消した。",
+    "公開鍵なしのverify失敗は意図されたfail-closedで、CI同等環境とruntime trust-store経路は双方成功した。",
+    "既存pr-prepareのnot readyは本レビュー記録前のcontrol-plane状態であり、記録後に再計算する。"
+  ],
+  "agent": {
+    "system": "codex",
+    "id": "/root/receipt_bug_phase2",
+    "execution_mode": "parallel_subagent",
+    "reviewer_identity": "separate_session"
+  }
+}

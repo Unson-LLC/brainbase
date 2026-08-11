@@ -1,0 +1,557 @@
+{
+  "schema_version": "0.1.0",
+  "generated_at": "2026-08-02T22:20:02.628Z",
+  "story": {
+    "story_id": "story-brainbase-ontology-production-activation",
+    "title": "Ontology 1.0.0を本番で安全に有効化する",
+    "ssot": "local",
+    "status": "active",
+    "horizon": null,
+    "view": null,
+    "period": "2026-08",
+    "started_at": "2026-08-03",
+    "due_at": null,
+    "category": null
+  },
+  "source_run": {
+    "run_id": "2026-08-02T222000Z",
+    "gate_status": "needs_review"
+  },
+  "tasks": [
+    {
+      "id": "story-brainbase-ontology-production-activation-source-alignment-review",
+      "source_type": "source_alignment_finding",
+      "source_id": "story-brainbase-ontology-production-activation-source-alignment-review",
+      "finding_id": null,
+      "title": "Story/Spec/ADR不整合をレビューする",
+      "priority": "high",
+      "status": "done",
+      "order": 10,
+      "execution_policy": "proposal_only",
+      "mutates_repository": false,
+      "target_count": 0,
+      "target_files": [],
+      "target_routes": [],
+      "target_groups": [],
+      "read_first_files": [],
+      "recommended_strategy": {
+        "id": "source-alignment-review",
+        "reason": "コードとしては正しいUIやAPIでも、ユーザーが本当に達成したい成果とずれている可能性がある。"
+      },
+      "implementation_steps": [
+        {
+          "id": "read-sources",
+          "title": "正本を読む",
+          "detail": "Story、Spec、Architecture/ADRの参照を読み、要件・受け入れ基準・境界判断を並べる"
+        },
+        {
+          "id": "read-graph",
+          "title": "Graph影響範囲を読む",
+          "detail": "Graphifyのmatched/related/hub/communityを読み、実際の影響範囲を確認する"
+        },
+        {
+          "id": "classify-mismatch",
+          "title": "不整合を分類する",
+          "detail": "Storyが誤り、Specが誤り、ADRが不足、コードが意図外のどれかを判定する"
+        },
+        {
+          "id": "record-outcome",
+          "title": "判断を記録する",
+          "detail": "修正する場合はタスク化し、正しい場合はレビュー済み理由を正本またはPR本文へ残す"
+        }
+      ],
+      "acceptance_criteria": [
+        "各潜在バグ候補について、Story/Spec/ADR/コードのどれを修正するか判断している",
+        "Graphifyのhub/communityを読んだ上で影響範囲を説明できる",
+        "要件が正しい場合はレビュー済み理由を正本またはPR本文に残している"
+      ],
+      "source_recovery": null,
+      "recovery_drafts": [],
+      "source_alignment_findings": [
+        {
+          "id": "story-brainbase-ontology-production-activation-business_context_gap",
+          "story_id": "story-brainbase-ontology-production-activation",
+          "title": "Ontology 1.0.0を本番で安全に有効化する",
+          "type": "business_context_gap",
+          "severity": "high",
+          "reason": "Storyの事業/利用文脈が未確定。",
+          "potential_bug": "コードとしては正しいUIやAPIでも、ユーザーが本当に達成したい成果とずれている可能性がある。",
+          "recommended_review": "対象ユーザー、利用場面、成功状態をStory正本に明記してからSpecを承認する。",
+          "evidence": {
+            "story_source_status": "present",
+            "spec_status": "present",
+            "architecture_status": "present",
+            "source_type": "config_story",
+            "confidence": "medium",
+            "open_questions": [
+              "business_context",
+              "business_metric",
+              "story_contract_acceptance_examples",
+              "story_contract_verification_strategy"
+            ],
+            "story_contract": {
+              "status": "needs_clarification",
+              "story_type": "new_capability",
+              "unresolved_checks": [
+                "acceptance_examples",
+                "verification_strategy"
+              ]
+            },
+            "docs": [
+              "docs/management/stories/active/story-brainbase-ontology-production-activation.md",
+              "docs/specs/brainbase-ontology-production-activation.md",
+              "docs/architecture/story-brainbase-ontology-production-activation.md"
+            ],
+            "files": [],
+            "open_question": "business_context"
+          },
+          "refs": {
+            "story": [
+              "docs/management/stories/active/story-brainbase-ontology-production-activation.md"
+            ],
+            "spec": [
+              "docs/specs/brainbase-ontology-production-activation.md"
+            ],
+            "architecture": [
+              "docs/architecture/story-brainbase-ontology-production-activation.md"
+            ]
+          },
+          "graph": {
+            "matched_files": [],
+            "related_files": [],
+            "hub_nodes": [],
+            "affected_communities": [],
+            "related_edge_count": 0,
+            "impact_score": 0,
+            "cross_community": false
+          },
+          "execution_policy": "proposal_only",
+          "mutates_repository": false
+        },
+        {
+          "id": "story-brainbase-ontology-production-activation-business_metric_gap",
+          "story_id": "story-brainbase-ontology-production-activation",
+          "title": "Ontology 1.0.0を本番で安全に有効化する",
+          "type": "business_metric_gap",
+          "severity": "medium",
+          "reason": "Storyの成功指標または観測観点が未確定。",
+          "potential_bug": "受け入れ基準を満たしても、プロダクト上の改善を検知できない可能性がある。",
+          "recommended_review": "少なくとも1つのKPI、ログ、運用確認観点をSpecまたはStoryへ紐づける。",
+          "evidence": {
+            "story_source_status": "present",
+            "spec_status": "present",
+            "architecture_status": "present",
+            "source_type": "config_story",
+            "confidence": "medium",
+            "open_questions": [
+              "business_context",
+              "business_metric",
+              "story_contract_acceptance_examples",
+              "story_contract_verification_strategy"
+            ],
+            "story_contract": {
+              "status": "needs_clarification",
+              "story_type": "new_capability",
+              "unresolved_checks": [
+                "acceptance_examples",
+                "verification_strategy"
+              ]
+            },
+            "docs": [
+              "docs/management/stories/active/story-brainbase-ontology-production-activation.md",
+              "docs/specs/brainbase-ontology-production-activation.md",
+              "docs/architecture/story-brainbase-ontology-production-activation.md"
+            ],
+            "files": [],
+            "open_question": "business_metric"
+          },
+          "refs": {
+            "story": [
+              "docs/management/stories/active/story-brainbase-ontology-production-activation.md"
+            ],
+            "spec": [
+              "docs/specs/brainbase-ontology-production-activation.md"
+            ],
+            "architecture": [
+              "docs/architecture/story-brainbase-ontology-production-activation.md"
+            ]
+          },
+          "graph": {
+            "matched_files": [],
+            "related_files": [],
+            "hub_nodes": [],
+            "affected_communities": [],
+            "related_edge_count": 0,
+            "impact_score": 0,
+            "cross_community": false
+          },
+          "execution_policy": "proposal_only",
+          "mutates_repository": false
+        }
+      ],
+      "graph_context": {
+        "matched_route_count": 0,
+        "target_file_count": 0,
+        "matched_file_count": 0,
+        "matched_files": [],
+        "unmatched_files": [],
+        "matched_node_count": 0,
+        "affected_communities": [],
+        "hub_nodes": [],
+        "related_files": [],
+        "related_edge_count": 0,
+        "impact_score": 0,
+        "community_span": 0,
+        "cross_community": false
+      },
+      "pre_fix_briefing": null,
+      "completed_at": "2026-08-02T22:20:02.628Z",
+      "completion_evidence": {
+        "run_id": "2026-08-02T222000Z",
+        "reason": "source story-brainbase-ontology-production-activation-source-alignment-review was not detected in the latest diagnosis"
+      }
+    },
+    {
+      "id": "VP-TASK-FLOW-006",
+      "source_type": "finding",
+      "source_id": "VP-FLOW-006",
+      "finding_id": "VP-FLOW-006",
+      "title": "クリック可能に見えるUIに操作契約がない候補がある",
+      "priority": "high",
+      "status": "todo",
+      "order": 50,
+      "gate_effect": null,
+      "execution_policy": "proposal_only",
+      "mutates_repository": false,
+      "target_count": 20,
+      "target_files": [
+        "public/modules/app/ui-setup-mixin.js",
+        "public/modules/settings/settings-core.js",
+        "public/modules/settings/settings-ui.js",
+        "public/modules/ui/mobile-tab-controller.js",
+        "public/modules/ui/modals/archive-modal.js",
+        "public/modules/ui/modals/health-alert-modal.js",
+        "public/modules/ui/modals/learning-candidate-modal.js",
+        "public/modules/ui/views/file-viewer-view.js",
+        "public/modules/ui/views/folder-tree-view.js",
+        "public/modules/ui/views/inbox-view.js",
+        "public/modules/ui/views/lead-console-view.js",
+        "public/modules/ui/views/nocodb-tasks-view.js",
+        "public/modules/ui/views/portal-overlay-view.js",
+        "public/modules/ui/views/portal-sections/frame-section.js",
+        "public/modules/ui/views/portal-view.js",
+        "public/modules/ui/views/session-context-bar-view.js",
+        "public/modules/ui/views/timeline-list-view.js",
+        "public/modules/ui/views/timeline-view.js",
+        "public/modules/ui/views/wiki-view.js",
+        "public/modules/utils/ansi-to-html.js"
+      ],
+      "target_routes": [],
+      "target_groups": [],
+      "read_first_files": [
+        {
+          "file": "public/modules/app/ui-setup-mixin.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/settings/settings-core.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/settings/settings-ui.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/mobile-tab-controller.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/modals/archive-modal.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/modals/health-alert-modal.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/modals/learning-candidate-modal.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/file-viewer-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/folder-tree-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/inbox-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/lead-console-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/nocodb-tasks-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/portal-overlay-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/portal-sections/frame-section.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/portal-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/session-context-bar-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/timeline-list-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/timeline-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/wiki-view.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        },
+        {
+          "file": "public/modules/utils/ansi-to-html.js",
+          "reason": "検出事項 VP-FLOW-006 の確認対象"
+        }
+      ],
+      "recommended_strategy": {
+        "id": "manual-review",
+        "reason": "クリック可能に見える要素は、保存、表示変化、画面遷移、scroll/focus、disabled、または準備中表示のいずれかに分類できるようにする。画面単位で全クリック可能要素を棚卸しし、Playwrightでは主要導線だけでなく押せそうなUIの反応も確認する。"
+      },
+      "implementation_steps": [
+        {
+          "id": "review-finding",
+          "title": "検出内容を確認する",
+          "detail": "127 件のinteractive element contract違反候補を検出した。"
+        }
+      ],
+      "acceptance_criteria": [
+        "クリック可能に見える要素は、保存、表示変化、画面遷移、scroll/focus、disabled、または準備中表示のいずれかに分類できるようにする。画面単位で全クリック可能要素を棚卸しし、Playwrightでは主要導線だけでなく押せそうなUIの反応も確認する。"
+      ],
+      "graph_context": null,
+      "pre_fix_briefing": null
+    },
+    {
+      "id": "VP-TASK-STATIC-003",
+      "source_type": "finding",
+      "source_id": "VP-STATIC-003",
+      "finding_id": "VP-STATIC-003",
+      "title": "XSS につながり得る DOM 操作がある",
+      "priority": "high",
+      "status": "todo",
+      "order": 50,
+      "gate_effect": null,
+      "execution_policy": "proposal_only",
+      "mutates_repository": false,
+      "target_count": 34,
+      "target_files": [
+        "public/modules/app/mobile-navigation-mixin.js",
+        "public/modules/app/session-creation-mixin.js",
+        "public/modules/app/terminal-input-ux-mixin.js",
+        "public/modules/app/ui-setup-mixin.js",
+        "public/modules/components/donut-chart.js",
+        "public/modules/components/gauge-chart.js",
+        "public/modules/components/line-chart.js",
+        "public/modules/components/project-card.js",
+        "public/modules/confirm-modal.js",
+        "public/modules/device/device-auth-controller.js",
+        "public/modules/iframe-contextmenu-handler.js",
+        "public/modules/settings/settings-core.js",
+        "public/modules/settings/settings-ui.js",
+        "public/modules/ui/choice-overlay-controller.js",
+        "public/modules/ui/mobile-input-sheet-manager.js",
+        "public/modules/ui/mobile-tab-controller.js",
+        "public/modules/ui/modals/archive-modal.js",
+        "public/modules/ui/modals/health-alert-modal.js",
+        "public/modules/ui/modals/project-details-modal.js",
+        "public/modules/ui/modals/task-add-modal.js",
+        "public/modules/ui/views/base-view.js",
+        "public/modules/ui/views/commit-tree-view.js",
+        "public/modules/ui/views/file-viewer-view.js",
+        "public/modules/ui/views/folder-tree-view.js",
+        "public/modules/ui/views/inbox-view.js",
+        "public/modules/ui/views/lead-console-view.js",
+        "public/modules/ui/views/live-feed-view.js",
+        "public/modules/ui/views/nocodb-tasks-view.js",
+        "public/modules/ui/views/portal-overlay-view.js",
+        "public/modules/ui/views/portal-view.js",
+        "public/modules/ui/views/timeline-list-view.js",
+        "public/modules/ui/views/timeline-view.js",
+        "public/modules/ui/views/wiki-view.js",
+        "scripts/vibepro-component-style-check.mjs"
+      ],
+      "target_routes": [],
+      "target_groups": [],
+      "read_first_files": [
+        {
+          "file": "public/modules/app/mobile-navigation-mixin.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/app/session-creation-mixin.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/app/terminal-input-ux-mixin.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/app/ui-setup-mixin.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/components/donut-chart.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/components/gauge-chart.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/components/line-chart.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/components/project-card.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/confirm-modal.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/device/device-auth-controller.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/iframe-contextmenu-handler.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/settings/settings-core.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/settings/settings-ui.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/choice-overlay-controller.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/mobile-input-sheet-manager.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/mobile-tab-controller.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/modals/archive-modal.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/modals/health-alert-modal.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/modals/project-details-modal.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/modals/task-add-modal.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/base-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/commit-tree-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/file-viewer-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/folder-tree-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/inbox-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/lead-console-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/live-feed-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/nocodb-tasks-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/portal-overlay-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/portal-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/timeline-list-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/timeline-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "public/modules/ui/views/wiki-view.js",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        },
+        {
+          "file": "scripts/vibepro-component-style-check.mjs",
+          "reason": "検出事項 VP-STATIC-003 の確認対象"
+        }
+      ],
+      "recommended_strategy": {
+        "id": "manual-review",
+        "reason": "ユーザー入力をHTMLとして挿入しない。必要な場合はサニタイズし、textContentなど安全な代替を使う。"
+      },
+      "implementation_steps": [
+        {
+          "id": "review-finding",
+          "title": "検出内容を確認する",
+          "detail": "100 件のgate対象の危険なDOM操作候補を検出した。内訳: block: 0件, review: 100件, info: 274件。"
+        }
+      ],
+      "acceptance_criteria": [
+        "ユーザー入力をHTMLとして挿入しない。必要な場合はサニタイズし、textContentなど安全な代替を使う。"
+      ],
+      "graph_context": null,
+      "pre_fix_briefing": null
+    }
+  ]
+}

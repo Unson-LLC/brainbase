@@ -51,6 +51,14 @@ describe('ScheduleParser', () => {
                         calendarId: 'primary'
                     },
                     {
+                        id: 'gcal:primary:event-3',
+                        start: '08:00',
+                        end: '08:30',
+                        title: '早朝会',
+                        source: 'google-calendar',
+                        calendarId: 'primary'
+                    },
+                    {
                         id: 'gcal:primary:event-2',
                         start: null,
                         end: null,
@@ -65,7 +73,7 @@ describe('ScheduleParser', () => {
 
         const schedule = await parser.getSchedule('2026-03-17');
 
-        expect(schedule.events.map((e) => e.title)).toEqual(['祝日', '朝会']);
+        expect(schedule.events.map((e) => e.title)).toEqual(['祝日', '早朝会', '朝会']);
         expect(schedule.items[0]).toEqual(expect.objectContaining({
             task: '祝日',
             allDay: true
@@ -86,7 +94,7 @@ describe('ScheduleParser', () => {
         }));
     });
 
-    it('Google Calendar取得に失敗しても空の予定でフォールバックする', async () => {
+    it('Google Calendar取得失敗を空予定と区別して返す', async () => {
         const parser = new ScheduleParser({
             googleCalendarService: {
                 isConfigured: () => true,
@@ -98,5 +106,6 @@ describe('ScheduleParser', () => {
 
         expect(schedule.events).toEqual([]);
         expect(schedule.items).toEqual([]);
+        expect(schedule.error).toBe('gog not installed');
     });
 });

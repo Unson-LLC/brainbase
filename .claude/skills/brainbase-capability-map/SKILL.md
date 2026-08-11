@@ -36,9 +36,12 @@ Pick the matching capability_id then **Read the yml** before reasoning. Reading 
 |---|---|---|
 | `auth.grants` | `auth.grants.yml` | login / project access / JWT scope / localStorage stale auth |
 | `code.reading` | `code.reading.yml` | reading code before changing — symbol/pattern search vs broad load |
-| `development.workflow` | `development.workflow.yml` | jj/git workflow, commit/PR shape |
+| `development.workflow` | `development.workflow.yml` | Git workflow, commit/PR shape |
 | `git.protected-push` | `git.protected-push.yml` | direct push / force push to develop or main |
 | `graph.ssot` | `graph.ssot.yml` | canonical person/org/customer/decision/story lookup before writing facts |
+| `judgment.resolve` | `judgment.resolve.yml` | Host opens one canonical-context judgment episode before model generation, records 0..N actual Brainbase calls with `PostToolUse`, and finalizes one receipt at `Stop` |
+| `knowledge.resolve` | `knowledge.resolve.yml` | choose Graph / owning repo / team Drive / personal KG / workspace before searching |
+| `onboarding.connected-world` | `onboarding.connected-world.yml` | connector-first onboarding / MCP・Drive・Gmail・local folder / first-value answer |
 | `personal-kg` | `personal-kg.yml` | owner-visible cognitive memory (思想/実績/判断基準) for `/oyasumi`, SNS generation, morning brief; in-progress |
 | `project.catalog` | `project.catalog.yml` | configured project list used by UI / project mapping |
 | `project.selector` | `project.selector.yml` | a project is missing from the Create Session selector |

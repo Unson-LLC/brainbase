@@ -1,0 +1,26 @@
+{
+  "schema_version": "brainbase-judgment-golden-v1",
+  "canonical_json": {
+    "input": { "z": [3, { "あ": "値", "a": true }], "a": null },
+    "expected_bytes": "{\"a\":null,\"z\":[3,{\"a\":true,\"あ\":\"値\"}]}",
+    "expected_sha256": "720c426a8d984447034a85227cf9eb25e3fed20b27af6c41c246c2be8edac67f"
+  },
+  "manifest": {
+    "runtime_version": "judgment-runtime-2.0.1",
+    "expected_sha256": "fd84c9714c79abbead70a84b16e50b3378d791001b7175cf8f0fde3fff6dd8bf"
+  },
+  "binding": {
+    "request": {
+      "request": "この文章の意味を説明して",
+      "turn_id": "host-turn-mcp",
+      "project_code": "brainbase"
+    },
+    "secret": "secret",
+    "adapter_id": "brainbase-mcp",
+    "adapter_version": "1",
+    "issued_at": "2026-08-07T00:00:00.000Z",
+    "expected_request_digest": "376e1546ad94575ca592ea7768c6626163158ba17b56b192f041af6a0864643f",
+    "expected_payload_bytes": "[\"brainbase-judgment-binding-v1\",\"brainbase-mcp\",\"1\",\"host-turn-mcp\",\"2026-08-07T00:00:00.000Z\",\"376e1546ad94575ca592ea7768c6626163158ba17b56b192f041af6a0864643f\"]",
+    "expected_signature": "804663d1d09ade9273ff7c3aafcd84f53b9dd4146b6af1cf1de043865affb6ca"
+  }
+}

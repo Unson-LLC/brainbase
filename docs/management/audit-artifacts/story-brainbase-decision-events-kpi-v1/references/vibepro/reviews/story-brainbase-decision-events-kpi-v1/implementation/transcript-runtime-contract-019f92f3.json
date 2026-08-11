@@ -1,0 +1,25 @@
+{
+  "agent_id": "019f92f3-8666-7860-a97f-cf55acf640b3",
+  "model": "gpt-5.6-luna",
+  "reasoning_effort": "high",
+  "head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+  "base_sha": "d53d1585e4c5d3af9936e40b55e43025b404faa1",
+  "status": "pass",
+  "summary": "The frozen release candidate preserves ledger authority, global same-host idempotency, auth, fail-closed storage, Slack KPI, and Mac Companion sender contracts.",
+  "findings": [],
+  "verification": {
+    "focused_vitest": "59 passed",
+    "freeze_after_playwright": "9 passed",
+    "typecheck": "passed",
+    "eslint": "passed"
+  },
+  "inspected_contracts": [
+    "monthly ledger authority and cross-month event_id idempotency",
+    "content-digest cache invalidation and quarantine recovery",
+    "companion bearer owner, service-token, and internal auth",
+    "malformed API and Slack response fail-closed behavior",
+    "no fabricated zero KPI rendering",
+    "Mac Companion decision-event sender payload and 200/201 response compatibility"
+  ],
+  "evidence_boundary": "Production deployment, real-token authentication, and external Slack delivery were not performed."
+}

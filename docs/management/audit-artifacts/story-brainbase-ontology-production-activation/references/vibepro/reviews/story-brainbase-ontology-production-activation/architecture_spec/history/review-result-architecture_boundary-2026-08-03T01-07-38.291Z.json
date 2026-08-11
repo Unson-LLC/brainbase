@@ -1,0 +1,136 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-ontology-production-activation",
+  "stage": "architecture_spec",
+  "role": "architecture_boundary",
+  "status": "pass",
+  "summary": "current HEAD architecture boundary review passed after real PostgreSQL concurrency proof",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "reviewed server_api; risk_surfaces=server_api; auth, RACI, transaction advisory locks, publication trust, release and rollback boundaries inspected",
+    "evidence": ".vibepro/reviews/story-brainbase-ontology-production-activation/architecture_spec/architecture-boundary-f407-transcript.md",
+    "inputs": [
+      "docs/architecture/story-brainbase-ontology-production-activation.md",
+      "server/services/info-ssot-service.js",
+      "tests/server/services/ontology-postgres-concurrency.test.js"
+    ]
+  },
+  "judgment_delta": [
+    "initial evidence gap for skipped PostgreSQL concurrency test -> final pass after current clean HEAD passed PostgreSQL 16.13 exactly-one-winner test with zero skips"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+    "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+    "expected_root": null,
+    "expected_head_sha": "f4077535989e5f407080e8892d179e631dc09ce6",
+    "current_head_sha": "f4077535989e5f407080e8892d179e631dc09ce6",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+      "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+      "expected_root": null,
+      "expected_head_sha": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "current_head_sha": "f4077535989e5f407080e8892d179e631dc09ce6",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-03T01:07:38.291Z",
+  "git_context": {
+    "head_sha": "f4077535989e5f407080e8892d179e631dc09ce6",
+    "current_branch": "codex/ontology-1-0-0-activation",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-03T01:07:38.252Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "preflight architecture review and PostgreSQL concurrency evidence are bound to frozen f4077535989e5f407080e8892d179e631dc09ce6"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "f4077535989e5f407080e8892d179e631dc09ce6",
+    "surface_files": [
+      {
+        "path": "docs/architecture/story-brainbase-ontology-production-activation.md",
+        "sha256": "644c2f8c1249ae49082f362b237cbf13bce90dcb7e95ba02821a410a345ca1d4",
+        "size": 2802
+      },
+      {
+        "path": "server/services/info-ssot-service.js",
+        "sha256": "417ac23754fa9c0e8733794224a366c74bc54ab7439f269c976bfe190c7b6fe6",
+        "size": 111925
+      },
+      {
+        "path": "tests/server/services/ontology-postgres-concurrency.test.js",
+        "sha256": "febc85879b6256dc857aa1c7d92b8ad078c5d9b065ad172a06379940b93fd4bf",
+        "size": 4961
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "ed02072cd5b29e987ef859064bc96732cbacb888fce38de41f2c493948caf428"
+  },
+  "source_fingerprint": "26da5fdf7e8a61a2ae3fbef283cc42ce8f41f3d6d10ce47dfc66519e32ef6125",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/ontology_runtime_final_6a6ba1aa",
+    "agent_role": null,
+    "model": "gpt-5",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": "/root/ontology_runtime_final_6a6ba1aa",
+    "session_id": "/root/ontology_runtime_final_6a6ba1aa",
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-brainbase-ontology-production-activation/architecture_spec/architecture-boundary-f407-transcript.md",
+    "request_artifact": ".vibepro/reviews/story-brainbase-ontology-production-activation/architecture_spec/review-request-architecture_boundary.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-brainbase-ontology-production-activation/architecture_spec/architecture-boundary-f407-transcript.md",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/ontology_runtime_final_6a6ba1aa",
+      "implementation_session_id": "/root",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

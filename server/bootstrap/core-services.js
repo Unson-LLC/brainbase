@@ -1,31 +1,35 @@
 import path from 'path';
+import crypto from 'crypto';
 import multer from 'multer';
 
 import { ScheduleParser } from '../../lib/schedule-parser.js';
-import { SqliteStore as StateStore } from '../../lib/sqlite-store.js';
-import { StateStore as JsonStateStore } from '../../lib/state-store.js';
 import { ConfigParser } from '../../lib/config-parser.js';
-import { createSessionServices } from '../services/create-session-services.js';
-import { ArchiveFinalizerService } from '../services/archive-finalizer-service.js';
-import { TerminalTransportService } from '../services/terminal-transport-service.js';
-import { TerminalInputProbeService } from '../services/terminal-input-probe-service.js';
-import { TerminalRuntimeReconciler } from '../services/terminal-runtime-reconciler.js';
-import { TerminalRuntimeRegistry } from '../services/terminal-runtime-registry.js';
-import { SessionActivityWsService } from '../services/session-activity-ws-service.js';
-import { TmuxCaptureCache } from '../services/tmux-capture-cache.js';
-import { TmuxControlRegistry } from '../services/tmux-control-registry.js';
-import { WorktreeService } from '../services/worktree-service.js';
 import { InfoSSOTService } from '../services/info-ssot-service.js';
+import {
+    canonicalTaskBackendIdentityHash,
+    createCanonicalTaskStoreConfig,
+    resolveCanonicalTaskBackend
+} from '../services/companion/canonical-task-store-config.js';
+import { CanonicalTaskNocoDBRepository } from '../services/companion/canonical-task-nocodb-repository.js';
+import { CanonicalTaskPostgresRepository } from '../services/companion/canonical-task-postgres-repository.js';
+import { CanonicalTaskOperationRepository } from '../services/companion/canonical-task-operation-repository.js';
+import { CanonicalTaskReadiness } from '../services/companion/canonical-task-readiness.js';
+import { createCanonicalTaskSourceHeadGuard } from '../services/companion/canonical-task-source-head-guard.js';
+import { CanonicalTaskService } from '../services/companion/canonical-task-service.js';
 import { AuthService } from '../services/auth-service.js';
-import { ConversationLinker } from '../services/conversation-linker.js';
 import { ConfigService } from '../services/config-service.js';
 import { GoogleCalendarService } from '../services/google-calendar-service.js';
 import { LearningService } from '../services/learning-service.js';
 import { LearningHealthService } from '../services/learning-health-service.js';
 import { PgCandidateRepository } from '../services/candidate-store/candidate-repository.js';
+import {
+    JsonFileOnboardingRunRepository,
+    OnboardingRuntimeService
+} from '../services/onboarding/onboarding-runtime-service.js';
 import { WikiService } from '../services/wiki-service.js';
 import { TokenUsageService } from '../services/token-usage-service.js';
 import { ExternalRunnerIngestService } from '../services/external-runner/ingest-service.js';
+import { RunReceiptIngestService } from '../services/run-receipt/ingest-service.js';
 import { createEveSessionClientFromEnv } from '../services/external-runner/eve-session-client.js';
 import {
     EveMeetingNoteReconciler,
@@ -33,41 +37,91 @@ import {
 } from '../services/external-runner/eve-meeting-note-reconciler.js';
 import { createMeetingSourceMcpAdaptersFromEnv } from '../services/meeting-source/meeting-source-mcp-adapters.js';
 import { MeetingSourceMcpSyncService } from '../services/meeting-source/meeting-source-mcp-sync-service.js';
+import { MeetingTaskOwnerResolver } from '../services/meeting-automation/meeting-task-owner-resolver.js';
+import { ProjectAccessPolicy } from '../services/project-access/project-access-policy.js';
 import { JsonFileWorkflowRepository } from '../services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../services/workflow/workflow-runner.js';
 import {
-    WorkflowService,
     createBrainbaseAliveWorkflow,
     createDefaultWorkflowHandlers
-} from '../services/workflow/workflow-service.js';
+} from '../services/automation-runtime/automation-runtime-defaults-service.js';
+import { createAutomationRuntimeServices } from '../services/automation-runtime/automation-runtime-services.js';
+
+export function createCanonicalTaskRepository({
+    backend = resolveCanonicalTaskBackend(),
+    pool,
+    storeConfig
+} = {}) {
+    const resolvedBackend = resolveCanonicalTaskBackend(backend);
+    return resolvedBackend === 'postgres'
+        ? new CanonicalTaskPostgresRepository({ pool, storeConfig })
+        : new CanonicalTaskNocoDBRepository({ storeConfig });
+}
 
 export function createCoreServices({
     varDir,
-    stateFile,
     brainbaseRoot,
     projectsRoot,
-    worktreesDir,
     codexPath,
     configPath,
     uploadsDir,
     serverDir,
-    execPromise,
     port,
-    testMode = false
+    sourceHead = null
 }) {
     const googleCalendarService = new GoogleCalendarService();
     const scheduleParser = new ScheduleParser({ googleCalendarService });
 
     process.env.BRAINBASE_VAR_DIR = varDir;
-    process.env.BRAINBASE_STATE_PATH = stateFile;
-
-    const StateStoreClass = testMode && process.env.BRAINBASE_USE_SQLITE_IN_TEST !== '1'
-        ? JsonStateStore
-        : StateStore;
-    const stateStore = new StateStoreClass(stateFile, brainbaseRoot);
-    const configParser = new ConfigParser(codexPath, configPath, brainbaseRoot, projectsRoot);
+    const catalogMode = process.env.BRAINBASE_PROJECT_CATALOG_MODE === 'disabled'
+        ? 'disabled'
+        : 'required';
+    const configParser = new ConfigParser(
+        codexPath,
+        configPath,
+        brainbaseRoot,
+        projectsRoot,
+        { catalogMode }
+    );
     const configService = new ConfigService(configPath, projectsRoot, configParser);
     const infoSSOTService = new InfoSSOTService();
+    const canonicalTaskStoreConfig = createCanonicalTaskStoreConfig();
+    const canonicalTaskBackend = resolveCanonicalTaskBackend();
+    const canonicalTaskOperationRepository = new CanonicalTaskOperationRepository({
+        pool: infoSSOTService.pool,
+        writerToken: process.env.BRAINBASE_SERVER_GENERATION || null,
+        processIdentity: {
+            instance_id: crypto.randomUUID(),
+            pid: process.pid,
+            port,
+            source_head: sourceHead,
+            entrypoint: process.env.BRAINBASE_STARTED_BY_START_JS === '1' ? 'start.js' : 'server.js'
+        }
+    });
+    const canonicalTaskReadiness = new CanonicalTaskReadiness({
+        operationRepository: canonicalTaskOperationRepository,
+        manifestHash: canonicalTaskBackendIdentityHash(canonicalTaskStoreConfig, canonicalTaskBackend),
+        schemaVersion: canonicalTaskStoreConfig.schemaVersion,
+        sourceHead,
+        sourceHeadRebindGuard: createCanonicalTaskSourceHeadGuard({ repoDir: serverDir })
+    });
+    const workflowRepository = new JsonFileWorkflowRepository({
+        filePath: path.join(varDir, 'workflow-ledger.json'),
+        seedWorkflows: [createBrainbaseAliveWorkflow()]
+    });
+    const canonicalTaskRepository = createCanonicalTaskRepository({
+        backend: canonicalTaskBackend,
+        pool: infoSSOTService.pool,
+        storeConfig: canonicalTaskStoreConfig
+    });
+    const canonicalTaskService = new CanonicalTaskService({
+        repository: canonicalTaskRepository,
+        infoSSOTService,
+        readiness: canonicalTaskReadiness,
+        operationRepository: canonicalTaskOperationRepository,
+        auditRepository: workflowRepository,
+        ownerPersonId: canonicalTaskStoreConfig.ownerPersonId
+    });
     const authService = new AuthService();
     const wikiService = new WikiService({ pool: infoSSOTService.pool });
     const learningService = new LearningService({
@@ -78,31 +132,32 @@ export function createCoreServices({
     const learningHealthService = new LearningHealthService({
         stateDir: path.join(varDir, 'learning')
     });
-    const workflowRepository = new JsonFileWorkflowRepository({
-        filePath: path.join(varDir, 'workflow-ledger.json'),
-        seedWorkflows: [createBrainbaseAliveWorkflow()]
-    });
     const workflowRunner = new WorkflowRunner({
         repository: workflowRepository,
         handlers: createDefaultWorkflowHandlers()
     });
     const eveSessionClient = createEveSessionClientFromEnv();
-    const workflowService = new WorkflowService({
+    const meetingTaskOwnerResolver = new MeetingTaskOwnerResolver({ infoSSOTService });
+    const projectAccessPolicy = new ProjectAccessPolicy({ configParser });
+    const automationRuntime = createAutomationRuntimeServices({
         repository: workflowRepository,
         runner: workflowRunner,
         configParser,
         googleCalendarService,
         eveSessionClient,
-        infoSSOTService
+        infoSSOTService,
+        meetingTaskOwnerResolver,
+        projectAccessPolicy,
+        canonicalTaskService
     });
     const eveMeetingNoteReconciler = new EveMeetingNoteReconciler({
-        workflowService,
+        meetingAutomationService: automationRuntime.meetingAutomationService,
         eveSessionClient,
         config: createEveMeetingNoteReconcilerConfigFromEnv()
     });
     const meetingSourceMcpSyncService = new MeetingSourceMcpSyncService({
         stateFile: path.join(varDir, 'meeting-source-mcp-state.json'),
-        workflowService,
+        meetingAutomationService: automationRuntime.meetingAutomationService,
         adapters: createMeetingSourceMcpAdaptersFromEnv(),
         syncConfig: {
             enabled: process.env.BRAINBASE_MEETING_SOURCE_SYNC_ENABLED === '1',
@@ -121,84 +176,21 @@ export function createCoreServices({
     const candidateRepository = infoSSOTService.pool
         ? new PgCandidateRepository({ pool: infoSSOTService.pool })
         : null;
+    const onboardingRuntimeService = candidateRepository
+        ? new OnboardingRuntimeService({
+            repository: new JsonFileOnboardingRunRepository({
+                filePath: path.join(varDir, 'onboarding-runs.json')
+            }),
+            candidateRepository,
+            infoSSOTService
+        })
+        : null;
     const externalRunnerIngestService = new ExternalRunnerIngestService({
         workflowRepository,
         candidateRepository
     });
+    const runReceiptIngestService = new RunReceiptIngestService({ workflowRepository });
 
-    const worktreeService = new WorktreeService(
-        worktreesDir,
-        brainbaseRoot,
-        execPromise
-    );
-    const archiveFinalizer = new ArchiveFinalizerService({
-        stateStore,
-        worktreeService,
-        execPromise,
-        repoRoot: serverDir
-    });
-
-    const sessionServices = createSessionServices({
-        serverDir,
-        execPromise,
-        stateStore,
-        worktreeService,
-        uiPort: port
-    });
-    sessionServices.archiveFinalizer = archiveFinalizer;
-    const tmuxCaptureCache = new TmuxCaptureCache({ snapshotService: sessionServices.terminal.snapshot });
-    const tmuxControlRegistry = new TmuxControlRegistry();
-    const terminalRuntimeRegistry = new TerminalRuntimeRegistry({
-        filePath: path.join(varDir, 'terminal-runtime-registry.json'),
-        serverGeneration: {
-            id: process.env.BRAINBASE_SERVER_GENERATION || null,
-            pid: process.pid,
-            port,
-            startedAt: new Date().toISOString(),
-            entrypoint: process.env.BRAINBASE_STARTED_BY_START_JS === '1' ? 'start.js' : 'server.js'
-        }
-    });
-    const terminalRuntimeReconciler = new TerminalRuntimeReconciler({
-        stateStore,
-        runtimeQuery: sessionServices.runtime.query,
-        runtimeLifecycle: sessionServices.runtime.lifecycle,
-        ownershipService: sessionServices.ownership,
-        runtimeRegistry: terminalRuntimeRegistry,
-        serverGeneration: process.env.BRAINBASE_SERVER_GENERATION || null
-    });
-    sessionServices.shared.runtimeReconciler = terminalRuntimeReconciler;
-    const terminalInputProbeService = new TerminalInputProbeService({
-        ownershipService: sessionServices.ownership,
-        runtimeQuery: sessionServices.runtime.query,
-        terminalIo: sessionServices.terminal.io,
-        snapshotService: sessionServices.terminal.snapshot,
-        runtimeRegistry: terminalRuntimeRegistry,
-        captureCache: tmuxCaptureCache
-    });
-    sessionServices.runtime.observedRegistry = terminalRuntimeRegistry;
-    sessionServices.runtime.reconciler = terminalRuntimeReconciler;
-    sessionServices.terminal.inputProbe = terminalInputProbeService;
-    const terminalTransportService = new TerminalTransportService({
-        ownershipService: sessionServices.ownership,
-        runtimeQuery: sessionServices.runtime.query,
-        runtimeRegistry: terminalRuntimeRegistry,
-        terminalIo: sessionServices.terminal.io,
-        snapshotService: sessionServices.terminal.snapshot,
-        captureCache: tmuxCaptureCache,
-        controlRegistry: tmuxControlRegistry
-    });
-    const sessionActivityWsService = new SessionActivityWsService({
-        activityService: sessionServices.activity,
-        fullStatusIntervalMs: 3000
-    });
-    sessionServices.shared._activityWsBroadcast = (sessionId, hookStatus) => {
-        sessionActivityWsService.broadcast(sessionId, hookStatus);
-    };
-
-    const conversationLinker = new ConversationLinker({
-        stateStore,
-        workspaceService: sessionServices.workspace
-    });
     const tokenUsageService = new TokenUsageService();
 
     const storage = multer.diskStorage({
@@ -215,30 +207,25 @@ export function createCoreServices({
     return {
         googleCalendarService,
         scheduleParser,
-        stateStore,
         configParser,
         configService,
         infoSSOTService,
+        canonicalTaskStoreConfig,
+        canonicalTaskReadiness,
+        canonicalTaskOperationRepository,
+        canonicalTaskRepository,
+        canonicalTaskService,
         authService,
         wikiService,
         learningService,
         learningHealthService,
         candidateRepository,
-        worktreeService,
-        archiveFinalizer,
-        sessionServices,
-        terminalRuntimeRegistry,
-        terminalRuntimeReconciler,
-        terminalInputProbeService,
-        tmuxCaptureCache,
-        tmuxControlRegistry,
-        terminalTransportService,
-        sessionActivityWsService,
-        conversationLinker,
+        onboardingRuntimeService,
         tokenUsageService,
-        workflowService,
+        ...automationRuntime,
         meetingSourceMcpSyncService,
         externalRunnerIngestService,
+        runReceiptIngestService,
         eveMeetingNoteReconciler,
         uploadMiddleware: upload.single('file')
     };

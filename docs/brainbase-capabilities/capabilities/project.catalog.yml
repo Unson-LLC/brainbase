@@ -1,9 +1,11 @@
 id: project.catalog
-name: Configured project catalog
-purpose: Provide the complete configured project list used by Brainbase UI and project mapping.
+name: Authenticated project catalog
+purpose: Provide the active configured project list within the authenticated actor's project grant for Web and Agent surfaces.
 surfaces:
   ui:
     - Settings > Projects
+  mcp:
+    - brainbase_projects
   api:
     - GET /api/config
     - GET /api/config/projects
@@ -12,6 +14,8 @@ surfaces:
     - server/routes/config.js
     - public/modules/project-mapping.js
     - server/routes/brainbase/overview-routes.js
+    - mcp/brainbase/src/tools/control-plane-tools.ts
+    - mcp/brainbase/src/server.ts
   data:
     - /Users/ksato/workspace/config.yml
 depends_on:
@@ -20,19 +24,26 @@ visibility_rules:
   - /api/config and /api/config/projects expose the configured project catalog.
   - archived projects remain in config but should not appear in active selectors.
   - session_select:false hides a project from session creation even if it is active.
-  - /api/brainbase/projects returns active projects with healthStatus mapped, unmapped, or unavailable.
+  - /api/brainbase/projects requires a verified token and only returns active projects in access.projectCodes.
+  - brainbase_projects intersects JWT projectCodes with BRAINBASE_PROJECT_CODES; callers cannot expand scope through tool arguments.
+  - brainbase_projects returns status ok, unavailable, or error together with scope and audit evidence.
+  - "A confirmed empty catalog is status: ok with count: 0; auth, transport, upstream, and contract failures never become an empty catalog."
 verification:
   commands:
     - curl -s http://127.0.0.1:31013/api/config
-    - curl -s http://127.0.0.1:31013/api/brainbase/projects
+    - curl -s http://127.0.0.1:31013/api/brainbase/projects -H 'Authorization: Bearer <token>'
+    - cd mcp/brainbase && npm test
   expected:
     - salestailor-app exists in /api/config
     - tech-knight exists in /api/config and /api/brainbase/projects
     - projects without NocoDB mappings are returned as healthStatus: unmapped
+    - an unauthenticated /api/brainbase/projects request returns 401
+    - brainbase_projects exposes only the intersection of token and configured project scopes
 common_failures:
   - A project exists in /api/config but is hidden from session selector by auth access filtering.
   - A project exists in config but has no NocoDB mapping, so health data is N/A.
   - A dashboard count is mistaken for the complete configured project count.
+  - An upstream failure is mistaken for a confirmed empty project catalog.
 runbooks:
   - ../runbooks/missing-project-in-session-selector.md
 troubleshooting:

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import request from 'supertest';
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -20,6 +20,19 @@ function basePayload(overrides: Record<string, unknown> = {}) {
         event_type: 'ai_drafted',
         ...overrides
     };
+}
+
+function writeLedger(dir: string, month: string, events: Array<Record<string, unknown>>) {
+    writeFileSync(path.join(dir, `${month}.json`), JSON.stringify({
+        schema_version: '0.1.0',
+        events
+    }));
+}
+
+function ledgerFiles(dir: string) {
+    return readdirSync(dir)
+        .filter((name) => /^\d{4}-(0[1-9]|1[0-2])\.json$/.test(name))
+        .sort();
 }
 
 function createInProcessApp(decisionEventService: DecisionEventService | null) {
@@ -99,6 +112,93 @@ test('story-brainbase-decision-events-kpi-v1 ac:4 S-001 duplicate event_id is id
     }
 });
 
+test('story-brainbase-decision-events-kpi-v1 ac:4 S-001 duplicate event_id remains idempotent across month partitions', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'decision-events-e2e-'));
+    try {
+        const decisionEventService = new DecisionEventService({ dataDir: dir });
+        const app = createInProcessApp(decisionEventService);
+
+        await request(app)
+            .post('/api/companion/decision-events')
+            .set('Authorization', 'Bearer user-token')
+            .send(basePayload({
+                occurred_at: '2026-06-30T23:59:00.000Z',
+                metadata: { attempt: 1 }
+            }))
+            .expect(201);
+
+        const retry = await request(app)
+            .post('/api/companion/decision-events')
+            .set('Authorization', 'Bearer user-token')
+            .send(basePayload({
+                occurred_at: '2026-07-01T00:01:00.000Z',
+                metadata: { attempt: 2 }
+            }))
+            .expect(200);
+
+        expect(retry.body, 'story-brainbase-decision-events-kpi-v1 S-001 cross-month retry keeps the first record').toMatchObject({
+            ok: true,
+            duplicate: true,
+            event: {
+                event_id: 'evt_e2e_1',
+                occurred_at: '2026-06-30T23:59:00.000Z',
+                metadata: { attempt: 1 }
+            }
+        });
+        expect(ledgerFiles(dir), 'cross-month retry must not create a second month ledger').toEqual(['2026-06.json']);
+        expect(decisionEventService.listEvents({})).toHaveLength(1);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('story-brainbase-decision-events-kpi-v1 ac:4 legacy cross-month duplicates are returned once and keep the first record', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'decision-events-e2e-'));
+    try {
+        writeLedger(dir, '2026-06', [basePayload({
+            occurred_at: '2026-06-30T23:59:00.000Z',
+            metadata: { attempt: 1 }
+        })]);
+        writeLedger(dir, '2026-07', [basePayload({
+            occurred_at: '2026-07-01T00:01:00.000Z',
+            metadata: { attempt: 2 }
+        })]);
+        const app = createInProcessApp(new DecisionEventService({ dataDir: dir }));
+
+        const listed = await request(app)
+            .get('/api/companion/decision-events')
+            .set('Authorization', 'Bearer user-token')
+            .expect(200);
+        expect(listed.body).toMatchObject({
+            count: 1,
+            events: [{
+                event_id: 'evt_e2e_1',
+                occurred_at: '2026-06-30T23:59:00.000Z',
+                metadata: { attempt: 1 }
+            }]
+        });
+
+        const retry = await request(app)
+            .post('/api/companion/decision-events')
+            .set('Authorization', 'Bearer user-token')
+            .send(basePayload({
+                occurred_at: '2026-08-01T00:01:00.000Z',
+                metadata: { attempt: 3 }
+            }))
+            .expect(200);
+        expect(retry.body).toMatchObject({
+            duplicate: true,
+            event: {
+                occurred_at: '2026-06-30T23:59:00.000Z',
+                metadata: { attempt: 1 }
+            }
+        });
+        expect(ledgerFiles(dir)).toEqual(['2026-06.json', '2026-07.json']);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 test('story-brainbase-decision-events-kpi-v1 ac:2 unauthenticated server-to-server request is rejected before persistence', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'decision-events-e2e-'));
     try {
@@ -169,20 +269,29 @@ test('story-brainbase-decision-events-kpi-v1 ac:6 GET decision-events lists stor
     }
 });
 
-test('story-brainbase-decision-events-kpi-v1 ac:7 weekly KPI aggregation computes delegation and rework rates from stored events', async () => {
+test('story-brainbase-decision-events-kpi-v1 ac:7 weekly KPI excludes legacy cross-month duplicates', async () => {
     // **ac:7 weekly-kpi**: 委任率 = (draft_accepted+draft_edited)/(draft_accepted+draft_edited+self_handled),
     // 差戻し率 = draft_edited/(draft_accepted+draft_edited), エスカレーション件数, 境界拡張数(rule_created).
     // scenario:weekly-report: GET decision-events -> calculateKpi -> Slack blocks.
     process.env.INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET || 'e2e-secret';
     process.env.SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN || 'e2e-token';
-    const { calculateKpi } = await import('../../scripts/send-decision-kpi-to-slack.js');
+    const { calculateKpi, buildSlackBlocks, sendToSlack } = await import('../../scripts/send-decision-kpi-to-slack.js');
 
     const dir = mkdtempSync(path.join(tmpdir(), 'decision-events-e2e-'));
     try {
+        writeLedger(dir, '2026-06', [basePayload({
+            event_id: 'evt_k1',
+            occurred_at: '2026-06-30T23:59:00.000Z',
+            event_type: 'draft_accepted'
+        })]);
+        writeLedger(dir, '2026-07', [basePayload({
+            event_id: 'evt_k1',
+            occurred_at: '2026-07-01T00:01:00.000Z',
+            event_type: 'self_handled'
+        })]);
         const decisionEventService = new DecisionEventService({ dataDir: dir });
         const app = createInProcessApp(decisionEventService);
         const seed = [
-            { event_id: 'evt_k1', event_type: 'draft_accepted' },
             { event_id: 'evt_k2', event_type: 'draft_accepted' },
             { event_id: 'evt_k3', event_type: 'draft_edited' },
             { event_id: 'evt_k4', event_type: 'self_handled' },
@@ -207,12 +316,40 @@ test('story-brainbase-decision-events-kpi-v1 ac:7 weekly KPI aggregation compute
         expect(kpi.reworkRate, 'story-brainbase-decision-events-kpi-v1 ac:7 差戻し率 1/(2+1)=33.3%').toBe(33.3);
         expect(kpi.escalatedCount, 'story-brainbase-decision-events-kpi-v1 ac:7 エスカレーション件数').toBe(1);
         expect(kpi.ruleCreatedCount, 'story-brainbase-decision-events-kpi-v1 ac:7 境界拡張数 rule_created').toBe(1);
+
+        const blocks = buildSlackBlocks(kpi, {
+            from: '2026-06-24T00:00:00.000Z',
+            to: '2026-07-01T00:00:00.000Z'
+        });
+        const originalFetch = globalThis.fetch;
+        const slackRequests: Array<{ url: string; init?: RequestInit }> = [];
+        globalThis.fetch = async (url, init) => {
+            slackRequests.push({ url: String(url), init });
+            return new Response(JSON.stringify({ ok: true, channel: 'C123', ts: '123.456' }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        };
+        try {
+            await expect(sendToSlack(blocks, '#brainbase'), 'story-brainbase-decision-events-kpi-v1 ac:7 Slack API acknowledges the weekly report').resolves.toMatchObject({
+                channel: 'C123',
+                ts: '123.456'
+            });
+        } finally {
+            globalThis.fetch = originalFetch;
+        }
+        expect(slackRequests, 'story-brainbase-decision-events-kpi-v1 ac:7 one Slack post is issued').toHaveLength(1);
+        expect(slackRequests[0].url).toBe('https://slack.com/api/chat.postMessage');
+        expect(JSON.parse(String(slackRequests[0].init?.body))).toMatchObject({
+            channel: '#brainbase',
+            blocks
+        });
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
 });
 
-test('story-brainbase-decision-events-kpi-v1 ac:8 weekly KPI report never fakes zero rates and flags empty weeks', async () => {
+test('story-brainbase-decision-events-kpi-v1 ac:8 S-003 weekly KPI report never fakes zero rates and flags empty weeks', async () => {
     // **ac:8 no-fake-zero**: データが無い週は「計測不能」、イベント0件の週は「イベント未受信」と明示する。
     // scenario:weekly-report negative_path: zero-denominator and zero-event weeks are labeled, not reported as 0%.
     process.env.INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET || 'e2e-secret';
@@ -225,5 +362,7 @@ test('story-brainbase-decision-events-kpi-v1 ac:8 weekly KPI report never fakes 
     expect(formatRate(emptyKpi.reworkRate, emptyKpi.reworkDenominator), 'story-brainbase-decision-events-kpi-v1 ac:8 差戻し率は計測不能と表示').toContain('計測不能');
 
     const blocks = buildSlackBlocks(emptyKpi, { from: '2026-06-24T00:00:00.000Z', to: '2026-07-01T00:00:00.000Z' });
-    expect(JSON.stringify(blocks), 'story-brainbase-decision-events-kpi-v1 ac:8 イベント0件の週はイベント未受信と報告').toContain('イベント未受信');
+    const blockText = JSON.stringify(blocks);
+    expect(blockText, 'story-brainbase-decision-events-kpi-v1 ac:8 イベント0件の週はイベント未受信と報告').toContain('イベント未受信');
+    expect(blockText, 'story-brainbase-decision-events-kpi-v1 ac:8 イベント0件の率は計測不能と報告').toContain('計測不能');
 });

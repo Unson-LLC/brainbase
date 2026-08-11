@@ -100,6 +100,7 @@ describe('Brainbase MCP server core ontology tools', () => {
 
     const extensionTypes = await __testing.handleToolCall('list_extension_types', {});
     assert.match(extensionTypes, /frame/);
+    assert.match(extensionTypes, /contact/);
 
     const extensionEntities = await __testing.handleToolCall('list_extension_entities', {
       type: 'frame',

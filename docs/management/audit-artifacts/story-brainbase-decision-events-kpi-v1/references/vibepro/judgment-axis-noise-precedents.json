@@ -1,0 +1,58 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-judgment-axis-noise-precedent-ledger-v1",
+  "entries": [
+    {
+      "fingerprint": "scope_reviewability|graphify:related_files|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-decision-events-kpi-v1",
+      "decision_id": "decision-1784873983850-5fee69b3",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "The files implement one write/read/report contract; splitting persistence, API, and KPI verification would permit an invalid partial deployment.",
+      "artifact": "docs/architecture/decision-events-kpi-architecture.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-07-24T06:19:53.421Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:207|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-decision-events-kpi-v1",
+      "decision_id": "decision-1784873983850-5fee69b3",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "The files implement one write/read/report contract; splitting persistence, API, and KPI verification would permit an invalid partial deployment.",
+      "artifact": "docs/architecture/decision-events-kpi-architecture.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:207",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-07-24T06:24:06.082Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:209|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-decision-events-kpi-v1",
+      "decision_id": "decision-1784873983850-5fee69b3",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "The files implement one write/read/report contract; splitting persistence, API, and KPI verification would permit an invalid partial deployment.",
+      "artifact": "docs/architecture/decision-events-kpi-architecture.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:209",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-07-24T07:51:08.605Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    }
+  ]
+}

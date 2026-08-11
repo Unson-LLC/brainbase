@@ -1,0 +1,121 @@
+{
+  "agent_id": "019f929c-80da-7081-b89b-734e9a5acfd3",
+  "model": "gpt-5.6-luna",
+  "reasoning_effort": "high",
+  "head_sha": "885c29e07d33bd580f2f84c81ad58ecf925cd346",
+  "role": "architecture_boundary",
+  "status": "needs_changes",
+  "output": {
+    "summary": "FAIL: four previous findings are resolved, but corrupt-storage handling remains incomplete and new architecture-boundary regressions exist around index authority, GET scan complexity, and lock bootstrap.",
+    "inspection_summary": {
+      "scope": "Architecture-boundary review only; no files edited.",
+      "verification": [
+        "arm64 shell confirmed.",
+        "Unit tests: 30 passed.",
+        "Route/KPI integration tests: 14 passed.",
+        "E2E contract tests: 9 passed.",
+        "Typecheck passed.",
+        "git diff --check passed.",
+        "Read-only probes covered malformed ledger shape, inaccessible storage, and stale index entries."
+      ],
+      "evidence_freshness": "The supplied QA artifact matches the requested HEAD. Historical architecture-review results were stale and were not treated as current proof."
+    },
+    "judgment_delta": [
+      "The process-local idempotency concern is resolved only for same-host processes sharing the same local filesystem/data directory.",
+      "ISO-8601 validation is materially tightened and now rejects invalid calendar dates.",
+      "Corrupt JSON quarantine is implemented, but malformed schema shape and filesystem failures can still be interpreted as empty storage or returned as HTTP 500.",
+      "Lazy month-ledger rescan regression is directly covered; GET still performs a full index scan on every request.",
+      "Legacy duplicate KPI coverage is directly present through E2E API retrieval followed by KPI aggregation."
+    ],
+    "resolved_findings": [
+      {
+        "id": "process-local-idempotency-not-single-writer-safe",
+        "evidence": "mkdir-based write locking plus a separate-Node-process concurrency test establishes same-host serialization and one committed record.",
+        "evidence_paths": [
+          "server/services/companion/decision-event-service.js:362",
+          "tests/server/services/companion/decision-event-service.test.js:224"
+        ]
+      },
+      {
+        "id": "iso8601-contract-is-too-permissive",
+        "evidence": "Regex validation, calendar round-trip validation, and tests for invalid dates and human-readable dates are present.",
+        "evidence_paths": [
+          "server/services/companion/decision-event-service.js:21",
+          "tests/server/services/companion/decision-event-service.test.js:93"
+        ]
+      },
+      {
+        "id": "lazy-cache-no-rescan-regression-not-proven",
+        "evidence": "The service test spies on _listMonthKeys and verifies successive inserts do not rescan month files.",
+        "evidence_paths": [
+          "tests/server/services/companion/decision-event-service.test.js:304"
+        ]
+      },
+      {
+        "id": "legacy-duplicate-kpi-path-not-directly-covered",
+        "evidence": "E2E seeds cross-month legacy duplicates, retrieves through the API, and verifies KPI rates/counts use one logical event.",
+        "evidence_paths": [
+          "tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts:272"
+        ]
+      }
+    ],
+    "findings": [
+      {
+        "id": "corrupt-ledger-recovery-can-be-silent-or-overwritten",
+        "severity": "high",
+        "file": "server/services/companion/decision-event-service.js; server/controllers/companion-controller.js",
+        "line": "241-249, 535-541, 285-290, 315-320",
+        "evidence": "A ledger with a valid JSON object but non-array events is silently converted to events: []. An inaccessible data directory is also treated as absent on reads, producing HTTP 200 with an empty result. Writes can surface raw EACCES and become HTTP 500 instead of 503.",
+        "recommendation": "Validate ledger schema instead of coercing malformed events to []; distinguish missing storage from inaccessible storage; wrap filesystem failures as DecisionEventStorageError with HTTP 503; never overwrite malformed or inaccessible authoritative state."
+      },
+      {
+        "id": "derived-index-can-override-ledger-authority",
+        "severity": "high",
+        "file": "server/services/companion/decision-event-service.js",
+        "line": "302-331, 442-446, 519-532",
+        "evidence": "Committed index entries are accepted without verifying the referenced monthly ledger. Removing the ledger while retaining its index caused GET to return the missing event and a retry to return duplicate=true.",
+        "recommendation": "Treat monthly ledgers as authoritative. Verify committed index entries against the referenced ledger before caching or deduplicating; rebuild or invalidate inconsistent entries."
+      },
+      {
+        "id": "get-path-full-index-rescan-per-request",
+        "severity": "medium",
+        "file": "server/services/companion/decision-event-service.js; docs/architecture/decision-events-kpi-architecture.md",
+        "line": "519-532, 547-567; architecture line 45",
+        "evidence": "Every listEvents call acquires the write lock and readdirSyncs/parses every index JSON file. This is O(number of indexed events) per GET.",
+        "recommendation": "Add a generation/cursor or equivalent incremental index synchronization mechanism."
+      },
+      {
+        "id": "lock-bootstrap-window-can-reclaim-live-lock",
+        "severity": "medium",
+        "file": "server/services/companion/decision-event-service.js",
+        "line": "369-396",
+        "evidence": "The lock directory becomes visible before owner.json is written. A concurrent process can treat it as ownerless and reclaim it.",
+        "recommendation": "Make lock publication atomic with a populated temporary lock directory renamed into place, or use an atomic lock-file protocol."
+      },
+      {
+        "id": "same-host-lock-scope-not-explicit",
+        "severity": "medium",
+        "file": "docs/architecture/decision-events-kpi-architecture.md; server/services/companion/decision-event-service.js",
+        "line": "architecture line 43; service line 390",
+        "evidence": "Lock liveness uses process.kill(pid, 0), which proves same-host processes sharing local storage, not distributed writers.",
+        "recommendation": "Explicitly constrain the contract and deployment boundary to same-host/local-filesystem writers."
+      }
+    ],
+    "evidence_paths_reviewed": [
+      ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/review-request-architecture_boundary.md",
+      ".vibepro/qa/decision-events-current-head-verification.json",
+      "server/services/companion/decision-event-service.js",
+      "server/controllers/companion-controller.js",
+      "server/routes/companion.js",
+      "server/bootstrap/register-api-routes.js",
+      "scripts/send-decision-kpi-to-slack.js",
+      "tests/server/services/companion/decision-event-service.test.js",
+      "tests/server/routes/companion-decision-events.test.js",
+      "tests/server/scripts/send-decision-kpi-to-slack.test.js",
+      "tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts",
+      "docs/stories/story-brainbase-decision-events-kpi-v1.md",
+      "docs/architecture/decision-events-kpi-architecture.md",
+      ".vibepro/spec/story-brainbase-decision-events-kpi-v1/spec.json"
+    ]
+  }
+}

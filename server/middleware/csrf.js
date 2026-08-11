@@ -128,24 +128,79 @@ export function csrfMiddleware() {
             return next();
         }
 
-        // Skip session activity telemetry. It is posted by trusted LOCAL hooks/CLI (the
-        // activity-bridge hooks, scripts/lib/brainbase-common.sh, codex-pty-shim.py, …) via
-        // curl/fetch with no browser CSRF token. CSRF guards against cross-site browser forgery,
-        // which does not apply to a localhost hook -> localhost server, non-mutating activity report.
-        // Without this, prod 403s every hook-driven report (stale indicators) and dev warns every interval.
-        if (req.path === '/api/sessions/report_activity') {
-            return next();
-        }
-
         // External runner ingest is a server-to-server API guarded by workflow auth
         // (bearer/service/internal key). It cannot rely on browser session CSRF tokens.
         if (req.path?.startsWith('/api/external-runner/')) {
             return next();
         }
 
+        // Run receipt ingest is the sole server-to-server endpoint in this route
+        // family. The route itself rejects cookie/session-only authentication.
+        if (req.method === 'POST' && req.path === '/api/run-receipts/ingest') {
+            return next();
+        }
+
+        // Candidate Store raw-ledger ingest is a machine-to-machine endpoint.
+        // The mounted route authenticates the exact raw request body with its
+        // source-specific HMAC, so a browser CSRF token is neither available nor
+        // part of this endpoint's trust boundary. Keep the exemption exact so
+        // other Candidate Store mutations remain protected by default.
+        if (req.method === 'POST' && req.path === '/api/candidate-store/raw-ledger') {
+            return next();
+        }
+
         // Brainbase Mac Companion is a native/server client API guarded by bearer,
         // service-token, or internal header auth. It cannot rely on browser CSRF tokens.
         if (req.path?.startsWith('/api/companion/')) {
+            return next();
+        }
+
+        // Judgment resolution is called by managed agent hosts with a Bearer
+        // service token plus a request-bound HMAC. Browser cookie fallback must
+        // remain behind CSRF, while the exact machine endpoint can proceed to
+        // requireAuth and host-binding verification.
+        if (
+            req.method === 'POST'
+            && req.path === '/api/judgment/resolve'
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
+            return next();
+        }
+
+        // Knowledge resolution is a read-only routing request from the MCP host.
+        // The exact machine endpoint proceeds to strict Bearer authentication and
+        // project-scope authorization; browser cookie fallback remains behind CSRF.
+        if (
+            req.method === 'POST'
+            && req.path === '/api/knowledge/resolve'
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
+            return next();
+        }
+
+        // Admin context preview is read-only but uses POST for its structured query.
+        // Agent/native clients authenticate with a bearer token and do not have a
+        // browser CSRF session. Authentication and project scope are still enforced
+        // by the route's requireAuth middleware and AdminVisualizationService.
+        if (
+            req.method === 'POST'
+            && req.path === '/api/admin/context-preview'
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
+            return next();
+        }
+
+        // Onboarding MCP calls are non-cookie service requests. The mounted route still
+        // verifies the bearer token and project scope with requireAuth; this exemption
+        // only avoids requiring a browser CSRF session that the MCP client cannot hold.
+        if (
+            req.path?.startsWith('/api/onboarding/')
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
             return next();
         }
 

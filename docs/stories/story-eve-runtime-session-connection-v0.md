@@ -65,7 +65,7 @@ Brainbase operatorとして、Loop IntentをEve sessionとして起動し、Eve�
 - `eve_session_ref_scope_mismatch`: 既存 `eve_session_ref.workflow_run_id` が別workspace / org / project / Loop Intent / Workflowを指す場合はidempotent replayせず、Eve API呼び出し前に拒否する。
 - `scope_mismatch`: Loop Intentのorg/projectとcontrol refのorg/projectが一致しない場合は拒否する。
 - `control_lineage_mismatch`: 同じorg/project内でも、BindingのRole Agent / Template、Triggerの親Binding、`trigger_id` と `workflow_trigger_id` が一致しない場合は拒否する。
-- `manual_run_path_blocked`: Eve dispatch用workflowは汎用 `/api/workflows/:workflowId/run` / rerun から実行できず、必ずLoop Intent Eve session APIを通る。
+- `manual_run_path_blocked`: 汎用 `/api/workflows/:workflowId/run` は404へ落とし、Eve dispatch用workflowのrerunも拒否する。実行は必ずLoop Intent Eve session APIを通る。
 
 ## 非目標
 

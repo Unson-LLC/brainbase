@@ -21,6 +21,51 @@ describe('ConfigParser', () => {
     parser = new ConfigParser('/mock/codex', '/mock/config.yml');
   });
 
+  describe('project catalog source contract', () => {
+    it('required catalog missing is an integrity error, not a valid empty catalog', async () => {
+      const missing = new Error('ENOENT: no such file or directory');
+      missing.code = 'ENOENT';
+      fs.readFile.mockRejectedValue(missing);
+
+      const integrity = await parser.checkIntegrity();
+
+      expect(integrity.applicability).toBe('applicable');
+      expect(integrity.source).toMatchObject({
+        status: 'missing',
+        mode: 'required',
+        path: '/mock/config.yml'
+      });
+      expect(integrity.issues).toContainEqual(expect.objectContaining({
+        type: 'config_source_unavailable',
+        severity: 'error'
+      }));
+      expect(integrity.summary.errors).toBeGreaterThan(0);
+    });
+
+    it('disabled catalog is explicitly not applicable and does not read config.yml', async () => {
+      const disabledParser = new ConfigParser(
+        '/mock/codex',
+        '/mock/config.yml',
+        '/mock/workspace',
+        null,
+        { catalogMode: 'disabled' }
+      );
+
+      const integrity = await disabledParser.checkIntegrity();
+
+      expect(integrity).toMatchObject({
+        applicability: 'not_applicable',
+        source: {
+          status: 'not_applicable',
+          mode: 'disabled'
+        },
+        summary: { errors: 0 },
+        stats: { projects: 0 }
+      });
+      expect(fs.readFile).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getAirtableMappings', () => {
     it('should return airtable mappings from config.yml', async () => {
       // Arrange: config.yml with airtable settings

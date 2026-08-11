@@ -248,15 +248,15 @@ export function renderPromotionManifest(candidate) {
         `linked_candidate_ids: [${(candidate.linked_candidate_ids || []).join(', ')}]`,
         '---',
         '',
-        '# Promotion Candidate',
+        '# 知識候補',
         '',
-        '## Target',
+        '## 反映先',
         candidate.target_ref,
         '',
-        '## Evaluation',
+        '## 評価',
         JSON.stringify(candidate.evaluation_summary || {}, null, 2),
         '',
-        '## Proposed Content',
+        '## 候補内容',
         '```md',
         candidate.proposed_content,
         '```',
@@ -346,19 +346,6 @@ async function rejectPromotion(candidateId, reason = '') {
     });
 }
 
-async function applyWikiCandidate(candidate) {
-    const { serverUrl, headers } = getServerContext();
-    await apiJson(`${serverUrl}/api/wiki/page`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-            path: candidate.target_ref,
-            content: candidate.proposed_content
-        })
-    });
-    await markPromotionApplied(candidate.id);
-}
-
 async function applySkillCandidate(candidate, repoRoot = process.cwd()) {
     const targetPath = path.join(repoRoot, candidate.target_ref);
     ensureDir(path.dirname(targetPath));
@@ -407,7 +394,7 @@ function buildInboxSummary(candidates) {
 
 function printInbox(candidates) {
     const pending = candidates.filter((candidate) => candidate.status === 'evaluated' && candidate.apply_mode === 'manual');
-    console.log(`Pending candidates: ${pending.length}`);
+    console.log(`確認待ちの知識候補: ${pending.length}件`);
     pending.slice(0, 10).forEach((candidate) => {
         console.log(`- ${candidate.id} [${candidate.pillar}] ${candidate.target_ref} (${candidate.risk_level})`);
     });
@@ -418,7 +405,7 @@ export async function proposeLearningPromotions() {
     const candidates = await listPromotions({ status: 'evaluated', apply_mode: 'manual' });
     const materialized = materializePromotions(candidates);
 
-    console.log(`Materialized ${candidates.length} promotion candidates.`);
+    console.log(`知識候補を${candidates.length}件、確認用ファイルへ書き出しました。`);
     materialized.forEach((file) => console.log(`  - ${path.relative(process.cwd(), file)}`));
 }
 
@@ -430,7 +417,6 @@ function collectManifestFiles(rootDir) {
 }
 
 export async function applyApprovedPromotions() {
-    const { serverUrl, headers } = getServerContext();
     const manifestDir = path.join(process.cwd(), 'docs', 'learning-promotions');
     const manifestFiles = collectManifestFiles(manifestDir);
 
@@ -439,20 +425,7 @@ export async function applyApprovedPromotions() {
         const attrs = parsed.attributes || {};
         if (attrs.pillar !== 'wiki' || attrs.status !== 'approved') continue;
 
-        const contentMatch = parsed.body.match(/```md\n([\s\S]*?)\n```/);
-        if (!contentMatch) continue;
-
-        await apiJson(`${serverUrl}/api/wiki/page`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-                path: attrs.target_ref,
-                content: contentMatch[1]
-            })
-        });
-
-        await markPromotionApplied(attrs.candidate_id);
-        console.log(`Applied wiki promotion: ${attrs.candidate_id} -> ${attrs.target_ref}`);
+        console.log(`legacy Wiki候補は保存先の分類が必要です: ${attrs.candidate_id} -> ${attrs.target_ref}`);
     }
 }
 
@@ -479,8 +452,8 @@ export async function addExplicitLearn(argv = []) {
 
     const episode = await recordEpisode(payload);
     const proposed = await proposePromotions('manual');
-    console.log(`Recorded learn episode: ${episode.id}${episode.deduped ? ' (deduped)' : ''}`);
-    console.log(`Proposed ${proposed.candidates?.length || proposed.length || 0} candidates.`);
+    console.log(`学習エピソードを記録しました: ${episode.id}${episode.deduped ? '（重複を統合）' : ''}`);
+    console.log(`知識候補を${proposed.candidates?.length || proposed.length || 0}件作成しました。`);
 }
 
 export async function ingestReviewArtifacts(argv = []) {
@@ -519,22 +492,26 @@ export async function showPromotion(candidateId) {
     return candidate;
 }
 
-export async function applyPromotion(candidateId, { repoRoot = process.cwd() } = {}) {
-    const candidate = await getPromotion(candidateId);
-    if (candidate.pillar === 'wiki') {
-        await applyWikiCandidate(candidate);
-        console.log(`Applied wiki candidate: ${candidate.id} -> ${candidate.target_ref}`);
-        return candidate;
+export function ensurePromotionCanBeApplied(candidate) {
+    if (candidate?.pillar === 'wiki') {
+        throw new Error(
+            `legacy Wiki候補は適用できません。保存先の分類が必要です: ${candidate.id} -> ${candidate.target_ref}`
+        );
     }
+    return candidate;
+}
+
+export async function applyPromotion(candidateId, { repoRoot = process.cwd() } = {}) {
+    const candidate = ensurePromotionCanBeApplied(await getPromotion(candidateId));
 
     const targetPath = await applySkillCandidate(candidate, repoRoot);
-    console.log(`Applied skill candidate: ${candidate.id} -> ${path.relative(repoRoot, targetPath)}`);
+    console.log(`再利用できる手順として反映しました: ${candidate.id} -> ${path.relative(repoRoot, targetPath)}`);
     return candidate;
 }
 
 export async function rejectLearningPromotion(candidateId, reason = '') {
     await rejectPromotion(candidateId, reason);
-    console.log(`Rejected candidate: ${candidateId}`);
+    console.log(`知識候補を見送りました: ${candidateId}`);
 }
 
 export async function dedupeExistingLearningPromotions() {

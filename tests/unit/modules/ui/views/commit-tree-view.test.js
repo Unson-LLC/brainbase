@@ -51,7 +51,7 @@ describe('CommitTreeView', () => {
                         bookmarks: [],
                         isWorkingCopy: false
                     }],
-                    repoType: 'jj',
+                    repoType: 'git',
                     repoName: 'test-repo'
                 }
             });
@@ -94,7 +94,7 @@ describe('CommitTreeView', () => {
                         bookmarks: ['main'],
                         isWorkingCopy: false
                     }],
-                    repoType: 'jj',
+                    repoType: 'git',
                     repoName: 'test-repo'
                 }
             });
@@ -128,7 +128,7 @@ describe('CommitTreeView', () => {
                         bookmarks: [],
                         isWorkingCopy: false
                     }],
-                    repoType: 'jj',
+                    repoType: 'git',
                     repoName: 'test-repo'
                 }
             });
@@ -167,7 +167,7 @@ describe('CommitTreeView', () => {
                             isWorkingCopy: false
                         }
                     ],
-                    repoType: 'jj',
+                    repoType: 'git',
                     repoName: 'test-repo'
                 }
             });

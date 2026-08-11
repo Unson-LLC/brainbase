@@ -1,0 +1,81 @@
+id: judgment.resolve
+name: Host judgment episode lifecycle
+purpose: Open one context-bound judgment episode before model generation, record 0..N actual Brainbase calls, finalize one auditable episode receipt at Stop, and expose only the selected active DAG without authorizing the eventual action.
+surfaces:
+  ui: []
+  mcp: []
+  host:
+    - UserPromptSubmit -> POST http://127.0.0.1:39002/host/judgment/resolve
+    - PostToolUse -> append-only Brainbase tool event
+    - Stop -> atomic final episode receipt
+  api:
+    - POST /api/judgment/resolve
+  code:
+    - scripts/codex-hooks/judgment-resolver-entry.sh
+    - scripts/codex-hooks/judgment-resolver-host.mjs
+    - scripts/check-codex-judgment-hook-readiness.mjs
+    - mcp/brainbase/src/server.ts
+    - mcp/brainbase/src/tools/judgment-resolution-tools.ts
+    - mcp/brainbase/src/tools/judgment-host-contract.ts
+    - server/services/judgment-resolution-service.js
+    - server/routes/judgment-resolution.js
+  data:
+    - config/judgment-runtime-manifest.json
+    - config/judgment-runtime-manifest-lock.json
+    - User-local episode, event, continuation, and final journals; raw session IDs, absolute paths, secrets, raw tool payloads, and unbounded conversation text are not persisted.
+depends_on:
+  - auth.grants
+  - graph.ssot
+  - knowledge.resolve
+visibility_rules:
+  - Every Codex turn opens one judgment episode before model generation because answering is also a judgment.
+  - The Host constructs canonical conversation_context from ordered raw conversation messages, prior finalized episodes, runtime/project data, and instruction digests.
+  - The model cannot call Judgment Resolver and cannot submit classification or a model-authored context summary.
+  - Judgment Resolver has no internal LLM; deterministic manifest-owned semantic_matchers, bounded prior-context inheritance, safety floors, and policies select the initial route.
+  - Non-follow-up input with no explicit specialist domain or intent match uses the server-owned `general/answer` fallback; unresolved follow-up references or knowledge routes missing required project context use the clarification DAG.
+  - UserPromptSubmit adopts exactly one initial route receipt; retries are bounded before episode creation and no reclassification occurs afterwards.
+  - The current Codex model is the open-ended LLM in the execution loop. It decides how to answer inside the selected DAG and may formulate, refine, and call Brainbase knowledge/retrieval tools 0..N times as results create new questions; there is no one-call-per-turn limit.
+  - Claude Code is a future Host-adapter candidate for the same responsibility split, but is not part of the current episode-lifecycle hook integration.
+  - Knowledge Resolver deterministically chooses a canonical source route and required retrieval capability; it does not search or retrieve content.
+  - PostToolUse records only actual `mcp__brainbase__*` outcomes and emits a short owner-visible line that accurately distinguishes reference routing, searching, retrieval, and writes.
+  - Only successful exact `mcp__brainbase__brainbase_knowledge_resolve` calls satisfy a required `knowledge.resolve`; unrelated or failed calls do not.
+  - Same-turn episode start, PostToolUse commits, and Stop finalization share a per-turn SQLite immediate transaction; concurrent calls receive a unique event sequence in journal-commit order, and process exit releases the lock without stale-path deletion.
+  - UserPromptSubmit stores the exact Stop audit contract in the episode. A runtime deployment during an active turn cannot add a new owner-visible line or repair policy to that already-open episode.
+  - Stop verifies that the final answer begins with the stored owner judgment line and every stored Brainbase event line exactly in journal-commit order, then finalizes one complete episode receipt. A missing required route or invalid owner-visible prefix returns `decision:block`, including on an active repeated Stop, and writes no final receipt until repaired. When knowledge is optional and zero Brainbase calls were recorded, the episode-bound prefix explicitly reports zero calls. Audit-only repair stores only the normalized non-audit body digest and character count, then rejects a corrected prefix if that body was deleted, summarized, or replaced. Orphan Stop and transaction-acquisition timeout remain terminal fail-closed errors.
+  - Static Hook definitions are only installed state. Codex Host hooks/list must report all three current bindings as trusted and matcher-correct before the checker returns ready_for_fresh_task. Modified or untrusted definitions are trust_required; the owner approves them through /hooks, and only a task created afterwards can provide proven_active live evidence. Repository code never writes trusted_hash.
+  - Each active node has a manifest-owned executable definition; only selected branches run.
+  - A managed clarification receipt continues to model generation and selects the clarification DAG.
+  - Project binding is judgment context, not action authority; project policies remain access-scoped without blocking general judgment.
+  - A receipt does not authorize write or external action; normal platform permissions and executor authorization remain independent.
+  - Missing bridge, rejected binding, invalid context, mismatched receipt, or unavailable service blocks model generation visibly.
+verification:
+  commands:
+    - npm run check:judgment-hook-readiness -- --cwd "$BRAINBASE_CANONICAL_ROOT"
+    - npm run test:judgment-resolution
+    - npm --prefix mcp/brainbase run typecheck
+    - npm run typecheck
+    - cmp -s CLAUDE.md AGENTS.md
+  expected:
+    - Resolver is absent from model-visible MCP tools.
+    - Resolver classification is manifest-backed and has no LLM provider or model API dependency.
+    - Host preserves exact ordered user/assistant text and removes host envelopes and tool internals structurally.
+    - The same turn reuses its initial route without another Resolver request.
+    - Multiple distinct Brainbase calls create multiple immutable events; replay creates no duplicate.
+    - The final user-visible answer starts with the stored owner judgment and tool-event lines exactly in journal-commit order; the final receipt answer digest binds that rendered message.
+    - The Stop audit contract is bound at episode start, and an audit-only continuation cannot complete after shortening the original non-audit answer body.
+    - Raw tool input/output and secret-like values are absent from journals and owner-visible lines.
+    - Zero Brainbase calls is complete when no Brainbase capability is required.
+    - Required `knowledge.resolve` is complete only after a successful exact route call.
+    - A replayed complete Stop reuses the same final receipt; an evidence-incomplete active repeated Stop returns `decision:block`, while an orphan Stop fails non-zero. Neither writes a final.
+    - Current Codex Hook trust is ready_for_fresh_task before live verification, and proven_active evidence comes from a task created after owner trust approval.
+common_failures:
+  - Asking the model to call Resolver after generation has already begun.
+  - Describing an internal "Resolver LLM" even though the current Resolver is deterministic and the Codex model owns open-ended investigation.
+  - Treating the initial route receipt as proof that Brainbase knowledge was retrieved.
+  - Counting any Brainbase tool call as satisfying `knowledge.resolve`.
+  - Treating one network attempt or one tool call as the per-turn invariant.
+  - Treating brainbase_project_not_accessible as a reason judgment cannot run.
+  - Adding a second Judgment-specific action guard that re-judges the receipt.
+runbooks:
+  - ../runbooks/judgment-resolve.md
+troubleshooting: []

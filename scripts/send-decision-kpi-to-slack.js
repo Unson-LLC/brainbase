@@ -37,7 +37,10 @@ async function fetchDecisionEvents({ from, to }) {
         throw new Error(`Failed to fetch decision events: ${response.status}`);
     }
     const data = await response.json();
-    return Array.isArray(data.events) ? data.events : [];
+    if (!data || typeof data !== 'object' || !Array.isArray(data.events)) {
+        throw new Error('Invalid decision events response: events must be an array');
+    }
+    return data.events;
 }
 
 function countByType(events) {
@@ -101,7 +104,15 @@ function buildSlackBlocks(kpi, { from, to }) {
             },
             {
                 type: 'section',
-                text: { type: 'mrkdwn', text: '⚠️ *イベント未受信*\nこの期間、判断イベントを1件も受信していません。' }
+                text: {
+                    type: 'mrkdwn',
+                    text: [
+                        '⚠️ *イベント未受信*',
+                        'この期間、判断イベントを1件も受信していません。',
+                        '*委任率*: 計測不能（対象イベントなし）',
+                        '*差戻し率*: 計測不能（対象イベントなし）'
+                    ].join('\n')
+                }
             }
         ];
     }
@@ -209,9 +220,11 @@ if (isDirectRun) {
 }
 
 export {
+    fetchDecisionEvents,
     calculateKpi,
     countByType,
     formatPercent,
     formatRate,
-    buildSlackBlocks
+    buildSlackBlocks,
+    sendToSlack
 };

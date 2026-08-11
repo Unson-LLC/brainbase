@@ -8,10 +8,11 @@ import { eventBus, EVENTS } from '../../core/event-bus.js';
  * 課題キャプチャ + manaチャットのAPIクライアント
  */
 export class ManaChatService {
-    constructor() {
-        this.httpClient = httpClient;
-        this.store = appStore;
-        this.eventBus = eventBus;
+    constructor(options = {}) {
+        this.httpClient = options.httpClient || httpClient;
+        this.store = options.store || appStore;
+        this.eventBus = options.eventBus || eventBus;
+        this.captureIdFactory = options.captureIdFactory || (() => globalThis.crypto.randomUUID());
     }
 
     /**
@@ -21,7 +22,9 @@ export class ManaChatService {
      * @returns {Promise<Object>} キャプチャ結果
      */
     async capture(content, type) {
+        const captureId = this.captureIdFactory();
         const response = await this.httpClient.post('/api/brainbase/mana/capture', {
+            capture_id: captureId,
             content,
             type: type || 'issue'
         });

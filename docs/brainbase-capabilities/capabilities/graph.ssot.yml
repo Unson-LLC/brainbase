@@ -32,6 +32,7 @@ visibility_rules:
   - One search no-result is not sufficient evidence that Graph lacks an entity.
   - Treat resolve_entity unsupported_types as unsearched surfaces, not as Graph absence.
   - Production API authorization comes only from the verified token; x-brainbase-* headers never grant access.
+  - A project/app code change is a coordinated migration across the Graph entity, auth grants, refreshed token/session claims, config, and owning consumers; directory layout or a single entity rename is not sufficient.
 verification:
   commands:
     - TOKEN=$(jq -r .access_token ~/.brainbase/tokens.json); curl -sS -H "Authorization: Bearer $TOKEN" "https://bb.unson.jp/api/info/graph/entities?type=project&limit=500"

@@ -1,0 +1,76 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-ten-minute-world-onboarding-runtime",
+  "title": "Ten-minute World Onboarding Runtime Authority",
+  "responsibilities": [
+    {
+      "id": "ten_minute_world_onboarding_runtime",
+      "primary_authority": {
+        "kind": "architecture",
+        "ref": "docs/architecture/story-ten-minute-world-onboarding-runtime.md#authority"
+      },
+      "supporting_authority": [
+        {
+          "kind": "spec",
+          "ref": "docs/specs/ten-minute-world-onboarding-runtime-spec.md"
+        },
+        {
+          "kind": "story",
+          "ref": "docs/management/stories/active/story-ten-minute-world-onboarding-runtime.md"
+        }
+      ],
+      "owned_surfaces": {
+        "paths": [
+          "server.js",
+          "server/middleware/auth.js",
+          "server/middleware/csrf.js",
+          "server/services/onboarding/onboarding-runtime-service.js",
+          "server/routes/onboarding.js",
+          "server/services/candidate-store/promotion-gate-service.js",
+          "server/services/candidate-store/candidate-repository.js",
+          "server/bootstrap/core-services.js",
+          "server/bootstrap/register-api-routes.js",
+          "mcp/brainbase/src/tools/onboarding-tools.ts",
+          "mcp/brainbase/src/server.ts",
+          "config/ontology/writer-inventory.json",
+          "scripts/ontology-writer-inventory.js",
+          "tests/e2e/story-ten-minute-world-onboarding-runtime-flow.spec.ts"
+        ],
+        "symbols": [
+          "OnboardingRuntimeService",
+          "InMemoryOnboardingRunRepository",
+          "createOnboardingRouter",
+          "handleOnboardingToolCall",
+          "PromotionGateService"
+        ],
+        "risk_surfaces": [
+          "database_state",
+          "server_api",
+          "auth_boundary",
+          "durable_idempotency",
+          "mcp_write_fence",
+          "graph_promotion",
+          "human_review"
+        ]
+      },
+      "external_dependencies": [
+        {
+          "id": "host_entry_binding",
+          "authority": {
+            "kind": "story",
+            "ref": "docs/stories/story-ten-minute-world-onboarding.md#AC-001"
+          },
+          "owned_surface": ".claude/skills/brainbase-onboarding/SKILL.md",
+          "required_delivery": "Bind callable MCP, Drive, Gmail, local-folder, and single-document fallback inputs into the onboarding MCP tools in a separate PR.",
+          "status": "host_entry_blocked"
+        }
+      ],
+      "required_evidence": [
+        "current_head_verification",
+        "runtime_path_evidence",
+        "independent_review"
+      ],
+      "unknown_policy": "Brainbase owns onboarding run state, review-safe Candidate Store projection, human approval, idempotent Promotion Gate handoff, Graph entity writes with derived_from_candidate_id provenance metadata, and first-value receipts. Host connectors own provider authorization, source enumeration, bounded retrieval, credentials, and raw source bodies. Only authenticated project-scoped actors may mutate a run. Unapproved, inferred, or redaction-required candidates never reach Graph. Unknown, unavailable, denied, and retry-conflict states remain explicit and are never converted to empty or success. Live provider execution and production deployment remain unverified until separately evidenced."
+    }
+  ]
+}

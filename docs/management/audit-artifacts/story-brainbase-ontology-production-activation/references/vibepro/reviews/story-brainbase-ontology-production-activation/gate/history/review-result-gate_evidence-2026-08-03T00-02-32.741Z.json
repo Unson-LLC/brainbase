@@ -1,0 +1,142 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-ontology-production-activation",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "block",
+  "summary": "Exact HEAD cacbab80 cannot be released: active Decision creation revalidates an impossible partial required-edge state and rolls back valid writes.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Inspected exact clean HEAD across the production Decision path, ontology constraints, Story/Spec, trust configuration, writer inventory, and tests. Seven files and 144 focused tests passed, but a stateful real-payload reproduction returned ONTOLOGY_VALIDATION_FAILED and ROLLBACK.",
+    "evidence": "HEAD cacbab80 clean; focused Vitest 7 files 144 tests pass; stateful Decision reproduction fails CON-DECISION-DECIDER-001 and rolls back",
+    "inputs": [
+      "server/services/info-ssot-service.js",
+      "config/ontology/brainbase-ontology.v1.json",
+      "tests/server/services/ontology-api.test.js",
+      "docs/management/stories/active/story-brainbase-ontology-production-activation.md"
+    ]
+  },
+  "judgment_delta": [
+    "Initial green focused suite -> blocked after real persisted payload proved valid active Decision aggregate cannot be written."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+    "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+    "expected_root": null,
+    "expected_head_sha": "cacbab80daf0884bfac41139779257141d936aba",
+    "current_head_sha": "cacbab80daf0884bfac41139779257141d936aba",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+      "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+      "expected_root": null,
+      "expected_head_sha": "cacbab80daf0884bfac41139779257141d936aba",
+      "current_head_sha": "cacbab80daf0884bfac41139779257141d936aba",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-03T00:02:32.741Z",
+  "git_context": {
+    "head_sha": "cacbab80daf0884bfac41139779257141d936aba",
+    "current_branch": "codex/ontology-1-0-0-activation",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-03T00:02:32.731Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "final exact HEAD gate review"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "cacbab80daf0884bfac41139779257141d936aba",
+    "surface_files": [
+      {
+        "path": "config/ontology/brainbase-ontology.v1.json",
+        "sha256": "9d794651151e77c543f00160d705d55c11b4af7e4388114da6923cb567970db4",
+        "size": 31585
+      },
+      {
+        "path": "docs/management/stories/active/story-brainbase-ontology-production-activation.md",
+        "sha256": "b352003495904a786bd09c8976be77c8f7d4f0b98caf6b436981b958ca23818a",
+        "size": 4574
+      },
+      {
+        "path": "server/services/info-ssot-service.js",
+        "sha256": "09cdc905c25620ea97bcb5047f2754ef2ed992138cda9c03eb08ab9e4645cb58",
+        "size": 110948
+      },
+      {
+        "path": "tests/server/services/ontology-api.test.js",
+        "sha256": "f0c60be7b1f9b79fa5b4ed7244e595254c8e16974ab81460f6d1c2fc21426aa3",
+        "size": 20643
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "06d0c9f1f101702e619672916d87c996d5b711b6f8e20f035455aa8855421472"
+  },
+  "source_fingerprint": "097e7342080d73ac3f3cba0b9323637b3f42167ad2c74d3f34c8ad6b3d72e5ae",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "ontology_gate_evidence_cacbab80",
+    "agent_role": null,
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": "/root/ontology_gate_evidence_cacbab80",
+    "session_id": "/root/ontology_gate_evidence_cacbab80",
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-brainbase-ontology-production-activation/gate/transcript-gate_evidence-cacbab80.json",
+    "request_artifact": ".vibepro/reviews/story-brainbase-ontology-production-activation/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-brainbase-ontology-production-activation/gate/close-gate_evidence-cacbab80.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/ontology_gate_evidence_cacbab80",
+      "implementation_session_id": "/root",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

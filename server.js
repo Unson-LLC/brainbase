@@ -1,6 +1,3 @@
-// Load environment variables from shared + local .env files
-import dotenv from 'dotenv';
-import os from 'os';
 import express from 'express';
 import cors from 'cors';
 import { spawn, exec } from 'child_process';
@@ -9,19 +6,9 @@ import fs from 'fs/promises';
 import util from 'util';
 import { fileURLToPath } from 'url';
 import { readFileSync, existsSync } from 'fs';
+import { loadRuntimeEnv } from './lib/load-runtime-env.js';
 
-
-const envPaths = [
-    process.env.BRAINBASE_ENV_PATH,
-    path.join(os.homedir(), 'workspace', '.env'),
-    path.join(process.cwd(), '.env')
-].filter(Boolean);
-
-for (const envPath of envPaths) {
-    if (existsSync(envPath)) {
-        dotenv.config({ path: envPath, override: false });
-    }
-}
+loadRuntimeEnv();
 
 // Crash guards: log and keep running instead of silent death
 import { logger as crashLogger } from './server/utils/logger.js';
@@ -32,21 +19,21 @@ process.on('unhandledRejection', (reason) => {
     crashLogger.error('[CRASH] unhandledRejection:', reason);
 });
 
-import { resolveRuntimePaths, ensureShadowRuntimeLinks } from './lib/runtime-paths.js';
+import { resolveRuntimePaths } from './lib/runtime-paths.js';
 
 // Import services
 import { createCoreServices } from './server/bootstrap/core-services.js';
-import { initializeSessionRuntime } from './server/bootstrap/session-runtime-startup.js';
-import { createConsoleProxy } from './server/bootstrap/console-proxy.js';
 import { registerGracefulShutdown } from './server/bootstrap/graceful-shutdown.js';
 import { registerApiRoutes } from './server/bootstrap/register-api-routes.js';
 import { registerStaticRoutes } from './server/bootstrap/static-routes.js';
 import { assertAllowedServerEntrypoint } from './server/bootstrap/direct-launch-guard.js';
+import { BRAINBASE_CORS_OPTIONS } from './server/bootstrap/cors-options.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
-import { requireAuth, resolveAuthContext } from './server/middleware/auth.js';
+import { requireAuth } from './server/middleware/auth.js';
 import { errorHandler } from './server/middleware/error-handler.js';
+import { captureCandidateStoreRawBody } from './server/middleware/candidate-store-hmac.js';
 import { adminNoCacheMiddleware } from './server/routes/admin-visualization.js';
 
 // Import mesh modules (optional, enabled when MESH_RELAY_URL is set)
@@ -125,7 +112,7 @@ async function resolveGitInfo(repoDir) {
     };
 
     try {
-        const { stdout } = await execPromise(`git -C "${repoDir}" rev-parse --short HEAD`);
+        const { stdout } = await execPromise(`git -C "${repoDir}" rev-parse HEAD`);
         const sha = stdout.trim();
         if (sha) info.sha = sha;
     } catch (error) {
@@ -277,8 +264,6 @@ async function writePortFiles(port) {
 }
 
 // Configuration
-const STATE_FILE = RUNTIME_PATHS.stateFile;
-const WORKTREES_DIR = process.env.BRAINBASE_WORKTREES_DIR || path.join(BRAINBASE_ROOT, '.worktrees');
 const CODEX_PATH = path.join(__dirname, 'examples', 'codex');
 const CONFIG_PATH = existsSync(path.join(BRAINBASE_ROOT, 'config.yml'))
     ? path.join(BRAINBASE_ROOT, 'config.yml')
@@ -295,69 +280,69 @@ const ensureDir = async (dir) => {
 await ensureDir(BRAINBASE_ROOT);
 await ensureDir(VAR_DIR);
 await ensureDir(UPLOADS_DIR);
-await ensureShadowRuntimeLinks(RUNTIME_PATHS, console);
-
 const {
     googleCalendarService,
     scheduleParser,
-    stateStore,
     configParser,
     configService,
     infoSSOTService,
+    canonicalTaskStoreConfig,
+    canonicalTaskReadiness,
+    canonicalTaskOperationRepository,
+    canonicalTaskService,
     authService,
     wikiService,
     learningService,
     learningHealthService,
     candidateRepository,
-    worktreeService,
-    archiveFinalizer,
-    sessionServices,
-    tmuxCaptureCache,
-    terminalTransportService,
-    sessionActivityWsService,
-    conversationLinker,
+    onboardingRuntimeService,
     tokenUsageService,
-    workflowService,
+    agentControlCatalogService,
+    loopIntentService,
+    eveSessionDispatchService,
+    meetingAutomationService,
+    automationRunService,
+    runReceiptQueryService,
+    companionApprovalInboxService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
+    runReceiptIngestService,
     eveMeetingNoteReconciler,
     uploadMiddleware
 } = createCoreServices({
     varDir: VAR_DIR,
-    stateFile: STATE_FILE,
     brainbaseRoot: BRAINBASE_ROOT,
     projectsRoot: PROJECTS_ROOT,
-    worktreesDir: WORKTREES_DIR,
     codexPath: CODEX_PATH,
     configPath: CONFIG_PATH,
     uploadsDir: UPLOADS_DIR,
     serverDir: __dirname,
-    execPromise,
     port: PORT,
-    testMode: TEST_MODE
+    sourceHead: RUNTIME_INFO.git.sha
 });
+
+const canonicalTaskRuntime = await canonicalTaskReadiness.initialize();
+if (canonicalTaskRuntime.ready) {
+    console.log('[canonical-task] writer claimed and persisted readiness verified');
+} else {
+    console.warn(`[canonical-task] mutation disabled: ${canonicalTaskRuntime.reason}`);
+}
 
 // Middleware
 // Enable CORS for local network access and remote auth/api calls (local UI -> bb.unson.jp)
-app.use(cors({
-    origin: true,
-    credentials: true,
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-CSRF-Token', 'X-Session-Id'],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
-}));
+app.use(cors(BRAINBASE_CORS_OPTIONS));
 
 // Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
-app.use(express.json({ limit: '10mb' }));
+// Preserve the exact Candidate Store ingest bytes here because this application-
+// level parser consumes the stream before the mounted Candidate Store router.
+app.use(express.json({ limit: '10mb', verify: captureCandidateStoreRawBody }));
 
 // Security Headers Middleware
 app.use((req, res, next) => {
     // Content Security Policy
-    const scriptSrc = req.path === '/meeting-workflow-pack.html'
-        ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com"
-        : "script-src 'self' 'unsafe-inline' https://unpkg.com";
     res.setHeader('Content-Security-Policy', [
         "default-src 'self'",
-        scriptSrc,  // unpkg.com for Lucide icons CDN; meeting workflow prototype runtime needs unsafe-eval.
+        "script-src 'self' 'unsafe-inline' https://unpkg.com",  // unpkg.com for Lucide icons CDN.
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",  // Google Fonts CSS + xterm.css
         "font-src 'self' https://fonts.gstatic.com",  // Google Fonts files
         "img-src 'self' data:",
@@ -393,23 +378,14 @@ registerStaticRoutes(app, {
     log: console
 });
 
-void initializeSessionRuntime({
-    stateStore,
-    sessionServices,
-    archiveFinalizer,
-    conversationLinker,
-    testMode: TEST_MODE,
-    log: console
+app.use('/console', (_req, res) => {
+    res.status(410).json({
+        error: 'capability_retired',
+        capability: 'brainbase.console-proxy',
+        owner: 'Codex app and CLI',
+        replacement: 'Use the terminal attached to the Codex task'
+    });
 });
-
-const isWindows = process.platform === 'win32';
-const { enforceTerminalOwnership, ttydProxy, handleConsoleUpgrade } = createConsoleProxy({
-    sessionServices,
-    isWindows,
-    logger: console
-});
-
-app.use('/console', enforceTerminalOwnership, ttydProxy);
 
 // ========================================
 // MVC Router Registration (Phase 3)
@@ -421,33 +397,36 @@ app.use('/console', enforceTerminalOwnership, ttydProxy);
 const workspaceRoot = __dirname;
 
 app.get('/health/ready', (req, res) => {
-    const ready = sessionServices.runtime.registry.isReady();
-    res.status(ready ? 200 : 503).json({ ready });
+    res.status(200).json({ ready: true });
 });
 
 registerApiRoutes(app, {
-    stateStore,
-    sessionServices,
-    testMode: TEST_MODE,
     configParser,
     configService,
     runtimePaths: RUNTIME_PATHS,
     scheduleParser,
     googleCalendarService,
-    worktreeService,
-    conversationLinker,
     projectsRoot: PROJECTS_ROOT,
-    tmuxCaptureCache,
     authService,
     infoSSOTService,
+    canonicalTaskStoreConfig,
+    canonicalTaskService,
     learningService,
     learningHealthService,
     candidateRepository,
+    onboardingRuntimeService,
     wikiService,
     tokenUsageService,
-    workflowService,
+    agentControlCatalogService,
+    loopIntentService,
+    eveSessionDispatchService,
+    meetingAutomationService,
+    automationRunService,
+    runReceiptQueryService,
+    companionApprovalInboxService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
+    runReceiptIngestService,
     eveMeetingNoteReconciler,
     uploadMiddleware,
     appVersion: APP_VERSION,
@@ -582,49 +561,13 @@ const server = app.listen(PORT, async () => {
         console.log(`[eve-note-reconciler] scheduler not started: ${eveNoteReconcile.reason}`);
     }
 
-    // Non-blocking: cleanup zombie worktrees (forget済みだが物理ディレクトリが残ったもの)
-    worktreeService.cleanupZombieWorktrees(PROJECTS_ROOT).then((removed) => {
-        if (removed.length) {
-            console.log(`[startup] Cleaned up ${removed.length} zombie worktree(s): ${removed.join(', ')}`);
-        }
-    }).catch((err) => {
-        console.error(`[startup] Zombie worktree cleanup failed: ${err.message}`);
-    });
-});
-
-// Handle WebSocket Upgrades
-server.on('upgrade', (request, socket, head) => {
-    const authResult = resolveAuthContext(request, authService);
-    if (!authResult?.ok) {
-        // Cloudflare Tunnel経由はZero Trustで認証済みなのでバイパス
-        // localhost接続も開発環境でバイパス
-        request.auth = null;
-        request.access = { role: 'ceo', projectCodes: [], clearance: [], level: 3 };
-        request.authSource = 'ws-bypass';
-    } else {
-        request.auth = authResult.auth || null;
-        request.access = authResult.access || null;
-        request.authSource = authResult.authSource || null;
-    }
-
-    if (sessionActivityWsService?.isActivityWsRequest(request)) {
-        sessionActivityWsService.handleUpgrade(request, socket, head);
-        return;
-    }
-    if (terminalTransportService.isTerminalTransportRequest(request)) {
-        terminalTransportService.handleUpgrade(request, socket, head);
-        return;
-    }
-    handleConsoleUpgrade(request, socket, head);
 });
 
 registerGracefulShutdown({
     server,
-    stateStore,
-    conversationLinker,
-    sessionServices,
     meetingSourceMcpSyncService,
     eveMeetingNoteReconciler,
+    canonicalTaskOperationRepository,
     getMeshService: () => meshService,
     log: console
 });

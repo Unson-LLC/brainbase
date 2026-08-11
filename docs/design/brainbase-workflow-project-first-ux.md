@@ -2,12 +2,14 @@
 design_id: brainbase-workflow-project-first-ux
 story_id: story-brainbase-workflow-mission-control
 title: Brainbase Workflow Project-first UX
-status: proposed
+status: superseded
 created_at: 2026-06-01
-updated_at: 2026-06-01
+updated_at: 2026-07-16
 ---
 
 # Brainbase Workflow Project-first UX
+
+> Superseded by `docs/architecture/ADR-017-agent-first-product-surface.md`. この文書は既存Web UIの挙動を理解するための移行資料としてのみ保持する。新規UI投資や完成条件の正本にはしない。
 
 ## Intent
 

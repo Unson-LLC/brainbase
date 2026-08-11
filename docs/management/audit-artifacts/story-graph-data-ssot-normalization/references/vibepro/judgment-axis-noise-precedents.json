@@ -1,0 +1,74 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-judgment-axis-noise-precedent-ledger-v1",
+  "entries": [
+    {
+      "fingerprint": "scope_reviewability|graphify:related_files|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-graph-data-ssot-normalization",
+      "decision_id": "decision-1784390086400-9d400535",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "5ファイル4コミットはStory、script、tests、committed evidenceの一つのtransaction/rollback監査単位で、全コミットがStory専用。分割は正本判断と実行・復旧証跡の対応を切るため一体レビューを承認する。",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-07-18T16:14:14.050Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "public_contract|file_group:contract_docs|pr_route:runtime_change|text:public_contract",
+      "axis": "public_contract",
+      "story_id": "story-graph-data-ssot-normalization",
+      "decision_id": "decision-1784390085579-b65c7dff",
+      "source": "gate:judgment_axis_public_contract",
+      "reason": "旧IDは物理削除せずread可能なaliasとして保持し、canonical_entity_idとalias_of edgeを提供する。entity_typeがalias型へ変わる点は意図した正規化契約で、現行参照は0件、REST/MCP readbackとservice互換testがpass。未知の旧type filter consumerの残余リスクを明示して受け入れる。",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "activation_candidates": [
+        "pr_route:runtime_change",
+        "file_group:contract_docs",
+        "text:public_contract"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-07-18T16:14:14.050Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:810|graphify:related_files|mixed_surface:repo_control_with_product_change|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-graph-data-ssot-normalization",
+      "decision_id": "decision-1784390086400-9d400535",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "5ファイル4コミットはStory、script、tests、committed evidenceの一つのtransaction/rollback監査単位で、全コミットがStory専用。分割は正本判断と実行・復旧証跡の対応を切るため一体レビューを承認する。",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:810",
+        "mixed_surface:repo_control_with_product_change",
+        "graphify:related_files"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-07-18T17:28:43.399Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "public_contract|file_group:contract_docs|pr_route:config_or_agent_policy|text:public_contract",
+      "axis": "public_contract",
+      "story_id": "story-graph-data-ssot-normalization",
+      "decision_id": "decision-1784390085579-b65c7dff",
+      "source": "gate:judgment_axis_public_contract",
+      "reason": "旧IDは物理削除せずread可能なaliasとして保持し、canonical_entity_idとalias_of edgeを提供する。entity_typeがalias型へ変わる点は意図した正規化契約で、現行参照は0件、REST/MCP readbackとservice互換testがpass。未知の旧type filter consumerの残余リスクを明示して受け入れる。",
+      "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "activation_candidates": [
+        "pr_route:config_or_agent_policy",
+        "file_group:contract_docs",
+        "text:public_contract"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-07-18T17:28:43.399Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    }
+  ]
+}

@@ -1,0 +1,369 @@
+import crypto from 'crypto';
+
+const STATUS_TO_NOCO = Object.freeze({ pending: '未着手', in_progress: '進行中', waiting: '保留', completed: '完了' });
+const NOCO_TO_STATUS = Object.freeze({
+    ...Object.fromEntries(Object.entries(STATUS_TO_NOCO).map(([key, value]) => [value, key])),
+    '待ち': 'waiting'
+});
+const PRIORITY_TO_NOCO = Object.freeze({ low: '低', medium: '中', high: '高', urgent: '緊急' });
+const NOCO_TO_PRIORITY = Object.freeze(Object.fromEntries(Object.entries(PRIORITY_TO_NOCO).map(([key, value]) => [value, key])));
+
+function recordId(record) {
+    return record?.Id ?? record?.ID ?? record?.id ?? record?.RecordId ?? record?.recordId;
+}
+
+function fieldsOf(record) {
+    return record?.fields && typeof record.fields === 'object' ? { ...record.fields, Id: recordId(record) } : record;
+}
+
+function isoOrNull(value) {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function normalizeSourceReference(reference) {
+    const source = reference && typeof reference === 'object' ? reference : {};
+    const type = String(source.type || 'unknown');
+    const sourceId = source.id
+        || source.output_id
+        || source.step_id
+        || source.capture_id
+        || source.candidate_id
+        || crypto.createHash('sha256').update(JSON.stringify(source)).digest('hex').slice(0, 24);
+
+    return {
+        type,
+        id: String(sourceId),
+        url: typeof source.url === 'string' && source.url ? source.url : null
+    };
+}
+
+function normalizeSourceReferences(value) {
+    if (value == null || value === '') return { references: [], warnings: [] };
+    let parsed = value;
+    if (typeof value !== 'object') {
+        try {
+            parsed = JSON.parse(value);
+        } catch {
+            return {
+                references: [],
+                warnings: [{
+                    code: 'invalid_source_refs_json',
+                    message: 'Task source references contain invalid JSON'
+                }]
+            };
+        }
+    }
+    if (!Array.isArray(parsed)) {
+        return {
+            references: [],
+            warnings: [{
+                code: 'invalid_source_refs_shape',
+                message: 'Task source references must be an array'
+            }]
+        };
+    }
+    return { references: parsed.map(normalizeSourceReference), warnings: [] };
+}
+
+function encodeCursor(offset) {
+    return Buffer.from(JSON.stringify({ v: 1, offset }), 'utf8').toString('base64url');
+}
+
+export function decodeCanonicalTaskCursor(cursor) {
+    if (!cursor) return 0;
+    try {
+        const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+        if (value?.v !== 1 || !Number.isInteger(value.offset) || value.offset < 0) throw new Error();
+        return value.offset;
+    } catch {
+        const error = new Error('Invalid cursor');
+        error.code = 'validation_failed';
+        error.status = 422;
+        error.fieldErrors = { cursor: ['invalid_cursor'] };
+        throw error;
+    }
+}
+
+export class CanonicalTaskNocoDBRepository {
+    constructor({
+        storeConfig,
+        fetchImpl = fetch,
+        baseUrl = process.env.NOCODB_URL || 'https://noco.unson.jp',
+        apiToken = process.env.NOCODB_TOKEN,
+        idSecret,
+        readAfterWriteDelaysMs = [150, 500]
+    } = {}) {
+        if (!storeConfig) throw new Error('Canonical Task store config is required');
+        this.storeConfig = storeConfig;
+        this.fetch = fetchImpl;
+        this.baseUrl = baseUrl.replace(/\/$/, '');
+        this.apiToken = apiToken;
+        this.idSecret = idSecret || process.env.CANONICAL_TASK_ID_SECRET || process.env.AUTH_SESSION_SECRET;
+        if (!this.idSecret) {
+            throw new Error('Canonical Task opaque ID secret is not configured');
+        }
+        this.readAfterWriteDelaysMs = readAfterWriteDelaysMs;
+    }
+
+    headers(json = false) {
+        if (!this.apiToken) {
+            const error = new Error('NocoDB token is not configured');
+            error.code = 'task_store_unavailable';
+            error.status = 503;
+            throw error;
+        }
+        return { 'xc-token': this.apiToken, ...(json ? { 'Content-Type': 'application/json' } : {}) };
+    }
+
+    async request(path, options = {}) {
+        const response = await this.fetch(`${this.baseUrl}${path}`, {
+            ...options,
+            headers: { ...this.headers(Boolean(options.body)), ...(options.headers || {}) }
+        });
+        if (response.status === 404) return null;
+        if (!response.ok) {
+            const error = new Error(`NocoDB Task store failed: ${response.status}`);
+            error.code = 'task_store_unavailable';
+            error.status = 503;
+            throw error;
+        }
+        if (response.status === 204) return null;
+        return response.json();
+    }
+
+    encodeId(id) {
+        const payload = Buffer.from(JSON.stringify({
+            v: this.storeConfig.schemaVersion,
+            b: this.storeConfig.baseId,
+            t: this.storeConfig.tableId,
+            r: String(id)
+        }), 'utf8').toString('base64url');
+        const signature = crypto.createHmac('sha256', this.idSecret).update(payload).digest('base64url');
+        return `ct1.${payload}.${signature}`;
+    }
+
+    decodeId(taskId) {
+        try {
+            const [prefix, payload, signature] = String(taskId).split('.');
+            const expected = crypto.createHmac('sha256', this.idSecret).update(payload).digest('base64url');
+            if (prefix !== 'ct1' || !signature || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) throw new Error();
+            const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+            if (decoded.v !== this.storeConfig.schemaVersion || decoded.b !== this.storeConfig.baseId || decoded.t !== this.storeConfig.tableId || !decoded.r) throw new Error();
+            return decoded.r;
+        } catch {
+            const error = new Error('Task not found');
+            error.code = 'task_not_found';
+            error.status = 404;
+            throw error;
+        }
+    }
+
+    normalize(record) {
+        if (!record) return null;
+        const fields = fieldsOf(record);
+        const id = recordId(fields);
+        if (id == null) return null;
+        const warnings = [];
+        let status = NOCO_TO_STATUS[fields['ステータス']] || fields.status;
+        let priority = NOCO_TO_PRIORITY[fields['優先度']] || fields.priority;
+        if (!['pending', 'in_progress', 'waiting', 'completed'].includes(status)) {
+            warnings.push({ code: 'unknown_status', message: `Unknown Task status: ${fields['ステータス'] || status || ''}` });
+            status = String(fields['ステータス'] || status || 'unknown');
+        }
+        if (!['low', 'medium', 'high', 'urgent'].includes(priority)) {
+            warnings.push({ code: 'unknown_priority', message: `Unknown Task priority: ${fields['優先度'] || priority || ''}` });
+            priority = String(fields['優先度'] || priority || 'unknown');
+        }
+        const assigneePersonId = fields['担当者PersonID'] || fields.assignee_person_id || null;
+        if (!assigneePersonId && (fields['担当者'] || fields.assignee_display_name)) {
+            warnings.push({ code: 'assignee_unresolved', message: 'Legacy assignee has no Graph person ID' });
+        }
+        const sourceReferences = normalizeSourceReferences(fields['ソース参照'] ?? fields.source_refs);
+        warnings.push(...sourceReferences.warnings);
+        const task = {
+            id: this.encodeId(id),
+            version: Number(fields['バージョン'] ?? fields.version ?? 1),
+            title: String(fields['タイトル'] ?? fields.title ?? ''),
+            description: fields['説明'] ?? fields.description ?? null,
+            status,
+            priority,
+            assignee_person_id: assigneePersonId,
+            assignee_display_name: fields['担当者'] || fields.assignee_display_name || null,
+            due_at: isoOrNull(fields['期限'] ?? fields.due_at),
+            waiting_on: fields['待ち理由'] ?? fields.waiting_on ?? null,
+            review_at: isoOrNull(fields['レビュー日時'] ?? fields.review_at),
+            completed_at: isoOrNull(fields['完了日時'] ?? fields.completed_at),
+            source_refs: sourceReferences.references,
+            created_at: isoOrNull(fields['CreatedAt'] ?? fields['作成日時'] ?? fields.created_at) || new Date(0).toISOString(),
+            updated_at: isoOrNull(fields['UpdatedAt'] ?? fields['更新日時'] ?? fields.updated_at) || new Date(0).toISOString(),
+            web_url: `${this.baseUrl}/dashboard/#/nc/${this.storeConfig.baseId}/${this.storeConfig.tableId}`,
+            normalization_warnings: warnings
+        };
+        Object.defineProperty(task, '_payload_fingerprint', {
+            value: fields['Payload Fingerprint'] || fields.payload_fingerprint || null,
+            enumerable: false
+        });
+        Object.defineProperty(task, '_last_operation_key', {
+            value: fields['最終操作キー'] || fields.last_operation_key || null,
+            enumerable: false
+        });
+        Object.defineProperty(task, '_last_operation_fingerprint', {
+            value: fields['最終操作Fingerprint'] || fields.last_operation_fingerprint || null,
+            enumerable: false
+        });
+        return task;
+    }
+
+    async allRecords() {
+        const pageSize = 1000;
+        const records = [];
+        const pageSignatures = new Set();
+        let offset = 0;
+        let expectedTotal = null;
+        while (true) {
+            const data = await this.request(
+                `/api/v2/tables/${this.storeConfig.tableId}/records?limit=${pageSize}&offset=${offset}`
+            );
+            const page = Array.isArray(data?.list) ? data.list : (Array.isArray(data) ? data : []);
+            const totalRows = Number(data?.pageInfo?.totalRows);
+            if (Number.isInteger(totalRows) && totalRows >= 0) expectedTotal = totalRows;
+
+            if (page.length === pageSize) {
+                const signature = `${recordId(fieldsOf(page[0]))}:${recordId(fieldsOf(page.at(-1)))}:${page.length}`;
+                if (pageSignatures.has(signature)) {
+                    const error = new Error('NocoDB Task pagination did not advance');
+                    error.code = 'task_store_unavailable';
+                    error.status = 503;
+                    throw error;
+                }
+                pageSignatures.add(signature);
+            }
+            records.push(...page);
+
+            const isLastPage = data?.pageInfo?.isLastPage === true;
+            const reachedTotal = expectedTotal !== null && records.length >= expectedTotal;
+            const shortPage = page.length < pageSize;
+            if (isLastPage || reachedTotal || shortPage) {
+                if (expectedTotal !== null && records.length < expectedTotal) {
+                    const error = new Error('NocoDB Task pagination ended before all rows were read');
+                    error.code = 'task_store_unavailable';
+                    error.status = 503;
+                    throw error;
+                }
+                return records;
+            }
+            offset += page.length;
+        }
+    }
+
+    async list({ statuses = [], priorities = [], assigneePersonId, dueAfter, dueBefore, cursor, limit = 50 } = {}) {
+        const offset = decodeCanonicalTaskCursor(cursor);
+        const items = (await this.allRecords()).map((record) => this.normalize(record)).filter(Boolean).filter((task) => {
+            if (statuses.length && !statuses.includes(task.status)) return false;
+            if (priorities.length && !priorities.includes(task.priority)) return false;
+            if (assigneePersonId !== undefined && task.assignee_person_id !== assigneePersonId) return false;
+            if (dueAfter && (!task.due_at || task.due_at < dueAfter)) return false;
+            if (dueBefore && (!task.due_at || task.due_at > dueBefore)) return false;
+            return true;
+        });
+        const page = items.slice(offset, offset + limit);
+        return {
+            items: page,
+            totalCount: items.length,
+            countStatus: 'exact',
+            readStatus: 'complete',
+            nextCursor: offset + limit < items.length ? encodeCursor(offset + limit) : null
+        };
+    }
+
+    async get(taskId) {
+        const id = this.decodeId(taskId);
+        const records = await this.allRecords();
+        return this.normalize(records.find((record) => String(recordId(fieldsOf(record))) === String(id)) || null);
+    }
+
+    async findByIdempotencyKey(key) {
+        const records = await this.allRecords();
+        return this.normalize(records.find((record) => fieldsOf(record)['冪等キー'] === key) || null);
+    }
+
+    async readAfterWrite(readOperation) {
+        let lastError = null;
+        for (let attempt = 0; attempt <= this.readAfterWriteDelaysMs.length; attempt += 1) {
+            try {
+                const result = await readOperation();
+                if (result) return result;
+            } catch (error) {
+                if (error?.code !== 'task_store_unavailable') throw error;
+                lastError = error;
+            }
+            if (attempt < this.readAfterWriteDelaysMs.length) {
+                await new Promise(resolve => setTimeout(resolve, this.readAfterWriteDelaysMs[attempt]));
+            }
+        }
+        if (lastError) throw lastError;
+        return null;
+    }
+
+    toFields(input) {
+        const fields = {};
+        const assign = (key, value) => { if (value !== undefined) fields[key] = value; };
+        assign('タイトル', input.title);
+        assign('説明', input.description);
+        assign('ステータス', input.status ? STATUS_TO_NOCO[input.status] : undefined);
+        assign('優先度', input.priority ? PRIORITY_TO_NOCO[input.priority] : undefined);
+        assign('担当者PersonID', input.assignee_person_id);
+        assign('担当者', input.assignee_display_name);
+        assign('期限', input.due_at);
+        assign('待ち理由', input.waiting_on);
+        assign('レビュー日時', input.review_at);
+        assign('完了日時', input.completed_at);
+        assign('ソース参照', input.source_refs === undefined ? undefined : JSON.stringify(input.source_refs));
+        assign('バージョン', input.version);
+        assign('冪等キー', input.idempotency_key);
+        assign('Payload Fingerprint', input.payload_fingerprint);
+        assign('最終操作キー', input.last_operation_key);
+        assign('最終操作Fingerprint', input.last_operation_fingerprint);
+        return fields;
+    }
+
+    async create(input) {
+        const data = await this.request(`/api/v2/tables/${this.storeConfig.tableId}/records`, {
+            method: 'POST', body: JSON.stringify(this.toFields(input))
+        });
+        const record = Array.isArray(data?.list) ? data.list[0] : (Array.isArray(data) ? data[0] : data);
+        const id = recordId(fieldsOf(record));
+        if (id != null) {
+            const persisted = await this.readAfterWrite(() => this.get(this.encodeId(String(id))));
+            if (persisted) return persisted;
+        }
+        const replay = await this.readAfterWrite(() => this.findByIdempotencyKey(input.idempotency_key));
+        if (replay) return replay;
+        const error = new Error('Created NocoDB Task could not be read back');
+        error.code = 'task_store_unavailable';
+        error.status = 503;
+        throw error;
+    }
+
+    async update(taskId, input) {
+        const id = this.decodeId(taskId);
+        await this.request(`/api/v2/tables/${this.storeConfig.tableId}/records`, {
+            method: 'PATCH', body: JSON.stringify({ Id: /^\d+$/.test(id) ? Number(id) : id, ...this.toFields(input) })
+        });
+        const persisted = await this.readAfterWrite(() => this.get(taskId));
+        if (persisted) return persisted;
+        const error = new Error('Updated NocoDB Task could not be read back');
+        error.code = 'task_store_unavailable';
+        error.status = 503;
+        throw error;
+    }
+
+    async delete(taskId) {
+        const id = this.decodeId(taskId);
+        await this.request(`/api/v2/tables/${this.storeConfig.tableId}/records`, {
+            method: 'DELETE', body: JSON.stringify({ Id: /^\d+$/.test(id) ? Number(id) : id })
+        });
+    }
+}

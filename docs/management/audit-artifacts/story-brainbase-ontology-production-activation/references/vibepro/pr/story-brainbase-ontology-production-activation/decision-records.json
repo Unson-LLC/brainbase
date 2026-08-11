@@ -1,0 +1,2685 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-decision-records-v1",
+  "story_id": "story-brainbase-ontology-production-activation",
+  "updated_at": "2026-08-03T03:53:11.082Z",
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "decision record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-ontology-production-completion",
+      "actual_root": "/private/tmp/brainbase-ontology-production-completion",
+      "expected_root": null,
+      "expected_head_sha": "5f1a34f615520fed59d3d1f691c279560343508d",
+      "current_head_sha": "5f1a34f615520fed59d3d1f691c279560343508d",
+      "managed_worktree": null
+    }
+  ],
+  "decisions": [
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785729191082-742ac35d",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_public_contract",
+      "source_status": "needs_evidence",
+      "summary": "Docs-only completion preserves the public contract",
+      "reason": "Current HEAD changes only the Story completion checkbox/frontmatter and a non-secret audit JSON. There is no code, API, CLI, configuration, response-format, or PR contract change. The current-head E2E contract test passes all 3 scenarios, integration passes 58 checks, and independent judgment marked axis:public_contract judged_sound.",
+      "reviewer": "Sato recommendation authorization",
+      "artifact": "tests/e2e/story-brainbase-ontology-production-activation-contract.spec.ts",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-completion",
+          "actual_root": "/private/tmp/brainbase-ontology-production-completion",
+          "expected_root": null,
+          "expected_head_sha": "5f1a34f615520fed59d3d1f691c279560343508d",
+          "current_head_sha": "5f1a34f615520fed59d3d1f691c279560343508d",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "5f1a34f615520fed59d3d1f691c279560343508d",
+        "current_branch": "codex/ontology-production-activation-completion",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-03T03:53:11.075Z"
+      },
+      "recorded_at": "2026-08-03T03:53:11.082Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785729150745-18ee4931",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:judgment_agent_workflow_evidence_lifecycle",
+      "source_status": "needs_review",
+      "summary": "Current-head independent reviews completed but VibePro dispatch budget prevents lifecycle authorization",
+      "reason": "Three independent Codex reviews passed against HEAD 5f1a34f with no findings, but VibePro review authorize stops with budget_exceeded because this long-lived Story has exhausted its dispatch budget. Current-head unit, typecheck, integration, E2E, production readback, and 11-item independent judgment all pass. Accept the lifecycle recording exception for this docs-only closure; do not treat old-head review artifacts as current evidence.",
+      "reviewer": "Sato recommendation authorization",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/production-activation-completion-2026-08-03.json",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-completion",
+          "actual_root": "/private/tmp/brainbase-ontology-production-completion",
+          "expected_root": null,
+          "expected_head_sha": "5f1a34f615520fed59d3d1f691c279560343508d",
+          "current_head_sha": "5f1a34f615520fed59d3d1f691c279560343508d",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "5f1a34f615520fed59d3d1f691c279560343508d",
+        "current_branch": "codex/ontology-production-activation-completion",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-03T03:52:30.733Z"
+      },
+      "recorded_at": "2026-08-03T03:52:30.745Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785728408295-2b549d9e",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "architecture",
+      "source_status": "needs_review",
+      "summary": "Docs-only本番完了記録に新規ADRは不要",
+      "reason": "この変更は既存のOntology Kernelアーキテクチャや実行境界を変更せず、本番反映済み実装の完了状態と監査証跡だけを記録する。現HEADについて独立architecture reviewもpassしているため、新規ADR作成は非該当と判断する。",
+      "reviewer": "Codex",
+      "artifact": "docs/architecture/story-brainbase-ontology-production-activation-architecture.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/ci-evidence/Verify_committed_VibePro_score_evidence.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-completion",
+          "actual_root": "/private/tmp/brainbase-ontology-production-completion",
+          "expected_root": null,
+          "expected_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+          "current_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+        "current_branch": "codex/ontology-production-activation-completion",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-03T03:40:08.291Z"
+      },
+      "recorded_at": "2026-08-03T03:40:08.296Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785727710206-9e0460c9",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "noise",
+      "status": "accepted",
+      "source": "architecture",
+      "source_status": "needs_review",
+      "summary": "Docs-only完了記録に新規ADR要求を適用しない",
+      "reason": "差分はaccepted Architecture/Specに従った本番結果の記録のみで、境界、依存、public contract、runtime topologyを変更しない",
+      "reviewer": "Codex",
+      "artifact": "docs/architecture/story-brainbase-ontology-production-activation.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/ci-evidence/Verify_committed_VibePro_score_evidence.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-completion",
+          "actual_root": "/private/tmp/brainbase-ontology-production-completion",
+          "expected_root": null,
+          "expected_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+          "current_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+        "current_branch": "codex/ontology-production-activation-completion",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-03T03:28:30.201Z"
+      },
+      "recorded_at": "2026-08-03T03:28:30.206Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785727707518-1cb402a5",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "noise",
+      "status": "accepted",
+      "source": "gate:bug_physics_deployment_version_stamp",
+      "source_status": "needs_evidence",
+      "summary": "Docs-only completion recordに実装時deployment bug gateを再適用しない",
+      "reason": "本番running SHAとmerge SHAの一致はcompletion JSONで実証済み。current HEADはその結果記録だけでdeployment artifactを変更しない",
+      "reviewer": "Codex",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/production-activation-completion-2026-08-03.json",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/ci-evidence/Verify_committed_VibePro_score_evidence.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-completion",
+          "actual_root": "/private/tmp/brainbase-ontology-production-completion",
+          "expected_root": null,
+          "expected_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+          "current_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+        "current_branch": "codex/ontology-production-activation-completion",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-03T03:28:27.513Z"
+      },
+      "recorded_at": "2026-08-03T03:28:27.518Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785727705490-162a5442",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "noise",
+      "status": "accepted",
+      "source": "gate:bug_physics_observability_signal_source",
+      "source_status": "needs_evidence",
+      "summary": "Docs-only completion recordに実装時observability bug gateを再適用しない",
+      "reason": "本番signal sourceはcompletion JSONへ固定済みで、current HEADの差分はそのreadback記録のみ。runtime/data flowの変更はない",
+      "reviewer": "Codex",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/production-activation-completion-2026-08-03.json",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/ci-evidence/Verify_committed_VibePro_score_evidence.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-completion",
+          "actual_root": "/private/tmp/brainbase-ontology-production-completion",
+          "expected_root": null,
+          "expected_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+          "current_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+        "current_branch": "codex/ontology-production-activation-completion",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-03T03:28:25.487Z"
+      },
+      "recorded_at": "2026-08-03T03:28:25.490Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785727396659-5b4180a5",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "architecture",
+      "source_status": "needs_review",
+      "summary": "新規ADRは不要で、既存accepted Architecture/Spec内の運用完了記録として閉じる",
+      "reason": "closure commitは本番結果の記録だけで境界・runtime topology・public contractを変更せず、既存Architecture readinessはcurrent HEADでready",
+      "reviewer": "codex",
+      "artifact": "docs/architecture/story-brainbase-ontology-production-activation.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "fail"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/ci-evidence/Verify_committed_VibePro_score_evidence.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-completion",
+          "actual_root": "/private/tmp/brainbase-ontology-production-completion",
+          "expected_root": null,
+          "expected_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+          "current_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+        "current_branch": "codex/ontology-production-activation-completion",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-03T03:23:16.656Z"
+      },
+      "recorded_at": "2026-08-03T03:23:16.659Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785727394859-cb6d3f8f",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:bug_physics_deployment_version_stamp",
+      "source_status": "needs_evidence",
+      "summary": "merge commitと本番running checkoutのSHA完全一致をversion stampとする",
+      "reason": "merged_shaとproduction_running_shaが3701d1b9で一致し、current 1.0.0とdigest/signature readbackも同じ完了証跡にある",
+      "reviewer": "codex",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/production-activation-completion-2026-08-03.json",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "fail"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/ci-evidence/Verify_committed_VibePro_score_evidence.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-completion",
+          "actual_root": "/private/tmp/brainbase-ontology-production-completion",
+          "expected_root": null,
+          "expected_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+          "current_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+        "current_branch": "codex/ontology-production-activation-completion",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-03T03:23:14.855Z"
+      },
+      "recorded_at": "2026-08-03T03:23:14.859Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785727392566-904fe86b",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:bug_physics_observability_signal_source",
+      "source_status": "needs_evidence",
+      "summary": "本番監視の正本をsystemd状態、health/current API、restart後journal、READ ONLY DB完全監査に固定する",
+      "reason": "完了証跡はactive/running、healthy、journal対象エラー0、collection completeかつviolation 0を同一runtime SHAへ結合している",
+      "reviewer": "codex",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/production-activation-completion-2026-08-03.json",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/ci-evidence/Verify_committed_VibePro_score_evidence.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-completion",
+          "actual_root": "/private/tmp/brainbase-ontology-production-completion",
+          "expected_root": null,
+          "expected_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+          "current_head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "bf4b887d958955848b2da9a32a724ef4f59ca4cc",
+        "current_branch": "codex/ontology-production-activation-completion",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-03T03:23:12.562Z"
+      },
+      "recorded_at": "2026-08-03T03:23:12.566Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785725244093-73462958",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_rollback_sensitive",
+      "source_status": "needs_evidence",
+      "summary": "Rollback boundary accepted for premerge: restore previous Git SHA, restart, verify [REDACTED:4e33f90f64d4] and full audit before completion",
+      "reason": "独立checkoutのupgrade/downgrade rehearsal、current=null/proposed/receipt absentへの復元、release verifier成功を現HEADで確認。本番rollback readbackはデプロイ後Done evidenceとして別に必須とする。",
+      "reviewer": "Sato-approved recommended path",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/rollback-rehearsal-2026-08-03.json",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": true,
+        "hit_count": 1
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+          "current_head_sha": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "14cde655b85e897a13710ebb2d27e3e85b669ce5",
+        "current_branch": "codex/ontology-1-0-0-activation-lineage",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-03T02:47:24.090Z"
+      },
+      "recorded_at": "2026-08-03T02:47:24.093Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785717846247-c838ab6f",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "budget:delivery_efficiency:story-brainbase-ontology-production-activation",
+      "source_status": null,
+      "summary": "最終HEADのgate_evidenceレビュー1回分を追加承認",
+      "reason": "Story/Specと証跡taxonomyを閉じた最終HEADに対して独立レビューを取り直す。品質Gate、CI、本番readbackのwaiverは行わない。",
+      "reviewer": "佐藤圭吾",
+      "artifact": null,
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": {
+        "story_id": "story-brainbase-ontology-production-activation",
+        "override_digest": "e99dbb046597ad0f153e36743f1d04a5186dce251e5fde5c8dab9539e74c14a5",
+        "grantor_kind": "human",
+        "grantor": "佐藤圭吾",
+        "recorded_by": {
+          "agent_system": "codex",
+          "agent_id": "/root"
+        },
+        "config_ref": ".vibepro/config.json",
+        "decision_doc": "docs/management/decisions/2026-08-03-budget-override-story-brainbase-ontology-production-activation-e99dbb04.md"
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "6cea0ae91a9c0052335f5a70fac960fe6316de9e",
+          "current_head_sha": "6cea0ae91a9c0052335f5a70fac960fe6316de9e",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "6cea0ae91a9c0052335f5a70fac960fe6316de9e",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": true,
+        "status_fingerprint": " M docs/specs/brainbase-ontology-production-activation.md\nM docs/management/stories/active/story-brainbase-ontology-production-activation.md",
+        "recorded_at": "2026-08-03T00:44:06.244Z"
+      },
+      "recorded_at": "2026-08-03T00:44:06.247Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785717060313-8413ccb6",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "budget:delivery_efficiency:story-brainbase-ontology-production-activation",
+      "source_status": "accepted",
+      "summary": "並行commit修正後の同一HEAD最終レビューと判断監査の追加予算を承認",
+      "reason": "2026-08-03にユーザーが全推奨対応を承認。新規集約のPostgreSQL並行競合修正を同一HEADで再審査し、残る判断項目を独立監査する。品質・本番有効化ゲートの免除は含まない。",
+      "reviewer": "ksato",
+      "artifact": null,
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": {
+        "story_id": "story-brainbase-ontology-production-activation",
+        "override_digest": "1d9a2a92de5a8077eb427823b0bf74bc051bf3c6ad82dfbfd51df48dc836645c",
+        "grantor_kind": "human",
+        "grantor": "ksato",
+        "recorded_by": {
+          "agent_system": "codex",
+          "agent_id": "/root"
+        },
+        "config_ref": ".vibepro/config.json",
+        "decision_doc": "docs/management/decisions/2026-08-03-budget-override-story-brainbase-ontology-production-activation-1d9a2a92.md"
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "ffb8375d21a0c8321d0d6a56a29225a1fd201341",
+          "current_head_sha": "ffb8375d21a0c8321d0d6a56a29225a1fd201341",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "ffb8375d21a0c8321d0d6a56a29225a1fd201341",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-03T00:31:00.310Z"
+      },
+      "recorded_at": "2026-08-03T00:31:00.313Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785716218284-41bc6f38",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "budget:delivery_efficiency:story-brainbase-ontology-production-activation",
+      "source_status": "accepted",
+      "summary": "公開commitのcardinality bypass修正後に最終current-HEADレビューを1回追加する",
+      "reason": "ユーザーが2026-08-03に全推奨案を承認。品質ゲートは維持し、activation waiverは行わない。",
+      "reviewer": "ksato",
+      "artifact": null,
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": {
+        "story_id": "story-brainbase-ontology-production-activation",
+        "override_digest": "caf6b5fb2f7b117706f748c51d072d19c60e07cf3f9b86f63374c48701649bc2",
+        "grantor_kind": "human",
+        "grantor": "ksato",
+        "recorded_by": {
+          "agent_system": "codex",
+          "agent_id": "/root"
+        },
+        "config_ref": ".vibepro/config.json",
+        "decision_doc": "docs/management/decisions/2026-08-03-budget-override-story-brainbase-ontology-production-activation-caf6b5fb.md"
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "3a94cf688ed2534ccb3007304c96a1dfcfd6c523",
+          "current_head_sha": "3a94cf688ed2534ccb3007304c96a1dfcfd6c523",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "3a94cf688ed2534ccb3007304c96a1dfcfd6c523",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-03T00:16:58.282Z"
+      },
+      "recorded_at": "2026-08-03T00:16:58.285Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785715534021-a7cd77be",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "budget:delivery_efficiency:story-brainbase-ontology-production-activation",
+      "source_status": "accepted",
+      "summary": "修正後のexact HEAD独立Gateレビューを1回追加する",
+      "reason": "佐藤圭吾が全部推奨通りでよいと承認済み。独立レビューが検出したactive Decision部分edge再検証回帰を修正したため、block解除判断にreplacement reviewが必須。merge、deploy、activationの品質Gateは維持する。",
+      "reviewer": "sato_keigo",
+      "artifact": null,
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": {
+        "story_id": "story-brainbase-ontology-production-activation",
+        "override_digest": "59266a0771547eb54d499f15b4e891921d77da0f5713f31cbefcfce68ef7346e",
+        "grantor_kind": "human",
+        "grantor": "sato_keigo",
+        "recorded_by": {
+          "agent_system": "codex",
+          "agent_id": "/root"
+        },
+        "config_ref": ".vibepro/config.json",
+        "decision_doc": "docs/management/decisions/2026-08-03-budget-override-story-brainbase-ontology-production-activation-59266a07.md"
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "fb93d0c4ced28d5a4ebd477fba149ab44d7cfeb7",
+          "current_head_sha": "fb93d0c4ced28d5a4ebd477fba149ab44d7cfeb7",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "fb93d0c4ced28d5a4ebd477fba149ab44d7cfeb7",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-03T00:05:34.019Z"
+      },
+      "recorded_at": "2026-08-03T00:05:34.022Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785714854453-9423bc89",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "budget:delivery_efficiency:story-brainbase-ontology-production-activation",
+      "source_status": "needs_review",
+      "summary": "最終修正後の現HEAD独立Gateレビューを1回追加する",
+      "reason": "佐藤圭吾が2026-08-03に「全部推奨通りでいいよ」と明示承認。集約Graph検証、関係cardinality直列化、Learning Graph昇格transaction境界の最終修正後にexact HEADの独立gate_evidenceレビューが必要なため、上限5→6のみ承認する。merge、deploy、activationの品質Gateは維持する。",
+      "reviewer": "sato_keigo",
+      "artifact": null,
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": {
+        "story_id": "story-brainbase-ontology-production-activation",
+        "override_digest": "19b73c542370d0100c8c02a83c3de7c2c1dafe7233ff559aecf9d9c139a5cb93",
+        "grantor_kind": "human",
+        "grantor": "sato_keigo",
+        "recorded_by": {
+          "agent_system": "codex",
+          "agent_id": "/root"
+        },
+        "config_ref": ".vibepro/config.json",
+        "decision_doc": "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-activation-19b73c54.md"
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "c1b7951293d3f62e1e041cd4cc163319a0caab13",
+          "current_head_sha": "c1b7951293d3f62e1e041cd4cc163319a0caab13",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "c1b7951293d3f62e1e041cd4cc163319a0caab13",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T23:54:14.450Z"
+      },
+      "recorded_at": "2026-08-02T23:54:14.453Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785713414285-69245d24",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:review_surface_integrity:rsv-382427760a6e897c",
+      "source_status": null,
+      "summary": "runtime_contract reviewerは開始HEAD 6a6ba1aaのGraph promotion認証境界を検査し、未認証・actor偽装のblocking findingを返した。",
+      "reason": "レビュー中にfinding修正commit 486e7372へHEADが移動したためsurface violationが記録された。findingを隠す変更ではなく、指摘に直接対応した認証修正である。旧レビューは閉じ、修正後のexact HEAD eaa15d11で別sessionのGate reviewを再実施してpassを得たため、この履歴を承認する。品質Gateや本番確認は免除しない。",
+      "reviewer": null,
+      "artifact": ".vibepro/reviews/story-brainbase-ontology-production-activation/implementation/transcript-runtime_contract-6a6ba1aa.json",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+          "current_head_sha": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "eaa15d11ddc3b8778ce60388ef0c34f63742fa7b",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T23:30:14.283Z"
+      },
+      "recorded_at": "2026-08-02T23:30:14.285Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785712909518-b2426861",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "budget:delivery_efficiency:story-brainbase-ontology-production-activation",
+      "source_status": "needs_review",
+      "summary": "認証修正後の現HEAD独立Gateレビューを1回追加する",
+      "reason": "佐藤圭吾が2026-08-03に「全部推奨通りでいいよ」と明示承認。独立runtime監査で未認証Graph昇格経路が判明し486e7372で修正したため、Gate免除ではなく現HEADの独立gate_evidenceレビューを1回追加する。範囲はgate_evidence上限4→5のみ。merge、deploy、activationの品質Gateは維持する。",
+      "reviewer": "sato_keigo",
+      "artifact": null,
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": {
+        "story_id": "story-brainbase-ontology-production-activation",
+        "override_digest": "ac9b611e15caa42cb790bf8e04ba659ff743cc6056080d0dffa1aca60768d398",
+        "grantor_kind": "human",
+        "grantor": "sato_keigo",
+        "recorded_by": {
+          "agent_system": "codex",
+          "agent_id": "/root"
+        },
+        "config_ref": ".vibepro/config.json",
+        "decision_doc": "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-activation-ac9b611e.md"
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "486e737207cce2c7801d02b75ddb0b6098bbfbce",
+          "current_head_sha": "486e737207cce2c7801d02b75ddb0b6098bbfbce",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "486e737207cce2c7801d02b75ddb0b6098bbfbce",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T23:21:49.516Z"
+      },
+      "recorded_at": "2026-08-02T23:21:49.519Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785712165253-2c4b9058",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:review_surface_integrity:rsv-3ed02381a493eb5b",
+      "source_status": "failed",
+      "summary": "98ceb review inspected the pre-fix writer surface and returned needs_changes; it was superseded by the strict-HEAD 6a6ba1aa review after those findings were fixed",
+      "reason": "HEAD changed only to resolve the independent review findings; the old lifecycle was cancelled and replaced with preserved transcript, and the current frozen candidate review passes",
+      "reviewer": "佐藤圭吾（推奨案一括承認）",
+      "artifact": ".vibepro/reviews/story-brainbase-ontology-production-activation/architecture_spec/transcript-architecture_boundary-98ceb.json",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "6a6ba1aa83af60323e7bd6cf5ed2ce30103e287a",
+          "current_head_sha": "6a6ba1aa83af60323e7bd6cf5ed2ce30103e287a",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "6a6ba1aa83af60323e7bd6cf5ed2ce30103e287a",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T23:09:25.250Z"
+      },
+      "recorded_at": "2026-08-02T23:09:25.253Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785709428259-213cf148",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:review_surface_integrity:rsv-7afb6633a0cec404",
+      "source_status": null,
+      "summary": "reviewerは4094d時点の配布予算と有効化境界を検査し、指摘を2a38と7afで反映した。旧レビュー結果は現HEADへ再利用していない。",
+      "reason": "レビュー所見を実装したためHEADが変化した。現HEAD 818f4d0eは新しい独立レビューで再評価する。",
+      "reviewer": "佐藤圭吾",
+      "artifact": ".vibepro/reviews/story-brainbase-ontology-production-activation/surface-violations.json",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "818f4d0e60ca833579a11d4598ba7c5c180ff8c5",
+          "current_head_sha": "818f4d0e60ca833579a11d4598ba7c5c180ff8c5",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "818f4d0e60ca833579a11d4598ba7c5c180ff8c5",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T22:23:48.256Z"
+      },
+      "recorded_at": "2026-08-02T22:23:48.259Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785707200197-a61f949c",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "budget:delivery_efficiency:story-brainbase-ontology-production-activation",
+      "source_status": "needs_review",
+      "summary": "Reviewer requested exact-digest and durable-evidence fixes. The fixes are now committed, so current-HEAD independent re-review is necessary before merge and production deployment.",
+      "reason": "User approved all recommended actions; one fresh gate_evidence review and one correction-bound judgment review are required after accepted independent findings. No quality gate is waived.",
+      "reviewer": "佐藤圭吾",
+      "artifact": null,
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": {
+        "story_id": "story-brainbase-ontology-production-activation",
+        "override_digest": "c6e6229b0d91e433aceb2edb3eef8e5b2223d84632591e642f444e32bb3e57aa",
+        "grantor_kind": "human",
+        "grantor": "佐藤圭吾",
+        "recorded_by": {
+          "agent_system": "codex",
+          "agent_id": "/root"
+        },
+        "config_ref": ".vibepro/config.json",
+        "decision_doc": "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-activation-c6e6229b.md"
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "7af4d9b35d8ec8c29d822b632f57ab5bc4c92afa",
+          "current_head_sha": "7af4d9b35d8ec8c29d822b632f57ab5bc4c92afa",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "7af4d9b35d8ec8c29d822b632f57ab5bc4c92afa",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:46:40.194Z"
+      },
+      "recorded_at": "2026-08-02T21:46:40.198Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785706722679-a55f9852",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:bug_physics_deployment_version_stamp",
+      "source_status": "needs_evidence",
+      "summary": "pre-deploy version stamp要求をpost-deploy readbackへ移す",
+      "reason": "未mergeのHEADを本番runtimeが読むことはできない。Spec A-005/A-006どおりmerge後にdeployed SHA、current/version digest、署名receiptをreadbackし、不一致なら完了扱いせずrollbackする。",
+      "reviewer": "佐藤圭吾",
+      "artifact": "docs/specs/brainbase-ontology-production-activation.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+          "current_head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:38:42.674Z"
+      },
+      "recorded_at": "2026-08-02T21:38:42.679Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785706721909-d9f58ffb",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:bug_physics_observability_signal_source",
+      "source_status": "needs_evidence",
+      "summary": "pre-deploy observability bug gateを計画activationから限定除外する",
+      "reason": "観測正本はLightsail本番DB-backed audit、systemd、journal、release digest readbackとしてSpec A-005/A-006に固定済み。現在は障害信号の原因調査Storyではなく、merge後に同一SHAで確認するrelease gateである。",
+      "reviewer": "佐藤圭吾",
+      "artifact": "docs/specs/brainbase-ontology-production-activation.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+          "current_head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:38:41.903Z"
+      },
+      "recorded_at": "2026-08-02T21:38:41.909Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785706721173-53cf5b0c",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:bug_physics_triage",
+      "source_status": "needs_evidence",
+      "summary": "障害修正用bug physics分類を計画activationへ適用しない",
+      "reason": "本Storyは既知snapshotをexact preconditionで修復し署名releaseを計画切替するもの。失敗はSpecの5つのfail-closed経路、transaction rollback、post-deploy停止条件で明示管理する。",
+      "reviewer": "佐藤圭吾",
+      "artifact": "docs/specs/brainbase-ontology-production-activation.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+          "current_head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:38:41.169Z"
+      },
+      "recorded_at": "2026-08-02T21:38:41.173Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785706720515-8d3e14e1",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:responsibility_authority",
+      "source_status": "needs_evidence",
+      "summary": "Canonical TaskとTask owner責任契約の誤一致を現HEADで限定除外する",
+      "reason": "origin/develop...HEADにCanonical Task persistence、meeting task owner resolver、selected_owner_idの変更はない。package.jsonの共通path一致とInfoSSOTService内のOntology追加が既存責任registryへ表層一致したもの。Ontologyの実authorityはGraph Decision/RACI、Spec A-002、署名publication、独立reviewで固定し、既存Task責任契約は変更しない。",
+      "reviewer": "佐藤圭吾",
+      "artifact": "docs/specs/brainbase-ontology-production-activation.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+          "current_head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:38:40.512Z"
+      },
+      "recorded_at": "2026-08-02T21:38:40.516Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785706719816-b2089d1d",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:design_diagrams",
+      "source_status": "needs_evidence",
+      "summary": "Specの公開flowとthreat model図を現HEADの設計証跡として受理する",
+      "reason": "docs/specs/brainbase-ontology-production-activation.mdのDiagrams節に、61 violation修復からdeploy/readbackまでのflowと、誤修復・未承認actor・署名不整合・不完全publication・deploy後不整合に対するfail-closed threat modelが存在する。kind metadata未抽出は分類器上の不足で内容欠落ではない。",
+      "reviewer": "佐藤圭吾",
+      "artifact": "docs/specs/brainbase-ontology-production-activation.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+          "current_head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:38:39.812Z"
+      },
+      "recorded_at": "2026-08-02T21:38:39.816Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785706627590-c87a15eb",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:review_surface_integrity:rsv-3c993ac6d575244a",
+      "source_status": null,
+      "summary": "旧gate_evidence reviewerは8d21ab1の差分を検査し、指摘3件を返した",
+      "reason": "指摘を反映してHEADを5c9249a8へ進めたため旧lifecycleはobsoleteとしてreplace済み。現HEAD 4094d868には別の独立reviewを新規dispatchし、旧reviewを合格証跡として再利用しない。",
+      "reviewer": "佐藤圭吾",
+      "artifact": ".vibepro/reviews/story-brainbase-ontology-production-activation/surface-violations.json",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "fail"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+          "current_head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:37:07.588Z"
+      },
+      "recorded_at": "2026-08-02T21:37:07.591Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785706179517-8d58e511",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "budget:delivery_efficiency:story-brainbase-ontology-production-activation",
+      "source_status": null,
+      "summary": "修正後HEADに必須の独立レビューを各1回追加する",
+      "reason": "旧gate_evidenceレビューは修正前HEADでobsolete。ユーザーが2026-08-03に推奨案すべてを承認し、現HEADの独立レビュー継続を明示承認した。品質Gateは免除しない。",
+      "reviewer": "佐藤圭吾",
+      "artifact": null,
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": {
+        "story_id": "story-brainbase-ontology-production-activation",
+        "override_digest": "a75decc3f29cc66b919cf37a5f0788ed7f3140e4ad807b677cef3cf4d01b09f9",
+        "grantor_kind": "human",
+        "grantor": "佐藤圭吾",
+        "recorded_by": {
+          "agent_system": "codex",
+          "agent_id": "/root"
+        },
+        "config_ref": ".vibepro/config.json",
+        "decision_doc": "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-activation-a75decc3.md"
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "5c9249a8cf894e73ca2885317600ef78a3755ce0",
+          "current_head_sha": "5c9249a8cf894e73ca2885317600ef78a3755ce0",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "5c9249a8cf894e73ca2885317600ef78a3755ce0",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:29:39.514Z"
+      },
+      "recorded_at": "2026-08-02T21:29:39.517Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785705311225-ce95bcd9",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_release_ops",
+      "source_status": "block",
+      "summary": "release運用契約を受理する",
+      "reason": "Spec A-006とArchitecture運用責任節にdeploy、readback、audit、observability、support、rollback、owner、member操作不要を明記。post-deploy証跡が欠ければ有効化完了にしない",
+      "reviewer": "佐藤圭吾",
+      "artifact": "docs/specs/brainbase-ontology-production-activation.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "current_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:15:11.221Z"
+      },
+      "recorded_at": "2026-08-02T21:15:11.226Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785705310676-c475421e",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "単一ownerによるatomic activation reviewを受理する",
+      "reason": "owner兼merge reviewerは佐藤圭吾。26ファイルはrelease digest、authority、receipt、rollback、契約テストの1系譜で、prepublication readinessとSpecがowner mapとblast radiusを固定する",
+      "reviewer": "佐藤圭吾",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "current_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:15:10.674Z"
+      },
+      "recorded_at": "2026-08-02T21:15:10.676Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785705310164-40e8adee",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:responsibility_authority",
+      "source_status": "needs_evidence",
+      "summary": "canonical_task_persistence責任契約の誤一致をwaiveする",
+      "reason": "origin/developとの差分にCanonical Task persistence実装変更はない。このStoryの実責任はontology publicationで、Graph Decision/RACI、Spec A-002、独立reviewにより別途固定される",
+      "reviewer": "佐藤圭吾",
+      "artifact": "docs/specs/brainbase-ontology-production-activation.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "current_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:15:10.162Z"
+      },
+      "recorded_at": "2026-08-02T21:15:10.165Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785705309631-601d6f91",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:bug_physics_deployment_version_stamp",
+      "source_status": "needs_evidence",
+      "summary": "pre-deploy version stamp要求をpost-deploy Gateへ移す",
+      "reason": "merge前にrunning productionが未merge SHAを読むことは不可能。deploy後に稼働SHA、current 1.0.0、digest一致を必須readbackし、不一致なら完了せずrollbackする",
+      "reviewer": "佐藤圭吾",
+      "artifact": "docs/architecture/story-brainbase-ontology-production-activation.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "current_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:15:09.628Z"
+      },
+      "recorded_at": "2026-08-02T21:15:09.632Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785705309088-786cfe21",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:bug_physics_observability_signal_source",
+      "source_status": "needs_evidence",
+      "summary": "pre-deploy observability bug gateを限定waiveする",
+      "reason": "authoritative signalは署名receipt/index digestと本番readback。pre-mergeではproduction runtime signalは存在せず、post-deploy health/current/audit/journalの全件成功をcompletion停止条件にする",
+      "reviewer": "佐藤圭吾",
+      "artifact": "docs/architecture/story-brainbase-ontology-production-activation.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "current_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:15:09.086Z"
+      },
+      "recorded_at": "2026-08-02T21:15:09.088Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785705308571-fcb77b33",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "waiver",
+      "status": "accepted",
+      "source": "gate:bug_physics_triage",
+      "source_status": "needs_evidence",
+      "summary": "bug physics triageを計画activationには適用しない",
+      "reason": "これは障害修正ではなく署名済みreleaseの計画切替。失敗分類はSpecの5つのfail-closed経路とpost-deploy停止条件で管理する",
+      "reviewer": "佐藤圭吾",
+      "artifact": "docs/specs/brainbase-ontology-production-activation.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "current_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:15:08.568Z"
+      },
+      "recorded_at": "2026-08-02T21:15:08.571Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785705308061-3f1b423a",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:design_diagrams",
+      "source_status": "needs_evidence",
+      "summary": "既存のflowとthreat model図を設計証跡として受理する",
+      "reason": "Spec Diagrams節に公開フローと5脅威→fail-closed対応の2つのflowchart LRが存在する。kind metadataの未抽出はVibePro分類上の不足で、設計内容自体は欠落していない",
+      "reviewer": "佐藤圭吾",
+      "artifact": "docs/specs/brainbase-ontology-production-activation.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "current_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:15:08.060Z"
+      },
+      "recorded_at": "2026-08-02T21:15:08.061Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785705307530-b2db6127",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:split_resolution",
+      "source_status": "needs_review",
+      "summary": "split不要を受理する",
+      "reason": "別Story lineageはなく、Graph修復、authority、署名publication、rollback証跡は同じrelease digestへ結合される。分割するとdirect-child publication履歴とreview可能な因果が壊れる",
+      "reviewer": "佐藤圭吾",
+      "artifact": "docs/specs/brainbase-ontology-production-activation.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "current_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:15:07.528Z"
+      },
+      "recorded_at": "2026-08-02T21:15:07.530Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785705307001-7c76c4a1",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:pr_scope_judgment",
+      "source_status": "needs_split",
+      "summary": "26ファイルを単一activation lineageとして原子的にレビューする",
+      "reason": "source authority commit ef12、署名publication direct-child e794、fixture/test、Story/Architecture/Specは同一digestとrollback契約を成立させる一単位。publication commitの3生成物限定履歴を保持するため分割・squashしない",
+      "reviewer": "佐藤圭吾",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-activation/prepublication-readiness-2026-08-03.md",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "budget_approval": null,
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+          "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+          "expected_root": null,
+          "expected_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "current_head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+        "current_branch": "codex/ontology-1-0-0-activation",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-02T21:15:06.999Z"
+      },
+      "recorded_at": "2026-08-02T21:15:07.001Z"
+    }
+  ],
+  "summary": {
+    "total": 36,
+    "open": 0,
+    "by_type": {
+      "needs_review": 21,
+      "waiver": 12,
+      "noise": 3
+    },
+    "by_status": {
+      "accepted": 36
+    },
+    "warnings": [
+      {
+        "id": "managed_worktree_locality",
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "decision record",
+        "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+        "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+        "repo_root": "/private/tmp/brainbase-ontology-production-completion",
+        "actual_root": "/private/tmp/brainbase-ontology-production-completion",
+        "expected_root": null,
+        "expected_head_sha": "5f1a34f615520fed59d3d1f691c279560343508d",
+        "current_head_sha": "5f1a34f615520fed59d3d1f691c279560343508d",
+        "managed_worktree": null
+      }
+    ],
+    "latest": {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1785729191082-742ac35d",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_public_contract",
+      "source_status": "needs_evidence",
+      "summary": "Docs-only completion preserves the public contract",
+      "reason": "Current HEAD changes only the Story completion checkbox/frontmatter and a non-secret audit JSON. There is no code, API, CLI, configuration, response-format, or PR contract change. The current-head E2E contract test passes all 3 scenarios, integration passes 58 checks, and independent judgment marked axis:public_contract judged_sound.",
+      "reviewer": "Sato recommendation authorization",
+      "artifact": "tests/e2e/story-brainbase-ontology-production-activation-contract.spec.ts",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/integration.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/typecheck.json",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-brainbase-ontology-production-activation/verification-runs/unit.json",
+            "type": "unit",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-production-completion",
+          "actual_root": "/private/tmp/brainbase-ontology-production-completion",
+          "expected_root": null,
+          "expected_head_sha": "5f1a34f615520fed59d3d1f691c279560343508d",
+          "current_head_sha": "5f1a34f615520fed59d3d1f691c279560343508d",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "5f1a34f615520fed59d3d1f691c279560343508d",
+        "current_branch": "codex/ontology-production-activation-completion",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-08-03T03:53:11.075Z"
+      },
+      "recorded_at": "2026-08-03T03:53:11.082Z"
+    }
+  },
+  "artifact": ".vibepro/pr/story-brainbase-ontology-production-activation/decision-records.json"
+}

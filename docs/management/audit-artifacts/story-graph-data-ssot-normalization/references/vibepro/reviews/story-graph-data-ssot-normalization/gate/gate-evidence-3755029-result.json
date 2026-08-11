@@ -1,0 +1,29 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-data-ssot-normalization",
+  "reviewed_head_sha": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "Responsibility Authority consumes the People SSOT evidence, the Story and artifacts agree on 51 targeted tests, and every verification kind is strict-head bound to the final HEAD.",
+  "findings": [],
+  "constraints": {
+    "playwright_classification": "artifact_replay",
+    "runtime_path_evidence": false,
+    "production_typed_id_premerge": "deployment_gap_observed_pending_postmerge_closure",
+    "graph_writes": "none"
+  },
+  "inspection": {
+    "summary": "Independently compared the current review request, pr-prepare, verification evidence, Story, tracked evidence, responsibility authority, production negative artifact, hashes, and 12-file/11-commit diff.",
+    "evidence": ".vibepro/pr/story-graph-data-ssot-normalization/verification-evidence.json",
+    "inputs": [
+      ".vibepro/reviews/story-graph-data-ssot-normalization/gate/review-request-gate_evidence.md",
+      ".vibepro/pr/story-graph-data-ssot-normalization/pr-prepare.json",
+      "docs/management/stories/story-graph-data-ssot-normalization.md",
+      "docs/management/evidence/graph-data-ssot-normalization-20260718.json",
+      "docs/responsibility-authority/meeting-task-owner-ssot-resolution.json",
+      ".vibepro/evidence/story-graph-data-ssot-normalization/unit-current-head-composite.json",
+      ".vibepro/evidence/story-graph-data-ssot-normalization/production-legacy-typed-rest-premerge.json"
+    ]
+  },
+  "judgment_delta": "The prior two blocking findings are resolved: Responsibility Authority now consumes People SSOT 118/118 and the Story now states the observed 51/51 targeted tests."
+}

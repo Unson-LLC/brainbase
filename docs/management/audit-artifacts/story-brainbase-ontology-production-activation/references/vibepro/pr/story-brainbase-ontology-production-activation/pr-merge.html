@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VibePro Execute Merge</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9;
+      --fg: #14171f;
+      --muted: #667085;
+      --panel: #ffffff;
+      --panel-2: #f0f3f8;
+      --border: #d7dee8;
+      --good: #0f766e;
+      --warn: #a16207;
+      --danger: #b42318;
+      --info: #1d4ed8;
+      --neutral: #475467;
+      --code: #eef2f7;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1220;
+        --fg: #e8edf5;
+        --muted: #9aa8bc;
+        --panel: #101827;
+        --panel-2: #172235;
+        --border: #2d3a4f;
+        --code: #1d2939;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { width: min(1220px, calc(100% - 24px)); margin: 16px auto 40px; }
+    .topbar, section, article.card, .lane, .timeline-item {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .topbar { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 18px 20px; margin-bottom: 12px; }
+    .brand { font-weight: 700; color: var(--info); }
+    section { padding: 18px; margin: 12px 0; }
+    h1, h2, h3 { margin: 0 0 10px; line-height: 1.25; letter-spacing: 0; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 18px; }
+    h3 { font-size: 15px; }
+    .meta, .muted, .eyebrow { color: var(--muted); }
+    .meta, .eyebrow { margin: 0; font-size: 12px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.08em; }
+    .hero { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+    .hero h2 { font-size: 22px; margin: 4px 0; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; background: transparent; border: 0; padding: 0; }
+    .metric { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 92px; }
+    .metric span { display: block; color: var(--muted); font-size: 12px; }
+    .metric strong { display: block; margin: 6px 0; font-size: 20px; overflow-wrap: anywhere; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; background: transparent; border: 0; padding: 0; }
+    .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+    .flow-step { position: relative; padding: 14px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; min-height: 110px; overflow-wrap: anywhere; }
+    .flow-step:not(:last-child)::after { content: "->"; position: absolute; right: -12px; top: 44px; color: var(--muted); }
+    .cards, .node-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .card { padding: 14px; overflow-wrap: anywhere; }
+    .card p { margin: 6px 0 0; }
+    .lane-board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 10px; overflow-x: auto; }
+    .lane { padding: 14px; min-width: 240px; }
+    .lane ul, .card ul { padding-left: 18px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; overflow-wrap: anywhere; }
+    th, td { border: 1px solid var(--border); padding: 8px; text-align: left; vertical-align: top; }
+    th { background: var(--panel-2); }
+    code, pre { background: var(--code); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    code { padding: 0.1rem 0.3rem; }
+    pre { padding: 10px; overflow: auto; white-space: pre-wrap; }
+    .timeline { display: grid; gap: 10px; }
+    .timeline-item { padding: 12px; }
+    .status { display: inline-block; border-radius: 999px; padding: 4px 10px; font-weight: 700; font-size: 12px; border: 1px solid currentColor; }
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .danger { color: var(--danger); }
+    .info { color: var(--info); }
+    .neutral { color: var(--neutral); }
+    .dag-svg { width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+    .dag-node { fill: var(--panel); stroke: var(--border); }
+    .dag-text { fill: var(--fg); font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .dag-edge { stroke: var(--muted); stroke-width: 1.5; marker-end: url(#arrow); }
+    @media (max-width: 860px) {
+      .metrics, .grid-2, .flow, .cards, .node-grid { grid-template-columns: 1fr; }
+      .flow-step:not(:last-child)::after { display: none; }
+      .hero, .topbar { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main data-vibepro-report="pr-merge">
+    <header class="topbar">
+      <div>
+        <h1>VibePro Execute Merge</h1>
+        <p class="meta">Generated by VibePro at 2026-08-03T04:14:05.553Z</p>
+      </div>
+      <span class="brand">VibePro</span>
+    </header>
+
+      <section class="hero" data-dry-run="false">
+        <div>
+          <p class="eyebrow">PR merge audit</p>
+          <h2>story-brainbase-ontology-production-activation</h2>
+          <p class="muted">https://github.com/Unson-LLC/brainbase-unson/pull/1116</p>
+        </div>
+        <span class="status neutral">merged_externally</span>
+      </section>
+      <section class="metrics">
+        <article class="metric"><span>Strategy</span><strong>merge</strong><span>keep branch</span></article>
+        <article class="metric"><span>Base</span><strong>develop</strong><span>develop</span></article>
+        <article class="metric"><span>Merge commit</span><strong>9e51c759340fe92231ff1bd4fe7d545cfbd1efdf</strong><span>2026-08-03T04:06:35Z</span></article>
+        <article class="metric"><span>Checks</span><strong>2</strong><span>passed</span></article>
+        <article class="metric"><span>Delivery</span><strong>merged_externally</strong><span>github_pr</span></article>
+        <article class="metric"><span>Reconciliation</span><strong>reconciled</strong><span>no reasons</span></article>
+      </section>
+
+    <section>
+      <h2>Artifact Freshness</h2>
+      <div class="cards">
+        <article class="card neutral">
+          <h3>pr_merge</h3>
+          <p class="muted">current</p>
+          <p>-</p>
+        </article>
+      </div>
+
+    <table>
+      <thead><tr><th>Item</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Artifact HEAD</td><td>5f1a34f61552</td></tr><tr><td>Current HEAD</td><td>5f1a34f61552</td></tr><tr><td>Checked At</td><td>-</td></tr>
+      </tbody>
+    </table>
+
+    </section>
+
+      <section>
+        <h2>Gate Authorization</h2>
+
+    <table>
+      <thead><tr><th>Item</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Allowed</td><td>yes</td></tr><tr><td>Source</td><td>gate_dag</td></tr><tr><td>Reason</td><td>gate_dag_ready_for_review</td></tr><tr><td>Waiver policy</td><td>-</td></tr><tr><td>Critical unresolved gates</td><td>-</td></tr>
+      </tbody>
+    </table>
+
+      </section>
+      <section class="grid-2">
+        <div>
+          <h2>Preconditions</h2>
+          <ul><li>gate_ready: passed</li><li>clean_worktree: passed</li><li>base_freshness: blocked</li><li>remote_head_match: passed</li><li>checks_ready: passed</li><li>review_policy: passed</li><li>open_pull_request: blocked</li></ul>
+        </div>
+        <div>
+          <h2>Warnings</h2>
+          <ul><li>Merge processing produced a warning. Inspect stop_reason and reconciliation state.</li></ul>
+        </div>
+      </section>
+
+
+      <section>
+        <h2>Check Rollup</h2>
+        <ul><li>Verify VibePro Graph SSOT: COMPLETED/SUCCESS</li><li>Require Graphify Impact Review: COMPLETED/SUCCESS</li></ul>
+      </section>
+
+  </main>
+</body>
+</html>

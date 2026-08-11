@@ -65,7 +65,7 @@ Org Agent Loop Control v0は、Eve接続前提でBrainbase側が持つRole Agent
 - S-005: `workflow state transition` `autonomy_level=human_only` のLoop Intentは `eligibility.status=human_only` として判断記録だけを保存し、Eve実行へ進めない。
 - S-006: `workflow state transition` Eve payloadの `org_id` とLoop Control参照はRun TraceとLearning Candidateへ伝播される。
 - S-007: `workflow retry matrix` `human`、`event`、`schedule` triggerは同じBindingから個別Loop Intentとして再生できる。
-- S-008: `workflow rollback guard` Role Agent / Workflow Template / Binding / Trigger / Loop Intentの管理APIは `/api/workflows/control/...` を正とし、旧パス名と同名のWorkflow IDが存在する場合は既存 `GET /api/workflows/:workflowId` を優先する。
+- S-008: `control namespace isolation` Role Agent / Workflow Template / Binding / Trigger / Loop Intentの管理APIは`/api/workflows/control/...`を正とする。legacy GET aliasはControl応答だけを返し、廃止済みの汎用Workflow detailへfallbackしない。
 - S-009: `workflow rollback guard` org不一致のRole Agent / Workflow Binding / Trigger / Loop Intent / 既存Workflow再利用は保存前に拒否される。
 - S-010: `schema_failure` Loop Control参照付きで `run.org_id` が空または欠落したEve payload、不正な `trigger_type`、不正な `autonomy_level` は保存前に拒否される。
 - S-011: `auth_denied` 未認証の外部runner ingestはWorkflow Mission Controlへ入らない。

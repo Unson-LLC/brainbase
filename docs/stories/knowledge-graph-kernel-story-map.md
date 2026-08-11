@@ -1,3 +1,8 @@
+---
+related_stories:
+  - story-ten-minute-world-onboarding
+---
+
 # Knowledge Graph Kernel Story Map（Codex review revised）
 
 ## 改訂履歴
@@ -118,6 +123,30 @@ references:
 ```
 
 M5 decision: candidate-store を brainbase / mana / zeims / SNS feedback 共通の Memory Promotion Kernel とする。ただし M5-A は brainbase-owned schema migration と Pg-backed repository contract に限定し、mana / zeims は後続 adapter story で Raw Ledger-compatible envelope を接続する。
+
+#### NEW: ten-minute-world-onboarding
+```yaml
+priority: 3.5
+prerequisites: [candidate-store-mvp]
+size: L
+target: 最初の10分で、一つの実務上の問いを中心に自社の人物・組織・project・relationship・decisionを証拠付き候補として立ち上げ、人が確認し、Graph contextで最初の有用な回答を得る。
+criteria:
+  - first-value questionと既存sourceの選択を同じ開始導線で決める
+  - 接続済みMCP、Drive、Gmail、local folderを発見し、account/folder/project/query/date rangeの読み取りscopeを選べる
+  - metadata-firstに棚卸しし、問いに必要なcontentだけを限定取得する
+  - connectorを使わない人には単一文章ファイルまたは貼り付け文書をfallbackとして提供する
+  - observedとinferredを分離し、inferredは自動promotionしない
+  - candidate / Graph SSOT / Personal KG / AI contextをsource classで区別する
+  - approve/edit/reject/mergeを経た候補だけPromotion Gateへ渡す
+  - time_to_source_ready_secondsとtime_source_ready_to_first_value_secondsを分離計測する
+  - first_value_answer_reviewedを完了条件にする
+non_goal:
+  - connector readinessやgraph rendering単独をonboarding完了とすること
+  - raw sourceやLLM推論のGraph直接write
+story_doc: docs/stories/story-ten-minute-world-onboarding.md
+architecture_doc: docs/architecture/ten-minute-world-onboarding-architecture.md
+spec_doc: docs/specs/ten-minute-world-onboarding-spec.md
+```
 
 #### NEW: private-preference-promotion
 ```yaml

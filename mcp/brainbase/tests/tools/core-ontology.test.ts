@@ -9,7 +9,7 @@ import {
 } from '../../src/indexer/index.js';
 import type { EntitySource } from '../../src/sources/entity-source.js';
 import type { App, Brand, Customer, Decision, Document, ExtensionEntity, GlossaryTerm, Organization, Partner, Person, Project, RACI } from '../../src/indexer/types.js';
-import { CORE_ENTITY_TYPES } from '../../src/indexer/ontology.js';
+import { CORE_ENTITY_TYPES, EXTENSION_ENTITY_TYPES } from '../../src/indexer/ontology.js';
 
 function createSource(): EntitySource {
   const brand: Brand = {
@@ -50,6 +50,7 @@ function createSource(): EntitySource {
 describe('Brainbase MCP core ontology', () => {
   it('SPEC-brainbase-mcp-core-ontology INV-12: keeps the deliberate core type registry', () => {
     assert.deepStrictEqual([...CORE_ENTITY_TYPES], ['project', 'person', 'org', 'brand', 'app', 'customer', 'partner', 'decision', 'raci', 'glossary_term', 'document']);
+    assert.ok(EXTENSION_ENTITY_TYPES.includes('contact'));
   });
 
   it('SPEC-brainbase-mcp-core-ontology INV-1 INV-2 S-1: searches brand as a default core entity', async () => {

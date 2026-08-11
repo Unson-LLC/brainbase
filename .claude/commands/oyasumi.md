@@ -1,213 +1,85 @@
 # oyasumi
 
-寝る前の1日振り返りルーティン。議事録から固有名詞・顧客・パートナー・意思決定・次アクションを抽出し、Graph SSOT (bb.unson.jp) と NocoDB (noco.unson.jp) の両方に自動反映する。
+今日を閉じ、未解決だけを翌日に渡すBrainbaseの日次ルーティン。
 
 ## トリガー
 
 - `/oyasumi`
-- `/oyasumi YYYY-MM-DD`（対象日指定）
-- ユーザーが「今日の振り返り」「おやすみ前に整理」「今日の SSOT 反映」と言及
-- `/ohayo` の対（朝=入力 / 夜=出力）
+- `/oyasumi YYYY-MM-DD`
+- 「今日を閉じたい」「おやすみ前に整理して」
+
+## 利用者へ返す成果
+
+1. 今日、判断または処理が閉じたこと
+2. 明日へ持ち越すことと、その理由
+3. Personal KGへ残す振り返り候補
+
+通常表示はこの3点だけに絞る。内部の仕組み名、全件一覧、処理件数、長い監査ログは本文に出さない。証跡が必要な場合だけ末尾の折りたたみへ置く。
+
+## 対象範囲
+
+`daily-reflection` Skillに従い、Brainbase内の次の情報だけを使う。
+
+- 対象日の判断結果と、そのowner-visible監査状態
+- 対象日のRun Receipt。latest表示だけでなく必要な範囲の履歴を使う
+- 対象日のPersonal KG候補とレビュー状態
+
+外部サービスを直接巡回しない。SNS生成・投稿、カレンダー、メール、Slack、議事録探索、NocoDB、Git/GitHub、Wiki、Codexタスク全件列挙、HTML生成、セッションarchive、memory preamble再生成はこのルーティンの責務外とする。
+
+外部連携の状態がBrainbaseへRun Receiptとして届いている場合は、重要な変化または要対応だけを利用できる。元サービスへ取りに行かず、届いていない状態を0件へ変換しない。
 
 ## 実行フロー
 
-`daily-reflection` skill を呼び出し、以下の 7 Phase を実行：
+1. 対象日をJSTで確定する。明示日付がなければ対話実行は当日、夜間自動化は前日を対象にする。
+2. 対象日のBrainbase記録を読み、`閉じた`、`持ち越し`、`未確認`に分ける。
+3. 同じ論点を重複表示せず、最新状態を本文に置く。履歴は証跡として保持する。
+4. 繰り返し使える判断基準、修正、制約、学びだけをPersonal KG候補にする。単なる出来事一覧や作業ログは候補にしない。
+5. 組織の事実・関係・正式な決定に見える内容はPersonal KGへ混ぜず、根拠だけを`昇格レビュー待ち`として記録する。Graphの確認と昇格判断は`/retro`へ任せ、この場では推奨も書き込みもしない。
+6. 次の判定規則で実行状態と確認範囲を分け、Brainbaseの実行記録に残す。
 
-1. **Phase 0**: 日付確定（跨ぎ検知）
-2. **Phase 1**: `gog calendar list` で対象日の会議を取得
-3. **Phase 2**: Github の mana 管理リポジトリから議事録を一括取得
-4. **Phase 3**: 議事録から固有名詞・決定・アクションを抽出、期限表現を絶対日付に変換
-5. **Phase 4**: Graph 既存エンティティと突合（表記ゆれ修正含む）
-6. **Phase 5**: Graph SSOT 書き込み
-   - Decision: `POST https://bb.unson.jp/api/info/decisions`
-   - Person/Customer/Partner Wiki: `POST http://localhost:31013/api/wiki/page`
-7. **Phase 6**: NocoDB 各プロジェクト base のタスクテーブルに一括投入
-   - 二重投入ガード（既存件数チェック）
-   - base ごとの column_name 差異対応（Brainbase だけ日本語、Zeims は 担当者 MultiSelect）
-8. **Phase 7**: 成功/失敗件数・残作業のサマリ報告
+## 判定
 
-## Personal KG Agent Handoff
+実行状態はルーティン自身が役割を果たせたか、確認範囲は入力から対象日の結論をどこまで確定できたかを表す。未解決事項を正しく表示できたこと自体は実行失敗ではない。
 
-議事録/transcriptに加えて、その日の Codex / Claude Code での直接会話ログも Personal KG の入力として扱う。思想・実績・営業哲学・読者理解・運用上の修正・繰り返し出た判断基準は、Graph/Wiki/NocoDBとは別に owner-visible personal KG candidate へ戻す。
-これは `/ohayo` の投稿生成だけでなく、今後AIが「俺の脳で考える」ための個人KG集約である。
-`/oyasumi` 自体はcandidate本文を直接作る作業者ではなく、以下のagent fan-out/fan-inを指揮するcoordinatorとして扱う。
-
-| agent role | responsibility |
+| 実行状態 | 条件 |
 |---|---|
-| `meeting_harvester` | 当日minutesと同名transcriptを集め、source metadataを保持する |
-| `personal_kg_extractor` | SNS化前の `personal_kg_core` を抽出する |
-| `sensitivity_reviewer` | family/medical/private/counterparty confidentialをpersonal core保持可否とprojection不可に分ける |
-| `sns_projection` | `personal_kg_core` のうちSNSで使えるものだけを `sns_ready` へ投影する |
-| `conversation_harvester` | `~/.codex/history.jsonl` と `~/.claude/projects/**/*.jsonl` から当日JSTの直接ユーザー入力を集める |
-| `conversation_personal_kg_extractor` | agent会話から繰り返し出た判断基準を `personal_kg_core` / `needs_review` へ分類する |
+| `成功` | 取得を試み、結果を分類し、表示と実行記録の保存を完了した |
+| `部分成功` | 表示または実行記録は残せたが、ルーティン自身の一部処理を完了できない |
+| `失敗` | 利用者が使える結果を生成できない、または実行記録を残せない |
 
-まず議事録/transcriptを dry-run で採用/除外/要確認を確認する。
-
-```bash
-cd /Users/ksato/workspace/code/brainbase
-npm run oyasumi:meeting-personal-kg:all -- --date YYYY-MM-DD --json
-```
-
-続けて Codex / Claude Code の当日会話ログを dry-run する。ここで `input_count` が0件や極端に少ない場合は「Personal KG 0件」と報告せず、ログ取得漏れとして扱う。
-
-```bash
-npm run oyasumi:conversation-personal-kg -- --date YYYY-MM-DD --json
-```
-
-semantic議事録抽出は OpenRouter / OpenAI-compatible fallback を使わない。`--semantic` を使う場合は `codex exec` が実行可能で、必要なら `CODEX_CLI_PATH`, `OYASUMI_AGENT_MODEL`, `OYASUMI_AGENT_REASONING_EFFORT`, `OYASUMI_AGENT_EXEC_CWD` を明示する。Bedrock系のMana captureは `AWS_REGION` / `AWS_PROFILE` / `BEDROCK_MODEL_ID` 側の設定を正とし、OpenRouter系envの有無に依存させない。
-
-問題なければ両方を本番 `brainbase_ssot.memory_candidates` へ書き込む。
-
-```bash
-INFO_SSOT_DATABASE_URL="$INFO_SSOT_DATABASE_URL" npm run oyasumi:meeting-personal-kg:all -- --date YYYY-MM-DD --write --json
-INFO_SSOT_DATABASE_URL="$INFO_SSOT_DATABASE_URL" npm run oyasumi:conversation-personal-kg -- --date YYYY-MM-DD --write --json
-```
-
-write 時は `personal_kg_entity_links` の project link も同じ DB 接続で自動更新する。`unson-board` と `yakumokai` は Graph project `unson` に紐づける。出力の `project_link_summary` で `linked / unchanged / unresolved` を確認する。隔離再実行でリンクを止める場合だけ `--no-project-link` を使う。
-
-対象repoを限定する場合だけ `--repo` / `--project` を使う。通常の `/oyasumi` は mana 管理repo全体を横断する。
-
-```bash
-INFO_SSOT_DATABASE_URL="$INFO_SSOT_DATABASE_URL" npm run oyasumi:meeting-personal-kg -- --date YYYY-MM-DD --repo Unson-LLC/salestailor-project --project salestailor --write --json
-```
-
-扱い:
-
-- `source_system=oyasumi-meeting-personal-kg`
-- `owner_person_id=sato_keigo`
-- `visibility=owner`
-- candidateは `memory_layer=personal_kg_core` と `memory_layer=sns_ready` を分ける
-- `sns_ready` は `personal_kg_core` から抽象化projectionとして同時生成する。core本文をSNS生成へ直接渡さない
-- transcriptがある場合は transcript を一次情報、minutesを補助情報として扱う
-- Codex/Claude Code会話は、日次の直接入力件数、dedupe後件数、`personal_kg_core`, `needs_review`, `rejected/skipped` を meeting 由来とは別に報告する
-- meeting extractor の0件を Personal KG 全体0件として扱わない
-- conversation由来の個人情報・第三者分析・Slack/支払/顧客文脈は、生値を保存せず `needs_review` または restricted/confidential owner-only にする
-- extraction結果には `agent_reports` を残し、role別のinput/output件数を確認する
-- write後は `personal_kg_entity_links` の project link が入る。未解決が出たら Graph project 不在か、folder project code の明示マッピング不足として扱う
-- 家族、医療、健康、個人の私的事情は、佐藤の判断再現に必要な場合のみ `personal_kg_core` に owner-only + sensitivity tag + provenance 付きで保持する
-- 顧客・相手企業の未公開予算や未公開事情は `personal_kg_core` に詳細を残してよいが、`sns_ready` / team / org / Graph promotion へは redaction / approval 済みの別instance以外で出さない
-- 同じ議事録の同じ抽出単位は `source_event_ids` で重複投入しない
-- 最終サマリ/HTMLレポート（存在する場合）には meeting由来と conversation由来を分けて、`input_count`, `personal_kg_core`, `sns_ready`, `needs_review`, `needs_redaction`, `projection_allowed` の件数を出し、取り込み漏れ・誤projectionを検知する
-
-## Memory Preamble 再生成（毎晩 materialize）
-
-Personal KG candidate を本番 `memory_candidates` へ書き込んだら、その日のうちに SessionStart 注入用の 3層 memory-preamble を再生成する。これで翌日以降の Claude Code / Codex セッション冒頭に最新の個人KG層（佐藤の判断軸）が入る。生成は重い（Graph API + candidate 読み）ので、毎晩ここで1回先に materialize しておき、hot path の SessionStart hook は file を読むだけにする。
-
-```bash
-cd /Users/ksato/workspace/code/brainbase
-node scripts/generate-memory-preamble.mjs
-```
-
-- 出力: `~/.brainbase/memory-preamble.txt`（≤2000 token、個人KG / Graph SSOT カタログ / Capability menu の3層）
-- stderr の `counts={...,"kg":N,...}` で `kg` が0でないことを確認する。0なら個人KG層が空（DB tunnel 断 or candidate 未書き込み）なので、Personal KG write が成功しているか戻って確認する
-- 注入経路は claude=`.claude/scripts/hooks/session-start/inject-memory-preamble.ts`、codex=`.codex/hooks.json` SessionStart → `scripts/codex-hooks/inject-memory-preamble.sh`。どちらも file を読むだけで DB/tunnel を持ち込まない
-- 利用率は `.claude/scripts/audit/graph-ssot-audit.ts` の `preamble` セクション（`injected_rate` / `query_rate_when_injected` vs `query_rate_when_not_injected`）で日次計測する
-
-## Archive Blocked Triage
-
-`/oyasumi` は archive blocked の日次整理トリガーでもある。Phase 7 の前に必ず実行する。
-
-```bash
-cd /Users/ksato/workspace/code/brainbase
-node scripts/archive-blocked-report.mjs --limit 20
-```
-
-blocked がある場合、各項目に対して以下のいずれかを決める。
-
-- **fix + retry**: worktree を確認し、commit/merge/不要変更の明示処理後に retry する
-- **task 化**: 当日解けないものは NocoDB/Inbox に「Archive blocked 解消」タスクとして残す
-- **例外化**: 外部事情で待つものは理由と次回確認日を残す
-
-重要: `/oyasumi` では `blocked` を単に報告して終わらない。少なくとも「解消済み / task 化 / 例外化」のどれかに分類する。
-
-## SNS Feedback Triage
-
-SNS運用の夜処理も `/oyasumi` に寄せる。今日投稿したものを「反応の報告」ではなく、翌朝の候補選定と個人KGの学習素材へ戻す。
-
-確認対象:
-
-- 今日出した通常投稿、引用、リプ
-- 引用元本人の like / reply / repost / follow
-- 引用元の読者からの like / reply / repost / bookmark / profile visit
-- LPクリック、診断開始、診断完了、TimeRex予約
-- `impressions > 1000` かつ `replies / impressions > 10%` の anomaly
-
-出力先:
-
-```bash
-mkdir -p /Users/ksato/workspace/sns/x/ops/feedback
-```
-
-SNS Posting Ledger に投稿済みURLと反応数値を戻せる場合は、feedback markdown だけで終わらせず、まず対象日の投稿済み Ledger を metrics polling し、成功した `posted` を `learning_ready` に進めてから Ledger → candidate-store の handoff まで進める。
-
-```bash
-cd /Users/ksato/workspace/code/brainbase
-export SNS_METRICS_POLLING_ENABLED=true
-npm run sns:poll-metrics -- \
-  --date YYYY-MM-DD \
-  --limit 20 \
-  --mark-learning-ready
-
-npm run sns:feedback-learning -- \
-  --post-id <sns_posting_ledger_post_id> \
-  --posted-url <https://x.com/.../status/...> \
-  --metrics-json '{"impressions":0,"likes":0,"replies":0,"reposts":0,"bookmarks":0}' \
-  --learning-ready
-```
-
-複数投稿をまとめて candidate 化する場合:
-
-```bash
-export SNS_METRICS_POLLING_ENABLED=true
-npm run sns:poll-metrics -- --date YYYY-MM-DD --limit 20 --mark-learning-ready
-npm run sns:feedback-learning -- --date YYYY-MM-DD
-```
-
-重要: `SNS_METRICS_POLLING_ENABLED=true` を設定せずに実行して `metrics_polling_disabled` で終了した場合は、投稿反応 0 件ではなく「X metrics polling 未実行」として扱う。対象日に `posted` があるのに `sns:poll-metrics` の `polled=0`、`failed>0`、または `skipped>0` の場合、それは「投稿反応 0 件」ではなく「X metrics 未取得 / 取得失敗 / 取得不能」として扱う。`scanned` / `polled` / `failed` / `skipped` / `learning_ready` 件数を分けて feedback markdown と `/oyasumi` 報告に残す。`sns:feedback-learning --date` は `learning_ready` のみ candidate 化するため、polling 未実行のまま `created=0` を成功扱いしない。
-
-`/Users/ksato/workspace/sns/x/ops/feedback/YYYY-MM-DD.md` に以下を残す:
-
-- posted_url
-- lane
-- source_peer
-- peer_reaction
-- reader_reaction
-- conversion_signal
-- anomaly
-- learning_candidate
-- next_ohayo_action
-
-扱い:
-
-- 反応取得は確認できた数字だけを書く。不明なものを推測しない
-- anomaly は削除やミュートを自動実行せず、通知/保留/手動対応に分類する
-- 勝ち筋は即正本化せず、`/retro` で再現性があるものだけ `content_pillars.md` / `style_guide.md` / skill 更新候補にする
-- Persona Affect が外れた投稿は、数字が良くても勝ち型にしない
-
-## 使い分け
-
-| コマンド | 用途 |
+| 確認範囲 | 条件 |
 |---|---|
-| `/ohayo` | 朝: インプット整理（カレンダー確認・メール仕分け・今日のフォーカス提案） |
-| `/oyasumi` | 夜: アウトプット整理（今日の会議結果を SSOT に反映し、archive blocked とSNS反応を日次整理して寝る） |
-| `/retro` | 週次: Ship/Learn/Block とSNS勝ち筋を集計 |
+| `確認済み` | 必須入力を取得し、対象日の結論を確定できた |
+| `部分的` | 一部だけ取得でき、確認できない範囲と影響を特定できた |
+| `未確認` | 認証失敗、未接続、timeout、履歴欠落などで対象日の結論を確定できない |
 
-## 出力先
+- `no_data` は取得成功かつ対象なしを証明できた時だけ「該当なし」とする。
+- `blocked`、`unconfirmed`、`unavailable`、`failed`、部分取得を成功や0件へ潰さない。
+- 未確認を正しく表示して実行記録を残せた場合、実行状態は`成功`でもよい。ただし確認範囲を`確認済み`へ繰り上げない。
 
-| 出力 | 場所 |
-|---|---|
-| Graph Decision | `https://bb.unson.jp` (decisions テーブル) |
-| Wiki ページ | `http://localhost:31013` → PostgreSQL wiki_pages |
-| NocoDB タスク | `https://noco.unson.jp` 各プロジェクト base |
-| 中間成果物 | `/tmp/meetings-YYYY-MM-DD/` |
+## 表示形式
 
-## 詳細
+```markdown
+# おやすみ YYYY-MM-DD
 
-`.claude/skills/daily-reflection/SKILL.md` 参照。過去の事故集（G1〜G10 Gotchas）も参照のこと。
+実行: 成功 | 部分成功 | 失敗
+確認範囲: 確認済み | 部分的 | 未確認
 
-## 注意
+## 今日閉じたこと
+- [結果。なければ「該当なし」]
 
-- Wiki API は **ローカル ポート 31013** でのみ動作（bb.unson.jp は 500 を返す）
-- projectCode は **ハイフン無し** 形式（`techknight` ≠ `tech-knight`）
-- NocoDB 投入スクリプトは **1回だけ** 実行（head/tail で2回実行すると重複）
-- 日付またぎに注意（夜遅くに実行すると「今日」が変わる）
+## 明日へ持ち越すこと
+- [論点 / 理由 / 次に必要な判断または確認]
+
+## 振り返り候補
+- [Personal KG候補 / 残す理由 / 要レビューならその理由]
+
+<details>
+<summary>確認根拠</summary>
+
+- [参照したBrainbase記録と状態]
+
+</details>
+```
+
+佐藤さんの判断が不要なら、質問で終わらせず完了を報告する。必要な場合だけ、推奨する結論・理由・影響・選択肢を1か所にまとめる。

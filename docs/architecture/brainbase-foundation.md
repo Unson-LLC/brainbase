@@ -7,7 +7,7 @@
 - 主題: Brainbase の基本構成と正本分担
 - 親文書: [UnsonOS ランタイム UI フレーム](../internal/unson-os-runtime-ui-frame.md)
 - 派生元: なし
-- 関連文書: [docs ガイド](../README.md), [UnsonOS 文書トレーサビリティ](../internal/unson-os-document-traceability.md), [現場責任者コンソール](../internal/unson-os-lead-control-console.md), [Brainbase フィードバックループ](./feedback-loop.md)
+- 関連文書: [docs ガイド](../README.md), [UnsonOS 文書トレーサビリティ](../internal/unson-os-document-traceability.md), [現場責任者コンソール](../internal/unson-os-lead-control-console.md), [Brainbase フィードバックループ](./feedback-loop.md), [10分で自社の世界が立ち上がるオンボーディング](./ten-minute-world-onboarding-architecture.md)
 - 置換: なし
 
 ## 目的
@@ -20,6 +20,8 @@ Brainbase で「何が正本で、どこに書き戻され、何を同期する�
 - `wiki` / `skills` / `docs` / `DB` の役割分担
 - sync の意味
 - フィードバックループがどこへ戻るか
+
+Brainbase の初回製品体験は、[10分で自社の世界が立ち上がるオンボーディング](./ten-minute-world-onboarding-architecture.md) を北極星とする。これは新しい正本を作る設計ではなく、raw source、candidate-store、Graph SSOT、UI projection の既存境界を「問いから最初の有用な回答まで」の一つの導線へ編成する設計である。
 
 ## 基本原則
 
@@ -51,9 +53,9 @@ Brainbase で「何が正本で、どこに書き戻され、何を同期する�
 | docs | repo の `docs/**/*.md` | Git で更新 | 設計・仕様・説明の正本 |
 | セッション状態 | server memory + `state.json` | server | UI は投影 |
 
-## wiki と skills の違い
+## legacy wiki と skills の違い
 
-### wiki
+### legacy wiki（書き込み廃止）
 
 - 置くもの:
   - 定義
@@ -63,11 +65,16 @@ Brainbase で「何が正本で、どこに書き戻され、何を同期する�
   - ストーリー
   - 決定
 - 正本:
-  - サーバ DB
-- 更新方法:
-  - `/api/wiki/page`
-  - `brainbase wiki push`
-  - learning の wiki 昇格
+  - なし。既存ページは移行判定まで保護するread-only corpus
+- 移行先:
+  - 組織の事実はGraph
+  - 技術文書・共通方針・runbookは所有repo
+  - 事業文書・共同編集ファイル・binaryは所有team Drive
+  - 個人情報はworkspace home
+- 許可される操作:
+  - `/api/wiki/sync/manifest`
+  - `brainbase wiki pull`
+  - `brainbase wiki status`
 
 ### skills
 
@@ -85,7 +92,7 @@ Brainbase で「何が正本で、どこに書き戻され、何を同期する�
 
 ### 判断ルール
 
-- Why / policy / definition は `wiki`
+- Why / policy / definition は所有するGit repo（組織の事実ならGraph）
 - When / how / checklist / recovery は `skills`
 
 ## sync の意味
@@ -97,13 +104,13 @@ Brainbase で「何が正本で、どこに書き戻され、何を同期する�
 
 ### `brainbase wiki push`
 
-- ローカルで編集した wiki markdown をサーバ DB へ反映する
-- 反映先の正本はサーバ DB のまま
+- 廃止済み。ローカル内容を新しいWiki正本としてアップロードしない
+- 内容を分類し、Graph・所有repo・Drive・workspace homeのいずれかへ移す
 
 ### `brainbase wiki sync`
 
-- pull と push を差分付きで双方向に行う
-- どちらを正本にするかを切り替えるコマンドではない
+- 移行互換のread-only export alias
+- serverからのpullだけを行い、local-only/newer contentは保護して移行対象として表示する
 
 ## フィードバックループ
 
@@ -112,10 +119,12 @@ Brainbase の学習ループは二本柱で戻す。
 概念モデルは [Brainbase フィードバックループ](./feedback-loop.md) を正本とする。
 
 1. `review` / `explicit_learn` から episode を作る
-2. reusable な知識を `wiki candidate` と `skill candidate` に分ける
+2. reusable な知識を正本候補とSkill候補に分ける
 3. candidate はいったん manual inbox に上がる
-4. wiki は canonical path に昇格する
-5. skills は既存 skill patch か新規 skill に昇格する
+4. legacy wiki candidate は自動適用せず、Graph・所有repo・Drive・workspace homeへ分類する
+5. skills は既存Skillのpatchか新規Skillとして、再利用できる手順へ反映する
+
+内部実装ではこの候補から正本への遷移を `promotion` と総称する。利用者向けには「昇格」とだけ表示せず、Graphへ正式登録する、方針文書へ反映する、再利用できる手順にする、他チームにも共有する、必須チェックにする、のように遷移先を表示する。承認、ファイル保存、本番反映はそれぞれ別工程である。
 
 運用入口:
 
@@ -124,7 +133,7 @@ Brainbase の学習ループは二本柱で戻す。
 - `brainbase learn daily`
 - `brainbase learn inbox`
 
-### wiki への昇格
+### legacy Wiki候補の分類
 
 - 対象:
   - 定義
@@ -133,12 +142,13 @@ Brainbase の学習ループは二本柱で戻す。
   - 仕様差分
   - ストーリー差分
 - 書き戻り先:
-  - サーバ DB の `wiki_pages`
+  - 組織の事実はGraph
+  - 方針・仕様・runbookは所有Git repo、または所有team Drive
 - 注意:
-  - repo の `docs/` を直接更新するループではない
-  - 各メンバーの手元へは `wiki pull/sync` で配る
+  - legacy Wikiへの新規書き込みは行わない
+  - 保存先が決まるまでは候補のまま扱う
 
-### skills への昇格
+### 再利用できる手順への反映
 
 - 対象:
   - 手順

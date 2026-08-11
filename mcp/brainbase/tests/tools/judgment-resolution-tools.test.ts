@@ -1,0 +1,262 @@
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+
+import {
+  canonicalJson,
+  computeJudgmentRequestDigest,
+  createJudgmentBindingHeaders,
+  handleJudgmentResolutionToolCall,
+  judgmentResolutionTools,
+  resolveJudgmentBeforeModel,
+} from '../../src/tools/judgment-resolution-tools.js';
+import {
+  normalizeJudgmentHostResult,
+  runManagedJudgmentTurn,
+} from '../../src/tools/judgment-host-contract.js';
+import { __testing as serverTesting } from '../../src/server.js';
+
+function jwt(payload: Record<string, unknown>): string {
+  const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${encode({ alg: 'none' })}.${encode(payload)}.`;
+}
+
+const contextWithoutDigest = {
+  schema_version: 'brainbase-conversation-context-v1',
+  session_ref: 'a'.repeat(64),
+  messages: [{ sequence: 0, turn_id: 'host-turn-mcp', role: 'user', phase: null, text: 'この文章の意味を説明して' }],
+  prior_receipts: [],
+  runtime: { host: 'codex', model: 'gpt-5', permission_mode: 'workspace-write', project_binding: 'brainbase' },
+  instruction_bindings: [],
+  completeness: 'complete',
+};
+
+const args = {
+  request: 'この文章の意味を説明して',
+  turn_id: 'host-turn-mcp',
+  project_code: 'brainbase',
+  conversation_context: {
+    ...contextWithoutDigest,
+    source_digest: createHash('sha256').update(canonicalJson(contextWithoutDigest)).digest('hex'),
+  },
+};
+
+const classification = {
+  intent: 'answer', domains: ['general'], action_kind: 'none', risk: 'low', confidence: 'confirmed', signals: [],
+};
+
+function receipt(overrides: Record<string, unknown> = {}) {
+  const value: Record<string, unknown> = {
+    resolution_id: 'jr_mcp',
+    resolved_at: '2026-08-07T00:00:00.000Z',
+    turn_id: args.turn_id,
+    request_digest: computeJudgmentRequestDigest(args),
+    context_digest: createHash('sha256').update(canonicalJson(args.conversation_context)).digest('hex'),
+    status: 'resolved',
+    runtime_version: 'judgment-runtime-2.0.0',
+    manifest_digest: 'b'.repeat(64),
+    host_binding: { adapter_id: 'brainbase-mcp', adapter_version: '1', status: 'managed', enforcement_level: 'host_contract' },
+    project_code: 'brainbase',
+    classification,
+    classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id], matcher_ids: ['intent:answer'] },
+    classification_assurance: 'verified',
+    reconciliation_reasons: [],
+    selected_dag_ids: ['direct.v1'],
+    applicable_policies: [],
+    suppressed_policies: [],
+    required_capabilities: [],
+    active_nodes: ['entry', 'reconcile', 'goal', 'direct-answer', 'merge', 'receipt'],
+    active_node_definitions: [
+      ['entry', 'common'], ['reconcile', 'common'], ['goal', 'judgment'],
+      ['direct-answer', 'judgment'], ['merge', 'common'], ['receipt', 'common'],
+    ].map(([id, kind]) => ({ id, kind, instruction: `Execute ${id}.`, required_capability_template: null })),
+    active_edges: [['entry', 'reconcile'], ['reconcile', 'goal'], ['goal', 'direct-answer'], ['direct-answer', 'merge'], ['merge', 'receipt']],
+    unresolved: [],
+    rationale: ['resolved'],
+  };
+  Object.assign(value, overrides);
+  const planValue = { ...value };
+  delete planValue.resolution_id;
+  delete planValue.resolved_at;
+  delete planValue.request_digest;
+  delete planValue.plan_digest;
+  value.plan_digest = createHash('sha256').update(canonicalJson(planValue)).digest('hex');
+  if (Object.hasOwn(overrides, 'plan_digest')) value.plan_digest = overrides.plan_digest;
+  return value;
+}
+
+function dependencies(fetchImpl: typeof globalThis.fetch, configuredProjectCodes = ['brainbase']) {
+  return {
+    apiUrl: 'http://brainbase.test',
+    configuredProjectCodes,
+    bindingSecret: 'mcp-secret',
+    adapterId: 'brainbase-mcp',
+    adapterVersion: '1',
+    now: () => new Date('2026-08-07T00:00:00.000Z'),
+    tokenManager: { getToken: async () => jwt({ projectCodes: ['brainbase'] }) },
+    fetch: fetchImpl,
+  };
+}
+
+describe('judgment resolver Host bridge', () => {
+  it('Resolverをmodel-callable tool listへ公開しない', async () => {
+    assert.deepEqual(judgmentResolutionTools, []);
+    assert.equal(serverTesting.tools.some((tool) => tool.name === 'brainbase_judgment_resolve'), false);
+    assert.equal(await handleJudgmentResolutionToolCall('brainbase_judgment_resolve', args, dependencies(async () => new Response())), null);
+  });
+
+  it('Host内部callだけが署名付きAPI requestを送る', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const result = await resolveJudgmentBeforeModel(args, dependencies(async (url, init) => {
+      calls.push({ url: String(url), init });
+      return new Response(JSON.stringify(receipt()), { status: 200 });
+    }));
+    assert.equal(result.status, 'ok');
+    assert.equal(calls[0].url, 'http://brainbase.test/api/judgment/resolve');
+    assert.equal(JSON.parse(String(calls[0].init?.body)).conversation_context.schema_version, 'brainbase-conversation-context-v1');
+    const headers = calls[0].init?.headers as Record<string, string>;
+    assert.equal(headers['x-brainbase-judgment-adapter'], 'brainbase-mcp');
+    assert.match(headers['x-brainbase-judgment-signature'], /^[a-f0-9]{64}$/u);
+  });
+
+  it('project bindingは判断文脈でありMCP authが判断全体を先に拒否しない', async () => {
+    let called = false;
+    const outsideArgs = {
+      ...args,
+      project_code: 'salestailor',
+      conversation_context: {
+        ...args.conversation_context,
+        runtime: { ...args.conversation_context.runtime, project_binding: 'salestailor' },
+      },
+    };
+    const outsideReceipt = receipt({
+      request_digest: computeJudgmentRequestDigest(outsideArgs),
+      context_digest: createHash('sha256').update(canonicalJson(outsideArgs.conversation_context)).digest('hex'),
+      project_code: 'salestailor',
+    });
+    const result = await resolveJudgmentBeforeModel(outsideArgs, dependencies(async () => {
+      called = true;
+      return new Response(JSON.stringify(outsideReceipt), { status: 200 });
+    }));
+    assert.equal(called, true);
+    assert.equal(result.status, 'ok');
+  });
+
+  it('repository共有goldenとcross-runtime bindingを満たす', () => {
+    const path = fileURLToPath(new URL('../../../../config/judgment-runtime-golden-vectors.json', import.meta.url));
+    const golden = JSON.parse(readFileSync(path, 'utf8'));
+    const headers = createJudgmentBindingHeaders(golden.binding.request, {
+      bindingSecret: golden.binding.secret,
+      adapterId: golden.binding.adapter_id,
+      adapterVersion: golden.binding.adapter_version,
+      issuedAt: golden.binding.issued_at,
+    });
+    assert.equal(headers['x-brainbase-judgment-request-digest'], golden.binding.expected_request_digest);
+    assert.equal(headers['x-brainbase-judgment-signature'], golden.binding.expected_signature);
+  });
+
+  it('receiptをturn・request・context・adapterへ再束縛する', async () => {
+    for (const invalid of [
+      receipt({ turn_id: 'other-turn' }),
+      receipt({ request_digest: '0'.repeat(64) }),
+      receipt({ context_digest: '0'.repeat(64) }),
+      receipt({ host_binding: { adapter_id: 'other', adapter_version: '1', status: 'managed', enforcement_level: 'host_contract' } }),
+      receipt({ classification_evidence: null }),
+    ]) {
+      const result = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(invalid), { status: 200 })));
+      assert.equal(result.error?.code, 'brainbase_api_response_invalid');
+    }
+  });
+
+  it('API 4xxの具体的なvalidation codeを隠さない', async () => {
+    const result = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify({
+      error: { code: 'judgment_resolution_input_invalid', message: 'conversation_context is required' },
+    }), { status: 400 })));
+    assert.equal(result.status, 'error');
+    assert.equal(result.error?.code, 'judgment_resolution_input_invalid');
+    assert.equal(result.error?.http_status, 400);
+  });
+
+  it('production dispatcherはHost向けmanaged/unmanaged resultに正規化する', async () => {
+    const managed = await serverTesting.dispatchJudgmentResolutionBeforeModel(
+      args,
+      dependencies(async () => new Response(JSON.stringify(receipt()), { status: 200 })),
+    );
+    assert.equal(managed.management_status, 'managed');
+    assert.equal(managed.receipt?.resolution_id, 'jr_mcp');
+
+    const unmanaged = await serverTesting.dispatchJudgmentResolutionBeforeModel(
+      args,
+      dependencies(async () => new Response(JSON.stringify({ error: { code: 'denied', message: 'denied' } }), { status: 403 })),
+    );
+    assert.equal(unmanaged.management_status, 'unmanaged');
+    assert.equal(unmanaged.receipt, null);
+  });
+});
+
+describe('judgment Host contract', () => {
+  it('unmanaged resultではmodel生成を開始しない', async () => {
+    let continued = false;
+    const result = await runManagedJudgmentTurn({
+      resolve: async () => normalizeJudgmentHostResult({
+        status: 'unavailable', scope: { project_codes: [] }, error: { code: 'down', message: 'down' },
+      }),
+      continueTurn: () => { continued = true; return 'must-not-run'; },
+    });
+    assert.equal(result.execution_status, 'stopped');
+    assert.equal(continued, false);
+  });
+
+  it('accepted receiptはturn内で一度だけ取得してactive DAGをmodel境界へ渡す', async () => {
+    let resolveCalls = 0;
+    let continueCalls = 0;
+    const management = normalizeJudgmentHostResult({ status: 'ok', scope: { project_codes: ['brainbase'] }, data: receipt() });
+    const result = await runManagedJudgmentTurn({
+      resolve: async () => { resolveCalls += 1; return management; },
+      continueTurn: ({ receipt: accepted, activeNodeDefinitions }) => {
+        continueCalls += 1;
+        assert.equal(accepted, management.receipt);
+        assert.deepEqual(activeNodeDefinitions.map((node) => node.id), management.receipt?.active_nodes);
+        return 'continued';
+      },
+    });
+    assert.equal(resolveCalls, 1);
+    assert.equal(continueCalls, 1);
+    assert.equal(result.execution_status, 'continued');
+  });
+
+  it('clarification receiptも判断済みなのでmodelに質問を生成させる', async () => {
+    const clarification = receipt({
+      status: 'needs_classification',
+      classification: null,
+      classification_evidence: { source: 'resolver', source_turn_ids: [], matcher_ids: [] },
+      classification_assurance: 'unknown',
+      reconciliation_reasons: ['conversation_referent_missing'],
+      selected_dag_ids: ['clarification.v1'],
+      active_nodes: ['entry', 'reconcile', 'clarification', 'receipt'],
+      active_node_definitions: [
+        ['entry', 'common'], ['reconcile', 'common'], ['clarification', 'fail_closed'], ['receipt', 'common'],
+      ].map(([id, kind]) => ({ id, kind, instruction: `Execute ${id}.`, required_capability_template: null })),
+      active_edges: [['entry', 'reconcile'], ['reconcile', 'clarification'], ['clarification', 'receipt']],
+      unresolved: ['classification'],
+      rationale: ['clarify'],
+    });
+    let continued = false;
+    const result = await runManagedJudgmentTurn({
+      resolve: async () => normalizeJudgmentHostResult({ status: 'ok', scope: { project_codes: ['brainbase'] }, data: clarification }),
+      continueTurn: () => { continued = true; return 'ask'; },
+    });
+    assert.equal(result.management_status, 'managed');
+    assert.equal(result.execution_status, 'continued');
+    assert.equal(continued, true);
+  });
+
+  it('active node definitionsがないreceiptはmodel境界で停止する', async () => {
+    const management = normalizeJudgmentHostResult({ status: 'ok', scope: { project_codes: ['brainbase'] }, data: { resolution_id: 'jr', host_binding: { status: 'managed' } } });
+    const result = await runManagedJudgmentTurn({ resolve: async () => management, continueTurn: () => 'must-not-run' });
+    assert.equal(result.execution_status, 'stopped');
+    assert.equal(result.reason, 'judgment_active_node_definitions_missing');
+  });
+});

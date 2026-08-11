@@ -1,11 +1,24 @@
 #!/usr/bin/env bash
-# VibePro DAG enforcement: push前にgate_dagがready_for_reviewか確認する。
-# escape: BRAINBASE_ALLOW_PUSH_WITHOUT_GATE=1 git push ...
+# Canonical VibePro runtimeを検証し、そのruntimeのPR preparationだけをpush判断に使う。
 
-set -e
+set -eu
+
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+CONTRACT="$ROOT/.claude/scripts/hooks/lib/vibepro-runtime-contract.mjs"
+if ! IDENTITY=$(node "$CONTRACT" identity --cwd "$ROOT"); then
+  echo "❌ [husky/pre-push] canonical VibePro runtime identityを検証できません" >&2
+  exit 1
+fi
+
+SUMMARY=$(node -e '
+let buf=""; process.stdin.on("data", d => buf += d); process.stdin.on("end", () => {
+  const x=JSON.parse(buf).runtime_identity;
+  process.stdout.write(`${x.package.exact_version} source=${x.source_git.commit} identity=${x.identity_digest}`);
+});' <<< "$IDENTITY")
+echo "[husky/pre-push] VibePro $SUMMARY"
 
 if [ "${BRAINBASE_ALLOW_PUSH_WITHOUT_GATE:-0}" = "1" ]; then
-  echo "[husky/pre-push] Skipped (BRAINBASE_ALLOW_PUSH_WITHOUT_GATE=1)"
+  echo "[husky/pre-push] PR preparation skipped (BRAINBASE_ALLOW_PUSH_WITHOUT_GATE=1; runtime identity verified)"
   exit 0
 fi
 
@@ -18,45 +31,20 @@ case "$BRANCH" in
     ;;
 esac
 
-VIBEPRO_BIN="${VIBEPRO_BIN:-/Users/ksato/workspace/code/vibepro/bin/vibepro.js}"
-if [ ! -e "$VIBEPRO_BIN" ]; then
-  echo "[husky/pre-push] vibepro CLI not found at $VIBEPRO_BIN, skipping gate check"
-  echo "[husky/pre-push] Set VIBEPRO_BIN env to enforce gate"
+if OUTPUT=$(node "$CONTRACT" pr-prepare --cwd "$ROOT" --base origin/develop); then
+  PREPARED_DIGEST=$(node -e '
+let buf=""; process.stdin.on("data", d => buf += d); process.stdin.on("end", () => {
+  process.stdout.write(JSON.parse(buf).runtime_identity.identity_digest);
+});' <<< "$OUTPUT")
+  echo "[husky/pre-push] pr prepare runtime identity=$PREPARED_DIGEST ✓"
   exit 0
 fi
 
-OUTPUT=$(node "$VIBEPRO_BIN" pr prepare . --base origin/develop --json 2>&1 || true)
-
-STATUS=$(node -e "
-let buf = '';
-process.stdin.on('data', (d) => { buf += d; });
-process.stdin.on('end', () => {
-  try {
-    const start = buf.indexOf('{');
-    if (start < 0) { console.log('parse_error'); return; }
-    const json = JSON.parse(buf.slice(start));
-    console.log(json.pr_context?.gate_dag?.overall_status || 'unknown');
-  } catch { console.log('parse_error'); }
-});
-" <<< "$OUTPUT")
-
-if [ "$STATUS" = "ready_for_review" ]; then
-  echo "[husky/pre-push] gate_dag = ready_for_review ✓"
-  exit 0
-fi
-
-echo ""
-echo "❌ [husky/pre-push] gate_dag.overall_status = $STATUS"
-echo ""
-echo "VibePro DAG ガードに引っかかりました。"
-echo ""
+echo "❌ [husky/pre-push] canonical runtimeでpr prepareを完了できませんでした" >&2
 echo "対処:"
-echo "  1. Unit / Integration / E2E test を追加して各 gate に証跡を残す"
-echo "  2. \`vibepro pr prepare . --base origin/develop\` で gate_dag を確認"
-echo "  3. ready_for_review に到達してから再 push"
-echo ""
+echo "  1. canonical VibeProで必要な検証証跡を再生成する"
+echo "  2. vibepro pr prepare . --base origin/develop を再実行する"
 echo "緊急時の escape:"
 echo "  BRAINBASE_ALLOW_PUSH_WITHOUT_GATE=1 git push ..."
-echo "  (PR本文に bypass 理由を残すこと)"
-echo ""
+echo "  (runtime identity検証は省略されません。PR本文にbypass理由を残してください)"
 exit 1

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -157,6 +157,34 @@ describe('companion decision-events route', () => {
             .expect(503);
 
         expect(res.body.code).toBe('decision_event_service_unconfigured');
+    });
+
+    it('returns 503 and quarantines a corrupt decision event ledger', async () => {
+        writeFileSync(path.join(dir, '2026-07.json'), '{not-json');
+        const app = createApp({ decisionEventService });
+
+        const res = await request(app)
+            .post('/api/companion/decision-events')
+            .set('Authorization', 'Bearer user-token')
+            .send(basePayload())
+            .expect(503);
+
+        expect(res.body.code).toBe('decision_event_ledger_corrupt');
+    });
+
+    it('returns 503 for a ledger whose JSON schema is invalid', async () => {
+        writeFileSync(path.join(dir, '2026-07.json'), JSON.stringify({
+            schema_version: '0.1.0',
+            events: {}
+        }));
+        const app = createApp({ decisionEventService });
+
+        const res = await request(app)
+            .get('/api/companion/decision-events')
+            .set('Authorization', 'Bearer user-token')
+            .expect(503);
+
+        expect(res.body.code).toBe('decision_event_ledger_corrupt');
     });
 
     it('lists stored events via GET, filtered by from/to', async () => {

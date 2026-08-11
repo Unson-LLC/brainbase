@@ -1,5 +1,8 @@
 // @ts-check
 
+import { createHash } from 'node:crypto';
+
+import { DuplicateCandidateError } from '../candidate-store/candidate-repository.js';
 import { ExternalRunnerContractError } from './contract-schema.js';
 import { EveRuntimeAdapter } from './eve-runtime-adapter.js';
 
@@ -37,6 +40,10 @@ function sortComparableList(items) {
     return [...items].sort((a, b) => stableString(a).localeCompare(stableString(b)));
 }
 
+function sha256(value) {
+    return createHash('sha256').update(value).digest('hex');
+}
+
 export class ExternalRunnerIngestService {
     constructor({ workflowRepository, candidateRepository = null, adapter = new EveRuntimeAdapter() }) {
         this.workflowRepository = workflowRepository;
@@ -48,25 +55,32 @@ export class ExternalRunnerIngestService {
         const normalized = this.adapter.normalize(payload);
         this._validateLoopControlRefs(normalized);
         this._validateOrgReferenceBoundary(normalized);
-        const existingRun = this.workflowRepository.getRun(normalized.run.id);
-        if (existingRun) {
-            this._assertCompleteDuplicate(existingRun, normalized);
-            this._writeDuplicateReplayAudit(existingRun, normalized);
-            return {
-                status: 'duplicate',
-                run: existingRun,
-                workflow: this.workflowRepository.getWorkflow(existingRun.workflow_id),
-                context_snapshots: this.workflowRepository.listContextSnapshots(existingRun.id),
-                human_steps: this.workflowRepository.listHumanSteps(existingRun.id),
-                outputs: this.workflowRepository.listOutputs(existingRun.id),
-                audit_logs: this.workflowRepository.listAuditLogs({ targetId: existingRun.id }),
-                learning_candidates: this._listPersistedLearningCandidates(existingRun.id)
-            };
-        }
+        this._requireTransactionBoundary();
+        const core = await this._transaction(() => {
+            const existingRun = this.workflowRepository.getRun(normalized.run.id);
+            if (existingRun) {
+                this._assertCompleteDuplicate(existingRun, normalized);
+                const states = this._listPersistedLearningCandidates(existingRun.id);
+                const conflicts = states.filter((candidate) => candidate.persistence_status === 'pending'
+                    && candidate.action_required === 'resolve_candidate_conflict');
+                if (conflicts.length > 0) {
+                    throw this._candidateConflictError(conflicts[0], existingRun.id);
+                }
+                const pendingCandidateIds = states
+                    .filter((candidate) => candidate.persistence_status === 'pending')
+                    .map((candidate) => candidate.candidate_id);
+                if (pendingCandidateIds.length === 0) {
+                    this._writeDuplicateReplayAudit(existingRun, normalized);
+                }
+                return {
+                    status: 'duplicate',
+                    run: existingRun,
+                    pendingCandidateIds
+                };
+            }
 
-        const existingWorkflow = this.workflowRepository.getWorkflow(normalized.workflow.id);
-        this._assertExistingWorkflowCompatible(existingWorkflow, normalized.run);
-        const write = async () => {
+            const existingWorkflow = this.workflowRepository.getWorkflow(normalized.workflow.id);
+            this._assertExistingWorkflowCompatible(existingWorkflow, normalized.run);
             const workflow = existingWorkflow || this.workflowRepository.upsertWorkflow(normalized.workflow);
             const run = this.workflowRepository.createRun(normalized.run);
             const contextSnapshots = normalized.contextSnapshots.map((snapshot) => (
@@ -81,8 +95,9 @@ export class ExternalRunnerIngestService {
             normalized.auditEvents.forEach((entry) => (
                 this.workflowRepository.writeAuditLog(entry)
             ));
-            const learningCandidates = await this._storeLearningCandidates(normalized);
-            const auditLogs = this.workflowRepository.listAuditLogs({ targetId: run.id });
+            normalized.learningCandidates.forEach((candidate) => (
+                this._writePendingLearningCandidateAudit(candidate, normalized)
+            ));
 
             return {
                 status: 'created',
@@ -90,15 +105,45 @@ export class ExternalRunnerIngestService {
                 run,
                 context_snapshots: contextSnapshots,
                 human_steps: humanSteps,
-                outputs,
-                audit_logs: auditLogs,
-                learning_candidates: learningCandidates
+                outputs
             };
-        };
-        if (typeof this.workflowRepository.transaction === 'function') {
-            return this.workflowRepository.transaction(write);
+        });
+
+        if (core.status === 'duplicate') {
+            if (core.pendingCandidateIds.length > 0) {
+                await this._storeLearningCandidates(normalized, core.pendingCandidateIds);
+            }
+            return {
+                status: 'duplicate',
+                run: core.run,
+                workflow: this.workflowRepository.getWorkflow(core.run.workflow_id),
+                context_snapshots: this.workflowRepository.listContextSnapshots(core.run.id),
+                human_steps: this.workflowRepository.listHumanSteps(core.run.id),
+                outputs: this.workflowRepository.listOutputs(core.run.id),
+                audit_logs: this.workflowRepository.listAuditLogs({ targetId: core.run.id }),
+                learning_candidates: this._listPersistedLearningCandidates(core.run.id)
+            };
         }
-        return write();
+
+        const learningCandidates = await this._storeLearningCandidates(normalized);
+        return {
+            ...core,
+            audit_logs: this.workflowRepository.listAuditLogs({ targetId: core.run.id }),
+            learning_candidates: learningCandidates
+        };
+    }
+
+    _requireTransactionBoundary() {
+        if (typeof this.workflowRepository.transaction !== 'function') {
+            throw new ExternalRunnerContractError(
+                'workflow_transaction_required',
+                'external runner ingest requires a transactional workflow repository'
+            );
+        }
+    }
+
+    _transaction(callback) {
+        return this.workflowRepository.transaction(callback);
     }
 
     _assertExistingWorkflowCompatible(existingWorkflow, run) {
@@ -419,32 +464,66 @@ export class ExternalRunnerIngestService {
         );
     }
 
-    async _storeLearningCandidates(normalized) {
+    async _storeLearningCandidates(normalized, sourceCandidateIds = null) {
         if (normalized.learningCandidates.length === 0) return [];
+        const selected = sourceCandidateIds
+            ? normalized.learningCandidates.filter((candidate) => sourceCandidateIds.includes(candidate.candidate_id))
+            : normalized.learningCandidates;
         const createCandidate = this._resolveCandidateCreate();
         if (!createCandidate) {
-            return normalized.learningCandidates.map((candidate) => (
-                this._writeDeferredLearningCandidateAudit(candidate, normalized, {
+            const deferred = [];
+            for (const candidate of selected) {
+                deferred.push(await this._transaction(() => this._writeDeferredLearningCandidateAudit(candidate, normalized, {
                     reason: 'candidate_store_unavailable'
-                })
-            ));
+                })));
+            }
+            return deferred;
         }
 
         const stored = [];
-        for (const candidate of normalized.learningCandidates) {
+        for (const candidate of selected) {
+            const candidateInput = this._toCandidateStoreInput(candidate, normalized);
+            let storedCandidate;
             try {
-                const storedCandidate = await createCandidate(this._toCandidateStoreInput(candidate, normalized));
-                this._writeStoredLearningCandidateAudit(candidate, storedCandidate, normalized);
-                stored.push(storedCandidate);
+                storedCandidate = await createCandidate(candidateInput);
             } catch (error) {
-                const deferred = this._writeDeferredLearningCandidateAudit(candidate, normalized, {
+                if (error instanceof DuplicateCandidateError) {
+                    const adopted = await this._adoptStoredCandidate(candidate, candidateInput, normalized);
+                    stored.push(adopted);
+                    continue;
+                }
+                const deferred = await this._transaction(() => this._writeDeferredLearningCandidateAudit(candidate, normalized, {
                     reason: 'candidate_store_write_failed',
                     error: error instanceof Error ? error.message : String(error)
-                });
+                }));
                 stored.push(deferred);
+                continue;
             }
+            await this._transaction(() => (
+                this._writeStoredLearningCandidateAudit(candidate, storedCandidate, normalized)
+            ));
+            stored.push(storedCandidate);
         }
         return stored;
+    }
+
+    _writePendingLearningCandidateAudit(candidate, normalized) {
+        const candidateInput = this._toCandidateStoreInput(candidate, normalized);
+        this.workflowRepository.writeAuditLog({
+            workspace_id: normalized.run.workspace_id,
+            org_id: normalized.run.org_id || null,
+            project_id: normalized.run.project_id,
+            actor_id: normalized.run.actor_id,
+            action: 'external_runner.learning_candidate.pending',
+            target_type: 'workflow_run',
+            target_id: normalized.run.id,
+            after: {
+                ...candidate,
+                stored_candidate_id: candidateInput.id,
+                persistence_status: 'pending',
+                action_required: 'retry_candidate_store'
+            }
+        });
     }
 
     _writeStoredLearningCandidateAudit(candidate, storedCandidate, normalized) {
@@ -486,15 +565,99 @@ export class ExternalRunnerIngestService {
         };
     }
 
+    async _adoptStoredCandidate(candidate, expected, normalized) {
+        const findById = this._resolveCandidateFindById();
+        const actual = findById ? await findById(expected.id) : null;
+        if (actual && this._candidateImmutableProjectionMatches(actual, expected)) {
+            await this._transaction(() => (
+                this._writeStoredLearningCandidateAudit(candidate, actual, normalized)
+            ));
+            return actual;
+        }
+        const conflict = {
+            ...candidate,
+            stored_candidate_id: expected.id,
+            persistence_status: 'pending',
+            action_required: 'resolve_candidate_conflict',
+            reason: actual ? 'candidate_immutable_mismatch' : 'candidate_missing_after_duplicate'
+        };
+        await this._transaction(() => this._writeCandidateConflictAudit(conflict, normalized));
+        throw this._candidateConflictError(conflict, normalized.run.id);
+    }
+
+    _writeCandidateConflictAudit(conflict, normalized) {
+        this.workflowRepository.writeAuditLog({
+            workspace_id: normalized.run.workspace_id,
+            org_id: normalized.run.org_id || null,
+            project_id: normalized.run.project_id,
+            actor_id: normalized.run.actor_id,
+            action: 'external_runner.candidate_conflict',
+            target_type: 'workflow_run',
+            target_id: normalized.run.id,
+            after: conflict
+        });
+    }
+
+    _candidateConflictError(conflict, runId) {
+        return new ExternalRunnerContractError(
+            'external_runner_candidate_conflict',
+            `Candidate Store conflict for workflow_run '${runId}' and candidate '${conflict.candidate_id}'`,
+            {
+                workflow_run_id: runId,
+                candidate_id: conflict.candidate_id,
+                stored_candidate_id: conflict.stored_candidate_id,
+                reason: conflict.reason
+            }
+        );
+    }
+
+    _candidateImmutableProjectionMatches(actual, expected) {
+        const projection = (candidate) => ({
+            id: candidate.id,
+            cognitive_type: candidate.cognitive_type,
+            owner_person_id: candidate.owner_person_id,
+            actor_person_id: candidate.actor_person_id,
+            source_system: candidate.source_system,
+            source_event_ids: sortComparableList(candidate.source_event_ids || []),
+            workspace: candidate.workspace || null,
+            project_code: candidate.project_code || null,
+            org_ids: sortComparableList(candidate.org_ids || []),
+            project_ids: sortComparableList(candidate.project_ids || []),
+            visibility: candidate.visibility,
+            sensitivity: candidate.sensitivity,
+            role_min: candidate.role_min || 'member',
+            agency_level: candidate.agency_level || 'synthesize',
+            recommended_subject_type: candidate.recommended_subject_type || null,
+            recommended_owner_person_id: candidate.recommended_owner_person_id || null,
+            requires_approval: candidate.requires_approval !== false,
+            permission_snapshot: candidate.permission_snapshot || null,
+            evidence_ids: sortComparableList(candidate.evidence_ids || []),
+            body: candidate.body,
+            redaction_status: candidate.redaction_status,
+            confidence: candidate.confidence ?? null,
+            expires_at: candidate.expires_at || null
+        });
+        return stableString(projection(actual)) === stableString(projection(expected));
+    }
+
     _listPersistedLearningCandidates(runId) {
-        return this.workflowRepository
+        const latest = new Map();
+        const stateRank = {
+            'external_runner.learning_candidate.pending': 0,
+            'external_runner.learning_candidate.deferred': 1,
+            'external_runner.learning_candidate.stored': 1,
+            'external_runner.candidate_conflict': 2
+        };
+        this.workflowRepository
             .listAuditLogs({ targetId: runId, limit: 1000 })
-            .filter((entry) => [
-                'external_runner.learning_candidate.deferred',
-                'external_runner.learning_candidate.stored'
-            ].includes(entry.action))
-            .map((entry) => entry.after)
-            .filter(Boolean);
+            .filter((entry) => Object.prototype.hasOwnProperty.call(stateRank, entry.action) && entry.after)
+            .forEach((entry) => {
+                const candidate = entry.after;
+                const current = latest.get(candidate.candidate_id);
+                const rank = stateRank[entry.action];
+                if (!current || rank > current.rank) latest.set(candidate.candidate_id, { rank, candidate });
+            });
+        return [...latest.values()].map((entry) => entry.candidate);
     }
 
     _resolveCandidateCreate() {
@@ -508,6 +671,11 @@ export class ExternalRunnerIngestService {
         return null;
     }
 
+    _resolveCandidateFindById() {
+        if (!this.candidateRepository || typeof this.candidateRepository.findById !== 'function') return null;
+        return (id) => this.candidateRepository.findById(id);
+    }
+
     _toCandidateStoreInput(candidate, normalized) {
         const loopControl = normalized.run.metadata?.loop_control || {};
         const loopRefs = {
@@ -518,14 +686,29 @@ export class ExternalRunnerIngestService {
             trigger_id: normalized.run.trigger_id || null,
             loop_intent_id: normalized.run.loop_intent_id || null
         };
+        const workspaceId = normalized.run.workspace_id || 'default';
+        const orgId = normalized.run.org_id || '';
+        const scopeParts = [
+            normalized.contractVersion,
+            workspaceId,
+            orgId,
+            normalized.run.project_id,
+            normalized.runnerType,
+            normalized.externalRunId
+        ];
+        const storedCandidateId = `extcand_${sha256(JSON.stringify([
+            ...scopeParts,
+            candidate.candidate_id
+        ]))}`;
+        const scopeEventId = `external_runner_scope:${sha256(JSON.stringify(scopeParts))}`;
         return {
-            id: candidate.id || candidate.candidate_id,
+            id: storedCandidateId,
             cognitive_type: candidate.cognitive_type,
             owner_person_id: candidate.owner_person_id || loopControl.owner_id,
             actor_person_id: candidate.actor_person_id || normalized.run.actor_id,
             source_system: candidate.source_system || 'external_runner',
-            source_event_ids: candidate.source_event_ids || [normalized.externalRunId, candidate.candidate_id].filter(Boolean),
-            workspace: candidate.workspace || normalized.run.workspace_id || 'default',
+            source_event_ids: [scopeEventId, candidate.candidate_id],
+            workspace: candidate.workspace || workspaceId,
             project_code: normalized.run.project_id,
             org_ids: normalized.run.org_id ? [normalized.run.org_id] : [],
             project_ids: [normalized.run.project_id].filter(Boolean),

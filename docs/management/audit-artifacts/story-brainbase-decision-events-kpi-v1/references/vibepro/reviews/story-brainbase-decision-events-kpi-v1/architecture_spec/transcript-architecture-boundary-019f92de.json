@@ -1,0 +1,30 @@
+{
+  "agent_id": "019f92de-2bbc-77d0-bc03-de95429a3321",
+  "model": "gpt-5.6-luna",
+  "reasoning_effort": "high",
+  "head_sha": "b18e44d66b8dc1b99dd6e237cc91cd6f3f585dc7",
+  "base_sha": "d53d1585e4c5d3af9936e40b55e43025b404faa1",
+  "status": "needs_changes",
+  "summary": "Ledger authority, full-record validation, quarantine/index recovery, shared locking, auth/API boundaries, and malformed KPI no-post behavior passed review. One cache integrity finding remains.",
+  "findings": [
+    {
+      "id": "cache-masks-corruption",
+      "severity": "medium",
+      "status": "open",
+      "description": "The ledger snapshot uses dev, inode, size, and mtime only. A same-size mutation with restored mtime bypasses authoritative ledger revalidation and returns cached events instead of quarantining the corrupt ledger.",
+      "required_change": "Include an authoritative content digest or equivalent revalidation in the snapshot and add a same-size, same-inode, same-mtime regression test."
+    }
+  ],
+  "resolved_prior_findings": [
+    "malformed-ledger-records",
+    "quarantine-generation-recovery",
+    "malformed-kpi-response"
+  ],
+  "verification": {
+    "vitest": "58 passed",
+    "playwright": "9 passed",
+    "typecheck": "passed",
+    "git_diff_check": "passed"
+  },
+  "evidence_boundary": "No live Slack post was performed; Slack behavior was verified through automated HTTP contract tests."
+}

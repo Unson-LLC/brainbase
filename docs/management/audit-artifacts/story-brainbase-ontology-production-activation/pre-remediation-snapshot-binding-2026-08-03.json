@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0.0",
+  "story_id": "story-brainbase-ontology-production-activation",
+  "recorded_at": "2026-08-02T21:45:33Z",
+  "environment": "production",
+  "transaction": "READ ONLY",
+  "source_commit_sha": "ef12ffabd109d75d2a55d3802daa44f2160aa333",
+  "publication_commit_sha": "e794299c5f19f8d46747a39422420b68176ed14b",
+  "candidate_head_sha": "2a38a3f9befe54537c0f909b3fe33f5eb7032a83",
+  "method": "Reconstruct the exact pre-remediation snapshot from the current production snapshot by removing authority rows, removing remediation inserts, and restoring remediation backup rows; then hash every selected entity and edge column.",
+  "digest_columns": {
+    "entities": ["id", "entity_type", "project_id", "payload", "role_min", "sensitivity"],
+    "edges": ["id", "from_id", "to_id", "rel_type", "project_id", "payload", "role_min", "sensitivity"]
+  },
+  "reproduction_command": "ssh production 'source value-hidden runtime env; node --input-type=module -e <read Graph snapshot, reverse the two saved backup manifests, canonicalize digest_columns, sha256>'",
+  "backup_bindings": {
+    "remediation_path": "/home/ubuntu/brainbase/var/ontology-backups/ontology-1.0.0-remediation-2026-08-02T193951656Z.json",
+    "remediation_sha256": "fc791147dd4893d09ee93a2aee96097c253a4ecb15df747fbc8d5b877e3c1682",
+    "authority_path": "/home/ubuntu/brainbase/var/ontology-backups/ontology-1.0.0-authority-2026-08-02T195038951Z.json",
+    "authority_sha256": "dac7457e5ab52720e379d69d45a03e889ee52e4aae12baa20d81d55bf46bf653"
+  },
+  "result": {
+    "entity_count": 7403,
+    "edge_count": 6680,
+    "snapshot_digest_algorithm": "sha256",
+    "snapshot_digest": "da6faee2640908ef93007c1d8eb77a4e0226fe62a5ba6843867566db01216458",
+    "matches_code_precondition": true
+  }
+}

@@ -35,7 +35,7 @@ flowchart LR
   transcript["Tactiq transcript / Plaud note<br/>fact source"] --> generator["Meeting Pack generation"]
   graph["Graph SSOT<br/>identity / relationship / glossary context"] --> generator
   generator --> package["Review Package"]
-  package --> ingest["WorkflowService ingest"]
+  package --> ingest["MeetingAutomationService ingest"]
   ingest --> metadata["run metadata / context snapshots / outputs"]
   metadata --> gate["Human Gate"]
   gate -. "after approval only" .-> writes["Task / Decision / Graph / External writes"]

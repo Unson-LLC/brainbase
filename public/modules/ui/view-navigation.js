@@ -1,6 +1,5 @@
 /**
- * Backward-compatible wrapper for view navigation.
- * Delegates to panel-layout-manager internally.
+ * Backward-compatible wrapper for the retired command-center navigation.
  */
 export function setupViewNavigation({
     root = document,

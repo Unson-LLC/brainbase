@@ -1,0 +1,189 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-decision-events-kpi-v1",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "現HEADのstrict-head証跡、実装、認証、失敗時挙動を再検査し問題なし",
+  "findings": [],
+  "finding_dispositions": [
+    {
+      "finding_id": "evidence-freshness-contradiction",
+      "disposition": "accepted",
+      "resolved_by": [
+        ".vibepro/qa/decision-events-current-head-verification-20260724T073257Z.json"
+      ],
+      "reason": "resolved by fresh clean current-head verification",
+      "inferred_from_resolution": false
+    },
+    {
+      "finding_id": "managed-worktree-locality-unresolved",
+      "disposition": "deferred",
+      "resolved_by": [],
+      "reason": "required false and nonblocking",
+      "inferred_from_resolution": false
+    },
+    {
+      "finding_id": "vibepro-gate-evidence-missing",
+      "disposition": "false_positive",
+      "resolved_by": [
+        ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/transcript-gate-evidence-019f9311.json"
+      ],
+      "reason": "replacement review result itself is lifecycle sequencing",
+      "inferred_from_resolution": false
+    }
+  ],
+  "artifacts": [],
+  "inspection": {
+    "summary": "risk_surfaces=concurrency,cross_month_dedupe,corrupt_ledger,stale_index,cache_tampering,kpi_false_delivery,api_auth,input_validation; regression_guard and path_surface_coverage passed across service, controller, route, KPI script, unit/integration/E2E, Story/Spec, and current-head evidence",
+    "evidence": ".vibepro/qa/decision-events-current-head-verification-20260724T073257Z.json",
+    "inputs": [
+      "server/services/companion/decision-event-service.js",
+      "server/controllers/companion-controller.js",
+      "server/routes/companion.js",
+      "scripts/send-decision-kpi-to-slack.js",
+      "tests/server/services/companion/decision-event-service.test.js",
+      "tests/server/routes/companion-decision-events.test.js",
+      "tests/server/scripts/send-decision-kpi-to-slack.test.js",
+      "tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts"
+    ]
+  },
+  "judgment_delta": [
+    "前回はdirty/freshness矛盾でblockだったが、cleanな現HEADのstrict evidenceと実装・テスト直接検査により残存問題なしへ変更"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+    "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+    "expected_root": null,
+    "expected_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+    "current_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+      "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+      "expected_root": null,
+      "expected_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+      "current_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-24T07:47:29.727Z",
+  "git_context": {
+    "head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+    "current_branch": "codex/decision-event-global-dedupe",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-24T07:47:29.717Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "strict_head",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "replacement final gate must remain bound to exact reviewed HEAD"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+    "surface_files": [
+      {
+        "path": "scripts/send-decision-kpi-to-slack.js",
+        "sha256": "80851bf9d10478be400a09e47de1cc36c3637ad1ed64794c2af333327830c217",
+        "size": 8485
+      },
+      {
+        "path": "server/controllers/companion-controller.js",
+        "sha256": "2091e397d2db4291a7338fb9af3a8a1813d3bea6f17a5cac877ca79fdaf0f69e",
+        "size": 12937
+      },
+      {
+        "path": "server/routes/companion.js",
+        "sha256": "a798732f5821824f927c975e1d296e287031ab1ee3315f25ea18f9c75a88a268",
+        "size": 3012
+      },
+      {
+        "path": "server/services/companion/decision-event-service.js",
+        "sha256": "ee5fc765d6358f72bd0d97fa86251ca3699a447c59ae046c3a9caebb2ba496ed",
+        "size": 35774
+      },
+      {
+        "path": "tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts",
+        "sha256": "1f84723499e7871e2dd696ce98fcfffec6ff163b195eb7cb207bfba85a4b8e0a",
+        "size": 17665
+      },
+      {
+        "path": "tests/server/routes/companion-decision-events.test.js",
+        "sha256": "d168d7f1f3d1477da39f26668c23a057e172143a97133ae35ab1826a7db192ee",
+        "size": 7534
+      },
+      {
+        "path": "tests/server/scripts/send-decision-kpi-to-slack.test.js",
+        "sha256": "706722937b33bfe6c5372190610e9ce553a37665657836cc0ca7f1fffb7e1598",
+        "size": 4761
+      },
+      {
+        "path": "tests/server/services/companion/decision-event-service.test.js",
+        "sha256": "6877d6afcf5207354f12c113d46eb337a13478e3576a89edf9dbf90c1d77cba7",
+        "size": 26153
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "fda82f09814409196bfc4784aa4f0039925fa1009078a5e72e8266a0e87b9049"
+  },
+  "source_fingerprint": "c2a115281ffbe549d0d96b4c8bfb5a69ae0b86f3ca190cc8da1fb82499b0561f",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f9311-5a73-7952-9f4a-0d82f161f167",
+    "agent_role": null,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "cost_tier": "low",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/transcript-gate-evidence-019f9311.json",
+    "request_artifact": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/transcript-gate-evidence-019f9311.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": null,
+      "implementation_session_id": null,
+      "source": "cli_flag"
+    }
+  },
+  "agent_usage": null
+}

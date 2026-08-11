@@ -1,0 +1,1581 @@
+// @ts-check
+
+import crypto from 'node:crypto';
+import { AppError } from '../../lib/errors.js';
+import { ProjectAccessPolicy } from '../project-access/project-access-policy.js';
+
+const DEFAULT_WORKSPACE_ID = 'default';
+const DEFAULT_OWNER_ID = 'local-user';
+const ALLOWED_TRIGGER_TYPES = new Set(['human', 'event', 'schedule']);
+const ALLOWED_AUTONOMY_LEVELS = new Set(['human_only', 'draft_only', 'approval_required', 'auto_execute']);
+const EVE_SESSION_DISPATCH_IMPLEMENTATION_KEY = 'eve-session-dispatch';
+const EVE_SESSION_DISPATCH_STATE_TRANSITIONS = [
+    'loop_intent_loaded',
+    'control_refs_resolved',
+    'eve_session_requested',
+    'eve_session_recorded',
+    'awaiting_eve_result'
+];
+const EVE_SESSION_DISPATCH_LOCK_TTL_MS = 600000;
+const DEFAULT_EVE_STOP_CONDITIONS = [
+    'missing_context',
+    'privacy_scope_leak',
+    'human_approval_required'
+];
+
+function readString(input, snakeKey, camelKey = snakeKey) {
+    const value = input?.[snakeKey] ?? input?.[camelKey];
+    return typeof value === 'string' ? value.trim() : '';
+}
+
+function readOptionalString(input, snakeKey, camelKey = snakeKey) {
+    const value = readString(input, snakeKey, camelKey);
+    return value || null;
+}
+
+function readFirstOptionalString(input, ...keys) {
+    for (const key of keys) {
+        const value = input?.[key];
+        if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    return '';
+}
+
+function readOptionalJsonValue(input, snakeKey, camelKey = snakeKey) {
+    const value = input?.[snakeKey] ?? input?.[camelKey];
+    if (value === undefined || value === null || value === '') return null;
+    if (typeof value !== 'object') {
+        throw AppError.validation(`${snakeKey} must be a JSON object or array`);
+    }
+    try {
+        return JSON.parse(JSON.stringify(value));
+    } catch {
+        throw AppError.validation(`${snakeKey} must be JSON serializable`);
+    }
+}
+
+function requireInputString(input, snakeKey, camelKey = snakeKey) {
+    const value = readString(input, snakeKey, camelKey);
+    if (!value) throw AppError.validation(`${snakeKey} is required`);
+    return value;
+}
+
+function ensureAllowed(value, allowed, fieldName) {
+    if (!allowed.has(value)) {
+        throw AppError.validation(`${fieldName} must be one of ${Array.from(allowed).join(', ')}`);
+    }
+}
+
+function normalizeTags(value) {
+    return Array.isArray(value)
+        ? value.map((item) => String(item).trim()).filter(Boolean)
+        : [];
+}
+
+function readStrictStringList(input, snakeKey, camelKey = snakeKey) {
+    const value = input?.[snakeKey] ?? input?.[camelKey];
+    return normalizeStrictStringList(value, snakeKey);
+}
+
+function normalizeStrictStringList(value, fieldName) {
+    if (value === undefined || value === null || value === '') return [];
+    if (typeof value === 'string') {
+        return value.split(',').map((item) => item.trim()).filter(Boolean);
+    }
+    if (!Array.isArray(value)) {
+        throw AppError.validation(`${fieldName} must be an array of non-empty strings`);
+    }
+    return value.map((item, index) => {
+        if (typeof item !== 'string' || item.trim() === '') {
+            throw AppError.validation(`${fieldName}[${index}] must be a non-empty string`);
+        }
+        return item.trim();
+    });
+}
+
+function readPersistedStrictStringList(record, key, fieldName) {
+    if (!record || !Object.prototype.hasOwnProperty.call(record, key)) return [];
+    const value = record[key];
+    if (!Array.isArray(value)) {
+        throw AppError.validation(`${fieldName} must be an array of non-empty strings`);
+    }
+    return normalizeStrictStringList(value, fieldName);
+}
+
+function createStableIdBase(...parts) {
+    return parts
+        .map((part) => String(part || '').trim())
+        .filter(Boolean)
+        .join('_')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+}
+
+function createStableId(prefix, ...parts) {
+    const base = createStableIdBase(...parts).slice(0, 96);
+    return base ? `${prefix}_${base}` : `${prefix}_${crypto.randomUUID()}`;
+}
+
+function createEveSessionRunId(loopIntent, sessionId) {
+    const sessionBase = createStableIdBase(sessionId).slice(0, 24) || 'session';
+    const hashSource = [
+        loopIntent?.workspace_id || DEFAULT_WORKSPACE_ID,
+        loopIntent?.org_id,
+        loopIntent?.project_id,
+        loopIntent?.id,
+        sessionId
+    ].join(':');
+    const hash = crypto.createHash('sha256').update(hashSource).digest('hex').slice(0, 12);
+    const suffix = `${sessionBase}_${hash}`;
+    const stemBase = createStableIdBase(loopIntent?.org_id, loopIntent?.project_id, loopIntent?.id, 'eve_session') || 'eve_session';
+    const maxStemLength = Math.max(12, 96 - suffix.length - 1);
+    const stem = stemBase.slice(0, maxStemLength).replace(/_+$/g, '') || 'eve_session';
+    return `run_${stem}_${suffix}`;
+}
+
+function eveDispatchLockWorkflowId(loopIntent) {
+    return `eve_session_dispatch:${loopIntent?.id || 'unknown'}`;
+}
+
+function isEveSessionTimeoutError(error) {
+    return error?.code === 'eve_session_timeout';
+}
+
+function createMeetingReviewStableId(prefix, ...parts) {
+    const base = createStableIdBase(...parts);
+    if (!base) return `${prefix}_${crypto.randomUUID()}`;
+    if (base.length <= 96) return `${prefix}_${base}`;
+    const hash = crypto.createHash('sha256').update(base).digest('hex').slice(0, 12);
+    const stem = base.slice(0, 83).replace(/_+$/g, '');
+    return `${prefix}_${stem}_${hash}`;
+}
+
+function jsonClone(value) {
+    if (value === undefined) return null;
+    return JSON.parse(JSON.stringify(value));
+}
+
+function eveDispatchBlockReasons(loopIntent) {
+    const reasons = [];
+    const status = String(loopIntent?.status || '').toLowerCase();
+    const eligibilityStatus = String(loopIntent?.eligibility?.status || '').toLowerCase();
+    if (loopIntent?.enabled === false) reasons.push('loop_intent_disabled');
+    if (['blocked', 'human_only', 'cancelled', 'canceled'].includes(status)) {
+        reasons.push(`loop_intent_status_${status}`);
+    }
+    if (['blocked', 'human_only'].includes(eligibilityStatus)) {
+        reasons.push(`eligibility_${eligibilityStatus}`);
+    }
+    if (Array.isArray(loopIntent?.blocked_reasons)) {
+        reasons.push(...loopIntent.blocked_reasons.filter(Boolean).map((reason) => `blocked_reason_${reason}`));
+    }
+    if (['blocked', 'human_only'].includes(eligibilityStatus) && Array.isArray(loopIntent?.eligibility?.reasons)) {
+        reasons.push(...loopIntent.eligibility.reasons.filter(Boolean).map((reason) => `eligibility_reason_${reason}`));
+    }
+    return Array.from(new Set(reasons));
+}
+
+function isBlockedEveDispatch(loopIntent) {
+    return eveDispatchBlockReasons(loopIntent).length > 0;
+}
+
+function redactedEveSessionRef(session) {
+    return {
+        session_id: session.session_id,
+        continuation_token_present: Boolean(session.continuation_token)
+    };
+}
+
+function hasOwn(value, key) {
+    return Boolean(value && Object.prototype.hasOwnProperty.call(value, key));
+}
+
+function redactLoopIntentForResponse(loopIntent) {
+    const cloned = jsonClone(loopIntent);
+    const ref = cloned?.metadata?.eve_session_ref;
+    if (ref && typeof ref === 'object' && hasOwn(ref, 'continuation_token')) {
+        cloned.metadata.eve_session_ref = {
+            ...ref,
+            continuation_token_present: Boolean(ref.continuation_token || ref.continuation_token_present)
+        };
+        delete cloned.metadata.eve_session_ref.continuation_token;
+    }
+    return cloned;
+}
+
+function readEveDispatchMessageOverride(input) {
+    if (!Object.prototype.hasOwnProperty.call(input || {}, 'message')) return null;
+    if (typeof input.message !== 'string' || input.message.trim() === '') {
+        throw AppError.validation('message is required', {
+            state_transition: 'blocked_eve_message_required'
+        });
+    }
+    return input.message.trim();
+}
+
+function assertNoCallerSuppliedEveContinuationToken(input) {
+    const disallowedFields = ['continuation_token', 'continuationToken'].filter((field) => hasOwn(input, field));
+    if (!disallowedFields.length) return;
+    throw AppError.validation('continuation_token is server-owned and cannot be supplied by clients', {
+        state_transition: 'blocked_eve_continuation_token_input',
+        disallowed_fields: disallowedFields
+    });
+}
+
+function eveLoopControlStopConditions(binding, loopIntent) {
+    const stopConditions = normalizeStrictStringList([
+        ...readPersistedStrictStringList(binding, 'stop_conditions', 'loop_control.stop_conditions'),
+        ...readPersistedStrictStringList(loopIntent, 'stop_conditions', 'loop_control.stop_conditions'),
+        ...readPersistedStrictStringList(loopIntent?.eligibility, 'stop_conditions', 'loop_control.stop_conditions')
+    ], 'loop_control.stop_conditions');
+    return stopConditions.length > 0 ? stopConditions : DEFAULT_EVE_STOP_CONDITIONS;
+}
+
+function eveDispatchContextSnapshotData(sourceType, data) {
+    if (sourceType === 'loop_intent') {
+        return redactLoopIntentForResponse(data);
+    }
+    return jsonClone(data);
+}
+
+function eveDispatchContextSnapshotRedactionStatus(sourceType, data) {
+    if (sourceType !== 'loop_intent') return 'not_required';
+    return hasOwn(data?.metadata?.eve_session_ref, 'continuation_token') ? 'redacted' : 'not_required';
+}
+
+function buildEveSessionMessage({ loopIntent, roleAgent, template, binding, trigger, meetingNoteGeneration = null, overrideMessage = null }) {
+    if (overrideMessage) return overrideMessage;
+    const workflowName = template?.name || binding?.name || loopIntent.workflow_template_id || 'Brainbase workflow';
+    const roleName = roleAgent?.name || loopIntent.role_agent_instance_id || 'Role Agent';
+    return [
+        'Execute this Brainbase Role Agent workflow as an Eve session.',
+        `Role Agent: ${roleName}`,
+        `Workflow: ${workflowName}`,
+        `Trigger: ${trigger?.trigger_type || loopIntent.trigger_type || 'human'}`,
+        'Use only the provided Brainbase context.',
+        ...(meetingNoteGeneration ? [
+            'Task: generate the Brainbase meeting note from context.meeting_note_generation.note_source (normalized transcript).',
+            'Write the generated note back to Brainbase via the context.meeting_note_generation.write_back contract.'
+        ] : []),
+        'Do not send external messages, publish, create contracts, or promote Graph SSOT directly.',
+        'Return execution results to Brainbase using the external_runner.v0 contract.'
+    ].join('\n');
+}
+
+function readMeetingNoteGenerationDispatchRef(input) {
+    const ref = input?.meeting_note_generation ?? input?.meetingNoteGeneration ?? null;
+    if (ref === null || ref === undefined) return null;
+    if (typeof ref !== 'object' || Array.isArray(ref)) {
+        throw AppError.validation('meeting_note_generation must be a JSON object', {
+            state_transition: 'blocked_invalid_meeting_note_generation_ref'
+        });
+    }
+    const runId = readOptionalString(ref, 'run_id', 'runId');
+    const packageId = readOptionalString(ref, 'package_id', 'packageId');
+    if (!runId && !packageId) {
+        throw AppError.validation('meeting_note_generation requires run_id or package_id', {
+            state_transition: 'blocked_invalid_meeting_note_generation_ref'
+        });
+    }
+    return { run_id: runId, package_id: packageId };
+}
+
+function buildMeetingNoteGenerationHandoffContext({ loopIntent, run, output }) {
+    const payload = output.payload && typeof output.payload === 'object' ? output.payload : {};
+    const sourceTranscripts = Array.isArray(payload.source_transcripts) ? payload.source_transcripts : [];
+    const packageId = output.metadata?.package_id || run.metadata?.package_id || null;
+    return {
+        task: 'transcript_to_meeting_note',
+        run_id: run.id,
+        package_id: packageId,
+        output_id: output.id,
+        source_text_hash: payload.source_text_hash,
+        source_text_length: payload.source_text_length ?? null,
+        generation_status: payload.generation_status || null,
+        note_source: {
+            title: payload.title || null,
+            body: typeof payload.body === 'string' ? payload.body : '',
+            source_transcripts: sourceTranscripts.map((transcript) => ({
+                role: transcript.role || null,
+                provider: transcript.provider || null,
+                source_text_kind: transcript.source_text_kind || 'unknown',
+                transcript_hash: transcript.transcript_hash || transcript.content_sha256 || null,
+                text_length: transcript.text_length ?? (typeof transcript.text === 'string' ? transcript.text.length : 0),
+                text: typeof transcript.text === 'string' ? transcript.text : ''
+            }))
+        },
+        write_back: {
+            method: 'POST',
+            path: '/api/workflows/control/meeting-pack/note-generation',
+            content_type: 'application/json',
+            required_fields: ['org_id', 'project_id', 'run_id (or package_id)', 'source_text_hash', 'note.body'],
+            payload_template: {
+                org_id: loopIntent.org_id,
+                project_id: loopIntent.project_id,
+                run_id: run.id,
+                package_id: packageId,
+                source_text_hash: payload.source_text_hash,
+                note: {
+                    title: '<generated meeting note title>',
+                    body: '<generated meeting note markdown body>'
+                },
+                runner: { type: 'eve', session_id: '<eve session id>' }
+            },
+            rules: [
+                'source_text_hash must exactly match the value provided in this context; mismatched write-backs are rejected.',
+                'The write-back updates the meeting_note_draft output (generation_status: brainbase_source_ready -> brainbase_generated). It does not publish the note.',
+                'Human approval (approve_meeting_note_publish) stays in Brainbase and must not be bypassed.'
+            ]
+        },
+        candidates_write_back: {
+            tool: 'record_meeting_candidates',
+            required_fields: ['org_id', 'project_id', 'run_id', 'source_text_hash'],
+            payload_template: {
+                org_id: loopIntent.org_id,
+                project_id: loopIntent.project_id,
+                run_id: run.id,
+                source_text_hash: payload.source_text_hash,
+                task_candidates: [
+                    { title: '<action item>', owner_hint: '<owner or null>', due_hint: '<due or null>', source_excerpt: '<evidence sentence>' }
+                ],
+                decision_candidates: [
+                    { title: '<decision>', decision_type: 'meeting_decision', source_excerpt: '<evidence sentence>' }
+                ],
+                follow_up_draft: { body: '<follow-up message markdown>' },
+                runner: { type: 'eve', session_id: '<eve session id>' }
+            },
+            rules: [
+                'Call once, after staging the note, with the same org/project/run and source_text_hash as the note write-back.',
+                'org_id, project_id, run_id, and source_text_hash must exactly match this context; mismatched candidate write-backs are excluded.',
+                'Brainbase owns id assignment, status, source, evidence_refs and the external-send approval flag; return only the human-meaningful title/owner/due/decision/body text.',
+                'Candidates are best-effort: they update the task_candidates / decision_candidates / follow_up_draft outputs but never publish, create tasks, or send messages. The human approval gates (approve_task_candidates / approve_decision_candidates / approve_follow_up_draft) stay in Brainbase.'
+            ]
+        }
+    };
+}
+
+function buildEveSessionContext({ loopIntent, roleAgent, template, binding, trigger, meetingNoteGeneration = null }) {
+    return {
+        brainbase_handoff_version: 'eve_session_handoff.v0',
+        expected_result_contract: 'external_runner.v0',
+        source_of_truth: 'brainbase',
+        loop_intent: redactLoopIntentForResponse(loopIntent),
+        role_agent_instance: roleAgent ? jsonClone(roleAgent) : null,
+        workflow_template: template ? jsonClone(template) : null,
+        workflow_binding: binding ? jsonClone(binding) : null,
+        workflow_trigger: trigger ? jsonClone(trigger) : null,
+        loop_control: {
+            owner_id: roleAgent?.owner_id || loopIntent.requested_by || DEFAULT_OWNER_ID,
+            cost_owner_id: binding?.cost_owner_id || roleAgent?.owner_id || loopIntent.requested_by || DEFAULT_OWNER_ID,
+            approval_owner_id: binding?.approval_owner_id || roleAgent?.default_approver_id || loopIntent.requested_by || DEFAULT_OWNER_ID,
+            autonomy_level: binding?.autonomy_level || loopIntent.eligibility?.autonomy_level || 'approval_required',
+            stop_conditions: eveLoopControlStopConditions(binding, loopIntent),
+            eligibility: loopIntent.eligibility || null
+        },
+        write_back_rules: {
+            external_send_requires_brainbase_human_gate: true,
+            graph_promotion_requires_candidate_store: true,
+            learning_candidates_require_redaction_check: true
+        },
+        ...(meetingNoteGeneration ? { meeting_note_generation: jsonClone(meetingNoteGeneration) } : {})
+    };
+}
+
+function previewPayload(value) {
+    if (Array.isArray(value)) return `${value.length}件`;
+    if (value && typeof value === 'object') {
+        if (typeof value.body === 'string') return value.body.slice(0, 500);
+        const text = JSON.stringify(value);
+        return text.length > 500 ? `${text.slice(0, 500)}...` : text;
+    }
+    if (value == null) return '';
+    return String(value).slice(0, 500);
+}
+
+function eligibilityFrom({ binding, trigger, input }) {
+    const reasons = [];
+    if (binding.enabled === false) reasons.push('workflow_binding_disabled');
+    if (trigger && trigger.enabled === false) reasons.push('workflow_trigger_disabled');
+    const explicitBlockers = normalizeTags(input.blocked_reasons || input.blockedReasons);
+    reasons.push(...explicitBlockers);
+    if (reasons.length > 0) {
+        return {
+            status: 'blocked',
+            autonomy_level: binding.autonomy_level,
+            requires_human_approval: true,
+            reasons
+        };
+    }
+    if (binding.autonomy_level === 'human_only') {
+        return {
+            status: 'human_only',
+            autonomy_level: binding.autonomy_level,
+            requires_human_approval: true,
+            reasons: ['autonomy_level_human_only']
+        };
+    }
+    if (binding.autonomy_level === 'approval_required') {
+        return {
+            status: 'needs_approval',
+            autonomy_level: binding.autonomy_level,
+            requires_human_approval: true,
+            reasons: ['autonomy_level_approval_required']
+        };
+    }
+    return {
+        status: 'eligible',
+        autonomy_level: binding.autonomy_level,
+        requires_human_approval: binding.autonomy_level === 'draft_only',
+        reasons: binding.autonomy_level === 'draft_only' ? ['draft_output_only'] : []
+    };
+}
+
+/**
+ * Internal persistence engine shared by the narrow automation-control services.
+ * Production callers must use the facades in this directory instead.
+ */
+export class AutomationControlRuntime {
+    constructor({
+        repository,
+        configParser,
+        eveSessionClient = null,
+        projectAccessPolicy = null
+    }) {
+        this.repository = repository;
+        this.eveSessionClient = eveSessionClient;
+        this.projectAccessPolicy = projectAccessPolicy || new ProjectAccessPolicy({ configParser });
+        this.eveSessionDispatchInFlight = new Map();
+    }
+
+    async listRoleAgentInstances({ orgId = null, projectId = null, roleArchetypeId = null } = {}, actor = {}) {
+        await this.projectAccessPolicy.prepare();
+        if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
+        return {
+            role_agent_instances: this.repository.listRoleAgentInstances({ orgId, projectId, roleArchetypeId })
+                .filter((agent) => this.projectAccessPolicy.canAccessProject(agent.project_id, actor))
+        };
+    }
+
+    async createRoleAgentInstance(input, actor = {}) {
+        await this.projectAccessPolicy.prepare();
+        const orgId = requireInputString(input, 'org_id', 'orgId');
+        const projectId = requireInputString(input, 'project_id', 'projectId');
+        await this.projectAccessPolicy.assertProjectSelectable(projectId);
+        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId);
+        this.projectAccessPolicy.assertProjectAccess(projectId, actor);
+        const roleArchetypeId = requireInputString(input, 'role_archetype_id', 'roleArchetypeId');
+        const id = readOptionalString(input, 'id') || createStableId('rai', orgId, projectId, roleArchetypeId);
+        const agent = await this._transaction(() => {
+            const item = this.repository.upsertRoleAgentInstance({
+            id,
+            workspace_id: input.workspace_id || DEFAULT_WORKSPACE_ID,
+            org_id: orgId,
+            project_id: projectId,
+            role_archetype_id: roleArchetypeId,
+            name: readOptionalString(input, 'name') || `${orgId} ${roleArchetypeId} agent`,
+            description: readOptionalString(input, 'description') || '',
+            owner_id: readOptionalString(input, 'owner_id', 'ownerId') || actor.person_id || actor.sub || DEFAULT_OWNER_ID,
+            default_approver_id: readOptionalString(input, 'default_approver_id', 'defaultApproverId') || actor.person_id || actor.sub || DEFAULT_OWNER_ID,
+            context_policy: input.context_policy || input.contextPolicy || {},
+            tool_scope: input.tool_scope || input.toolScope || {},
+            workflow_constraints: input.workflow_constraints || input.workflowConstraints || {},
+            tags: normalizeTags(input.tags),
+            enabled: input.enabled !== false
+            });
+            this._writeWorkflowControlAudit({
+                item,
+                actor,
+                action: 'workflow.role_agent_instance.upserted',
+                targetType: 'role_agent_instance'
+            });
+            return item;
+        });
+        return { role_agent_instance: agent };
+    }
+
+    async listWorkflowTemplates({ orgId = null, projectId = null, workflowKind = null } = {}, actor = {}) {
+        await this.projectAccessPolicy.prepare();
+        if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
+        return {
+            workflow_templates: this.repository.listWorkflowTemplates({ orgId, projectId, workflowKind })
+                .filter((template) => this._actorCanAccessWorkflowTemplate(template, actor))
+        };
+    }
+
+    async createWorkflowTemplate(input, actor = {}) {
+        await this.projectAccessPolicy.prepare();
+        const orgId = readOptionalString(input, 'org_id', 'orgId');
+        const projectId = readOptionalString(input, 'project_id', 'projectId');
+        if (projectId) {
+            await this.projectAccessPolicy.assertProjectSelectable(projectId);
+            this.projectAccessPolicy.assertProjectAccess(projectId, actor);
+        } else if (!this._actorCanManageGlobalWorkflowTemplate(actor)) {
+            throw AppError.forbidden('project_id is required for workflow_template creation');
+        }
+        if (orgId) this.projectAccessPolicy.assertOrgReferenceAllowed(orgId);
+        const id = readOptionalString(input, 'id') || createStableId('wft', orgId, projectId, readString(input, 'name'));
+        const template = await this._transaction(() => {
+            const item = this.repository.upsertWorkflowTemplate({
+            id,
+            workspace_id: input.workspace_id || DEFAULT_WORKSPACE_ID,
+            org_id: orgId,
+            project_id: projectId,
+            name: requireInputString(input, 'name'),
+            description: readOptionalString(input, 'description') || '',
+            workflow_kind: readOptionalString(input, 'workflow_kind', 'workflowKind') || 'operational',
+            judgment_dag_id: readOptionalString(input, 'judgment_dag_id', 'judgmentDagId'),
+            spec_ref: readOptionalString(input, 'spec_ref', 'specRef'),
+            task_schema: input.task_schema || input.taskSchema || {},
+            output_schema: input.output_schema || input.outputSchema || {},
+            tags: normalizeTags(input.tags),
+            enabled: input.enabled !== false
+            });
+            this._writeWorkflowControlAudit({
+                item,
+                actor,
+                action: 'workflow.template.upserted',
+                targetType: 'workflow_template'
+            });
+            return item;
+        });
+        return { workflow_template: template };
+    }
+
+    async listWorkflowBindings({ orgId = null, projectId = null, roleAgentInstanceId = null } = {}, actor = {}) {
+        await this.projectAccessPolicy.prepare();
+        if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
+        return {
+            workflow_bindings: this.repository.listWorkflowBindings({ orgId, projectId, roleAgentInstanceId })
+                .filter((binding) => this.projectAccessPolicy.canAccessProject(binding.project_id, actor))
+        };
+    }
+
+    async createWorkflowBinding(input, actor = {}) {
+        await this.projectAccessPolicy.prepare();
+        const orgId = requireInputString(input, 'org_id', 'orgId');
+        const projectId = requireInputString(input, 'project_id', 'projectId');
+        await this.projectAccessPolicy.assertProjectSelectable(projectId);
+        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId);
+        this.projectAccessPolicy.assertProjectAccess(projectId, actor);
+        const roleAgentInstanceId = requireInputString(input, 'role_agent_instance_id', 'roleAgentInstanceId');
+        const workflowTemplateId = requireInputString(input, 'workflow_template_id', 'workflowTemplateId');
+        const roleAgent = this.repository.getRoleAgentInstance(roleAgentInstanceId);
+        if (!roleAgent) throw AppError.notFound('role_agent_instance', roleAgentInstanceId);
+        if (roleAgent.org_id !== orgId) {
+            throw AppError.validation(`role_agent_instance '${roleAgentInstanceId}' belongs to org '${roleAgent.org_id}'`);
+        }
+        if (roleAgent.project_id !== projectId) {
+            throw AppError.validation(`role_agent_instance '${roleAgentInstanceId}' belongs to project '${roleAgent.project_id}'`);
+        }
+        this.projectAccessPolicy.assertProjectAccess(roleAgent.project_id, actor);
+        const template = this.repository.getWorkflowTemplate(workflowTemplateId);
+        if (!template) throw AppError.notFound('workflow_template', workflowTemplateId);
+        if (template.org_id && template.org_id !== orgId) {
+            throw AppError.validation(`workflow_template '${workflowTemplateId}' belongs to org '${template.org_id}'`);
+        }
+        if (template.project_id && template.project_id !== projectId) {
+            throw AppError.validation(`workflow_template '${workflowTemplateId}' belongs to project '${template.project_id}'`);
+        }
+        if (template.project_id) this.projectAccessPolicy.assertProjectAccess(template.project_id, actor);
+        const autonomyLevel = readOptionalString(input, 'autonomy_level', 'autonomyLevel') || 'approval_required';
+        ensureAllowed(autonomyLevel, ALLOWED_AUTONOMY_LEVELS, 'autonomy_level');
+        const id = readOptionalString(input, 'id') || createStableId('wfb', orgId, roleAgentInstanceId, workflowTemplateId);
+        const binding = await this._transaction(() => {
+            const item = this.repository.upsertWorkflowBinding({
+            id,
+            workspace_id: input.workspace_id || DEFAULT_WORKSPACE_ID,
+            org_id: orgId,
+            project_id: projectId,
+            role_agent_instance_id: roleAgentInstanceId,
+            workflow_template_id: workflowTemplateId,
+            workflow_id: readOptionalString(input, 'workflow_id', 'workflowId'),
+            name: readOptionalString(input, 'name') || `${roleAgent.name} -> ${template.name}`,
+            workflow_selection_reason: readOptionalString(input, 'workflow_selection_reason', 'workflowSelectionReason'),
+            judgment_dag_id: readOptionalString(input, 'judgment_dag_id', 'judgmentDagId') || template.judgment_dag_id || null,
+            autonomy_level: autonomyLevel,
+            stop_conditions: readStrictStringList(input, 'stop_conditions', 'stopConditions'),
+            approval_owner_id: readOptionalString(input, 'approval_owner_id', 'approvalOwnerId') || roleAgent.default_approver_id,
+            cost_owner_id: readOptionalString(input, 'cost_owner_id', 'costOwnerId') || roleAgent.owner_id,
+            enabled: input.enabled !== false
+            });
+            this._writeWorkflowControlAudit({
+                item,
+                actor,
+                action: 'workflow.binding.upserted',
+                targetType: 'workflow_binding'
+            });
+            return item;
+        });
+        return { workflow_binding: binding };
+    }
+
+    async listWorkflowTriggers({ orgId = null, projectId = null, workflowBindingId = null, triggerType = null } = {}, actor = {}) {
+        await this.projectAccessPolicy.prepare();
+        if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
+        return {
+            workflow_triggers: this.repository.listWorkflowTriggers({ orgId, projectId, workflowBindingId, triggerType })
+                .filter((trigger) => this.projectAccessPolicy.canAccessProject(trigger.project_id, actor))
+        };
+    }
+
+    async createWorkflowTrigger(input, actor = {}) {
+        await this.projectAccessPolicy.prepare();
+        const orgId = requireInputString(input, 'org_id', 'orgId');
+        const projectId = requireInputString(input, 'project_id', 'projectId');
+        await this.projectAccessPolicy.assertProjectSelectable(projectId);
+        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId);
+        this.projectAccessPolicy.assertProjectAccess(projectId, actor);
+        const workflowBindingId = requireInputString(input, 'workflow_binding_id', 'workflowBindingId');
+        const binding = this.repository.getWorkflowBinding(workflowBindingId);
+        if (!binding) throw AppError.notFound('workflow_binding', workflowBindingId);
+        if (binding.org_id !== orgId) {
+            throw AppError.validation(`workflow_binding '${workflowBindingId}' belongs to org '${binding.org_id}'`);
+        }
+        if (binding.project_id !== projectId) {
+            throw AppError.validation(`workflow_binding '${workflowBindingId}' belongs to project '${binding.project_id}'`);
+        }
+        this.projectAccessPolicy.assertProjectAccess(binding.project_id, actor);
+        const triggerType = readOptionalString(input, 'trigger_type', 'triggerType') || 'human';
+        ensureAllowed(triggerType, ALLOWED_TRIGGER_TYPES, 'trigger_type');
+        const id = readOptionalString(input, 'id') || createStableId('wftg', orgId, workflowBindingId, triggerType, readString(input, 'name'));
+        const trigger = await this._transaction(() => {
+            const item = this.repository.upsertWorkflowTrigger({
+            id,
+            workspace_id: input.workspace_id || DEFAULT_WORKSPACE_ID,
+            org_id: orgId,
+            project_id: projectId,
+            workflow_binding_id: workflowBindingId,
+            trigger_type: triggerType,
+            name: readOptionalString(input, 'name') || `${triggerType} trigger`,
+            event_source: readOptionalString(input, 'event_source', 'eventSource'),
+            schedule: input.schedule || null,
+            human_prompt_ref: readOptionalString(input, 'human_prompt_ref', 'humanPromptRef'),
+            enabled: input.enabled !== false
+            });
+            this._writeWorkflowControlAudit({
+                item,
+                actor,
+                action: 'workflow.trigger.upserted',
+                targetType: 'workflow_trigger'
+            });
+            return item;
+        });
+        return { workflow_trigger: trigger };
+    }
+
+    async listLoopIntents({ orgId = null, projectId = null, workflowBindingId = null, triggerId = null } = {}, actor = {}) {
+        await this.projectAccessPolicy.prepare();
+        if (projectId) this.projectAccessPolicy.assertProjectAccess(projectId, actor);
+        return {
+            loop_intents: this.repository.listLoopIntents({ orgId, projectId, workflowBindingId, triggerId })
+                .filter((intent) => this.projectAccessPolicy.canAccessProject(intent.project_id, actor))
+                .map((intent) => redactLoopIntentForResponse(intent))
+        };
+    }
+
+    async createLoopIntent(input, actor = {}) {
+        await this.projectAccessPolicy.prepare();
+        const orgId = requireInputString(input, 'org_id', 'orgId');
+        const projectId = requireInputString(input, 'project_id', 'projectId');
+        await this.projectAccessPolicy.assertProjectSelectable(projectId);
+        this.projectAccessPolicy.assertOrgReferenceAllowed(orgId);
+        this.projectAccessPolicy.assertProjectAccess(projectId, actor);
+        const workflowBindingId = requireInputString(input, 'workflow_binding_id', 'workflowBindingId');
+        const binding = this.repository.getWorkflowBinding(workflowBindingId);
+        if (!binding) throw AppError.notFound('workflow_binding', workflowBindingId);
+        if (binding.org_id !== orgId) {
+            throw AppError.validation(`workflow_binding '${workflowBindingId}' belongs to org '${binding.org_id}'`);
+        }
+        if (binding.project_id !== projectId) {
+            throw AppError.validation(`workflow_binding '${workflowBindingId}' belongs to project '${binding.project_id}'`);
+        }
+        this.projectAccessPolicy.assertProjectAccess(binding.project_id, actor);
+        const triggerId = readOptionalString(input, 'trigger_id', 'triggerId');
+        const trigger = triggerId ? this.repository.getWorkflowTrigger(triggerId) : null;
+        if (triggerId && !trigger) throw AppError.notFound('workflow_trigger', triggerId);
+        if (trigger && trigger.org_id !== orgId) {
+            throw AppError.validation(`workflow_trigger '${triggerId}' belongs to org '${trigger.org_id}'`);
+        }
+        if (trigger && trigger.project_id !== projectId) {
+            throw AppError.validation(`workflow_trigger '${triggerId}' belongs to project '${trigger.project_id}'`);
+        }
+        if (trigger && trigger.workflow_binding_id !== workflowBindingId) {
+            throw AppError.validation(`workflow_trigger '${triggerId}' belongs to binding '${trigger.workflow_binding_id}'`);
+        }
+        const triggerType = trigger?.trigger_type || readOptionalString(input, 'trigger_type', 'triggerType') || 'human';
+        ensureAllowed(triggerType, ALLOWED_TRIGGER_TYPES, 'trigger_type');
+        const eligibility = eligibilityFrom({ binding, trigger, input });
+        const id = readOptionalString(input, 'id') || createStableId('loop', orgId, workflowBindingId, triggerId || 'manual', crypto.randomUUID());
+        const intent = await this._transaction(() => {
+            const item = this.repository.upsertLoopIntent({
+            id,
+            workspace_id: input.workspace_id || DEFAULT_WORKSPACE_ID,
+            org_id: orgId,
+            project_id: projectId,
+            role_agent_instance_id: binding.role_agent_instance_id,
+            workflow_template_id: binding.workflow_template_id,
+            workflow_binding_id: workflowBindingId,
+            workflow_trigger_id: triggerId,
+            trigger_id: triggerId,
+            trigger_type: triggerType,
+            requested_by: actor.person_id || actor.sub || readOptionalString(input, 'requested_by', 'requestedBy') || 'system',
+            input_ref: readOptionalString(input, 'input_ref', 'inputRef'),
+            input_summary: readOptionalString(input, 'input_summary', 'inputSummary'),
+            input_payload: readOptionalJsonValue(input, 'input_payload', 'inputPayload'),
+            eligibility,
+            selected_workflow_reason: binding.workflow_selection_reason || readOptionalString(input, 'selected_workflow_reason', 'selectedWorkflowReason'),
+            judgment_dag_id: binding.judgment_dag_id || null,
+            status: eligibility.status === 'blocked' || eligibility.status === 'human_only' ? eligibility.status : 'ready'
+            });
+            this._writeWorkflowControlAudit({
+                item,
+                actor,
+                action: 'workflow.loop_intent.created',
+                targetType: 'loop_intent'
+            });
+            return item;
+        });
+        return { loop_intent: intent };
+    }
+
+
+    _resolveMeetingNoteGenerationHandoff(loopIntent, input) {
+        const ref = readMeetingNoteGenerationDispatchRef(input);
+        if (!ref) return null;
+        const runId = ref.run_id
+            || createMeetingReviewStableId('run', loopIntent.org_id, loopIntent.project_id, ref.package_id, 'meeting_review_package_ingest');
+        const run = this.repository.getRun(runId);
+        if (!run) throw AppError.notFound('workflow_run', runId);
+        if (run.org_id !== loopIntent.org_id || run.project_id !== loopIntent.project_id) {
+            throw AppError.validation(`workflow_run '${runId}' belongs to '${run.org_id}/${run.project_id}'`, {
+                state_transition: 'blocked_meeting_note_generation_scope',
+                loop_intent_id: loopIntent.id,
+                run_id: runId,
+                expected: { org_id: loopIntent.org_id, project_id: loopIntent.project_id },
+                actual: { org_id: run.org_id, project_id: run.project_id }
+            });
+        }
+        const output = this.repository.listOutputs(runId)
+            .find((candidate) => candidate.metadata?.output_key === 'meeting_note_draft');
+        if (output?.metadata?.loop_intent_id && output.metadata.loop_intent_id !== loopIntent.id) {
+            throw AppError.validation(`meeting_note_draft output of workflow_run '${runId}' belongs to loop_intent '${output.metadata.loop_intent_id}'`, {
+                state_transition: 'blocked_meeting_note_generation_scope',
+                loop_intent_id: loopIntent.id,
+                run_id: runId,
+                output_loop_intent_id: output.metadata.loop_intent_id
+            });
+        }
+        if (!output || !output.payload?.source_text_hash) {
+            throw AppError.validation(`workflow_run '${runId}' has no dispatchable meeting_note_draft source`, {
+                state_transition: 'blocked_meeting_note_generation_source_missing',
+                loop_intent_id: loopIntent.id,
+                run_id: runId,
+                output_present: Boolean(output)
+            });
+        }
+        return buildMeetingNoteGenerationHandoffContext({ loopIntent, run, output });
+    }
+
+    async dispatchLoopIntentToEve(loopIntentId, input = {}, actor = {}) {
+        await this.projectAccessPolicy.prepare();
+        this.repository.reload?.();
+        let loopIntent = this.repository.getLoopIntent(loopIntentId);
+        if (!loopIntent) throw AppError.notFound('loop_intent', loopIntentId);
+        this.projectAccessPolicy.assertProjectAccess(loopIntent.project_id, actor);
+        assertNoCallerSuppliedEveContinuationToken(input);
+
+        const dispatchLockOwner = createStableId('eve_dispatch_owner', process.pid, Date.now(), crypto.randomUUID());
+        const dispatchLockWorkspaceId = loopIntent.workspace_id || DEFAULT_WORKSPACE_ID;
+        const dispatchLockWorkflowId = eveDispatchLockWorkflowId(loopIntent);
+        const dispatchLock = this.repository.acquireWorkflowLock?.({
+            workspace_id: dispatchLockWorkspaceId,
+            workflow_id: dispatchLockWorkflowId,
+            locked_by: dispatchLockOwner,
+            ttl_ms: EVE_SESSION_DISPATCH_LOCK_TTL_MS
+        });
+        if (!dispatchLock) {
+            throw AppError.conflict(`loop_intent '${loopIntentId}' already has an Eve dispatch in progress`, {
+                state_transition: 'blocked_eve_dispatch_in_progress',
+                loop_intent_id: loopIntentId,
+                lock_workflow_id: dispatchLockWorkflowId
+            });
+        }
+
+        try {
+        this.repository.reload?.();
+        loopIntent = this.repository.getLoopIntent(loopIntentId);
+        if (!loopIntent) throw AppError.notFound('loop_intent', loopIntentId);
+        const timeoutRecovery = loopIntent.metadata?.eve_dispatch_timeout_recovery || null;
+        if (timeoutRecovery?.recovery_required) {
+            throw AppError.conflict(`loop_intent '${loopIntentId}' requires operator reconciliation before another Eve dispatch`, {
+                state_transition: 'blocked_eve_dispatch_timeout_recovery_required',
+                loop_intent_id: loopIntentId,
+                recovery_run_id: timeoutRecovery.recovery_run_id || null,
+                attempted_at: timeoutRecovery.attempted_at || null
+            });
+        }
+        if (isBlockedEveDispatch(loopIntent)) {
+            const blockedReasons = eveDispatchBlockReasons(loopIntent);
+            throw AppError.validation(`loop_intent '${loopIntentId}' is not eligible for Eve dispatch`, {
+                state_transition: 'blocked_loop_intent_not_dispatchable',
+                loop_intent_id: loopIntentId,
+                status: loopIntent.status,
+                eligibility: loopIntent.eligibility || null,
+                blocked_reasons: blockedReasons
+            });
+        }
+
+        const roleAgent = loopIntent.role_agent_instance_id
+            ? this.repository.getRoleAgentInstance(loopIntent.role_agent_instance_id)
+            : null;
+        const template = loopIntent.workflow_template_id
+            ? this.repository.getWorkflowTemplate(loopIntent.workflow_template_id)
+            : null;
+        const binding = loopIntent.workflow_binding_id
+            ? this.repository.getWorkflowBinding(loopIntent.workflow_binding_id)
+            : null;
+        const triggerRefId = loopIntent.trigger_id || loopIntent.workflow_trigger_id || null;
+        const trigger = triggerRefId
+            ? this.repository.getWorkflowTrigger(triggerRefId)
+            : null;
+
+        this._assertDispatchControlRef('role_agent_instance', roleAgent, loopIntent.role_agent_instance_id, loopIntent);
+        this._assertDispatchControlRef('workflow_template', template, loopIntent.workflow_template_id, loopIntent, { allowGlobalOrg: true, allowGlobalProject: true });
+        this._assertDispatchControlRef('workflow_binding', binding, loopIntent.workflow_binding_id, loopIntent);
+        this._assertDispatchControlRef('workflow_trigger', trigger, triggerRefId, loopIntent);
+        this._assertDispatchControlLineage({ loopIntent, roleAgent, template, binding, trigger, triggerRefId });
+        const workflowId = binding?.workflow_id || createStableId('wf', loopIntent.org_id, loopIntent.project_id, 'eve_session_dispatch');
+        this._assertDispatchWorkflowRef(workflowId, loopIntent);
+        if (roleAgent?.enabled === false || template?.enabled === false || binding?.enabled === false || trigger?.enabled === false) {
+            throw AppError.validation(`loop_intent '${loopIntentId}' references a disabled control record`, {
+                state_transition: 'blocked_disabled_control_ref',
+                loop_intent_id: loopIntentId
+            });
+        }
+
+        const meetingNoteGeneration = this._resolveMeetingNoteGenerationHandoff(loopIntent, input);
+        const existingSessionRef = loopIntent.metadata?.eve_session_ref || null;
+        if (existingSessionRef?.session_id && input.force_new_session !== true && input.forceNewSession !== true) {
+            const existingRun = existingSessionRef.workflow_run_id ? this.repository.getRun(existingSessionRef.workflow_run_id) : null;
+            // The transcript_to_meeting_note loop intent is shared across all
+            // meetings of an org/project, so a lingering eve_session_ref from a
+            // previous meeting must not swallow a dispatch that references a
+            // different ingest run: only reuse when the existing Eve run was
+            // dispatched for the same meeting_note_generation run.
+            const reusableForMeetingNoteGeneration = !meetingNoteGeneration
+                || existingRun?.metadata?.meeting_note_generation?.run_id === meetingNoteGeneration.run_id;
+            if (reusableForMeetingNoteGeneration) {
+                const existingWorkflow = existingRun?.workflow_id ? this.repository.getWorkflow(existingRun.workflow_id) : null;
+                this._assertExistingEveSessionReplayRef(existingSessionRef, existingRun, existingWorkflow, loopIntent, workflowId);
+                return {
+                    eve_session_dispatch: {
+                        org_id: loopIntent.org_id,
+                        project_id: loopIntent.project_id,
+                        loop_intent_id: loopIntent.id,
+                        idempotent: true,
+                        state_transitions: ['loop_intent_loaded', 'control_refs_resolved', 'existing_eve_session_reused'],
+                        workflow: existingWorkflow,
+                        run: existingRun,
+                        loop_intent: redactLoopIntentForResponse(loopIntent),
+                        eve_session: redactedEveSessionRef(existingSessionRef),
+                        handoff: null
+                    }
+                };
+            }
+        }
+
+        const activeDispatch = this.eveSessionDispatchInFlight.get(loopIntent.id);
+        if (activeDispatch) {
+            return activeDispatch;
+        }
+
+        const dispatchPromise = (async () => {
+        if (!this.eveSessionClient?.isConfigured?.()) {
+            throw AppError.validation('eve_session_client is not configured', {
+                state_transition: 'blocked_eve_not_configured',
+                required_env: ['EVE_API_BASE_URL'],
+                optional_env: ['EVE_API_TOKEN', 'EVE_API_TIMEOUT_MS']
+            });
+        }
+
+        const handoff = {
+            message: buildEveSessionMessage({
+                loopIntent,
+                roleAgent,
+                template,
+                binding,
+                trigger,
+                meetingNoteGeneration,
+                overrideMessage: readEveDispatchMessageOverride(input)
+            }),
+            context: buildEveSessionContext({ loopIntent, roleAgent, template, binding, trigger, meetingNoteGeneration })
+        };
+        let eveSession;
+        try {
+            eveSession = await this.eveSessionClient.createSession({
+                message: handoff.message,
+                context: handoff.context
+            });
+        } catch (error) {
+            if (isEveSessionTimeoutError(error)) {
+                const recovery = await this._recordEveSessionTimeoutRecovery({
+                    loopIntent,
+                    roleAgent,
+                    template,
+                    binding,
+                    handoff,
+                    workflowId,
+                    actorId: actor.person_id || actor.sub || loopIntent.requested_by || DEFAULT_OWNER_ID,
+                    now: new Date().toISOString(),
+                    error
+                });
+                throw AppError.validation('Eve session create timed out with unknown remote session state', {
+                    state_transition: 'blocked_eve_session_timeout_recovery_required',
+                    loop_intent_id: loopIntentId,
+                    recovery_run_id: recovery?.run?.id || null,
+                    recovery_recorded: Boolean(recovery?.run),
+                    recovery_error: recovery?.error || null,
+                    eve_error_code: error?.code || null,
+                    eve_status: error?.status || null
+                });
+            }
+            throw AppError.validation('Eve session create failed', {
+                state_transition: 'blocked_eve_session_create_failed',
+                loop_intent_id: loopIntentId,
+                eve_error_code: error?.code || null,
+                eve_status: error?.status || null
+            });
+        }
+        if (!eveSession.session_id) {
+            throw AppError.validation('Eve session response did not include a session id', {
+                state_transition: 'blocked_eve_session_id_missing',
+                loop_intent_id: loopIntentId
+            });
+        }
+
+        const actorId = actor.person_id || actor.sub || loopIntent.requested_by || DEFAULT_OWNER_ID;
+        const now = new Date().toISOString();
+        const runId = createEveSessionRunId(loopIntent, eveSession.session_id);
+
+        const persistDispatch = async () => {
+            const workflow = this.repository.upsertWorkflow({
+            id: workflowId,
+            workspace_id: loopIntent.workspace_id || DEFAULT_WORKSPACE_ID,
+            org_id: loopIntent.org_id,
+            project_id: loopIntent.project_id,
+            name: `${template?.name || binding?.name || 'Brainbase'} Eve Session`,
+            description: 'Brainbase Loop IntentをEve sessionへdispatchする外部実行workflow',
+            owner_id: roleAgent?.owner_id || loopIntent.requested_by || actorId,
+            default_assignee_id: roleAgent?.owner_id || loopIntent.requested_by || actorId,
+            default_approver_id: binding?.approval_owner_id || roleAgent?.default_approver_id || actorId,
+            execution_env: 'external',
+            risk_level: 'medium',
+            hitl_policy: 'external_runner',
+            timeout_ms: 3600000,
+            implementation_key: EVE_SESSION_DISPATCH_IMPLEMENTATION_KEY,
+            context_sources: [{
+                id: `${workflowId}_loop_intent`,
+                source_type: 'loop_intent',
+                source_ref: loopIntent.id,
+                scope: 'workflow',
+                permission: 'read',
+                required: true,
+                preview: loopIntent.input_summary || loopIntent.id
+            }]
+            });
+            const run = this.repository.createRun({
+            id: runId,
+            workspace_id: workflow.workspace_id,
+            org_id: loopIntent.org_id,
+            project_id: loopIntent.project_id,
+            workflow_id: workflow.id,
+            workflow_name: workflow.name,
+            role_agent_instance_id: loopIntent.role_agent_instance_id,
+            workflow_template_id: loopIntent.workflow_template_id,
+            workflow_binding_id: loopIntent.workflow_binding_id,
+            trigger_id: loopIntent.trigger_id,
+            loop_intent_id: loopIntent.id,
+            status: 'running',
+            closure_state: 'open',
+            trigger_type: loopIntent.trigger_type || 'human',
+            env: 'eve',
+            dry_run: false,
+            started_by: actorId,
+            owner_id: workflow.owner_id,
+            assignee_id: workflow.default_assignee_id,
+            approver_id: workflow.default_approver_id,
+            action_required: 'await_eve_result',
+            human_waiting: false,
+            output_count: 0,
+            message: 'Eve session dispatched; awaiting external_runner.v0 result ingest',
+            started_at: now,
+            metadata: {
+                runner: {
+                    type: 'eve',
+                    session_id: eveSession.session_id,
+                    continuation_token_present: Boolean(eveSession.continuation_token)
+                },
+                loop_intent_id: loopIntent.id,
+                expected_result_contract: 'external_runner.v0',
+                state_transitions: EVE_SESSION_DISPATCH_STATE_TRANSITIONS,
+                handoff_version: handoff.context.brainbase_handoff_version,
+                ...(meetingNoteGeneration ? {
+                    meeting_note_generation: {
+                        run_id: meetingNoteGeneration.run_id,
+                        package_id: meetingNoteGeneration.package_id,
+                        source_text_hash: meetingNoteGeneration.source_text_hash
+                    }
+                } : {})
+            }
+            });
+            this.repository.createRunStep({
+            id: createStableId('step', run.id, 'eve_session_create'),
+            workspace_id: run.workspace_id,
+            org_id: loopIntent.org_id,
+            project_id: loopIntent.project_id,
+            workflow_run_id: run.id,
+            step_key: 'eve_session_create',
+            step_name: 'Create Eve session',
+            status: 'success',
+            action_required: 'await_eve_result',
+            started_at: now,
+            finished_at: now,
+            metadata: {
+                eve_session_id: eveSession.session_id,
+                continuation_token_present: Boolean(eveSession.continuation_token)
+            }
+            });
+            [
+            ['loop_intent', loopIntent.id, loopIntent],
+            ['role_agent_instance', roleAgent?.id, roleAgent],
+            ['workflow_template', template?.id, template],
+            ['workflow_binding', binding?.id, binding],
+            ['workflow_trigger', trigger?.id, trigger]
+            ].filter(([, sourceRef, data]) => sourceRef && data).forEach(([sourceType, sourceRef, data]) => {
+                this.repository.createContextSnapshot({
+                    id: createStableId('ctx', run.id, sourceType),
+                    workspace_id: run.workspace_id,
+                    org_id: loopIntent.org_id,
+                    project_id: loopIntent.project_id,
+                    workflow_run_id: run.id,
+                    workflow_id: workflow.id,
+                    source_type: sourceType,
+                    source_ref: sourceRef,
+                    redaction_status: eveDispatchContextSnapshotRedactionStatus(sourceType, data),
+                    data: eveDispatchContextSnapshotData(sourceType, data),
+                    preview: data.name || data.input_summary || sourceRef
+                });
+            });
+
+            const eveSessionRef = {
+                session_id: eveSession.session_id,
+                continuation_token: eveSession.continuation_token,
+                workflow_run_id: run.id,
+                dispatched_at: now,
+                expected_result_contract: 'external_runner.v0'
+            };
+            const updatedLoopIntent = this.repository.upsertLoopIntent({
+                ...loopIntent,
+                status: 'dispatched',
+                metadata: {
+                    ...(loopIntent.metadata || {}),
+                    eve_session_ref: eveSessionRef
+                }
+            });
+            this.repository.writeAuditLog({
+                workspace_id: run.workspace_id,
+                org_id: loopIntent.org_id,
+                project_id: loopIntent.project_id,
+                actor_id: actorId,
+                action: 'workflow.eve_session.dispatched',
+                target_type: 'workflow_run',
+                target_id: run.id,
+                after: {
+                    loop_intent_id: loopIntent.id,
+                    eve_session_id: eveSession.session_id,
+                    continuation_token_present: Boolean(eveSession.continuation_token),
+                    state_transitions: EVE_SESSION_DISPATCH_STATE_TRANSITIONS,
+                    expected_result_contract: 'external_runner.v0'
+                }
+            });
+
+            return {
+                eve_session_dispatch: {
+                    org_id: loopIntent.org_id,
+                    project_id: loopIntent.project_id,
+                    loop_intent_id: loopIntent.id,
+                    idempotent: false,
+                    state_transitions: EVE_SESSION_DISPATCH_STATE_TRANSITIONS,
+                    workflow,
+                    run,
+                    loop_intent: redactLoopIntentForResponse(updatedLoopIntent),
+                    eve_session: redactedEveSessionRef(eveSessionRef),
+                    handoff
+                }
+            };
+        };
+
+        try {
+            return await this._transaction(persistDispatch);
+        } catch (error) {
+            const recovery = await this._recordEveDispatchPersistenceFailure({
+                loopIntent,
+                roleAgent,
+                template,
+                binding,
+                eveSession,
+                handoff,
+                workflowId,
+                runId,
+                actorId,
+                now,
+                error
+            });
+            throw AppError.validation('Eve session dispatched but Brainbase persistence failed', {
+                state_transition: 'blocked_eve_dispatch_persistence_failed',
+                loop_intent_id: loopIntent.id,
+                eve_session_id: eveSession.session_id,
+                continuation_token_present: Boolean(eveSession.continuation_token),
+                workflow_id: workflowId,
+                recovery_run_id: recovery?.run?.id || null,
+                recovery_recorded: Boolean(recovery?.run),
+                recovery_error: recovery?.error || null,
+                persistence_error: error instanceof Error ? error.message : String(error)
+            });
+        }
+        })();
+        this.eveSessionDispatchInFlight.set(loopIntent.id, dispatchPromise);
+        try {
+            return await dispatchPromise;
+        } finally {
+            if (this.eveSessionDispatchInFlight.get(loopIntent.id) === dispatchPromise) {
+                this.eveSessionDispatchInFlight.delete(loopIntent.id);
+            }
+        }
+        } finally {
+            this.repository.releaseWorkflowLock?.({
+                workspace_id: dispatchLockWorkspaceId,
+                workflow_id: dispatchLockWorkflowId,
+                locked_by: dispatchLockOwner
+            });
+        }
+    }
+
+    async _recordEveSessionTimeoutRecovery({ loopIntent, roleAgent, template, binding, handoff, workflowId, actorId, now, error }) {
+        try {
+            return await this._transaction(() => {
+                const workflow = this.repository.upsertWorkflow({
+                id: workflowId,
+                workspace_id: loopIntent.workspace_id || DEFAULT_WORKSPACE_ID,
+                org_id: loopIntent.org_id,
+                project_id: loopIntent.project_id,
+                name: `${template?.name || binding?.name || 'Brainbase'} Eve Session`,
+                description: 'Brainbase Loop IntentをEve sessionへdispatchする外部実行workflow',
+                owner_id: roleAgent?.owner_id || loopIntent.requested_by || actorId,
+                default_assignee_id: roleAgent?.owner_id || loopIntent.requested_by || actorId,
+                default_approver_id: binding?.approval_owner_id || roleAgent?.default_approver_id || actorId,
+                execution_env: 'external',
+                risk_level: 'medium',
+                hitl_policy: 'external_runner',
+                timeout_ms: 3600000,
+                implementation_key: EVE_SESSION_DISPATCH_IMPLEMENTATION_KEY,
+                context_sources: [{
+                    id: `${workflowId}_loop_intent`,
+                    source_type: 'loop_intent',
+                    source_ref: loopIntent.id,
+                    scope: 'workflow',
+                    permission: 'read',
+                    required: true,
+                    preview: loopIntent.input_summary || loopIntent.id
+                }]
+            });
+            const runId = createStableId('run', loopIntent.workspace_id || DEFAULT_WORKSPACE_ID, loopIntent.org_id, loopIntent.project_id, loopIntent.id, 'eve_session_timeout', now);
+            const existingRun = this.repository.getRun(runId);
+            const runPayload = {
+                id: runId,
+                workspace_id: workflow.workspace_id,
+                org_id: loopIntent.org_id,
+                project_id: loopIntent.project_id,
+                workflow_id: workflow.id,
+                workflow_name: workflow.name,
+                role_agent_instance_id: loopIntent.role_agent_instance_id,
+                workflow_template_id: loopIntent.workflow_template_id,
+                workflow_binding_id: loopIntent.workflow_binding_id,
+                trigger_id: loopIntent.trigger_id,
+                loop_intent_id: loopIntent.id,
+                status: 'blocked',
+                closure_state: 'open',
+                trigger_type: loopIntent.trigger_type || 'human',
+                env: 'eve',
+                dry_run: false,
+                started_by: actorId,
+                owner_id: workflow.owner_id,
+                assignee_id: workflow.default_assignee_id,
+                approver_id: workflow.default_approver_id,
+                action_required: 'operator_reconcile_eve_session_timeout',
+                human_waiting: true,
+                output_count: 0,
+                message: 'Eve session create timed out after the request was sent; remote session state is unknown and operator reconciliation is required before retry',
+                started_at: now,
+                finished_at: now,
+                metadata: {
+                    runner: {
+                        type: 'eve',
+                        session_id_known: false,
+                        continuation_token_present: false
+                    },
+                    loop_intent_id: loopIntent.id,
+                    expected_result_contract: 'external_runner.v0',
+                    state_transitions: [...EVE_SESSION_DISPATCH_STATE_TRANSITIONS, 'blocked_eve_session_timeout_recovery_required'],
+                    handoff_version: handoff.context.brainbase_handoff_version,
+                    eve_session_timeout_recovery_required: true,
+                    eve_error_code: error?.code || null,
+                    persistence_note: 'Brainbase did not receive an Eve session id; automatic retry is blocked to avoid duplicate remote sessions.'
+                }
+            };
+            const run = existingRun
+                ? this.repository.updateRun(runId, runPayload)
+                : this.repository.createRun(runPayload);
+            this.repository.upsertLoopIntent({
+                ...loopIntent,
+                status: 'blocked',
+                blocked_reasons: Array.from(new Set([
+                    ...(Array.isArray(loopIntent.blocked_reasons) ? loopIntent.blocked_reasons : []),
+                    'eve_session_timeout_unknown_remote_state'
+                ])),
+                metadata: {
+                    ...(loopIntent.metadata || {}),
+                    eve_dispatch_timeout_recovery: {
+                        recovery_required: true,
+                        recovery_run_id: run.id,
+                        attempted_at: now,
+                        error_code: error?.code || null,
+                        message: error instanceof Error ? error.message : String(error)
+                    }
+                }
+            });
+            this.repository.writeAuditLog({
+                workspace_id: run.workspace_id,
+                org_id: loopIntent.org_id,
+                project_id: loopIntent.project_id,
+                actor_id: actorId,
+                action: 'workflow.eve_session.timeout_recovery_required',
+                target_type: 'workflow_run',
+                target_id: run.id,
+                after: {
+                    loop_intent_id: loopIntent.id,
+                    state_transition: 'blocked_eve_session_timeout_recovery_required',
+                    session_id_known: false,
+                    expected_result_contract: 'external_runner.v0',
+                    eve_error_code: error?.code || null
+                }
+            });
+                return { workflow, run };
+            });
+        } catch (recoveryError) {
+            return {
+                error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
+            };
+        }
+    }
+
+    async _recordEveDispatchPersistenceFailure({ loopIntent, roleAgent, template, binding, eveSession, handoff, workflowId, runId, actorId, now, error }) {
+        try {
+            return await this._transaction(() => {
+                const workflow = this.repository.upsertWorkflow({
+                id: workflowId,
+                workspace_id: loopIntent.workspace_id || DEFAULT_WORKSPACE_ID,
+                org_id: loopIntent.org_id,
+                project_id: loopIntent.project_id,
+                name: `${template?.name || binding?.name || 'Brainbase'} Eve Session`,
+                description: 'Brainbase Loop IntentをEve sessionへdispatchする外部実行workflow',
+                owner_id: roleAgent?.owner_id || loopIntent.requested_by || actorId,
+                default_assignee_id: roleAgent?.owner_id || loopIntent.requested_by || actorId,
+                default_approver_id: binding?.approval_owner_id || roleAgent?.default_approver_id || actorId,
+                execution_env: 'external',
+                risk_level: 'medium',
+                hitl_policy: 'external_runner',
+                timeout_ms: 3600000,
+                implementation_key: EVE_SESSION_DISPATCH_IMPLEMENTATION_KEY,
+                context_sources: [{
+                    id: `${workflowId}_loop_intent`,
+                    source_type: 'loop_intent',
+                    source_ref: loopIntent.id,
+                    scope: 'workflow',
+                    permission: 'read',
+                    required: true,
+                    preview: loopIntent.input_summary || loopIntent.id
+                }]
+            });
+            const runPayload = {
+                id: runId,
+                workspace_id: workflow.workspace_id,
+                org_id: loopIntent.org_id,
+                project_id: loopIntent.project_id,
+                workflow_id: workflow.id,
+                workflow_name: workflow.name,
+                role_agent_instance_id: loopIntent.role_agent_instance_id,
+                workflow_template_id: loopIntent.workflow_template_id,
+                workflow_binding_id: loopIntent.workflow_binding_id,
+                trigger_id: loopIntent.trigger_id,
+                loop_intent_id: loopIntent.id,
+                status: 'blocked',
+                closure_state: 'open',
+                trigger_type: loopIntent.trigger_type || 'human',
+                env: 'eve',
+                dry_run: false,
+                started_by: actorId,
+                owner_id: workflow.owner_id,
+                assignee_id: workflow.default_assignee_id,
+                approver_id: workflow.default_approver_id,
+                action_required: 'operator_reconcile_eve_session',
+                human_waiting: true,
+                output_count: 0,
+                message: 'Eve session was created, but Brainbase persistence failed; operator reconciliation is required',
+                started_at: now,
+                finished_at: now,
+                metadata: {
+                    runner: {
+                        type: 'eve',
+                        session_id: eveSession.session_id,
+                        continuation_token_present: Boolean(eveSession.continuation_token)
+                    },
+                    loop_intent_id: loopIntent.id,
+                    expected_result_contract: 'external_runner.v0',
+                    state_transitions: [...EVE_SESSION_DISPATCH_STATE_TRANSITIONS, 'blocked_eve_dispatch_persistence_failed'],
+                    handoff_version: handoff.context.brainbase_handoff_version,
+                    dispatch_persistence_failed: true,
+                    persistence_error: error instanceof Error ? error.message : String(error)
+                }
+            };
+            const existingRun = this.repository.getRun(runId);
+            const run = existingRun
+                ? this.repository.updateRun(runId, runPayload)
+                : this.repository.createRun(runPayload);
+            const eveSessionRef = {
+                session_id: eveSession.session_id,
+                continuation_token: eveSession.continuation_token,
+                workflow_run_id: run.id,
+                dispatched_at: now,
+                expected_result_contract: 'external_runner.v0',
+                persistence_recovery_required: true
+            };
+            this.repository.upsertLoopIntent({
+                ...loopIntent,
+                status: 'dispatched',
+                metadata: {
+                    ...(loopIntent.metadata || {}),
+                    eve_session_ref: eveSessionRef,
+                    eve_dispatch_persistence_error: {
+                        recorded_at: now,
+                        message: error instanceof Error ? error.message : String(error)
+                    }
+                }
+            });
+            this.repository.writeAuditLog({
+                workspace_id: run.workspace_id,
+                org_id: loopIntent.org_id,
+                project_id: loopIntent.project_id,
+                actor_id: actorId,
+                action: 'workflow.eve_session.dispatch_persistence_failed',
+                target_type: 'workflow_run',
+                target_id: run.id,
+                after: {
+                    loop_intent_id: loopIntent.id,
+                    eve_session_id: eveSession.session_id,
+                    continuation_token_present: Boolean(eveSession.continuation_token),
+                    state_transition: 'blocked_eve_dispatch_persistence_failed',
+                    expected_result_contract: 'external_runner.v0',
+                    persistence_error: error instanceof Error ? error.message : String(error)
+                }
+            });
+                return { workflow, run };
+            });
+        } catch (recoveryError) {
+            return {
+                error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
+            };
+        }
+    }
+
+    _actorCanManageGlobalWorkflowTemplate(actor = {}) {
+        if (!actor || Object.keys(actor).length === 0) return true;
+        if (actor.authSource === 'internal' || actor.sub === 'internal_api' || actor.person_id === 'internal_api') return true;
+        return ['admin', 'ceo'].includes(String(actor.role || '').toLowerCase());
+    }
+
+    _actorCanAccessWorkflowTemplate(template, actor = {}) {
+        if (template.project_id) return this.projectAccessPolicy.canAccessProject(template.project_id, actor);
+        if (this._actorCanManageGlobalWorkflowTemplate(actor)) return true;
+        if (template.org_id) return false;
+        const projectCodes = Array.isArray(actor.projectCodes) ? actor.projectCodes : [];
+        return projectCodes.length > 0;
+    }
+
+    _assertDispatchControlRef(type, record, recordId, loopIntent, { allowGlobalOrg = false, allowGlobalProject = false } = {}) {
+        if (!recordId) return;
+        if (!record) throw AppError.notFound(type, recordId);
+        if (!allowGlobalOrg && record.org_id !== loopIntent.org_id) {
+            throw AppError.validation(`${type} '${recordId}' belongs to org '${record.org_id}'`, {
+                state_transition: 'blocked_loop_control_ref_mismatch',
+                field: `${type}.org_id`,
+                expected: loopIntent.org_id,
+                actual: record.org_id
+            });
+        }
+        if (allowGlobalOrg && record.org_id && record.org_id !== loopIntent.org_id) {
+            throw AppError.validation(`${type} '${recordId}' belongs to org '${record.org_id}'`, {
+                state_transition: 'blocked_loop_control_ref_mismatch',
+                field: `${type}.org_id`,
+                expected: loopIntent.org_id,
+                actual: record.org_id
+            });
+        }
+        if (!allowGlobalProject && record.project_id !== loopIntent.project_id) {
+            throw AppError.validation(`${type} '${recordId}' belongs to project '${record.project_id}'`, {
+                state_transition: 'blocked_loop_control_ref_mismatch',
+                field: `${type}.project_id`,
+                expected: loopIntent.project_id,
+                actual: record.project_id
+            });
+        }
+        if (allowGlobalProject && record.project_id && record.project_id !== loopIntent.project_id) {
+            throw AppError.validation(`${type} '${recordId}' belongs to project '${record.project_id}'`, {
+                state_transition: 'blocked_loop_control_ref_mismatch',
+                field: `${type}.project_id`,
+                expected: loopIntent.project_id,
+                actual: record.project_id
+            });
+        }
+    }
+
+    _assertDispatchControlLineage({ loopIntent, roleAgent, template, binding, trigger, triggerRefId }) {
+        const fail = (field, expected, actual) => {
+            throw AppError.validation(`loop_intent '${loopIntent.id}' references inconsistent control records`, {
+                state_transition: 'blocked_loop_control_ref_mismatch',
+                loop_intent_id: loopIntent.id,
+                field,
+                expected,
+                actual
+            });
+        };
+        if (loopIntent.trigger_id && loopIntent.workflow_trigger_id && loopIntent.trigger_id !== loopIntent.workflow_trigger_id) {
+            fail('loop_intent.trigger_id', loopIntent.workflow_trigger_id, loopIntent.trigger_id);
+        }
+        if (binding && loopIntent.workflow_binding_id && binding.id !== loopIntent.workflow_binding_id) {
+            fail('workflow_binding.id', loopIntent.workflow_binding_id, binding.id);
+        }
+        if (trigger && triggerRefId && trigger.id !== triggerRefId) {
+            fail('workflow_trigger.id', triggerRefId, trigger.id);
+        }
+        if (binding && roleAgent && binding.role_agent_instance_id !== roleAgent.id) {
+            fail('workflow_binding.role_agent_instance_id', roleAgent.id, binding.role_agent_instance_id);
+        }
+        if (binding && loopIntent.role_agent_instance_id && binding.role_agent_instance_id !== loopIntent.role_agent_instance_id) {
+            fail('workflow_binding.role_agent_instance_id', loopIntent.role_agent_instance_id, binding.role_agent_instance_id);
+        }
+        if (binding && template && binding.workflow_template_id !== template.id) {
+            fail('workflow_binding.workflow_template_id', template.id, binding.workflow_template_id);
+        }
+        if (binding && loopIntent.workflow_template_id && binding.workflow_template_id !== loopIntent.workflow_template_id) {
+            fail('workflow_binding.workflow_template_id', loopIntent.workflow_template_id, binding.workflow_template_id);
+        }
+        if (binding && trigger && trigger.workflow_binding_id !== binding.id) {
+            fail('workflow_trigger.workflow_binding_id', binding.id, trigger.workflow_binding_id);
+        }
+        if (trigger && loopIntent.workflow_binding_id && trigger.workflow_binding_id !== loopIntent.workflow_binding_id) {
+            fail('workflow_trigger.workflow_binding_id', loopIntent.workflow_binding_id, trigger.workflow_binding_id);
+        }
+    }
+
+    _assertDispatchWorkflowRef(workflowId, loopIntent) {
+        if (!workflowId) return;
+        const workflow = this.repository.getWorkflow(workflowId);
+        if (!workflow) return;
+        const fail = (field, expected, actual) => {
+            throw AppError.validation(`workflow '${workflowId}' cannot be reused for loop_intent '${loopIntent.id}'`, {
+                state_transition: 'blocked_loop_control_ref_mismatch',
+                loop_intent_id: loopIntent.id,
+                workflow_id: workflowId,
+                field,
+                expected,
+                actual
+            });
+        };
+        const expectedWorkspaceId = loopIntent.workspace_id || DEFAULT_WORKSPACE_ID;
+        const actualWorkspaceId = workflow.workspace_id || DEFAULT_WORKSPACE_ID;
+        if (actualWorkspaceId !== expectedWorkspaceId) {
+            fail('workflow.workspace_id', expectedWorkspaceId, actualWorkspaceId);
+        }
+        if ((workflow.org_id || null) !== (loopIntent.org_id || null)) {
+            fail('workflow.org_id', loopIntent.org_id || null, workflow.org_id || null);
+        }
+        if (workflow.project_id !== loopIntent.project_id) {
+            fail('workflow.project_id', loopIntent.project_id, workflow.project_id);
+        }
+        if (workflow.implementation_key !== EVE_SESSION_DISPATCH_IMPLEMENTATION_KEY) {
+            fail('workflow.implementation_key', EVE_SESSION_DISPATCH_IMPLEMENTATION_KEY, workflow.implementation_key || null);
+        }
+    }
+
+    _assertExistingEveSessionReplayRef(existingSessionRef, existingRun, existingWorkflow, loopIntent, workflowId) {
+        if (!existingSessionRef?.workflow_run_id) return;
+        const fail = (field, expected, actual) => {
+            throw AppError.validation(`eve_session_ref for loop_intent '${loopIntent.id}' cannot replay workflow_run '${existingSessionRef.workflow_run_id}'`, {
+                state_transition: 'blocked_loop_control_ref_mismatch',
+                loop_intent_id: loopIntent.id,
+                workflow_run_id: existingSessionRef.workflow_run_id,
+                workflow_id: existingRun?.workflow_id || null,
+                field,
+                expected,
+                actual
+            });
+        };
+        if (!existingRun) {
+            fail('eve_session_ref.workflow_run_id', 'existing workflow_run', null);
+        }
+        if (!existingWorkflow) {
+            fail('workflow_run.workflow_id', 'existing workflow', existingRun.workflow_id || null);
+        }
+        const expectedWorkspaceId = loopIntent.workspace_id || DEFAULT_WORKSPACE_ID;
+        const actualWorkspaceId = existingRun.workspace_id || DEFAULT_WORKSPACE_ID;
+        if (actualWorkspaceId !== expectedWorkspaceId) {
+            fail('workflow_run.workspace_id', expectedWorkspaceId, actualWorkspaceId);
+        }
+        if ((existingRun.org_id || null) !== (loopIntent.org_id || null)) {
+            fail('workflow_run.org_id', loopIntent.org_id || null, existingRun.org_id || null);
+        }
+        if (existingRun.project_id !== loopIntent.project_id) {
+            fail('workflow_run.project_id', loopIntent.project_id, existingRun.project_id);
+        }
+        if ((existingRun.loop_intent_id || null) !== loopIntent.id) {
+            fail('workflow_run.loop_intent_id', loopIntent.id, existingRun.loop_intent_id || null);
+        }
+        if (existingRun.workflow_id !== workflowId) {
+            fail('workflow_run.workflow_id', workflowId, existingRun.workflow_id || null);
+        }
+        this._assertDispatchWorkflowRef(existingRun.workflow_id, loopIntent);
+    }
+
+    async _transaction(callback) {
+        if (typeof this.repository?.transaction !== 'function') {
+            throw new Error('Automation control requires a transactional workflow repository');
+        }
+        return this.repository.transaction(callback);
+    }
+
+    _writeWorkflowControlAudit({ item, actor, action, targetType }) {
+        this.repository.writeAuditLog({
+            workspace_id: item.workspace_id || DEFAULT_WORKSPACE_ID,
+            org_id: item.org_id || null,
+            project_id: item.project_id || null,
+            actor_id: actor.person_id || actor.sub || 'system',
+            action,
+            target_type: targetType,
+            target_id: item.id,
+            after: item
+        });
+    }
+
+}

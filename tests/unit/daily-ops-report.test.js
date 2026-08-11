@@ -19,7 +19,6 @@ describe('daily-ops-report', () => {
             'calendar',
             'mail',
             'slack',
-            'archiveBlocked',
             'priorityTasks'
         ]);
         expect(report.actions[0].instruction.safety).toEqual(expect.objectContaining({
@@ -36,7 +35,6 @@ describe('daily-ops-report', () => {
             calendar: [{ title: 'CxO会議', summary: '12:00-13:00' }],
             mail: [{ subject: 'Docusign再送のお願い', status: 'needs_reply' }],
             slack: [{ title: '小数点以下確認', status: 'needs_reply' }],
-            archiveBlocked: [{ title: 'infisical調整', status: 'blocked' }],
             priorityTasks: [{ title: '請求方針を回答', status: 'urgent' }]
         });
 
@@ -44,7 +42,6 @@ describe('daily-ops-report', () => {
             calendar: 1,
             mail: 1,
             slack: 1,
-            archiveBlocked: 1,
             priorityTasks: 1
         });
     });

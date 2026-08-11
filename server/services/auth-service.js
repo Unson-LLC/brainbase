@@ -82,7 +82,10 @@ export class AuthService {
         this.deviceCodePollingInterval = 5; // 5 seconds
 
         // Device Code cleanup interval (every 1 minute)
-        setInterval(() => this.cleanupExpiredDeviceCodes(), 60 * 1000);
+        this.deviceCodeCleanupTimer = setInterval(() => this.cleanupExpiredDeviceCodes(), 60 * 1000);
+        // A one-off AuthService consumer must be allowed to exit after its work
+        // finishes instead of becoming an orphan solely because of this timer.
+        this.deviceCodeCleanupTimer.unref?.();
     }
 
     assertReady() {

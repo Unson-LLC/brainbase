@@ -1,6 +1,7 @@
 // @ts-check
 import { logger } from '../utils/logger.js';
 import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
+import { OntologyError } from '../services/ontology-kernel.js';
 
 /** @typedef {any} Request */
 /** @typedef {any} Response */
@@ -83,11 +84,149 @@ function resolveErrorStatus(error) {
     return 500;
 }
 
+function sendOntologyError(res, error, { operation = 'read' } = {}) {
+    if (!(error instanceof OntologyError)) {
+        res.status(resolveErrorStatus(error)).json({ error: getErrorMessage(error) || 'Ontology operation failed' });
+        return;
+    }
+    const status = error.details?.http_status || (error.code === 'ONTOLOGY_CURRENT_UNAVAILABLE'
+        ? (operation === 'read' ? 404 : 503)
+        : error.code === 'ONTOLOGY_VERSION_UNKNOWN'
+            ? 404
+            : error.code === 'ONTOLOGY_INPUT_REQUIRED'
+                || error.code === 'ONTOLOGY_VALIDATION_FAILED'
+                || error.code === 'ONTOLOGY_EDGE_ENDPOINT_NOT_FOUND'
+                || error.code === 'ONTOLOGY_CONTEXT_ENTITY_TYPE_MISMATCH'
+                ? 400
+                : 500);
+    res.status(status).json({
+        error: error.message,
+        code: error.code,
+        details: error.details
+    });
+}
+
 export class InfoSSOTController {
     /** @param {any} infoSSOTService */
     constructor(infoSSOTService) {
         this.infoSSOTService = infoSSOTService;
     }
+
+    appendOntologyGuard(result) {
+        return { ...result, ...this.infoSSOTService.getOntologyGuard() };
+    }
+
+    getOntology = async (req, res) => {
+        try {
+            assertAccessContext(buildAccessContext(req));
+            res.json(this.infoSSOTService.describeOntology({
+                version: req.query.version || undefined,
+                asOf: req.query.asOf || req.query.as_of || undefined
+            }));
+        } catch (error) {
+            logger.error('Failed to describe ontology', { error });
+            sendOntologyError(res, error, { operation: 'read' });
+        }
+    };
+
+    getOntologyRelease = async (req, res) => {
+        try {
+            assertAccessContext(buildAccessContext(req));
+            res.json(this.infoSSOTService.describeOntology({ version: req.params.version }));
+        } catch (error) {
+            logger.error('Failed to describe ontology release', { error });
+            sendOntologyError(res, error, { operation: 'read' });
+        }
+    };
+
+    getOntologyType = async (req, res) => {
+        try {
+            assertAccessContext(buildAccessContext(req));
+            res.json(this.infoSSOTService.describeOntologyType(req.params.id, {
+                version: req.query.version || undefined,
+                asOf: req.query.asOf || req.query.as_of || undefined
+            }));
+        } catch (error) {
+            logger.error('Failed to describe ontology type', { error });
+            sendOntologyError(res, error, { operation: 'read' });
+        }
+    };
+
+    getOntologyRelation = async (req, res) => {
+        try {
+            assertAccessContext(buildAccessContext(req));
+            res.json(this.infoSSOTService.describeOntologyRelation(req.params.id, {
+                version: req.query.version || undefined,
+                asOf: req.query.asOf || req.query.as_of || undefined
+            }));
+        } catch (error) {
+            logger.error('Failed to describe ontology relation', { error });
+            sendOntologyError(res, error, { operation: 'read' });
+        }
+    };
+
+    validateOntology = async (req, res) => {
+        try {
+            assertAccessContext(buildAccessContext(req));
+            res.json(this.infoSSOTService.validateOntology(req.body || {}));
+        } catch (error) {
+            logger.error('Failed to validate ontology input', { error });
+            sendOntologyError(res, error, { operation: 'validate' });
+        }
+    };
+
+    inferOntology = async (req, res) => {
+        try {
+            assertAccessContext(buildAccessContext(req));
+            res.json(this.infoSSOTService.inferOntology(req.body || {}));
+        } catch (error) {
+            logger.error('Failed to run ontology inference', { error });
+            sendOntologyError(res, error, { operation: 'infer' });
+        }
+    };
+
+    impactOntology = async (req, res) => {
+        try {
+            assertAccessContext(buildAccessContext(req));
+            res.json(this.infoSSOTService.impactOntology(req.body || {}));
+        } catch (error) {
+            logger.error('Failed to analyze ontology impact', { error });
+            sendOntologyError(res, error, { operation: 'impact' });
+        }
+    };
+
+    auditOntology = async (req, res) => {
+        try {
+            const access = buildAccessContext(req);
+            assertAccessContext(access);
+            res.json(await this.infoSSOTService.auditOntology(access, req.body || {}));
+        } catch (error) {
+            logger.error('Failed to audit ontology', { error });
+            sendOntologyError(res, error, { operation: 'audit' });
+        }
+    };
+
+    commitOntologyGraph = async (req, res) => {
+        try {
+            const access = buildAccessContext(req);
+            assertAccessContext(access);
+            res.status(201).json(await this.infoSSOTService.commitOntologyGraph(access, req.body || {}));
+        } catch (error) {
+            logger.error('Failed to commit ontology graph', { error });
+            sendOntologyError(res, error, { operation: 'commit' });
+        }
+    };
+
+    authorizeOntologyPublication = async (req, res) => {
+        try {
+            const access = buildAccessContext(req);
+            assertAccessContext(access);
+            res.status(201).json(await this.infoSSOTService.authorizeOntologyPublication(access, req.body || {}));
+        } catch (error) {
+            logger.error('Failed to authorize ontology publication', { error });
+            sendOntologyError(res, error, { operation: 'authorize' });
+        }
+    };
 
     /** @param {Request} req @param {Response} res */
     listDecisions = async (req, res) => {
@@ -123,9 +262,16 @@ export class InfoSSOTController {
         try {
             const access = buildAccessContext(req);
             assertAccessContext(access);
+            const id = req.query.id || null;
+            const ids = typeof req.query.ids === 'string' ? parseCsv(req.query.ids) : [];
             const projectCode = req.query.project || null;
             const entityType = req.query.type || null;
-            const records = await this.infoSSOTService.listGraphEntities(access, { projectCode, entityType });
+            const query = req.query.query || null;
+            const limit = req.query.limit || null;
+            const records = await this.infoSSOTService.listGraphEntities(
+                access,
+                { id, ids, projectCode, entityType, query, limit }
+            );
             res.json({ records });
         } catch (error) {
             logger.error('Failed to list graph entities', { error });
@@ -233,7 +379,7 @@ export class InfoSSOTController {
             res.status(201).json(result);
         } catch (error) {
             logger.error('Failed to upsert graph entity', { error });
-            res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to upsert graph entity' });
+            sendOntologyError(res, error, { operation: 'validate' });
         }
     };
 
@@ -245,7 +391,7 @@ export class InfoSSOTController {
             res.status(201).json(result);
         } catch (error) {
             logger.error('Failed to upsert graph edge', { error });
-            res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to upsert graph edge' });
+            sendOntologyError(res, error, { operation: 'validate' });
         }
     };
 
@@ -266,7 +412,7 @@ export class InfoSSOTController {
             const access = buildAccessContext(req);
             assertAccessContext(access);
             const result = await this.infoSSOTService.createDecision(access, req.body || {});
-            res.status(201).json(result);
+            res.status(201).json(this.appendOntologyGuard(result));
         } catch (error) {
             logger.error('Failed to create decision', { error });
             res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to create decision' });
@@ -278,7 +424,7 @@ export class InfoSSOTController {
             const access = buildAccessContext(req);
             assertAccessContext(access);
             const result = await this.infoSSOTService.createRaci(access, req.body || {});
-            res.status(201).json(result);
+            res.status(201).json(this.appendOntologyGuard(result));
         } catch (error) {
             logger.error('Failed to create raci', { error });
             res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to create raci' });
@@ -290,7 +436,7 @@ export class InfoSSOTController {
             const access = buildAccessContext(req);
             assertAccessContext(access);
             const result = await this.infoSSOTService.createGlossaryTerm(access, req.body || {});
-            res.status(201).json(result);
+            res.status(201).json(this.appendOntologyGuard(result));
         } catch (error) {
             logger.error('Failed to create glossary term', { error });
             res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to create glossary term' });
@@ -302,7 +448,7 @@ export class InfoSSOTController {
             const access = buildAccessContext(req);
             assertAccessContext(access);
             const result = await this.infoSSOTService.createKpi(access, req.body || {});
-            res.status(201).json(result);
+            res.status(201).json(this.appendOntologyGuard(result));
         } catch (error) {
             logger.error('Failed to create kpi', { error });
             res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to create kpi' });
@@ -314,7 +460,7 @@ export class InfoSSOTController {
             const access = buildAccessContext(req);
             assertAccessContext(access);
             const result = await this.infoSSOTService.createInitiative(access, req.body || {});
-            res.status(201).json(result);
+            res.status(201).json(this.appendOntologyGuard(result));
         } catch (error) {
             logger.error('Failed to create initiative', { error });
             res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to create initiative' });
@@ -326,7 +472,7 @@ export class InfoSSOTController {
             const access = buildAccessContext(req);
             assertAccessContext(access);
             const result = await this.infoSSOTService.createAiQuery(access, req.body || {});
-            res.status(200).json(result);
+            res.status(200).json(this.appendOntologyGuard(result));
         } catch (error) {
             logger.error('Failed to create ai query', { error });
             res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to create ai query' });
@@ -338,7 +484,7 @@ export class InfoSSOTController {
             const access = buildAccessContext(req);
             assertAccessContext(access);
             const result = await this.infoSSOTService.createAiDecisionLog(access, req.body || {});
-            res.status(201).json(result);
+            res.status(201).json(this.appendOntologyGuard(result));
         } catch (error) {
             logger.error('Failed to create ai decision log', { error });
             res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to create ai decision log' });

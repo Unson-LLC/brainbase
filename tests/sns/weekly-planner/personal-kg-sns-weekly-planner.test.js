@@ -15,327 +15,144 @@ const viewer = {
     sub: 'sato_keigo',
     role: 'ceo',
     workspace: 'unson',
-    org_ids: ['unson', 'salestailor', 'techknight', 'zeims', 'ncom-catalyst'],
-    project_ids: ['brainbase', 'salestailor', 'techknight', 'zeims', 'ncom-catalyst', 'unson-board'],
-    interests: ['Claude Code', 'AI PM', 'AI駆動経営', 'ナレッジグラフ'],
-    persona: 'AI導入を任された事業責任者 / PM / 経営者'
+    org_ids: ['unson'],
+    project_ids: ['brainbase']
 };
 
-function sourceEntity(id, body, overrides = {}) {
+function sourceEntity(id, body, category, overrides = {}) {
     return {
         id,
         source_candidate_id: id.replace('candidate:', ''),
-        cognitive_type: 'claim',
+        cognitive_type: 'insight',
         body,
+        category,
         derived_from: [`seed:${id}`],
-        source_event_ids: [`seed:${id}`],
         evidence_ids: [{ raw_event_id: `raw:${id}`, uri: `brainbase:test:${id}`, hash: `sha256:${id}` }],
-        agency_level: 'synthesize',
-        sensitivity: 'internal',
-        owner_person_id: 'sato_keigo',
-        visibility: 'owner',
-        org_ids: ['unson'],
-        project_ids: ['brainbase'],
-        created_at: '2026-05-12T00:00:00.000Z',
-        reuse_count: 0,
+        source_system: 'brainbase',
+        created_at: '2026-07-28T00:00:00.000Z',
         ...overrides
     };
 }
 
-const kgSources = [
-    sourceEntity('candidate:claude-code', 'Claude Code法人導入はTipsではなく、CLAUDE.md、Skills、権限、レビュー、検収の運用設計が本体。'),
-    sourceEntity('candidate:ai-pm', 'AI PMはタスク管理ではない。責任分界、意思決定ログ、レビュー境界、学習の戻し先を設計する仕事。'),
-    sourceEntity('candidate:kg', 'ナレッジグラフの価値は、人間が情報を見に行くことではなく、AIが必要な文脈をgraph traversalで持ってくること。'),
-    sourceEntity('candidate:own-proof', 'Own Proof: knowledge-graph-kernel M1-M4でACL、Candidate Store、SNS posting engineまで通した。'),
-    sourceEntity('candidate:vibepro', 'Own Proof: VibeProはStory、Architecture、Spec、Graphify、Gate、PR evidenceを通して変更を進める。'),
-    sourceEntity('candidate:persona', 'Persona Brainで考える。相手が今何を見て、何を誤解し、何を怖がり、何なら自然に動けるかを先に立ち上げる。'),
-    sourceEntity('candidate:org-unit', 'AIはツールではなく組織ユニットとして扱う。役割、権限、記憶、承認、証跡を持って継続稼働する単位。'),
-    sourceEntity('candidate:incident', 'develop直pushのsilent drop事故から、注意喚起ではなくdeterministic guardで再発防止した。'),
-    sourceEntity('candidate:trust-score', 'SalesTailorでは、人間営業が生む信頼を会社の資産として扱い、信頼スコアにする。')
-];
-
-const peerSignals = [
-    {
-        id: 'too-small',
-        kind: 'peer_post',
-        author_handle: '@small_ai_pm',
-        author_followers: 900,
-        text: 'AI PM導入のメモ',
-        url: 'https://x.com/small/status/1',
-        topic: 'AI PM'
-    },
-    {
-        id: 'primary-peer',
-        kind: 'peer_post',
-        author_handle: '@near_peer_ai_pm',
-        author_followers: 8200,
-        text: 'AI PMは運用設計が大事という話',
-        url: 'https://x.com/near/status/1',
-        topic: 'AI PM'
-    },
-    {
-        id: 'too-large',
-        kind: 'peer_post',
-        author_handle: '@mega_ai',
-        author_followers: 220000,
-        text: 'AIトレンド',
-        url: 'https://x.com/mega/status/1',
-        topic: 'AI'
-    }
-];
-
-const newsSignals = [
-    {
-        id: 'claude-code-news',
-        kind: 'news',
-        title: 'Claude Codeのチーム導入事例が話題',
-        url: 'https://example.com/claude-code-team',
-        topic: 'Claude Code'
-    },
-    {
-        id: 'ai-management-news',
-        kind: 'news',
-        title: '海外でAI management workflowの事例が伸びている',
-        url: 'https://example.com/ai-management',
-        topic: 'AI駆動経営'
-    }
-];
-
 describe('PersonalKgSnsWeeklyPlanner', () => {
-    it('builds a 7-day review pack with the canonical weekly content mix', async () => {
+    it('moves only real first-person lifelog sources into a manual review pack', async () => {
+        const sources = [
+            sourceEntity('candidate:today', '今日は生成方針を全部見直した。助言を書こうとすると、自分の記録から離れる感じがした。', 'daily_log'),
+            sourceEntity('candidate:work', '昨日はテストが一度止まった。原因をメモしてから直したら、次の確認が楽になった。', 'work_log'),
+            sourceEntity('candidate:policy', '投稿は週21本を目標にする。', 'content_design'),
+            sourceEntity('candidate:general', 'AI導入では責任境界が重要である。', 'work_log')
+        ];
         const planner = new PersonalKgSnsWeeklyPlanner({
-            graphReader: { listRecentEntities: async () => kgSources }
+            graphReader: { listRecentEntities: async () => sources }
         });
 
         const pack = await planner.buildWeeklyDraftPack(viewer, {
-            startDate: '2026-05-18',
-            peerSignals,
-            newsSignals
+            startDate: '2026-07-28',
+            peerSignals: [{ id: 'peer-1' }],
+            newsSignals: [{ id: 'news-1' }]
         });
 
-        expect(pack.week_start).toBe('2026-05-18');
         expect(pack.days).toHaveLength(7);
-        expect(pack.drafts).toHaveLength(21);
-        expect(pack.summary.by_lane).toEqual({
-            trust_balance: 5,
-            peer_circle: 6,
-            own_proof: 4,
-            philosophy: 3,
-            learn_in_public: 2,
-            soft_cta: 1
-        });
+        expect(pack.drafts).toHaveLength(2);
         expect(pack.summary.content_mix).toEqual(DEFAULT_WEEKLY_CONTENT_MIX);
-        expect(pack.summary.news_signal_slots).toBeLessThanOrEqual(7);
-
+        expect(pack.summary.external_prompts_ignored_for_drafts).toBe(2);
+        expect(pack.drafts.map((draft) => draft.body)).toEqual([
+            sources[0].body,
+            sources[1].body
+        ]);
         for (const draft of pack.drafts) {
-            expect(draft.status).toBe('draft_review');
             expect(draft.publish_intent).toBe('manual_review_only');
-            expect(draft.kg_source_entity_id).toMatch(/^candidate:/);
-            expect(draft.derived_from).toContain(draft.kg_source_entity_id);
-            expect(draft.evidence_ids.length).toBeGreaterThan(0);
-            expect(draft.persona_brain.target_person).toBe(viewer.persona);
-            expect(Object.values(draft.persona_brain).every((value) => typeof value === 'string' && value.length > 0)).toBe(true);
-            expect(draft.safety.requires_human_review).toBe(true);
-            expect(draft.safety.persona_affect.decision).toBe('pass');
-            expect(draft.safety.persona_affect.likely_reader_feeling).toMatch(/自分|現場|未選定/);
-            expect(draft.safety.persona_affect.negative_feeling_risks).toEqual([]);
+            expect(draft.format).toBe('first_person_lifelog');
+            expect(draft.signal).toBeNull();
+            expect(draft.lifelog_check).toMatchObject({
+                decision: 'pass',
+                first_person_evidence: true
+            });
             expect(draft.algorithm_fit).toMatchObject({
                 decision: 'reviewable',
-                candidate_source: expect.any(String),
-                graph_edge_goal: expect.any(String),
-                negative_feedback_risks: []
+                candidate_source: 'personal_kg_lifelog',
+                predicted_positive_actions: [],
+                graph_edge_goal: null,
+                optimization_policy: 'none'
             });
-            expect(draft.algorithm_fit.predicted_positive_actions.length).toBeGreaterThan(0);
-            expect(draft.body.length).toBeLessThanOrEqual(280);
-            expect(draft.body).not.toMatch(/APIで投稿|AIで投稿を書いて|自動投稿/);
         }
     });
 
-    it('uses near-peer quote repost slots before too-small or mega accounts', async () => {
+    it('returns zero posts when no first-person lifelog source exists', async () => {
         const planner = new PersonalKgSnsWeeklyPlanner({
-            graphReader: { listRecentEntities: async () => kgSources }
+            graphReader: {
+                listRecentEntities: async () => [
+                    sourceEntity('candidate:policy', '人は毎日記録を残すべきだ。', 'operating_principle')
+                ]
+            }
+        });
+
+        const pack = await planner.buildWeeklyDraftPack(viewer, { startDate: '2026-07-28' });
+
+        expect(pack.drafts).toEqual([]);
+        expect(pack.summary.no_source_reason).toBe('no_first_person_lifelog_source');
+        expect(pack.days.every((day) => day.drafts.length === 0)).toBe(true);
+    });
+
+    it('does not turn external signals into drafts', async () => {
+        const planner = new PersonalKgSnsWeeklyPlanner({
+            graphReader: { listRecentEntities: async () => [] }
         });
 
         const pack = await planner.buildWeeklyDraftPack(viewer, {
-            startDate: '2026-05-18',
-            peerSignals
+            startDate: '2026-07-28',
+            peerSignals: [{ id: 'peer-1', text: '役立つ話' }],
+            newsSignals: [{ id: 'news-1', title: '今日のニュース' }]
         });
 
-        const peerDrafts = pack.drafts.filter((draft) => draft.lane === 'peer_circle');
-        expect(peerDrafts).toHaveLength(6);
-        expect(peerDrafts.every((draft) => draft.format === 'quote_repost_commentary')).toBe(true);
-        expect(peerDrafts.every((draft) => draft.signal?.author_handle === '@near_peer_ai_pm')).toBe(true);
-        expect(peerDrafts.every((draft) => draft.body.includes('これめちゃ分かる'))).toBe(true);
-        expect(peerDrafts.every((draft) => !draft.body.includes('相手の読者に向けて'))).toBe(true);
-        expect(peerDrafts.every((draft) => draft.algorithm_fit.candidate_source === 'near_peer_quote')).toBe(true);
-        expect(peerDrafts.every((draft) => draft.algorithm_fit.predicted_positive_actions.includes('quote'))).toBe(true);
-        expect(peerDrafts.every((draft) => draft.algorithm_fit.graph_edge_goal.includes('@near_peer_ai_pm'))).toBe(true);
+        expect(pack.drafts).toHaveLength(0);
+        expect(pack.summary.external_prompts_ignored_for_drafts).toBe(2);
     });
 
-    it('can use the PersonalKnowledgeGraphReader as the weekly planner source', async () => {
+    it('blocks advice while accepting a first-person record', () => {
+        const advice = evaluatePersonaAffect({ body: '私はこうした。あなたも毎日記録すべきだ。' });
+        expect(advice.decision).toBe('blocked');
+        expect(advice.negative_feeling_risks).toContain('advice_or_instruction');
+
+        const record = evaluatePersonaAffect({ body: '今日は書くことがなくて、投稿しないと決めた。' });
+        expect(record.decision).toBe('pass');
+        expect(record.check_type).toBe('lifelog_integrity');
+
+        const compatibility = evaluateXAlgorithmFit({ body: '今日は書くことがなくて、投稿しないと決めた。', personaAffect: record });
+        expect(compatibility.optimization_policy).toBe('none');
+    });
+
+    it('reads lifelog category through PersonalKnowledgeGraphReader', async () => {
         const { service } = makeService();
         await service.createCandidate(baseDraft({
-            cognitive_type: 'claim',
-            body: 'Claude Code法人導入はツール導入ではなく、権限、レビュー、検収の運用設計が本体。',
-            source_event_ids: ['seed:reader:claude-code']
+            cognitive_type: 'insight',
+            body: '今日は公開ライフログの方針を決めた。自分の経験だけを残すことにした。',
+            source_event_ids: ['seed:reader:lifelog'],
+            permission_snapshot: {
+                seed: { category: 'work_log' }
+            }
         }));
         await service.createCandidate(baseDraft({
-            cognitive_type: 'insight',
-            body: 'Own Proof: VibeProでStory、Spec、Graphify、Gateを通して実装を進めた。',
-            source_event_ids: ['seed:reader:vibepro']
+            cognitive_type: 'claim',
+            body: '読者には結論を先に示す。',
+            source_event_ids: ['seed:reader:policy'],
+            permission_snapshot: {
+                seed: { category: 'content_design' }
+            }
         }));
 
         const reader = new PersonalKnowledgeGraphReader({ candidateService: service });
         const planner = new PersonalKgSnsWeeklyPlanner({ graphReader: reader });
-        const pack = await planner.buildWeeklyDraftPack(viewer, { startDate: '2026-05-18' });
+        const pack = await planner.buildWeeklyDraftPack(viewer, { startDate: '2026-07-28' });
 
-        expect(pack.drafts).toHaveLength(21);
-        expect(pack.drafts.some((draft) => draft.body.includes('Claude Code'))).toBe(true);
-        expect(pack.drafts.some((draft) => draft.body.includes('VibePro'))).toBe(true);
+        expect(pack.drafts).toHaveLength(1);
+        expect(pack.drafts[0].lane).toBe('work_log');
+        expect(pack.drafts[0].body).toContain('自分の経験だけ');
     });
 
-    it('classifies peer signals by the agreed amplifier target band', () => {
-        expect(classifyPeerSignalBand({ author_followers: 1500 })).toBe('out_of_band');
+    it('keeps the legacy peer band helper stable without using it for generation', () => {
         expect(classifyPeerSignalBand({ author_followers: 2000 })).toBe('primary');
-        expect(classifyPeerSignalBand({ author_followers: 20000 })).toBe('primary');
         expect(classifyPeerSignalBand({ author_followers: 35000 })).toBe('secondary');
         expect(classifyPeerSignalBand({ author_followers: 50001 })).toBe('out_of_band');
-    });
-
-    it('shapes KG memory into publishable copy instead of copying the memory fragment', async () => {
-        const planner = new PersonalKgSnsWeeklyPlanner({
-            graphReader: { listRecentEntities: async () => kgSources }
-        });
-
-        const pack = await planner.buildWeeklyDraftPack(viewer, { startDate: '2026-05-18' });
-        const trustDraft = pack.drafts.find((draft) => draft.lane === 'trust_balance' && draft.body.includes('AI PM'));
-        expect(trustDraft).toBeTruthy();
-        expect(trustDraft.body).toContain('\n');
-        expect(trustDraft.body).toContain('たぶん本体はそこじゃない');
-        expect(trustDraft.body).toContain('境界設計');
-        expect(trustDraft.body).not.toMatch(/^Claude Code \/ AI PM \/ AI経営で大事なのは、/);
-        expect(trustDraft.body).not.toContain('Own Proof:');
-    });
-
-    it('does not reuse the same KG source twice on the same day', async () => {
-        const planner = new PersonalKgSnsWeeklyPlanner({
-            graphReader: { listRecentEntities: async () => kgSources }
-        });
-
-        const pack = await planner.buildWeeklyDraftPack(viewer, { startDate: '2026-05-18' });
-        for (const day of pack.days) {
-            const ids = day.drafts.map((draft) => draft.kg_source_entity_id);
-            expect(new Set(ids).size).toBe(ids.length);
-        }
-    });
-
-    it('keeps lane-specific source selection clean for philosophy and soft CTA slots', async () => {
-        const planner = new PersonalKgSnsWeeklyPlanner({
-            graphReader: { listRecentEntities: async () => kgSources }
-        });
-
-        const pack = await planner.buildWeeklyDraftPack(viewer, { startDate: '2026-05-18' });
-        const philosophyDrafts = pack.drafts.filter((draft) => draft.lane === 'philosophy');
-        expect(philosophyDrafts).toHaveLength(3);
-        expect(philosophyDrafts.every((draft) => !draft.body.includes('Own Proof:'))).toBe(true);
-        expect(philosophyDrafts.some((draft) => draft.body.includes('AIはツールではなく'))).toBe(true);
-
-        const softCta = pack.drafts.find((draft) => draft.lane === 'soft_cta');
-        expect(softCta.body).toContain('最初の1業務');
-        expect(softCta.body).not.toMatch(/投稿設計|今日の3投稿|1週間単位/);
-    });
-
-    it('keeps public copy free from internal labels, needless English, and sentence periods', async () => {
-        const planner = new PersonalKgSnsWeeklyPlanner({
-            graphReader: { listRecentEntities: async () => kgSources }
-        });
-
-        const pack = await planner.buildWeeklyDraftPack(viewer, {
-            startDate: '2026-05-18',
-            peerSignals,
-            newsSignals
-        });
-
-        for (const draft of pack.drafts) {
-            expect(draft.body).not.toMatch(/Peer Circle|Own Proof|Learn in Public|Soft CTA|Graph traversal|graph traversal|entity|Candidate Store|SNS posting engine|PR evidence|Tips|Skills|knowledge-graph-kernel|ACL|M1-M4|Persona Brain|Story|Architecture|Spec|Graphify|Gate/);
-            expect(draft.body).not.toMatch(/候補|同じ界隈の少し上の人の投稿を探す|見つけたら/);
-            expect(draft.body).not.toContain('。');
-        }
-    });
-
-    it('does not invent a quote repost body before the peer post exists', async () => {
-        const planner = new PersonalKgSnsWeeklyPlanner({
-            graphReader: { listRecentEntities: async () => kgSources }
-        });
-
-        const pack = await planner.buildWeeklyDraftPack(viewer, { startDate: '2026-05-18' });
-        const peerDrafts = pack.drafts.filter((draft) => draft.lane === 'peer_circle');
-        expect(peerDrafts).toHaveLength(6);
-        expect(peerDrafts.every((draft) => draft.format === 'peer_research_prompt')).toBe(true);
-        expect(peerDrafts.every((draft) => draft.body === '')).toBe(true);
-        expect(peerDrafts.every((draft) => draft.algorithm_fit.decision === 'needs_peer_signal')).toBe(true);
-        expect(peerDrafts.every((draft) => draft.algorithm_fit.negative_feedback_risks.includes('missing_peer_signal'))).toBe(true);
-    });
-
-    it('blocks copy that would make the persona feel lectured or used as a growth tactic', () => {
-        const personaBrain = {
-            target_person: viewer.persona,
-            current_situation: 'AI導入を任されているが、現場でどこから始めるか迷っている',
-            existing_belief: '良いツールを選べば前に進むと思っている',
-            misunderstanding: 'AI活用はツール選定の問題だと思っている',
-            fear: '責任境界が曖昧なまま事故ることを怖がっている',
-            blocker: '最初の業務とレビュー境界を決めきれていない',
-            resonant_detail: '現場で止まる',
-            avoid_phrasing: '上から正解を言われる',
-            natural_next_action: '自社の最初の1業務を考える',
-            success_signal: 'bookmark'
-        };
-
-        const lecturing = evaluatePersonaAffect({
-            body: 'AI導入で迷うなら、最初に見るべきはツール一覧じゃない',
-            lane: 'soft_cta',
-            personaBrain
-        });
-        expect(lecturing.decision).toBe('blocked');
-        expect(lecturing.negative_feeling_risks).toContain('lecturing_tone');
-
-        const tactic = evaluatePersonaAffect({
-            body: '今日は同じ界隈の少し上の人の投稿を探す。見つけたら引用する',
-            lane: 'peer_circle',
-            personaBrain,
-            signal: { kind: 'peer_post', author_handle: '@near_peer_ai_pm' }
-        });
-        expect(tactic.decision).toBe('blocked');
-        expect(tactic.negative_feeling_risks).toContain('internal_growth_tactic_exposed');
-    });
-
-    it('scores X algorithm fit around positive actions, negative feedback risk, and graph edge goal', () => {
-        const fit = evaluateXAlgorithmFit({
-            body: 'これめちゃ分かる\n\n@near_peer_ai_pm の話、現場だと責任境界とレビュー境界まで含めて見る話なんよな',
-            lane: 'peer_circle',
-            signal: peerSignals[1],
-            personaAffect: { decision: 'pass', negative_feeling_risks: [] }
-        });
-
-        expect(fit).toMatchObject({
-            decision: 'reviewable',
-            candidate_source: 'near_peer_quote',
-            graph_edge_goal: 'peer_reply_or_repost:@near_peer_ai_pm',
-            negative_feedback_risks: []
-        });
-        expect(fit.predicted_positive_actions).toEqual(expect.arrayContaining(['quote', 'reply', 'profile_click', 'dwell']));
-
-        const risky = evaluateXAlgorithmFit({
-            body: 'AI導入で迷うなら、最初に見るべきはツール一覧じゃない',
-            lane: 'soft_cta',
-            personaAffect: {
-                decision: 'blocked',
-                negative_feeling_risks: ['lecturing_tone']
-            }
-        });
-
-        expect(risky.decision).toBe('blocked');
-        expect(risky.negative_feedback_risks).toEqual(expect.arrayContaining(['negative_persona_affect', 'not_interested_risk']));
-        expect(risky.predicted_negative_actions).toEqual(expect.arrayContaining(['not_interested']));
     });
 });

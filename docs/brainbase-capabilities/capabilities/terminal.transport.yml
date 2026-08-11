@@ -1,6 +1,7 @@
 id: terminal.transport
 name: Terminal xterm transport
-purpose: Provide interactive terminal IO for Claude Code and Codex sessions through xterm.
+lifecycle: retired
+purpose: Historical record of Brainbase xterm/tmux/ttyd transport. Codex app/CLI now owns terminal transport.
 surfaces:
   ui:
     - xterm terminal pane
@@ -20,6 +21,8 @@ surfaces:
 depends_on:
   - runtime.launchd
 visibility_rules:
+  - Do not restore this capability. ADR-019 assigns terminal transport to Codex app/CLI.
+  - Brainbase terminal HTTP, WebSocket, and console proxy surfaces are retired.
   - Enter should provide immediate local feedback even when readiness probes lag.
   - Table rendering snapshots must not be cleared by volatile prompt transitions.
   - Focus loss can look like input transport failure.

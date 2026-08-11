@@ -1,0 +1,121 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-review-surface-violations-v1",
+  "story_id": "story-brainbase-ontology-production-activation",
+  "append_only": true,
+  "updated_at": "2026-08-02T23:20:03.161Z",
+  "entries": [
+    {
+      "schema_version": "0.1.0",
+      "violation_id": "rsv-3c993ac6d575244a",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "kind": "review_surface_mutated_during_review",
+      "evidence_class": "violation",
+      "changed_fields": [
+        "head_sha"
+      ],
+      "started": {
+        "head_sha": "8d21ab1cef5241949b5ca9466eafcf0c2423ee94",
+        "surface_digest": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574"
+      },
+      "closed": {
+        "head_sha": "5c9249a8cf894e73ca2885317600ef78a3755ce0",
+        "surface_digest": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574"
+      },
+      "stage": "gate",
+      "role": "gate_evidence",
+      "lifecycle_id": "b70beb6b-2ed7-4446-b793-e7fee1da2eca",
+      "agent_system": "codex",
+      "agent_id": "/root/activation_gate_evidence_final",
+      "started_at": "2026-08-02T21:13:34.329Z",
+      "close_reason": "completed",
+      "close_evidence": "collaboration.wait_agent: completed result received; stale at 8d21ab1",
+      "detected_by": "review close",
+      "recorded_at": "2026-08-02T21:28:40.816Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "violation_id": "rsv-7afb6633a0cec404",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "kind": "review_surface_mutated_during_review",
+      "evidence_class": "violation",
+      "changed_fields": [
+        "head_sha"
+      ],
+      "started": {
+        "head_sha": "4094d8681d95f479f2dfd30c3bd0e50846217abf",
+        "surface_digest": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574"
+      },
+      "closed": {
+        "head_sha": "7af4d9b35d8ec8c29d822b632f57ab5bc4c92afa",
+        "surface_digest": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574"
+      },
+      "stage": "gate",
+      "role": "gate_evidence",
+      "lifecycle_id": "3a0eb59f-bccf-4dd6-815a-4fb7bb2b6135",
+      "agent_system": "codex",
+      "agent_id": "/root/activation_gate_evidence_fix_review",
+      "started_at": "2026-08-02T21:36:45.866Z",
+      "close_reason": "completed",
+      "close_evidence": "collaboration agent completed with needs_changes; findings fixed in 2a38a3f9b and evidence persisted in 7af4d9b35",
+      "detected_by": "review close",
+      "recorded_at": "2026-08-02T21:46:11.756Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "violation_id": "rsv-3ed02381a493eb5b",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "kind": "review_surface_mutated_during_review",
+      "evidence_class": "violation",
+      "changed_fields": [
+        "head_sha"
+      ],
+      "started": {
+        "head_sha": "98ceb0817a9ee121c919de5c8e8cc78404d43b30",
+        "surface_digest": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574"
+      },
+      "closed": {
+        "head_sha": "6a6ba1aa83af60323e7bd6cf5ed2ce30103e287a",
+        "surface_digest": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574"
+      },
+      "stage": "architecture_spec",
+      "role": "architecture_boundary",
+      "lifecycle_id": "2cc35227-b5c0-4c7a-adf2-1533e6a6041f",
+      "agent_system": "codex",
+      "agent_id": "/root/activation_architecture_98ceb",
+      "started_at": "2026-08-02T22:40:22.683Z",
+      "close_reason": "completed",
+      "close_evidence": ".vibepro/reviews/story-brainbase-ontology-production-activation/architecture_spec/transcript-architecture_boundary-98ceb.json",
+      "detected_by": "review close",
+      "recorded_at": "2026-08-02T22:56:24.014Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "violation_id": "rsv-382427760a6e897c",
+      "story_id": "story-brainbase-ontology-production-activation",
+      "kind": "review_surface_mutated_during_review",
+      "evidence_class": "violation",
+      "changed_fields": [
+        "head_sha"
+      ],
+      "started": {
+        "head_sha": "6a6ba1aa83af60323e7bd6cf5ed2ce30103e287a",
+        "surface_digest": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574"
+      },
+      "closed": {
+        "head_sha": "486e737207cce2c7801d02b75ddb0b6098bbfbce",
+        "surface_digest": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574"
+      },
+      "stage": "implementation",
+      "role": "runtime_contract",
+      "lifecycle_id": "c0748062-efcc-4d59-90d7-55496f9aed94",
+      "agent_system": "codex",
+      "agent_id": "/root/ontology_runtime_final_6a6ba1aa",
+      "started_at": "2026-08-02T23:09:11.231Z",
+      "close_reason": "completed",
+      "close_evidence": ".vibepro/reviews/story-brainbase-ontology-production-activation/implementation/transcript-runtime_contract-6a6ba1aa.json",
+      "detected_by": "review close",
+      "recorded_at": "2026-08-02T23:20:03.161Z"
+    }
+  ]
+}

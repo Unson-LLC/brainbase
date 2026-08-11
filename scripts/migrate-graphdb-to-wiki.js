@@ -29,6 +29,11 @@ const WIKI_ROOT = process.argv.find((_, i, a) => a[i - 1] === '--wiki-root')
 
 const DB_URL = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL;
 
+if (!DRY_RUN) {
+    console.error('ERROR: GraphDB → Wiki materialization is retired. Query Graph directly; only --dry-run inventory is allowed.');
+    process.exit(1);
+}
+
 if (!DB_URL) {
     console.error('ERROR: INFO_SSOT_DATABASE_URL is required');
     process.exit(1);

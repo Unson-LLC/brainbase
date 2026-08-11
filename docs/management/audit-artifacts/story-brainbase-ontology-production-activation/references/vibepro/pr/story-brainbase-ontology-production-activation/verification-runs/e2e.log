@@ -1,0 +1,14 @@
+
+Running 3 tests using 1 worker
+
+  ✓  1 tests/e2e/story-brainbase-ontology-production-activation-contract.spec.ts:12:1 › story-brainbase-ontology-production-activation ac:1 publication outputs bind current 1.0.0 to Graph governance (8ms)
+  ✓  2 tests/e2e/story-brainbase-ontology-production-activation-contract.spec.ts:29:1 › story-brainbase-ontology-production-activation ac:2 a trusted signed current activates the canonical write guard (16ms)
+  ✓  3 tests/e2e/story-brainbase-ontology-production-activation-contract.spec.ts:40:1 › story-brainbase-ontology-production-activation ac:3 the active repository release works without a runtime public-key secret (3ms)
+
+  3 passed (637ms)
+(node:599) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:599) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"timestamp":"2026-08-03T03:45:44.166Z","level":"warn","msg":"InfoSSOTService disabled: INFO_SSOT_DATABASE_URL is not set"}
+{"timestamp":"2026-08-03T03:45:44.192Z","level":"warn","msg":"InfoSSOTService disabled: INFO_SSOT_DATABASE_URL is not set"}

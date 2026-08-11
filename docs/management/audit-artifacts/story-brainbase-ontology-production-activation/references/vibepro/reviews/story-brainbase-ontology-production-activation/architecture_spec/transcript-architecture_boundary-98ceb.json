@@ -1,0 +1,19 @@
+{
+  "agent_id": "/root/activation_architecture_98ceb",
+  "head_sha": "98ceb0817a9ee121c919de5c8e8cc78404d43b30",
+  "status": "needs_changes",
+  "summary": "LearningService was guarded, but InfoSSOTService shared and legacy Graph writers bypassed active ontology validation.",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "architecture-info-ssot-writers-bypass-active-ontology-validation",
+      "detail": "upsertGraphEntity, ensurePerson, and legacy writer callers could persist without active entity or aggregate validation."
+    },
+    {
+      "severity": "medium",
+      "id": "architecture-active-legacy-writer-regression-coverage-missing",
+      "detail": "Active-current invalid and valid-path regression coverage for legacy writers was missing."
+    }
+  ],
+  "resolution": "Both findings were fixed in later commit 6a6ba1aa83af60323e7bd6cf5ed2ce30103e287a and require a fresh independent review."
+}

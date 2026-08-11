@@ -58,7 +58,7 @@ check_pattern() {
     else
         # grepで検索（除外パターンを考慮）
         results=$(grep -r -n -I \
-            --exclude-dir={node_modules,.git,.jj,dist,build,coverage,test-results,.worktrees,var,data,.claude,config,migration,docs,examples,tests} \
+            --exclude-dir={node_modules,.git,dist,build,coverage,test-results,.worktrees,var,data,.claude,config,migration,docs,examples,tests} \
             --exclude=".git" \
             --exclude="state.json" \
             --exclude=".env" \
@@ -69,10 +69,8 @@ check_pattern() {
             --exclude=".git" \
             --exclude="check-secrets.sh" \
             --exclude="auto-cleanup-cron.sh" \
-            --exclude="run-cleanup-phase2.js" \
             --exclude="SECURITY.md" \
             --exclude="LICENSE" \
-            --exclude="ttyd_index.html" \
             --exclude="dev.sh" \
             --exclude="SCREENSHOT_REQUEST.md" \
             --exclude="SCREENSHOT_REQUEST_SLACK.md" \

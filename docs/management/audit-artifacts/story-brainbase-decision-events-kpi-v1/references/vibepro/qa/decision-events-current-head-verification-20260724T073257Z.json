@@ -1,0 +1,44 @@
+{
+  "schema_version": "0.1.0",
+  "status": "pass",
+  "outcome": "pass",
+  "head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+  "worktree_dirty": false,
+  "test_fingerprint": "decision-events-authority-generation-lock-slack-v7",
+  "evidence_source": "clean current-HEAD local execution",
+  "executed_at": "2026-07-24T08:09:05Z",
+  "checks": [
+    {
+      "kind": "unit_integration",
+      "command": "npm exec vitest run tests/server/services/companion/decision-event-service.test.js tests/server/routes/companion-decision-events.test.js tests/server/scripts/send-decision-kpi-to-slack.test.js",
+      "status": "pass",
+      "passed": 59,
+      "failed": 0,
+      "details": {
+        "service_unit": 42,
+        "route_and_kpi_integration": 17
+      }
+    },
+    {
+      "kind": "e2e",
+      "command": "BRAINBASE_E2E_PORT=31123 npx playwright test tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts --reporter=line",
+      "status": "pass",
+      "passed": 9,
+      "failed": 0
+    },
+    {
+      "kind": "typecheck",
+      "command": "npm run typecheck",
+      "status": "pass"
+    }
+  ],
+  "observations": {
+    "auth_denied": "pass",
+    "permission_denied": "pass",
+    "boundary_condition": "pass",
+    "negative_path": "pass",
+    "security_regression": "pass",
+    "same_size_ledger_tamper_detection": "pass",
+    "empty_week_never_reported_as_zero": "pass"
+  }
+}

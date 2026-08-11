@@ -1,12 +1,11 @@
 import { gracefulCleanup } from '../lib/graceful-cleanup.js';
+import { HTTP_SERVER_CLOSE_TIMEOUT_MS } from '../../lib/server-lifecycle-timeouts.js';
 
 export function registerGracefulShutdown({
     server,
-    stateStore,
-    conversationLinker,
-    sessionServices,
     meetingSourceMcpSyncService = null,
     eveMeetingNoteReconciler = null,
+    canonicalTaskOperationRepository = null,
     getMeshService = () => null,
     log = console
 }) {
@@ -21,18 +20,14 @@ export function registerGracefulShutdown({
                         log.log('HTTP server closed');
                         resolve();
                     });
-                    setTimeout(resolve, 5000);
+                    setTimeout(resolve, HTTP_SERVER_CLOSE_TIMEOUT_MS);
                 })
             },
             {
-                name: 'cleanup-state-store',
+                name: 'release-canonical-task-writer',
                 fn: async () => {
-                    if (stateStore.cleanup) await stateStore.cleanup();
+                    await canonicalTaskOperationRepository?.releaseWriter?.();
                 }
-            },
-            {
-                name: 'stop-conversation-linker',
-                fn: () => { conversationLinker.stopPeriodicLink(); }
             },
             {
                 name: 'stop-meeting-source-mcp-sync',
@@ -41,14 +36,6 @@ export function registerGracefulShutdown({
             {
                 name: 'stop-eve-note-reconciler',
                 fn: () => { eveMeetingNoteReconciler?.stopScheduledReconcile?.(); }
-            },
-            {
-                name: 'cleanup-session-runtime',
-                fn: async () => {
-                    if (sessionServices.runtime.lifecycle.cleanup) {
-                        await sessionServices.runtime.lifecycle.cleanup();
-                    }
-                }
             },
             {
                 name: 'stop-mesh-service',

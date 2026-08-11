@@ -15,12 +15,12 @@ function readFile(filePath: string) {
   return fs.readFileSync(filePath, 'utf8');
 }
 
-async function createSyncFixture({ adapters = {}, workflowService = null }: { adapters?: Record<string, any>; workflowService?: any } = {}) {
+async function createSyncFixture({ adapters = {}, meetingAutomationService = null }: { adapters?: Record<string, any>; meetingAutomationService?: any } = {}) {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'meeting-source-brainbase-note-'));
   const service = new MeetingSourceMcpSyncService({
     stateFile: path.join(dir, 'state.json'),
     adapters,
-    workflowService,
+    meetingAutomationService,
     clock: () => '2026-07-02T00:00:00.000Z'
   });
   const app = express();
@@ -39,15 +39,15 @@ async function createSyncFixture({ adapters = {}, workflowService = null }: { ad
 
 test.describe(storyId, () => {
   test('story-meeting-source-brainbase-note-generation ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:9 AC-001 AC-002 AC-003 AC-004 AC-005 AC-006 AC-007 AC-009 S-001 S-002 provider notes are not adopted as Brainbase minutes', async () => {
-    const workflowService = {
+    const meetingAutomationService = {
       calls: [] as any[],
-      async ingestMeetingReviewPackage(reviewPackage: any, options: any) {
+      async ingestReviewPackage(reviewPackage: any, options: any) {
         this.calls.push({ reviewPackage, options });
         return { ok: true };
       }
     };
     const { app, service } = await createSyncFixture({
-      workflowService,
+      meetingAutomationService,
       adapters: {
         tactiq: {
           async poll() {
@@ -126,8 +126,8 @@ test.describe(storyId, () => {
     expect(confirmed.body.review_packages[0].meeting_note_summary.body_redacted).toBe(true);
     expect(confirmed.body.review_packages[0].meeting_note_summary.source_transcripts[0].text).toBeUndefined();
     expect(confirmed.body.review_packages[0].meeting_note_summary.source_transcripts[0].text_redacted).toBe(true);
-    expect(workflowService.calls).toHaveLength(1);
-    const reviewPackage = workflowService.calls[0].reviewPackage.review_package;
+    expect(meetingAutomationService.calls).toHaveLength(1);
+    const reviewPackage = meetingAutomationService.calls[0].reviewPackage.review_package;
     const meetingNoteSummary = reviewPackage.meeting_note_summary;
     expect(meetingNoteSummary).toMatchObject({
       generator: 'brainbase_meeting_pack',
@@ -194,15 +194,15 @@ test.describe(storyId, () => {
   });
 
   test('story-meeting-source-brainbase-note-generation ac:8 ac:10 AC-008 AC-010 S-003 provider note only artifacts are not submitted as Brainbase minutes', async () => {
-    const workflowService = {
+    const meetingAutomationService = {
       calls: [] as any[],
-      async ingestMeetingReviewPackage(reviewPackage: any, options: any) {
+      async ingestReviewPackage(reviewPackage: any, options: any) {
         this.calls.push({ reviewPackage, options });
         return { ok: true };
       }
     };
     const { app, service } = await createSyncFixture({
-      workflowService,
+      meetingAutomationService,
       adapters: {
         tactiq: {
           async poll() {
@@ -268,7 +268,7 @@ test.describe(storyId, () => {
       meeting_pack_count: 0,
       review_packages: []
     });
-    expect(workflowService.calls).toHaveLength(0);
+    expect(meetingAutomationService.calls).toHaveLength(0);
   });
 
   test('story-meeting-source-brainbase-note-generation ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 ac:9 ac:10 AC-001 AC-002 AC-003 AC-004 AC-005 AC-006 AC-007 AC-008 AC-009 AC-010 S-001 S-002 S-003 traceability contract', () => {

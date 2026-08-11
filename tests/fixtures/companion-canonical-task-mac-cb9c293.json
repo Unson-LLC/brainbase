@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.0.0",
+  "mac_source_head": "8b1c95fe7c8bf76e7dadd56aa912ae417227aba8",
+  "base_path": "/api/companion/tasks",
+  "routes": {
+    "list": { "method": "GET", "path": "/api/companion/tasks" },
+    "read": { "method": "GET", "path": "/api/companion/tasks/{task_id}" },
+    "create": { "method": "POST", "path": "/api/companion/tasks" },
+    "update": { "method": "PATCH", "path": "/api/companion/tasks/{task_id}" },
+    "transition": { "method": "POST", "path": "/api/companion/tasks/{task_id}/transitions" }
+  },
+  "headers": {
+    "reads": ["Accept", "Authorization"],
+    "writes": ["Accept", "Authorization", "Content-Type", "x-session-id", "x-csrf-token"],
+    "create_only": ["Idempotency-Key"]
+  },
+  "list_query": [
+    "status",
+    "assignee_person_id",
+    "priority",
+    "due_after",
+    "due_before",
+    "cursor",
+    "limit"
+  ],
+  "sample_list_response": {
+    "items": [
+      {
+        "id": "ct1.sample.signature",
+        "version": 3,
+        "title": "会議後の確認",
+        "description": "先方へ確認する",
+        "status": "waiting",
+        "priority": "high",
+        "assignee_person_id": "sato_keigo",
+        "assignee_display_name": "佐藤圭吾",
+        "due_at": "2026-07-15T09:00:00Z",
+        "waiting_on": "先方の回答",
+        "review_at": "2026-07-16T09:00:00Z",
+        "source_refs": [
+          {
+            "type": "workflow_output",
+            "id": "output-1",
+            "url": null
+          }
+        ],
+        "created_at": "2026-07-14T00:00:00Z",
+        "updated_at": "2026-07-14T01:00:00Z",
+        "completed_at": null,
+        "web_url": "https://noco.unson.jp/dashboard/#/nc/base/table"
+      }
+    ],
+    "total_count": 1,
+    "count_status": "exact",
+    "next_cursor": null,
+    "read_status": "complete",
+    "warnings": [],
+    "as_of": "2026-07-14T01:00:00Z"
+  },
+  "error_codes": [
+    "unauthorized",
+    "forbidden",
+    "task_not_found",
+    "version_conflict",
+    "idempotency_conflict",
+    "validation_failed",
+    "invalid_transition"
+  ],
+  "approval_response_extension": "materialized_task_ids"
+}

@@ -110,7 +110,6 @@ codex exec -c 'model_reasoning_effort="low"' "ファイルをフォーマット�
 
 ## 注意事項
 
-- `BRAINBASE_SESSION_ID` を渡さないと通知（codex-notify.sh）が発火しない
 - codex execはconfig.tomlの `ask_for_approval = "never"` に従う（現在の設定）
 - タイムアウトはBashツールの制限（最大10分）に注意。長いタスクはバックグラウンドで
 - Codexにコミットさせない。変更検証後にClaudeまたはユーザーがコミットする

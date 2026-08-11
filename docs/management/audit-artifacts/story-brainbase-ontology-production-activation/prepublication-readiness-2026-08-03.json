@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0.0",
+  "story_id": "story-brainbase-ontology-production-activation",
+  "audited_at": "2026-08-02T19:40:12.853Z",
+  "environment": "production",
+  "transaction": "READ ONLY",
+  "collection_complete": true,
+  "ontology_version": "1.0.0",
+  "entity_count": 7406,
+  "edge_count": 6708,
+  "snapshot_digest_algorithm": "sha256",
+  "snapshot_digest": "c699c0331224290b6a6e5c042a1a7c7fe90f50aa9a88b0ad95f13975954f6e06",
+  "inventory_digest_algorithm": "sha256",
+  "inventory_digest": "1f3a0dbf6fc1cddc8fe6b332461df1e5b79de440276f469a4585e89fd17f2066",
+  "verification": "verified",
+  "valid": true,
+  "candidate_violation_count": 0,
+  "violations_by_rule": {},
+  "zero_count_categories": ["unknown_entity_type", "unknown_relation_type", "relation_endpoint", "relation_cardinality"],
+  "remediation": {
+    "status": "committed",
+    "entity_upserts": 3,
+    "entity_payload_updates": 2,
+    "edge_upserts": 28,
+    "deletes": 0,
+    "backup_path": "/home/ubuntu/brainbase/var/ontology-backups/ontology-1.0.0-remediation-2026-08-02T193951656Z.json"
+  },
+  "gate": "data_ready_publication_pending"
+}

@@ -1,0 +1,25 @@
+{
+  "agent_id": "019f92eb-a886-75f3-b030-d8eff762e48d",
+  "model": "gpt-5.6-luna",
+  "reasoning_effort": "high",
+  "head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+  "base_sha": "d53d1585e4c5d3af9936e40b55e43025b404faa1",
+  "status": "pass",
+  "summary": "Decision-event ledger authority, cache content integrity, quarantine recovery, auth/API boundaries, and malformed KPI no-post behavior passed independent review.",
+  "findings": [],
+  "resolved_findings": [
+    "cache-masks-corruption",
+    "malformed-ledger-records",
+    "quarantine-generation-recovery",
+    "malformed-kpi-response"
+  ],
+  "verification": {
+    "decision_event_service": "42 passed",
+    "route_and_kpi_integration": "17 passed",
+    "auth_and_validation": "9 passed",
+    "playwright": "9 passed",
+    "typecheck": "passed",
+    "eslint": "passed"
+  },
+  "evidence_boundary": "No live Slack post or production deployment was performed; Slack behavior was verified through automated HTTP contract tests."
+}

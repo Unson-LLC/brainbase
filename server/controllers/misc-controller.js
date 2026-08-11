@@ -10,7 +10,7 @@ import { logger } from '../utils/logger.js';
 
 /** @typedef {any} Request */
 /** @typedef {any} Response */
-/** @typedef {{ brainbaseRoot?: string | null, projectsRoot?: string | null, sessionQuery?: any, workspace?: any } | null | undefined} MiscControllerPaths */
+/** @typedef {{ brainbaseRoot?: string | null, projectsRoot?: string | null } | null | undefined} MiscControllerPaths */
 
 export class MiscController {
     /**
@@ -29,8 +29,6 @@ export class MiscController {
         this.runtimeInfo = runtimeInfo;
         this.brainbaseRoot = paths?.brainbaseRoot || null;
         this.projectsRoot = paths?.projectsRoot || null;
-        this.sessionQuery = paths?.sessionQuery || null;
-        this.workspace = paths?.workspace || null;
     }
 
     /**
@@ -160,39 +158,18 @@ export class MiscController {
         return results;
     }
 
-    /** @param {string | null | undefined} sessionId */
-    async _getSessionContext(sessionId) {
-        if (!sessionId) {
-            return { session: null, resolvedWorkspacePath: null };
-        }
-
-        const session = typeof this.sessionQuery?.getSession === 'function'
-            ? this.sessionQuery.getSession(sessionId)
-            : null;
-        const resolvedWorkspacePath = typeof this.workspace?.resolveSessionWorkspacePath === 'function'
-            ? await this.workspace.resolveSessionWorkspacePath(sessionId, { persist: false, preferTmux: true })
-            : null;
-
-        return { session, resolvedWorkspacePath };
-    }
-
-    /** @param {{ sessionId: string | null | undefined }} options */
-    async _getManagedRoots({ sessionId }) {
-        const { session, resolvedWorkspacePath } = await this._getSessionContext(sessionId);
+    _getManagedRoots() {
         return this._dedupePaths([
             this.workspaceRoot,
             this.brainbaseRoot,
-            this.projectsRoot,
-            resolvedWorkspacePath,
-            session?.path,
-            session?.worktree?.path
+            this.projectsRoot
         ]);
     }
 
     /**
-     * @param {{ managedRoots: string[], sessionContext: { session: any, resolvedWorkspacePath: string | null }, cwd: string | null | undefined }} options
+     * @param {{ managedRoots: string[], cwd: string | null | undefined }} options
      */
-    _buildResolutionBases({ managedRoots, sessionContext, cwd }) {
+    _buildResolutionBases({ managedRoots, cwd }) {
         /** @type {string[]} */
         const bases = [];
         const pushIfAllowed = (candidate) => {
@@ -202,17 +179,9 @@ export class MiscController {
             if (!bases.includes(normalized)) bases.push(normalized);
         };
 
-        pushIfAllowed(sessionContext.resolvedWorkspacePath);
-        pushIfAllowed(sessionContext.session?.worktree?.path);
-        pushIfAllowed(sessionContext.session?.path);
         pushIfAllowed(cwd);
 
-        const projectPath = this._resolveProjectPath(
-            sessionContext.resolvedWorkspacePath
-            || sessionContext.session?.worktree?.path
-            || sessionContext.session?.path
-            || cwd
-        );
+        const projectPath = this._resolveProjectPath(cwd);
         pushIfAllowed(projectPath);
 
         for (const root of managedRoots) {
@@ -279,10 +248,10 @@ export class MiscController {
     /** @param {Request} req @param {Response} res */
     openFile = async (req, res) => {
         try {
-            const { filePath, path: pathParam, line, mode = 'file', cwd, sessionId } = req.body;
+            const { filePath, path: pathParam, line, mode = 'file', cwd } = req.body;
             const targetPath = pathParam || filePath;
 
-            logger.debug('openFile request', { mode, line, hasPath: !!targetPath, sessionId: sessionId || null });
+            logger.debug('openFile request', { mode, line, hasPath: !!targetPath });
 
             if (!targetPath) {
                 return res.status(400).json({ error: 'filePath or path is required' });
@@ -296,16 +265,14 @@ export class MiscController {
                 });
             }
 
-            const managedRoots = await this._getManagedRoots({ sessionId });
-            const sessionContext = await this._getSessionContext(sessionId);
-            const resolutionBases = this._buildResolutionBases({ managedRoots, sessionContext, cwd });
+            const managedRoots = this._getManagedRoots();
+            const resolutionBases = this._buildResolutionBases({ managedRoots, cwd });
             const resolvedTarget = this._resolveTargetPath({ targetPath, managedRoots, resolutionBases });
 
             if (resolvedTarget.error) {
                 logger.warn('Path validation failed', {
                     targetPath,
                     cwd: cwd || null,
-                    sessionId: sessionId || null,
                     managedRoots,
                     resolutionBases,
                     ...resolvedTarget.debug
@@ -367,44 +334,4 @@ export class MiscController {
         }
     };
 
-    /**
-     * POST /api/client-diagnostics/session-menu
-     * セッションリストの3点メニュー操作をサーバーログへ残す。
-     */
-    /** @param {Request} req @param {Response} res */
-    recordSessionMenuDiagnostic = (req, res) => {
-        const body = req.body && typeof req.body === 'object' ? req.body : {};
-        const safeBody = {
-            seq: body.seq || null,
-            phase: typeof body.phase === 'string' ? body.phase : null,
-            reason: typeof body.reason === 'string' ? body.reason : null,
-            timestamp: typeof body.timestamp === 'string' ? body.timestamp : null,
-            sid: typeof body.sessionId === 'string' ? body.sessionId : null,
-            currentSid: typeof body.currentSessionId === 'string' ? body.currentSessionId : null,
-            viewMode: typeof body.sessionListView === 'string' ? body.sessionListView : null,
-            sideView: typeof body.sidebarPrimaryView === 'string' ? body.sidebarPrimaryView : null,
-            hitRow: typeof body.hitClosestRow === 'string' ? body.hitClosestRow : null,
-            sessionId: typeof body.sessionId === 'string' ? body.sessionId : null,
-            currentSessionId: typeof body.currentSessionId === 'string' ? body.currentSessionId : null,
-            sessionListView: typeof body.sessionListView === 'string' ? body.sessionListView : null,
-            sidebarPrimaryView: typeof body.sidebarPrimaryView === 'string' ? body.sidebarPrimaryView : null,
-            fileViewerActive: body.fileViewerActive === true,
-            renderScheduled: body.renderScheduled === true,
-            event: body.event || null,
-            target: body.target || null,
-            hitElement: body.hitElement || null,
-            hitClosestMenuToggle: body.hitClosestMenuToggle === true,
-            hitClosestRow: body.hitClosestRow || null,
-            row: body.row || null,
-            menuToggle: body.menuToggle || null,
-            dropdownMenu: body.dropdownMenu || null,
-            overlay: body.overlay || null,
-            fileViewerPanel: body.fileViewerPanel || null,
-            activeElement: body.activeElement || null,
-            openMenus: Array.isArray(body.openMenus) ? body.openMenus.slice(0, 5) : []
-        };
-
-        logger.info('[client-diagnostics][session-menu]', safeBody);
-        res.json({ ok: true });
-    };
 }

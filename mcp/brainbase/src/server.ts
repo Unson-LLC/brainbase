@@ -22,28 +22,142 @@ import {
   getExtensionTypeRegistrations,
   resolveEntities,
   searchEntities,
+  tokenizeEntityQuery,
   getContextForTopic,
   type EntityIndex,
   type EntityType,
 } from './indexer/index.js';
 import { CORE_ENTITY_TYPES } from './indexer/ontology.js';
-import { loadConfig } from './config.js';
+import { loadConfig, resolveBrainbaseApiUrl } from './config.js';
 import { GraphAPISource } from './sources/graphapi-source.js';
+import type { EntitySource } from './sources/entity-source.js';
 import { TokenManager } from './auth/token-manager.js';
 import { filterWikiPages } from './tools/wiki-search.js';
 import { meshTools, handleMeshToolCall } from './tools/mesh-tools.js';
+import {
+  controlPlaneTools,
+  handleControlPlaneToolCall,
+} from './tools/control-plane-tools.js';
+import { taskTools, handleTaskToolCall } from './tools/task-tools.js';
+import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-tools.js';
+import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './tools/knowledge-resolution-tools.js';
+import { judgmentResolutionTools, resolveJudgmentBeforeModel } from './tools/judgment-resolution-tools.js';
+import { normalizeJudgmentHostResult } from './tools/judgment-host-contract.js';
+import { dispatchFirst, type ToolHandler } from './tools/tool-dispatcher.js';
+import {
+  buildKnowledgeOwnerAudit,
+  buildKnowledgeToolContent,
+} from './tools/knowledge-owner-audit.js';
 
-// Global index (built once at startup)
+// Global index. Runtime lookups rebuild and atomically swap this snapshot.
 let entityIndex: EntityIndex;
+let indexRefreshEnabled = false;
+let indexRefreshPromise: Promise<void> | null = null;
 
-// Brainbase API URL for mesh tools (MCP runs out-of-process, so we use REST)
-const brainbaseApiUrl = process.env.BRAINBASE_API_URL || 'http://localhost:31013';
+// Canonical Task store (companion task API on Lightsail). Mutations use a
+// dedicated bbsvc_ service token; without it the task tools report unavailable.
+const taskApiUrl = process.env.BRAINBASE_TASK_API_BASE_URL || 'https://bb.unson.jp';
+const taskApiToken = process.env.BRAINBASE_TASK_API_TOKEN;
 
 // Global refs for wiki API calls
 let wikiApiBaseUrl: string;
 let globalTokenManager: TokenManager;
 let globalGraphSource: GraphAPISource | null = null;
 let defaultProjectCode = 'brainbase';
+let configuredProjectCodes: string[] | undefined;
+
+type OnboardingDispatchDependencies = Parameters<typeof handleOnboardingToolCall>[2];
+type KnowledgeResolutionDispatchDependencies = Parameters<typeof handleKnowledgeResolutionToolCall>[2];
+type JudgmentResolutionDispatchDependencies = Parameters<typeof resolveJudgmentBeforeModel>[1];
+
+function createDefaultJudgmentResolutionDependencies(): JudgmentResolutionDispatchDependencies {
+  return {
+    apiUrl: resolveBrainbaseApiUrl(),
+    configuredProjectCodes,
+    tokenManager: globalTokenManager,
+    bindingSecret: process.env.BRAINBASE_JUDGMENT_BINDING_SECRET || '',
+    adapterId: process.env.BRAINBASE_JUDGMENT_ADAPTER_ID || 'brainbase-mcp',
+    adapterVersion: process.env.BRAINBASE_JUDGMENT_ADAPTER_VERSION || '1',
+  };
+}
+
+async function dispatchOnboardingToolCall(
+  name: string,
+  args: Record<string, unknown>,
+  dependencies?: OnboardingDispatchDependencies,
+) {
+  return handleOnboardingToolCall(name, args, dependencies ?? {
+    apiUrl: resolveBrainbaseApiUrl(),
+    configuredProjectCodes,
+    tokenManager: globalTokenManager,
+  });
+}
+
+async function dispatchKnowledgeResolutionToolCall(
+  name: string,
+  args: Record<string, unknown>,
+  dependencies?: KnowledgeResolutionDispatchDependencies,
+) {
+  return handleKnowledgeResolutionToolCall(name, args, dependencies ?? {
+    apiUrl: resolveBrainbaseApiUrl(),
+    configuredProjectCodes,
+    tokenManager: globalTokenManager,
+  });
+}
+
+async function dispatchJudgmentResolutionBeforeModel(
+  args: Record<string, unknown>,
+  dependencies?: JudgmentResolutionDispatchDependencies,
+) {
+  const result = await resolveJudgmentBeforeModel(
+    args, dependencies ?? createDefaultJudgmentResolutionDependencies(),
+  );
+  return normalizeJudgmentHostResult(result);
+}
+
+async function dispatchExtensionToolCall(
+  name: string,
+  args: Record<string, unknown>,
+  handlers: Array<ToolHandler<unknown>>,
+) {
+  return dispatchFirst(handlers, name, args);
+}
+
+async function refreshEntityIndex(): Promise<void> {
+  if (!indexRefreshEnabled) return;
+  if (!globalGraphSource) {
+    throw new Error('Graph source is unavailable; entity index cannot be refreshed');
+  }
+  if (!indexRefreshPromise) {
+    indexRefreshPromise = (async () => {
+      const nextIndex = await buildIndex(globalGraphSource as EntitySource);
+      entityIndex = nextIndex;
+    })().finally(() => {
+      indexRefreshPromise = null;
+    });
+  }
+  await indexRefreshPromise;
+}
+
+async function hydrateExtensionQuery(name: string, args: Record<string, unknown>): Promise<void> {
+  if (!globalGraphSource) return;
+  const query = typeof args.query === 'string' ? args.query.trim() : '';
+  if (!query) return;
+  const types = name === 'list_extension_entities'
+    ? [args.type].filter((type): type is string => typeof type === 'string')
+    : Array.isArray(args.types)
+      ? args.types.filter((type): type is string => typeof type === 'string')
+      : [];
+  for (const type of types) {
+    if (!entityIndex.extensions.has(type)) continue;
+    const existing = entityIndex.extensions.get(type) || new Map();
+    for (const term of tokenizeEntityQuery(query)) {
+      const matches = await globalGraphSource.searchExtensionEntities(type, term);
+      for (const entity of matches) existing.set(entity.id, entity);
+    }
+    entityIndex.extensions.set(type, existing);
+  }
+}
 
 const WIKI_RESOURCE_URI_PREFIX = 'brainbase://wiki/page/';
 const WIKI_RESOURCE_TEMPLATE = 'brainbase://wiki/page/{path}';
@@ -113,6 +227,29 @@ function formatEntity(entity: unknown): string {
   if (e.term) lines.push(`- **Term**: ${e.term}`);
   if (e.canonical) lines.push(`- **Canonical**: ${e.canonical}`);
   if (e.path) lines.push(`- **Path**: ${e.path}`);
+  if (e.payload && typeof e.payload === 'object') {
+    const payload = e.payload as Record<string, unknown>;
+    const labels: Record<string, string> = {
+      company_name: 'Company',
+      department: 'Department',
+      title: 'Title',
+      email: 'Email',
+      tel_company: 'Company Tel',
+      tel_direct: 'Direct Tel',
+      mobile: 'Mobile',
+      fax: 'Fax',
+      postal_code: 'Postal Code',
+      address: 'Address',
+      url: 'URL',
+      scanned_at: 'Scanned At',
+      exchanged_at: 'Exchanged At',
+      notes: 'Notes',
+    };
+    for (const [field, label] of Object.entries(labels)) {
+      const value = payload[field];
+      if (typeof value === 'string' && value.trim()) lines.push(`- **${label}**: ${value.trim()}`);
+    }
+  }
 
   // Decision-specific fields
   if (e.type === 'decision') {
@@ -427,13 +564,17 @@ const tools: Tool[] = [
   },
   {
     name: 'list_extension_entities',
-    description: 'List entities for an explicitly requested extension type.',
+    description: 'List or search entities for an explicitly requested extension type.',
     inputSchema: {
       type: 'object',
       properties: {
         type: {
           type: 'string',
           description: 'The registered extension entity type to list, e.g. frame or speaking.',
+        },
+        query: {
+          type: 'string',
+          description: 'Optional name, company, department, email, phone, or other payload text to filter by.',
         },
       },
       required: ['type'],
@@ -481,7 +622,7 @@ const tools: Tool[] = [
             type: 'string',
             enum: [...CORE_ENTITY_TYPES, 'contact'],
           },
-          description: 'Optional entity type filters. contact is accepted as a forward-compatible filter but returns no core candidates until a contact entity type exists.',
+          description: 'Optional entity type filters. Registered extension types such as contact are searched only when explicitly requested.',
         },
         project: {
           type: 'string',
@@ -560,6 +701,12 @@ const tools: Tool[] = [
  * Handle tool calls
  */
 async function handleToolCall(name: string, args: Record<string, unknown>): Promise<string> {
+  if (name === 'search' || name === 'resolve_entity' || (name === 'list_extension_entities' && args.query)) {
+    await refreshEntityIndex();
+  }
+  if (name === 'resolve_entity' || name === 'list_extension_entities') {
+    await hydrateExtensionQuery(name, args);
+  }
   switch (name) {
     case 'get_context': {
       const topic = args.topic as string;
@@ -638,7 +785,13 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
 
     case 'list_extension_entities': {
       const type = args.type as string;
-      const entities = getExtensionEntitiesByType(entityIndex, type);
+      const query = typeof args.query === 'string' ? args.query.trim() : '';
+      const entities = query
+        ? resolveEntities(entityIndex, { query, types: [type] }).candidates
+          .map(candidate => getExtensionEntitiesByType(entityIndex, type)
+            .find(entity => entity.id === candidate.entity_id))
+          .filter((entity): entity is NonNullable<typeof entity> => Boolean(entity))
+        : getExtensionEntitiesByType(entityIndex, type);
       if (entities.length === 0) {
         return `No extension entities found for type "${type}".`;
       }
@@ -791,13 +944,23 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
 }
 
 export const __testing = {
-  tools,
+  tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...taskTools],
+  dispatchOnboardingToolCall,
+  dispatchJudgmentResolutionBeforeModel,
+  dispatchKnowledgeResolutionToolCall,
+  dispatchExtensionToolCall,
+  createDefaultJudgmentResolutionDependencies,
+  resolveBrainbaseApiUrl,
   setEntityIndex(index: EntityIndex): void {
     entityIndex = index;
   },
   setGraphSource(source: GraphAPISource | null): void {
     globalGraphSource = source;
   },
+  setIndexRefreshEnabled(enabled: boolean): void {
+    indexRefreshEnabled = enabled;
+  },
+  refreshEntityIndex,
   handleToolCall,
 };
 
@@ -825,7 +988,9 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   wikiApiBaseUrl = process.env.BRAINBASE_WIKI_API_URL || 'http://localhost:31013';
   const source = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
   globalGraphSource = source;
+  indexRefreshEnabled = true;
   defaultProjectCode = config.projectCodes?.[0] || 'brainbase';
+  configuredProjectCodes = config.projectCodes;
   console.error('[brainbase] Using Graph API source');
 
   // Keep wiki resources/tools available even when the graph API is down.
@@ -851,7 +1016,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   // Create the MCP server.
   // Factory (not a singleton) so the stateless Streamable HTTP transport can
   // build one Server per request — the heavy shared state (entityIndex,
-  // brainbaseApiUrl) lives at module scope and is built once above.
+  // resolved Brainbase API URL) lives outside each request handler.
   function createServer() {
   const server = new Server(
     {
@@ -909,24 +1074,37 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: [...tools, ...meshTools] };
+    return { tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...taskTools, ...meshTools] };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
     try {
-      // Try mesh tools first; they return null for unknown tool names.
-      const meshResult = await handleMeshToolCall(name, args as Record<string, unknown>, brainbaseApiUrl);
-      const result = meshResult ?? await handleToolCall(name, args as Record<string, unknown>);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: result,
-          },
-        ],
-      };
+      const toolArgs = args as Record<string, unknown>;
+      const extensionResult = await dispatchExtensionToolCall(name, toolArgs, [
+        (toolName, extensionArgs) => handleControlPlaneToolCall(toolName, extensionArgs, {
+          apiUrl: resolveBrainbaseApiUrl(),
+          configuredProjectCodes,
+          tokenManager: globalTokenManager,
+        }),
+        (toolName, extensionArgs) => dispatchOnboardingToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => dispatchKnowledgeResolutionToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => handleTaskToolCall(toolName, extensionArgs, {
+          apiUrl: taskApiUrl,
+          token: taskApiToken,
+        }),
+        (toolName, extensionArgs) => handleMeshToolCall(toolName, extensionArgs, resolveBrainbaseApiUrl()),
+      ]);
+      const result = extensionResult === null
+        ? await handleToolCall(name, toolArgs)
+        : typeof extensionResult === 'string'
+          ? extensionResult
+          : JSON.stringify(extensionResult, null, 2);
+      const ownerAudit = extensionResult === null
+        ? buildKnowledgeOwnerAudit(name, toolArgs, result)
+        : null;
+      return { content: buildKnowledgeToolContent(result, ownerAudit) };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
@@ -958,6 +1136,35 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
       if (req.method === 'GET' && req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('ok');
+        return;
+      }
+      if (req.method === 'POST' && req.url === '/host/judgment/resolve') {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        for await (const chunk of req) {
+          const buffer = chunk as Buffer;
+          size += buffer.length;
+          if (size > 10 * 1024 * 1024) {
+            res.writeHead(413, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ management_status: 'unmanaged', reason: 'judgment_host_payload_too_large', receipt: null }));
+            return;
+          }
+          chunks.push(buffer);
+        }
+        try {
+          const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>;
+          const result = await dispatchJudgmentResolutionBeforeModel(body);
+          res.writeHead(result.management_status === 'managed' ? 200 : 503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(result));
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            management_status: 'unmanaged',
+            reason: 'judgment_host_bridge_failed',
+            warning: error instanceof Error ? error.message : String(error),
+            receipt: null,
+          }));
+        }
         return;
       }
       if (!req.url || !req.url.startsWith('/mcp')) {

@@ -44,6 +44,10 @@ gog gmail search "is:unread" --plain | cut -f1           # Plain for shell
 gog gmail search "is:unread" --max 10 --page <token>     # Pagination
 ```
 
+When automating JSON output, validate the actual response shape and continue
+through every returned page token. A successful command or a zero-byte file is
+not evidence of an empty result set.
+
 ## Gmail
 
 ### Search and Read
@@ -101,6 +105,10 @@ gog calendar create primary --summary "Weekly Standup" \
 # Respond
 gog calendar respond primary <eventId> --status accepted
 ```
+
+Calendar event ranges use an exclusive `--to` boundary. To retrieve one whole
+calendar day, pass the following day as `--to` and retain the intended timezone
+in the caller's evidence.
 
 ### Special Event Types
 

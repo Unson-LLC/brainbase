@@ -271,7 +271,6 @@ pr-body.txt
 refactoring-result.json
 .codex-last-message-*.txt
 .claude/skills/.system/
-.jj/
 node_modules
 
 # test state backups
@@ -281,13 +280,11 @@ assets/brand/
 common/
 migration/
 .DS_Store
-.jj.bak/
 .kamui/
 .kiro/
 .antigravityignore
 
 # VibePro local/runtime artifacts
-.vibepro/
 graphify-out/
 apps/vibepro-panel/.next/
 .vibepro/raw/
@@ -295,3 +292,6 @@ apps/vibepro-panel/.next/
 .vibepro/**/secrets*
 .vibepro/**/*.log
 .worktrees/vibepro/
+.vibepro/*
+!.vibepro/config.json
+.vibepro-store/

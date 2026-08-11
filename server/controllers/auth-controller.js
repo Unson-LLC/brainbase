@@ -608,19 +608,25 @@ export class AuthController {
     /**
      * Device Code Flow: Approve device (after Slack OAuth)
      * POST /api/auth/device/approve
-     * Body: { device_code, slack_user_id, slack_workspace_id }
+     * Authorization: Bearer <Slack OAuth access token>
+     * Body: { device_code }
      * Response: { ok: true }
      */
-    /** @param {Request} req @param {Response} res */
+    /** @param {Request & { access?: any }} req @param {Response} res */
     approveDevice = async (req, res) => {
         try {
             this.authService.assertReady();
-            const { device_code, slack_user_id, slack_workspace_id } = req.body;
-            if (!device_code || !slack_user_id || !slack_workspace_id) {
-                return res.status(400).json({ error: 'device_code, slack_user_id, and slack_workspace_id are required' });
+            const { device_code } = req.body;
+            const slackUserId = req.access?.slackUserId;
+            const slackWorkspaceId = req.access?.slackWorkspaceId;
+            if (!device_code) {
+                return res.status(400).json({ error: 'device_code is required' });
+            }
+            if (!slackUserId || !slackWorkspaceId) {
+                return res.status(403).json({ error: 'Authenticated Slack identity is required' });
             }
 
-            this.authService.approveDeviceCode(String(device_code), String(slack_user_id), String(slack_workspace_id));
+            this.authService.approveDeviceCode(String(device_code), String(slackUserId), String(slackWorkspaceId));
             return res.json({ ok: true });
         } catch (error) {
             logger.error('Approve device failed', { error });

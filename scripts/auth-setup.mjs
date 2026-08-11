@@ -163,20 +163,27 @@ async function setupConfig(token, apiUrl) {
 
         const data = await response.json();
 
-        if (!data.ok || !data.configYaml) {
+        if (!data.ok || !data.configYaml || data.configWriteMode !== 'create_only') {
             throw new Error('Invalid response from setup API');
         }
 
-        // 2. ~/workspace/config.yml に保存
+        // 2. ~/workspace/config.yml がない場合だけ初回作成する。
+        // このAPIは個人用config.ymlの全フィールドを持たないため、既存ファイルを上書きしない。
         const configPath = path.join(os.homedir(), 'workspace', 'config.yml');
         const configDir = path.dirname(configPath);
+
+        if (fs.existsSync(configPath)) {
+            log(`ℹ️  既存のconfig.ymlを保持しました: ${configPath}`, colors.yellow);
+            log('   セットアップAPIはアクセス可能なプロジェクト一覧であり、完全な設定ファイルではありません。', colors.yellow);
+            return true;
+        }
 
         // workspace ディレクトリがない場合は作成
         if (!fs.existsSync(configDir)) {
             fs.mkdirSync(configDir, { recursive: true });
         }
 
-        fs.writeFileSync(configPath, data.configYaml, 'utf-8');
+        fs.writeFileSync(configPath, data.configYaml, { encoding: 'utf-8', flag: 'wx' });
 
         log(`✅ config.yml を保存しました: ${configPath}`, colors.green);
         log(`\n📊 アクセス可能なプロジェクト: ${data.projects.length}件`, colors.cyan);
@@ -187,7 +194,7 @@ async function setupConfig(token, apiUrl) {
         return true;
     } catch (error) {
         log(`\n❌ config.yml の生成に失敗しました: ${error.message}`, colors.red);
-        log(`   Web UI から手動でダウンロードできます: ${apiUrl}/setup`, colors.yellow);
+        log('   認証状態を確認して再実行するか、Brainbase MCPの brainbase_bootstrap_config を利用してください。', colors.yellow);
         return false;
     }
 }

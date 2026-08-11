@@ -3,7 +3,7 @@ story_id: story-meeting-task-owner-ssot-resolution
 title: Meeting Task Owner SSOT Resolution Spec
 status: active
 created_at: 2026-07-01
-updated_at: 2026-07-01
+updated_at: 2026-07-18
 diagrams:
   - kind: flow
     path: docs/architecture/meeting-task-owner-ssot-resolution-architecture.md
@@ -16,7 +16,7 @@ diagrams:
     purpose: AI抽出ヒント、Graph people SSOT、workflow output、人間承認のtrust boundaryを示す。
     mermaid: |
       flowchart LR
-        AI["AI owner_hint"] --> Resolver["WorkflowService owner resolver"]
+        AI["AI owner_hint"] --> Resolver["MeetingTaskOwnerResolver"]
         Resolver --> SSOT["Brainbase Graph people SSOT"]
         Resolver --> Output["workflow_outputs payload"]
         Output --> Gate["Human review gate"]
@@ -126,17 +126,17 @@ diagrams:
 
 | Surface | Path | Evidence |
 | --- | --- | --- |
-| API ingress | `POST /api/workflows/control/meeting-pack/review-ingest` | `tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts` |
-| Service resolution | `WorkflowService.ingestMeetingReviewPackage` -> `resolveMeetingReviewTaskOwnersFromSSOT` | `tests/server/services/workflow-org-agent-control.test.js` |
+| API ingress | `POST /api/workflows/control/meeting-pack/review-ingest` | `tests/server/routes/workflows.test.js` |
+| Service resolution | `MeetingAutomationService.ingestReviewPackage` -> `MeetingTaskOwnerResolver.resolveReviewTaskOwners` | `tests/server/services/meeting-task-owner-resolver.test.js` and `tests/server/services/workflow-org-agent-control.test.js` |
 | SSOT authority | `InfoSSOTService.listGraphEntities(entityType=person)` | `server/bootstrap/core-services.js` injection plus unit fake |
 | Persistence | `workflow_outputs.payload.task_candidates[]` | unit assertion on stored task candidate payload |
-| Review surface | Workflow Mission Control renders owner resolution before human approval | `tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts` UI replay |
+| Agent/Companion handoff | Human stepとTask候補payloadがowner resolutionを保持する | `tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts` |
 
 ## Release Operations
 
 - Release note: Meeting Review Package ingestがGraph people SSOTを読み、Task候補payloadへ担当者解決結果を付加する。APIの入力契約とDB schemaは変更しない。
 - Operator action: 通常デプロイまたはサーバー再起動のみ。手動migration、既存workflow_outputの書き換え、people SSOTの一括補正は不要。
-- Rollback instruction: PR revertで `WorkflowService` のpeople SSOT参照とpayload付加を外せる。既存payload上の追加フィールドは後方互換の付加情報として残ってもReview Package承認フローを壊さない。
+- Rollback instruction: PR revertで `MeetingAutomationService` のpeople SSOT参照とpayload付加を外せる。既存payload上の追加フィールドは後方互換の付加情報として残ってもReview Package承認フローを壊さない。
 - Observability evidence: `workflow_outputs.type=task_candidates` のpayloadに `owner_resolution.source=graph_ssot`、`status=resolved|unresolved|ambiguous|ignored`、`reason`、`selected_owner_id` の有無が残る。
 - Support path: 未解決候補はMac Companionでpeople SSOT検索・登録・手動選択する。ingest時点では未登録者をGraphへ自動追加しない。
 
@@ -179,19 +179,19 @@ diagrams:
   - `story-meeting-task-owner-ssot-resolution resolves task owner hints from people SSOT before output storage`
   - `story-meeting-task-owner-ssot-resolution keeps ambiguous people SSOT reason explicit`
   - `story-meeting-task-owner-ssot-resolution ranks partial owner hints by project context`
+- `tests/server/services/meeting-task-owner-resolver.test.js`
+  - People SSOT alias解決を専用service境界で検証する。
 - `tests/server/services/info-ssot-service.test.js`
   - `listGraphEntities呼び出し時_queryをGraph検索へ渡す`
-- `tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts`
-  - S-001 / S-002 / S-003 / S-004 / S-005 / S-006 / S-007 / S-008 / S-009をflow replayする。
-  - `people_ssot_unavailable`、`already_selected`、`ambiguous_people_ssot_candidate`、`speaker_label_is_not_people_ssot` を保存payloadで検証する。
-  - Workflow Mission Control上にTask candidate owner summaryが表示され、resolved / unresolved / ignored / ambiguousの状態を承認前に読めることを検証する。
-- `tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts`
-  - Review Package ingest API, output persistence, human gate state, idempotency, and Mission Control review contract remain green.
+- `tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts`
+  - project scoped Graph contextとglobal People SSOTをowner候補へmergeし、Task candidate payloadとhuman stepをAgent/Companion向けに保持する。
+- `tests/server/routes/workflows.test.js`
+  - Review Package ingest API、output persistence、human gate、idempotencyの契約を検証する。
 
 ## Verification Commands
 
-- `npm run test:run -- tests/server/services/info-ssot-service.test.js tests/server/services/workflow-org-agent-control.test.js`
-- `npx eslint public/workflows.html server/services/workflow/workflow-service.js server/services/info-ssot-service.js server/bootstrap/core-services.js tests/server/services/info-ssot-service.test.js tests/server/services/workflow-org-agent-control.test.js tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts`
+- `npm run test:run -- tests/server/services/meeting-task-owner-resolver.test.js tests/server/services/info-ssot-service.test.js tests/server/services/meeting-automation-service.test.js tests/server/services/workflow-org-agent-control.test.js`
+- `npx eslint server/services/meeting-automation/meeting-task-owner-resolver.js server/services/meeting-automation/meeting-automation-service.js server/services/info-ssot-service.js server/bootstrap/core-services.js tests/server/services/meeting-task-owner-resolver.test.js tests/server/services/info-ssot-service.test.js tests/server/services/workflow-org-agent-control.test.js`
 - `npm run vibepro:doc-trace -- --base origin/develop`
-- `BRAINBASE_E2E_PORT=31015 npm run test:e2e -- tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts`
-- `BRAINBASE_E2E_REUSE_SERVER=true npm run test:e2e -- tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts`
+- `npm run test:e2e -- tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts`
+- `npm run test:run -- tests/server/routes/workflows.test.js`
