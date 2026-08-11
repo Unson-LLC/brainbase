@@ -9,4 +9,8 @@ set -a
 source "$environment_file"
 set +a
 
+for variable_name in "${!OPENRYOKO_SLACK_@}"; do
+  unset "$variable_name"
+done
+
 exec "$claude_binary" "$@"

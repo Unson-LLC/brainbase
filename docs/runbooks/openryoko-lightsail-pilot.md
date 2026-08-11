@@ -39,20 +39,32 @@ OAuth tokens, or Slack tokens here.
    sudo OPENRYOKO_REF=<reviewed-full-commit-sha> \
      scripts/openryoko/bootstrap-instance.sh
    ```
-3. In Infisical project `OpenRyoko`, production environment, provision a
-   protected file containing:
+3. In Infisical project `OpenRyoko`, production environment, provision two
+   protected files. The Claude-only file contains:
 
    ```text
    CLAUDE_CODE_OAUTH_TOKEN=<Infisical-injected value>
    ```
 
-   Install it as `/home/ryoko/.config/openryoko/environment`, owned by
-   `ryoko:ryoko`, mode `600`. Never print or copy the value into a command log.
+   Install it as `/home/ryoko/.config/openryoko/claude-environment`. The
+   gateway-only file contains:
+
+   ```text
+   OPENRYOKO_SLACK_APP_TOKEN=<Infisical-injected value>
+   OPENRYOKO_SLACK_BOT_TOKEN=<Infisical-injected value>
+   ```
+
+   Install it as `/home/ryoko/.config/openryoko/gateway-environment`, owned by
+   `root:root`, mode `600`. The Claude file must be a regular file owned by
+   `ryoko:ryoko`, mode `600`. Never print or copy a value into a command log.
+   The pinned runtime and Claude wrapper remove Slack credentials before
+   starting Claude, while the root-owned gateway file prevents direct reads by
+   the `ryoko` user.
 4. Complete Claude Code's one-time interactive screens as `ryoko`:
 
    ```bash
    sudo -u ryoko -H bash -lc \
-     'source "$HOME/.nvm/nvm.sh"; set -a; source "$HOME/.config/openryoko/environment"; set +a; claude --dangerously-skip-permissions'
+     'source "$HOME/.nvm/nvm.sh"; set -a; source "$HOME/.config/openryoko/claude-environment"; set +a; claude --dangerously-skip-permissions'
    ```
 
    This invocation is only for Claude Code's local first-run screens. The
@@ -66,14 +78,31 @@ OAuth tokens, or Slack tokens here.
 
 The wrapper installed by `configure-runtime.sh` is required for OpenRyoko
 2026.7.10: its Interactive PTY strips every `CLAUDE_CODE_*` variable before
-spawning Claude. The wrapper reloads the mode-600 Infisical projection without
-embedding or logging the token. The same script enforces:
+spawning Claude. The wrapper reloads only the Claude OAuth projection, removes
+any inherited `OPENRYOKO_SLACK_*` values, and never embeds or logs a token. The
+pinned runtime also strips Slack credentials from the standard one-shot and
+Interactive PTY paths. Session forking still inherits the gateway environment
+inside the runtime and therefore depends on the required wrapper for the final
+scrub. Gateway-owned helper processes also share the service environment.
+Slack credentials are resolved from `OPENRYOKO_SLACK_*` and removed from
+`config.yaml`. The same script enforces:
 
 - `gateway.host = 127.0.0.1`
 - one explicit Slack `allowFrom` user
 - mention-only channel handling, with IM and MPIM disabled
 - Interactive PTY enabled
 - `engines.claude.interactivePermissionMode = plan`
+
+This prevents routine child-environment inheritance and direct reads of the
+gateway projection. It is not a separate OS trust boundary: the gateway and
+Claude still run under the same service identity. Keep Claude in `plan` mode;
+use separate users or services before allowing an execution-capable engine in
+this pilot.
+
+Before enabling an execution-capable engine, also route every Claude spawn path
+through a common child-environment sanitizer, remove Slack credentials from
+helper-process environments, and verify from the model-runner identity that the
+gateway file and parent-process environment are inaccessible.
 
 After each runtime change, create a disposable web session that asks Claude to
 write a unique sentinel file. The session may complete with a plan, but the
