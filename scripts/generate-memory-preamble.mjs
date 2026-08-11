@@ -31,7 +31,7 @@ const ROLE = process.env.BRAINBASE_ROLE || 'gm';
 const CAP_DIR = process.env.CAPABILITY_DIR
   || path.join(process.cwd(), 'docs/brainbase-capabilities/capabilities');
 
-// 個人KG (memory_candidates) は SNS context service と同じ owner / 判断軸を読む。
+// 個人KG (memory_candidates) は owner-visible な判断軸を読む。
 const PERSONAL_KG_OWNER = process.env.MEMORY_PREAMBLE_OWNER_PERSON_ID || 'sato_keigo';
 const PERSONAL_KG_TYPES = ['insight', 'claim'];
 const PERSONAL_KG_TOP = Number(process.env.MEMORY_PREAMBLE_KG_TOP || 6);
@@ -83,9 +83,10 @@ function personalKgDatabaseConfig() {
 async function fetchPersonalKg() {
   // owner-visible な insight/claim を memory_candidates から body 付きで読む。
   // list API (/api/learning/memory-candidates) は body を返さないため使わず、
-  // SNS context service と同じ PgCandidateRepository 経路で読む。失敗しても空で続行。
+  // PgCandidateRepository 経路で読む。失敗しても preamble 全体は生成するが、
+  // 個人KGは「未確認」と表示する。
   const config = personalKgDatabaseConfig();
-  if (!config) return [];
+  if (!config) return { records: [], status: 'unavailable' };
   const pool = new Pool(config);
   try {
     const repo = new PgCandidateRepository({ pool });
@@ -93,7 +94,7 @@ async function fetchPersonalKg() {
       PERSONAL_KG_TYPES.map((cognitive_type) =>
         repo.list({ owner_person_id: PERSONAL_KG_OWNER, cognitive_type })),
     );
-    return byType
+    const records = byType
       .flat()
       .filter((c) => c.visibility === 'owner')
       .filter((c) => String(c.body || '').trim().length > 0)
@@ -103,8 +104,12 @@ async function fetchPersonalKg() {
         if (conf !== 0) return conf;
         return String(b.created_at || '').localeCompare(String(a.created_at || ''));
       });
+    return {
+      records,
+      status: records.length > 0 ? 'available' : 'confirmed_empty',
+    };
   } catch {
-    return [];
+    return { records: [], status: 'failed' };
   } finally {
     await pool.end().catch(() => {});
   }
@@ -132,7 +137,8 @@ async function build() {
     fetchGraphNames('org', token),
     fetchGraphNames('customer', token),
   ]);
-  const kg = await fetchPersonalKg();
+  const kgResult = await fetchPersonalKg();
+  const kg = kgResult.records;
   const caps = capabilityIds();
 
   const today = new Date().toISOString().slice(0, 10);
@@ -142,15 +148,17 @@ async function build() {
   lines.push('');
 
   // 1. 個人KG (判断OS)
-  lines.push('■ 個人KG (佐藤圭吾の判断OS / oyasumi 蓄積)');
+  lines.push('■ 個人KG (佐藤圭吾の判断OS)');
   if (kg.length) {
     // fetchPersonalKg で confidence + created_at ランク済み。body をそのまま使う。
     const ranked = kg
       .map((c) => String(c.body || '').replace(/\s+/gu, ' ').trim())
       .filter(Boolean);
     for (const t of truncate(ranked, PERSONAL_KG_TOP)) lines.push(`  - ${t.slice(0, 110)}`);
+  } else if (kgResult.status === 'confirmed_empty') {
+    lines.push('  (確認済み: 対象の個人KG候補なし)');
   } else {
-    lines.push('  (取得0件: oyasumi 未実行 or 取得失敗。/oyasumi で蓄積)');
+    lines.push(`  (未確認: 個人KGを取得できない / status=${kgResult.status})`);
   }
   lines.push('  深掘り: brainbase MCP search / personal-kg.yml');
   lines.push('');
@@ -170,7 +178,17 @@ async function build() {
   // 4. merge guardrail (旧 merge-api-reminder を1行に集約)
   lines.push('■ merge: session マージは Brainbase merge API (/merge) 経由。raw git merge / gh pr merge を session マージに使わない。');
 
-  return { text: lines.join('\n'), counts: { persons: persons.length, orgs: orgs.length, customers: customers.length, kg: kg.length, caps: caps.length } };
+  return {
+    text: lines.join('\n'),
+    counts: {
+      persons: persons.length,
+      orgs: orgs.length,
+      customers: customers.length,
+      kg: kg.length,
+      kg_status: kgResult.status,
+      caps: caps.length,
+    },
+  };
 }
 
 async function main() {
