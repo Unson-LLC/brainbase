@@ -241,6 +241,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             decision: 'block',
             reason: expect.stringContaining('judgment_episode_not_found')
         });
+        expect(JSON.parse(orphanFirst.stdout).reason).toContain('新しいCodex taskを作り、同じ依頼を送ってください');
 
         const orphanActive = await run('bash', [wrapper], {
             env,
@@ -249,6 +250,16 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(orphanActive.code).not.toBe(0);
         expect(orphanActive.stdout).toBe('');
         expect(orphanActive.stderr).toContain('judgment_episode_not_found');
+        expect(orphanActive.stderr).toContain('新しいCodex taskを作り、同じ依頼を送ってください');
+
+        const invalidActive = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({ hook_event_name: 'Stop', stop_hook_active: true })
+        });
+        expect(invalidActive.code).not.toBe(0);
+        expect(invalidActive.stdout).toBe('');
+        expect(invalidActive.stderr).toContain('judgment_episode_identity_missing');
+        expect(invalidActive.stderr).toContain('Settings → Hooks');
 
         const hostUrl = await listen((request, response) => {
             let body = '';

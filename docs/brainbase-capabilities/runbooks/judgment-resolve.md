@@ -91,7 +91,7 @@ Initial and final receipts constrain reasoning and provide audit evidence. They 
 - A conflicting same-turn episode or tool-use event fails loudly; it is never overwritten.
 - A Host crash can leave an open episode journal, but SQLite and the OS release its per-turn transaction lock when the process exits. The next process can continue without stale-lock path reclamation.
 - If a live transaction remains busy past the bounded wait, the first Stop returns a visible continuation failure; an active repeated Stop exits non-zero with an explicit stderr diagnostic and never reports `{}` unless a final receipt exists.
-- Orphan `PostToolUse` events remain unrecorded. Orphan `Stop` returns a visible block on the first attempt and exits non-zero when active; neither path fabricates a final receipt.
+- Orphan `PostToolUse` events remain unrecorded. Orphan `Stop` returns a visible block on the first attempt and exits non-zero when active; neither path fabricates a final receipt. If the episode is missing, the message tells the operator to create a new Codex task and resend the same request because the current task cannot retroactively run `UserPromptSubmit`. Other Stop failures also suggest retrying in a new task and, if the failure repeats, trusting the Brainbase user Hooks again in Settings → Hooks.
 - Missing required knowledge or an invalid owner-visible audit prefix causes one continuation. If the active repeated Stop is still incomplete, it exits non-zero without a final receipt.
 - Preserve specific 4xx codes such as `judgment_resolution_input_invalid`; do not flatten them into a generic API error.
 - `brainbase_project_not_accessible` must not arise merely because project policy is outside the caller scope.

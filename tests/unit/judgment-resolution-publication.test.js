@@ -46,6 +46,8 @@ describe('judgment resolver publication surfaces', () => {
         expect(host).toContain('judgment_episode_identity_missing');
         expect(host).toContain('judgment_episode_not_found');
         expect(host).toContain('judgment_episode_incomplete');
+        expect(host).toContain('新しいCodex taskを作り、同じ依頼を送ってください');
+        expect(host).toContain('Settings → Hooks');
         expect(host).toContain("completion_status: 'complete'");
         expect(host).toContain('owner.audit.display');
         expect(host).toContain('there is no one-call-per-turn limit');
@@ -118,6 +120,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('future Claude Code adapter must not hold or receive either copy');
         expect(runbook).toContain('SQLite');
         expect(runbook).toContain('active repeated Stop exits non-zero');
+        expect(runbook).toContain('create a new Codex task and resend the same request');
         expect(runbook).toContain('official `hooks/list` RPC');
         expect(runbook).toContain('Open `/hooks`');
         expect(runbook).toContain('must never calculate or write Codex `trusted_hash`');
