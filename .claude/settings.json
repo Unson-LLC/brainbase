@@ -18,32 +18,12 @@
     ],
     "UserPromptSubmit": [
       {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/user-prompt-submit/ssot-self-assessment.ts",
-            "timeout": 3000
-          }
-        ]
-      },
-      {
         "matcher": "^(/test\\b|npm (run )?test\\b|pytest\\b|vitest\\b|playwright test\\b)|テストを?(実行|走らせ|流し|回し)",
         "hooks": [
           {
             "type": "command",
             "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/user-prompt-submit/test-enforcer.ts",
             "timeout": 120000
-          }
-        ]
-      },
-      {
-        "matcher": "(マージして|mergeして|merge\\b|/merge\\b)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/scripts/run-hook.sh .claude/scripts/hooks/user-prompt-submit/merge-api-reminder.ts",
-            "timeout": 3000
           }
         ]
       }
