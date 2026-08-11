@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import test from 'node:test';
 
 const CODEX_HOME = process.env.CODEX_HOME || join(homedir(), '.codex');
 const HOOK_CONFIG = join(CODEX_HOME, 'hooks.json');
+const CODEX_CONFIG = join(CODEX_HOME, 'config.toml');
 const JOURNAL_ROOT = join(CODEX_HOME, 'var', 'judgment-resolver');
 const CANONICAL_ENTRYPOINT = 'scripts/codex-hooks/judgment-resolver-entry.sh';
 const EVIDENCE_EPISODE_PATH = process.env.BRAINBASE_JUDGMENT_E2E_EPISODE_PATH || '';
@@ -17,6 +18,7 @@ const EXPECTED_NONCE = process.env.BRAINBASE_JUDGMENT_E2E_NONCE || '';
 const EXPECTED_RUN_QUERY = process.env.BRAINBASE_JUDGMENT_E2E_RUN_QUERY || '';
 const REGRESSION_SCRIPT = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'))
     .scripts['test:judgment-resolution'];
+const READINESS_CHECKER = join(process.cwd(), 'scripts', 'check-codex-judgment-hook-readiness.mjs');
 
 const EXPECTED_TOOLS = [
     'mcp__brainbase__brainbase_knowledge_resolve',
@@ -164,6 +166,38 @@ function assertLiveEvidenceBinding(expectedHead, expectedNonce, expectedRunQuery
     );
 }
 
+function assertEffectiveHookReadiness() {
+    const checked = spawnSync(process.execPath, [
+        READINESS_CHECKER,
+        '--cwd', process.cwd(),
+        '--codex-bin', process.env.BRAINBASE_JUDGMENT_E2E_CODEX_BIN || 'codex',
+        '--json'
+    ], { cwd: process.cwd(), encoding: 'utf8', env: process.env });
+    const output = `${checked.stdout || ''}\n${checked.stderr || ''}`;
+    assert.equal(checked.status, 0, `Current Codex Hook trust is not ready:\n${output.slice(-4000)}`);
+    const receipt = JSON.parse(checked.stdout);
+    assert.equal(receipt.status, 'ready_for_fresh_task');
+    assert.equal(receipt.ready, true);
+}
+
+function assertFreshTaskBinding(transcriptPath) {
+    const sessionMeta = readFileSync(transcriptPath, 'utf8').split('\n').flatMap((line) => {
+        if (!line.trim()) return [];
+        const entry = JSON.parse(line);
+        if (entry?.type !== 'session_meta') return [];
+        const timestamp = entry.payload?.timestamp || entry.timestamp;
+        return typeof timestamp === 'string' ? [timestamp] : [];
+    }).at(0);
+    assert.ok(sessionMeta, 'Live transcript must contain a session creation timestamp');
+    const taskCreatedAt = Date.parse(sessionMeta);
+    assert.ok(Number.isFinite(taskCreatedAt), 'Live transcript session timestamp must be valid');
+    const bindingUpdatedAt = Math.max(statSync(HOOK_CONFIG).mtimeMs, statSync(CODEX_CONFIG).mtimeMs);
+    assert.ok(
+        taskCreatedAt >= bindingUpdatedAt,
+        'Live evidence must come from a task created after the current Hook definition and trust approval'
+    );
+}
+
 test('story-brainbase-judgment-resolver-v1 は旧HEADのlive episode証跡を拒否する', () => {
     const currentHead = 'a'.repeat(40);
     const staleHead = 'b'.repeat(40);
@@ -285,7 +319,9 @@ test('story-brainbase-judgment-resolver-v1 AC-17 ac:17 auditable threshold cover
 
 test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する', () => {
     assert.ok(existsSync(HOOK_CONFIG), `Codex global hook config is missing: ${HOOK_CONFIG}`);
+    assert.ok(existsSync(CODEX_CONFIG), `Codex global config is missing: ${CODEX_CONFIG}`);
     assert.ok(existsSync(JOURNAL_ROOT), `Judgment journal is missing: ${JOURNAL_ROOT}`);
+    assertEffectiveHookReadiness();
     assertLiveEvidenceBinding(EXPECTED_HEAD, EXPECTED_NONCE, EXPECTED_RUN_QUERY);
     const currentHead = spawnSync('git', ['rev-parse', 'HEAD'], {
         cwd: process.cwd(),
@@ -305,6 +341,7 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         evidenceTranscriptIsBoundToSessions(EVIDENCE_TRANSCRIPT_PATH),
         'Evidence must name one exact Codex JSONL transcript inside CODEX_HOME/sessions'
     );
+    assertFreshTaskBinding(EVIDENCE_TRANSCRIPT_PATH);
 
     const config = readJson(HOOK_CONFIG);
     for (const hookName of ['UserPromptSubmit', 'PostToolUse', 'Stop']) {

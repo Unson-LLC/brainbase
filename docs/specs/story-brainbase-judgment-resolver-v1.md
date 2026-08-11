@@ -2,7 +2,7 @@
 spec_id: SPEC-BRAINBASE-JUDGMENT-RESOLVER-V1
 story_id: story-brainbase-judgment-resolver-v1
 status: accepted
-updated_at: 2026-08-10
+updated_at: 2026-08-11
 diagrams:
   - kind: threat_model
     path: docs/specs/story-brainbase-judgment-resolver-v1.md
@@ -40,9 +40,9 @@ For matching `mcp__brainbase__*` tools, input includes the session/turn binding,
 
 ### Stop
 
-Input includes the session/turn binding, `stop_hook_active`, and optional answer text. The Host evaluates required capabilities against immutable events and requires the final answer to begin with the stored owner judgment line plus every stored tool-event line in atomic journal-commit order, with no extra copies. Episode start, event commits, and Stop finalization for the same turn share one per-turn SQLite `BEGIN IMMEDIATE` transaction. The Host prefers Node's built-in SQLite so Codex and shell processes with different CPU/ABI runtimes share the same portable implementation; Node 20 falls back to the locally installed `better-sqlite3` build. The OS releases the transaction lock on process exit, so the Host never reclaims or deletes a guessed-stale process lock file. Missing required knowledge or an invalid owner-visible prefix blocks the first Stop only; after transaction acquisition, `stop_hook_active=true` finalizes incomplete. A bounded transaction-acquisition failure on that active Stop exits non-zero with an explicit diagnostic instead of returning `{}` without a final receipt.
+Input includes the session/turn binding, `stop_hook_active`, and optional answer text. The Host evaluates required capabilities against immutable events and requires the final answer to begin with the stored owner judgment line plus every stored tool-event line in atomic journal-commit order, with no extra copies. Episode start, event commits, and Stop finalization for the same turn share one per-turn SQLite `BEGIN IMMEDIATE` transaction. The Host prefers Node's built-in SQLite so Codex and shell processes with different CPU/ABI runtimes share the same portable implementation; Node 20 falls back to the locally installed `better-sqlite3` build. The OS releases the transaction lock on process exit, so the Host never reclaims or deletes a guessed-stale process lock file. Missing required knowledge or an invalid owner-visible prefix blocks the first Stop. If evidence is still missing when `stop_hook_active=true`, the Host exits non-zero with an explicit diagnostic and writes no final receipt. Transaction-acquisition failure follows the same fail-closed boundary.
 
-Orphan PostToolUse or Stop events do not create an episode.
+Orphan PostToolUse events remain unrecorded. An orphan Stop cannot create evidence and fails visibly instead of returning an empty success.
 
 ## 3. Canonical Resolver input
 
@@ -86,7 +86,7 @@ The journal path uses hashed session and turn IDs with owner-only permissions:
 
 Creation uses unique temporary files and hard links, so concurrent writers cannot overwrite first-writer evidence. `episode.json` contains the verified initial route and owner judgment audit. Event files never persist raw tool input/response. `final.json` binds event count, qualifying count, event-set digest, final status, and answer digest without storing the answer body.
 
-Legacy v1/v2 adopted receipt journals remain readable. Only `complete` finalized episode projections may enter later `conversation_context`; open or incomplete episodes cannot silently become prior accepted judgment.
+Legacy v1/v2 adopted receipt journals, including historical incomplete finals, remain readable. Only `complete` finalized episode projections may enter later `conversation_context`; open or historical incomplete episodes cannot silently become prior accepted judgment. New incomplete finals are not created.
 
 ## 7. Capability satisfaction
 
@@ -102,7 +102,7 @@ Recognized transient timeout/connection/429/502/503/504 failures may retry only 
 
 ## 9. Finalization and authorization boundary
 
-At Stop, the Host creates one immutable final receipt. When required knowledge is absent, or the exact stored audit lines are missing, duplicated, or out of journal-commit order in `last_assistant_message`, the first Stop returns `decision:block` with a continuation reason and the exact safe lines to render. After acquiring the per-turn transaction, the repeated Stop indicated by `stop_hook_active=true` creates `status=incomplete` and permits termination, preventing an infinite hook loop. A transaction-acquisition timeout is an explicit non-zero hook failure, not a successful empty response. A replay reuses the same final. A complete final records `owner_audit_complete=true`, the expected line count, and an answer digest that live verification binds to the final assistant `response_item` in the canonical JSONL transcript.
+At Stop, the Host creates one immutable complete final receipt only after the contract is satisfied. When required knowledge is absent, or the exact stored audit lines are missing, duplicated, or out of journal-commit order in `last_assistant_message`, the first Stop returns `decision:block` with a continuation reason and the exact safe lines to render. If the repeated Stop indicated by `stop_hook_active=true` is still incomplete, it exits non-zero and writes no final receipt; an orphan Stop follows the same fail-closed policy. Transaction-acquisition timeout is also an explicit non-zero hook failure, not a successful empty response. A replay reuses an existing complete final. The final records `owner_audit_complete=true`, the expected line count, and an answer digest that live verification binds to the final assistant `response_item` in the canonical JSONL transcript.
 
 Initial and final receipts are judgment and audit evidence. They do not authorize writes or external action. Platform permission, explicit approval, and executor authorization remain unchanged; no separate Effect Guard is added.
 
@@ -112,16 +112,16 @@ Initial and final receipts are judgment and audit evidence. They do not authoriz
 - terminal event: same `tool_use_id` with a different fingerprint
 - recoverable Host crash: SQLite and the OS release the per-turn transaction lock when the process exits; no stale-lock reclamation or path deletion is performed
 - explicit active-Stop contention: failure to acquire the per-turn transaction within the bounded wait exits non-zero and writes a diagnostic without fabricating a final receipt
-- incomplete completion: required capability or owner-visible audit prefix still absent after the single continuation
+- terminal Stop: missing identity, missing episode, or required capability/owner-visible audit prefix still absent after the single continuation exits non-zero without a final receipt
 - replay: verified immutable episode/event/final is returned without new Resolver or tool evidence
 
 Specific API errors remain distinct. `brainbase_project_not_accessible` is not used merely because project policy is outside the caller's scope.
 
 ## 11. Release and rollback contract
 
-- `release_note`: This release changes the Codex judgment lifecycle Host so it uses Node's built-in SQLite when available, preserves atomic episode/event/final transitions, and fails loudly when an active second `Stop` cannot acquire the per-turn transaction. It does not change the public Resolver request schema or add an internal Resolver LLM.
-- `rollout_plan`: After merge, align the canonical global Hook checkout, local `:31013` runtime, persistent MCP runtime, and Lightsail `brainbase-ssot.service` to the same merge SHA. Update the three lifecycle Hook bindings only after the canonical checkout is at that SHA, then run one fresh Codex turn.
-- `observability_evidence`: Success requires `dirty=false` plus the target SHA from local and public `/api/version`, healthy local/public endpoints, a successful MCP runtime check, and one fresh transcript whose episode contains the expected actual Brainbase events and whose final receipt has `owner_audit_complete=true` with an answer digest matching the final assistant message.
+- `release_note`: This release adds a Codex Host `hooks/list` readiness checker and makes orphan or evidence-incomplete active `Stop` fail explicitly without fabricating a final receipt. It does not change the public Resolver request schema or add an internal Resolver LLM.
+- `rollout_plan`: After merge, align the canonical global Hook checkout, local `:31013` runtime, persistent MCP runtime, and Lightsail `brainbase-ssot.service` to the same merge SHA. Run `npm run check:judgment-hook-readiness`; when it returns `trust_required`, the owner approves the current three Hook definitions through `/hooks`. Only then create a fresh Codex task for live verification. Repository code never writes Codex `trusted_hash`.
+- `observability_evidence`: Success requires `dirty=false` plus the target SHA from local and public `/api/version`, healthy local/public endpoints, a successful MCP runtime check, `ready_for_fresh_task`, and one transcript from a task created after trust approval whose episode contains the expected actual Brainbase events and whose complete final receipt has `owner_audit_complete=true` with an answer digest matching the final assistant message. Only that state is `proven_active`.
 - `rollback_instruction`: Before rollout, capture the exact Hook file and the independently observed SHA for all four runtime surfaces. On failure, follow `docs/brainbase-capabilities/runbooks/judgment-resolve.md#rollback`: restore the canonical Hook/UI checkout, reconcile the persistent MCP runtime, restore Lightsail to its recorded SHA, restore the exact prior Hook file last, and verify one fresh turn. Never delete the owner journal during rollback.
 
 The operator commands and the four-surface rollback order are canonical in `docs/brainbase-capabilities/runbooks/judgment-resolve.md`; Lightsail-specific deployment and rollback commands are canonical in `docs/brainbase-capabilities/runbooks/deploy-lightsail-production.md`.
@@ -131,9 +131,9 @@ The operator commands and the four-surface rollback order are canonical in `docs
 - S-001 `workflow state transition`: episodeが存在しないmanaged turnの`UserPromptSubmit`は、検証済みinitial routeを持つopen episodeを正確に1件作る。同一入力のreplayは同じepisodeを返し、再解決しない。
 - S-002 `workflow state transition`: open episodeのmatching `PostToolUse`は、同一turnのSQLite transaction内で次の`event_sequence`へ安全なevent projectionを1件追加する。同じ`tool_use_id`と同じfingerprintはreplay、異なるfingerprintはconflictであり既存eventを上書きしない。
 - S-003 `workflow state transition`: required capabilityとowner-visible prefixを満たすopen episodeの`Stop`は、ordered event setとanswer digestを束縛したcomplete finalへ1回だけ遷移する。
-- S-004 `workflow state transition`: required capabilityまたはowner-visible prefixが不足する最初の`Stop`はcontinuationを要求し、finalを作らない。`stop_hook_active=true`の再Stopはincomplete finalを1件作って終了を許可する。
+- S-004 `workflow state transition`: required capabilityまたはowner-visible prefixが不足する最初の`Stop`はcontinuationを要求し、finalを作らない。`stop_hook_active=true`の再Stopでも不足する場合は非zeroで失敗し、finalを作らない。
 - S-005 `workflow state transition`: final済みepisodeへの`Stop` replayは保存済みfinalを返し、新しいfinal、Resolver call、tool eventを作らない。
-- S-006 `workflow state transition`: activeな再Stopがbounded wait内にSQLite transactionを取得できない場合は非zeroで明示的に失敗し、open episodeをcompleteまたはincompleteへ偽装しない。
+- S-006 `workflow state transition`: activeな再Stopがbounded wait内にSQLite transactionを取得できない場合、またはepisode自体が存在しない場合は非zeroで明示的に失敗し、open/orphan stateをcompleteへ偽装しない。
 - S-007 `workflow state transition`: process crashではOSがSQLite transaction lockを解放し、次processは既存のimmutable episode/eventを再利用して継続する。推測したstale lock fileの削除は行わない。
 
 ## 13. Verification matrix
@@ -141,7 +141,7 @@ The operator commands and the four-surface rollback order are canonical in `docs
 - service/API: strict schema, signing, deterministic manifest-backed classification without an LLM dependency, follow-up inheritance, policy scope, DAG topology
 - UserPromptSubmit Host: transcript extraction, structural exclusion, privacy, exact current message, retry/create/reuse/conflict
 - PostToolUse Host: 0..N events, exact capability qualification, replay, conflict, safe projection, accurate reference/search/retrieval wording
-- Stop Host: zero-call completion when allowed, exact ordered owner-audit prefix, one continuation, incomplete second Stop, complete final, replay
+- Stop Host: zero-call completion when allowed, exact ordered owner-audit prefix, one continuation, active second Stop fail-closed with no final, orphan Stop fail-closed, complete final, replay
 - end-to-end: Codex Host initial dispatch -> Codex open-ended reasoning and repeated model/tool loop -> final episode receipt
 - publication: `CLAUDE.md`/`AGENTS.md`, Skill, capability, runbook, story, and tests expose the same lifecycle
 

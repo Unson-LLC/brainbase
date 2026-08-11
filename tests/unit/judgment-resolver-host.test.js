@@ -453,7 +453,7 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env })).toThrow('judgment_tool_event_conflict');
     });
 
-    it('Stopは必要なrouting証拠がなければ一度だけ継続し、再Stopで無限ループしない', async () => {
+    it('Stopは必要なrouting証拠を一度だけ要求し、active再Stopでも不足ならfinalなしで失敗する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = {
@@ -488,17 +488,16 @@ describe('Codex Judgment Resolver Host', () => {
         expect(first.output).toMatchObject({ decision: 'block' });
         expect(replay.output).toEqual(first.output);
 
-        const second = finalizeEpisode({
+        expect(() => finalizeEpisode({
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true, last_assistant_message: '証拠未取得を明示した回答'
-        }, { env });
-        const finalReplay = finalizeEpisode({
+        }, { env })).toThrow('judgment_episode_incomplete:knowledge.resolve,owner.audit.display');
+        expect(() => finalizeEpisode({
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true, last_assistant_message: '別の回答'
-        }, { env });
-        expect(second.output).toEqual({});
-        expect(second.final).toMatchObject({ completion_status: 'incomplete', qualifying_event_count: 0 });
-        expect(finalReplay.final).toEqual(second.final);
+        }, { env })).toThrow('judgment_episode_incomplete:knowledge.resolve,owner.audit.display');
+        const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
+        expect(existsSync(finalPath)).toBe(false);
     });
 
     it('SQLite transition transactionでStopをfinal receiptへ収束させる', async () => {
@@ -590,6 +589,7 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env })).toThrow('judgment_episode_already_finalized');
     });
 
+    // Traceability: story-brainbase-judgment-audit-fail-closed:ac:6
     it('final receiptはevent fingerprintの集合だけでなくjournal commit順序も束縛する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
@@ -693,7 +693,7 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
-    it('Brainbase capabilityが不要ならtool call 0件でもcompleteにし、orphan eventは証拠化しない', async () => {
+    it('Brainbase capabilityが不要ならtool call 0件でもcompleteにし、orphan Stopだけはfail-closedにする', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         expect(recordBrainbaseToolUse({
@@ -701,9 +701,11 @@ describe('Codex Judgment Resolver Host', () => {
             tool_name: 'mcp__brainbase__search', tool_use_id: 'orphan-tool',
             tool_input: { query: 'orphan' }, tool_response: { status: 'ok' }
         }, { env })).toBeNull();
-        expect(finalizeEpisode({
+        expect(() => finalizeEpisode({
             session_id: 'orphan-session', turn_id: 'orphan-turn', stop_hook_active: false
-        }, { env })).toEqual({ output: {}, final: null });
+        }, { env })).toThrow('judgment_episode_not_found');
+        expect(() => finalizeEpisode({ stop_hook_active: false }, { env }))
+            .toThrow('judgment_episode_identity_missing');
 
         const payload = { session_id: 'session-zero', turn_id: 'turn-zero', prompt: 'こんにちは', cwd: process.cwd() };
         const args = buildJudgmentRequest(payload, { env });

@@ -30,6 +30,7 @@
           "config/judgment-runtime-manifest.json",
           "mcp/brainbase/src/server.ts",
           "mcp/brainbase/src/tools/knowledge-owner-audit.ts",
+          "scripts/check-codex-judgment-hook-readiness.mjs",
           "scripts/codex-hooks/judgment-resolver-entry.sh",
           "scripts/codex-hooks/judgment-resolver-host.mjs",
           "server/services/judgment-resolution-service.js",
@@ -61,7 +62,7 @@
         "runtime_path_evidence",
         "independent_review"
       ],
-      "unknown_policy": "Brainbase runtime owns deterministic initial-route classification and signed receipt validation. The Codex Host owns canonical conversation context, exactly one episode per managed turn, atomic 0..N Brainbase tool-event recording, and exactly one complete or incomplete final receipt. The current Codex model owns open-ended reasoning and repeated knowledge or retrieval calls but cannot call Resolver, inject classification, rewrite the selected initial route, or authorize an action. Project binding is judgment context rather than action authority. Unknown or invalid binding, schema, digest, authorization, event identity, and persistence states remain explicit and fail closed; project inaccessibility alone does not stop general judgment. Owner journals contain safe projections and digests only and are never deleted as rollback or lock recovery."
+      "unknown_policy": "Brainbase runtime owns deterministic initial-route classification and signed receipt validation. The Codex Host owns canonical conversation context, exactly one episode per managed turn, atomic 0..N Brainbase tool-event recording, and exactly one complete final receipt only after the episode contract is satisfied. Evidence-incomplete active Stop and orphan Stop states fail explicitly without a final. Current Codex Host hooks/list trust is a separate activation boundary: modified or untrusted Hooks require owner approval through /hooks, and only a task created afterwards can prove live activation. The current Codex model owns open-ended reasoning and repeated knowledge or retrieval calls but cannot call Resolver, inject classification, rewrite the selected initial route, or authorize an action. Project binding is judgment context rather than action authority. Unknown or invalid binding, schema, digest, authorization, event identity, and persistence states remain explicit and fail closed; project inaccessibility alone does not stop general judgment. Owner journals contain safe projections and digests only and are never deleted as rollback or lock recovery."
     }
   ]
 }

@@ -21,7 +21,7 @@ Judgment Resolver is a Host lifecycle boundary. Every Codex turn opens one judgm
 3. Before model generation, the lifecycle adapter builds canonical `conversation_context` and calls loopback `POST /host/judgment/resolve`. The persistent Brainbase Host bridge binds and signs the Resolver API request, the Resolver API/server verifies that signature, and the lifecycle adapter verifies the returned receipt binding before atomically opening one episode with its initial route receipt.
 4. The model follows only the returned active DAG. It may call Brainbase knowledge/retrieval tools 0..N times, using each result to decide the next lookup. It never calls or reclassifies Judgment Resolver.
 5. Every completed `mcp__brainbase__*` call triggers `PostToolUse`. The Host stores one immutable safe event and displays an accurate short line. Episode start, event commits, and Stop finalization for the same turn share one per-turn SQLite `BEGIN IMMEDIATE` transaction, so concurrent calls receive a unique `event_sequence` in atomic journal-commit order. Process exit releases the transaction lock through SQLite and the OS; the Host never guesses that a lock path is stale and deletes it. `brainbase_knowledge_resolve` selects a reference destination; it is not itself a search or retrieval.
-6. `Stop` validates the event set and the actual `last_assistant_message`, then atomically creates one final episode receipt. The answer must begin with the stored `🧠` line followed by every stored `📚`/`⚠️` line in journal-commit order, with no extra copies. If required `knowledge.resolve` or that rendered audit prefix is missing, the first Stop asks the model to continue. After acquiring the transaction, a repeated Stop with `stop_hook_active=true` finalizes the episode as incomplete so the hook cannot loop forever. If that acquisition reaches its bounded timeout, the active Stop exits non-zero and prints an explicit diagnostic rather than returning `{}` without a final receipt.
+6. `Stop` validates the event set and the actual `last_assistant_message`, then atomically creates one complete final episode receipt only when the contract is satisfied. The answer must begin with the stored `🧠` line followed by every stored `📚`/`⚠️` line in journal-commit order, with no extra copies. If required `knowledge.resolve` or that rendered audit prefix is missing, the first Stop asks the model to continue. If the repeated Stop with `stop_hook_active=true` is still incomplete, it exits non-zero and writes no final receipt. Orphan Stop and transaction-acquisition timeout follow the same fail-closed boundary instead of returning `{}`.
 
 ## Canonical conversation context
 
@@ -50,7 +50,7 @@ For each hashed session/turn, the Host maintains owner-only append-only files:
 - `episode.json` binds the turn to its canonical request/context and initial route.
 - Every event stores tool identity, outcome, bounded safe projection, and digests; raw arguments, raw responses, secrets, absolute paths, and unbounded text are not saved.
 - `continuation.json` proves that one required-capability or owner-display continuation was requested.
-- `final.json` binds the immutable event-set digest, exact answer digest, owner-display status, and records `complete` or `incomplete`.
+- `final.json` binds the immutable event-set digest, exact answer digest, owner-display status, and records `complete`. Historical incomplete journals remain readable but are not newly created.
 
 Initial route and final episode receipt are different facts. The initial route says what should guide the turn. The final receipt says what actually happened before Stop. Only complete finalized episodes become prior-receipt context; legacy v1/v2 adoption journals remain readable.
 
@@ -72,11 +72,11 @@ Each actual Brainbase call gets its own `PostToolUse` trace. The wording must ma
 
 Never show `検索` or `取得` for `brainbase_knowledge_resolve`; it only selects a route. A failed call uses a warning form and cannot satisfy a required capability. A successful `unconfirmed` result does satisfy the routing capability because the route decision ran and correctly preserved that no canonical source could be confirmed; display that uncertainty instead of claiming retrieval success.
 
-The additional context and `PostToolUse.systemMessage` guide the model, but they are not accepted as owner-visible evidence by themselves. `Stop` checks the exact final answer and requests one corrected rendering when the stored lines are missing, duplicated, or out of journal-commit order. The second Stop never loops: it records `incomplete` if the corrected answer still violates the display contract.
+The additional context and `PostToolUse.systemMessage` guide the model, but they are not accepted as owner-visible evidence by themselves. `Stop` checks the exact final answer and requests one corrected rendering when the stored lines are missing, duplicated, or out of journal-commit order. The active second Stop never loops: it exits non-zero without a final if the corrected answer still violates the display contract.
 
 ## Completion invariant
 
-The invariant is exactly one episode and one final receipt per turn, not one Resolver network attempt and not one Brainbase tool call. Before episode creation, recognized transient failures may be retried within the Host limit. After creation, the same turn reuses the initial route. Tool calls may occur 0..N times. Replayed `PostToolUse` and `Stop` events reuse their immutable records.
+The invariant is exactly one episode per managed turn and at most one complete final receipt, not one Resolver network attempt and not one Brainbase tool call. Before episode creation, recognized transient failures may be retried within the Host limit. After creation, the same turn reuses the initial route. Tool calls may occur 0..N times. Replayed `PostToolUse` and complete `Stop` events reuse their immutable records.
 
 If `required_capabilities` contains `knowledge.resolve`, only a successful exact `mcp__brainbase__brainbase_knowledge_resolve` event with resolved/unconfirmed status satisfies it. Search, Graph reads, Personal KG reads, unrelated Brainbase calls, and failed route calls do not substitute for the routing decision.
 
@@ -91,8 +91,8 @@ Initial and final receipts constrain reasoning and provide audit evidence. They 
 - A conflicting same-turn episode or tool-use event fails loudly; it is never overwritten.
 - A Host crash can leave an open episode journal, but SQLite and the OS release its per-turn transaction lock when the process exits. The next process can continue without stale-lock path reclamation.
 - If a live transaction remains busy past the bounded wait, the first Stop returns a visible continuation failure; an active repeated Stop exits non-zero with an explicit stderr diagnostic and never reports `{}` unless a final receipt exists.
-- Orphan `PostToolUse`/`Stop` events with no matching episode are ignored rather than fabricating evidence.
-- Missing required knowledge or an invalid owner-visible audit prefix causes one continuation. The repeated Stop finalizes `incomplete`, preserving the failure as audit evidence without an infinite hook loop.
+- Orphan `PostToolUse` events remain unrecorded. Orphan `Stop` returns a visible block on the first attempt and exits non-zero when active; neither path fabricates a final receipt.
+- Missing required knowledge or an invalid owner-visible audit prefix causes one continuation. If the active repeated Stop is still incomplete, it exits non-zero without a final receipt.
 - Preserve specific 4xx codes such as `judgment_resolution_input_invalid`; do not flatten them into a generic API error.
 - `brainbase_project_not_accessible` must not arise merely because project policy is outside the caller scope.
 - If a log or explanation refers to a "Resolver LLM", treat it as documentation drift unless a future architecture explicitly introduces and verifies such a provider.
@@ -111,7 +111,19 @@ Register the canonical deployed wrapper for all three user-level hooks in `~/.co
 }
 ```
 
-The persistent Brainbase Host bridge defaults to `http://127.0.0.1:39002/host/judgment/resolve` and remains loopback-only. The bridge signer and Resolver API/server verifier hold the two runtime copies of the shared `BRAINBASE_JUDGMENT_BINDING_SECRET`; the Codex lifecycle Host adapter and any future Claude Code adapter must not hold or receive either copy. Never put the secret in model context, command arguments, logs, or receipts. A fresh Codex session may require the new Hook definitions to be trusted through `/hooks`.
+The persistent Brainbase Host bridge defaults to `http://127.0.0.1:39002/host/judgment/resolve` and remains loopback-only. The bridge signer and Resolver API/server verifier hold the two runtime copies of the shared `BRAINBASE_JUDGMENT_BINDING_SECRET`; the Codex lifecycle Host adapter and any future Claude Code adapter must not hold or receive either copy. Never put the secret in model context, command arguments, logs, or receipts.
+
+### Codex Hook readiness and trust
+
+Files in `hooks.json`, a `config.toml` trust section, matching source content, and direct entrypoint tests prove only installation. Query the current Codex Host before creating live evidence:
+
+```bash
+npm run check:judgment-hook-readiness -- --cwd "$BRAINBASE_CANONICAL_ROOT"
+```
+
+The checker uses the official `hooks/list` RPC. It succeeds only when the canonical `UserPromptSubmit`, matching `PostToolUse`, and `Stop` definitions are enabled, matcher-correct, and currently trusted; the result is `ready_for_fresh_task`. `modified`, `untrusted`, missing, disabled, or matcher-mismatched state returns non-zero as `trust_required` or configuration error. Open `/hooks` and approve the three current Resolver Hooks, then rerun the checker. Repository scripts and deployment automation must never calculate or write Codex `trusted_hash`.
+
+Trust approval affects the Host lifecycle boundary. Create a new Codex task after approval; an already-open task, a past transcript, or direct entrypoint invocation cannot prove current activation. Only a new task with matching episode/event/final journals and transcript evidence is `proven_active`.
 
 ### Pre-deployment rollback capture
 
@@ -179,9 +191,10 @@ npm run test:judgment-resolution
 npm --prefix mcp/brainbase run typecheck
 npm run typecheck
 cmp -s CLAUDE.md AGENTS.md
+npm run check:judgment-hook-readiness -- --cwd "$BRAINBASE_CANONICAL_ROOT"
 ```
 
-The preflight is a signed read-only probe. A successful probe is not proof that the global hook, all lifecycle events, or persistent runtime uses the new checkout. Verify deployed commit, actual Hook config, one fresh turn, PostToolUse event count, Stop final status, and owner-visible wording separately.
+The bridge preflight is a signed read-only probe. It is not proof that the global hook or all lifecycle events use the new checkout. The readiness checker separately proves current Host trust and returns `ready_for_fresh_task`; it still does not prove that any task executed the Hooks. Verify the deployed commit, then create one new task after trust approval and inspect its PostToolUse event count, complete Stop final, and owner-visible wording.
 
 To verify the live Codex path, first bind the contract checkout and a unique nonce:
 
@@ -192,7 +205,7 @@ export BRAINBASE_JUDGMENT_E2E_RUN_QUERY="E2E-${BRAINBASE_JUDGMENT_E2E_NONCE}-${B
 printf 'Use this exact verification query in the first two lookups: %s\n' "$BRAINBASE_JUDGMENT_E2E_RUN_QUERY"
 ```
 
-Start a fresh Codex turn and include that printed query in a request that makes the model perform this bounded result-dependent lookup: resolve the canonical source for the Judgment Resolver contract with that query, search Graph with the same query, broaden the expected zero-result search to `判断`, then retrieve the returned `glossary_term` entity. After the turn completes, bind the one episode containing that nonce and run the check:
+After the readiness checker reports `ready_for_fresh_task`, start a new Codex task and include that printed query in a request that makes the model perform this bounded result-dependent lookup: resolve the canonical source for the Judgment Resolver contract with that query, search Graph with the same query, broaden the expected zero-result search to `判断`, then retrieve the returned `glossary_term` entity. After the task completes, bind the one episode containing that nonce and run the check:
 
 ```bash
 JUDGMENT_E2E_CANDIDATES="$(
@@ -214,7 +227,7 @@ export BRAINBASE_JUDGMENT_E2E_TRANSCRIPT_PATH="$JUDGMENT_E2E_TRANSCRIPTS"
 node --test tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts
 ```
 
-The command fails if the nonce resolves to zero or multiple episodes/transcripts or if the query-embedded source HEAD differs from `BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD`; it also requires that the final receipt is at most one hour old. It reads the installed global Hook bindings, the owner-only journal, and the exact Codex JSONL transcript. It passes only when `UserPromptSubmit`, `PostToolUse`, and `Stop` resolve to the same installed entrypoint, both lifecycle adapter files at every resolved Hook root are content-equivalent to the current contract checkout, the fresh episode has a verified initial route, the four successful Brainbase events preserve the result-dependent query sequence, and the final user-visible `response_item` starts with the stored `🧠` plus every stored `📚`/`⚠️` line exactly in journal-commit order. The final receipt answer digest must match that rendered message. This is not proof that the installed Hook checkout has the same Git SHA as the contract checkout. The check does not manufacture tool events or treat a synthetic entrypoint test as live model evidence.
+The command fails if the current `hooks/list` state is not `ready_for_fresh_task`, if the transcript task was created before the current Hook/trust files, if the nonce resolves to zero or multiple episodes/transcripts, or if the query-embedded source HEAD differs from `BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD`; it also requires that the final receipt is at most one hour old. It reads the installed global Hook bindings, the owner-only journal, and the exact Codex JSONL transcript. It passes only when `UserPromptSubmit`, `PostToolUse`, and `Stop` resolve to the same installed entrypoint, both lifecycle adapter files at every resolved Hook root are content-equivalent to the current contract checkout, the post-approval fresh episode has a verified initial route, the four successful Brainbase events preserve the result-dependent query sequence, and the final user-visible `response_item` starts with the stored `🧠` plus every stored `📚`/`⚠️` line exactly in journal-commit order. The final receipt answer digest must match that rendered message. This result is `proven_active`; it is not proof that the installed Hook checkout has the same Git SHA as the contract checkout. The check does not manufacture tool events or treat a synthetic entrypoint test as live model evidence.
 
 Verify the merged/deployed checkout SHA separately after deployment. Use one target SHA and prove each deployment surface independently; do not infer complete deployment from only one row:
 

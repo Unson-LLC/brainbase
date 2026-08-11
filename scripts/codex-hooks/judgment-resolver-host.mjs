@@ -825,9 +825,9 @@ function existingFinal(paths, episode) {
 
 export function finalizeEpisode(payload, { env = process.env } = {}) {
     const identity = payloadIdentity(payload);
-    if (!identity) return { output: {}, final: null };
+    if (!identity) throw new Error('judgment_episode_identity_missing');
     const episode = existingEpisode(payload, env);
-    if (!episode) return { output: {}, final: null };
+    if (!episode) throw new Error('judgment_episode_not_found');
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
     return withEpisodeTransitionLock(paths, () => finalizeEpisodeLocked(payload, episode, paths), env);
 }
@@ -883,10 +883,17 @@ function finalizeEpisodeLocked(payload, episode, paths) {
             final: null
         };
     }
+    if (missingKnowledge || missingOwnerAudit) {
+        const missingCapabilities = [
+            ...(missingKnowledge ? ['knowledge.resolve'] : []),
+            ...(missingOwnerAudit ? ['owner.audit.display'] : [])
+        ];
+        throw new Error(`judgment_episode_incomplete:${missingCapabilities.join(',')}`);
+    }
     const entry = {
         schema_version: 'brainbase-judgment-episode-final-v2',
         finalized_at: new Date().toISOString(),
-        completion_status: missingKnowledge || missingOwnerAudit ? 'incomplete' : 'complete',
+        completion_status: 'complete',
         initial_route_receipt_digest: episode.initial_route_receipt_digest,
         event_count: events.length,
         qualifying_event_count: qualifyingEvents.length,

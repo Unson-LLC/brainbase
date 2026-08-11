@@ -2,7 +2,7 @@
 story_id: story-brainbase-judgment-resolver-v1
 title: Brainbase judgment episode lifecycle
 status: accepted
-updated_at: 2026-08-10
+updated_at: 2026-08-11
 ---
 
 # Story: Brainbase judgment episode lifecycle
@@ -22,7 +22,7 @@ The purpose is to apply Brainbase judgment to every answer and make actual knowl
 3. One turn is one judgment episode, not one Resolver attempt and not one Brainbase call.
 4. The model cannot call Judgment Resolver, but may call Brainbase knowledge/retrieval tools 0..N times as results create new questions.
 5. `PostToolUse` records actual Brainbase outcomes in an atomic journal-commit order; `Stop` shares that transition boundary and finalizes one episode receipt.
-6. Required knowledge gets one continuation opportunity, then incomplete evidence instead of an infinite loop.
+6. Required knowledge gets one continuation opportunity; if it is still missing, the active Stop fails explicitly without fabricating a final receipt.
 7. Judgment evidence constrains reasoning but is not action authorization.
 
 ## Architecture
@@ -42,7 +42,7 @@ model/tool loop (0..N)
 Stop
   -> required-capability check
   -> complete final receipt
-     or one continuation -> incomplete final receipt
+     or one continuation -> explicit failure with no final receipt
 ```
 
 The model-visible MCP catalog has no Judgment Resolver tool. The persistent runtime remains the trusted signing bridge because it owns the API token, binding secret, and adapter identity. Model-visible Brainbase knowledge tools remain available for iterative use.
@@ -86,7 +86,7 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 - Binding/context/route integrity failure blocks before model generation.
 - Concurrent `PostToolUse` processes are totally ordered by the Host's atomic journal commit, not by an unverifiable wall-clock call-start time. Episode start, event commit, and Stop finalization share one per-turn SQLite `BEGIN IMMEDIATE` transaction boundary, so no committed event can be inserted into an already finalized episode. The OS releases the transaction lock when a process exits; the Host never guesses whether a stale lock file is safe to delete.
 - The Host uses Node's built-in SQLite when the runtime provides it, avoiding native-addon CPU/ABI coupling between Codex and the interactive shell. Node 20 runtimes fall back to the locally installed `better-sqlite3` build.
-- A missing required route or a final answer that omits, duplicates, or reorders a stored owner-visible audit line blocks only the first Stop. After acquiring the transaction, the second Stop finalizes incomplete and terminates normally. If that transaction cannot be acquired within the bounded wait, an active second Stop exits non-zero with an explicit diagnostic instead of silently returning `{}` without a final receipt.
+- A missing required route or a final answer that omits, duplicates, or reorders a stored owner-visible audit line blocks the first Stop. If the active second Stop still lacks evidence, it exits non-zero with an explicit diagnostic and no final receipt. An orphan Stop also fails visibly instead of silently returning `{}`. Transaction-acquisition timeout follows the same fail-closed boundary.
 - Normal platform permissions, approvals, and executor authorization remain responsible for effects. There is no Effect Guard.
 
 ## Acceptance criteria
@@ -100,10 +100,10 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 7. A replayed identical event is a no-op; a conflicting event fails loudly.
 8. Journals and visible traces exclude raw payloads/secrets and accurately distinguish route, search, retrieval, and write.
 9. Only a successful exact knowledge-route event satisfies required `knowledge.resolve`.
-10. `Stop` accepts owner-visible evidence only when the final answer starts with the stored `🧠` line and all stored `📚`/`⚠️` lines exactly in journal-commit order, then creates one immutable complete or incomplete final receipt.
+10. `Stop` accepts owner-visible evidence only when the final answer starts with the stored `🧠` line and all stored `📚`/`⚠️` lines exactly in journal-commit order, then creates one immutable complete final receipt.
 11. Missing required knowledge or an invalid rendered audit prefix triggers one continuation and never an infinite Stop loop.
 12. Zero Brainbase calls is valid when the selected judgment requires none.
-13. Open and incomplete episodes do not become prior accepted receipts; legacy journals remain readable.
+13. Open episodes do not become prior accepted receipts; legacy incomplete journals remain readable but are never newly created.
 14. Project scope absence does not reject judgment itself.
 15. Judgment receipts never authorize writes/external actions or introduce duplicate authorization.
 16. `CLAUDE.md`, `AGENTS.md`, Skill, capability, runbook, spec, and tests publish this same contract.
@@ -111,4 +111,4 @@ Raw tool inputs, raw responses, secrets, full answer text, absolute paths, and r
 
 ## Deployment boundary
 
-A merged code change is not proof that lifecycle Hooks are active. Activation requires the canonical deployed checkout plus user-level `UserPromptSubmit`, `PostToolUse`, and `Stop` definitions. Verification needs a fresh turn, at least one actual Brainbase tool call, an event sidecar, a final receipt, and the exact Codex JSONL transcript proving that the final assistant message begins with every stored owner-visible line in journal-commit order and that its digest matches the final receipt.
+A merged code change is not proof that lifecycle Hooks are active. Static definitions and a stored trust section prove only installation. `scripts/check-codex-judgment-hook-readiness.mjs` queries the current Codex Host `hooks/list`; only three enabled, matcher-correct, currently trusted Hooks yield `ready_for_fresh_task`. A modified or untrusted Hook yields `trust_required`, and only the owner may approve it through `/hooks`; repository code never writes `trusted_hash`. Verification reaches `proven_active` only with a task created after that approval, at least one actual Brainbase tool call, an event sidecar, a complete final receipt, and the exact Codex JSONL transcript proving that the final assistant message begins with every stored owner-visible line in journal-commit order and that its digest matches the final receipt.
