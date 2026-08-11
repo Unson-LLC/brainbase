@@ -1,12 +1,14 @@
 ---
 title: Meeting Workflow Pack Cockpit UI Architecture
 story_id: story-meeting-workflow-pack-cockpit-ui-v1
-status: active
+status: retired
 created_at: 2026-06-21
-updated_at: 2026-06-21
+updated_at: 2026-07-16
 ---
 
 # Meeting Workflow Pack Cockpit UI Architecture
+
+> Retired by `TSK-WEBRET-002` under `ADR-017-agent-first-product-surface`. The runtime page and local-only HITL state were removed; this architecture remains as historical design evidence. Meeting Workflow Core and its audit model are unchanged.
 
 ## 位置づけ
 

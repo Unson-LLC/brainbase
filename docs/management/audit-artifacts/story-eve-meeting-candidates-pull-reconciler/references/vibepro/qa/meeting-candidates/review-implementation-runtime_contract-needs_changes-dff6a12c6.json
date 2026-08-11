@@ -1,0 +1,20 @@
+{
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "implementation",
+  "role": "runtime_contract",
+  "status": "needs_changes",
+  "head": "dff6a12c65ec5062cbb2a477b28da3391e24ca56",
+  "summary": "Eve reconciliation has two runtime contract gaps: downstream note-write failures are mislabeled as session-stream read failures, and candidate output writeback is not atomic.",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "runtime-contract-poll-error-misclassification",
+      "detail": "runOnce marks every reconcileRun exception as session_stream_read_failed, including transient recordMeetingNoteGeneration failures after a successful stream read. This creates false stream-failure and recovery audit history."
+    },
+    {
+      "severity": "medium",
+      "id": "runtime-contract-candidate-writeback-partial-state",
+      "detail": "recordMeetingCandidates updates task, decision, and follow-up outputs sequentially. A mid-write failure leaves a partially updated candidate set and no reliable atomic boundary."
+    }
+  ]
+}

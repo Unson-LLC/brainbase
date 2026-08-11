@@ -59,6 +59,31 @@ describe('AuthService - Device Code Flow', () => {
     });
 
     describe('createDeviceCodeRequest', () => {
+        it('should fail loudly in production when BRAINBASE_PUBLIC_URL is missing', () => {
+            const originalNodeEnv = process.env.NODE_ENV;
+            const originalPublicUrl = process.env.BRAINBASE_PUBLIC_URL;
+
+            try {
+                process.env.NODE_ENV = 'production';
+                delete process.env.BRAINBASE_PUBLIC_URL;
+
+                expect(() => authService.createDeviceCodeRequest('test-code-verifier'))
+                    .toThrow('BRAINBASE_PUBLIC_URL is required in production');
+            } finally {
+                if (originalNodeEnv === undefined) {
+                    delete process.env.NODE_ENV;
+                } else {
+                    process.env.NODE_ENV = originalNodeEnv;
+                }
+
+                if (originalPublicUrl === undefined) {
+                    delete process.env.BRAINBASE_PUBLIC_URL;
+                } else {
+                    process.env.BRAINBASE_PUBLIC_URL = originalPublicUrl;
+                }
+            }
+        });
+
         it('should return device code response with all required fields', () => {
             const codeVerifier = 'test-code-verifier';
             const response = authService.createDeviceCodeRequest(codeVerifier);
@@ -223,6 +248,23 @@ describe('AuthService - Device Code Flow', () => {
             // Device code should be deleted
             expect(authService.deviceCodeStore.has(response.device_code)).toBe(false);
             expect(authService.userCodeStore.has(response.user_code)).toBe(false);
+        });
+
+        it('should require the approved Slack user and workspace pair when issuing tokens', async () => {
+            const response = authService.createDeviceCodeRequest('test-code-verifier');
+            authService.approveDeviceCode(response.device_code, 'U12345', 'T12345');
+            authService.findUserBySlackId = async (...args) => {
+                expect(args).toEqual(['U12345', 'T12345']);
+                return null;
+            };
+            authService.createAuditLog = async () => {};
+
+            const result = await authService.pollDeviceToken(response.device_code);
+
+            expect(result).toMatchObject({
+                error: 'access_denied',
+                error_description: 'Access is not granted'
+            });
         });
     });
 

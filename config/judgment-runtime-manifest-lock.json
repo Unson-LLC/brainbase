@@ -1,0 +1,29 @@
+{
+  "schema_version": "brainbase-judgment-manifest-lock-v1",
+  "entries": [
+    {
+      "runtime_version": "judgment-runtime-1.0.0",
+      "manifest_digest": "48a46e6020a65c550967a966753a5e44e9f7fc9ffad128ce9fe8ae884bf6e754"
+    },
+    {
+      "runtime_version": "judgment-runtime-1.0.1",
+      "manifest_digest": "de6b49d370f616dfed0253a3674020419b7d0a0ed84bd7caec027222f404289c"
+    },
+    {
+      "runtime_version": "judgment-runtime-1.0.2",
+      "manifest_digest": "65506c3d39aefab4c8c966d4fb717be11194f9a49f4b1f487d0d61dd8a98e2af"
+    },
+    {
+      "runtime_version": "judgment-runtime-1.0.3",
+      "manifest_digest": "378251f08679211802837989225aa8d81f1cb381ec73e2fc29ef9390e9e0b2e4"
+    },
+    {
+      "runtime_version": "judgment-runtime-2.0.0",
+      "manifest_digest": "ee79ed572ae0fafde58c74786a50349576e4199d05d8b3a30291e94f321850ec"
+    },
+    {
+      "runtime_version": "judgment-runtime-2.0.1",
+      "manifest_digest": "fd84c9714c79abbead70a84b16e50b3378d791001b7175cf8f0fde3fff6dd8bf"
+    }
+  ]
+}

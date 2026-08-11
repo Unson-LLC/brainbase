@@ -5,7 +5,7 @@ const buildService = () => {
     process.env.INFO_SSOT_DATABASE_URL = 'postgres://test';
     const service = new InfoSSOTService();
     const client = {
-        query: vi.fn(async (text) => {
+        query: vi.fn(async (text, params = []) => {
             if (typeof text === 'string' && text.startsWith('SELECT id FROM projects')) {
                 return { rows: [{ id: 'prj_1' }] };
             }
@@ -17,6 +17,25 @@ const buildService = () => {
             }
             if (typeof text === 'string' && text.includes('INSERT INTO raci_assignments')) {
                 return { rows: [{ id: 'rac_1' }] };
+            }
+            if (typeof text === 'string' && text.includes('WHERE id = ANY')) {
+                const entityTypeByPrefix = {
+                    prj: 'project',
+                    per: 'person',
+                    dec: 'decision',
+                    rac: 'raci_assignment',
+                    gls: 'glossary_term',
+                    kpi: 'kpi',
+                    ini: 'initiative',
+                    qry: 'ai_query',
+                    aid: 'ai_decision'
+                };
+                return {
+                    rows: (params[0] || []).map((id) => ({
+                        id,
+                        entity_type: entityTypeByPrefix[String(id).split('_')[0]]
+                    }))
+                };
             }
             return { rows: [] };
         }),
@@ -32,9 +51,92 @@ const accessContext = {
     clearance: ['internal', 'restricted', 'finance', 'hr', 'contract']
 };
 
+const expectActiveOntologyGuard = (result) => {
+    expect(result).toMatchObject({
+        guard_status: 'active_current',
+        ontology_version: '1.0.0'
+    });
+};
+
 describe('InfoSSOTService (Graph SSOT)', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
+    });
+
+    it('active ontology permits updating an app whose required owner relation already exists', async () => {
+        const { service, client } = buildService();
+        client.query.mockImplementation(async (sql) => {
+            if (sql.startsWith('SELECT id FROM projects')) return { rows: [{ id: 'prj_1' }] };
+            if (sql.includes('FROM graph_edges')) {
+                return { rows: [{ id: 'edge_owner', from_id: 'app_one', to_id: 'org_one', rel_type: 'owned_by' }] };
+            }
+            if (sql.includes('FROM graph_entities') && sql.includes('id = ANY')) {
+                return { rows: [
+                    { id: 'app_one', entity_type: 'app', payload: { name: 'Old' } },
+                    { id: 'org_one', entity_type: 'org', payload: { name: 'Owner' } }
+                ] };
+            }
+            return { rows: [], rowCount: 1 };
+        });
+
+        await expect(service.createOrUpdateGraphEntity(accessContext, {
+            id: 'app_one',
+            entityType: 'app',
+            projectCode: 'brainbase',
+            payload: { name: 'Updated' },
+            roleMin: 'member',
+            sensitivity: 'internal'
+        })).resolves.toMatchObject({ entity_id: 'app_one', guard_status: 'active_current' });
+    });
+
+    it('active ontology rejects a second owner edge before persistence', async () => {
+        const { service, client } = buildService();
+        client.query.mockImplementation(async (sql) => {
+            if (sql.startsWith('SELECT id FROM projects')) return { rows: [{ id: 'prj_1' }] };
+            if (sql.includes('FROM graph_edges')) {
+                return { rows: [{ id: 'edge_owner', from_id: 'app_one', to_id: 'org_one', rel_type: 'owned_by' }] };
+            }
+            if (sql.includes('FROM graph_entities') && sql.includes('id = ANY')) {
+                return { rows: [
+                    { id: 'app_one', entity_type: 'app', payload: { name: 'App' } },
+                    { id: 'org_one', entity_type: 'org', payload: { name: 'Owner one' } },
+                    { id: 'org_two', entity_type: 'org', payload: { name: 'Owner two' } }
+                ] };
+            }
+            return { rows: [], rowCount: 1 };
+        });
+
+        await expect(service.createOrUpdateGraphEdge(accessContext, {
+            fromId: 'app_one',
+            toId: 'org_two',
+            relType: 'owned_by',
+            projectCode: 'brainbase',
+            roleMin: 'member',
+            sensitivity: 'internal'
+        })).rejects.toMatchObject({ code: 'ONTOLOGY_VALIDATION_FAILED' });
+        expect(client.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO graph_edges'))).toBe(false);
+        const statements = client.query.mock.calls.map(([sql]) => String(sql));
+        expect(statements.findIndex((sql) => sql.includes('SELECT id') && sql.includes('FOR UPDATE')))
+            .toBeLessThan(statements.findIndex((sql) => sql.includes('FROM graph_edges')));
+    });
+
+    it('getPersonBySlackIdは有効なgrantを確認しGraph人物へ紐づくusersのperson_idを優先する', async () => {
+        const { service, client } = buildService();
+        client.query.mockResolvedValueOnce({ rows: [{ id: 'per_1', name: 'Test User' }] });
+
+        const person = await service.getPersonBySlackId('U123', 'T123');
+
+        expect(person).toEqual({ id: 'per_1', name: 'Test User' });
+        expect(client.query).toHaveBeenCalledWith(
+            expect.stringContaining('FROM auth_grants'),
+            ['U123', 'T123']
+        );
+        const sql = client.query.mock.calls[0][0];
+        expect(sql).toContain('LEFT JOIN users');
+        expect(sql).toContain('COALESCE(u.person_id, ag.person_id)');
+        expect(sql).toContain('ag.slack_workspace_id = $2');
+        expect(sql).toContain('ag.active = true');
+        expect(sql).not.toContain('people_slack');
     });
 
     it('getContext呼び出し時_includePhilosophy未指定_既存レスポンスを維持する', async () => {
@@ -77,6 +179,60 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(listSpy).not.toHaveBeenCalled();
     });
 
+    it('旧org IDのtyped getはalias行ではなくcanonical orgへ解決する', async () => {
+        const { service } = buildService();
+        const byIdsSpy = vi.spyOn(service, 'fetchGraphEntitiesByIds')
+            .mockResolvedValueOnce([{ id: 'org_baao', entity_type: 'org_alias' }])
+            .mockResolvedValueOnce([{ id: 'baao', entity_type: 'org', payload: { name: 'BAAO' } }]);
+        vi.spyOn(service, 'fetchGraphAliasTargetsByIds').mockResolvedValue([
+            { alias_id: 'org_baao', canonical_entity_id: 'baao' }
+        ]);
+
+        const rows = await service.listGraphEntities(accessContext, {
+            id: 'org_baao',
+            projectCode: 'brainbase',
+            entityType: 'org'
+        });
+
+        expect(rows).toEqual([{ id: 'baao', entity_type: 'org', payload: { name: 'BAAO' } }]);
+        expect(byIdsSpy).toHaveBeenNthCalledWith(2, expect.anything(), accessContext, {
+            ids: ['baao'],
+            projectCode: 'brainbase'
+        });
+    });
+
+    it('旧person IDのtyped getはcanonical personへ解決する', async () => {
+        const { service } = buildService();
+        vi.spyOn(service, 'fetchGraphEntitiesByIds')
+            .mockResolvedValueOnce([{ id: 'per_legacy', entity_type: 'person_alias' }])
+            .mockResolvedValueOnce([{ id: 'per_canonical', entity_type: 'person', payload: { name: '佐藤 圭吾' } }]);
+        vi.spyOn(service, 'fetchGraphAliasTargetsByIds').mockResolvedValue([
+            { alias_id: 'per_legacy', canonical_entity_id: 'per_canonical' }
+        ]);
+
+        const rows = await service.listGraphEntities(accessContext, {
+            id: 'per_legacy',
+            projectCode: 'brainbase',
+            entityType: 'person'
+        });
+
+        expect(rows.map((row) => row.id)).toEqual(['per_canonical']);
+    });
+
+    it('org/personの型付き一覧はalias解決を行わずcanonical型だけを列挙する', async () => {
+        const { service } = buildService();
+        const listSpy = vi.spyOn(service, 'fetchGraphEntities').mockResolvedValue([
+            { id: 'baao', entity_type: 'org' }
+        ]);
+        const aliasSpy = vi.spyOn(service, 'fetchGraphAliasTargetsByIds');
+
+        const rows = await service.listGraphEntities(accessContext, { entityType: 'org' });
+
+        expect(rows).toEqual([{ id: 'baao', entity_type: 'org' }]);
+        expect(listSpy).toHaveBeenCalledOnce();
+        expect(aliasSpy).not.toHaveBeenCalled();
+    });
+
     it('listGraphEntities呼び出し時_queryをGraph検索へ渡す', async () => {
         const { service } = buildService();
         const listSpy = vi.spyOn(service, 'fetchGraphEntities').mockResolvedValue([]);
@@ -94,6 +250,74 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             query: '矢島様',
             limit: 20
         });
+    });
+
+    it('finance entityは呼出元のclearanceとroleをDB検索条件で同時に制約する', async () => {
+        const { service, client } = buildService();
+        const memberAccess = {
+            role: 'member',
+            projectCodes: ['unson'],
+            clearance: ['internal']
+        };
+
+        await service.listGraphEntities(memberAccess, {
+            projectCode: 'unson',
+            entityType: 'finance_account',
+            limit: 20
+        });
+
+        const graphQuery = client.query.mock.calls.find(([text]) => (
+            typeof text === 'string'
+            && text.includes('FROM graph_entities ge')
+            && text.includes('ge.sensitivity = ANY($4)')
+        ));
+        expect(graphQuery).toBeDefined();
+        expect(graphQuery[0]).toContain("CASE ge.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END");
+        expect(graphQuery[1]).toEqual([
+            'unson',
+            'finance_account',
+            ['unson'],
+            ['internal'],
+            1,
+            null,
+            null,
+            20
+        ]);
+    });
+
+    it('member/internalからfinance entityはID・型の双方で不可視、ceo/financeでは可視になる', async () => {
+        const { service, client } = buildService();
+        const financeRow = {
+            id: 'fin_unson_bank_account',
+            entity_type: 'finance_account',
+            role_min: 'ceo',
+            sensitivity: 'finance'
+        };
+        client.query.mockImplementation(async (text, params = []) => {
+            if (typeof text !== 'string' || !text.includes('FROM graph_entities ge')) return { rows: [] };
+            const canReadFinance = params.some((value) => Array.isArray(value) && value.includes('finance'))
+                && params.includes(3);
+            return { rows: canReadFinance ? [financeRow] : [] };
+        });
+        const member = { role: 'member', projectCodes: ['unson'], clearance: ['internal'] };
+        const ceo = { role: 'ceo', projectCodes: ['unson'], clearance: ['internal', 'finance'] };
+
+        const memberById = await service.listGraphEntities(member, {
+            id: financeRow.id,
+            projectCode: 'unson'
+        });
+        const memberByType = await service.listGraphEntities(member, {
+            projectCode: 'unson',
+            entityType: 'finance_account'
+        });
+        const ceoById = await service.listGraphEntities(ceo, {
+            id: financeRow.id,
+            projectCode: 'unson'
+        });
+
+        expect(memberById).toEqual([]);
+        expect(memberByType).toEqual([]);
+        expect(ceoById).toEqual([financeRow]);
     });
 
     it('getContext呼び出し時_includePhilosophy有効_scope別思想contextを返す', async () => {
@@ -184,6 +408,111 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(result.philosophy_context.anti_patterns).toContain('NocoDBを顧客正本にする');
     });
 
+    it('事業projectのcontextへBrainbase共通思想とproject固有思想を合成する', async () => {
+        const { service } = buildService();
+        const fetchSpy = vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, access, { projectCode, entityType }) => {
+            if (entityType === 'project' && projectCode === 'baao') {
+                return [{
+                    id: 'prj_baao',
+                    entity_type: 'project',
+                    payload: { code: 'baao', name: 'BAAO' }
+                }];
+            }
+            if (entityType !== 'philosophy') return [];
+            if (projectCode === 'brainbase') {
+                expect(access.projectCodes).toContain('brainbase');
+                return [{
+                    id: 'phi_graph_ssot_first',
+                    entity_type: 'philosophy',
+                    payload: {
+                        philosophy_id: 'phi_graph_ssot_first',
+                        display_name: 'Graph SSOTを一次情報にする',
+                        statement: 'Graphを一次情報として扱う。',
+                        priority: 'core'
+                    }
+                }];
+            }
+            if (projectCode === 'baao') {
+                return [{
+                    id: 'phi_baao_trusted_ai_adoption',
+                    entity_type: 'philosophy',
+                    payload: {
+                        philosophy_id: 'phi_baao_trusted_ai_adoption',
+                        display_name: 'BAAO Trusted AI Adoption',
+                        statement: '信頼できるAI活用を普及する。',
+                        priority: 'core'
+                    }
+                }];
+            }
+            return [];
+        });
+
+        const result = await service.getContext({
+            role: 'member',
+            projectCodes: ['baao'],
+            clearance: ['internal']
+        }, {
+            projectCode: 'baao',
+            entityTypes: 'project',
+            includePhilosophy: true,
+            scope: 'graph'
+        });
+
+        expect(result.philosophy_context.project_code).toBe('baao');
+        expect(result.philosophy_context.core.map(item => item.philosophy_id)).toEqual(
+            expect.arrayContaining(['phi_graph_ssot_first', 'phi_baao_trusted_ai_adoption'])
+        );
+        expect(fetchSpy).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ projectCodes: ['baao'] }),
+            expect.objectContaining({ projectCode: 'baao', entityType: 'philosophy' })
+        );
+    });
+
+    it('固有思想がない事業projectでもBrainbase共通core思想を返す', async () => {
+        const { service, client } = buildService();
+        vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, _access, { projectCode, entityType }) => {
+            if (entityType === 'philosophy' && projectCode === 'brainbase') {
+                return [{
+                    id: 'phi_graph_ssot_first',
+                    entity_type: 'philosophy',
+                    payload: {
+                        philosophy_id: 'phi_graph_ssot_first',
+                        display_name: 'Graph SSOTを一次情報にする',
+                        statement: 'Graphを一次情報として扱う。',
+                        priority: 'core'
+                    }
+                }];
+            }
+            return [];
+        });
+
+        const result = await service.getContext({
+            role: 'member',
+            projectCodes: ['zeims'],
+            clearance: ['internal']
+        }, {
+            projectCode: 'zeims',
+            entityTypes: 'project',
+            includePhilosophy: true,
+            scope: 'graph'
+        });
+
+        expect(result.philosophy_context).toMatchObject({
+            project_code: 'zeims',
+            scope: 'graph'
+        });
+        expect(result.philosophy_context.core.map(item => item.philosophy_id)).toContain('phi_graph_ssot_first');
+        expect(client.query).toHaveBeenCalledWith(
+            'SELECT set_config($1, $2, true)',
+            ['app.project_codes', 'zeims,brainbase']
+        );
+        expect(client.query).toHaveBeenCalledWith(
+            'SELECT set_config($1, $2, true)',
+            ['app.project_codes', 'zeims']
+        );
+    });
+
     it('getContext呼び出し時_includePhilosophy有効でcore思想がない場合_失敗する', async () => {
         const { service } = buildService();
         vi.spyOn(service, 'fetchGraphEntities').mockImplementation(async (_client, _access, { entityType }) => {
@@ -213,7 +542,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
     it('createDecision writes graph entity and edges', async () => {
         const { service, client } = buildService();
 
-        await service.createDecision(accessContext, {
+        const result = await service.createDecision(accessContext, {
             projectCode: 'brainbase',
             projectName: 'Brainbase',
             ownerPersonName: 'Alice',
@@ -225,6 +554,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             options: [],
             chosen: { plan: 'graph' }
         });
+        expectActiveOntologyGuard(result);
 
         const entityCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_entities'));
         const entityTypes = entityCalls.map(([, params]) => params?.[1]).filter(Boolean);
@@ -252,7 +582,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
     it('createRaci writes member_of edge', async () => {
         const { service, client } = buildService();
 
-        await service.createRaci(accessContext, {
+        const result = await service.createRaci(accessContext, {
             projectCode: 'brainbase',
             projectName: 'Brainbase',
             personName: 'Bob',
@@ -261,6 +591,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             sensitivity: 'internal',
             authorityScope: 'ops'
         });
+        expectActiveOntologyGuard(result);
 
         const edgeCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_edges'));
         const relTypes = edgeCalls.map(([, params]) => params?.[3]).filter(Boolean);
@@ -334,8 +665,98 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(id2).toBe('per_sato_keigo');
 
         // 正規化（空白除去）された値もパラメータに含まれていることを検証
-        const allParams = passedParams.flat();
+        const allParams = passedParams.flat(2);
         expect(allParams).toContain('佐藤圭吾');
+    });
+
+    it('ensurePerson_新規入力のaliasまたはemailが既存personに一致する場合_既存personIDを返す', async () => {
+        const { service, client } = buildService();
+
+        client.query.mockImplementation(async (text, params) => {
+            const sql = String(text);
+            if (sql.includes('FROM graph_entities') && sql.includes("entity_type = 'person'")) {
+                expect(params[0]).toContain('矢島様');
+                expect(params[1]).toBe('yajima@example.com');
+                return { rows: [{ id: 'per_yajima' }] };
+            }
+            return { rows: [] };
+        });
+
+        const id = await service.ensurePerson(client, {
+            personName: 'Tsuyoshi Yajima',
+            aliases: ['矢島様'],
+            email: ' YAJIMA@example.com '
+        });
+
+        expect(id).toBe('per_yajima');
+        expect(client.query).toHaveBeenCalledWith(
+            expect.stringContaining('pg_advisory_xact_lock'),
+            expect.any(Array)
+        );
+    });
+
+    it('ensurePerson_複数のcanonical personに一致する場合_任意の一人を選ばず失敗する', async () => {
+        const { service, client } = buildService();
+
+        client.query.mockImplementation(async (text) => {
+            const sql = String(text);
+            if (sql.includes('FROM graph_entities') && sql.includes("entity_type = 'person'")) {
+                return { rows: [{ id: 'per_a' }, { id: 'per_b' }] };
+            }
+            return { rows: [] };
+        });
+
+        await expect(service.ensurePerson(client, {
+            personName: '杉山',
+            aliases: ['杉山さん']
+        })).rejects.toThrow('Ambiguous person identity: per_a, per_b');
+    });
+
+    it('createOrUpdatePerson_email_org_roleを本人照合とpayloadに保存して返す', async () => {
+        const { service, client } = buildService();
+        vi.spyOn(service, 'ensureProject').mockResolvedValue('prj_universal_arts');
+        vi.spyOn(service, 'ensurePerson').mockResolvedValue('per_sugiyama_miki');
+        const upsertSpy = vi.spyOn(service, 'upsertGraphEntity').mockResolvedValue();
+        vi.spyOn(service, 'upsertGraphEdge').mockResolvedValue();
+
+        client.query.mockImplementation(async (text) => {
+            if (String(text).startsWith('SELECT payload FROM graph_entities')) {
+                return { rows: [{ payload: { aliases: ['杉山さん'] } }] };
+            }
+            return { rows: [] };
+        });
+
+        const result = await service.createOrUpdatePerson(accessContext, {
+            projectCode: 'brainbase',
+            name: '杉山 美紀',
+            aliases: ['杉山みき'],
+            email: ' MIKI@example.com ',
+            org: 'ユニバーサルアーツ',
+            role: '事務'
+        });
+
+        expect(service.ensurePerson).toHaveBeenCalledWith(client, {
+            personName: '杉山 美紀',
+            aliases: ['杉山みき'],
+            email: 'miki@example.com'
+        });
+        expect(upsertSpy).toHaveBeenCalledWith(client, expect.objectContaining({
+            id: 'per_sugiyama_miki',
+            payload: expect.objectContaining({
+                email: 'miki@example.com',
+                org: 'ユニバーサルアーツ',
+                role: '事務',
+                aliases: ['杉山さん', '杉山みき']
+            })
+        }));
+        expect(result).toMatchObject({
+            person_id: 'per_sugiyama_miki',
+            email: 'miki@example.com',
+            org: 'ユニバーサルアーツ',
+            role: '事務',
+            guard_status: 'active_current',
+            ontology_version: '1.0.0'
+        });
     });
 
     it('createGlossaryTerm writes graph entity and edges with full payload', async () => {
@@ -357,6 +778,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
 
         expect(result.glossary_term_id).toMatch(/^gls_/);
         expect(result.event_id).toMatch(/^evt_/);
+        expectActiveOntologyGuard(result);
 
         const entityCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_entities'));
         const entityTypes = entityCalls.map(([, params]) => params?.[1]).filter(Boolean);
@@ -411,6 +833,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
 
         expect(result.kpi_id).toMatch(/^kpi_/);
         expect(result.event_id).toMatch(/^evt_/);
+        expectActiveOntologyGuard(result);
 
         const entityCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_entities'));
         const entityTypes = entityCalls.map(([, params]) => params?.[1]).filter(Boolean);
@@ -464,6 +887,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
 
         expect(result.initiative_id).toMatch(/^ini_/);
         expect(result.event_id).toMatch(/^evt_/);
+        expectActiveOntologyGuard(result);
 
         const entityCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_entities'));
         const entityTypes = entityCalls.map(([, params]) => params?.[1]).filter(Boolean);
@@ -495,5 +919,35 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             roleMin: 'member',
             sensitivity: 'internal'
         })).rejects.toThrow('title is required');
+    });
+
+    it('createAiQuery returns the active ontology guard marker', async () => {
+        const { service } = buildService();
+
+        const result = await service.createAiQuery(accessContext, {
+            projectCode: 'brainbase',
+            actorPersonName: 'AI',
+            queryType: 'entities',
+            roleMin: 'member',
+            sensitivity: 'internal'
+        });
+
+        expect(result.query_id).toMatch(/^qry_/);
+        expectActiveOntologyGuard(result);
+    });
+
+    it('createAiDecisionLog returns the active ontology guard marker', async () => {
+        const { service } = buildService();
+
+        const result = await service.createAiDecisionLog(accessContext, {
+            projectCode: 'brainbase',
+            actorPersonName: 'AI',
+            summary: 'Keep the ontology release proposed',
+            roleMin: 'member',
+            sensitivity: 'internal'
+        });
+
+        expect(result.ai_decision_id).toMatch(/^aid_/);
+        expectActiveOntologyGuard(result);
     });
 });

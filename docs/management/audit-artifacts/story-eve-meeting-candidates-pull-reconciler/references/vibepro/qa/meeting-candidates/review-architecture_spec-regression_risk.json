@@ -1,0 +1,36 @@
+{
+  "status": "pass",
+  "summary": "Pass. On HEAD 5c3226254e32bbe510d6fbfae69b47212342a43c, the candidate pull-reconciler change has current-head evidence for the new and adjacent legacy paths, and I did not find a regression-risk gap in the changed contracts or output surfaces for architecture_spec:regression_risk.",
+  "findings": [],
+  "inspection_summary": "Read the regression_risk review request and mandatory lenses, verified the requested HEAD, inspected the live implementation and story/spec/architecture surfaces for candidate write-back, source-hash enforcement, awaiting-Eve placeholder creation, and legacy approval/output contracts, then reran focused current-head verification: vitest server/route tests, Playwright E2E for the story and owner-SSOT matrix, additional legacy regression tests for ingest placeholders and companion approval inbox, and typecheck.",
+  "inspection_evidence": [
+    "git rev-parse HEAD => 5c3226254e32bbe510d6fbfae69b47212342a43c",
+    "server/services/workflow/workflow-service.js: recordMeetingCandidates revalidates org/project/run scope, requires source_text_hash, rejects mismatches against meeting_note_draft, deterministically normalizes outputs, preserves approval gates, and audits workflow.meeting_pack.candidates.recorded",
+    "server/services/external-runner/eve-meeting-note-reconciler.js: _recordCandidatesBestEffort only writes matching candidate calls, keeps note as the primary close gate, records candidate mismatch/non-presence in reconciler metadata, and blocks operator-visible recovery only for matching-call write failures",
+    "server/services/meeting-source/meeting-source-mcp-sync-service.js: ingest now creates explicit non-null awaiting-Eve placeholders instead of deterministic transcript splits",
+    "npm run test:run -- tests/server/services/eve-meeting-note-reconciler.test.js tests/server/routes/workflows.test.js => 98 passed",
+    "BRAINBASE_E2E_PORT=31974 npm run test:e2e -- tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts => 15 passed",
+    "npm run test:run -- tests/server/meeting-source-mcp-sync-worker.test.js tests/server/routes/companion-approval-inbox.test.js => 45 passed",
+    "npm run typecheck => passed"
+  ],
+  "inspection_inputs": [
+    ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/architecture_spec/review-request-regression_risk.md",
+    ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/architecture_spec/parallel-dispatch.md",
+    "docs/stories/story-eve-meeting-candidates-pull-reconciler.md",
+    "docs/architecture/story-eve-meeting-candidates-pull-reconciler.md",
+    "docs/specs/story-meeting-pack-owner-context-candidates-spec.md",
+    "server/services/workflow/workflow-service.js",
+    "server/services/external-runner/eve-meeting-note-reconciler.js",
+    "server/services/meeting-source/meeting-source-mcp-sync-service.js",
+    "tests/server/services/eve-meeting-note-reconciler.test.js",
+    "tests/server/routes/workflows.test.js",
+    "tests/server/meeting-source-mcp-sync-worker.test.js",
+    "tests/server/routes/companion-approval-inbox.test.js",
+    "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+    "tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts"
+  ],
+  "judgment_delta": [
+    "Initial concern: candidate source-hash mismatch and optional-candidate behavior might silently weaken the regression guard. Final judgment: pass, because the direct write-back contract rejects mismatched source_text_hash and focused tests cover success, note-only, delayed, and write-failure branches.",
+    "Initial concern: replacing deterministic ingest candidates with awaiting-Eve placeholders could break adjacent legacy surfaces. Final judgment: pass, because current-head regression tests confirmed the placeholder contract and companion approval inbox behavior."
+  ]
+}

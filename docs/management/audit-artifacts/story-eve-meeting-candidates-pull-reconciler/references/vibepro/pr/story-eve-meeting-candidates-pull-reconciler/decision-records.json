@@ -1,0 +1,311 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-decision-records-v1",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "updated_at": "2026-07-13T13:24:06.567Z",
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "decision record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "expected_root": null,
+      "expected_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+      "current_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+      "managed_worktree": null
+    }
+  ],
+  "decisions": [
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783949046567-f24507bc",
+      "story_id": "story-eve-meeting-candidates-pull-reconciler",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "server_static_scope",
+      "source_status": "needs_changes",
+      "summary": "Server JS static verification uses repository ESLint plus Node syntax checks and executable semantics",
+      "reason": "The established TypeScript program covers public only; changed server JavaScript passed repository ESLint, node --check, 35 unit and 154 integration tests at exact HEAD.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/qa/meeting-candidates/server-static-surface-25782dc2a.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+          "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+          "expected_root": null,
+          "expected_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+          "current_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+        "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-13T13:24:06.562Z"
+      },
+      "recorded_at": "2026-07-13T13:24:06.567Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783924752981-5d57c0e8",
+      "story_id": "story-eve-meeting-candidates-pull-reconciler",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_release_ops",
+      "source_status": "needs_evidence",
+      "summary": "Release rollout and rollback path accepted",
+      "reason": "Rollout order is Eve PR 7, Brainbase PR 1036, Lightsail deploy, then one scoped redispatch. Observe candidate_writeback_status and operator audit action. Roll back by reverting the Brainbase consumer; there is no migration.",
+      "reviewer": "codex",
+      "artifact": "docs/architecture/story-eve-meeting-candidates-pull-reconciler.md",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+          "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+          "expected_root": null,
+          "expected_head_sha": "5c3226254e32bbe510d6fbfae69b47212342a43c",
+          "current_head_sha": "5c3226254e32bbe510d6fbfae69b47212342a43c",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "5c3226254e32bbe510d6fbfae69b47212342a43c",
+        "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-13T06:39:12.974Z"
+      },
+      "recorded_at": "2026-07-13T06:39:12.983Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783924751419-db0e848d",
+      "story_id": "story-eve-meeting-candidates-pull-reconciler",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "Scope review accepted as one atomic Brainbase consumer slice",
+      "reason": "One reviewer can follow the single state machine from Eve tool-call extraction through Brainbase normalization, People SSOT owner resolution, and approval outputs. Eve PR 7 is the separately owned producer; Brainbase PR 1036 is the consumer.",
+      "reviewer": "codex",
+      "artifact": "docs/architecture/story-eve-meeting-candidates-pull-reconciler.md",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+          "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+          "expected_root": null,
+          "expected_head_sha": "5c3226254e32bbe510d6fbfae69b47212342a43c",
+          "current_head_sha": "5c3226254e32bbe510d6fbfae69b47212342a43c",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "5c3226254e32bbe510d6fbfae69b47212342a43c",
+        "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-13T06:39:11.412Z"
+      },
+      "recorded_at": "2026-07-13T06:39:11.421Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783924545809-8ebc1ba2",
+      "story_id": "story-eve-meeting-candidates-pull-reconciler",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:split_resolution",
+      "source_status": "needs_review",
+      "summary": "Resolve split gate with an atomic consumer PR",
+      "reason": "Keep the Brainbase consumer, normalization, owner-authority, tests, and release evidence together. Eve remains a separate producer PR and merges first.",
+      "reviewer": "codex",
+      "artifact": "docs/architecture/story-eve-meeting-candidates-pull-reconciler.md",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+          "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+          "expected_root": null,
+          "expected_head_sha": "5c3226254e32bbe510d6fbfae69b47212342a43c",
+          "current_head_sha": "5c3226254e32bbe510d6fbfae69b47212342a43c",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "5c3226254e32bbe510d6fbfae69b47212342a43c",
+        "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-13T06:35:45.801Z"
+      },
+      "recorded_at": "2026-07-13T06:35:45.811Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783924544186-4ef2a813",
+      "story_id": "story-eve-meeting-candidates-pull-reconciler",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:pr_scope_judgment",
+      "source_status": "needs_split",
+      "summary": "Keep Eve candidate producer-consumer protocol change atomic",
+      "reason": "The changed Brainbase files form one producer-consumer protocol slice: ingest removes the splitter, reconciler consumes the Eve tool call, WorkflowService normalizes candidates and People SSOT ownership, and tests/docs prove the same state machine. Splitting creates invalid no-producer or no-consumer deploy states; merge order is Eve PR 7 then Brainbase PR 1036.",
+      "reviewer": "codex",
+      "artifact": "docs/architecture/story-eve-meeting-candidates-pull-reconciler.md",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+          "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+          "expected_root": null,
+          "expected_head_sha": "5c3226254e32bbe510d6fbfae69b47212342a43c",
+          "current_head_sha": "5c3226254e32bbe510d6fbfae69b47212342a43c",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "5c3226254e32bbe510d6fbfae69b47212342a43c",
+        "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-13T06:35:44.177Z"
+      },
+      "recorded_at": "2026-07-13T06:35:44.188Z"
+    }
+  ],
+  "summary": {
+    "total": 5,
+    "open": 0,
+    "by_type": {
+      "needs_review": 5
+    },
+    "by_status": {
+      "accepted": 5
+    },
+    "warnings": [
+      {
+        "id": "managed_worktree_locality",
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "decision record",
+        "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+        "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+        "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+        "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+        "expected_root": null,
+        "expected_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+        "current_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+        "managed_worktree": null
+      }
+    ],
+    "latest": {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783949046567-f24507bc",
+      "story_id": "story-eve-meeting-candidates-pull-reconciler",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "server_static_scope",
+      "source_status": "needs_changes",
+      "summary": "Server JS static verification uses repository ESLint plus Node syntax checks and executable semantics",
+      "reason": "The established TypeScript program covers public only; changed server JavaScript passed repository ESLint, node --check, 35 unit and 154 integration tests at exact HEAD.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/qa/meeting-candidates/server-static-surface-25782dc2a.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+          "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+          "expected_root": null,
+          "expected_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+          "current_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+        "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-13T13:24:06.562Z"
+      },
+      "recorded_at": "2026-07-13T13:24:06.567Z"
+    }
+  },
+  "artifact": ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/decision-records.json"
+}

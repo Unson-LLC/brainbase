@@ -1,0 +1,7 @@
+{
+  "status": "pass",
+  "head_sha": "676349855a97c92295a6764ffc08c0f101415df4",
+  "agent_id": "019f5b25-f02b-7393-a756-edfd69a98f29",
+  "summary": "network-runtime-recovery-metadata-overwritten is resolved without retaining stale state.",
+  "findings": []
+}

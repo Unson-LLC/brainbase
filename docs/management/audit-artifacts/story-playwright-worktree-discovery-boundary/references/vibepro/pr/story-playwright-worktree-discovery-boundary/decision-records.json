@@ -1,0 +1,325 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-decision-records-v1",
+  "story_id": "story-playwright-worktree-discovery-boundary",
+  "updated_at": "2026-07-17T14:33:33.428Z",
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "decision record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+      "actual_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+      "expected_root": null,
+      "expected_head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "current_head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "managed_worktree": null
+    }
+  ],
+  "decisions": [
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784298813427-1bbc947d",
+      "story_id": "story-playwright-worktree-discovery-boundary",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "このPRはPlaywright collectorのworktree境界という単一判断でレビュー可能な粒度であり、分割しない",
+      "reason": "Story・Architecture・Spec・4行のconfig変更・境界unit/E2Eは同一契約の定義と検証で、別PRへ分けると実装と証跡の対応を弱める。review ownerはrepo test infrastructure reviewer、blast radiusはPlaywright収集だけ。",
+      "reviewer": "codex-pr_split_scope",
+      "artifact": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-result-pr_split_scope.json",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/qa/playwright-worktree-boundary/unit.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/playwright-worktree-boundary/typecheck.txt",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/playwright-worktree-boundary/collector.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/playwright-worktree-boundary/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+          "actual_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+          "expected_root": null,
+          "expected_head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+          "current_head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+        "current_branch": "codex/playwright-worktree-boundary",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-17T14:33:33.426Z"
+      },
+      "recorded_at": "2026-07-17T14:33:33.428Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784297337651-f7ccc33a",
+      "story_id": "story-playwright-worktree-discovery-boundary",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:split_resolution",
+      "source_status": "needs_review",
+      "summary": "Story, Architecture, Spec, collector config, unit test, and behavioral E2E form one indivisible collector-boundary change",
+      "reason": "All six files implement or verify the same five acceptance criteria; splitting documentation or tests would create an unreviewable partial contract, and the independent pr_split_scope review found the scope cohesive.",
+      "reviewer": "Codex",
+      "artifact": null,
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/qa/playwright-worktree-boundary/typecheck.txt",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/playwright-worktree-boundary/unit.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/playwright-worktree-boundary/collector.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/playwright-worktree-boundary/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+          "actual_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+          "expected_root": null,
+          "expected_head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+          "current_head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+        "current_branch": "codex/playwright-worktree-boundary",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-17T14:08:57.650Z"
+      },
+      "recorded_at": "2026-07-17T14:08:57.651Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784293377938-4dc8b947",
+      "story_id": "story-playwright-worktree-discovery-boundary",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:pr_scope_judgment",
+      "source_status": "needs_split",
+      "summary": "単一のtest discovery境界としてbundled scopeを採用する",
+      "reason": "playwright.config.jsが唯一の実装で、Unit/E2EとStory/Architecture/Specは同じACを固定する証拠である。分割すると各PRが単独では要求・実装・検証を満たさず、6ファイル239行は1人のreviewerが一貫して確認できる。split-planが設定を検証基盤、Unitをruntime behaviorとして誤分類している。",
+      "reviewer": "codex",
+      "artifact": ".vibepro/pr/story-playwright-worktree-discovery-boundary/split-plan.json",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-playwright-worktree-discovery-boundary/verification-evidence.json",
+            "type": "e2e",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-playwright-worktree-discovery-boundary/verification-evidence.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-playwright-worktree-discovery-boundary/verification-evidence.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-playwright-worktree-discovery-boundary/verification-evidence.json",
+            "type": "typecheck",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+          "actual_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+          "expected_root": null,
+          "expected_head_sha": "15e35704be1cf8b74289ae10bb3ffb163bc4c515",
+          "current_head_sha": "15e35704be1cf8b74289ae10bb3ffb163bc4c515",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "15e35704be1cf8b74289ae10bb3ffb163bc4c515",
+        "current_branch": "codex/playwright-worktree-boundary",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-17T13:02:57.937Z"
+      },
+      "recorded_at": "2026-07-17T13:02:57.938Z"
+    }
+  ],
+  "summary": {
+    "total": 3,
+    "open": 0,
+    "by_type": {
+      "needs_review": 3
+    },
+    "by_status": {
+      "accepted": 3
+    },
+    "warnings": [
+      {
+        "id": "managed_worktree_locality",
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "decision record",
+        "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+        "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+        "repo_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+        "actual_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+        "expected_root": null,
+        "expected_head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+        "current_head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+        "managed_worktree": null
+      }
+    ],
+    "latest": {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1784298813427-1bbc947d",
+      "story_id": "story-playwright-worktree-discovery-boundary",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "このPRはPlaywright collectorのworktree境界という単一判断でレビュー可能な粒度であり、分割しない",
+      "reason": "Story・Architecture・Spec・4行のconfig変更・境界unit/E2Eは同一契約の定義と検証で、別PRへ分けると実装と証跡の対応を弱める。review ownerはrepo test infrastructure reviewer、blast radiusはPlaywright収集だけ。",
+      "reviewer": "codex-pr_split_scope",
+      "artifact": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-result-pr_split_scope.json",
+      "verification_evidence_summary": {
+        "count": 4,
+        "entries": [
+          {
+            "path": ".vibepro/qa/playwright-worktree-boundary/unit.json",
+            "type": "unit",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/playwright-worktree-boundary/typecheck.txt",
+            "type": "typecheck",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/playwright-worktree-boundary/collector.json",
+            "type": "integration",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/qa/playwright-worktree-boundary/e2e.json",
+            "type": "e2e",
+            "result": "pass"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+          "actual_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+          "expected_root": null,
+          "expected_head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+          "current_head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+          "managed_worktree": null
+        }
+      ],
+      "git_context": {
+        "head_sha": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+        "current_branch": "codex/playwright-worktree-boundary",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-17T14:33:33.426Z"
+      },
+      "recorded_at": "2026-07-17T14:33:33.428Z"
+    }
+  },
+  "artifact": ".vibepro/pr/story-playwright-worktree-discovery-boundary/decision-records.json"
+}

@@ -1,0 +1,214 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+
+function read(path) {
+    return readFileSync(path, 'utf8');
+}
+
+describe('judgment resolver publication surfaces', () => {
+    // Trace: story-brainbase-judgment-resolver-v1:ac:14
+    it('CLAUDEとAGENTSのalways-loaded Host contractを同一に保つ', () => {
+        const claude = read('CLAUDE.md');
+        const agents = read('AGENTS.md');
+        expect(agents).toBe(claude);
+        expect(claude).toContain('model生成前に1つのjudgment episodeを開始');
+        expect(claude).toContain('PostToolUse');
+        expect(claude).toContain('Stop');
+        expect(claude).toContain('modelはResolverを呼ばず');
+        expect(claude).toContain('canonical context');
+        expect(claude).toContain('clarification receiptでも回答生成へ進む');
+        expect(claude).toContain('project access不能だけで判断を止めない');
+        expect(claude).toContain('通常の権限・承認を置き換えない');
+        expect(claude).toContain('現行Resolverは内部LLMを持たず');
+        expect(claude).toContain('専門matcher未一致の非follow-up入力はserver-owned `general/answer` fallback');
+        expect(claude).toContain('Claude Codeは将来のHost adapter候補');
+        expect(claude).toContain('現行episode lifecycle hook integrationには含まれない');
+        expect(claude).toContain('activeな再Stopを含む修復可能なStopで`decision:block`を返し');
+        expect(claude).toContain('Brainbase callが0件で参照必須でないturnも0件だったことを明示する');
+        expect(claude).toContain('episodeのないorphan Stopも成功へ潰さない');
+    });
+
+    it('wrapperがUserPromptSubmit・PostToolUse・Stopのepisode lifecycleを起動する', () => {
+        const wrapper = read('scripts/codex-hooks/judgment-resolver-entry.sh');
+        const host = read('scripts/codex-hooks/judgment-resolver-host.mjs');
+
+        expect(wrapper).toContain('judgment-resolver-host.mjs');
+        expect(wrapper).not.toContain('brainbase_judgment_resolve');
+        expect(host).toContain('readCanonicalTranscript');
+        expect(host).toContain('buildJudgmentRequest');
+        expect(host).toContain('/host/judgment/resolve');
+        expect(host).toContain('startEpisode');
+        expect(host).toContain('recordBrainbaseToolUse');
+        expect(host).toContain('finalizeEpisode');
+        expect(host).toContain('answerContainsExactAuditPrefix');
+        expect(host).toContain('BEGIN IMMEDIATE');
+        expect(host).toContain('transition.sqlite');
+        expect(host).toContain('judgment_episode_transition_timeout');
+        expect(host).toContain('judgment_episode_identity_missing');
+        expect(host).toContain('judgment_episode_not_found');
+        expect(host).toContain('NO_BRAINBASE_REFERENCE_LINE');
+        expect(host).toContain('新しいCodex taskを作り、同じ依頼を送ってください');
+        expect(host).toContain('Settings → Hooks');
+        expect(host).toContain("completion_status: 'complete'");
+        expect(host).toContain('owner.audit.display');
+        expect(host).toContain('there is no one-call-per-turn limit');
+        expect(host).not.toContain('classification_proposal');
+    });
+
+    it('Skill・capability・runbook・specがmodel非依存の同じ境界を公開する', () => {
+        const skill = read('.claude/skills/brainbase-judgment-resolver/SKILL.md');
+        const capability = read('docs/brainbase-capabilities/capabilities/judgment.resolve.yml');
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const architecture = read('docs/architecture/story-brainbase-judgment-resolver-v1.md');
+        const story = read('docs/management/stories/active/story-brainbase-judgment-resolver-v1.md');
+        const spec = read('docs/specs/story-brainbase-judgment-resolver-v1.md');
+        const surfaces = [skill, capability, runbook, architecture, story, spec];
+
+        for (const surface of surfaces) {
+            expect(surface).toMatch(/model.*(call|呼|Resolver)/iu);
+            expect(surface).toMatch(/before model generation|model生成前|pre-model/iu);
+            expect(surface).toContain('conversation_context');
+            expect(surface).toMatch(/judgment episode|判断episode|判断エピソード/iu);
+            expect(surface).toContain('PostToolUse');
+            expect(surface).toContain('Stop');
+            expect(surface).toMatch(/0\.\.N|0-N|何度でも|複数回/iu);
+            expect(surface).toMatch(/project.*(context|文脈)/iu);
+            expect(surface).toMatch(/authorize|authorization|権限|許可/iu);
+            expect(surface).toMatch(
+                /(内部|internal).*(LLM|model)|LLM.*(ない|持たない|使わない)|no LLM/iu
+            );
+            expect(surface).toMatch(/Codex/iu);
+            expect(surface).toContain('general/answer');
+            expect(surface).not.toContain('classification_proposal');
+            expect(surface).toContain('ready_for_fresh_task');
+            expect(surface).toContain('proven_active');
+        }
+
+        expect(capability).toContain('mcp: []');
+        expect(capability).toContain('POST http://127.0.0.1:39002/host/judgment/resolve');
+        expect(runbook).toContain('structural filtering');
+        expect(runbook).toContain('records only direct `mcp__brainbase__*` outcomes');
+        expect(runbook).toContain('successful `unconfirmed` result does satisfy the routing capability');
+        expect(runbook).not.toContain('A failed or unconfirmed call');
+        expect(spec).toContain('Resolver determines classification');
+        expect(spec).toContain('Plain non-follow-up matcher misses use the `general/answer` fallback instead');
+        expect(architecture).toContain('trust-boundary defect');
+        expect(architecture).toContain('local file reads and other connectors are not yet covered');
+        expect(story).toContain('model-callable toolとして公開しない');
+        expect(story).toContain('Brainbase knowledge/retrieval toolを0..N回');
+        expect(story).toContain('initial/final receiptは判断と監査の証拠');
+        expect(story).toContain('project bindingは判断文脈であり、action authorityではない');
+        expect(story).toContain('専門domain/intent matcherに一致しない非follow-up入力');
+        expect(story).toContain('## 影響範囲');
+        expect(architecture).toMatch(/Claude Code.*future Host-adapter candidate/iu);
+        expect(spec).toMatch(/Claude Code.*future Host-adapter candidate/iu);
+        expect(runbook).toMatch(/Claude Code.*future Host-adapter candidate/iu);
+        expect(capability).toMatch(/Claude Code.*future Host-adapter candidate/iu);
+        expect(skill).toContain('Claude Codeは同じ責務分割を適用できる将来のHost adapter候補');
+        expect(skill).toContain('SQLite');
+        expect(skill).toContain('非zero exit');
+        expect(architecture).toContain('Codex lifecycle Host adapter');
+        expect(architecture).toContain('BEGIN IMMEDIATE');
+        expect(architecture).toContain('silently returning `{}`');
+        expect(architecture).toContain('Persistent Brainbase Host bridge');
+        expect(architecture).toContain('Resolver API/server');
+        expect(architecture).toContain('Resolver API/server owns the verifier copy');
+        expect(architecture).toContain('would not receive either copy of the shared secret');
+        expect(runbook).toContain('Codex lifecycle Host adapter');
+        expect(runbook).toContain('Persistent Brainbase Host bridge');
+        expect(runbook).toContain('Resolver API/server');
+        expect(runbook).toContain('Resolver API/server verifier hold the two runtime copies');
+        expect(runbook).toContain('future Claude Code adapter must not hold or receive either copy');
+        expect(runbook).toContain('SQLite');
+        expect(runbook).toContain('active repeated Stop returns `decision:block`');
+        expect(runbook).toContain('create a new Codex task and resend the same request');
+        expect(runbook).toContain('official `hooks/list` RPC');
+        expect(runbook).toContain('Open `/hooks`');
+        expect(runbook).toContain('must never calculate or write Codex `trusted_hash`');
+        expect(runbook).toContain('transcript task was created before the current Hook/trust files');
+        expect(spec).toContain('BEGIN IMMEDIATE');
+        expect(spec).toContain('explicit non-zero hook failure');
+        expect(spec).toContain('Repository code never writes Codex `trusted_hash`');
+        expect(capability).toContain('scripts/check-codex-judgment-hook-readiness.mjs');
+        expect(skill).toContain('既存task、過去artifact、direct entrypoint実行はlive activationの代用にならない');
+    });
+
+    it('audit fail-closed Story・Architecture・Spec・Taskを公開する', () => {
+        const story = read('docs/management/stories/active/story-brainbase-judgment-audit-fail-closed.md');
+        const architecture = read('docs/architecture/story-brainbase-judgment-audit-fail-closed.md');
+        const spec = read('docs/specs/story-brainbase-judgment-audit-fail-closed.md');
+        const task = read('docs/management/tasks/TASK-brainbase-judgment-audit-fail-closed.md');
+        const surfaces = [story, architecture, spec, task];
+
+        for (const surface of surfaces) {
+            expect(surface).toContain('ready_for_fresh_task');
+            expect(surface).toContain('proven_active');
+            expect(surface).toMatch(/hooks\/list|Hook.*trust/iu);
+            expect(surface).toMatch(/final.*(作らない|なし|no final)/iu);
+        }
+        expect(architecture).toContain('judgment_episode_identity_missing');
+        expect(architecture).toContain('judgment_episode_not_found');
+        expect(spec).toContain('Open /hooks and approve the three current Resolver hooks.');
+        expect(story).toContain('Brainbaseはtrust hashを計算・書換しない');
+    });
+
+    it('capability README indexが現行integrationと将来候補を区別する', () => {
+        const readme = read('docs/brainbase-capabilities/README.md');
+
+        expect(readme).toContain('Codex Host opens one canonical-context-bound judgment episode');
+        expect(readme).toContain('internal-LLM-free Resolver deterministically selects the initial route');
+        expect(readme).toContain('0..N actual Brainbase calls recorded through `PostToolUse`');
+        expect(readme).toContain('one non-authorizing receipt');
+        expect(readme).toContain('Claude Code remains a future Host-adapter candidate');
+    });
+
+    it('binding secret・preflight・deployment boundaryを維持する', () => {
+        const envExample = read('.env.example');
+        const infisicalTargets = JSON.parse(read('config/infisical-targets.json'));
+        const launcher = read('scripts/run-brainbase-mcp.sh');
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+
+        expect(envExample).toContain('BRAINBASE_JUDGMENT_BINDING_SECRET');
+        expect(envExample).toContain('BRAINBASE_JUDGMENT_ADAPTER_ID=brainbase-mcp');
+        expect(infisicalTargets.targets['brainbase-mcp'].requiredKeys).toContain(
+            'BRAINBASE_JUDGMENT_BINDING_SECRET'
+        );
+        expect(launcher).toContain('missing BRAINBASE_JUDGMENT_BINDING_SECRET');
+        expect(launcher).toContain('preflight-judgment-binding.js');
+        expect(runbook).toContain('scripts/run-brainbase-mcp.sh --check');
+        expect(runbook).toContain('npm run check:judgment-hook-readiness');
+        expect(runbook).toContain('signed read-only probe');
+        expect(runbook).toContain('not proof that the global hook');
+        expect(runbook).toContain('content-equivalent to the current contract checkout');
+        expect(runbook).toContain('not proof that the installed Hook checkout has the same Git SHA');
+        expect(runbook).toContain('Verify the merged/deployed checkout SHA separately after deployment');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_EPISODE_PATH');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_TRANSCRIPT_PATH');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_NONCE');
+        expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_RUN_QUERY');
+        expect(runbook).toContain('query-embedded source HEAD differs');
+        expect(runbook).toContain('final receipt is at most one hour old');
+        expect(runbook).toContain('scripts/reconcile-brainbase-mcp-runtime.sh "$TARGET_SHA"');
+        expect(runbook).toContain('brainbase-mcp-reconcile.last');
+        expect(runbook).toContain('deploy-lightsail-production.md');
+        expect(runbook).toContain('Pre-deployment rollback capture');
+        expect(runbook).toContain('global-hook.sha');
+        expect(runbook).toContain('local-ui.sha');
+        expect(runbook).toContain('mcp-runtime.sha');
+        expect(runbook).toContain('lightsail.sha');
+        expect(runbook).toContain('git -C "$BRAINBASE_CANONICAL_ROOT" switch --detach "$CANONICAL_ROLLBACK_SHA"');
+        expect(runbook).toContain('git -C "$BRAINBASE_MCP_RUNTIME_ROOT" switch --detach "$MCP_ROLLBACK_SHA"');
+        expect(runbook).toContain('install -m 600 "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" "$HOME/.codex/hooks.json"');
+        expect(runbook).toContain('Never remove `~/.codex/var/judgment-resolver`');
+
+        const lightsailRunbook = read('docs/brainbase-capabilities/runbooks/deploy-lightsail-production.md');
+        expect(lightsailRunbook).toContain('TARGET_SHA="$(git rev-parse HEAD)"');
+        expect(lightsailRunbook).toContain('git?.sha !== process.env.TARGET_SHA');
+        expect(lightsailRunbook).toContain('Unexpected public runtime Git state');
+        expect(lightsailRunbook).toContain('https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node');
+        expect(lightsailRunbook).toContain('git switch --detach "$ROLLBACK_SHA"');
+        expect(lightsailRunbook).toContain('four-surface rollback order');
+        expect(lightsailRunbook).not.toContain('127.0.0.1:55123/api/version | jq');
+    });
+});

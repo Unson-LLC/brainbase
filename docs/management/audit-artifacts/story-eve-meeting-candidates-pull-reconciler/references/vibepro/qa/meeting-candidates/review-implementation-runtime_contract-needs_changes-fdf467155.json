@@ -1,0 +1,9 @@
+{
+  "status": "needs_changes",
+  "summary": "Candidate calls are not strictly bound to org, project, and run before write-back.",
+  "findings": [{"id":"runtime-contract-candidate-binding-too-loose","severity":"high","detail":"Missing run_id is accepted and org_id/project_id are not checked at the reconciler boundary."}],
+  "inspection_summary": "All other runtime states passed; strict candidate call scope binding remains.",
+  "inspection_evidence": ["server/services/external-runner/eve-meeting-note-reconciler.js", "server/services/workflow/workflow-service.js", "tests/server/services/eve-meeting-note-reconciler.test.js"],
+  "inspection_inputs": [".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/implementation/review-request-runtime_contract.md"],
+  "judgment_delta": "Needs changes only for candidate tool-call org/project/run binding."
+}

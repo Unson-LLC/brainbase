@@ -63,13 +63,13 @@ SNS投稿に使用するスクリプトのパスと実行コマンドの正本�
 
 ## 画像保存先
 
-生成画像: `/Users/ksato/workspace/_codex/sns/images/`
+生成画像: `/Users/ksato/workspace/sns/images/`
 
 ## 関連ファイル
 
 | ファイル | 用途 |
 |---------|------|
-| `_codex/sns/sns_strategy_os.md` | 戦略・ポジショニング |
-| `_codex/sns/rules.md` | ガードレール・フック例 |
-| `_codex/sns/x_account_profile.md` | 人格・トンマナ定義 |
-| `_codex/sns/post_log.md` | 投稿履歴 |
+| `/Users/ksato/workspace/sns/sns_strategy_os.md` | 戦略・ポジショニング |
+| `/Users/ksato/workspace/sns/rules.md` | ガードレール・フック例 |
+| `/Users/ksato/workspace/sns/x_account_profile.md` | 人格・トンマナ定義 |
+| `/Users/ksato/workspace/sns/post_log.md` | 投稿履歴 |

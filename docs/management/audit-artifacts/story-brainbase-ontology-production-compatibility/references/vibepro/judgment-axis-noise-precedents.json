@@ -1,0 +1,54 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-judgment-axis-noise-precedent-ledger-v1",
+  "entries": [
+    {
+      "fingerprint": "release_ops|changed_path:release_ops",
+      "axis": "release_ops",
+      "story_id": "story-brainbase-ontology-production-compatibility",
+      "decision_id": "decision-1785702839555-d9969e13",
+      "source": "gate:judgment_axis_release_ops",
+      "reason": "このPRは本番切替を行わない証跡保存のみ。operator action、rollback、observabilityは後続のactivation Storyで扱う。",
+      "artifact": null,
+      "activation_candidates": [
+        "changed_path:release_ops"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T20:35:58.699Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "scope_reviewability|changed_files:95|scope:needs_clean_branch",
+      "axis": "scope_reviewability",
+      "story_id": "story-brainbase-ontology-production-compatibility",
+      "decision_id": "decision-1785704441260-ad52f82c",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "reason": "全変更は同一監査package配下のdigest/index/replay契約で結合され、delivery validationが関連ファイルとblast radiusを固定する。owner兼merge reviewerは佐藤圭吾とする",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+      "activation_candidates": [
+        "scope:needs_clean_branch",
+        "changed_files:95"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T21:00:48.047Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    },
+    {
+      "fingerprint": "public_contract|file_group:contract_docs|pr_route:docs_only|text:public_contract",
+      "axis": "public_contract",
+      "story_id": "story-brainbase-ontology-production-compatibility",
+      "decision_id": "decision-1785704440754-41bad634",
+      "source": "gate:judgment_axis_public_contract",
+      "reason": "このPRは本番APIやDB契約を変更せず、監査bundleのdigest/index/replay整合性だけを公開契約とする。current HEADのaudit replay readyとdelivery validationを受理根拠とする",
+      "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+      "activation_candidates": [
+        "pr_route:docs_only",
+        "file_group:contract_docs",
+        "text:public_contract"
+      ],
+      "activation_precision_status": "active",
+      "recorded_at": "2026-08-02T21:00:48.047Z",
+      "note": "Advisory precedent only; matching this fingerprint never auto-closes future gates."
+    }
+  ]
+}

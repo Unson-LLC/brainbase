@@ -9,7 +9,10 @@
 import express from 'express';
 
 import { CandidateStoreController } from '../controllers/candidate-store-controller.js';
-import { createCandidateStoreHmacMiddleware } from '../middleware/candidate-store-hmac.js';
+import {
+    captureCandidateStoreRawBody,
+    createCandidateStoreHmacMiddleware
+} from '../middleware/candidate-store-hmac.js';
 
 export function createCandidateStoreRouter({
     candidateRepository,
@@ -30,9 +33,7 @@ export function createCandidateStoreRouter({
     // (アプリ全体の express.json は parsed only でも互換性を壊さない設計)。
     const jsonParserWithRawBody = express.json({
         limit: bodyLimit,
-        verify: (req, _res, buf) => {
-            req.rawBody = buf.toString('utf8');
-        }
+        verify: captureCandidateStoreRawBody
     });
 
     const hmac = createCandidateStoreHmacMiddleware({ allowedSources });

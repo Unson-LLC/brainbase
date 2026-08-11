@@ -1,0 +1,27 @@
+[Unit]
+Description=OpenRyoko AI Gateway (Slack/Discord/Web)
+Documentation=https://github.com/rsensui2/OpenRyoko
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@RYOKO_USER@
+Group=@RYOKO_USER@
+WorkingDirectory=@HOME_DIR@
+Environment=NODE_ENV=production
+Environment=PATH=@HOME_DIR@/bin:@NODE_BIN@:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin
+Environment=IS_SANDBOX=1
+ExecStart=@RYOKO_BINARY@ start
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+KillMode=mixed
+TimeoutStopSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=openryoko
+
+[Install]
+WantedBy=multi-user.target

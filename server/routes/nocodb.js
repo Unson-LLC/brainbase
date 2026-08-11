@@ -5,9 +5,9 @@
 import express from 'express';
 import { NocoDBController } from '../controllers/nocodb-controller.js';
 
-export function createNocoDBRouter(configParser) {
+export function createNocoDBRouter(configParser, { canonicalTaskStoreConfig = null } = {}) {
     const router = express.Router();
-    const controller = new NocoDBController(configParser);
+    const controller = new NocoDBController(configParser, { canonicalTaskStoreConfig });
 
     // GET /api/nocodb/tasks - 全プロジェクトのタスク取得
     router.get('/tasks', controller.list);

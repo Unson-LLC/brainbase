@@ -1,0 +1,30 @@
+{
+  "schema_version": "0.1.0",
+  "kind": "artifact_summary",
+  "source_artifact": "design-ssot-reconciliation.json",
+  "source_bytes": 107469,
+  "source_content_hash": "sha256:21c70f3db7ff8dfd52f256f604176d223b66fb95f87a276090bbbe49316922f5",
+  "conclusion": {
+    "status_fields": {
+      "model": "vibepro-design-ssot-reconciliation-v1",
+      "status": "not_applicable",
+      "workflow": "design-ssot-reconcile",
+      "coverage_status": "not_applicable"
+    },
+    "top_level_counts": {
+      "registry_sources_count": 0,
+      "changed_paths_count": 9,
+      "design_roots_count": 0,
+      "action_items_count": 0,
+      "unregistered_changed_docs_count": 2
+    }
+  },
+  "highlights": [
+    "model=vibepro-design-ssot-reconciliation-v1",
+    "status=not_applicable",
+    "workflow=design-ssot-reconcile",
+    "coverage_status=not_applicable"
+  ],
+  "over_budget_reason": "source_bytes exceeds budget 16384",
+  "full_artifact_path": "design-ssot-reconciliation.json"
+}

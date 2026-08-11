@@ -7,8 +7,8 @@
 // - 10日間の監査で「毎プロンプト reminder」は無効と実証 → SessionStart 1回の
 //   content 注入に置換 (AgentMemory の SessionStart project profile と同型)。
 // - hook は ~/.brainbase/memory-preamble.txt を読むだけ。DB / Lightsail tunnel を
-//   hot path に持ち込まない。生成は scripts/generate-memory-preamble.mjs が
-//   日次 (oyasumi) or 手動で先に materialize する。
+//   hot path に持ち込まない。生成は日次ルーティンと分離し、
+//   scripts/generate-memory-preamble.mjs で明示的に materialize する。
 // - file が無い/古い時は安全に縮退 (空注入 or stale 警告)。
 
 import * as fs from "fs";
@@ -31,7 +31,7 @@ function loadPreamble(): { text: string; note: string } {
     if (!text) return { text: "", note: "empty" };
     const note =
       ageDays > STALE_DAYS
-        ? ` (注意: この preamble は ${Math.floor(ageDays)} 日前のもの。/oyasumi or generate-memory-preamble.mjs で更新を)`
+        ? ` (注意: この preamble は ${Math.floor(ageDays)} 日前のもの。generate-memory-preamble.mjs で更新を)`
         : "";
     return { text, note };
   } catch {

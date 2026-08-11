@@ -185,10 +185,10 @@ export class InMemoryCandidateRepository {
     create(input) {
         validate(input);
         const key = duplicateKey(input);
-        if (this.dedup.has(key)) {
+        const id = input.id || nextId();
+        if (this.candidates.has(id) || this.dedup.has(key)) {
             throw new DuplicateCandidateError(key);
         }
-        const id = input.id || nextId();
         const now = new Date().toISOString();
         const record = {
             id,
@@ -237,6 +237,8 @@ export class InMemoryCandidateRepository {
         let rows = all.filter((r) => {
             if (filter.id && r.id !== filter.id) return false;
             if (filter.owner_person_id && r.owner_person_id !== filter.owner_person_id) return false;
+            if (filter.source_system && r.source_system !== filter.source_system) return false;
+            if (filter.source_event_prefix && !r.source_event_ids.some((eventId) => eventId.startsWith(filter.source_event_prefix))) return false;
             if (filter.promotion_status && r.promotion_status !== filter.promotion_status) return false;
             if (filter.cognitive_type && r.cognitive_type !== filter.cognitive_type) return false;
             return true;
@@ -333,14 +335,16 @@ export class PgCandidateRepository {
         validate(input);
         try {
             const key = duplicateKey(input);
+            const id = input.id || nextId();
             const duplicate = await this.pool.query(
                 `SELECT id
                  FROM memory_candidates
-                 WHERE source_system = $1
-                   AND owner_person_id = $2
-                   AND source_event_ids::text = $3
+                 WHERE id = $1
+                    OR (source_system = $2
+                        AND owner_person_id = $3
+                        AND source_event_ids::text = $4)
                  LIMIT 1`,
-                [input.source_system, input.owner_person_id, JSON.stringify(input.source_event_ids.slice().sort())]
+                [id, input.source_system, input.owner_person_id, JSON.stringify(input.source_event_ids.slice().sort())]
             );
             if (duplicate.rows.length > 0) {
                 throw new DuplicateCandidateError(key);
@@ -363,7 +367,7 @@ export class PgCandidateRepository {
                 )
                 RETURNING *`,
                 [
-                    input.id || nextId(),
+                    id,
                     input.cognitive_type,
                     input.owner_person_id,
                     input.actor_person_id,
@@ -416,6 +420,11 @@ export class PgCandidateRepository {
         };
         if (filter.id) add('id = ?', filter.id);
         if (filter.owner_person_id) add('owner_person_id = ?', filter.owner_person_id);
+        if (filter.source_system) add('source_system = ?', filter.source_system);
+        if (filter.source_event_prefix) add(
+            'EXISTS (SELECT 1 FROM jsonb_array_elements_text(source_event_ids) AS source_event(event_id) WHERE starts_with(event_id, ?))',
+            filter.source_event_prefix
+        );
         if (filter.promotion_status) add('promotion_status = ?', filter.promotion_status);
         if (filter.cognitive_type) add('cognitive_type = ?', filter.cognitive_type);
         const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';

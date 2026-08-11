@@ -1,155 +1,89 @@
 # retro
 
-週次振り返り（Ship/Learn/Block）を実行し、結果を Wiki SSOT に保存するコマンド。
+繰り返す問題を、来週の仕組み変更へ変えるBrainbaseの週次ルーティン。
 
 ## トリガー
 
 - `/retro`
-- ユーザーが「振り返りして」「今週のレトロ」と言及
+- 「今週のレトロ」「繰り返した問題を見直して」
+
+## 利用者へ返す成果
+
+1. 今週繰り返した問題
+2. 学び候補を残す・見送る・保留する判断
+3. 来週変える仕組みを最大3件
+
+変更する価値がある論点がなければ、`変更なし`を正常な結果として返す。Ship数、作業数、commit数、投稿数などの活動量レポートにはしない。
+
+## 対象範囲
+
+Brainbase内の次の差分だけを使う。
+
+- 前回retro以降の`/oyasumi`と`/ohayo`のRun Receipt履歴
+- 期間中に繰り返した`部分成功`、`未確認`、`失敗`、やり直し、ユーザー訂正
+- Personal KG候補の新規・状態変化・保留理由
+- 日次で`昇格レビュー待ち`となった候補と、その根拠
+
+前回retroが確認できなければ直近7日間を対象とし、その境界を明記する。外部サービス、SNS、NocoDB、Git/GitHub、Wiki、Codexタスク全件、セッションarchive、HTML、automation memoryを正本入力にしない。
 
 ## 実行フロー
 
-1. **今週のShipを収集**
-   - NocoDB ストーリーテーブルから `ステータス=completed` かつ直近7日を抽出
-   - git log から直近7日のマージコミットを抽出
+1. 対象期間を確定し、Run Receipt履歴を取得する。latest表示だけで週全体を推測しない。
+2. 同じ原因または同じ人間判断で2回以上止まったものを「繰り返した問題」の候補にする。単発障害は、重大でなければ週次の仕組み変更へ膨らませない。
+3. ユーザー訂正とやり直しを優先して確認し、症状ではなく再発条件を整理する。
+4. Personal KG候補と`昇格レビュー待ち`を確認し、必要な候補だけGraph SSOTと照合して次のいずれかを推奨する。Graph昇格の判断はこのルーティンだけが担う。
+   - `残す`: 将来の本人判断を改善する、根拠付きの再利用可能な知識
+   - `見送る`: ノイズ、既出、単なる作業記録、根拠不足
+   - `保留`: 確認、所有、機密性、適用範囲が未確定
+   - `Graph候補`: 組織の正式な事実・関係・決定として別途確認すべきもの
+5. 来週の仕組み変更を、再発防止効果が高い順に最大3件へ絞る。各項目に変更内容、対象、検証方法を付ける。
+6. Learn候補やGraphを自動でapply/reject/writeしない。外部送信、公開、削除も行わない。
+7. 次の判定規則で実行状態と確認範囲を分け、Brainbaseの実行記録に残す。
 
-2. **今週のWorkを集計**
-   - NocoDB ストーリーテーブルから `ステータス=active` の進捗率変化を確認
-   - ブロッカー欄が埋まっているタスクを抽出
-   - archive finalizer の blocked を抽出
+## 判定
 
-   ```bash
-   cd /Users/ksato/workspace/code/brainbase
-   node scripts/archive-blocked-report.mjs --limit 50
-   ```
+実行状態はレトロ自身の成否、確認範囲は期間中の履歴をどこまで確定できたかを表す。
 
-   archive blocked は週次レトロの Block に必ず含める。残件は owner / next action / due を付け、無期限の持ち越しを禁止する。
+| 実行状態 | 条件 |
+|---|---|
+| `成功` | 取得を試み、週次判断を表示し、実行記録の保存を完了した |
+| `部分成功` | 表示または実行記録は残せたが、レトロ自身の一部処理を完了できない |
+| `失敗` | 利用者が使えるレトロ結果を生成できない、または実行記録を残せない |
 
-3. **学習候補の一括レビュー** ⭐ 週次決裁ポイント
+| 確認範囲 | 条件 |
+|---|---|
+| `確認済み` | 対象期間の必須履歴を取得し、変更の有無を判断できた |
+| `部分的` | 一部だけ取得でき、確認できない範囲と影響を特定できた |
+| `未確認` | 認証失敗、未接続、timeout、履歴欠落で週次判断ができない |
 
-   ohayo は件数だけ報告し、apply/reject 判断はここに集約する設計。
+- 確認済みの0件と、取得できなかった0件を分ける。
+- `blocked`、`unconfirmed`、`no_data`、`unavailable`、`failed`を成功へ潰さない。
+- 入力が部分取得なら、結論の適用範囲も部分的であることを明記する。
 
-   ```bash
-   cd /Users/ksato/workspace/code/brainbase
-   node cli/index.js learn inbox
-   ```
+## 表示形式
 
-   全 pending 候補を一覧表示し、各候補について以下を判断:
-   - **apply**: wiki/skill に昇格させる価値あり
-     - `node cli/index.js learn apply <id>`
-   - **reject**: ノイズ・既出・粒度不適切
-     - `node cli/index.js learn reject <id>`
-   - **保留**: 判断がつかない → そのまま次週に持ち越し
+```markdown
+# レトロ YYYY-MM-DD
 
-   レビュー結果を Learn 枠に集計（apply N件 / reject M件 / hold K件）。
+対象期間: YYYY-MM-DD〜YYYY-MM-DD
+実行: 成功 | 部分成功 | 失敗
+確認範囲: 確認済み | 部分的 | 未確認
 
-4. **SNS週次学習**
+## 繰り返した問題
+- [再発条件 / 影響 / 根拠]
 
-   `/ohayo` の daily brief と `/oyasumi` の feedback を7日分集計し、SNS運用の勝ち筋とズレを確認する。
+## 学びの判断
+- [候補 / 残す・見送る・保留・Graph候補 / 理由]
 
-   入力:
+## 来週変える仕組み
+1. [変更内容 / 対象 / 検証方法]
 
-   - `/Users/ksato/workspace/sns/x/ops/daily-briefs/YYYY-MM-DD.md`
-   - `/Users/ksato/workspace/sns/x/ops/feedback/YYYY-MM-DD.md`
-   - `/Users/ksato/workspace/sns/content_pillars.md`
-   - `/Users/ksato/workspace/sns/x/ops/weekly_content_calendar_*.md`
+<details>
+<summary>確認根拠</summary>
 
-   集計するもの:
+- [参照したBrainbase記録と状態]
 
-   - Peer interaction / 引用・リプ: 7〜9本
-   - Claude Code / AI PM / AI経営の理解: 5〜7本
-   - Own Proof: 4〜6本
-   - AI駆動経営の断定・哲学: 3〜4本
-   - Learn in public: 1〜2本
-   - CTA: 1〜2本
+</details>
+```
 
-   判断:
-
-   - Peer本人に拾われた投稿はPeer Circle候補を昇格
-   - 読者に保存/プロフィール遷移された投稿は本文型を保留候補
-   - Persona Affectが外れた投稿は数字が良くても勝ち型にしない
-   - 一過性のバズは正本化しない
-   - 再現性があるものだけ `style_guide.md` / `content_pillars.md` / skill / Graph更新候補にする
-
-5. **振り返りレポート生成**
-   ```markdown
-   # Weekly Retro: YYYY-MM-DD
-
-   ## 🚀 Ship（出荷）
-   - [項目]: [概要]
-
-   ## 📚 Learn（学習）
-   - [項目]: [学び]
-   - SNS: [勝ち筋 / 弱い型 / 次週の変更]
-
-   ## 🔴 Block（ブロッカー）
-   - [項目]: [状況と対応方針]
-   - Archive blocked: [件数]件
-     - [session-id]: [reason] → [owner / next action / due]
-
-   ## 📊 メトリクス
-   - Ship数: X件
-   - Work→Ship率: X%
-   - ブロッカー数: X件
-   ```
-
-6. **詳細レポートを Wiki SSOT に保存（永続）**
-   ```bash
-   # /tmp/retro は中間成果物（揮発OK）
-   mkdir -p /tmp/retro
-   # まず /tmp に書き出してから Wiki に POST する
-   ```
-
-   Wiki 投入:
-   ```bash
-   TOKEN=$(cat ~/.brainbase/tokens.json | jq -r .access_token)
-   jq -Rs --arg p "_common/retros/YYYY-MM-DD" '{path:$p, content:.}' \
-     < /tmp/retro/weekly_report_YYYY-MM-DD.md > /tmp/wiki-retro.json
-   curl -s -X POST "http://localhost:31013/api/wiki/page" \
-     -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-     --data-binary "@/tmp/wiki-retro.json"
-   ```
-
-7. **bb-report-submit でCompanion approval inboxに通知**
-
-   Wiki永続化とは別に、佐藤が承認/既読できるようレポート全文を `bb-report-submit` に渡す。
-   `POST /api/external-runner/ingest` 経由でCompanion approval inboxに
-   `kind: workflow_approval` として出現する（送信失敗時のみ `_inbox/pending.md` にフォールバック追記）。
-
-   ```bash
-   scripts/bin/bb-report-submit.mjs \
-     --sender agent/retro \
-     --title "週次振り返り完了: Ship X件, Learn X件, Block X件" \
-     --period {YYYY-MM-DD} \
-     --file /tmp/retro/weekly_report_{YYYY-MM-DD}.md
-   ```
-
-## 出力先
-
-| 出力 | パス | 永続化 |
-|------|------|------|
-| **詳細レポート（正本）** | Wiki `_common/retros/YYYY-MM-DD` (`localhost:31013/api/wiki/page`) | ✅ Wiki SSOT |
-| Companion approval inbox | `bb-report-submit.mjs` 経由で `POST /api/external-runner/ingest` | ✅ DBに永続化 |
-| フォールバック（送信失敗時のみ） | `_inbox/pending.md` に追記 | 保険のみ |
-| 中間成果物 | `/tmp/retro/weekly_report_{YYYY-MM-DD}.md` | ❌ 揮発（再起動で消える） |
-
-正本は Wiki SSOT。`/tmp` は中間成果物として一時的に置くだけ。
-
-## 注意
-
-- Ship = 「外部に価値が到達した」もののみ（ドラフト生成 ≠ Ship）
-- Learn は wiki/skill に **apply 済み** のもののみカウント（pending は count しない）
-- Block は現在進行中のブロッカーのみ
-- Archive blocked は `/ohayo` で検知、`/oyasumi` で日次整理、`/retro` で週次エスカレーションする
-- SNSは `/ohayo` で候補収集、`/oyasumi` で反応学習、`/retro` で勝ち筋だけ正本化する
-
-## 学習候補の補給ルート
-
-学習候補は2系統で自動投入される:
-
-| ソース | トリガー | 投入経路 |
-|---|---|---|
-| explicit | ユーザーが `/learn` を呼んだ時 | `brainbase learn add` |
-| auto-extract | /commit 完了 + launchd `com.brainbase.learn-extractor`（2h毎） | codex exec で transcript 分析 → `brainbase learn add` |
-
-`/retro` 実行時、`learn inbox` には両系統の pending が混ざって表示される。
+仕組み変更が不要なら、各入力を確認できたことを根拠に`来週変える仕組み: 変更なし`とする。証拠が取れないため変更なし、とはしない。

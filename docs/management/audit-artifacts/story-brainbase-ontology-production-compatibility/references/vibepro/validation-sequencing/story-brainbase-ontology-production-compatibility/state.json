@@ -1,0 +1,243 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-risk-adaptive-validation-sequencing-v1",
+  "story_id": "story-brainbase-ontology-production-compatibility",
+  "created_at": "2026-08-02T18:35:16.054Z",
+  "updated_at": "2026-08-02T18:46:56.930Z",
+  "plan": {
+    "model": "vibepro-risk-adaptive-validation-sequencing-v1",
+    "story_id": "story-brainbase-ontology-production-compatibility",
+    "required": true,
+    "risk_profile": "api_contract",
+    "risk_surfaces": [
+      "server_api",
+      "service_orchestration",
+      "test_coverage"
+    ],
+    "preflight_roles": [
+      "architecture_boundary"
+    ],
+    "preflight_reviews": [
+      {
+        "stage": "architecture_spec",
+        "role": "architecture_boundary",
+        "surfaces": [
+          "server_api"
+        ]
+      }
+    ],
+    "preflight_surfaces": [
+      "server_api"
+    ],
+    "preflight_required_inspection_inputs": [
+      "config/ontology/index.json",
+      "config/ontology/releases/1.0.0.json",
+      "config/ontology/writer-inventory.json",
+      "docs/architecture/ADR-021-brainbase-ontology-kernel.md",
+      "docs/architecture/story-brainbase-ontology-production-compatibility.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.md",
+      "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-08877faa.md",
+      "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-4c881813.md",
+      "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-7709a3fd.md",
+      "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-898174ea.md",
+      "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md",
+      "docs/specs/brainbase-ontology-kernel-spec.md",
+      "docs/specs/brainbase-ontology-production-compatibility.json",
+      "docs/specs/brainbase-ontology-production-compatibility.md",
+      "scripts/ontology-shadow-audit.js",
+      "server/services/ontology-kernel.js",
+      "tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts",
+      "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts",
+      "tests/server/services/ontology-api.test.js",
+      "tests/server/services/ontology-kernel.test.js"
+    ],
+    "phases": [
+      "targeted_validation",
+      "preflight_review",
+      "code_frozen",
+      "expensive_verification",
+      "final_review"
+    ]
+  },
+  "frozen_binding": {
+    "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+    "test_fingerprint": "6fda749bbf4fc7d6cda5ddbcd34ce21f5143170ab78d89b82a9ed5ff184bb978",
+    "verification_command": "npm run test:run -- tests/server/services/ontology-kernel.test.js tests/server/services/ontology-registry.test.js tests/server/services/ontology-api.test.js tests/server/scripts/ontology-release-verify.test.js"
+  },
+  "phases": {
+    "targeted_validation": {
+      "status": "passed",
+      "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+      "reason": null,
+      "evidence": [
+        ".vibepro/pr/story-brainbase-ontology-production-compatibility/verification-evidence.json",
+        ".vibepro/pr/story-brainbase-ontology-production-compatibility/verification-evidence.json"
+      ],
+      "source": "local",
+      "recorded_at": "2026-08-02T18:46:09.849Z",
+      "binding": {
+        "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+        "test_fingerprint": "6fda749bbf4fc7d6cda5ddbcd34ce21f5143170ab78d89b82a9ed5ff184bb978",
+        "verification_command": "npm run test:run -- tests/server/services/ontology-kernel.test.js tests/server/services/ontology-registry.test.js tests/server/services/ontology-api.test.js tests/server/scripts/ontology-release-verify.test.js"
+      }
+    },
+    "preflight_review": {
+      "status": "passed",
+      "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+      "reason": null,
+      "evidence": [
+        ".vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/review-result-architecture_boundary.json",
+        ".vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/review-result-architecture_boundary.json",
+        ".vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/review-result-architecture_boundary.json"
+      ],
+      "record_type": "advisory_preflight",
+      "findings": [],
+      "dispositions": [],
+      "satisfies_final_review": false,
+      "recorded_at": "2026-08-02T18:46:27.648Z",
+      "review_provenance": {
+        "status": "pass",
+        "story_id": "story-brainbase-ontology-production-compatibility",
+        "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+        "system": "codex",
+        "execution_mode": "parallel_subagent",
+        "evidence_strength": "strong",
+        "agent_closed": true,
+        "role": "architecture_boundary",
+        "stage": "architecture_spec",
+        "inspection_summary": "reviewed server_api; risk_surfaces=server_api",
+        "inspection_inputs": [
+          "config/ontology/index.json",
+          "config/ontology/releases/1.0.0.json",
+          "config/ontology/writer-inventory.json",
+          "docs/architecture/ADR-021-brainbase-ontology-kernel.md",
+          "docs/architecture/story-brainbase-ontology-production-compatibility.md",
+          "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json",
+          "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.md",
+          "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-08877faa.md",
+          "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-4c881813.md",
+          "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-7709a3fd.md",
+          "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-898174ea.md",
+          "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md",
+          "docs/specs/brainbase-ontology-kernel-spec.md",
+          "docs/specs/brainbase-ontology-production-compatibility.json",
+          "docs/specs/brainbase-ontology-production-compatibility.md",
+          "scripts/ontology-shadow-audit.js",
+          "server/services/ontology-kernel.js",
+          "tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts",
+          "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts",
+          "tests/server/services/ontology-api.test.js",
+          "tests/server/services/ontology-kernel.test.js",
+          "lib/load-runtime-env.js"
+        ]
+      },
+      "binding": {
+        "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+        "test_fingerprint": "6fda749bbf4fc7d6cda5ddbcd34ce21f5143170ab78d89b82a9ed5ff184bb978",
+        "verification_command": "npm run test:run -- tests/server/services/ontology-kernel.test.js tests/server/services/ontology-registry.test.js tests/server/services/ontology-api.test.js tests/server/scripts/ontology-release-verify.test.js"
+      }
+    },
+    "code_frozen": {
+      "status": "passed",
+      "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+      "reason": "Current HEAD 560f7212 is frozen and clean after push; no tracked code changes after final reviews",
+      "evidence": [],
+      "recorded_at": "2026-08-02T18:46:27.980Z",
+      "binding": {
+        "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+        "test_fingerprint": "6fda749bbf4fc7d6cda5ddbcd34ce21f5143170ab78d89b82a9ed5ff184bb978",
+        "verification_command": "npm run test:run -- tests/server/services/ontology-kernel.test.js tests/server/services/ontology-registry.test.js tests/server/services/ontology-api.test.js tests/server/scripts/ontology-release-verify.test.js"
+      }
+    },
+    "expensive_verification": {
+      "status": "passed",
+      "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+      "reason": null,
+      "evidence": [
+        ".vibepro/pr/story-brainbase-ontology-production-compatibility/verification-evidence.json",
+        ".vibepro/pr/story-brainbase-ontology-production-compatibility/verification-evidence.json"
+      ],
+      "source": "local",
+      "recorded_at": "2026-08-02T18:46:48.702Z",
+      "binding": {
+        "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+        "test_fingerprint": "6fda749bbf4fc7d6cda5ddbcd34ce21f5143170ab78d89b82a9ed5ff184bb978",
+        "verification_command": "npx playwright test tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts --workers=1"
+      }
+    },
+    "final_review": {
+      "status": "passed",
+      "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+      "reason": null,
+      "evidence": [
+        ".vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/review-result-runtime_contract.json",
+        ".vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/review-result-runtime_contract.json"
+      ],
+      "source": "agent_review",
+      "recorded_at": "2026-08-02T18:46:56.930Z",
+      "review_provenance": {
+        "status": "pass",
+        "story_id": "story-brainbase-ontology-production-compatibility",
+        "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+        "system": "codex",
+        "execution_mode": "parallel_subagent",
+        "evidence_strength": "strong",
+        "agent_closed": true,
+        "role": "runtime_contract",
+        "stage": "implementation",
+        "inspection_summary": "Independent current-HEAD review inspected runtime/API/config/audit and reran focused unit, integration, and in-process E2E contracts.",
+        "inspection_inputs": [
+          "config/ontology/index.json",
+          "server/services/ontology-registry.js",
+          "server/services/ontology-kernel.js",
+          "server/services/info-ssot-service.js",
+          "scripts/ontology-shadow-audit.js",
+          "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json"
+        ]
+      },
+      "binding": {
+        "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+        "test_fingerprint": "6fda749bbf4fc7d6cda5ddbcd34ce21f5143170ab78d89b82a9ed5ff184bb978",
+        "verification_command": "npm run test:run -- tests/server/services/ontology-kernel.test.js tests/server/services/ontology-registry.test.js tests/server/services/ontology-api.test.js tests/server/scripts/ontology-release-verify.test.js"
+      }
+    }
+  },
+  "proposed_binding": {
+    "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+    "test_fingerprint": "6fda749bbf4fc7d6cda5ddbcd34ce21f5143170ab78d89b82a9ed5ff184bb978",
+    "verification_command": "npm run test:run -- tests/server/services/ontology-kernel.test.js tests/server/services/ontology-registry.test.js tests/server/services/ontology-api.test.js tests/server/scripts/ontology-release-verify.test.js"
+  },
+  "invalidations": [
+    {
+      "changed_surfaces": [
+        "unknown"
+      ],
+      "changed_files": [],
+      "invalidated_phases": [
+        "targeted_validation",
+        "preflight_review",
+        "code_frozen",
+        "expensive_verification",
+        "final_review"
+      ],
+      "reason": "current change-risk classification differs from the persisted validation plan",
+      "invalidated_at": "2026-08-02T18:44:17.921Z"
+    },
+    {
+      "changed_surfaces": [
+        "unknown"
+      ],
+      "changed_files": [],
+      "invalidated_phases": [
+        "targeted_validation",
+        "preflight_review",
+        "code_frozen",
+        "expensive_verification",
+        "final_review"
+      ],
+      "reason": "current change-risk classification differs from the persisted validation plan",
+      "invalidated_at": "2026-08-02T18:44:31.961Z"
+    }
+  ]
+}

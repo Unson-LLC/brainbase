@@ -1,0 +1,247 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-gate-outcome-ledger-v3",
+  "updated_at": "2026-07-13T19:56:29.868Z",
+  "entries": [
+    {
+      "schema_version": "0.1.0",
+      "entry_key": "story-eve-internal-api-csrf-exemption|gate:senior_gap_judgment|block|passed|2026-07-13T19:56:16.246Z|2026-07-13T19:56:29.864Z",
+      "story_id": "story-eve-internal-api-csrf-exemption",
+      "gate_id": "gate:senior_gap_judgment",
+      "gate_type": "senior_gap_judgment_gate",
+      "previous_status": "block",
+      "resolved_status": "passed",
+      "outcome": "unclassified",
+      "classification": "ambiguous_resolution_surface",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-13T19:56:16.246Z",
+      "resolved_at": "2026-07-13T19:56:29.864Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+        "changed_files": [
+          "docs/architecture/ADR-eve-internal-api-csrf-exemption.md",
+          "docs/responsibility-authority/eve-internal-api-csrf-exemption.json",
+          "docs/specs/story-eve-internal-api-csrf-exemption.md",
+          "docs/stories/story-eve-internal-api-csrf-exemption.md",
+          "server/middleware/csrf.js",
+          "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+          "tests/unit/csrf-internal-api-key-exempt.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
+      "entry_key": "story-eve-internal-api-csrf-exemption|gate:definition_of_done|needs_evidence|passed|2026-07-13T19:56:16.246Z|2026-07-13T19:56:29.864Z",
+      "story_id": "story-eve-internal-api-csrf-exemption",
+      "gate_id": "gate:definition_of_done",
+      "gate_type": "definition_of_done_gate",
+      "previous_status": "needs_evidence",
+      "resolved_status": "passed",
+      "outcome": "unclassified",
+      "classification": "ambiguous_resolution_surface",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-13T19:56:16.246Z",
+      "resolved_at": "2026-07-13T19:56:29.864Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+        "changed_files": [
+          "docs/architecture/ADR-eve-internal-api-csrf-exemption.md",
+          "docs/responsibility-authority/eve-internal-api-csrf-exemption.json",
+          "docs/specs/story-eve-internal-api-csrf-exemption.md",
+          "docs/stories/story-eve-internal-api-csrf-exemption.md",
+          "server/middleware/csrf.js",
+          "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+          "tests/unit/csrf-internal-api-key-exempt.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
+      "entry_key": "story-eve-internal-api-csrf-exemption|gate:agent_review|needs_review|passed|2026-07-13T19:56:16.246Z|2026-07-13T19:56:29.864Z",
+      "story_id": "story-eve-internal-api-csrf-exemption",
+      "gate_id": "gate:agent_review",
+      "gate_type": "agent_review_gate",
+      "previous_status": "needs_review",
+      "resolved_status": "passed",
+      "outcome": "unclassified",
+      "classification": "ambiguous_resolution_surface",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-13T19:56:16.246Z",
+      "resolved_at": "2026-07-13T19:56:29.864Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+        "changed_files": [
+          "docs/architecture/ADR-eve-internal-api-csrf-exemption.md",
+          "docs/responsibility-authority/eve-internal-api-csrf-exemption.json",
+          "docs/specs/story-eve-internal-api-csrf-exemption.md",
+          "docs/stories/story-eve-internal-api-csrf-exemption.md",
+          "server/middleware/csrf.js",
+          "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+          "tests/unit/csrf-internal-api-key-exempt.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
+      "entry_key": "story-eve-internal-api-csrf-exemption|review:join:gate|needs_review|passed|2026-07-13T19:56:16.246Z|2026-07-13T19:56:29.864Z",
+      "story_id": "story-eve-internal-api-csrf-exemption",
+      "gate_id": "review:join:gate",
+      "gate_type": "agent_review_stage_join_gate",
+      "previous_status": "needs_review",
+      "resolved_status": "passed",
+      "outcome": "unclassified",
+      "classification": "ambiguous_resolution_surface",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-13T19:56:16.246Z",
+      "resolved_at": "2026-07-13T19:56:29.864Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+        "changed_files": [
+          "docs/architecture/ADR-eve-internal-api-csrf-exemption.md",
+          "docs/responsibility-authority/eve-internal-api-csrf-exemption.json",
+          "docs/specs/story-eve-internal-api-csrf-exemption.md",
+          "docs/stories/story-eve-internal-api-csrf-exemption.md",
+          "server/middleware/csrf.js",
+          "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+          "tests/unit/csrf-internal-api-key-exempt.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
+      "entry_key": "story-eve-internal-api-csrf-exemption|gate:requirement|needs_review|passed|2026-07-13T19:56:16.246Z|2026-07-13T19:56:29.864Z",
+      "story_id": "story-eve-internal-api-csrf-exemption",
+      "gate_id": "gate:requirement",
+      "gate_type": "requirement_gate",
+      "previous_status": "needs_review",
+      "resolved_status": "passed",
+      "outcome": "source_fix",
+      "classification": "resolving_diff_contains_source_changes_for_source_sensitive_gate",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-13T19:56:16.246Z",
+      "resolved_at": "2026-07-13T19:56:29.864Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+        "changed_files": [
+          "docs/architecture/ADR-eve-internal-api-csrf-exemption.md",
+          "docs/responsibility-authority/eve-internal-api-csrf-exemption.json",
+          "docs/specs/story-eve-internal-api-csrf-exemption.md",
+          "docs/stories/story-eve-internal-api-csrf-exemption.md",
+          "server/middleware/csrf.js",
+          "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+          "tests/unit/csrf-internal-api-key-exempt.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
+      "entry_key": "story-eve-internal-api-csrf-exemption|gate:responsibility_authority|needs_review|passed|2026-07-13T19:56:16.246Z|2026-07-13T19:56:29.864Z",
+      "story_id": "story-eve-internal-api-csrf-exemption",
+      "gate_id": "gate:responsibility_authority",
+      "gate_type": "responsibility_authority_gate",
+      "previous_status": "needs_review",
+      "resolved_status": "passed",
+      "outcome": "unclassified",
+      "classification": "ambiguous_resolution_surface",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-13T19:56:16.246Z",
+      "resolved_at": "2026-07-13T19:56:29.864Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+        "changed_files": [
+          "docs/architecture/ADR-eve-internal-api-csrf-exemption.md",
+          "docs/responsibility-authority/eve-internal-api-csrf-exemption.json",
+          "docs/specs/story-eve-internal-api-csrf-exemption.md",
+          "docs/stories/story-eve-internal-api-csrf-exemption.md",
+          "server/middleware/csrf.js",
+          "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+          "tests/unit/csrf-internal-api-key-exempt.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
+      "entry_key": "story-eve-internal-api-csrf-exemption|gate:design_diagrams|needs_evidence|satisfied|2026-07-13T19:56:16.246Z|2026-07-13T19:56:29.864Z",
+      "story_id": "story-eve-internal-api-csrf-exemption",
+      "gate_id": "gate:design_diagrams",
+      "gate_type": "design_diagrams_gate",
+      "previous_status": "needs_evidence",
+      "resolved_status": "satisfied",
+      "outcome": "unclassified",
+      "classification": "ambiguous_resolution_surface",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-13T19:56:16.246Z",
+      "resolved_at": "2026-07-13T19:56:29.864Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+        "changed_files": [
+          "docs/architecture/ADR-eve-internal-api-csrf-exemption.md",
+          "docs/responsibility-authority/eve-internal-api-csrf-exemption.json",
+          "docs/specs/story-eve-internal-api-csrf-exemption.md",
+          "docs/stories/story-eve-internal-api-csrf-exemption.md",
+          "server/middleware/csrf.js",
+          "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+          "tests/unit/csrf-internal-api-key-exempt.test.js"
+        ]
+      }
+    },
+    {
+      "schema_version": "0.1.0",
+      "entry_key": "story-eve-internal-api-csrf-exemption|gate:story_source_integrity|story_source_mismatch|passed|2026-07-13T19:56:16.246Z|2026-07-13T19:56:29.864Z",
+      "story_id": "story-eve-internal-api-csrf-exemption",
+      "gate_id": "gate:story_source_integrity",
+      "gate_type": "story_source_integrity_gate",
+      "previous_status": "story_source_mismatch",
+      "resolved_status": "passed",
+      "outcome": "source_fix",
+      "classification": "resolving_diff_contains_source_changes_for_source_sensitive_gate",
+      "overridden": false,
+      "evidence_refs": [],
+      "decision_refs": [],
+      "previous_prepare_created_at": "2026-07-13T19:56:16.246Z",
+      "resolved_at": "2026-07-13T19:56:29.864Z",
+      "git": {
+        "base_ref": "origin/develop",
+        "head_ref": "HEAD",
+        "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+        "changed_files": [
+          "docs/architecture/ADR-eve-internal-api-csrf-exemption.md",
+          "docs/responsibility-authority/eve-internal-api-csrf-exemption.json",
+          "docs/specs/story-eve-internal-api-csrf-exemption.md",
+          "docs/stories/story-eve-internal-api-csrf-exemption.md",
+          "server/middleware/csrf.js",
+          "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+          "tests/unit/csrf-internal-api-key-exempt.test.js"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-playwright-worktree-discovery-boundary",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "needs_changes",
+  "summary": "Regression evidence is valid, but E2E AC binding, typecheck classification, and current-head artifact freshness need closure.",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "gate-e2e-ac-binding-unresolved",
+      "detail": "Use coverage-checker accepted AC markers and regenerate verification and pr-prepare."
+    },
+    {
+      "severity": "medium",
+      "id": "verification-typecheck-command-mismatch",
+      "detail": "Record npm run typecheck as current-HEAD typecheck evidence."
+    },
+    {
+      "severity": "medium",
+      "id": "current-surface-contains-stale-decision-binding",
+      "detail": "Replace or explicitly stale-mark the older-HEAD decision in the current handoff."
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Compared exact-HEAD diff, Playwright fixtures, verification and QA artifacts, coverage diagnostics, and human-review surfaces; ran official typecheck.",
+    "evidence": ".vibepro/pr/story-playwright-worktree-discovery-boundary/verification-evidence.json",
+    "inputs": [
+      "tests/e2e/story-playwright-worktree-discovery-boundary-collector.spec.ts",
+      ".vibepro/pr/story-playwright-worktree-discovery-boundary/traceability.json",
+      ".vibepro/pr/story-playwright-worktree-discovery-boundary/human-review.json"
+    ]
+  },
+  "judgment_delta": [
+    "Regression and path coverage concerns -> no implementation regression found; gate binding concern -> AC markers are not recognized, typecheck evidence is misclassified, and the current handoff includes an older-HEAD decision."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+    "actual_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+    "expected_root": null,
+    "expected_head_sha": "1346aaa1a6283d3d39f9cb3cf8c5cafe560b25eb",
+    "current_head_sha": "1346aaa1a6283d3d39f9cb3cf8c5cafe560b25eb",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+      "actual_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+      "expected_root": null,
+      "expected_head_sha": "1346aaa1a6283d3d39f9cb3cf8c5cafe560b25eb",
+      "current_head_sha": "1346aaa1a6283d3d39f9cb3cf8c5cafe560b25eb",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-17T13:49:04.115Z",
+  "git_context": {
+    "head_sha": "1346aaa1a6283d3d39f9cb3cf8c5cafe560b25eb",
+    "current_branch": "codex/playwright-worktree-boundary",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-17T13:49:04.115Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "1346aaa1a6283d3d39f9cb3cf8c5cafe560b25eb",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "47aa1aae9ae68c6bcf5dce46d9bbd5ab9b70a063632131cbf36a0000aeea0358",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "pw_gate_evidence_review",
+    "agent_role": null,
+    "model": "gpt-5",
+    "reasoning_effort": "high",
+    "cost_tier": "medium",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/gate_evidence.md",
+    "request_artifact": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "unknown",
+      "reviewer_session_id": null,
+      "implementation_session_id": null,
+      "source": "undeclared"
+    }
+  },
+  "agent_usage": null
+}

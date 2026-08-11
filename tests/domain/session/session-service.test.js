@@ -48,15 +48,7 @@ describe('SessionService', () => {
 
     beforeEach(() => {
         window.localStorage.clear();
-
-        Object.defineProperty(window, 'sessionStorage', {
-            value: {
-                getItem: vi.fn(() => 'viewer-test'),
-                setItem: vi.fn(),
-                removeItem: vi.fn()
-            },
-            configurable: true
-        });
+        window.localStorage.setItem('brainbase-terminal-viewer-id', 'viewer-test');
 
         // テストデータ準備
         mockSessions = [

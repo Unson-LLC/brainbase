@@ -5,9 +5,9 @@ import { BaseModal } from './base-modal.js';
  * タスク編集モーダル
  */
 export class TaskEditModal extends BaseModal {
-    constructor({ taskService }) {
+    constructor({ nocodbTaskService }) {
         super('edit-task-modal');
-        this.taskService = taskService;
+        this.nocodbTaskService = nocodbTaskService;
         this.currentTaskId = null;
     }
 
@@ -38,15 +38,14 @@ export class TaskEditModal extends BaseModal {
         if (!this.currentTaskId) return;
 
         const updates = {
-            title: this._val('edit-task-title'),
-            project: this._val('edit-task-project'),
+            name: this._val('edit-task-title'),
             priority: this._val('edit-task-priority') || 'medium',
-            deadline: this._val('edit-task-due') || null,
+            due: this._val('edit-task-due') || null,
             description: this._val('edit-task-description')
         };
 
         try {
-            await this.taskService.updateTask(this.currentTaskId, updates);
+            await this.nocodbTaskService.updateTask(this.currentTaskId, updates);
             this.close();
         } catch (error) {
             console.error('Failed to update task:', error);

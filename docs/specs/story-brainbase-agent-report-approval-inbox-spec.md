@@ -19,7 +19,7 @@ status: accepted
 
 - `server/services/external-runner/contract-schema.js` の `ALLOWED_RUNNER_TYPES` に `agent_report` を追加。`runner.type=agent_report` のとき `runner.eve.trace_ref` を要求しない（eve 検証は不変）。
 - `scripts/bin/bb-report-submit.mjs`（新規CLI）: markdown → external_runner.v0 payload → `POST /api/external-runner/ingest`。失敗時のみ `_inbox/pending.md` にフォールバック（channel は `agent/` プレフィックスから導出）。
-- `server/services/workflow/workflow-service.js`: `implementation_key=external-runner:agent_report` の承認専用 run を `resolveHumanStep` で特殊ケース化（`isAgentReportWorkflow` / `isApprovalOnlyIngestWorkflow`）し、承認時にクローズ。eve は除外。
+- `server/services/automation-run/automation-run-service.js`: `implementation_key=external-runner:agent_report` の承認専用 run を `resolveHumanStep` で特殊ケース化（`isAgentReportWorkflow` / `isApprovalOnlyIngestWorkflow`）し、承認時にクローズ。eve は除外。
 
 ## Diagrams
 

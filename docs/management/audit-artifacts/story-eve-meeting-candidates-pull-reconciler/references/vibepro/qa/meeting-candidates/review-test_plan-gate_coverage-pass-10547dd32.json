@@ -1,0 +1,11 @@
+{
+  "status": "pass",
+  "head": "10547dd32311fe497c790ca6f306a9dd97572714",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "agent_id": "019f5acb-933c-7272-965b-2a3f4b4937aa",
+  "summary": "Strict-head integration, E2E, and imported CI evidence cover the changed meeting-source and reconciler surfaces.",
+  "inspection": "Inspected current verification evidence, 150-test integration artifact, 37-test Playwright artifact, exact-head CI artifacts, review history, changed source, and changed tests.",
+  "judgment_delta": "Prior evidence gaps required changes -> pass because all missing surfaces and CI are now bound to the exact HEAD.",
+  "findings": []
+}

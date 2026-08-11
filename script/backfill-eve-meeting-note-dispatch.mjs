@@ -27,6 +27,9 @@ function parseArgs(argv) {
         else throw new Error(`unknown argument: ${arg}`);
     }
     if (!args.ledger) throw new Error('--ledger <path> is required');
+    if (args.execute && args.runIds.length !== 1) {
+        throw new Error('--execute requires exactly one --run-id');
+    }
     return args;
 }
 

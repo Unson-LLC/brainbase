@@ -1,0 +1,176 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-evidence-adjudication-v1",
+  "story_id": "story-graph-data-ssot-normalization",
+  "updated_at": "2026-07-18T17:21:07.200Z",
+  "verdicts": [
+    {
+      "clause_id": "AC-14",
+      "verdict": "demonstrated",
+      "reason": "secret-free証跡に事前・事後件数、変更対象entity/edge ID、physical delete 0、transaction readback、post-apply dry-runが記録され、provenance hashも一致。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/acceptance_current_head",
+        "session_ref": "agent:/root/acceptance_current_head@3755029d"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:21:07.199Z"
+    },
+    {
+      "clause_id": "AC-13",
+      "verdict": "demonstrated",
+      "reason": "最終HEADでtargeted 51/51、People owner 118/118、MCP 8/8、typecheck通過。Playwright 1/1はartifact_replayのみ。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/acceptance_current_head",
+        "session_ref": "agent:/root/acceptance_current_head@3755029d"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:21:06.857Z"
+    },
+    {
+      "clause_id": "AC-12",
+      "verdict": "demonstrated",
+      "reason": "live Graph SSOT checkはbb.unson.jpに対して4/4通過。Graphへの追加writeは行っていない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/acceptance_current_head",
+        "session_ref": "agent:/root/acceptance_current_head@3755029d"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:21:06.498Z"
+    },
+    {
+      "clause_id": "AC-11",
+      "verdict": "demonstrated",
+      "reason": "指定Decisionが本番RESTとMCPの双方でexact readbackされている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/acceptance_current_head",
+        "session_ref": "agent:/root/acceptance_current_head@3755029d"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:21:06.213Z"
+    },
+    {
+      "clause_id": "AC-10",
+      "verdict": "demonstrated",
+      "reason": "バックアップ不正、schema不正、必須列欠落、DB認証拒否、永続化・rollback失敗系のnegative contractがcurrent HEADで通過。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/acceptance_current_head",
+        "session_ref": "agent:/root/acceptance_current_head@3755029d"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:21:05.881Z"
+    },
+    {
+      "clause_id": "AC-9",
+      "verdict": "demonstrated",
+      "reason": "current HEADのtyped REST/service契約とMCP alias index・canonical dedupは通過。本番premerge negativeはmerge/deploy後readbackによるclosure待ち。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/acceptance_current_head",
+        "session_ref": "agent:/root/acceptance_current_head@3755029d"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:21:05.487Z"
+    },
+    {
+      "clause_id": "AC-8",
+      "verdict": "demonstrated",
+      "reason": "本番service readbackでmember/internalによるfinance取得はID・typeとも0件、CEO/financeのpositive controlは1件。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/acceptance_current_head",
+        "session_ref": "agent:/root/acceptance_current_head@3755029d"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:21:05.102Z"
+    },
+    {
+      "clause_id": "AC-7",
+      "verdict": "demonstrated",
+      "reason": "限定主張として監査ログ件数は事前14件・transaction内readback 14件・idempotent dry-run 14件で、対象tableは正規化write-set外。行内容の完全不変までは主張していない。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/acceptance_current_head",
+        "session_ref": "agent:/root/acceptance_current_head@3755029d"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:21:04.591Z"
+    },
+    {
+      "clause_id": "AC-6",
+      "verdict": "demonstrated",
+      "reason": "users・auth_grants・RACIの現行人物参照がcanonical IDへ正規化され、旧人物はmerged aliasとして保存されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/acceptance_current_head",
+        "session_ref": "agent:/root/acceptance_current_head@3755029d"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:21:04.268Z"
+    },
+    {
+      "clause_id": "AC-5",
+      "verdict": "demonstrated",
+      "reason": "canonical org payloadからfinanceが除外され、finance情報はCEO人物側のfinance領域に保持されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/acceptance_current_head",
+        "session_ref": "agent:/root/acceptance_current_head@3755029d"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:21:03.951Z"
+    },
+    {
+      "clause_id": "AC-4",
+      "verdict": "demonstrated",
+      "reason": "本番REST/MCPの双方でBAAO Philosophy Contextがactiveかつcoreとして取得できている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/acceptance_current_head",
+        "session_ref": "agent:/root/acceptance_current_head@3755029d"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:21:03.644Z"
+    },
+    {
+      "clause_id": "AC-3",
+      "verdict": "demonstrated",
+      "reason": "本番REST readbackで対象project名がBAAOであることを確認済み。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/acceptance_current_head",
+        "session_ref": "agent:/root/acceptance_current_head@3755029d"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:21:03.338Z"
+    },
+    {
+      "clause_id": "AC-2",
+      "verdict": "demonstrated",
+      "reason": "post-apply dry-runで旧組織IDのbusiness edge・payload参照は0件。残存関係は監査可能なalias_ofに限定されている。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/acceptance_current_head",
+        "session_ref": "agent:/root/acceptance_current_head@3755029d"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:21:03.032Z"
+    },
+    {
+      "clause_id": "AC-1",
+      "verdict": "demonstrated",
+      "reason": "本番REST readbackでbaao/unsonがcanonical active orgとして存在し、旧IDはcanonicalへのaliasとして確認済み。",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "/root/acceptance_current_head",
+        "session_ref": "agent:/root/acceptance_current_head@3755029d"
+      },
+      "head_commit": "3755029d8463a2b47a48c4d9d74e95d99d7c5e0d",
+      "recorded_at": "2026-07-18T17:21:02.760Z"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 id: session.hibernation
 name: Session hibernation
-purpose: Let Brainbase evaluate, manually hibernate, and intentionally resume idle Codex session runtimes while preserving reviewable recovery metadata.
+lifecycle: retired
+purpose: Historical record of Brainbase-owned runtime hibernation. Codex app/CLI now owns process lifecycle.
 surfaces:
   ui:
     - session list runtime memory chips
@@ -27,6 +28,8 @@ depends_on:
   - terminal.transport
   - runtime.launchd
 visibility_rules:
+  - Do not restore this capability. ADR-019 assigns terminal and process lifecycle to Codex app/CLI.
+  - Brainbase session and terminal endpoints return 410 Gone.
   - Runtime inventory is read-only and must not mutate session lifecycle state.
   - Manual hibernation must run eligibility first and explain blockers before any process is stopped.
   - Manual sleep actions must give immediate visible feedback while eligibility is checked and show blocker reasons when rejected.

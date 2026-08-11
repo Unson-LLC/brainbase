@@ -1,0 +1,38 @@
+{
+  "status": "pass",
+  "summary": "At HEAD dff6a12c65ec5062cbb2a477b28da3391e24ca56, candidate reconciliation has regression guards across ingest, retry and block paths, writeback, and Mission Control surfaces.",
+  "inspection_summary": "Inspected the exact diff, Story and architecture SSOT, reconciler, WorkflowService, meeting-source sync, Mission Control UI, traceability, exact-head verification evidence, and focused server tests; 67 of 67 focused tests passed.",
+  "inspection_evidence": ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/verification-evidence.json",
+  "inspection_inputs": [
+    ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/architecture_spec/review-request-regression_risk.md",
+    "git diff origin/develop...HEAD",
+    "docs/stories/story-eve-meeting-candidates-pull-reconciler.md",
+    "docs/architecture/story-eve-meeting-candidates-pull-reconciler.md",
+    ".vibepro/spec/story-eve-meeting-candidates-pull-reconciler/spec.json",
+    "server/services/external-runner/eve-meeting-note-reconciler.js",
+    "server/services/workflow/workflow-service.js",
+    "server/services/meeting-source/meeting-source-mcp-sync-service.js",
+    "public/workflows.html",
+    "tests/server/services/eve-meeting-note-reconciler.test.js",
+    "tests/server/meeting-source-mcp-sync-worker.test.js",
+    "tests/server/routes/meeting-source-settings.test.js",
+    "tests/e2e/story-meeting-source-mcp-sync-worker-contract.spec.ts",
+    "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+    "npm run test:run -- tests/server/services/eve-meeting-note-reconciler.test.js tests/server/meeting-source-mcp-sync-worker.test.js tests/server/routes/meeting-source-settings.test.js"
+  ],
+  "judgment_delta": [
+    "Legacy ingest and output regression risk -> pass because placeholder contracts and pre-fix-failing worker, route, and E2E assertions cover the changed behavior.",
+    "Retry, mismatch, and recovery risk -> pass because note-only closure, active retry, scope mismatch, write failure blocking, and recovery metadata are covered.",
+    "Owner and writeback scope risk -> pass because exact scope and hash matching, People SSOT resolution, ambiguity handling, and approval gating remain enforced.",
+    "Backend and operator surface inconsistency risk -> pass because Mission Control diagnostics are asserted through browser E2E."
+  ],
+  "findings": [],
+  "agent": {
+    "system": "codex",
+    "id": "019f5b3c-857b-76c3-bd3b-9af40514ed01",
+    "model": "gpt-5.4",
+    "reasoning_effort": "high",
+    "closed": true
+  },
+  "head_sha": "dff6a12c65ec5062cbb2a477b28da3391e24ca56"
+}

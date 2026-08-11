@@ -1,0 +1,11 @@
+[Unit]
+Description=Poll OpenRyoko terminal sessions for run receipts
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+Persistent=true
+Unit=openryoko-run-receipt.service
+
+[Install]
+WantedBy=timers.target

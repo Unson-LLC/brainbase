@@ -586,10 +586,7 @@ export function applySessionManagementMixin(AppClass) {
         async loadSessionData(sessionId) {
             try {
                 const startTime = performance.now();
-                await Promise.all([
-                    this.taskService.loadTasks(),
-                    this.scheduleService.loadSchedule()
-                ]);
+                await this.scheduleService.loadSchedule();
                 const duration = performance.now() - startTime;
                 console.log(`[SessionSwitch] Data loaded in ${duration.toFixed(2)}ms`);
 
@@ -671,12 +668,6 @@ export function applySessionManagementMixin(AppClass) {
                     await this.loadSessionData(currentSessionId);
                     this._updateSessionGoalBanner(currentSessionId);
                 } else {
-                    try {
-                        await this.taskService.loadTasks();
-                    } catch (error) {
-                        console.warn('Tasks not available, using empty state:', error.message);
-                    }
-
                     try {
                         await this.scheduleService.loadSchedule();
                     } catch (error) {

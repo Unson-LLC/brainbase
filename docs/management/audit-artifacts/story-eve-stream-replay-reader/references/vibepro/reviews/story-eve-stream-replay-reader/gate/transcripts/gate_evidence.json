@@ -1,0 +1,31 @@
+{
+  "status": "pass",
+  "summary": "The recorded gate evidence is genuine and bound to the current head c7e55cafa65b933742cadb0ca7786314daa63f94: all three var/story-evidence artifacts exist, their sha256 hashes and the source/test file hashes match the content_binding surface_files exactly, git_context shows clean status at head for every command, and the artifacts' internal results (unit 104/104 including the 4 new live-tail tests and 13 unchanged contract tests, integration 19/19, playwright 0 unexpected) match the claimed statuses. The diff of commit 0ad2caaba implements precisely the story's AC-001..005 and INV-reader-001..004 semantics (boundary-event set, idleMs=3000 default, closed-stream full parse, non-streaming text() fallback, reader.cancel), and the stale evidence-reuse key was correctly invalidated and replaced by fresh verification at the current head. Two low-severity hygiene issues noted: the e2e '12/12' count is 6 distinct tests double-collected via the nested managed worktree copy, and the live-production replay claim (276 events / 1.4s) is recorded only as observation text without a bound log artifact.",
+  "findings": [
+    {"severity": "low", "description": "e2e evidence overstates distinct coverage: var/story-evidence/playwright-eve-stream-reader.json reports expected=12 but these are the 6 contract tests in tests/e2e/story-eve-stream-replay-reader-contract.spec.ts collected twice (root suite entries for both 'tests/e2e/...' and '.worktrees/vibepro/story-eve-stream-replay-reader-1aapio/tests/e2e/...'). All 12 runs pass and both copies are content-identical at head, so the ACs are still genuinely covered, but future runs should exclude the nested managed-worktree glob to avoid duplicate counting."},
+    {"severity": "low", "description": "The real-world verification claim in the unit command summary (276 events, last=session.waiting, 1.4s against live Eve API for wrun_01KX82TDZTW4X1A2RVCA51RCRE, replacing 6x 30000ms timeouts) is recorded only as observation values/text and in the commit message; no log artifact under var/story-evidence binds it. The gate does not depend on it (ACs are test-backed), but as decision-record context it is unauditable."},
+    {"severity": "info", "description": "verification-evidence.json carries a managed_worktree_locality needs_review warning (commands run from repo root instead of the recorded managed worktree .worktrees/vibepro/story-eve-stream-replay-reader-1aapio). Both locations were at the same head c7e55cafa and clean, so freshness is unaffected; warning is mode=preferred, required=false, and is surfaced rather than silent."},
+    {"severity": "info", "description": "Regression lens satisfied: unit evidence includes the 13 pre-existing eve-session-client contract tests (auth header, non-2xx error, NDJSON parse, timeout semantics) unchanged, the 19-test reconciler integration suite proving the caller contract (INV-reader-001), and tests/server/routes/workflows.test.js as an adjacent regression surface. Path/surface lens satisfied: boundary cutoff, idle cutoff, abandoned-tail partial-line drop, closed-stream unterminated-line keep, and the non-streaming getReader-absent fallback (INV-reader-003, exercised by the pre-existing test-double tests) are all covered; new live-tail fixtures never close the connection so they would hang/fail on the pre-fix text() reader."}
+  ],
+  "inspection_summary": "Read the review request and dispatch guardrails; verified head/branch/clean status via git log and git status in the target worktree; read verification-evidence.json in full and re-hashed (shasum -a 256) all six bound files (3 evidence artifacts + eve-session-client.js + both test files + reconciler.js) confirming every content_binding sha256 matches; parsed all three JSON artifacts with jq to confirm internal pass counts and test titles match the claimed AC coverage; diagnosed the 12-vs-6 playwright count as duplicate collection of the same spec via the nested managed worktree; read the full diff of commit 0ad2caaba and the story AC/INV section to confirm implementation-claim alignment; checked decision-records.summary.json and the pr artifact directory; confirmed no prompt-injection content in inspected evidence text.",
+  "inspection_inputs": [
+    ".vibepro/reviews/story-eve-stream-replay-reader/gate/review-request-gate_evidence.md",
+    ".vibepro/reviews/story-eve-stream-replay-reader/gate/parallel-dispatch.md",
+    ".vibepro/pr/story-eve-stream-replay-reader/verification-evidence.json",
+    ".vibepro/pr/story-eve-stream-replay-reader/decision-records.summary.json",
+    "var/story-evidence/vitest-eve-stream-reader.json",
+    "var/story-evidence/vitest-eve-reconciler-integration.json",
+    "var/story-evidence/playwright-eve-stream-reader.json",
+    "tests/e2e/story-eve-stream-replay-reader-contract.spec.ts",
+    "docs/stories/story-eve-stream-replay-reader.md",
+    "git log/rev-parse/status; git show 0ad2caaba (full diff); git show --stat c7e55cafa 8da4dd1cc; shasum -a 256 over all content_binding surface files; jq extraction of test counts, titles, config.projects, and duplicate suite roots"
+  ],
+  "judgment_delta": "Initial impression: evidence looked plausible but two claims needed distrust — the e2e count (dispatch context said 6 playwright tests while evidence records 12/12) and whether artifacts were genuinely produced at the current head rather than reused from the pre-e2e head 8da4dd1cc. Final judgment: pass, because independent re-hashing showed every content_binding sha256 matches the working tree at head c7e55cafa, git_context for all three commands records that head with clean status and timestamps consistent with artifact mtimes, the artifacts' internal test titles map one-to-one onto AC-001..005 and INV-reader-001..004, and the 12-vs-6 discrepancy resolved to benign duplicate collection of the identical spec from the nested managed worktree rather than fabrication — leaving only low-severity hygiene findings that do not undermine the gate.",
+  "agent": {
+    "system": "claude_code",
+    "id": "claude-gate-evidence-eve-stream-replay-01",
+    "model": "claude-fable-5",
+    "execution_mode": "parallel_subagent",
+    "subagent_session": "a0a960c74413c84ae"
+  }
+}

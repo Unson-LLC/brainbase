@@ -31,12 +31,30 @@ import {
   type EntityTypeRegistration,
 } from '../indexer/ontology.js';
 
-interface GraphEntity {
+export interface GraphEntity {
   entity_id: string;
   entity_type: string;
   payload: Record<string, unknown>;
   project_code?: string;
   updated_at?: string;
+}
+
+export const GRAPH_ALIAS_TYPES = ['org_alias', 'person_alias'] as const;
+
+export function mergeGraphAliasPointers(canonicalEntities: GraphEntity[], aliasEntities: GraphEntity[]): GraphEntity[] {
+  const canonicalById = new Map(canonicalEntities.map(entity => [entity.entity_id, entity]));
+  for (const alias of aliasEntities) {
+    const canonicalId = alias.payload.canonical_entity_id;
+    const canonicalType = alias.entity_type === 'org_alias' ? 'org' : alias.entity_type === 'person_alias' ? 'person' : null;
+    if (typeof canonicalId !== 'string' || !canonicalType) continue;
+    const canonical = canonicalById.get(canonicalId);
+    if (!canonical || canonical.entity_type !== canonicalType) continue;
+    const existing = Array.isArray(canonical.payload.aliases)
+      ? canonical.payload.aliases.filter((value): value is string => typeof value === 'string')
+      : [];
+    canonical.payload = { ...canonical.payload, aliases: [...new Set([...existing, alias.entity_id])] };
+  }
+  return canonicalEntities;
 }
 
 export interface PhilosophyContextRequest {
@@ -113,7 +131,26 @@ export class GraphAPISource implements EntitySource {
       }
     }
 
-    this.entities = allEntities;
+    const aliasEntities: GraphEntity[] = [];
+    for (const type of GRAPH_ALIAS_TYPES) {
+      const response = await this.fetchWithRetry(`${baseUrl}?type=${type}&limit=500`, token);
+      if (!response.ok) {
+        console.error(`[GraphAPISource] Failed to fetch ${type}: ${response.status}`);
+        continue;
+      }
+      const data = await response.json() as Record<string, unknown>;
+      const records = ((data.entities || data.records || []) as GraphEntity[]).map(r => {
+        const raw = r as unknown as Record<string, unknown>;
+        return {
+          ...r,
+          entity_id: r.entity_id || raw.id as string,
+          entity_type: r.entity_type || type,
+        };
+      });
+      aliasEntities.push(...records);
+    }
+
+    this.entities = mergeGraphAliasPointers(allEntities, aliasEntities);
     console.error(`[GraphAPISource] Loaded ${this.entities.length} entities from Graph API`);
   }
 
@@ -212,6 +249,34 @@ export class GraphAPISource implements EntitySource {
       return [];
     }
     return this.entities.filter(e => e.entity_type === publicType).map(e => this.convertToExtensionEntity(e));
+  }
+
+  async searchExtensionEntities(type: string, query: string, limit = 500): Promise<ExtensionEntity[]> {
+    const publicType = getPublicType(getStorageType(type));
+    if (!EXTENSION_ENTITY_TYPE_SET.has(publicType) || !query.trim()) {
+      return [];
+    }
+    const token = await this.tokenManager.getToken();
+    const params = new URLSearchParams({
+      type: getStorageType(type),
+      query: query.trim(),
+      limit: String(Math.min(Math.max(limit, 1), 500)),
+    });
+    const response = await this.fetchWithRetry(
+      `${this.apiUrl}/api/info/graph/entities?${params.toString()}`,
+      token,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to search ${type} entities: ${response.status}`);
+    }
+    const data = await response.json() as Record<string, unknown>;
+    return ((data.entities || data.records || []) as GraphEntity[])
+      .map(record => ({
+        ...record,
+        entity_id: record.entity_id || (record as unknown as Record<string, unknown>).id as string,
+        entity_type: publicType,
+      }))
+      .map(record => this.convertToExtensionEntity(record));
   }
 
   async getPhilosophyContext(request: PhilosophyContextRequest): Promise<PhilosophyContext> {

@@ -1,57 +1,51 @@
 // @ts-check
 /**
- * SNS Draft Scoring (SPEC-sns-readonly-curator Contract-1)
- * Deterministic（同 input → 同 score）。LLM 呼び出しは含まない。
+ * SNS Public Lifelog Integrity Scoring
+ *
+ * 互換のため関数名は維持する。読者適合・拡散・再利用価値は採点せず、
+ * 本人の一次体験への忠実さと公開上の危険だけを決定的に確認する。
  */
 
-const WEIGHTS = {
-    novelty: 25,
-    decision_value: 20,
-    failure_recovery: 15,
-    evidence_count: 10,
-    audience_fit: 10,
-    reuse_value: 10,
-    flamewar_risk_penalty: -10
-};
+const FIRST_PERSON_EXPERIENCE_PATTERN = /俺|私|自分|うち|今日|昨日|今朝|今夜|やってみ|作った|決めた|迷っ|失敗|止まった|感じた|思い出した|残しておく|まだ答え/u;
+const ADVICE_PATTERN = /すべき|した方がいい|しよう|してください|正解は|最初に見るべき|間違えてる|できてない|みんなはどう|詳しくは|DM(?:ください)?|プロフィール(?:へ|から)|問い合わせ/u;
 
-const FAILURE_RECOVERY_KEYWORDS = ['失敗', '挫折', '直した', '解決', '回復', '学んだ', 'fixed', 'recovered'];
-const FLAMEWAR_KEYWORDS = ['炎上', '叩く', '批判', '攻撃', '罵倒'];
+const WEIGHTS = Object.freeze({
+    source_fidelity: 50,
+    first_person_experience: 30,
+    evidence_present: 20,
+    duplicate_penalty: -30,
+    advice_penalty: -100,
+    privacy_penalty: -100
+});
 
 /**
- * @param {{cognitive_type:string, body:string, derived_from?:Array<string>, sensitivity?:string}} source
- * @param {{interests?:Array<string>}} viewer
- * @param {Array<{body:string}>} history
+ * @param {{body?:string, derived_from?:Array<string>, evidence_ids?:Array<any>, sensitivity?:string}} source
+ * @param {any} _viewer
+ * @param {Array<{body?:string}>} history
  * @returns {{score:number, breakdown:Record<string,number>}}
  */
-export function scoreDraftCandidate(source, viewer, history = []) {
-    const breakdown = {};
-    const body = source.body || '';
+export function scoreDraftCandidate(source, _viewer, history = []) {
+    const body = String(source?.body || '').trim();
+    const evidenceCount = (Array.isArray(source?.derived_from) ? source.derived_from.length : 0)
+        + (Array.isArray(source?.evidence_ids) ? source.evidence_ids.length : 0);
+    const duplicate = body.length > 0 && history.some((item) => String(item?.body || '').trim() === body);
+    const privateSource = ['confidential', 'top-secret'].includes(String(source?.sensitivity || ''));
 
-    // novelty: history 内に body の最初 30 文字が含まれていない場合 +
-    const probe = body.slice(0, 30);
-    const isNovel = !history.some((h) => (h.body || '').includes(probe));
-    breakdown.novelty = isNovel ? WEIGHTS.novelty : 0;
+    const breakdown = {
+        source_fidelity: body && evidenceCount > 0 ? WEIGHTS.source_fidelity : 0,
+        first_person_experience: FIRST_PERSON_EXPERIENCE_PATTERN.test(body)
+            ? WEIGHTS.first_person_experience
+            : 0,
+        evidence_present: evidenceCount > 0 ? WEIGHTS.evidence_present : 0,
+        duplicate_penalty: duplicate ? WEIGHTS.duplicate_penalty : 0,
+        advice_penalty: ADVICE_PATTERN.test(body) ? WEIGHTS.advice_penalty : 0,
+        privacy_penalty: privateSource ? WEIGHTS.privacy_penalty : 0
+    };
 
-    breakdown.decision_value = ['claim', 'decision'].includes(source.cognitive_type) ? WEIGHTS.decision_value : 0;
-
-    breakdown.failure_recovery = FAILURE_RECOVERY_KEYWORDS.some((k) => body.includes(k)) ? WEIGHTS.failure_recovery : 0;
-
-    const evidenceCount = Array.isArray(source.derived_from) ? source.derived_from.length : 0;
-    breakdown.evidence_count = Math.min(evidenceCount, 3) * (WEIGHTS.evidence_count / 3);
-
-    const interests = (viewer && viewer.interests) || [];
-    breakdown.audience_fit = interests.some((kw) => body.includes(kw)) ? WEIGHTS.audience_fit : 0;
-
-    breakdown.reuse_value = source.reuse_count ? Math.min(source.reuse_count, 3) * (WEIGHTS.reuse_value / 3) : 0;
-
-    const flamewarHit = FLAMEWAR_KEYWORDS.some((k) => body.includes(k));
-    breakdown.flamewar_risk_penalty = flamewarHit ? WEIGHTS.flamewar_risk_penalty : 0;
-
-    const sensitivityPenalty = ['confidential', 'top-secret'].includes(source.sensitivity) ? -20 : 0;
-    breakdown.sensitivity_penalty = sensitivityPenalty;
-
-    const score = Object.values(breakdown).reduce((a, b) => a + b, 0);
-    return { score, breakdown };
+    return {
+        score: Object.values(breakdown).reduce((total, value) => total + value, 0),
+        breakdown
+    };
 }
 
 export { WEIGHTS };

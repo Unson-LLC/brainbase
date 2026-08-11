@@ -1,0 +1,104 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-evidence-adjudication-v1",
+  "story_id": "story-brainbase-decision-events-kpi-v1",
+  "updated_at": "2026-07-24T07:12:01.481Z",
+  "verdicts": [
+    {
+      "clause_id": "AC-8",
+      "verdict": "demonstrated",
+      "reason": "Empty and zero-denominator periods never fabricate zero rates; exact HEAD 7fc36e0",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "019f92f4-1f8f-7112-b4ab-d243528e5451",
+        "session_ref": ".vibepro/adjudication/story-brainbase-decision-events-kpi-v1/transcript-adjudication-019f92f4.json"
+      },
+      "head_commit": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+      "recorded_at": "2026-07-24T07:12:01.478Z"
+    },
+    {
+      "clause_id": "AC-7",
+      "verdict": "demonstrated",
+      "reason": "Weekly KPI script implements the specified formulas and fail-closed Slack posting contract; exact HEAD 7fc36e0",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "019f92f4-1f8f-7112-b4ab-d243528e5451",
+        "session_ref": ".vibepro/adjudication/story-brainbase-decision-events-kpi-v1/transcript-adjudication-019f92f4.json"
+      },
+      "head_commit": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+      "recorded_at": "2026-07-24T07:12:01.251Z"
+    },
+    {
+      "clause_id": "AC-6",
+      "verdict": "demonstrated",
+      "reason": "Guarded GET API supports from/to filtering for weekly aggregation and debugging; exact HEAD 7fc36e0",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "019f92f4-1f8f-7112-b4ab-d243528e5451",
+        "session_ref": ".vibepro/adjudication/story-brainbase-decision-events-kpi-v1/transcript-adjudication-019f92f4.json"
+      },
+      "head_commit": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+      "recorded_at": "2026-07-24T07:12:01.006Z"
+    },
+    {
+      "clause_id": "AC-5",
+      "verdict": "demonstrated",
+      "reason": "Monthly authoritative ledgers are atomically replaced, content-hash verified, and corruption fails closed with quarantine and rebuild; exact HEAD 7fc36e0",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "019f92f4-1f8f-7112-b4ab-d243528e5451",
+        "session_ref": ".vibepro/adjudication/story-brainbase-decision-events-kpi-v1/transcript-adjudication-019f92f4.json"
+      },
+      "head_commit": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+      "recorded_at": "2026-07-24T07:12:00.800Z"
+    },
+    {
+      "clause_id": "AC-4",
+      "verdict": "demonstrated",
+      "reason": "Global same-host lock and derived index preserve first-write idempotency across months and processes; exact HEAD 7fc36e0",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "019f92f4-1f8f-7112-b4ab-d243528e5451",
+        "session_ref": ".vibepro/adjudication/story-brainbase-decision-events-kpi-v1/transcript-adjudication-019f92f4.json"
+      },
+      "head_commit": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+      "recorded_at": "2026-07-24T07:12:00.591Z"
+    },
+    {
+      "clause_id": "AC-3",
+      "verdict": "demonstrated",
+      "reason": "Fixed event enum and strict real ISO8601 timestamp validation run before persistence; exact HEAD 7fc36e0",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "019f92f4-1f8f-7112-b4ab-d243528e5451",
+        "session_ref": ".vibepro/adjudication/story-brainbase-decision-events-kpi-v1/transcript-adjudication-019f92f4.json"
+      },
+      "head_commit": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+      "recorded_at": "2026-07-24T07:12:00.351Z"
+    },
+    {
+      "clause_id": "AC-2",
+      "verdict": "demonstrated",
+      "reason": "Existing companion guards protect both routes and reject unauthenticated and non-owner requests; exact HEAD 7fc36e0",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "019f92f4-1f8f-7112-b4ab-d243528e5451",
+        "session_ref": ".vibepro/adjudication/story-brainbase-decision-events-kpi-v1/transcript-adjudication-019f92f4.json"
+      },
+      "head_commit": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+      "recorded_at": "2026-07-24T07:12:00.134Z"
+    },
+    {
+      "clause_id": "AC-1",
+      "verdict": "demonstrated",
+      "reason": "POST/GET routes accept and persist the fixed Mac Companion decision-event contract; exact HEAD 7fc36e0",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "019f92f4-1f8f-7112-b4ab-d243528e5451",
+        "session_ref": ".vibepro/adjudication/story-brainbase-decision-events-kpi-v1/transcript-adjudication-019f92f4.json"
+      },
+      "head_commit": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+      "recorded_at": "2026-07-24T07:11:59.933Z"
+    }
+  ]
+}

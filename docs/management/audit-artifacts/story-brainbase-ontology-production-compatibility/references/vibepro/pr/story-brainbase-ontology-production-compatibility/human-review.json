@@ -1,0 +1,154 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-ontology-production-compatibility",
+  "created_at": "2026-08-02T21:09:23.091Z",
+  "recommended_decision": "split_pr",
+  "recommendation_reason": "Gate DAG is ready_for_review with 0 unresolved evidence item(s). Split Plan is split_recommended with strategy split_by_lane_then_prepare. Scope is needs_clean_branch; recommended strategy is clean_branch_or_split_pr. Scope evidence: 差分が 95 files あり、レビュー可能な目安 30 files を超えている; baseからのcommitが 4 件あるため履歴確認が必要だが、別Story lineageは検出されていない",
+  "accepted_current_story_lineage": [],
+  "source_artifacts": {
+    "review_cockpit": null,
+    "architecture_review": ".vibepro/pr/story-brainbase-ontology-production-compatibility/architecture-review.json",
+    "pr_body": ".vibepro/pr/story-brainbase-ontology-production-compatibility/pr-body.md",
+    "gate_dag": null,
+    "split_plan": ".vibepro/pr/story-brainbase-ontology-production-compatibility/split-plan.json",
+    "decision_records": ".vibepro/pr/story-brainbase-ontology-production-compatibility/decision-records.json",
+    "visual_qa": []
+  },
+  "evidence_summary": {
+    "architecture": {
+      "status": "satisfied",
+      "required": true,
+      "reason": "ADR不要: alternatives considered: 新規ADR作成と既存ADR更新を検討; compatibility impact: 既存Graph表現を互換語彙として受理し公開契約は変更しない; rollback plan: kernelと監査証跡のcommitをrevertして旧判定へ戻す; boundary and scope: ADR-021の既存境界内で構成、データフロー、authority境界を変更しないため追加ADRは不要"
+    },
+    "spec": {
+      "status": "present",
+      "required": true,
+      "reason": "explicit Spec docs are present (docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/spec-drift.md)"
+    },
+    "decision_records": {
+      "total": 16,
+      "open": 0,
+      "by_type": {
+        "waiver": 9,
+        "needs_review": 7
+      },
+      "by_status": {
+        "accepted": 16
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-ontology-audit-delivery",
+          "actual_root": "/private/tmp/brainbase-ontology-audit-delivery",
+          "expected_root": null,
+          "expected_head_sha": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+          "current_head_sha": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+          "managed_worktree": null
+        }
+      ],
+      "latest": {
+        "schema_version": "0.1.0",
+        "decision_id": "decision-1785704442268-d7c6e618",
+        "story_id": "story-brainbase-ontology-production-compatibility",
+        "type": "waiver",
+        "status": "accepted",
+        "source": "gate:judgment_agent_workflow_evidence_lifecycle",
+        "source_status": "needs_evidence",
+        "summary": "current HEAD独立再判定をagent workflow evidenceとして受理する",
+        "reason": "current HEAD 8294af986に対する独立adjudicationと誤判定8件の別agent再レビューを記録済みで、audit replayもreviews 6/6、missing zero。追加role dispatchはpr prepareが要求していない",
+        "reviewer": "佐藤圭吾",
+        "artifact": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+        "verification_evidence_summary": {
+          "count": 0,
+          "entries": []
+        },
+        "budget_approval": null,
+        "secret_exposure": null,
+        "redaction": {
+          "applied": false,
+          "hit_count": 0
+        },
+        "warnings": [
+          {
+            "id": "managed_worktree_locality",
+            "status": "needs_review",
+            "mode": "preferred",
+            "required": false,
+            "command_name": "decision record",
+            "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+            "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+            "repo_root": "/private/tmp/brainbase-ontology-audit-delivery",
+            "actual_root": "/private/tmp/brainbase-ontology-audit-delivery",
+            "expected_root": null,
+            "expected_head_sha": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+            "current_head_sha": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+            "managed_worktree": null
+          }
+        ],
+        "git_context": {
+          "head_sha": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+          "current_branch": "codex/ontology-production-audit-delivery",
+          "dirty": false,
+          "status_fingerprint": "",
+          "recorded_at": "2026-08-02T21:00:42.266Z"
+        },
+        "recorded_at": "2026-08-02T21:00:42.268Z"
+      }
+    },
+    "visual_qa": null,
+    "completion_quality": {
+      "status": "ready_for_human_acceptance",
+      "e2e_experience_reach_rate": null,
+      "final_20_auto_closure_rate": null,
+      "visual_qa_pass_rate": null,
+      "required_evidence_count": 0
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-08-02T21:09:21.869Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.2",
+      "root": "/Users/ksato/.local/share/vibepro-cli"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/share/vibepro-cli/bin/vibepro.js",
+      "runtime_module": "/Users/ksato/.local/share/vibepro-cli/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "37418424323eb8574168ca026f40d7dde93004d5",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "e9826c5176830b6cd8956030a2a20e9eb046c87b",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M src/pr-manager.js",
+        " M src/validation-sequencing.js",
+        " M test/vibepro-cli.test.js"
+      ]
+    }
+  },
+  "decision_options": [
+    "proceed",
+    "split_pr",
+    "add_evidence",
+    "waive_with_reason",
+    "block"
+  ],
+  "review_record": {
+    "selected_decision": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

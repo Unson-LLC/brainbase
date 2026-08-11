@@ -1101,7 +1101,6 @@ export function applySessionCreationMixin(AppClass) {
             this.refreshIntervalId = setInterval(async () => {
                 try {
                     await this.scheduleService.loadSchedule();
-                    await this.taskService.loadTasks();
                     if (this.views.inboxView && this.views.inboxView.loadInbox) {
                         await this.views.inboxView.loadInbox();
                     }

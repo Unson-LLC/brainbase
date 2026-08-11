@@ -2,8 +2,6 @@
 import { describe, it, expect } from 'vitest';
 import { PersonalKnowledgeGraphReader } from '../../../server/services/sns/personal-knowledge-graph-reader.js';
 import { SnsReadonlyCurator } from '../../../server/services/sns/sns-readonly-curator.js';
-import { brainbaseSessionToRawLedger } from '../../../server/services/candidate-store/raw-ledger-adapter.js';
-import { dreamingPass } from '../../../server/services/candidate-store/dreaming-job.js';
 import { makeService, baseDraft, approver } from '../../candidate-store/_helpers.js';
 import { viewer } from '../curator/_helpers.js';
 
@@ -100,54 +98,41 @@ describe('personal KG SNS seed reader', () => {
         expect(sources.map((s) => s.derived_from[0])).toEqual(['session:kg:ok']);
     });
 
-    it('S-3: Raw Ledger personal memory can seed Persona Brain SNS draft candidates', async () => {
+    it('S-3: owner-visible first-person memory can seed a public lifelog candidate', async () => {
         const { service, reader } = makeReader();
-        const records = brainbaseSessionToRawLedger({
-            id: 'sess_personal_kg_sns',
-            owner_person_id: 'sato_keigo',
-            workspace: 'unson',
-            project_code: 'brainbase',
-            ended_at: new Date('2026-05-12T08:00:00.000Z').toISOString(),
-            terminal_text: 'session pointer only',
-            highlights: [
-                '気づいた: AI PMはタスク管理ではなく、責任分界と意思決定ログを設計する仕事'
-            ],
-            permission_snapshot: { roles: ['ceo'], project_membership: true }
-        });
-        const { drafts } = dreamingPass(records, { scope: 'personal', defaultOrgIds: ['unson'] });
-        const sourceDraft = drafts.find((d) => d.cognitive_type === 'insight');
-        await service.createCandidate(sourceDraft);
+        await service.createCandidate(baseDraft({
+            cognitive_type: 'insight',
+            body: '今日はAI PMの責任分界を見直した。自分の判断ログを残すことにした。',
+            source_event_ids: ['session:kg:lifelog'],
+            permission_snapshot: {
+                seed: { category: 'work_log' }
+            }
+        }));
 
         const curator = new SnsReadonlyCurator({
             graphReader: reader,
-            candidateService: service,
-            personaBrainProvider: () => ({
-                target_person: 'AI導入を任された事業責任者',
-                current_situation: 'PMや管理職にAIを使わせたいが現場定着しない',
-                existing_belief: 'AI PMはタスク整理を自動化する役割だと思っている',
-                misunderstanding: '責任分界と意思決定ログを設計しないまま導入できると思っている',
-                fear: '事故が起きた時に誰が判断したのか説明できない',
-                blocker: 'どの業務からAIに渡し、人間がどこで戻るべきか分からない',
-                resonant_detail: '責任分界と意思決定ログ',
-                avoid_phrasing: 'AIがPMを置き換える',
-                natural_next_action: 'AI PM導入前に1つの業務フローを書き出す',
-                success_signal: 'bookmark_or_profile_visit'
-            })
+            candidateService: service
         });
 
         const snsDrafts = await curator.generateDrafts(
-            viewer('sato_keigo', { interests: ['AI PM', '意思決定ログ'] }),
+            viewer('sato_keigo'),
             { limit: 3 }
         );
         const saved = await curator.saveDraftsToCandidateStore(
             snsDrafts,
-            viewer('sato_keigo', { interests: ['AI PM', '意思決定ログ'] })
+            viewer('sato_keigo')
         );
 
         expect(saved).toHaveLength(1);
-        expect(saved[0].candidate.cognitive_type).toBe('claim');
-        expect(saved[0].candidate.source_system).toBe('sns-curator');
+        expect(saved[0].candidate.cognitive_type).toBe('observation');
+        expect(saved[0].candidate.source_system).toBe('sns-lifelog-curator');
         expect(saved[0].candidate.visibility).toBe('owner');
-        expect(saved[0].candidate.permission_snapshot.sns.persona_brain.target_person).toBe('AI導入を任された事業責任者');
+        expect(saved[0].candidate.permission_snapshot.sns).toMatchObject({
+            mode: 'public_lifelog',
+            lifelog_check: {
+                decision: 'pass',
+                first_person_evidence: true
+            }
+        });
     });
 });

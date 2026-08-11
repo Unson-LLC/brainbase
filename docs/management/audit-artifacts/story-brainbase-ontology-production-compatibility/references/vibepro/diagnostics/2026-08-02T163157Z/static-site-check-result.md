@@ -1,0 +1,560 @@
+# 共通スキャン結果
+
+| 項目 | 内容 |
+|------|------|
+| Run ID | 2026-08-02T163157Z |
+| index.html | なし |
+| 走査ファイル | 3473件 |
+| 秘密情報候補 | 38件 (block: 0件, review: 0件, info: 38件) |
+| XSSリスク候補 | 187件 (block: 0件, review: 100件, info: 87件) |
+| 外部リソース | 5件 |
+| 非静的ファイル候補 | 307件 |
+
+## 秘密情報候補
+
+- .claude/scripts/extract-sales-context.ts:20 secret_keyword source_kind=agent_skill confidence=low gate_effect=info `const apiKey = process.env.ANTHROPIC_API_KEY;`
+- .claude/skills/airtable-rate-limit-handling/SKILL.md:110 secret_keyword source_kind=agent_skill confidence=low gate_effect=info `const base = new Airtable({ apiKey: AIRTABLE_API_KEY }).base(this.baseId);`
+- .claude/skills/contacts-to-salestailor/analyze-companies.js:23 secret_keyword source_kind=agent_skill confidence=low gate_effect=info `apiKey: process.env.ANTHROPIC_API_KEY,`
+- .claude/skills/contacts-to-salestailor/enrich-leads.js:21 secret_keyword source_kind=agent_skill confidence=low gate_effect=info `const API_KEY = process.env.SALESTAILOR_API_KEY;`
+- .claude/skills/contacts-to-salestailor/sync-leads.js:19 secret_keyword source_kind=agent_skill confidence=low gate_effect=info `const API_KEY = process.env.SALESTAILOR_API_KEY;`
+- .claude/skills/contacts-to-salestailor/sync.js:40 secret_keyword source_kind=agent_skill confidence=low gate_effect=info `const API_KEY = process.env.SALESTAILOR_API_KEY;`
+- .claude/skills/live-deck-from-urls/SKILL.md:87 secret_keyword source_kind=agent_skill confidence=low gate_effect=info `API_KEY = os.environ['TWITTERAPI_IO_KEY']`
+- .claude/skills/salestailor-company-api/SKILL.md:15 secret_keyword source_kind=agent_skill confidence=low gate_effect=info `API_KEY="st_api_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"`
+- .claude/skills/salestailor-product-api/SKILL.md:15 secret_keyword source_kind=agent_skill confidence=low gate_effect=info `API_KEY="st_api_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"`
+- .claude/skills/salestailor-project-api/SKILL.md:15 secret_keyword source_kind=agent_skill confidence=low gate_effect=info `API_KEY="st_api_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"`
+- .claude/skills/z-ai-api-guide/SKILL.md:112 secret_keyword source_kind=agent_skill confidence=low gate_effect=info `api_key: os.environ/Z_AI_API_KEY`
+- .env.example:5 env_file_value source_kind=example confidence=low gate_effect=info `BRAINBASE_ROOT=/path/to/workspace`
+- .env.example:8 env_file_value source_kind=example confidence=low gate_effect=info `PROJECTS_ROOT=/path/to/workspace/projects`
+- .env.honcho.example:9 env_file_value source_kind=runtime_code confidence=low gate_effect=info `HONCHO_DB_PASSWORD=<password-placeholder>`
+- .env.honcho.example:13 env_file_value source_kind=runtime_code confidence=low gate_effect=info `OPENROUTER_API_KEY=<api-key-placeholder>`
+- mcp/brainbase/src/auth/token-manager.ts:166 secret_keyword source_kind=runtime_code confidence=low gate_effect=info `access_token: accessToken,`
+- mcp/brainbase/tests/auth/token-manager.test.ts:34 secret_keyword source_kind=test confidence=low gate_effect=info `access_token: 'mock-access-token',`
+- mcp/brainbase/tests/auth/token-manager.test.ts:85 secret_keyword source_kind=test confidence=low gate_effect=info `access_token: 'expired-token',`
+- mcp/brainbase/tests/auth/token-manager.test.ts:144 secret_keyword source_kind=test confidence=low gate_effect=info `access_token: 'expired-token',`
+- mcp/brainbase/tests/auth/token-manager.test.ts:310 secret_keyword source_kind=test confidence=low gate_effect=info `access_token: createJwt(nowSeconds - 7200, nowSeconds - 3600),`
+- mcp/jibble/.env.example:2 env_file_value source_kind=example confidence=low gate_effect=info `JIBBLE_CLIENT_ID=your-api-key-id`
+- mcp/jibble/.env.example:3 env_file_value source_kind=example confidence=low gate_effect=info `JIBBLE_CLIENT_SECRET=your-api-secret`
+- public/modules/device/device-auth-controller.js:93 secret_keyword source_kind=runtime_code confidence=low gate_effect=info `const authToken = localStorage.getItem('brainbase.auth.token');`
+- public/modules/device/device-auth-controller.js:98 secret_keyword source_kind=runtime_code confidence=low gate_effect=info `this.authToken = authToken;`
+- scripts/auth-setup.mjs:45 secret_keyword source_kind=runtime_code confidence=low gate_effect=info `access_token: tokens.access_token,`
+- server/controllers/auth-controller.js:248 secret_keyword source_kind=runtime_code confidence=low gate_effect=info `const accessToken = tokenPayload.access_token;`
+- server/controllers/auth-controller.js:355 secret_keyword source_kind=runtime_code confidence=low gate_effect=info `accessToken: payload.token,`
+- server/controllers/auth-controller.js:485 secret_keyword source_kind=runtime_code confidence=low gate_effect=info `const accessToken = tokenPayload.access_token;`
+- tests/candidate-store/invariants/inv-4-pii-block.test.js:9 openai_key_like source_kind=test confidence=low gate_effect=info `body: '俺の好み: OPENAI_API_KEY=sk-1...ghij'`
+- tests/candidate-store/scenarios/s-6-secret-block.test.js:9 openai_key_like source_kind=test confidence=low gate_effect=info `body: 'context: OPENAI_API_KEY=sk-abc...cdef'`
+- tests/e2e/story-ten-minute-world-onboarding-source-inventory-contract.spec.ts:126 secret_keyword source_kind=test confidence=low gate_effect=info `'authToken=opaq...-567',`
+- tests/unit/onboarding-source-inventory.test.js:252 secret_keyword source_kind=test confidence=low gate_effect=info `available_scopes: [{ account_id: 'account-1', folder_id: 'folder-1', metadata: { access_token: 'top-secret-value' } }],`
+- tests/unit/onboarding-source-inventory.test.js:270 secret_keyword source_kind=test confidence=low gate_effect=info `'auth_token=opaq...-345',`
+- tests/unit/onboarding-source-inventory.test.js:271 secret_keyword source_kind=test confidence=low gate_effect=info `'authToken=opaq...-456',`
+- tests/unit/onboarding-source-inventory.test.js:523 secret_keyword source_kind=test confidence=low gate_effect=info `access_token: 'secret-wrapper-value',`
+- tests/unit/onboarding-source-inventory.test.js:539 secret_keyword source_kind=test confidence=low gate_effect=info `input: JSON.stringify({ sources: [readySource()], access_token: 'secret-wrapper-value' }),`
+- tests/unit/onboarding-source-inventory.test.js:555 secret_keyword source_kind=test confidence=low gate_effect=info `access_token: 'secret-wrapper-value',`
+- tests/unit/onboarding-source-inventory.test.js:569 secret_keyword source_kind=test confidence=low gate_effect=info `['access_token=secret-module-value'],`
+
+## XSSリスク候補
+
+- .claude/skills/architecture-patterns/agents/phase2_store_checker.md:103 inner_html_assignment source_kind=agent_skill confidence=low gate_effect=info `document.querySelector('.task-list').innerHTML = html; // ❌`
+- .claude/skills/architecture-patterns/agents/phase2_store_checker.md:174 inner_html_assignment source_kind=agent_skill confidence=low gate_effect=info `- **コード**: `document.querySelector('.task-list').innerHTML = html;``
+- .claude/skills/architecture-patterns/agents/phase2_store_checker.md:179 inner_html_assignment source_kind=agent_skill confidence=low gate_effect=info `document.querySelector('.task-list').innerHTML = html;`
+- .claude/skills/security-patterns/SKILL.md:160 inner_html_assignment source_kind=agent_skill confidence=low gate_effect=info `- **コード**: `element.innerHTML = userInput;``
+- .claude/skills/security-patterns/SKILL.md:165 inner_html_assignment source_kind=agent_skill confidence=low gate_effect=info `element.innerHTML = userInput;`
+- .claude/skills/security-patterns/SKILL.md:172 inner_html_assignment source_kind=agent_skill confidence=low gate_effect=info `element.innerHTML = DOMPurify.sanitize(userInput);`
+- .claude/skills/security-patterns/agents/phase1_xss_checker.md:47 inner_html_assignment source_kind=agent_skill confidence=low gate_effect=info `element.innerHTML = userInput`
+- .claude/skills/security-patterns/agents/phase1_xss_checker.md:68 inner_html_assignment source_kind=agent_skill confidence=low gate_effect=info `element.innerHTML = DOMPurify.sanitize(userInput);`
+- .claude/skills/security-patterns/agents/phase1_xss_checker.md:94 inner_html_assignment source_kind=agent_skill confidence=low gate_effect=info `- **コード**: `element.innerHTML = userInput;``
+- docs/architecture/PROPOSED_ARCHITECTURE.md:793 inner_html_assignment source_kind=docs confidence=low gate_effect=info `this.container.innerHTML = newHTML;`
+- docs/design/prototypes/meeting-workflow-pack/support.js:421 inner_html_assignment source_kind=docs confidence=low gate_effect=info `tpl.innerHTML = encodeCase(html);`
+- docs/design/prototypes/meeting-workflow-pack/support.js:688 new_function source_kind=docs confidence=low gate_effect=info `const fn = new Function(`
+- docs/design/prototypes/meeting-workflow-pack/support.js:1026 new_function source_kind=docs confidence=low gate_effect=info `new Function("React", "module", "exports", "require", code)(`
+- docs/internal/AGENTS.md:663 inner_html_assignment source_kind=docs confidence=low gate_effect=info `element.innerHTML = DOMPurify.sanitize(userInput);`
+- docs/internal/AGENTS.md:666 inner_html_assignment source_kind=docs confidence=low gate_effect=info `element.innerHTML = userInput; // ❌ XSS脆弱性`
+- docs/plans/REFACTORING_PLAN.md:98 inner_html_assignment source_kind=docs confidence=low gate_effect=info `sessionList.innerHTML = ''; // DOM全削除`
+- docs/plans/REFACTORING_PLAN.md:780 inner_html_assignment source_kind=docs confidence=low gate_effect=info `this.container.innerHTML = ``
+- docs/projects/aitm/dashboard-implementation-prompt.md:417 inner_html_assignment source_kind=docs confidence=low gate_effect=info `card.innerHTML = ``
+- docs/specs/settings-phase0-guards-spec.md:56 inner_html_assignment source_kind=docs confidence=low gate_effect=info `container.innerHTML = `<button>${label}</button>`;`
+- public/modules/app/mobile-navigation-mixin.js:91 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `mobileTasksContent.innerHTML = tasksTabContent.innerHTML;`
+- public/modules/app/session-creation-mixin.js:72 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `projectSelect.innerHTML = '';`
+- public/modules/app/terminal-input-ux-mixin.js:813 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `el.innerHTML = ansiToHtml(snapshot.colorText);`
+- public/modules/app/ui-setup-mixin.js:371 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `banner.innerHTML = ``
+- public/modules/app/ui-setup-mixin.js:418 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `banner.innerHTML = ``
+- public/modules/app/ui-setup-mixin.js:653 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `projectSelect.innerHTML = '';`
+- public/modules/components/donut-chart.js:20 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = '';`
+- public/modules/components/gauge-chart.js:19 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = '';`
+- public/modules/components/line-chart.js:33 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = '';`
+- public/modules/components/project-card.js:92 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `card.innerHTML = ``
+- public/modules/confirm-modal.js:111 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `confirmTitle.innerHTML = '';`
+- public/modules/confirm-modal.js:182 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `confirmTitle.innerHTML = '';`
+- public/modules/device/device-auth-controller.js:130 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.verifyBtn.innerHTML = '<span class="spinner"></span> 確認中...';`
+- public/modules/device/device-auth-controller.js:188 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.approveBtn.innerHTML = '<span class="spinner"></span> 承認中...';`
+- public/modules/device/device-auth-controller.js:226 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.denyBtn.innerHTML = '<span class="spinner"></span> 拒否中...';`
+- public/modules/iframe-contextmenu-handler.js:377 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `overlay.innerHTML = '';`
+- public/modules/iframe-contextmenu-handler.js:399 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `overlay.innerHTML = '';`
+- public/modules/settings/settings-core.js:95 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = this._renderOverviewHTML(settingsIntegrity, settingsUnified, settingsManaStats, settingsHealth);`
+- public/modules/settings/settings-core.js:115 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = this._renderProjectsHTML(projects);`
+- public/modules/settings/settings-core.js:134 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = this._renderOrganizationsHTML(settingsOrganizations || []);`
+- public/modules/settings/settings-core.js:171 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = this._renderIntegrationsHTML(settingsIntegrations, preferences, settingsIntegrationProjects);`
+- public/modules/settings/settings-core.js:225 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = this._renderNotificationsHTML(notifications);`
+- public/modules/settings/settings-core.js:266 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `panelsContainer.innerHTML = '';`
+- public/modules/settings/settings-core.js:2017 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `previewResult.innerHTML = ``
+- public/modules/settings/settings-core.js:2124 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `workspacesContainer.innerHTML = '<div class="config-empty">Slack configuration not found</div>';`
+- public/modules/settings/settings-core.js:2125 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `channelsContainer.innerHTML = '<div class="config-empty">Slack configuration not found</div>';`
+- public/modules/settings/settings-core.js:2126 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `membersContainer.innerHTML = '<div class="config-empty">Slack configuration not found</div>';`
+- public/modules/settings/settings-core.js:2160 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = '<div class="config-empty">No workspaces found</div>';`
+- public/modules/settings/settings-core.js:2169 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = Object.entries(workspaces).map(([key, ws]) => ``
+- public/modules/settings/settings-core.js:2190 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `workspaceFilter.innerHTML = '<option value="">All Workspaces</option>' +`
+- public/modules/settings/settings-core.js:2201 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = '<div class="config-empty">No channels found</div>';`
+- public/modules/settings/settings-core.js:2216 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = ``
+- public/modules/settings/settings-core.js:2246 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = '<div class="config-empty">No members found</div>';`
+- public/modules/settings/settings-core.js:2258 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = ``
+- public/modules/settings/settings-ui.js:57 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `modalBody.innerHTML = ``
+- public/modules/settings/settings-ui.js:134 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.tabsContainer.innerHTML = tabs`
+- public/modules/ui/choice-overlay-controller.js:102 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `elements.container.innerHTML = '';`
+- public/modules/ui/choice-overlay-controller.js:120 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = '';`
+- public/modules/ui/mobile-input-sheet-manager.js:42 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `clipboardList.innerHTML = '';`
+- public/modules/ui/mobile-input-sheet-manager.js:97 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `snippetList.innerHTML = '';`
+- public/modules/ui/mobile-input-sheet-manager.js:146 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `actionList.innerHTML = '';`
+- public/modules/ui/mobile-tab-controller.js:142 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `el.innerHTML = ``
+- public/modules/ui/mobile-tab-controller.js:230 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `el.innerHTML = tasksContent.innerHTML;`
+- public/modules/ui/mobile-tab-controller.js:243 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `el.innerHTML = '';`
+- public/modules/ui/modals/archive-modal.js:74 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `projectFilterEl.innerHTML = '<option value="">すべてのプロジェクト</option>';`
+- public/modules/ui/modals/archive-modal.js:92 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `archiveListEl.innerHTML = '';`
+- public/modules/ui/modals/archive-modal.js:105 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `archiveListEl.innerHTML = sortedSessions.map(session => {`
+- public/modules/ui/modals/health-alert-modal.js:36 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `wrapper.innerHTML = ``
+- public/modules/ui/modals/project-details-modal.js:46 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `if (graphContainer) graphContainer.innerHTML = '';`
+- public/modules/ui/modals/project-details-modal.js:95 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = '';`
+- public/modules/ui/modals/project-details-modal.js:121 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `list.innerHTML = '';`
+- public/modules/ui/modals/project-details-modal.js:146 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `list.innerHTML = '';`
+- public/modules/ui/modals/task-add-modal.js:180 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `projectInput.innerHTML = '';`
+- public/modules/ui/views/base-view.js:35 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = '';`
+- public/modules/ui/views/commit-tree-view.js:145 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = `<div class="commit-tree-content">`
+- public/modules/ui/views/commit-tree-view.js:153 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = `<div class="commit-tree-empty">${escapeHtml(msg)}</div>`;`
+- public/modules/ui/views/file-viewer-view.js:42 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = '<div class="file-viewer-empty">ターミナルやTreeからファイルを選択してね</div>';`
+- public/modules/ui/views/file-viewer-view.js:128 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = ``
+- public/modules/ui/views/file-viewer-view.js:216 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `diagram.innerHTML = this._sanitizeMermaidSvg(svg);`
+- public/modules/ui/views/file-viewer-view.js:221 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `diagram.innerHTML = `<pre class="file-viewer-mermaid-source"><code>${escapeHtml(source)}</code></pre>`;`
+- public/modules/ui/views/folder-tree-view.js:436 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = '<div class="empty-state">セッションを選択してね</div>';`
+- public/modules/ui/views/folder-tree-view.js:443 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = '<div class="empty-state">セッションが見つからないよ</div>';`
+- public/modules/ui/views/folder-tree-view.js:492 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `container.innerHTML = ``
+- public/modules/ui/views/inbox-view.js:119 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.inboxListEl.innerHTML = '<div class="inbox-empty">通知はありません</div>';`
+- public/modules/ui/views/inbox-view.js:207 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.inboxListEl.innerHTML = sections.join('');`
+- public/modules/ui/views/lead-console-view.js:117 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.root.innerHTML = ``
+- public/modules/ui/views/live-feed-view.js:202 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `list.innerHTML = this._renderGroups(this._filterEntries(entries));`
+- public/modules/ui/views/live-feed-view.js:224 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this._container.innerHTML = `<div class="live-feed-container${scopeClass}"${surfacePadding}>`
+- public/modules/ui/views/live-feed-view.js:272 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `if (this._container) this._container.innerHTML = '';`
+- public/modules/ui/views/nocodb-tasks-view.js:101 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `projectFilter.innerHTML = '<option value="">全プロジェクト</option>';`
+- public/modules/ui/views/nocodb-tasks-view.js:135 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `assigneeFilter.innerHTML = ``
+- public/modules/ui/views/nocodb-tasks-view.js:216 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = ``
+- public/modules/ui/views/nocodb-tasks-view.js:230 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = ``
+- public/modules/ui/views/nocodb-tasks-view.js:270 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = ``
+- public/modules/ui/views/nocodb-tasks-view.js:280 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = tasks.map(task => this._renderTaskItem(task)).join('');`
+- public/modules/ui/views/nocodb-tasks-view.js:291 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = ``
+- public/modules/ui/views/portal-overlay-view.js:51 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = ``
+- public/modules/ui/views/portal-overlay-view.js:322 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `optionsRoot.innerHTML = projects.length`
+- public/modules/ui/views/portal-view.js:29 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = ``
+- public/modules/ui/views/timeline-list-view.js:28 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = this._generateHTML(items);`
+- public/modules/ui/views/timeline-view.js:65 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this.container.innerHTML = this._formatTimelineHTML(events, currentTime);`
+- public/modules/ui/views/timeline-view.js:323 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `googleBtn.innerHTML = '<i data-lucide="calendar"></i>';`
+- public/modules/ui/views/timeline-view.js:327 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `diagnostics.innerHTML = this._showGoogleCalendarDiagnostics`
+- public/modules/ui/views/wiki-view.js:191 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `this._container.innerHTML = `<div class="wiki-idx">`
+- public/modules/ui/views/wiki-view.js:299 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `overlay.innerHTML = ``
+- public/modules/ui/views/wiki-view.js:340 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `body.innerHTML = '<div class="wiki-reader-loading">読み込み中...</div>';`
+- public/modules/ui/views/wiki-view.js:347 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `breadcrumb.innerHTML = this._renderBreadcrumb(page.path, page.title);`
+- public/modules/ui/views/wiki-view.js:348 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `body.innerHTML = `<div class="wiki-reader-content">${this._renderMarkdown(page.content)}</div>`;`
+- public/modules/ui/views/wiki-view.js:350 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `body.innerHTML = '<div class="wiki-reader-loading">ページが見つかりません</div>';`
+- public/modules/ui/views/wiki-view.js:353 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `body.innerHTML = '<div class="wiki-reader-loading">読み込みエラー</div>';`
+- public/modules/ui/views/wiki-view.js:389 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `if (this._container) this._container.innerHTML = '';`
+- scripts/vibepro-component-style-check.mjs:77 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `list.innerHTML = ``
+- scripts/vibepro-component-style-check.mjs:148 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `list.innerHTML = ``
+- scripts/vibepro-component-style-check.mjs:193 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `panel.innerHTML = ``
+- scripts/vibepro-component-style-check.mjs:229 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `panel.innerHTML = ``
+- scripts/vibepro-component-style-check.mjs:314 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `panel.innerHTML = ``
+- scripts/vibepro-component-style-check.mjs:565 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `panel.innerHTML = ``
+- scripts/vibepro-component-style-check.mjs:589 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `panel.innerHTML = previousPanelHtml;`
+- scripts/vibepro-component-style-check.mjs:598 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `list.innerHTML = ``
+- scripts/vibepro-component-style-check.mjs:620 inner_html_assignment source_kind=runtime_code confidence=medium gate_effect=review `list.innerHTML = previousHtml;`
+- tests/core/plugin-manager.test.js:11 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = '';`
+- tests/core/plugin-manager.test.js:28 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/core/plugin-manager.test.js:66 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = '<div data-slot="view:dashboard"></div>';`
+- tests/core/plugin-manager.test.js:99 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = '<div data-slot="view:dashboard"></div>';`
+- tests/core/plugin-manager.test.js:126 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = '<div data-slot="nav:inbox"></div>';`
+- tests/e2e/mobile-pwa-layout.spec.js:24 inner_html_assignment source_kind=test confidence=low gate_effect=info `stack.innerHTML = ``
+- tests/e2e/story-terminal-input-render-stability.spec.js:129 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/public/modules/components/donut-chart.test.js:217 inner_html_assignment source_kind=test confidence=low gate_effect=info `container.innerHTML = '<div>Old content</div>';`
+- tests/public/modules/components/gauge-chart.test.js:165 inner_html_assignment source_kind=test confidence=low gate_effect=info `container.innerHTML = '<div>Old content</div>';`
+- tests/public/modules/mobile-input-controller.test.js:18 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/public/modules/mobile-input-controller.test.js:79 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/public/modules/mobile-input-controller.test.js:155 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/public/modules/mobile-input-controller.test.js:249 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/public/modules/mobile-input-controller.test.js:508 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/public/modules/mobile-keyboard.test.js:9 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/modals/archive-modal.test.js:34 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/modals/focus-engine-modal.test.js:11 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/modals/learning-candidate-modal.test.js:12 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = '';`
+- tests/ui/modals/project-details-modal.test.js:13 inner_html_assignment source_kind=test confidence=low gate_effect=info `container.innerHTML = '<canvas class="mock-chart"></canvas>';`
+- tests/ui/modals/task-add-modal.test.js:7 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/modals/task-edit-modal.test.js:11 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/modals/timeline-item-modal.test.js:12 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/nocodb-filters.test.js:6 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/panel-resize.test.js:15 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:21 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:54 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:89 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:125 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:165 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:200 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:229 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:306 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:392 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:437 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:480 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:553 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:637 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:701 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:840 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-creation-mixin.test.js:911 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/session-view-toggle.test.js:33 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/sidebar-primary-toggle.test.js:33 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/task-tabs.test.js:10 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/view-navigation.test.js:7 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/views/file-viewer-view.test.js:18 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = '<div id="test-container"></div>';`
+- tests/ui/views/folder-tree-view.test.js:12 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = '<div id="test-container"></div>';`
+- tests/ui/views/inbox-view.test.js:26 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/views/nocodb-tasks-view.test.js:15 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = '';`
+- tests/ui/views/portal-overlay-view.test.js:10 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/ui/views/timeline-list-view.test.js:35 inner_html_assignment source_kind=test confidence=low gate_effect=info `container.innerHTML = '';`
+- tests/ui/views/timeline-view.test.js:37 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/unit/confirm-modal.test.js:5 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/unit/dashboard-controller.test.js:7 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/unit/file-upload-readonly.test.js:9 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = '';`
+- tests/unit/file-upload-readonly.test.js:13 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/unit/file-upload-readonly.test.js:68 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/unit/file-upload-readonly.test.js:101 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/unit/session-management-hibernation.test.js:8 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = '';`
+- tests/unit/settings.test.js:127 inner_html_assignment source_kind=test confidence=low gate_effect=info `container.innerHTML = expectedHtml;`
+- tests/unit/settings.test.js:145 inner_html_assignment source_kind=test confidence=low gate_effect=info `container.innerHTML = emptyHtml;`
+- tests/unit/settings.test.js:167 inner_html_assignment source_kind=test confidence=low gate_effect=info `container.innerHTML = ``
+- tests/unit/terminal-display-mixin.test.js:31 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/unit/terminal-display-mixin.test.js:65 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/unit/terminal-surface-invariant.test.js:35 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/unit/terminal-transport-client.test.js:361 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = ``
+- tests/unit/terminal-transport-client.test.js:1452 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = '';`
+- tests/unit/terminal-transport-client.test.js:1470 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = '';`
+- tests/unit/terminal-transport-client.test.js:1488 inner_html_assignment source_kind=test confidence=low gate_effect=info `document.body.innerHTML = '';`
+
+## 外部リソース
+
+- docs/design/prototypes/meeting-workflow-pack/meeting-workflow-pack.dc.html:11 link https://fonts.googleapis.com
+- docs/design/prototypes/meeting-workflow-pack/meeting-workflow-pack.dc.html:12 link https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap
+- docs/projects/aitm/dashboard-implementation-prompt.md:329 script https://unpkg.com/recharts@2.5.0/dist/Recharts.js
+- docs/projects/aitm/dashboard-implementation-prompt.md:330 script https://unpkg.com/react@18/umd/react.production.min.js
+- docs/projects/aitm/dashboard-implementation-prompt.md:331 script https://unpkg.com/react-dom@18/umd/react-dom.production.min.js
+
+## 非静的ファイル候補
+
+- .claude/force-test-execution ((none))
+- .claude/hooks/session-start-copy-plugins.sh (.sh)
+- .claude/hooks/session-start-copy-plugins.sh.sample (.sample)
+- .claude/scheduled_tasks.lock (.lock)
+- .claude/scripts/audit/classify.ts (.ts)
+- .claude/scripts/audit/graph-ssot-audit.ts (.ts)
+- .claude/scripts/cli/generate-verification-report.ts (.ts)
+- .claude/scripts/cli/requirement-completion-check.ts (.ts)
+- .claude/scripts/cli/test-execution-dashboard.ts (.ts)
+- .claude/scripts/cli/validate-serena-hook.ts (.ts)
+- .claude/scripts/core/enforcement/read-tool-warning.ts (.ts)
+- .claude/scripts/core/enforcement/serena-mcp-enforcer.ts (.ts)
+- .claude/scripts/core/git/change-analyzer.ts (.ts)
+- .claude/scripts/core/git/commit-validator.ts (.ts)
+- .claude/scripts/core/git/pr-validator.ts (.ts)
+- .claude/scripts/core/monitoring/compact-monitor.ts (.ts)
+- .claude/scripts/core/monitoring/idle-completion-detector.ts (.ts)
+- .claude/scripts/core/monitoring/interrupt-detector.ts (.ts)
+- .claude/scripts/core/monitoring/post-tool-monitor.ts (.ts)
+- .claude/scripts/core/monitoring/verification-tracker.ts (.ts)
+- .claude/scripts/core/quality/completeness-checker.ts (.ts)
+- .claude/scripts/core/quality/design-principle-checker.ts (.ts)
+- .claude/scripts/core/quality/edit-validator.ts (.ts)
+- .claude/scripts/core/quality/eslint-enforcer.ts (.ts)
+- .claude/scripts/core/quality/file-verifier.ts (.ts)
+- .claude/scripts/core/quality/technical-engineer-verifier.ts (.ts)
+- .claude/scripts/core/quality/type-checker.ts (.ts)
+- .claude/scripts/core/testing/auto-executor.ts (.ts)
+- .claude/scripts/core/testing/error-fixer.ts (.ts)
+- .claude/scripts/core/testing/execution-verifier.ts (.ts)
+- .claude/scripts/core/testing/flow-test-generator.ts (.ts)
+- .claude/scripts/core/testing/test-enforcement-manager.ts (.ts)
+- .claude/scripts/core/verification/acceptance-criteria.ts (.ts)
+- .claude/scripts/core/verification/fact-checker.ts (.ts)
+- .claude/scripts/core/verification/implementation-verifier.ts (.ts)
+- .claude/scripts/core/verification/mandatory-verifier.ts (.ts)
+- .claude/scripts/core/verification/requirement-checker.ts (.ts)
+- .claude/scripts/core/verification/verification-enforcer.ts (.ts)
+- .claude/scripts/dev-server-worktree.sh (.sh)
+- .claude/scripts/extract-all-pdfs.ts (.ts)
+- .claude/scripts/extract-pdf-japanese.ts (.ts)
+- .claude/scripts/extract-pdf-text.cjs (.cjs)
+- .claude/scripts/extract-pdf-text.ts (.ts)
+- .claude/scripts/extract-pdf-with-pdfjs.ts (.ts)
+- .claude/scripts/extract-sales-context.ts (.ts)
+- .claude/scripts/hooks/enforce-nocodb-lookup.ts (.ts)
+- .claude/scripts/hooks/notification/idle-completion-notifier.ts (.ts)
+- .claude/scripts/hooks/post-tool-use/edit-validator.ts (.ts)
+- .claude/scripts/hooks/post-tool-use/git-notification-wrapper.ts (.ts)
+- .claude/scripts/hooks/post-tool-use/interrupt-detector.ts (.ts)
+- .claude/scripts/hooks/post-tool-use/read-tool-warning-wrapper.ts (.ts)
+- .claude/scripts/hooks/post-tool-use/requirement-checker-wrapper.ts (.ts)
+- .claude/scripts/hooks/post-tool-use/verification-tracker-wrapper.ts (.ts)
+- .claude/scripts/hooks/pre-tool-use/edit-comprehensive-validator.ts (.ts)
+- .claude/scripts/hooks/pre-tool-use/enforce-verification.ts (.ts)
+- .claude/scripts/hooks/pre-tool-use/file-verification.ts (.ts)
+- .claude/scripts/hooks/pre-tool-use/forbidden-commands-wrapper.ts (.ts)
+- .claude/scripts/hooks/pre-tool-use/git-push-gate.ts (.ts)
+- .claude/scripts/hooks/pre-tool-use/serena-enforcement-wrapper.ts (.ts)
+- .claude/scripts/hooks/pre-tool-use/technical-engineer-enforcer.ts (.ts)
+- .claude/scripts/hooks/session-start/inject-memory-preamble.ts (.ts)
+- .claude/scripts/hooks/stop/completion-notifier-wrapper.ts (.ts)
+- .claude/scripts/hooks/stop/git-commit-guard.ts (.ts)
+- .claude/scripts/hooks/stop/push-guard.ts (.ts)
+- .claude/scripts/hooks/user-prompt-submit/context-loader-wrapper.ts (.ts)
+- .claude/scripts/hooks/user-prompt-submit/env-section-injector-wrapper.ts (.ts)
+- .claude/scripts/hooks/user-prompt-submit/test-enforcer.ts (.ts)
+- .claude/scripts/lib/config/context-loader.ts (.ts)
+- .claude/scripts/lib/config/env-section-injector.ts (.ts)
+- .claude/scripts/lib/config/validate-settings.ts (.ts)
+- .claude/scripts/lib/file-system/forbidden-commands.ts (.ts)
+- .claude/scripts/lib/file-system/unicode-validation.ts (.ts)
+- .claude/scripts/lib/flow-analysis/detection-output-manager.ts (.ts)
+- .claude/scripts/lib/flow-analysis/flow-detector.ts (.ts)
+- .claude/scripts/lib/flow-analysis/flow-tracer.ts (.ts)
+- .claude/scripts/lib/logging/hook-logger.ts (.ts)
+- .claude/scripts/lib/notification/notifier.ts (.ts)
+- .claude/scripts/lib/notification/quick-notify.ts (.ts)
+- .claude/scripts/run-hook.sh (.sh)
+- .claude/scripts/stop-dev-server.sh (.sh)
+- .claude/scripts/test/test-classify.ts (.ts)
+- .claude/scripts/test/test-post-tool-use-hooks.ts (.ts)
+- .claude/scripts/test/test-pre-tool-use-hooks.ts (.ts)
+- .claude/settings.json.sample (.sample)
+- .claude/skills/agent-teams-validator/validate.sh (.sh)
+- .claude/skills/remotion-video-builder/agents/openai.yaml (.yaml)
+- .claude/skills/x-research-skill/data/.gitkeep ((none))
+- .claude/skills/x-research-skill/data/cache/.gitkeep ((none))
+- .claude/skills/x-research-skill/lib/api.ts (.ts)
+- .claude/skills/x-research-skill/lib/cache.ts (.ts)
+- .claude/skills/x-research-skill/lib/format.ts (.ts)
+- .claude/skills/x-research-skill/x-search.ts (.ts)
+- .codex/config.toml (.toml)
+- .env.example (.example)
+- .env.honcho.example (.example)
+- .git ((none))
+- .github/actions/run-receipt-reporter/action.yml (.yml)
+- .github/workflows/daily-snapshot.yml (.yml)
+- .github/workflows/daily-story-alerts.yml (.yml)
+- .github/workflows/security-check.yml (.yml)
+- .github/workflows/vibepro-graph-ssot.yml (.yml)
+- .github/workflows/vibepro-graphify-impact.yml (.yml)
+- .github/workflows/vibepro-score-run.yml (.yml)
+- .github/workflows/weekly-story-progress.yml (.yml)
+- .husky/pre-push ((none))
+- LICENSE ((none))
+- config/com.brainbase.cleanup.plist (.plist)
+- config/com.brainbase.learning.plist (.plist)
+- config/com.brainbase.mcp-brainbase.plist (.plist)
+- config/com.brainbase.mcp-jibble.plist (.plist)
+- config/com.brainbase.mcp-nocodb.plist (.plist)
+- config/com.brainbase.mcp-slack-salestailor.plist (.plist)
+- config/com.brainbase.mcp-slack-techknight.plist (.plist)
+- config/com.brainbase.mcp-slack-unson.plist (.plist)
+- config/com.brainbase.sns-feedback-metrics-poller.plist (.plist)
+- config/com.brainbase.sns-scheduled-publisher.plist (.plist)
+- config/config.sample.yml (.yml)
+- config/docker-compose.honcho.yml (.yml)
+- config/ecosystem.config.cjs (.cjs)
+- config/tmux/scripts/fzf-path-copy.sh (.sh)
+- config/tmux/scripts/fzf-url-copy.sh (.sh)
+- config/tmux/scripts/remove-newlines-copy.sh (.sh)
+- docs/brainbase-capabilities/capabilities/auth.grants.yml (.yml)
+- docs/brainbase-capabilities/capabilities/automation.run-core.yml (.yml)
+- docs/brainbase-capabilities/capabilities/code.reading.yml (.yml)
+- docs/brainbase-capabilities/capabilities/codex.app-server.yml (.yml)
+- docs/brainbase-capabilities/capabilities/development.workflow.yml (.yml)
+- docs/brainbase-capabilities/capabilities/git.protected-push.yml (.yml)
+- docs/brainbase-capabilities/capabilities/graph.ssot.yml (.yml)
+- docs/brainbase-capabilities/capabilities/meeting.automation.yml (.yml)
+- docs/brainbase-capabilities/capabilities/onboarding.connected-world.yml (.yml)
+- docs/brainbase-capabilities/capabilities/personal-kg.yml (.yml)
+- docs/brainbase-capabilities/capabilities/project.catalog.yml (.yml)
+- docs/brainbase-capabilities/capabilities/project.selector.yml (.yml)
+- docs/brainbase-capabilities/capabilities/requirements.coverage.yml (.yml)
+- docs/brainbase-capabilities/capabilities/requirements.nocodb.yml (.yml)
+- docs/brainbase-capabilities/capabilities/run-receipt.inbox.yml (.yml)
+- docs/brainbase-capabilities/capabilities/runtime.launchd.yml (.yml)
+- docs/brainbase-capabilities/capabilities/secrets.infisical.yml (.yml)
+- docs/brainbase-capabilities/capabilities/session.create.yml (.yml)
+- docs/brainbase-capabilities/capabilities/session.hibernation.yml (.yml)
+- docs/brainbase-capabilities/capabilities/terminal.transport.yml (.yml)
+- docs/brainbase-capabilities/capabilities/verification.testing.yml (.yml)
+- docs/brainbase-capabilities/capabilities/vibepro.impact-review.yml (.yml)
+- docs/brainbase-capabilities/capabilities/vibepro.skills-usage.yml (.yml)
+- docs/brainbase-capabilities/capabilities/workflow.mission-control.yml (.yml)
+- docs/management/audit-artifacts/story-brainbase-decision-events-kpi-v1/audit-replay-bundle.json.gz (.gz)
+- docs/management/audit-artifacts/story-eve-dispatch-handoff-transcript-context/audit-replay-bundle.json.gz (.gz)
+- docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz (.gz)
+- docs/management/audit-artifacts/story-eve-meeting-candidates-pull-reconciler/audit-replay-bundle.json.gz (.gz)
+- docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz (.gz)
+- docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/transcripts/regression_risk-cc01-reverify.jsonl (.jsonl)
+- docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/transcripts/gate_evidence-cc01.jsonl (.jsonl)
+- docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/transcripts/release_risk-cc01.jsonl (.jsonl)
+- docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/transcripts/runtime_contract-cc01.jsonl (.jsonl)
+- docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/transcripts/ux_completion-cc01.jsonl (.jsonl)
+- docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/transcripts/human_usability-cc01.jsonl (.jsonl)
+- docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/transcripts/network_runtime-cc01.jsonl (.jsonl)
+- docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/transcripts/e2e_ux-cc01-reverify.jsonl (.jsonl)
+- docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/transcripts/gate_coverage-cc01-reverify.jsonl (.jsonl)
+- docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz (.gz)
+- docs/management/audit-artifacts/story-graph-data-ssot-normalization/audit-replay-bundle.json.gz (.gz)
+- docs/management/audit-artifacts/story-graph-data-ssot-normalization/references/vibepro/evidence/story-graph-data-ssot-normalization/mcp-graphapi-tests-current-head.tap (.tap)
+- docs/management/audit-artifacts/story-meeting-pack-graph-ssot-playbook/audit-replay-bundle.json.gz (.gz)
+- docs/management/audit-artifacts/story-meeting-source-mcp-sync-worker/audit-replay-bundle.json.gz (.gz)
+- docs/management/audit-artifacts/story-meeting-source-runtime-sync-policy/audit-replay-bundle.json.gz (.gz)
+- docs/management/audit-artifacts/story-meeting-task-owner-ssot-resolution/audit-replay-bundle.json.gz (.gz)
+- docs/management/audit-artifacts/story-playwright-worktree-discovery-boundary/audit-replay-bundle.json.gz (.gz)
+- docs/management/audit-artifacts/story-worktree-service-git-migration/audit-replay-bundle.json.gz (.gz)
+- e2e/str-brainbase-sns-ohayo-dedupe-generation-cli.spec.ts (.ts)
+- mcp/brainbase/src/auth/token-manager.ts (.ts)
+- mcp/brainbase/src/config.ts (.ts)
+- mcp/brainbase/src/index.ts (.ts)
+- mcp/brainbase/src/indexer/frontmatter.ts (.ts)
+- mcp/brainbase/src/indexer/index.ts (.ts)
+- mcp/brainbase/src/indexer/ontology.ts (.ts)
+- mcp/brainbase/src/indexer/table.ts (.ts)
+- mcp/brainbase/src/indexer/types.ts (.ts)
+- mcp/brainbase/src/server.ts (.ts)
+- mcp/brainbase/src/sources/entity-source.ts (.ts)
+- mcp/brainbase/src/sources/filesystem-source.ts (.ts)
+- mcp/brainbase/src/sources/graphapi-source.ts (.ts)
+- mcp/brainbase/src/sources/hybrid-source.ts (.ts)
+- mcp/brainbase/src/tools/control-plane-tools.ts (.ts)
+- mcp/brainbase/src/tools/mesh-tools.ts (.ts)
+- mcp/brainbase/src/tools/task-tools.ts (.ts)
+- mcp/brainbase/src/tools/wiki-search.ts (.ts)
+- mcp/brainbase/tests/auth/token-manager.test.ts (.ts)
+- mcp/brainbase/tests/config/config.test.ts (.ts)
+- mcp/brainbase/tests/sources/filesystem-source.test.ts (.ts)
+- mcp/brainbase/tests/sources/graphapi-source.test.ts (.ts)
+- mcp/brainbase/tests/tools/control-plane-tools.test.ts (.ts)
+- mcp/brainbase/tests/tools/core-ontology.test.ts (.ts)
+- mcp/brainbase/tests/tools/entity-resolver.test.ts (.ts)
+- mcp/brainbase/tests/tools/search-wiki-filter.test.ts (.ts)
+- mcp/brainbase/tests/tools/server-core-ontology.test.ts (.ts)
+- mcp/brainbase/tests/tools/task-tools.test.ts (.ts)
+- mcp/jibble/.env.example (.example)
+- mcp/jibble/src/auth.ts (.ts)
+- mcp/jibble/src/client.ts (.ts)
+- mcp/jibble/src/index.ts (.ts)
+- mcp/nocodb/src/canonical-task-write-guard.ts (.ts)
+- mcp/nocodb/src/index.ts (.ts)
+- mcp/nocodb/src/nocodb-client.ts (.ts)
+- relay/Dockerfile ((none))
+- scripts/auto-cleanup-cron.sh (.sh)
+- scripts/check-secrets.sh (.sh)
+- scripts/check-slack-mcp-health.sh (.sh)
+- scripts/check-worktree.sh (.sh)
+- scripts/cleanup-old-sessions.sh (.sh)
+- scripts/codex-capability-map-reminder.sh (.sh)
+- scripts/codex-hooks/inject-memory-preamble.sh (.sh)
+- scripts/codex-hooks-pre-tool-use-protected-push.sh (.sh)
+- scripts/codex-hooks-reminder.sh (.sh)
+- scripts/commit-history-to-develop.cjs (.cjs)
+- scripts/deploy-honcho.sh (.sh)
+- scripts/import_members_to_db.py (.py)
+- scripts/infisical-target-run.sh (.sh)
+- scripts/info-ssot-apply.sh (.sh)
+- scripts/install-pre-commit-hook.sh (.sh)
+- scripts/lib/infisical-target.sh (.sh)
+- scripts/migrate_contacts_to_graph.py (.py)
+- scripts/openryoko/bootstrap-instance.sh (.sh)
+- scripts/openryoko/check-pilot-health.sh (.sh)
+- scripts/openryoko/configure-runtime.sh (.sh)
+- scripts/openryoko/install-run-receipt.sh (.sh)
+- scripts/openryoko/templates/claude-wrapper.sh (.sh)
+- scripts/openryoko/templates/environment.conf (.conf)
+- scripts/openryoko/templates/openryoko-pilot-health.service (.service)
+- scripts/openryoko/templates/openryoko-pilot-health.timer (.timer)
+- scripts/openryoko/templates/openryoko-run-receipt.service (.service)
+- scripts/openryoko/templates/openryoko-run-receipt.timer (.timer)
+- scripts/openryoko/templates/openryoko.service (.service)
+- scripts/ops-team-review.cjs (.cjs)
+- scripts/reconcile-brainbase-mcp-runtime.sh (.sh)
+- scripts/reorganize-wiki.sh (.sh)
+- scripts/run-brainbase-mcp.sh (.sh)
+- scripts/run-nocodb-mcp.sh (.sh)
+- scripts/run-slack-mcp.sh (.sh)
+- scripts/session-runtime/hibernation-api-smoke.sh (.sh)
+- scripts/setup.sh (.sh)
+- scripts/tmux-login.sh (.sh)
+- scripts/update-pr-status.cjs (.cjs)
+- server/sql/candidate-store-schema.sql (.sql)
+- server/sql/canonical-task-operation-schema.sql (.sql)
+- server/sql/canonical-task-store-schema.sql (.sql)
+- server/sql/info-ssot-rls.sql (.sql)
+- server/sql/info-ssot-schema.sql (.sql)
+- server/sql/integration-accounts-schema.sql (.sql)
+- server/sql/learning-schema.sql (.sql)
+- server/sql/permission-schema.sql (.sql)
+- server/sql/sns-posting-ledger-schema.sql (.sql)
+- server/sql/wiki-schema.sql (.sql)
+- setup.sh (.sh)
+- tests/e2e/oyasumi-conversation-personal-kg-cli.spec.ts (.ts)
+- tests/e2e/story-active-indicator-claude-heartbeat-revival-report-activity.spec.ts (.ts)
+- tests/e2e/story-active-indicator-claude-toolless-staleness-report-activity.spec.ts (.ts)
+- tests/e2e/story-active-indicator-pane-spinner-unchanged-drop-report-activity.spec.ts (.ts)
+- tests/e2e/story-brainbase-agent-report-approval-inbox-contract.spec.ts (.ts)
+- tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts (.ts)
+- tests/e2e/story-brainbase-mcp-core-ontology-contract.spec.ts (.ts)
+- tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts (.ts)
+- tests/e2e/story-canonical-task-idempotency-backfill-cli.spec.ts (.ts)
+- tests/e2e/story-canonical-task-postgres-ssot-contract.spec.ts (.ts)
+- tests/e2e/story-codex-app-server-adapter-contract.spec.ts (.ts)
+- tests/e2e/story-codex-appserver-thread-session-foundation-contract.spec.ts (.ts)
+- tests/e2e/story-companion-canonical-task-provider-contract.spec.ts (.ts)
+- tests/e2e/story-companion-reply-draft-api-contract.spec.ts (.ts)
+- tests/e2e/story-control-mode-stdout-oncost.spec.ts (.ts)
+- tests/e2e/story-eve-dispatch-handoff-transcript-context-contract.spec.ts (.ts)
+- tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (.ts)
+- tests/e2e/story-eve-meeting-note-pull-reconciler-contract.spec.ts (.ts)
+- tests/e2e/story-eve-stream-replay-reader-contract.spec.ts (.ts)
+- tests/e2e/story-external-runner-adapter-contract-v0-contract.spec.ts (.ts)
+- tests/e2e/story-graph-data-ssot-normalization-contract.spec.ts (.ts)
+- tests/e2e/story-graph-entity-resolver-contract.spec.ts (.ts)
+- tests/e2e/story-inline-session-creation-pr-gate.spec.ts (.ts)
+- tests/e2e/story-inline-session-creation-ux.spec.ts (.ts)
+- tests/e2e/story-live-feed-activity-timeline-stability.spec.ts (.ts)
+- tests/e2e/story-live-feed-agent-activity-history.spec.ts (.ts)
+- tests/e2e/story-local-data-server-ssot-migration-cli.spec.ts (.ts)
+- tests/e2e/story-local-ssot-additive-upsert-cli.spec.ts (.ts)
+- tests/e2e/story-local-ssot-root-priority-cli.spec.ts (.ts)
+- tests/e2e/story-loop-pack-design-gate-v0-contract.spec.ts (.ts)
+- tests/e2e/story-meeting-pack-graph-ssot-playbook-contract.spec.ts (.ts)
+- tests/e2e/story-meeting-source-brainbase-note-generation-contract.spec.ts (.ts)
+- tests/e2e/story-meeting-source-integration-catalog-contract.spec.ts (.ts)
+- tests/e2e/story-meeting-source-mcp-sync-worker-contract.spec.ts (.ts)
+- tests/e2e/story-meeting-source-runtime-sync-policy-contract.spec.ts (.ts)
+- tests/e2e/story-meeting-workflow-calendar-input-v1-contract.spec.ts (.ts)
+- tests/e2e/story-oyasumi-sns-feedback-metrics-gate-cli.spec.ts (.ts)
+- tests/e2e/story-personal-kg-extraction-backlog-cli.spec.ts (.ts)
+- tests/e2e/story-personal-kg-review-projection-cli.spec.ts (.ts)
+- tests/e2e/story-personal-kg-tokenized-search-contract.spec.ts (.ts)
+- tests/e2e/story-playwright-worktree-discovery-boundary-collector.spec.ts (.ts)
+- tests/e2e/story-ten-minute-world-onboarding-source-inventory-contract.spec.ts (.ts)
+- tests/e2e/story-terminal-input-render-stability-canary.spec.ts (.ts)
+- tests/e2e/story-waiting-indicator-sticky-until-response-contract.spec.ts (.ts)
+- tests/e2e/str-008-ttyd-stderr-log-level.spec.ts (.ts)
+- tests/e2e/str-009-ps-inventory-maxbuffer.spec.ts (.ts)
+- tests/e2e/str-010-reconciler-xterm-transport-aware.spec.ts (.ts)
+- tests/e2e/str-011-xterm-only-mode-gate.spec.ts (.ts)
+- tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts (.ts)
+- tests/fixtures/local-ssot-upsert/home/.codex/history.jsonl (.jsonl)
+- tests/fixtures/run-receipt/github-actions-reporter-step.yml (.yml)
+- tests/unit/test_migrate_contacts_to_graph.py (.py)
+- var/.gitkeep ((none))

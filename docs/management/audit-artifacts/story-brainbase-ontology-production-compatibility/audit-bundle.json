@@ -1,0 +1,553 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-ontology-production-compatibility",
+  "source": "execute_merge",
+  "promoted_at": "2026-08-02T21:09:46.093Z",
+  "canonical_dir": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility",
+  "source_workspace_dir": ".vibepro",
+  "audit_index_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-index.json",
+  "decision_summary_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-summary.md",
+  "artifact_policy": {
+    "scope": "compact_manifest_only",
+    "evidence_depth": "standard",
+    "compacted": true,
+    "persisted_for_main_audit": true,
+    "why_compacted": [],
+    "excludes": [
+      "duplicated decision index body",
+      "duplicated cost summary body",
+      "full PR lifecycle JSON",
+      "full review lifecycle JSON",
+      "HTML reports",
+      "raw logs",
+      "dispatch scratch artifacts",
+      "temporary execution state"
+    ]
+  },
+  "evidence_depth": "standard",
+  "cost_summary_ref": {
+    "source": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-index.json",
+    "pointer": "/cost_summary"
+  },
+  "automation_value_audit_ref": {
+    "source": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-index.json",
+    "pointer": "/automation_value_audit"
+  },
+  "replay_bundle": {
+    "schema_version": "0.1.0",
+    "path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-replay-bundle.json.gz",
+    "compression": "gzip",
+    "media_type": "application/json",
+    "content_hash": "sha256:0643287e7e37470f934f194428be793925f3c8ed3b5c6f6a7408d0f9a065f6a3",
+    "compressed_hash": "sha256:d90d38ee534cce926dcbfa6142a1a653313d1bc70b1019cb1df2997ddafb92ee",
+    "expanded_bytes": 12513,
+    "compressed_bytes": 2800,
+    "expanded_line_count": 337,
+    "persisted_line_count": 1,
+    "included_artifact_kinds": [
+      "decision_index",
+      "decision_outcome_ledger",
+      "evidence_plan",
+      "evidence_reuse",
+      "pr_create",
+      "pr_merge",
+      "pr_prepare",
+      "senior_gap_judgment",
+      "traceability"
+    ],
+    "replay_command": "vibepro audit replay . --story-id story-brainbase-ontology-production-compatibility",
+    "cost": {
+      "compressed_bytes": 2800,
+      "expanded_bytes": 12513,
+      "expanded_line_count": 337,
+      "persisted_line_count": 1
+    }
+  },
+  "merge": {
+    "status": "merged",
+    "base": "develop",
+    "delivery": {
+      "status": "merged",
+      "source": "github_pr",
+      "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1113",
+      "merge_commit_sha": "9cf1aae74199e37afe800e307fd0e73bb11a3b12",
+      "merged_at": "2026-08-02T21:09:37Z"
+    },
+    "reconciliation": {
+      "status": "reconciled",
+      "reasons": [],
+      "evaluated_at": "2026-08-02T21:09:46.087Z",
+      "head_sha": "8294af986e3ca23b9d9f16696d8def9ce0dc591a"
+    },
+    "decision_outcome_binding": {
+      "status": "bound",
+      "reason": "all_local_decision_outcomes_bound_to_canonical_ledger",
+      "expected_entry_count": 9,
+      "promoted_count": 9,
+      "duplicate_count": 0,
+      "persistence_status": null
+    },
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1113",
+    "merge_commit_sha": "9cf1aae74199e37afe800e307fd0e73bb11a3b12",
+    "merged_at": "2026-08-02T21:09:37Z",
+    "current_head_sha": "8294af986e3ca23b9d9f16696d8def9ce0dc591a",
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...8294af986e3ca23b9d9f16696d8def9ce0dc591a"
+  },
+  "handoff_replay_status": "blocked",
+  "handoff_replay": {
+    "status": "blocked",
+    "resolved_reference_count": 30,
+    "copied_reference_count": 21,
+    "unresolved_reference_count": 7,
+    "replay_bundle": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-replay-bundle.json.gz",
+    "replay_command": "vibepro audit replay . --story-id story-brainbase-ontology-production-compatibility"
+  },
+  "artifacts": [
+    {
+      "kind": "audit_index",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-index.json"
+    },
+    {
+      "kind": "decision_summary",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-summary.md"
+    },
+    {
+      "kind": "compressed_replay_bundle",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-replay-bundle.json.gz",
+      "compression": "gzip",
+      "content_hash": "sha256:0643287e7e37470f934f194428be793925f3c8ed3b5c6f6a7408d0f9a065f6a3"
+    }
+  ],
+  "raw_artifact_manifest": [
+    {
+      "kind": "evidence_reuse",
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-reuse.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-replay-bundle.json.gz",
+      "digest": "sha256:812f5633e9a66445d2a1530d09f8a89ac1557ce2b821727fceebde743b7e7bdd",
+      "audit_digest": "sha256:812f5633e9a66445d2a1530d09f8a89ac1557ce2b821727fceebde743b7e7bdd",
+      "line_count": 966,
+      "raw_line_count": 966,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "decision_outcome_ledger",
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/decision-outcome-ledger.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-replay-bundle.json.gz",
+      "digest": "sha256:93aef49c929cbf9e4d4bcb8f6ce78a82e245d08bd2c2a5d23473d81fbbdbbbb7",
+      "audit_digest": "sha256:93aef49c929cbf9e4d4bcb8f6ce78a82e245d08bd2c2a5d23473d81fbbdbbbb7",
+      "line_count": 1109,
+      "raw_line_count": 1109,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "pr_prepare",
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/pr-prepare.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-replay-bundle.json.gz",
+      "digest": "sha256:5ff57847be194ff48e7b29a35496f9330df4ef8b1a1c76366a66e91819e82c2e",
+      "audit_digest": "sha256:e7e1fb7e2659c6bc0968a96c0efc9853c78689a4d290f92d1183c4e60546dbc8",
+      "line_count": 4710,
+      "raw_line_count": 24634,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_prepare.diagnostics.progress_snapshots",
+        "pr_prepare.pr_context.full_gate_dag",
+        "pr_prepare.pr_context.design_ssot_full_registry_inventory",
+        "pr_prepare.pr_context.inactive_judgment_axis_details",
+        "pr_prepare.duplicated_child_artifacts",
+        "design_ssot.unregistered_docs_full_inventory",
+        "design_ssot.registered_docs_full_inventory",
+        "responsibility_authority.full_registry_entries",
+        "requirement_consistency.verbose_code_scenarios",
+        "engineering_judgment.inactive_axis_details",
+        "engineering_judgment.verbose_matched_evidence",
+        "senior_gap_judgment.verbose_supporting_context",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "pr_create",
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/pr-create.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-replay-bundle.json.gz",
+      "digest": "sha256:b719bb6ecbaa6b8ca0cda5004878260a932ad19504e64cdeb0d782867ad88a29",
+      "audit_digest": "sha256:014b328a1b17ccdcbdddc55ac0dde17746a515670d64a8b360406516768be2d1",
+      "line_count": 2163,
+      "raw_line_count": 3265,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "senior_gap_judgment",
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/senior-gap-judgment.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-replay-bundle.json.gz",
+      "digest": "sha256:dc2a1d1916dd3b372c9ab1f2c3f5a0f5a9130c77c828886f9e519e0be2a7ef98",
+      "audit_digest": "sha256:2c6d65ce72f8335791b605506881d08dc988118de319f8793286433b83f9479d",
+      "line_count": 46,
+      "raw_line_count": 691,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "senior_gap_judgment.verbose_supporting_context"
+      ]
+    },
+    {
+      "kind": "pr_merge",
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/pr-merge.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-replay-bundle.json.gz",
+      "digest": "sha256:4765167a084201a4d6d9a8821247a2f7a2a192e94b11f9d77a254235be5ae4b2",
+      "audit_digest": "sha256:1c38ab49f36e26cbe2460255812cf7980149413430c9c2bd61a294c5e539ccbe",
+      "line_count": 2190,
+      "raw_line_count": 3717,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects",
+        "pr_merge.canonical_audit",
+        "pr_merge.roi_ledger_promotion"
+      ]
+    },
+    {
+      "kind": "traceability",
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/traceability.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-replay-bundle.json.gz",
+      "digest": "sha256:e85921b6e2ba57a928b1866e63339e49d888cebdc9d0d9f7594d8d6ba95e0818",
+      "audit_digest": "sha256:e85921b6e2ba57a928b1866e63339e49d888cebdc9d0d9f7594d8d6ba95e0818",
+      "line_count": 47,
+      "raw_line_count": 47,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "evidence_plan",
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-plan.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-replay-bundle.json.gz",
+      "digest": "sha256:7d0dd8997742b81f27954d6803e537060a0a03e9524b7b2ebea0acfea5968a74",
+      "audit_digest": "sha256:7d0dd8997742b81f27954d6803e537060a0a03e9524b7b2ebea0acfea5968a74",
+      "line_count": 1043,
+      "raw_line_count": 1043,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "decision_index",
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/decision-index.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-replay-bundle.json.gz",
+      "digest": "sha256:866e227b4f1c6c5aa6090f2cb47dd2d77f7a297fd648c5cf16969b79cd9c8a43",
+      "audit_digest": "sha256:866e227b4f1c6c5aa6090f2cb47dd2d77f7a297fd648c5cf16969b79cd9c8a43",
+      "line_count": 1053,
+      "raw_line_count": 1053,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    }
+  ],
+  "missing_artifacts": [
+    {
+      "kind": "verification_evidence",
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/verification-evidence.json"
+    }
+  ],
+  "resolved_references": [
+    {
+      "source": ".vibepro/adjudication/story-brainbase-ontology-production-compatibility/judgment-adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/adjudication/story-brainbase-ontology-production-compatibility/judgment-adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/config.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/config.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/judgment-axis-noise-precedents.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/judgment-axis-noise-precedents.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/pr/decision-index.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/decision-index.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/decision-index.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/decision-outcome-ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/pr/decision-outcome-ledger.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/decision-records.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/decision-records.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/pr/evidence-plan.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-plan.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-plan.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-reuse.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/pr/evidence-reuse.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-reuse.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-reuse.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/pr-create.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/pr/pr-create.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/pr-merge.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/pr/pr-merge.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/pr-prepare.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/pr/pr-prepare.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/ref-topology.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/ref-topology.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/ref-topology.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/ref-topology.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/senior-gap-judgment.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/pr/senior-gap-judgment.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/split-plan.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/split-plan.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/traceability.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/pr/traceability.json",
+      "resolution": "canonical_artifact"
+    }
+  ],
+  "copied_references": [
+    {
+      "source": ".vibepro/adjudication/story-brainbase-ontology-production-compatibility/judgment-adjudication.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/adjudication/story-brainbase-ontology-production-compatibility/judgment-adjudication.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/config.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/config.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/judgment-axis-noise-precedents.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/judgment-axis-noise-precedents.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/decision-index.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/decision-index.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/decision-records.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/decision-records.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-plan.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-plan.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-reuse.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-reuse.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/ref-topology.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/ref-topology.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/ref-topology.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/ref-topology.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-brainbase-ontology-production-compatibility/split-plan.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/split-plan.summary.json",
+      "resolution": "copied_reference"
+    }
+  ],
+  "unresolved_references": [
+    {
+      "source": ".vibepro/adjudication/story-brainbase-ontology-production-compatibility/adjudication.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/artifacts/worktree-service-git-migration-e2e-vitest.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/graphify/graph.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/surface-violations.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-brainbase-ontology-production-compatibility/ia-flow-map.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-brainbase-ontology-production-compatibility/responsive-a11y-matrix.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/validation-sequencing/story-brainbase-ontology-production-compatibility/state.json",
+      "reason": "source_missing"
+    }
+  ]
+}

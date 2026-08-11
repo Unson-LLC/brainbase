@@ -1,0 +1,107 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "architecture_spec",
+  "role": "regression_risk",
+  "status": "pass",
+  "summary": "The delta fixes runtime failure misclassification and makes candidate writeback atomic without changing successful-path contracts; no regression-risk blocker found.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Reviewed exact dff6a12c65ec..0bd95a664 delta, all changed files, regression-risk request, and HEAD-bound verification and CI evidence.",
+    "evidence": ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/verification-evidence.json",
+    "inputs": [
+      "git diff dff6a12c65ec..0bd95a664169cea98c6377c73dfb3d67fb84e89f",
+      "server/services/external-runner/eve-meeting-note-reconciler.js",
+      "server/services/workflow/workflow-service.js",
+      "tests/server/services/eve-meeting-note-reconciler.test.js"
+    ]
+  },
+  "judgment_delta": [
+    "Downstream write errors could be mislabeled as stream failures -> resolved by tagging only readSessionStream failures and recording other exceptions as reconcile_runtime_failed.",
+    "Transaction wrapping could alter success contracts -> resolved because payload construction, audit fields, and return shape remain unchanged.",
+    "Mid-write failure could leave mixed outputs -> resolved by transaction-scoped output and audit writes plus rollback coverage."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "expected_root": null,
+    "expected_head_sha": "0bd95a664169cea98c6377c73dfb3d67fb84e89f",
+    "current_head_sha": "0bd95a664169cea98c6377c73dfb3d67fb84e89f",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "expected_root": null,
+      "expected_head_sha": "0bd95a664169cea98c6377c73dfb3d67fb84e89f",
+      "current_head_sha": "0bd95a664169cea98c6377c73dfb3d67fb84e89f",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-13T12:36:59.725Z",
+  "git_context": {
+    "head_sha": "0bd95a664169cea98c6377c73dfb3d67fb84e89f",
+    "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-13T12:36:59.720Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "0bd95a664169cea98c6377c73dfb3d67fb84e89f",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "3c2ec34c9c58d13933ebb7437574f39f59d233378c1df7909a46588739518b2f",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f5b77-0698-7c82-9a2c-4f8c52ae7eac",
+    "agent_role": null,
+    "model": "gpt-5.4",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/qa/meeting-candidates/review-architecture_spec-regression_risk-pass-0bd95a664.json",
+    "request_artifact": ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/architecture_spec/review-request-regression_risk.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/qa/meeting-candidates/review-architecture_spec-regression_risk-pass-0bd95a664.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

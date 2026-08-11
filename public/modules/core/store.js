@@ -183,6 +183,15 @@ export const appStore = new Store({
     tasks: [],
     schedule: null,
     inbox: [],
+    runReceiptInbox: {
+        status: 'idle',
+        items: [],
+        count: 0,
+        has_more: false,
+        omitted_count: 0,
+        error: null,
+        filters: {}
+    },
     testMode: false, // テストモード（読み取り専用）
     filters: {
         taskFilter: '',

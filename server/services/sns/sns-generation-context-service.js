@@ -2,7 +2,7 @@
 
 const DEFAULT_OWNER_PERSON_ID = 'sato_keigo';
 const WINNING_STATUSES = new Set(['posted', 'learning_ready']);
-const GROUPS = ['by_lane', 'by_source_type', 'by_format', 'by_persona_affect', 'by_algorithm_fit'];
+const GROUPS = ['by_lane', 'by_source_type', 'by_format', 'by_lifelog_integrity'];
 const DEDUPE_STATUSES = new Set([
     'review_needed',
     'approved',
@@ -84,14 +84,10 @@ function groupKey(post, group) {
     if (group === 'by_lane') return post.lane || 'unknown';
     if (group === 'by_source_type') return post.source?.type || 'unknown';
     if (group === 'by_format') return post.format || 'unknown';
-    if (group === 'by_persona_affect') {
-        return post.evidence?.quality_gate?.persona_affect?.decision
+    if (group === 'by_lifelog_integrity') {
+        return post.evidence?.lifelog_check?.decision
+            || post.evidence?.quality_gate?.lifelog_integrity?.decision
             || post.evidence?.quality_gate?.decision
-            || 'unknown';
-    }
-    if (group === 'by_algorithm_fit') {
-        return post.evidence?.algorithm_fit?.candidate_source
-            || post.evidence?.algorithm_fit?.decision
             || 'unknown';
     }
     return 'unknown';
@@ -181,34 +177,31 @@ function linesAfterHeading(text, heading) {
         .filter(Boolean);
 }
 
-function extractStrategy(strategyText = '', contentPillarsText = '') {
-    const toneGuard = linesAfterHeading(strategyText, 'Tone Guard');
-    const distributionLayers = linesAfterHeading(strategyText, 'Distribution Layers');
-    const pillars = String(contentPillarsText)
-        .split('\n')
-        .map((line) => line.replace(/^\s*[-*]\s*/u, '').trim())
-        .filter((line) => line && !line.startsWith('#'))
-        .slice(0, 12);
+function extractStrategy(strategyText = '', _contentPillarsText = '') {
+    const toneGuard = linesAfterHeading(strategyText, '投稿の約束');
+    const distributionLayers = linesAfterHeading(strategyText, '記録の棚');
     return {
-        weekly_mix_target: {
-            peer_circle: 0.3,
-            trust_balance: 0.25,
-            own_proof: 0.2,
-            philosophy: 0.15,
-            learn_in_public: 0.05,
-            cta: 0.05
-        },
+        mode: 'public_lifelog',
+        weekly_mix_target: null,
         tone_guard: toneGuard.length > 0 ? toneGuard : [
-            '読者に運用都合を見せない',
-            'AI投稿自動化感を出さない',
-            '英語で書く必要がある語だけ英語にする'
+            '自分が実際に経験したことだけを書く',
+            '読者へ助言・指導・説得をしない',
+            'CTAや投稿ノルマを置かない'
         ],
         distribution_layers: distributionLayers.length > 0 ? distributionLayers : [
-            'Peer Circle',
-            'Amplifier Quote',
-            'Own Proof'
+            '今日のログ',
+            '仕事の記録',
+            '暮らしの記録',
+            '思い出',
+            '未解決'
         ],
-        content_pillars: pillars
+        content_pillars: [
+            '今日、実際にあったこと',
+            '仕事で手を動かした記録',
+            '暮らしの記録',
+            'あとで思い出したいこと',
+            'まだ答えのないこと'
+        ]
     };
 }
 
@@ -255,6 +248,23 @@ function compactBody(candidate, max = 180) {
     return `${body.slice(0, max - 1).trim()}…`;
 }
 
+const LIFELOG_CATEGORIES = new Set([
+    'daily_log',
+    'work_log',
+    'life_log',
+    'memory',
+    'unresolved',
+    'proof'
+]);
+
+const FIRST_PERSON_EXPERIENCE_PATTERN = /俺|私|自分|うち|今日|昨日|今朝|今夜|やってみ|作った|決めた|迷っ|失敗|止まった|感じた|思い出した|残しておく|まだ答え/u;
+
+function isLifelogCandidate(candidate) {
+    const category = seedCategory(candidate);
+    if (!LIFELOG_CATEGORIES.has(category)) return false;
+    return FIRST_PERSON_EXPERIENCE_PATTERN.test(String(candidate.body || ''));
+}
+
 function sourceSummary(candidates) {
     const counts = new Map();
     for (const candidate of candidates) {
@@ -266,121 +276,69 @@ function sourceSummary(candidates) {
         .sort((a, b) => b.count - a.count || a.source_system.localeCompare(b.source_system));
 }
 
-function personalKgPriority(candidate) {
-    if (candidate.source_system === 'oyasumi-meeting-personal-kg') return 2;
-    if (candidate.source_system === 'sns-feedback') return 1;
-    return 0;
-}
-
-function personalKgAnchorCandidates(candidates) {
-    const categories = new Set(['philosophy', 'operating_principle', 'content_design', 'sales_philosophy']);
-    return candidates
-        .filter((candidate) => categories.has(seedCategory(candidate)))
-        .filter((candidate) => ['claim', 'insight', 'preference', 'hypothesis'].includes(candidate.cognitive_type))
-        .sort((a, b) => {
-            const priorityDelta = personalKgPriority(b) - personalKgPriority(a);
-            if (priorityDelta !== 0) return priorityDelta;
-            return Number(b.confidence || 0) - Number(a.confidence || 0);
-        })
-        .map((candidate) => compactBody(candidate));
-}
-
-function personalKgProofCandidates(candidates) {
-    return candidates
-        .filter((candidate) => {
-            const category = seedCategory(candidate);
-            const body = String(candidate.body || '');
-            return category === 'proof'
-                || candidate.cognitive_type === 'result'
-                || /^Own Proof:/u.test(body)
-                || /実績|会議時間|受注|PR #/u.test(body);
-        })
-        .sort((a, b) => Number(b.confidence || 0) - Number(a.confidence || 0))
-        .map((candidate) => compactBody(candidate, 220));
-}
-
 function buildPersonalKgContext(candidates = [], { totalCandidateCount = candidates.length } = {}) {
-    const snsCandidates = candidates.filter((candidate) => candidate.source_system === 'sns-feedback');
     const ownerVisibleCandidates = candidates.filter((candidate) => candidate.visibility === 'owner');
-    const anchorCandidates = personalKgAnchorCandidates(ownerVisibleCandidates);
-    const proofCandidates = personalKgProofCandidates(ownerVisibleCandidates);
+    const lifelogEntries = ownerVisibleCandidates
+        .filter(isLifelogCandidate)
+        .sort((a, b) => String(b.created_at || b.updated_at || '').localeCompare(String(a.created_at || a.updated_at || '')))
+        .map((candidate) => ({
+            id: candidate.id,
+            body: compactBody(candidate, 280),
+            source_system: candidate.source_system || 'candidate_store',
+            category: seedCategory(candidate),
+            occurred_at: candidate.created_at || candidate.updated_at || null,
+            evidence_ids: candidate.evidence_ids || []
+        }))
+        .slice(0, 8);
     return {
         memory_count: ownerVisibleCandidates.length,
         guarded_count: Math.max(0, totalCandidateCount - ownerVisibleCandidates.length),
-        retrieval_purpose: 'sns_generation',
+        retrieval_purpose: 'public_lifelog_generation',
+        generation_rule: 'first_person_sources_only',
         candidate_sources: sourceSummary(ownerVisibleCandidates),
-        anchors: [...new Set([
-            ...anchorCandidates,
-            'Claude Code / Codexは小技ではなく、権限・レビュー境界・記憶の設計で会社導入する',
-            'SNS投稿生成より、読者理解を個人KGへ戻して次の仮説に使うことが本体'
-        ])].slice(0, 10),
-        proof_points: [...new Set([
-            ...proofCandidates,
-            ...snsCandidates
-                .map((candidate) => compactBody(candidate, 220))
-                .filter((body) => /保存|bookmark|反応|engagement|権限|レビュー/u.test(body))
-        ])].slice(0, 8),
-        persona_misunderstandings: [
-            '良いAIツールを選べば導入が進むと思っている',
-            'AI活用を個人スキルや投稿生成の問題として捉えている'
-        ],
+        lifelog_entries: lifelogEntries,
+        anchors: [],
+        proof_points: [],
+        persona_misunderstandings: [],
         avoid_exposures: [
-            '少し上の人に絡む',
-            '相手の読者に入る',
-            'APIで投稿',
-            '自動投稿'
+            'advice_or_instruction',
+            'reader_correction_or_persuasion',
+            'cta_or_conversion',
+            'invented_first_person_experience'
         ]
     };
 }
 
-function topKeys(stats, group, limit = 3) {
-    return Object.entries(stats[group] || {})
-        .sort(([, a], [, b]) => {
-            if (b.engagement_rate !== a.engagement_rate) return b.engagement_rate - a.engagement_rate;
-            return b.engagement - a.engagement;
-        })
-        .slice(0, limit)
-        .map(([key]) => key)
-        .filter((key) => key !== 'unknown');
-}
-
 function buildPolicy({ stats30, learning, personalKg, recentHistory }) {
-    const recommended = topKeys(stats30, 'by_lane');
-    for (const lane of ['peer_circle', 'trust_balance', 'own_proof']) {
-        if (!recommended.includes(lane)) recommended.push(lane);
-    }
-    const winningAngles = [
-        ...personalKg.proof_points.slice(0, 3),
-        'Claude Code法人導入は、ツール紹介より権限・レビュー境界・記憶の設計に戻す',
-        '反応が弱い型も捨てず、Persona Brainの誤解や不安に戻して別角度へ変換する'
-    ];
     const needsMoreData = [];
-    if (!stats30.by_algorithm_fit || Object.keys(stats30.by_algorithm_fit).length === 0 || stats30.by_algorithm_fit.unknown) {
-        needsMoreData.push('algorithm_fitをdraft evidenceに残して勝ち筋比較できるようにする');
-    }
-    for (const lane of ['own_proof', 'philosophy', 'learn_in_public']) {
-        if (!stats30.by_lane?.[lane]) needsMoreData.push(`${lane}は直近30日データが少ないためPersonal KG proofで再検証する`);
-    }
-    if (learning.pending_feedback.length > 0) {
-        needsMoreData.push('posted metricsをlearning candidate化して次回Contextへ戻す');
-    }
+    if (personalKg.lifelog_entries.length === 0) needsMoreData.push('本人の一次体験ソースなし。投稿候補は0件にする');
+    if (learning.pending_feedback.length > 0) needsMoreData.push('反応値は観測記録として残すが、次の投稿内容の最適化には使わない');
     return {
-        recommended_lanes: recommended.slice(0, 5),
+        mode: 'public_lifelog',
+        recommended_lanes: ['today_log', 'work_log', 'life_log', 'memory', 'unresolved'],
         avoid_patterns: [
-            'internal_growth_tactic_exposed',
+            'advice_or_instruction',
+            'reader_correction_or_persuasion',
+            'cta_or_conversion',
+            'external_summary_without_lived_experience',
+            'invented_first_person_experience',
             'ai_auto_posting_smell',
-            'reader_negative_persona_affect',
-            'english_japanese_mixed_unnecessarily',
             learning.deleted.length > 0 ? 'deleted_post_reuse_without_rewrite' : null,
             learning.publish_failed.length > 0 ? 'publish_failed_retry_without_cause_check' : null
         ].filter(Boolean),
-        winning_angles: [...new Set(winningAngles)].slice(0, 6),
+        winning_angles: [],
         needs_more_data: [...new Set(needsMoreData)].slice(0, 8),
-        quote_target_policy: [
-            '日本語圏の同格〜少し上の実務者を優先する',
-            '相手の投稿を補強し、相手の読者に会社導入の責任境界を翻訳する',
-            '相手選定や成長施策の都合を本文に出さない',
-            '巨大アカウントより、拾ってくれる近い界隈の投稿を優先する'
+        quote_target_policy: [],
+        source_policy: {
+            required: 'actual_first_person_experience',
+            missing_source_result: 'zero_posts',
+            external_signals: 'reflection_prompts_only'
+        },
+        success_policy: [
+            '本人の経験に忠実である',
+            '未来の自分が読み返せる',
+            'プライバシーを守る',
+            '助言・説得・CTAを含めない'
         ],
         recent_history: recentHistory
     };

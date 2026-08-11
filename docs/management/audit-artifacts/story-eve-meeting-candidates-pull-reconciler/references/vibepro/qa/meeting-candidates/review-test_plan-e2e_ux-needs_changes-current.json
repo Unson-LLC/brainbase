@@ -1,0 +1,32 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "test_plan",
+  "role": "e2e_ux",
+  "agent_id": "019f5a6a-9955-7610-bc8f-2805aa38e67f",
+  "head_sha": "5f10214bdbde356c9c0b731ee2f5d3c11d419ca0",
+  "status": "needs_changes",
+  "summary": "実行型シナリオへの修正は確認できたが、operator-visible read model/UIへの結合証跡が不足している",
+  "findings": [
+    {
+      "id": "E2EUX-001",
+      "severity": "high",
+      "summary": "note-only、delayed retry、write failure、owner defaultがrepository内部状態だけで検証され、表示面を通っていない",
+      "evidence": [
+        "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+        "public/workflows.html"
+      ]
+    },
+    {
+      "id": "E2EUX-002",
+      "severity": "medium",
+      "summary": "story完了記述がUI/Journey証跡まで閉じたように読める",
+      "evidence": [
+        "docs/stories/story-eve-meeting-candidates-pull-reconciler.md",
+        ".vibepro/stories/story-eve-meeting-candidates-pull-reconciler/story-report.md"
+      ]
+    }
+  ],
+  "inspection_summary": "S-002/S-003/S-004のmarker-only問題は解消したが、visible contractの証跡が必要",
+  "judgment_delta": "前回の静的marker問題は解消。残課題はe2e_ux固有の表示面への結合。"
+}

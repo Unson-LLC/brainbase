@@ -1,0 +1,16 @@
+{
+  "status": "pass",
+  "summary": "主要failure modeを含むtest planがあり、server_static_scopeもchanged server JS向け証跡で解消。",
+  "inspection_summary": "旧reviews、exact-head QA証跡、E2E、UI、静的検査定義、verification evidence、decision recordを突合。",
+  "inspection_evidence": ".vibepro/qa/meeting-candidates/server-static-surface-25782dc2a.json",
+  "inspection_inputs": [
+    ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/test_plan/review-request-gate_coverage.md",
+    ".vibepro/qa/meeting-candidates/server-static-surface-25782dc2a.json",
+    ".vibepro/qa/meeting-candidates/vitest-unit-25782dc2a.json",
+    ".vibepro/qa/meeting-candidates/vitest-integration-surface-25782dc2a.json",
+    ".vibepro/qa/meeting-candidates/playwright-surface-25782dc2a.json"
+  ],
+  "judgment_delta": "public限定typecheckの不足から、changed server JS 3ファイルのESLint/node --checkと35 unit・154 integrationで十分な代替証跡ありと判断。",
+  "findings": [],
+  "resolved_findings": ["server_static_scope"]
+}

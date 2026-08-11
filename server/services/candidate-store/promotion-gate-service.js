@@ -15,6 +15,21 @@ const CATALOG_SUBJECT_TYPES = new Set([
     'story', 'raci_assignment'
 ]);
 
+export class CandidateRedactionRequiredError extends Error {
+    constructor(id) {
+        super(`candidate requires redaction before promotion: ${id}`);
+        this.name = 'CandidateRedactionRequiredError';
+        this.code = 'candidate_redaction_required';
+        this.statusCode = 409;
+    }
+}
+
+function assertRedactionComplete(candidate) {
+    if (candidate.redaction_status === 'needs_redaction') {
+        throw new CandidateRedactionRequiredError(candidate.id);
+    }
+}
+
 function maybeMap(value, mapper) {
     if (value && typeof value.then === 'function') {
         return value.then(mapper);
@@ -88,12 +103,14 @@ export class PromotionGateService {
 
     /**
      * approve → promoted_to_graph
-     * INV-3: derived_from edge を必ず張る
+     * INV-3: Candidate IDはGraph edge endpointにせず、entity payloadの
+     * derived_from_candidate_idとしてprovenanceを保持する
      * INV-7: catalog mapping 不一致なら rejected で reason 記録
      */
     async approveCandidate(id, approver, options = {}) {
         const candidate = await this.repository.findById(id);
         if (!candidate) throw new Error(`candidate not found: ${id}`);
+        assertRedactionComplete(candidate);
 
         const targetType = options.targetSubjectType || candidate.recommended_subject_type;
         if (!targetType || !CATALOG_SUBJECT_TYPES.has(targetType)) {
@@ -105,11 +122,33 @@ export class PromotionGateService {
             return { candidate: rejected, graphEntity: null, rejected: true };
         }
 
-        const approved = await this.repository.transition(id, 'approved', {
-            actor_person_id: approver.actor_person_id,
-            decision_owner_person_id: approver.actor_person_id,
-            decision_reason: options.reason || 'approved'
-        });
+        // Graph and Candidate Store are separate persistence boundaries. A retry may arrive
+        // after the status transition, after the Graph id was attached, or before the caller's
+        // run ledger observed either result. Rejoin the promoted candidate instead of attempting
+        // the invalid promoted_to_graph -> approved transition.
+        if (candidate.promotion_status === 'promoted_to_graph') {
+            if (candidate.promoted_graph_entity_id) {
+                return {
+                    candidate,
+                    graphEntity: { id: candidate.promoted_graph_entity_id },
+                    resumed: true
+                };
+            }
+            const graphEntity = await this._writeGraph({
+                ...candidate,
+                recommended_subject_type: targetType
+            });
+            const finalized = await this.repository.setPromotedGraphEntity(id, graphEntity.id);
+            return { candidate: finalized, graphEntity, resumed: true };
+        }
+
+        const approved = candidate.promotion_status === 'approved' && options.resumeApproved === true
+            ? candidate
+            : await this.repository.transition(id, 'approved', {
+                actor_person_id: approver.actor_person_id,
+                decision_owner_person_id: approver.actor_person_id,
+                decision_reason: options.reason || 'approved'
+            });
 
         const graphEntity = await this._writeGraph({
             ...approved,
@@ -154,6 +193,7 @@ export class PromotionGateService {
     async autoPromote(id, policy, reason) {
         const candidate = await this.repository.findById(id);
         if (!candidate) throw new Error(`candidate not found: ${id}`);
+        assertRedactionComplete(candidate);
         const verdict = policy.applies(candidate);
         if (!verdict.applies) {
             throw new Error(`policy ${policy.name} declined: ${verdict.reason}`);
@@ -199,6 +239,8 @@ export class PromotionGateService {
     }
 
     async _writeGraph(candidate) {
+        // Defense in depth: every manual, automatic, and retry path must preserve INV-9.
+        assertRedactionComplete(candidate);
         if (this.graphWriter && typeof this.graphWriter.createEntity === 'function') {
             return this.graphWriter.createEntity(
                 {

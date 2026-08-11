@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0.0",
+  "story_id": "story-brainbase-ontology-production-activation",
+  "audited_at": "2026-08-02T21:43:22.269Z",
+  "environment": "production",
+  "candidate_head_sha": "2a38a3f9befe54537c0f909b3fe33f5eb7032a83",
+  "source_commit_sha": "ef12ffabd109d75d2a55d3802daa44f2160aa333",
+  "publication_commit_sha": "e794299c5f19f8d46747a39422420b68176ed14b",
+  "release_digest": "9d794651151e77c543f00160d705d55c11b4af7e4388114da6923cb567970db4",
+  "commands": [
+    "git worktree add --detach <production-temporary-path> origin/codex/ontology-1-0-0-activation",
+    "source value-hidden production runtime environment",
+    "node scripts/ontology-shadow-audit.js --version 1.0.0",
+    "npm run ontology:verify"
+  ],
+  "graph_audit": {
+    "transaction": "READ ONLY",
+    "collection_complete": true,
+    "entity_count": 7410,
+    "edge_count": 6716,
+    "snapshot_digest": "d214052c01cda1924126239e45c68f5b582c292e62a1d7cdb5468ca9d9121211",
+    "inventory_digest": "a46f7f2d307c9d207714089788a40413700447198505b11b50a4075525b2f120",
+    "candidate_violation_count": 0,
+    "valid": true
+  },
+  "publication_verify": {
+    "current": "1.0.0",
+    "release_count": 1,
+    "signature_verified": true,
+    "exit_code": 0
+  },
+  "state_boundary": {
+    "graph_remediation_and_authority": "applied",
+    "candidate_artifact": "active and verified in independent checkout",
+    "merged": false,
+    "deployed_runtime": false,
+    "production_activation_complete": false
+  },
+  "gate": "premerge_data_and_artifact_ready"
+}

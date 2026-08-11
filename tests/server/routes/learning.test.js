@@ -25,6 +25,7 @@ describe('learning routes', () => {
                 source_system: 'test',
                 created_at: '2026-05-16T00:00:00.000Z'
             }]),
+            promoteMemoryCandidateToGraph: vi.fn(async () => ({ success: true, entity: { id: 'mem_mem_1' } })),
             recordSkillUsage: vi.fn(async (payload) => ({ id: 'sul_1', ...payload })),
             listStaleSkills: vi.fn(async () => [{ skill_name: 'old', last_used_at: new Date(), uses: 1, stale_threshold_days: 90 }])
         };
@@ -62,7 +63,7 @@ describe('learning routes', () => {
         expect(service.dedupeExistingPromotions).toHaveBeenCalled();
     });
 
-    it('GET /promotions lists candidates by status', async () => {
+    it('story-knowledge-formalization-language:AC-001 GET /promotions lists candidates by the existing promotion status contract', async () => {
         const res = await request(app).get('/api/learning/promotions?status=evaluated');
 
         expect(res.status).toBe(200);
@@ -103,7 +104,43 @@ describe('learning routes', () => {
         });
     });
 
-    it('POST /promotions/:id/apply applies one candidate', async () => {
+    it('POST /memory-candidates/:id/promote-to-graph is fail-closed without an auth guard', async () => {
+        const res = await request(app)
+            .post('/api/learning/memory-candidates/mem_1/promote-to-graph')
+            .send({ actor_person_id: 'spoofed_person' });
+
+        expect(res.status).toBe(503);
+        expect(service.promoteMemoryCandidateToGraph).not.toHaveBeenCalled();
+    });
+
+    it('POST /memory-candidates/:id/promote-to-graph uses the authenticated actor', async () => {
+        const authenticatedApp = express();
+        authenticatedApp.use(express.json());
+        authenticatedApp.use('/api/learning', createLearningRouter(service, healthService, {
+            promoteToGraphAuthGuard: (req, _res, next) => {
+                req.auth = { sub: 'person_authenticated' };
+                req.access = { personId: 'person_authenticated' };
+                next();
+            }
+        }));
+
+        const res = await request(authenticatedApp)
+            .post('/api/learning/memory-candidates/mem_1/promote-to-graph')
+            .send({
+                actor_person_id: 'spoofed_person',
+                decision_owner_person_id: 'spoofed_owner',
+                reason: 'approved'
+            });
+
+        expect(res.status).toBe(201);
+        expect(service.promoteMemoryCandidateToGraph).toHaveBeenCalledWith('mem_1', {
+            actor_person_id: 'person_authenticated',
+            access: { personId: 'person_authenticated' },
+            reason: 'approved'
+        });
+    });
+
+    it('story-knowledge-formalization-language:AC-001 POST /promotions/:id/apply preserves the existing promotion API path', async () => {
         const res = await request(app).post('/api/learning/promotions/prm_1/apply');
 
         expect(res.status).toBe(200);

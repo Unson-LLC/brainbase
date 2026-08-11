@@ -8,6 +8,35 @@ export class NocoDBTaskRepository {
         this.http = httpClient;
     }
 
+    hasBearerAuth() {
+        return Boolean(this.http.hasBearerAuth?.());
+    }
+
+    async fetchCanonicalTasks(cursor = null) {
+        const search = new URLSearchParams({ limit: '50' });
+        if (cursor) search.set('cursor', cursor);
+        return this.http.get(`/api/companion/tasks?${search.toString()}`);
+    }
+
+    async createCanonicalTask(payload, idempotencyKey) {
+        return this.http.post('/api/companion/tasks', payload, { headers: { 'Idempotency-Key': idempotencyKey } });
+    }
+
+    async updateCanonicalTask(taskId, payload, idempotencyKey) {
+        return this.http.patch(`/api/companion/tasks/${encodeURIComponent(taskId)}`, payload, { headers: { 'Idempotency-Key': idempotencyKey } });
+    }
+
+    async transitionCanonicalTask(taskId, payload, idempotencyKey) {
+        return this.http.post(`/api/companion/tasks/${encodeURIComponent(taskId)}/transitions`, payload, { headers: { 'Idempotency-Key': idempotencyKey } });
+    }
+
+    async deleteCanonicalTask(taskId, expectedVersion, idempotencyKey) {
+        return this.http.delete(`/api/companion/tasks/${encodeURIComponent(taskId)}`, {
+            headers: { 'Idempotency-Key': idempotencyKey },
+            body: JSON.stringify({ expected_version: expectedVersion })
+        });
+    }
+
     /**
      * 全プロジェクトからタスクを取得
      * @returns {Promise<{records: Array, projects: Array}>}

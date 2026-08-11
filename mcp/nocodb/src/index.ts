@@ -16,6 +16,7 @@ import {
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
 import { NocoDBClient } from "./nocodb-client.js";
+import { CanonicalTaskWriteGuardError } from "./canonical-task-write-guard.js";
 
 // Environment variables
 const NOCODB_URL = process.env.NOCODB_URL;
@@ -131,7 +132,7 @@ class NocoDBServer {
         },
         {
           name: "nocodb_create_record",
-          description: "Create a new record",
+          description: "Create a new non-canonical record. Canonical Brainbase Tasks require the Canonical Task API.",
           inputSchema: {
             type: "object",
             properties: {
@@ -153,7 +154,7 @@ class NocoDBServer {
         },
         {
           name: "nocodb_update_record",
-          description: "Update an existing record",
+          description: "Update an existing non-canonical record. Canonical Brainbase Tasks require the Canonical Task API.",
           inputSchema: {
             type: "object",
             properties: {
@@ -179,7 +180,7 @@ class NocoDBServer {
         },
         {
           name: "nocodb_delete_record",
-          description: "Delete a record",
+          description: "Delete a non-canonical record. Canonical Brainbase Tasks require the Canonical Task API.",
           inputSchema: {
             type: "object",
             properties: {
@@ -216,7 +217,7 @@ class NocoDBServer {
         },
         {
           name: "nocodb_update_column",
-          description: "Update column options for SingleSelect/MultiSelect columns. Use this to add or modify select options.",
+          description: "Update non-canonical column options for SingleSelect/MultiSelect columns. Canonical Brainbase Task columns are read-only through this MCP.",
           inputSchema: {
             type: "object",
             properties: {
@@ -411,6 +412,15 @@ class NocoDBServer {
             );
         }
       } catch (error: any) {
+        if (error instanceof McpError) {
+          throw error;
+        }
+        if (error instanceof CanonicalTaskWriteGuardError) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `${error.code}: ${error.message}`
+          );
+        }
         throw new McpError(
           ErrorCode.InternalError,
           `NocoDB error: ${error.message}`

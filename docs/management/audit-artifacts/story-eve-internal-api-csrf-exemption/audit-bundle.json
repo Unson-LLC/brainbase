@@ -1,0 +1,762 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-internal-api-csrf-exemption",
+  "source": "execute_merge",
+  "promoted_at": "2026-07-13T20:08:14.531Z",
+  "canonical_dir": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption",
+  "source_workspace_dir": ".vibepro",
+  "audit_index_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-index.json",
+  "decision_summary_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/decision-summary.md",
+  "artifact_policy": {
+    "scope": "compact_manifest_only",
+    "evidence_depth": "standard",
+    "compacted": true,
+    "persisted_for_main_audit": true,
+    "why_compacted": [],
+    "excludes": [
+      "duplicated decision index body",
+      "duplicated cost summary body",
+      "full PR lifecycle JSON",
+      "full review lifecycle JSON",
+      "HTML reports",
+      "raw logs",
+      "dispatch scratch artifacts",
+      "temporary execution state"
+    ]
+  },
+  "evidence_depth": "standard",
+  "cost_summary_ref": {
+    "source": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-index.json",
+    "pointer": "/cost_summary"
+  },
+  "automation_value_audit_ref": {
+    "source": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-index.json",
+    "pointer": "/automation_value_audit"
+  },
+  "replay_bundle": {
+    "schema_version": "0.1.0",
+    "path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz",
+    "compression": "gzip",
+    "media_type": "application/json",
+    "content_hash": "sha256:97cadad116c2c9a5a1900be2c7f8001ecffd9ab63a372e1019652f2ce02005ca",
+    "compressed_hash": "sha256:e390e96de51b98eb413b1a996d4012869f494312fec6cdb247bfe64b16bb6724",
+    "expanded_bytes": 12531,
+    "compressed_bytes": 3136,
+    "expanded_line_count": 337,
+    "persisted_line_count": 1,
+    "included_artifact_kinds": [
+      "evidence_reuse",
+      "gate_dag",
+      "pr_create",
+      "pr_merge",
+      "pr_prepare",
+      "review_lifecycle",
+      "review_request",
+      "review_result",
+      "review_summary",
+      "senior_gap_judgment",
+      "traceability",
+      "verification_evidence"
+    ],
+    "replay_command": "vibepro audit replay . --story-id story-eve-internal-api-csrf-exemption",
+    "cost": {
+      "compressed_bytes": 3136,
+      "expanded_bytes": 12531,
+      "expanded_line_count": 337,
+      "persisted_line_count": 1
+    }
+  },
+  "merge": {
+    "status": "merged",
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1039",
+    "merge_commit_sha": "7ada24625bdd197ac01361966b6f2d8489cca42b",
+    "merged_at": "2026-07-13T20:08:13Z",
+    "current_head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...d7b7e9e764614599ec1eb5180c466053247bd6ec"
+  },
+  "handoff_replay_status": "blocked",
+  "handoff_replay": {
+    "status": "blocked",
+    "resolved_reference_count": 49,
+    "copied_reference_count": 39,
+    "unresolved_reference_count": 8,
+    "replay_bundle": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz",
+    "replay_command": "vibepro audit replay . --story-id story-eve-internal-api-csrf-exemption"
+  },
+  "artifacts": [
+    {
+      "kind": "audit_index",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-index.json"
+    },
+    {
+      "kind": "decision_summary",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/decision-summary.md"
+    },
+    {
+      "kind": "compressed_replay_bundle",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz",
+      "compression": "gzip",
+      "content_hash": "sha256:97cadad116c2c9a5a1900be2c7f8001ecffd9ab63a372e1019652f2ce02005ca"
+    }
+  ],
+  "raw_artifact_manifest": [
+    {
+      "kind": "evidence_reuse",
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/evidence-reuse.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz",
+      "digest": "sha256:3ca6436839fa9dfc612e067c1481a77b6649b80f9a59d71d09c2c04b2962d8ff",
+      "audit_digest": "sha256:3ca6436839fa9dfc612e067c1481a77b6649b80f9a59d71d09c2c04b2962d8ff",
+      "line_count": 209,
+      "raw_line_count": 209,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "pr_prepare",
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/pr-prepare.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz",
+      "digest": "sha256:2800da3bd3d90c2f8e97fa449e2e90b7f7fc2c3f357286e55cb39b086017a277",
+      "audit_digest": "sha256:cf3b7d9ae899b0e45010eac76f58788ae1a8911568d1f8dfb605fb1b3ae99229",
+      "line_count": 3486,
+      "raw_line_count": 15274,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_prepare.diagnostics.progress_snapshots",
+        "pr_prepare.pr_context.full_gate_dag",
+        "pr_prepare.pr_context.design_ssot_full_registry_inventory",
+        "pr_prepare.pr_context.inactive_judgment_axis_details",
+        "pr_prepare.duplicated_child_artifacts",
+        "design_ssot.unregistered_docs_full_inventory",
+        "design_ssot.registered_docs_full_inventory",
+        "responsibility_authority.full_registry_entries",
+        "requirement_consistency.verbose_code_scenarios",
+        "engineering_judgment.inactive_axis_details",
+        "engineering_judgment.verbose_matched_evidence",
+        "verification.raw_command_output",
+        "senior_gap_judgment.verbose_supporting_context",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "pr_create",
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/pr-create.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz",
+      "digest": "sha256:54b5c09b019e97636e9a29361f14857e22f12ee37187fd677f86cf0d48f5032e",
+      "audit_digest": "sha256:d36f6d662f0199dc85c52f994475c137b637c8c4e14e89b4eb40489dd2e8d552",
+      "line_count": 1655,
+      "raw_line_count": 3848,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "gate_dag",
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/gate-dag.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz",
+      "digest": "sha256:25de22841cbcfdca6600bb87dbf07cc9003422b4fde1fa3c7903a62ed77618eb",
+      "audit_digest": "sha256:5e509305af82b89bb312edb9504058335e802849a6248f03944ac08258d0f442",
+      "line_count": 1509,
+      "raw_line_count": 3681,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "senior_gap_judgment",
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/senior-gap-judgment.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz",
+      "digest": "sha256:977b865798836aa82133f47b0c41585e9b2c031fa49be3e353672d1d6a5bbe06",
+      "audit_digest": "sha256:34be24de36458595fd7a645d4dcaa133d30a4fd3a4f753f1679a2f65f0b7afaf",
+      "line_count": 93,
+      "raw_line_count": 834,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "senior_gap_judgment.verbose_supporting_context"
+      ]
+    },
+    {
+      "kind": "pr_merge",
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/pr-merge.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz",
+      "digest": "sha256:bfb0a38268653cf778fd020ed4d4b37b61d7ed94b9cbbba437e66703a3422d57",
+      "audit_digest": "sha256:30c82608939965f66e2e7b011df53601d63ccb4b63967af2d6db34ce7b15b4a9",
+      "line_count": 1679,
+      "raw_line_count": 3891,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects",
+        "pr_merge.canonical_audit",
+        "pr_merge.roi_ledger_promotion"
+      ]
+    },
+    {
+      "kind": "traceability",
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/traceability.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz",
+      "digest": "sha256:9293e7bc370a1e3d446fe82b2c1cca136956d1f38654333209c9a7c49ccea28e",
+      "audit_digest": "sha256:9293e7bc370a1e3d446fe82b2c1cca136956d1f38654333209c9a7c49ccea28e",
+      "line_count": 252,
+      "raw_line_count": 252,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "verification_evidence",
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/verification-evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz",
+      "digest": "sha256:986b59fca7b05c6bf512c0830fe1664773c72c44a2f4b118691a04d8f2391595",
+      "audit_digest": "sha256:f3fb8b3edde1245eb6d0cfaf69ac3744a235c19540582e310421496d7a446801",
+      "line_count": 54,
+      "raw_line_count": 468,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "verification.raw_command_output"
+      ]
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz",
+      "digest": "sha256:44c4fb7c98d7fe02b2dff30757efcd799f99eb892b9bfba75bd61b75993d7b8d",
+      "audit_digest": "sha256:44c4fb7c98d7fe02b2dff30757efcd799f99eb892b9bfba75bd61b75993d7b8d",
+      "line_count": 34,
+      "raw_line_count": 34,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/review-request-gate_evidence.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz",
+      "digest": "sha256:4b3cac55a76bd2abc11396f918416fbda400ca5504913adb4c046640e8324bd2",
+      "audit_digest": "sha256:4b3cac55a76bd2abc11396f918416fbda400ca5504913adb4c046640e8324bd2",
+      "line_count": 136,
+      "raw_line_count": 136,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/review-result-gate_evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz",
+      "digest": "sha256:9e5658192b26358983111407ac3a5f1664c836bc6b56aa79faaebbd93d583bc2",
+      "audit_digest": "sha256:9e5658192b26358983111407ac3a5f1664c836bc6b56aa79faaebbd93d583bc2",
+      "line_count": 109,
+      "raw_line_count": 109,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/audit-replay-bundle.json.gz",
+      "digest": "sha256:6f676d534342369d4f4093914a71693c89a88954821c06b58f9a432a3bc41f8a",
+      "audit_digest": "sha256:6f676d534342369d4f4093914a71693c89a88954821c06b58f9a432a3bc41f8a",
+      "line_count": 187,
+      "raw_line_count": 187,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    }
+  ],
+  "missing_artifacts": [],
+  "resolved_references": [
+    {
+      "source": ".vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-eve-internal-api-csrf-exemption/typecheck.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/artifacts/story-eve-internal-api-csrf-exemption/typecheck.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Require_Graphify_Impact_Review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Require_Graphify_Impact_Review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Verify_VibePro_Graph_SSOT.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Verify_VibePro_Graph_SSOT.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/decision-index.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/evidence-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/evidence-reuse.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/pr/evidence-reuse.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/gate-dag.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/gate-dag.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/gate-dag.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/pr/gate-dag.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/gate-dag.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/gate-dag.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/pr-create.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/pr/pr-create.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/pr-merge.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/pr/pr-merge.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/pr-prepare.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/pr-prepare.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/pr-prepare.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/pr/pr-prepare.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/review-cockpit.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/review-cockpit.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/senior-gap-judgment.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/pr/senior-gap-judgment.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/split-plan.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/split-plan.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/traceability.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/pr/traceability.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/verification-evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/pr/verification-evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/gate_evidence-agent-transcript.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/gate_evidence-agent-transcript.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/history/review-result-gate_evidence-2026-07-13T19-53-57.756Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/history/review-result-gate_evidence-2026-07-13T19-53-57.756Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/review-request-gate_evidence.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/reviews/gate/review-request-gate_evidence.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/review-result-gate_evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/reviews/gate/review-result-gate_evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-internal-api-csrf-exemption/diagnostics/2026-07-13T190723Z/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/stories/story-eve-internal-api-csrf-exemption/diagnostics/2026-07-13T190723Z/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-internal-api-csrf-exemption/diagnostics/2026-07-13T190723Z/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/stories/story-eve-internal-api-csrf-exemption/diagnostics/2026-07-13T190723Z/tasks.md",
+      "resolution": "copied_reference"
+    }
+  ],
+  "copied_references": [
+    {
+      "source": ".vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-eve-internal-api-csrf-exemption/typecheck.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/artifacts/story-eve-internal-api-csrf-exemption/typecheck.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/diagnostics/2026-07-13T190723Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Require_Graphify_Impact_Review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Require_Graphify_Impact_Review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Verify_VibePro_Graph_SSOT.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Verify_VibePro_Graph_SSOT.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/decision-index.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/evidence-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/gate-dag.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/gate-dag.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/gate-dag.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/gate-dag.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/pr-prepare.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/pr-prepare.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/review-cockpit.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/review-cockpit.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/split-plan.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/split-plan.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-internal-api-csrf-exemption/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/pr/story-eve-internal-api-csrf-exemption/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/gate_evidence-agent-transcript.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/gate_evidence-agent-transcript.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/history/review-result-gate_evidence-2026-07-13T19-53-57.756Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/history/review-result-gate_evidence-2026-07-13T19-53-57.756Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-internal-api-csrf-exemption/diagnostics/2026-07-13T190723Z/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/stories/story-eve-internal-api-csrf-exemption/diagnostics/2026-07-13T190723Z/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-internal-api-csrf-exemption/diagnostics/2026-07-13T190723Z/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-internal-api-csrf-exemption/references/vibepro/stories/story-eve-internal-api-csrf-exemption/diagnostics/2026-07-13T190723Z/tasks.md",
+      "resolution": "copied_reference"
+    }
+  ],
+  "unresolved_references": [
+    {
+      "source": ".vibepro/artifacts/story-eve-internal-api-csrf-exemption/",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/evidence.json",
+      "reason": "source_too_large",
+      "size_bytes": 10260568
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-13T190723Z/static-site-check-result.md",
+      "reason": "source_too_large",
+      "size_bytes": 1486505
+    },
+    {
+      "source": ".vibepro/graphify/graph.json",
+      "reason": "source_too_large",
+      "size_bytes": 8822011
+    },
+    {
+      "source": ".vibepro/pr/",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-eve-internal-api-csrf-exemption/ia-flow-map.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-eve-internal-api-csrf-exemption/responsive-a11y-matrix.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/verification/",
+      "reason": "source_missing"
+    }
+  ]
+}

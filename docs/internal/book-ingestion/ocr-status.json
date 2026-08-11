@@ -1,0 +1,310 @@
+{
+  "books": [
+    {
+      "index": 3,
+      "title": "ファシリテーション入門 第2版",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 136,
+      "source_pages": 136,
+      "characters": 155561,
+      "sha256": "e47043690101b33f24b2997bdd41e497c57c7428612505826717f019a0494c35"
+    },
+    {
+      "index": 4,
+      "title": "小さな会社の「仕組み化」はなぜやりきれないのか",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 129,
+      "source_pages": 129,
+      "characters": 140412,
+      "sha256": "95edb45b9cb877e067f8a05f879fc87f68e56ae2c0086b5acaaf076128ffbd92"
+    },
+    {
+      "index": 5,
+      "title": "ガーバー流 社長が会社にいなくても回る「仕組み」経営",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 143,
+      "source_pages": 143,
+      "characters": 95016,
+      "sha256": "715d74df4066f76875fbf563bfda8e9a8525991da61076b5bedd684e2474a8d9"
+    },
+    {
+      "index": 6,
+      "title": "WHO NOT HOW 「どうやるか」ではなく「誰とやるか」",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 182,
+      "source_pages": 182,
+      "characters": 226015,
+      "sha256": "c3cedd64e8d29d4dfea04845b7c1e013c1d770095c6adee4de1f9ff8f9aa48b9"
+    },
+    {
+      "index": 7,
+      "title": "WORK THE SYSTEM",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 225,
+      "source_pages": 225,
+      "characters": 349397,
+      "sha256": "e832dd9e3f4c3755a4dad89a238ed5c11cfe599d0d9acbbbcec1d87801b4e0ce"
+    },
+    {
+      "index": 8,
+      "title": "TRACTION ビジネスの手綱を握り直す",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 240,
+      "source_pages": 240,
+      "characters": 302529,
+      "sha256": "4807bdc13ecf9e68b73c318f346fdc13c10a43f34093ec43aa646cfd1f43d01f"
+    },
+    {
+      "index": 9,
+      "title": "ALL for SaaS",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 201,
+      "source_pages": 201,
+      "characters": 287936,
+      "sha256": "47dcd4de304d1ae837e670e6831c86abfa39b07bb79871ebc16c60570806f2ed"
+    },
+    {
+      "index": 10,
+      "title": "マーケティングの全施策60",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 250,
+      "source_pages": 250,
+      "characters": 175957,
+      "sha256": "35a7e22b3fd6eca6c59b89c749351e58c85b5481978ea9d138cfed6d8ac5f12b"
+    },
+    {
+      "index": 11,
+      "title": "ブランディング22の法則",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 146,
+      "source_pages": 146,
+      "characters": 158567,
+      "sha256": "48d527133655953312f2ad882f259ab981aa8c1f83cfe250e96f7d2fc29735df"
+    },
+    {
+      "index": 12,
+      "title": "ポチらせる文章術",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 115,
+      "source_pages": 115,
+      "characters": 100998,
+      "sha256": "4c13a6655851493edac63c61b47a2e4c0bfcd5e6b1da93570918dee76eb91c29"
+    },
+    {
+      "index": 13,
+      "title": "世界のエリートが学んでいるMBAマーケティング必読書50冊を1冊にまとめてみた",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 342,
+      "source_pages": 342,
+      "characters": 289767,
+      "sha256": "392fee7272d1cf55835e1c12b386d1ffab6e03c364d1183de9d1b679efd2ebab"
+    },
+    {
+      "index": 14,
+      "title": "マーケティング手法大全",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 279,
+      "source_pages": 279,
+      "characters": 210707,
+      "sha256": "3433fddb16073278c22632b03277de3b813e1aaf72f05d50613ad9024baff58c"
+    },
+    {
+      "index": 15,
+      "title": "実践 顧客起点マーケティング",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 255,
+      "source_pages": 255,
+      "characters": 239434,
+      "sha256": "15cf41be5ba7c6a1c4693ad3ac8fea9f06b1c959d0ef553b827b67fedcb93dab"
+    },
+    {
+      "index": 16,
+      "title": "危険だからこそ知っておくべきカルトマーケティング",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 141,
+      "source_pages": 141,
+      "characters": 121957,
+      "sha256": "ff0c26a0f82dd2f8b621d3c1f44ef306da054775fd0fdd332504ae013c24dd68"
+    },
+    {
+      "index": 17,
+      "title": "THE MODEL",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 244,
+      "source_pages": 244,
+      "characters": 258261,
+      "sha256": "910538b601e1a8bc5cab7c6fdca23bd69e993e170e6a97bb156f2ac87649efb4"
+    },
+    {
+      "index": 18,
+      "title": "なぜあの商品、サービスは売れたのか？",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 239,
+      "source_pages": 239,
+      "characters": 271893,
+      "sha256": "7ab29cbc78ac0548c07ac8fb6a560ccd0b4bc8047fd516c4a0a3552162c7a552"
+    },
+    {
+      "index": 19,
+      "title": "失敗から学ぶマーケティング",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 408,
+      "source_pages": 408,
+      "characters": 413430,
+      "sha256": "cb6d3aa99f8bee098e5272cc41f31982c6fe9fe369876b2d6690636eacace86e"
+    },
+    {
+      "index": 20,
+      "title": "マーケティングを学んだけれど、どう使えばいいかわからない人へ",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 199,
+      "source_pages": 199,
+      "characters": 183542,
+      "sha256": "18ed02bf3d0ece176a200264fbd9bebfe101a983486b4b676d6d4c19fae0cc74"
+    },
+    {
+      "index": 21,
+      "title": "できる営業マンのすごい言語化",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 165,
+      "source_pages": 165,
+      "characters": 147610,
+      "sha256": "7b6658b9016292db5c9c61888f51e5e5f824f5bd4a10daaf11953edf702c4e58"
+    },
+    {
+      "index": 22,
+      "title": "Foundations of Robotics: A Multidisciplinary Approach with Python and ROS",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 537,
+      "source_pages": 537,
+      "characters": 795952,
+      "sha256": "770eaeb010903ef219f40e33607289a1e820c72592ab68b0931ed199292000ca"
+    },
+    {
+      "index": 23,
+      "title": "基盤モデルとロボットの融合 マルチモーダルAIでロボットはどう変わるのか",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 256,
+      "source_pages": 256,
+      "characters": 257372,
+      "sha256": "09df74ca001f29e0339365015ead1874822274735b4f238716f12b29343578bf"
+    },
+    {
+      "index": 24,
+      "title": "ROS 2 from Scratch",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 342,
+      "source_pages": 342,
+      "characters": 497303,
+      "sha256": "ae7110a34bc7af9eca20932faebe98679cf70146071e0cbfe802456a1015e6f6"
+    },
+    {
+      "index": 25,
+      "title": "AI駆動マーケティング 業務効率化を超える生成AI実践術",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 162,
+      "source_pages": 162,
+      "characters": 228788,
+      "sha256": "691f23c8bcb63cee5ba81d70d2fd053462236040a3a735b831c14ebd7ec699a4"
+    },
+    {
+      "index": 26,
+      "title": "コード×AI ソフトウェア開発者のための生成AI実践入門",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 358,
+      "source_pages": 358,
+      "characters": 292512,
+      "sha256": "b4e9f7b2a32315ea6ab35937897e4b0b54121fbf01cfa4cf381df9a6d36b24ac"
+    },
+    {
+      "index": 28,
+      "title": "Google Cloudのしくみと技術がこれ1冊でしっかりわかる教科書［改訂2版］",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 162,
+      "source_pages": 162,
+      "characters": 219238,
+      "sha256": "ccb807d3895d0cb0f02dbbdc98e6b0fda0cba73fd00e4122ee163684df074f99"
+    },
+    {
+      "index": 29,
+      "title": "GitHub CI/CD実践ガイド",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 477,
+      "source_pages": 477,
+      "characters": 394524,
+      "sha256": "9efbf283ed10a5d348ce1cbf95bf9575499fc33731a94db1baf97d11ae3d8566"
+    },
+    {
+      "index": 30,
+      "title": "プロになるためのWeb技術入門",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 379,
+      "source_pages": 379,
+      "characters": 321506,
+      "sha256": "ef07c1f6372b305b3969a76af8a891036741031ad3fa6bb6079ea2f8e91ac136"
+    },
+    {
+      "index": 31,
+      "title": "Amazon Web Servicesのしくみと技術がこれ1冊でしっかりわかる教科書［改訂2版］",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 177,
+      "source_pages": 177,
+      "characters": 258469,
+      "sha256": "02c764defc7253d7df4fe400f419d887c44864b3094c1b7047505d1f6299b74a"
+    },
+    {
+      "index": 32,
+      "title": "図解まるわかり Web技術のしくみ",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 272,
+      "source_pages": 272,
+      "characters": 192245,
+      "sha256": "d78f8d27c1d348097597a8891991f01577f740f94fda745f8edfd740916a3b94"
+    },
+    {
+      "index": 33,
+      "title": "React.js＆Next.js超入門 第2版",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 233,
+      "source_pages": 233,
+      "characters": 367535,
+      "sha256": "7ffc6a6f9386f9c8d480989f90cfedffc9f08d4b45353c03a3e98e32af74ca61"
+    },
+    {
+      "index": 34,
+      "title": "全体像と用語がよくわかる！ Microsoft Azure入門ガイド",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 139,
+      "source_pages": 139,
+      "characters": 206603,
+      "sha256": "d67aa84d6a95bd57b2e1b69db397e13c1351c00acea4c219d583e64c46f2bbbc"
+    },
+    {
+      "index": 36,
+      "title": "完全探偵マニュアル Best",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 342,
+      "source_pages": 342,
+      "characters": 306275,
+      "sha256": "4805046213e029a67c174cc9b8630d04237a24ea6b3659d601785db2a823a722"
+    },
+    {
+      "index": 37,
+      "title": "探偵の現場",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 168,
+      "source_pages": 168,
+      "characters": 174844,
+      "sha256": "2aeec623f9db8f17da80abb2c44b81e65a4495dc6667fa17fffc26922fc914ca"
+    },
+    {
+      "index": 38,
+      "title": "完全探偵マニュアル Worst",
+      "method": "hybrid macOS Vision plus Tesseract jpn_vert fallback at 180 dpi",
+      "pages_ocrd": 274,
+      "source_pages": 274,
+      "characters": 199846,
+      "sha256": "949c7cc087a5def84031b30d8adcfa7b1b8d5595539d9bcb8ae8906fe8f6f556"
+    }
+  ]
+}

@@ -70,6 +70,9 @@ export function getPriorityLabel(priority) {
  * @returns {boolean}
  */
 export function isInsecureHeaderAuthAllowed() {
+    if (process.env.NODE_ENV === 'production') {
+        return false;
+    }
     return process.env.ALLOW_INSECURE_SSOT_HEADERS === 'true'
         || process.env.BRAINBASE_TEST_MODE === 'true'
         || process.env.NODE_ENV === 'test';

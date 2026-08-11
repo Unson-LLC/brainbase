@@ -1,0 +1,43 @@
+{
+  "status": "pass",
+  "summary": "Current HEAD preserves the intended ontology activation boundary and closes the production-compatibility contracts without activating the release or mutating Graph data. No architecture-boundary findings remain.",
+  "inspection_summary": "Inspected all 20 changed paths plus the unchanged server API and registry boundaries at HEAD 152842e4a8dc5c646090e472fa726d294c6a5d85. The active-current entity-only writer validates before obtaining a DB connection and rejects a decided Decision lacking decider and project-scope edges. With current=null, the existing entity and edge writers skip ontology enforcement and retain legacy persistence behavior while returning inactive_no_current. The shadow-audit runner starts a PostgreSQL READ ONLY transaction, issues only SELECT queries, evaluates snapshots locally, and always rolls back. The index remains current=null, the release remains proposed, governance bindings remain null, and activation is explicitly out of scope. C-003's structured inherited_behavior is semantically and textually aligned with the existing inferDecisions guard if (!isEffectiveSupersession(edge)) continue, while the clause and implementation consistently use the release-declared active/decided effective status set.",
+  "inspection_evidence": [
+    "HEAD and worktree: 152842e4a8dc5c646090e472fa726d294c6a5d85; clean codex/ontology-production-compat branch, 20 changed paths",
+    "server/services/info-ssot-service.js createOrUpdateGraphEntity calls validateEntity before withAccessContext/pool connection when guard_status=active_current",
+    "tests/server/services/ontology-api.test.js proves decided Decision rejection with both CON-DECISION-DECIDER-001 and CON-DECISION-SCOPE-001 and connectionAttempts=0",
+    "tests/server/services/ontology-api.test.js proves current=null legacy entity and edge writes succeed with inactive_no_current",
+    "scripts/ontology-shadow-audit.js uses BEGIN READ ONLY, two SELECT statements, local validation, and finally ROLLBACK; no Graph mutation SQL or writer call exists",
+    "config/ontology/index.json has current=null and release status proposed; release governance decision_id, scope, proposer, decider, and applier remain null",
+    "focused unit tests: 34/34 passed",
+    "combined ontology contract tests: 27/27 passed",
+    "ontology verification passed with current=null and release_count=1",
+    "typecheck and git diff --check passed",
+    "lib/load-runtime-env.js is unchanged and outside the Ontology runtime boundary; it is not imported by the audit runner or kernel"
+  ],
+  "inspection_inputs": [
+    "config/ontology/index.json",
+    "config/ontology/releases/1.0.0.json",
+    "config/ontology/writer-inventory.json",
+    "docs/architecture/ADR-021-brainbase-ontology-kernel.md",
+    "docs/architecture/story-brainbase-ontology-production-compatibility.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.md",
+    "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-08877faa.md",
+    "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-7709a3fd.md",
+    "docs/management/decisions/2026-08-02-budget-override-story-brainbase-ontology-production-compatibility-898174ea.md",
+    "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md",
+    "docs/specs/brainbase-ontology-kernel-spec.md",
+    "docs/specs/brainbase-ontology-production-compatibility.json",
+    "docs/specs/brainbase-ontology-production-compatibility.md",
+    "scripts/ontology-shadow-audit.js",
+    "server/services/ontology-kernel.js",
+    "tests/e2e/story-brainbase-ontology-kernel-contract.spec.ts",
+    "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts",
+    "tests/server/services/ontology-api.test.js",
+    "tests/server/services/ontology-kernel.test.js",
+    "lib/load-runtime-env.js"
+  ],
+  "judgment_delta": "No blocking findings; entity-only enforcement, legacy inactive behavior, read-only audit, activation boundary, and inherited behavior alignment were all confirmed.",
+  "findings": []
+}

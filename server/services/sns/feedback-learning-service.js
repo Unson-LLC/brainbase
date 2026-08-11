@@ -48,7 +48,6 @@ export function buildSnsFeedbackCandidateDraft(post, {
     assertEligible(post);
     const metrics = latestMetrics(post);
     const rate = engagementRate(metrics);
-    const affect = post.evidence?.reader_affect || post.evidence?.quality_gate?.persona_affect?.likely_reader_feeling || '未設定';
     return {
         id: `cand_sns_feedback_${post.id}`,
         cognitive_type: 'observation',
@@ -76,11 +75,11 @@ export function buildSnsFeedbackCandidateDraft(post, {
                 account_handle: post.account_handle,
                 lane: post.lane,
                 source: post.source,
-                persona_brain: post.evidence?.persona_brain || {},
                 quality_gate: post.evidence?.quality_gate || {},
                 posted_url: post.posted_url,
                 metrics_snapshot: metrics,
-                engagement_rate: rate
+                engagement_rate: rate,
+                learning_policy: 'observation_only_no_content_optimization'
             }
         },
         body: [
@@ -89,7 +88,7 @@ export function buildSnsFeedbackCandidateDraft(post, {
             `lane: ${post.lane || '-'}`,
             metricLine(metrics),
             rate === null ? null : `engagement_rate: ${rate}`,
-            `reader_affect: ${affect}`,
+            'learning_policy: observation_only_no_content_optimization',
             '',
             'post_body:',
             post.body

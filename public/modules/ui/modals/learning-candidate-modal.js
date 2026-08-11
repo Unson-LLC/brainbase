@@ -1,4 +1,5 @@
 import { refreshIcons, setSanitizedHtml } from '../../ui-helpers.js';
+import { getKnowledgeCandidatePresentation } from '../../domain/learning/knowledge-formalization-presentation.js';
 
 function isMemoryCandidate(item) {
     return item?.kind === 'memory_candidate' || item?.candidateType === 'memory_candidate' || item?.source === 'memory_candidate';
@@ -169,6 +170,7 @@ export class LearningCandidateModal {
                     </section>
                 </div>
                 <div class="learning-candidate-modal-footer">
+                    <p id="learning-candidate-action-description" class="learning-candidate-action-description"></p>
                     <button id="learning-candidate-cancel-btn" class="btn-secondary">閉じる</button>
                     <button id="learning-candidate-reject-all-btn" class="btn-danger hidden">一括却下</button>
                     <button id="learning-candidate-apply-all-btn" class="btn-primary hidden">一括反映</button>
@@ -311,22 +313,63 @@ export class LearningCandidateModal {
         const rejectAllBtn = this.modalEl.querySelector('#learning-candidate-reject-all-btn');
         const expireBtn = this.modalEl.querySelector('#learning-candidate-expire-btn');
         const requestRedactionBtn = this.modalEl.querySelector('#learning-candidate-request-redaction-btn');
+        const actionDescription = this.modalEl.querySelector('#learning-candidate-action-description');
         const relatedItems = Array.isArray(item.relatedItems) ? item.relatedItems : [];
         const isMemory = isMemoryCandidate(item);
         const canReview = canCurrentUserReview(item, this.currentPersonId);
         const redactionBlocked = requiresRedaction(item);
 
-        applyAllBtn.classList.toggle('hidden', isMemory || relatedItems.length < 2);
-        rejectAllBtn.classList.toggle('hidden', isMemory || relatedItems.length < 2);
+        const relatedPresentations = relatedItems.map((related) => (
+            related.presentation || getKnowledgeCandidatePresentation(related)
+        ));
+        const canApplyAll = Boolean(this.onApplyAll)
+            && !isMemory
+            && relatedItems.length >= 2
+            && relatedPresentations.every((relatedPresentation) => (
+                relatedPresentation.primaryActionEnabled
+                && relatedPresentation.actionKind === relatedPresentations[0]?.actionKind
+            ));
+        const canRejectAll = Boolean(this.onRejectAll) && !isMemory && relatedItems.length >= 2;
+        const hasMixedOrBlockedRelatedItems = !isMemory
+            && relatedItems.length >= 2
+            && !relatedPresentations.every((relatedPresentation) => (
+                relatedPresentation.primaryActionEnabled
+                && relatedPresentation.actionKind === relatedPresentations[0]?.actionKind
+            ));
+
+        applyAllBtn.classList.toggle('hidden', !canApplyAll);
+        rejectAllBtn.classList.toggle('hidden', !canRejectAll);
         expireBtn.classList.toggle('hidden', !isMemory || !canReview);
         requestRedactionBtn.classList.toggle('hidden', !isMemory || !canReview);
         applyBtn.classList.toggle('hidden', isMemory && !canReview);
         rejectBtn.classList.toggle('hidden', isMemory && !canReview);
 
-        applyBtn.textContent = isMemory ? '承認' : '反映する';
-        rejectBtn.textContent = '却下';
-        applyBtn.disabled = Boolean(isMemory && redactionBlocked);
-        applyBtn.title = isMemory && redactionBlocked ? 'redaction required' : '';
+        const presentation = item.presentation || getKnowledgeCandidatePresentation(item);
+        applyBtn.textContent = presentation.primaryActionLabel;
+        rejectBtn.textContent = '今回は見送る';
+        const redactionDescription = isMemory && redactionBlocked
+            ? '機密情報の修正が必要なため、正式登録を承認できません。'
+            : '';
+        const bulkActionDescription = hasMixedOrBlockedRelatedItems
+            ? '関連候補は保存先や操作が異なるため、一括処理できません。個別に確認してください。'
+            : (!isMemory && relatedItems.length >= 2 && !this.onApplyAll
+                ? '関連候補の一括処理は利用できません。個別に確認してください。'
+                : '');
+        actionDescription.textContent = [presentation.primaryActionDescription, redactionDescription, bulkActionDescription]
+            .filter(Boolean)
+            .join(' ');
+        applyBtn.setAttribute('aria-describedby', 'learning-candidate-action-description');
+        applyBtn.disabled = !presentation.primaryActionEnabled || Boolean(isMemory && redactionBlocked);
+        applyBtn.title = isMemory && redactionBlocked
+            ? '機密情報の修正が必要です。'
+            : presentation.primaryActionDescription;
+
+        if (canApplyAll) {
+            applyAllBtn.textContent = `${relatedPresentations[0].primaryActionLabel}（${relatedItems.length}件）`;
+        }
+        if (canRejectAll) {
+            rejectAllBtn.textContent = `すべて見送る（${relatedItems.length}件）`;
+        }
     }
 
     close() {

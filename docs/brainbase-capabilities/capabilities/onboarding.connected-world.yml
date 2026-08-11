@@ -1,0 +1,71 @@
+id: onboarding.connected-world
+name: Connected-world onboarding
+purpose: |
+  Start Brainbase from the organization's existing work sources rather than asking users
+  to re-enter company knowledge. The host agent discovers callable MCP, Google Drive,
+  Gmail, and explicitly selected local folders, then performs metadata-first collection,
+  evidence-preserving candidate review, Promotion Gate, and first-value answer review.
+status: runtime_contract_implemented_host_entry_blocked
+surfaces:
+  ui: []
+  api:
+    - POST /api/onboarding/runs
+    - GET /api/onboarding/runs/:runId
+    - POST /api/onboarding/runs/:runId/sources
+    - POST /api/onboarding/runs/:runId/candidates/:candidateId/review
+    - POST /api/onboarding/runs/:runId/first-value
+    - POST /api/onboarding/runs/:runId/first-value/review
+  code:
+    - server/services/onboarding/onboarding-runtime-service.js
+    - server/routes/onboarding.js
+    - mcp/brainbase/src/tools/onboarding-tools.ts
+  data:
+    - host-provided source inventory metadata (credentials and source bodies excluded)
+    - existing Candidate Store and Graph SSOT promotion path
+depends_on:
+  - graph.ssot
+  - existing Promotion Gate in server/services/candidate-store/promotion-gate-service.js
+  - host-agent connector availability and authorization
+visibility_rules:
+  - The host agent may inventory only connector tools actually callable in the current session.
+  - Local folders require an explicitly selected root and deny secrets, VCS metadata, build output, and out-of-scope paths.
+  - Source ACL and owner/org/project scope apply during discovery, retrieval, candidate review, promotion, and answer context.
+verification:
+  commands:
+    - npm run test:run -- tests/unit/onboarding-source-inventory.test.js
+    - npm run test:run -- tests/server/onboarding-runtime-service.test.js tests/integration/onboarding-routes.test.js
+    - npm test --prefix mcp/brainbase
+    - npm run vibepro:doc-trace
+    - npm run vibepro:graph-ssot
+  expected:
+    - A ready source without authorization, scope, health timestamp, or evidence reference is downgraded to unconfirmed.
+    - Provider-mismatched scopes, malformed values, nested secrets, invalid timestamps, and duplicate source IDs fail closed.
+    - Waiting, unavailable, error, and unconfirmed states remain distinct from ready and empty data.
+    - Ready MCP, Drive, Gmail, or local-folder sources are recommended before the single-document fallback.
+    - Connector warm-path readiness and single-document fallback readiness are reported separately.
+    - The Skill requires human review and the existing Promotion Gate before Graph SSOT writes.
+common_failures:
+  - A host connector is installed but not authorized; report waiting_for_authorization or unconfirmed, not ready.
+  - The Brainbase server is incorrectly expected to enumerate sibling MCP or app connectors available only to the host agent.
+  - Metadata inventory is mistaken for source content absence or onboarding completion.
+  - Single-document fallback replaces the connector-first product path.
+runbooks:
+  - ../../../.claude/skills/brainbase-onboarding/SKILL.md
+troubleshooting: []
+delivery_boundary:
+  implemented_in_this_story:
+    - authenticated onboarding HTTP and MCP runtime contract
+    - Candidate Store review and Promotion Gate integration
+    - first-value receipt and useful/not_useful review
+  blocking_dependency:
+    story_id: story-ten-minute-world-onboarding
+    acceptance_criteria: AC-001..006
+    required_delivery: host-agent Skill binding from callable connectors and single-document fallback into onboarding MCP tools
+    status: host_entry_blocked
+  completion_rule: Runtime merge is not product onboarding completion; the blocking host-entry PR and live evidence remain required.
+evidence_boundary:
+  local_contract_tests: implemented
+  host_connector_live_run: unverified
+  candidate_to_graph_fixture_e2e: implemented
+  candidate_to_graph_live_e2e: unverified
+  production_e2e: unverified

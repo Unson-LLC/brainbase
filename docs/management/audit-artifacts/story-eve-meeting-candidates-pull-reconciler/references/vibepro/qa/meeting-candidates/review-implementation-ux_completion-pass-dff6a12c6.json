@@ -1,0 +1,8 @@
+{
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "implementation",
+  "role": "ux_completion",
+  "status": "pass",
+  "head": "dff6a12c65ec5062cbb2a477b28da3391e24ca56",
+  "summary": "Mission Control exposes success, waiting, retry, recovered, and blocked states; owner defaults remain safe under ambiguity; operator actions and history are visible. No unresolved UX finding remains."
+}

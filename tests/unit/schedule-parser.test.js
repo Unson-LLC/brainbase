@@ -1,26 +1,10 @@
-import fs from 'fs/promises';
-import os from 'os';
-import path from 'path';
-
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { ScheduleParser } from '../../lib/schedule-parser.js';
 
 describe('ScheduleParser', () => {
-    let tempDir;
-
-    beforeEach(async () => {
-        tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'brainbase-schedule-parser-'));
-    });
-
-    afterEach(async () => {
-        if (tempDir) {
-            await fs.rm(tempDir, { recursive: true, force: true });
-        }
-    });
-
-    it('Google Calendarイベントをローカル予定へマージする', async () => {
-        const parser = new ScheduleParser(tempDir, {
+    it('Google Calendarイベントを予定として返す', async () => {
+        const parser = new ScheduleParser({
             googleCalendarService: {
                 isConfigured: () => true,
                 listEventsForDate: vi.fn().mockResolvedValue([
@@ -40,11 +24,10 @@ describe('ScheduleParser', () => {
             }
         });
 
-        await fs.writeFile(path.join(tempDir, '2026-03-17.md'), '10:00 - 11:00 開発\n', 'utf-8');
-
         const schedule = await parser.getSchedule('2026-03-17');
 
-        expect(schedule.items).toHaveLength(2);
+        expect(schedule.events).toHaveLength(1);
+        expect(schedule.items).toHaveLength(1);
         expect(schedule.items[0]).toEqual(expect.objectContaining({
             task: '朝会',
             source: 'google-calendar',
@@ -52,16 +35,29 @@ describe('ScheduleParser', () => {
                 { email: 'sato@example.com', responseStatus: 'accepted' }
             ]
         }));
-        expect(schedule.items[1]).toEqual(expect.objectContaining({
-            task: '開発'
-        }));
     });
 
-    it('Google Calendarイベントだけでも予定を返す', async () => {
-        const parser = new ScheduleParser(tempDir, {
+    it('終日イベントを時間指定イベントより先頭に並べる', async () => {
+        const parser = new ScheduleParser({
             googleCalendarService: {
                 isConfigured: () => true,
                 listEventsForDate: vi.fn().mockResolvedValue([
+                    {
+                        id: 'gcal:primary:event-1',
+                        start: '09:00',
+                        end: '10:00',
+                        title: '朝会',
+                        source: 'google-calendar',
+                        calendarId: 'primary'
+                    },
+                    {
+                        id: 'gcal:primary:event-3',
+                        start: '08:00',
+                        end: '08:30',
+                        title: '早朝会',
+                        source: 'google-calendar',
+                        calendarId: 'primary'
+                    },
                     {
                         id: 'gcal:primary:event-2',
                         start: null,
@@ -69,7 +65,6 @@ describe('ScheduleParser', () => {
                         title: '祝日',
                         source: 'google-calendar',
                         calendarId: 'primary',
-                        completed: false,
                         allDay: true
                     }
                 ])
@@ -78,14 +73,39 @@ describe('ScheduleParser', () => {
 
         const schedule = await parser.getSchedule('2026-03-17');
 
-        expect(schedule.events).toHaveLength(1);
-        expect(schedule.events[0]).toEqual(expect.objectContaining({
-            title: '祝日',
-            allDay: true
-        }));
+        expect(schedule.events.map((e) => e.title)).toEqual(['祝日', '早朝会', '朝会']);
         expect(schedule.items[0]).toEqual(expect.objectContaining({
             task: '祝日',
             allDay: true
         }));
+    });
+
+    it('Google Calendar未設定なら空の予定を返す', async () => {
+        const parser = new ScheduleParser();
+
+        const schedule = await parser.getSchedule('2026-03-17');
+
+        expect(schedule).toEqual(expect.objectContaining({
+            date: '2026-03-17',
+            events: [],
+            items: [],
+            raw: null,
+            message: 'No schedule for this date'
+        }));
+    });
+
+    it('Google Calendar取得失敗を空予定と区別して返す', async () => {
+        const parser = new ScheduleParser({
+            googleCalendarService: {
+                isConfigured: () => true,
+                listEventsForDate: vi.fn().mockRejectedValue(new Error('gog not installed'))
+            }
+        });
+
+        const schedule = await parser.getSchedule('2026-03-17');
+
+        expect(schedule.events).toEqual([]);
+        expect(schedule.items).toEqual([]);
+        expect(schedule.error).toBe('gog not installed');
     });
 });

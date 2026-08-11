@@ -3,14 +3,14 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 
 import { InMemoryWorkflowRepository } from '../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../server/services/workflow/workflow-runner.js';
 import {
-  WorkflowService,
+  TestAutomationRuntime,
   createDefaultWorkflowHandlers
-} from '../../server/services/workflow/workflow-service.js';
+} from '../helpers/test-automation-runtime.js';
 import { meetingPackIds } from '../../server/services/workflow/meeting-workflow-pack.js';
 
 const storyId = 'story-eve-dispatch-handoff-transcript-context';
@@ -47,7 +47,7 @@ function makeService({ eveSessionClient = null }: { eveSessionClient?: any } = {
       };
     }
   };
-  const service = new WorkflowService({ repository, runner, configParser, eveSessionClient });
+  const service = new TestAutomationRuntime({ repository, runner, configParser, eveSessionClient });
   const actor = {
     sub: 'keigo',
     person_id: 'keigo',
@@ -119,11 +119,11 @@ function samplePackage({ packageId = 'meeting-handoff-package-e2e' } = {}) {
 
 async function bootstrapAndIngest({ eveSessionClient = null, reviewPackage = samplePackage() }: { eveSessionClient?: any, reviewPackage?: any } = {}) {
   const { repository, service, actor } = makeService({ eveSessionClient });
-  await service.bootstrapMeetingWorkflowPack({
+  await service.meetingAutomationService.bootstrapPack({
     org_id: 'sample-project',
     project_id: 'sample-project'
   }, actor);
-  const result = await service.ingestMeetingReviewPackage({
+  const result = await service.meetingAutomationService.ingestReviewPackage({
     review_package: reviewPackage
   }, actor);
   return { repository, service, actor, ingest: result.meeting_review_ingest };
@@ -254,7 +254,7 @@ test(`story-eve-dispatch-handoff-transcript-context ac:5 ac:7 AC-005 AC-007 S-00
 test(`story-eve-dispatch-handoff-transcript-context ac:6 AC-006 S-003 dispatches without a meeting_note_generation reference keep the existing handoff shape`, async () => {
   const eveSessionClient = makeEveSessionClient();
   const { service, actor } = makeService({ eveSessionClient });
-  await service.bootstrapMeetingWorkflowPack({ org_id: 'sample-project', project_id: 'sample-project' }, actor);
+  await service.meetingAutomationService.bootstrapPack({ org_id: 'sample-project', project_id: 'sample-project' }, actor);
   const briefingLoopIntentId = meetingPackIds({
     orgId: 'sample-project',
     projectId: 'sample-project',
@@ -372,6 +372,21 @@ test(`story-eve-dispatch-handoff-transcript-context ac:8 AC-008 S-004 backfill s
   expect(stdout).toContain('run=run_no_hash_1');
   expect(stdout).toContain('skip: source_text_hash missing');
   expect(stdout).toContain('dry-run (use --execute to dispatch)');
+});
+
+test(`story-eve-dispatch-handoff-transcript-context ac:8 AC-008 backfill execute requires exactly one run before reading the ledger`, () => {
+  for (const runIds of [[], ['run_1', 'run_2']]) {
+    const result = spawnSync('node', [
+      'script/backfill-eve-meeting-note-dispatch.mjs',
+      '--ledger', '/path/that/must/not/be/read.json',
+      ...runIds.flatMap((runId) => ['--run-id', runId]),
+      '--execute'
+    ], { encoding: 'utf8' });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('--execute requires exactly one --run-id');
+    expect(result.stderr).not.toContain('ENOENT');
+  }
 });
 
 test(`story-eve-dispatch-handoff-transcript-context ac:8 AC-008 docs contract: backfill runbook prescribes force_new_session and the dispatch API`, async () => {

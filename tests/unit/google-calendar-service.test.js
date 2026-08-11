@@ -111,6 +111,35 @@ describe('GoogleCalendarService', () => {
                         summary: '祝日',
                         start: { date: '2026-03-21' },
                         end: { date: '2026-03-22' }
+                    },
+                    {
+                        id: 'evt-multi-day',
+                        summary: '複数日の終日予定',
+                        start: { date: '2026-03-20' },
+                        end: { date: '2026-03-23' }
+                    },
+                    {
+                        id: 'evt-ended',
+                        summary: '終了境界の終日予定',
+                        start: { date: '2026-03-20' },
+                        end: { date: '2026-03-21' }
+                    },
+                    {
+                        id: 'evt-future-all-day',
+                        summary: '翌日開始の終日予定',
+                        start: { date: '2026-03-22' },
+                        end: { date: '2026-03-23' }
+                    },
+                    {
+                        id: 'evt-missing-end',
+                        summary: '終了日欠落の終日予定',
+                        start: { date: '2026-03-21' }
+                    },
+                    {
+                        id: 'evt-next-day',
+                        summary: '翌日の予定',
+                        start: { dateTime: '2026-03-22T00:00:00+09:00' },
+                        end: { dateTime: '2026-03-22T01:00:00+09:00' }
                     }
                 ]
             }
@@ -119,13 +148,22 @@ describe('GoogleCalendarService', () => {
 
         const events = await service.listEventsForDate('2026-03-21');
 
-        expect(events).toHaveLength(2);
+        expect(events).toHaveLength(3);
+        expect(events.map(event => event.title)).not.toContain('翌日の予定');
+        expect(events.map(event => event.title)).not.toContain('終了境界の終日予定');
+        expect(events.map(event => event.title)).not.toContain('翌日開始の終日予定');
+        expect(events.map(event => event.title)).not.toContain('終了日欠落の終日予定');
+        expect(events.map(event => event.title)).toContain('複数日の終日予定');
         expect(events[0]).toEqual(expect.objectContaining({
             title: '祝日',
             allDay: true,
             source: 'google-calendar'
         }));
         expect(events[1]).toEqual(expect.objectContaining({
+            title: '複数日の終日予定',
+            allDay: true
+        }));
+        expect(events[2]).toEqual(expect.objectContaining({
             title: '定例MTG',
             start: '10:00',
             end: '11:00',
@@ -146,6 +184,24 @@ describe('GoogleCalendarService', () => {
                 }
             ]
         }));
+    });
+
+    it('listEventsForDate呼び出し時_calendar取得失敗を空予定にしない', async () => {
+        const execFileMock = createExecFileMock({
+            '--version': 'v0.9.0',
+            'auth status --json --no-input': {
+                account: {
+                    credentials_exists: true,
+                    email: 'gyaru@example.com'
+                }
+            },
+            'calendar events primary --from 2026-03-21 --to 2026-03-22 --json --no-input --max 200':
+                new Error('calendar forbidden')
+        });
+        const service = new GoogleCalendarService({ execFileImpl: execFileMock });
+
+        await expect(service.listEventsForDate('2026-03-21'))
+            .rejects.toThrow('Google Calendar fetch incomplete: primary: calendar forbidden');
     });
 
     it('story-meeting-workflow-calendar-input-v1 S-003 S-004 listEvents呼び出し時_accountと会議入力情報を正規化する', async () => {

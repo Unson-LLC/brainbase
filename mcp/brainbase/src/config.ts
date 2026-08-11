@@ -5,6 +5,16 @@
 
 const DEFAULT_GRAPH_API_URL = 'https://bb.unson.jp';
 
+export function resolveBrainbaseApiUrl(env: NodeJS.ProcessEnv = process.env): string {
+  return (
+    env.BRAINBASE_RESOLVED_API_URL
+    || env.BRAINBASE_GRAPH_API_URL
+    || env.BRAINBASE_API_URL
+    || env.BRAINBASE_API_BASE_URL
+    || DEFAULT_GRAPH_API_URL
+  ).trim().replace(/\/+$/, '');
+}
+
 export type EntitySourceMode = 'graphapi';
 
 export interface BrainbaseConfig {
@@ -29,12 +39,7 @@ export interface BrainbaseConfig {
  */
 export function loadConfig(): BrainbaseConfig {
   const requestedSourceMode = (process.env.BRAINBASE_ENTITY_SOURCE || 'graphapi').trim().toLowerCase();
-  const graphApiUrl = (
-    process.env.BRAINBASE_GRAPH_API_URL
-    || process.env.BRAINBASE_API_URL
-    || process.env.BRAINBASE_API_BASE_URL
-    || DEFAULT_GRAPH_API_URL
-  ).trim().replace(/\/+$/, '');
+  const graphApiUrl = resolveBrainbaseApiUrl();
   const projectCodesStr = process.env.BRAINBASE_PROJECT_CODES;
 
   // Parse project codes

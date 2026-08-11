@@ -15,7 +15,7 @@ story_id: story-companion-approval-inbox-v1
 
 - Route: `server/routes/companion.js`
 - Controller: `server/controllers/companion-controller.js`
-- Service: `server/services/workflow/workflow-service.js`
+- Service: `server/services/companion/approval-inbox-service.js`
 - Repository: `server/services/workflow/workflow-repository.js`
 - Data: `var/workflow-ledger.json`
 
@@ -23,13 +23,13 @@ story_id: story-companion-approval-inbox-v1
 
 1. Mac Companion が Brainbase bearer/service/internal credential で `/api/companion/approval-inbox` を呼ぶ。
 2. Companion access guard が native/server-to-server 境界と owner access を検証する。
-3. `WorkflowService` が `workflow_runs` 全体を走査し、pending の `workflow_human_steps` を持つ run を抽出する。
+3. `CompanionApprovalInboxService` が `workflow_runs` 全体を走査し、pending の `workflow_human_steps` を持つ run を抽出する。
 4. 各 run に対して `outputs`, `audit_logs`, `context_snapshots` を読み、Mac 表示用の Approval Item に正規化する。
 5. API は `items` と `count` を返す。Mac はこれを Focus Queue として Inbox に統合する。
 
 ## 設計判断
 
-- `GET /api/workflows` を流用しない。latest run projection のため、古い pending run が隠れる。
+- 廃止前の`GET /api/workflows` latest-run projectionを流用しない。専用approval projectionを正本とし、古いpending runを隠さない。
 - Brainbase approval を Gmail/Slack の `SourceEvent` に変換しない。承認対象は外部メッセージではなく Workflow 正本である。
 - API は承認対象の raw output payload を含める。Mac 側で「承認前に本文を読める」ことが UX 上の必須条件である。
 - Resolve は既存の `POST /api/workflow-runs/:runId/human-steps/:stepId/resolve` を正とする。Companion 専用 resolve は v1 では追加しない。

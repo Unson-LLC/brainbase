@@ -49,10 +49,6 @@ describe('Server Endpoints - Active Routes', () => {
     });
 
     describe('Router Endpoints', () => {
-        it('TaskRouter endpoints should be accessible via /api/tasks', async () => {
-            expect(true).toBe(true); // プレースホルダー
-        });
-
         it('StateRouter endpoints should be accessible via /api/state', async () => {
             expect(true).toBe(true); // プレースホルダー
         });

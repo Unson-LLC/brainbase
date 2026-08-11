@@ -6,6 +6,11 @@ import { meetingPackIds } from '../workflow/meeting-workflow-pack.js';
 export const SUPPORTED_MEETING_SOURCE_PROVIDERS = Object.freeze(['tactiq', 'plaud']);
 
 const INITIAL_BACKFILL_SINCE = '2026-06-25T00:00:00.000Z';
+const DEFAULT_PREVIEW_PENDING_TTL_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_MAX_PENDING_PREVIEWS = 20;
+const DEFAULT_MAX_COMPACTED_PREVIEWS = 100;
+const DEFAULT_MAX_PREVIEW_PAYLOAD_BYTES = 16 * 1024 * 1024;
+const DEFAULT_MAX_PENDING_PREVIEW_BYTES = 32 * 1024 * 1024;
 
 const DEFAULT_PROVIDER_CAPABILITIES = Object.freeze({
     tactiq: ['online_transcript', 'speaker_timeline', 'mcp_resource'],
@@ -24,6 +29,11 @@ function nowIso() {
 function parseDurationMs(value, fallback) {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parsePositiveInteger(value, fallback) {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function subtractMs(isoValue, deltaMs) {
@@ -491,7 +501,10 @@ function defaultState() {
             org_id: null,
             project_id: null,
             case_scope: null,
-            immediate: false
+            immediate: false,
+            preview_pending_ttl_ms: DEFAULT_PREVIEW_PENDING_TTL_MS,
+            max_pending_previews: DEFAULT_MAX_PENDING_PREVIEWS,
+            max_compacted_previews: DEFAULT_MAX_COMPACTED_PREVIEWS
         },
         last_scheduled_run: null,
         previews: {}
@@ -539,107 +552,21 @@ function sourceEvidenceRef(sourceEvent) {
     ].filter(Boolean).join(':');
 }
 
-function sentenceCandidatesFromTranscript(meetingNoteSummary = {}, cues = /./u, limit = 5) {
-    const transcripts = Array.isArray(meetingNoteSummary.source_transcripts)
-        ? meetingNoteSummary.source_transcripts
-        : [];
-    const text = normalizeMultilineText(transcripts.map((source) => source.text || '').filter(Boolean).join('\n'));
-    const rawSentences = text
-        .split(/(?<=[。！？!?])\s*|\n+/u)
-        .map(normalizeWhitespace)
-        .filter((sentence) => sentence.length >= 12);
-    const matched = rawSentences.filter((sentence) => cues.test(sentence));
-    const selected = (matched.length > 0 ? matched : rawSentences).slice(0, limit);
-    return selected.map((sentence, index) => ({
-        sentence,
-        index
-    }));
-}
-
-function titleFromSentence(sentence, fallback) {
-    const title = normalizeWhitespace(sentence)
-        .replace(/^[・*-]\s*/u, '')
-        .slice(0, 80);
-    return title || fallback;
-}
-
-function ownerHintFromSentence(sentence) {
-    const match = String(sentence || '').match(/([一-龯ぁ-んァ-ヶA-Za-z0-9_.-]{2,24})(さん|様|氏)/u);
-    return match?.[0] || null;
-}
-
-function buildTaskCandidatesFromTranscript(meetingNoteSummary = {}, { caseScope = null, evidenceRefs = [] } = {}) {
-    const cues = /(対応|確認|共有|連絡|送付|準備|作成|修正|調整|検討|参加|引継ぎ|請求書|タスク|宿題|TODO|action|follow-up|next step)/iu;
-    const sentences = sentenceCandidatesFromTranscript(meetingNoteSummary, cues, 5);
-    const fallbackTitle = `${meetingNoteSummary.title || '会議'}の議事録を確認し、次アクションを整理する`;
-    const candidates = sentences.map(({ sentence, index }) => ({
-        id: `task_candidate_${stableHash(`${caseScope || meetingNoteSummary.title || ''}:task:${sentence}:${index}`).slice(0, 12)}`,
-        title: titleFromSentence(sentence, fallbackTitle),
-        status: 'candidate',
-        source: 'meeting_review_package',
-        case_scope: caseScope,
-        owner_hint: ownerHintFromSentence(sentence),
-        due_hint: null,
-        source_excerpt: sentence,
-        evidence_refs: evidenceRefs
-    }));
-    if (candidates.length > 0) return candidates;
-    return [{
-        id: `task_candidate_${stableHash(`${caseScope || meetingNoteSummary.title || ''}:task:fallback`).slice(0, 12)}`,
-        title: fallbackTitle,
-        status: 'candidate',
-        source: 'meeting_review_package',
-        case_scope: caseScope,
-        owner_hint: null,
-        due_hint: null,
-        source_excerpt: meetingNoteSummary.summary || meetingNoteSummary.title || '',
-        evidence_refs: evidenceRefs
-    }];
-}
-
-function buildDecisionCandidatesFromTranscript(meetingNoteSummary = {}, { caseScope = null, evidenceRefs = [] } = {}) {
-    const cues = /(決定|判断|合意|方針|承認|採用|見送り|不要|固定|位置づけ|収束|確認された|主要論点|重要)/iu;
-    const sentences = sentenceCandidatesFromTranscript(meetingNoteSummary, cues, 5);
-    const fallbackTitle = `${meetingNoteSummary.title || '会議'}の判断事項を確認する`;
-    const candidates = sentences.map(({ sentence, index }) => ({
-        id: `decision_candidate_${stableHash(`${caseScope || meetingNoteSummary.title || ''}:decision:${sentence}:${index}`).slice(0, 12)}`,
-        title: titleFromSentence(sentence, fallbackTitle),
-        status: 'candidate',
-        source: 'meeting_review_package',
-        case_scope: caseScope,
-        decision_type: 'meeting_decision',
-        source_excerpt: sentence,
-        evidence_refs: evidenceRefs
-    }));
-    if (candidates.length > 0) return candidates;
-    return [{
-        id: `decision_candidate_${stableHash(`${caseScope || meetingNoteSummary.title || ''}:decision:fallback`).slice(0, 12)}`,
-        title: fallbackTitle,
-        status: 'candidate',
-        source: 'meeting_review_package',
-        case_scope: caseScope,
-        decision_type: 'meeting_decision',
-        source_excerpt: meetingNoteSummary.summary || meetingNoteSummary.title || '',
-        evidence_refs: evidenceRefs
-    }];
-}
-
-function buildFollowUpDraft(meetingNoteSummary = {}, taskCandidates = [], decisionCandidates = []) {
-    const title = meetingNoteSummary.title || '本日の打ち合わせ';
-    const summary = normalizeWhitespace(meetingNoteSummary.summary || meetingNoteSummary.body || '');
-    const taskLines = taskCandidates.slice(0, 5).map((candidate) => `- ${candidate.title}`);
-    const decisionLines = decisionCandidates.slice(0, 5).map((candidate) => `- ${candidate.title}`);
-    const body = [
-        `${title}について、議事録ドラフトをもとに以下を確認候補として整理しました。`,
-        summary ? `\n概要:\n${summary}` : '',
-        taskLines.length > 0 ? `\nタスク候補:\n${taskLines.join('\n')}` : '',
-        decisionLines.length > 0 ? `\n判断候補:\n${decisionLines.join('\n')}` : '',
-        '\n必要に応じて内容を確認・修正してから送信してください。'
-    ].filter(Boolean).join('\n').trim();
+// Task / decision / follow-up candidates are no longer produced by a deterministic
+// sentence splitter at ingest time. They are generated by Eve (LLM) in the same
+// meeting session that produces the note and reconciled back onto these outputs by
+// the pull-based reconciler (server/services/external-runner/eve-meeting-note-reconciler.js
+// -> meetingAutomationService.recordCandidates). At ingest the candidate outputs are
+// created as non-null awaiting-Eve placeholders (see buildAwaitingEveCandidates below).
+function buildAwaitingEveCandidates() {
     return {
-        status: 'draft_only',
-        external_send_required_approval: true,
-        body
+        task_candidates: [],
+        decision_candidates: [],
+        follow_up_draft: {
+            status: 'awaiting_eve_generation',
+            external_send_required_approval: true,
+            body: ''
+        }
     };
 }
 
@@ -731,34 +658,61 @@ export class MeetingSourceMcpSyncService {
     constructor({
         stateFile,
         adapters = {},
-        workflowService = null,
+        meetingAutomationService = null,
         clock = nowIso,
         syncConfig = {}
     } = {}) {
         if (!stateFile) throw new Error('stateFile is required');
         this.stateFile = stateFile;
         this.adapters = adapters;
-        this.workflowService = workflowService;
+        this.meetingAutomationService = meetingAutomationService;
         this.clock = clock;
         this.syncConfig = {
             ...defaultState().sync_config,
             ...syncConfig,
             interval_ms: parseDurationMs(syncConfig.interval_ms ?? syncConfig.intervalMs, defaultState().sync_config.interval_ms),
-            lookback_ms: parseDurationMs(syncConfig.lookback_ms ?? syncConfig.lookbackMs, defaultState().sync_config.lookback_ms)
+            lookback_ms: parseDurationMs(syncConfig.lookback_ms ?? syncConfig.lookbackMs, defaultState().sync_config.lookback_ms),
+            preview_pending_ttl_ms: parseDurationMs(
+                syncConfig.preview_pending_ttl_ms ?? syncConfig.previewPendingTtlMs,
+                DEFAULT_PREVIEW_PENDING_TTL_MS
+            ),
+            max_pending_previews: parsePositiveInteger(
+                syncConfig.max_pending_previews ?? syncConfig.maxPendingPreviews,
+                DEFAULT_MAX_PENDING_PREVIEWS
+            ),
+            max_compacted_previews: parsePositiveInteger(
+                syncConfig.max_compacted_previews ?? syncConfig.maxCompactedPreviews,
+                DEFAULT_MAX_COMPACTED_PREVIEWS
+            ),
+            max_preview_payload_bytes: parsePositiveInteger(
+                syncConfig.max_preview_payload_bytes ?? syncConfig.maxPreviewPayloadBytes,
+                DEFAULT_MAX_PREVIEW_PAYLOAD_BYTES
+            ),
+            max_pending_preview_bytes: parsePositiveInteger(
+                syncConfig.max_pending_preview_bytes ?? syncConfig.maxPendingPreviewBytes,
+                DEFAULT_MAX_PENDING_PREVIEW_BYTES
+            )
         };
         this._state = null;
         this._scheduleTimer = null;
         this._scheduledRunPromise = null;
+        this._savePromise = Promise.resolve();
+        this._saveSequence = 0;
     }
 
     async _loadState() {
         if (this._state) return this._state;
         try {
-            const raw = await fs.readFile(this.stateFile, 'utf8');
-            this._state = { ...defaultState(), ...JSON.parse(raw) };
+            let raw = await fs.readFile(this.stateFile, 'utf8');
+            const parsed = JSON.parse(raw);
+            raw = null;
+            this._state = { ...defaultState(), ...parsed };
             this._state.providers = { ...defaultState().providers, ...(this._state.providers || {}) };
             this._state.sync_config = { ...defaultState().sync_config, ...(this._state.sync_config || {}) };
             this._state.previews = this._state.previews || {};
+            if (this._compactAndPrunePreviews(this._state)) {
+                await this._saveState();
+            }
         } catch (error) {
             if (error.code !== 'ENOENT') throw error;
             this._state = defaultState();
@@ -767,9 +721,128 @@ export class MeetingSourceMcpSyncService {
         return this._state;
     }
 
+    _compactSubmittedPreview(preview = {}) {
+        const artifactCount = Number.isInteger(preview.artifact_count)
+            ? preview.artifact_count
+            : (Array.isArray(preview.artifacts)
+                ? preview.artifacts.length
+                : (preview.provider_results || []).reduce((total, result) => total + (result.artifact_count || 0), 0));
+        const expectedMeetingPackCount = Number.isInteger(preview.expected_meeting_pack_count)
+            ? preview.expected_meeting_pack_count
+            : (Array.isArray(preview.clusters) ? preview.clusters.length : 0);
+        const excludedFromMeetingPackCount = Number.isInteger(preview.excluded_from_meeting_pack_count)
+            ? preview.excluded_from_meeting_pack_count
+            : (Array.isArray(preview.meeting_pack_exclusions) ? preview.meeting_pack_exclusions.length : 0);
+
+        return {
+            preview_id: preview.preview_id,
+            created_at: preview.created_at || null,
+            confirmed_at: preview.confirmed_at || null,
+            submitted: true,
+            options: preview.options || {},
+            provider_results: preview.provider_results || [],
+            artifact_count: artifactCount,
+            expected_meeting_pack_count: expectedMeetingPackCount,
+            excluded_from_meeting_pack_count: excludedFromMeetingPackCount,
+            errors: preview.errors || []
+        };
+    }
+
+    _compactAndPrunePreviews(state, protectedPreviewId = null) {
+        const previews = state.previews || {};
+        const nowMs = new Date(this.clock()).getTime();
+        const pendingCutoff = Number.isFinite(nowMs)
+            ? nowMs - this.syncConfig.preview_pending_ttl_ms
+            : Number.NEGATIVE_INFINITY;
+        let changed = false;
+        const pending = [];
+        const compacted = [];
+
+        for (const [previewId, previewValue] of Object.entries(previews)) {
+            const preview = previewValue || {};
+            const createdAtMs = new Date(preview.created_at || 0).getTime();
+            if (preview.submitted === true) {
+                const compactedPreview = this._compactSubmittedPreview(preview);
+                if (Object.hasOwn(preview, 'artifacts') || Object.hasOwn(preview, 'clusters') || Object.hasOwn(preview, 'meeting_pack_exclusions')) {
+                    changed = true;
+                }
+                compacted.push([previewId, compactedPreview, createdAtMs]);
+                continue;
+            }
+            if (Number.isFinite(createdAtMs) && createdAtMs < pendingCutoff) {
+                changed = true;
+                continue;
+            }
+            if (Object.hasOwn(preview, 'clusters')) {
+                const { clusters: _clusters, ...artifactOnlyPreview } = preview;
+                pending.push([previewId, artifactOnlyPreview, createdAtMs]);
+                changed = true;
+            } else {
+                pending.push([previewId, preview, createdAtMs]);
+            }
+        }
+
+        const newestFirst = (a, b) => {
+            if (a[0] === protectedPreviewId) return -1;
+            if (b[0] === protectedPreviewId) return 1;
+            const timeDifference = (Number.isFinite(b[2]) ? b[2] : 0) - (Number.isFinite(a[2]) ? a[2] : 0);
+            return timeDifference || b[0].localeCompare(a[0]);
+        };
+        pending.sort(newestFirst);
+        compacted.sort(newestFirst);
+        if (pending.length > this.syncConfig.max_pending_previews || compacted.length > this.syncConfig.max_compacted_previews) {
+            changed = true;
+        }
+        const retainedPending = [];
+        let retainedPendingBytes = 0;
+        for (const entry of pending.slice(0, this.syncConfig.max_pending_previews)) {
+            const previewBytes = Buffer.byteLength(JSON.stringify(entry[1]));
+            if (previewBytes > this.syncConfig.max_preview_payload_bytes
+                || retainedPendingBytes + previewBytes > this.syncConfig.max_pending_preview_bytes) {
+                changed = true;
+                continue;
+            }
+            retainedPending.push(entry);
+            retainedPendingBytes += previewBytes;
+        }
+        const retained = [
+            ...retainedPending,
+            ...compacted.slice(0, this.syncConfig.max_compacted_previews)
+        ];
+        state.previews = Object.fromEntries(retained.map(([previewId, preview]) => [previewId, preview]));
+        return changed;
+    }
+
     async _saveState() {
-        await fs.mkdir(path.dirname(this.stateFile), { recursive: true });
-        await fs.writeFile(this.stateFile, JSON.stringify(this._state || defaultState(), null, 2));
+        const serialized = JSON.stringify(this._state || defaultState(), null, 2);
+        const sequence = ++this._saveSequence;
+        const save = async () => {
+            const directory = path.dirname(this.stateFile);
+            const temporaryFile = `${this.stateFile}.${process.pid}.${sequence}.tmp`;
+            await fs.mkdir(directory, { recursive: true });
+            let handle = null;
+            try {
+                handle = await fs.open(temporaryFile, 'w', 0o600);
+                await handle.writeFile(serialized);
+                await handle.sync();
+                await handle.close();
+                handle = null;
+                await fs.rename(temporaryFile, this.stateFile);
+                const directoryHandle = await fs.open(directory, 'r');
+                try {
+                    await directoryHandle.sync();
+                } finally {
+                    await directoryHandle.close();
+                }
+            } catch (error) {
+                if (handle) await handle.close().catch(() => {});
+                await fs.unlink(temporaryFile).catch(() => {});
+                throw error;
+            }
+        };
+        const pendingSave = this._savePromise.then(save, save);
+        this._savePromise = pendingSave.catch(() => {});
+        return pendingSave;
     }
 
     async listProviderStatuses() {
@@ -777,6 +850,82 @@ export class MeetingSourceMcpSyncService {
         return {
             providers: SUPPORTED_MEETING_SOURCE_PROVIDERS.map((provider) => publicProvider(state.providers[provider])),
             sync_policy: this._publicSyncPolicy(state),
+            updated_at: this.clock()
+        };
+    }
+
+    async diagnose({ project_id: requestedProjectId, projectId } = {}) {
+        const state = await this._loadState();
+        const requestedProject = readString({ requestedProjectId, projectId }, 'requestedProjectId', 'projectId');
+        if (!requestedProject) {
+            const error = new Error('project_id is required');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const providers = SUPPORTED_MEETING_SOURCE_PROVIDERS.map((provider) => publicProvider(state.providers[provider]));
+        const connectedProviders = providers.filter((provider) => (
+            provider.enabled && provider.auth_status === 'connected'
+        ));
+        const providerErrors = connectedProviders.filter((provider) => provider.last_error);
+        const configuredProject = readString(state.sync_config, 'project_id', 'projectId')
+            || readString(this.syncConfig, 'project_id', 'projectId');
+        const lastScheduledRun = state.last_scheduled_run || null;
+        let diagnosticState = 'healthy';
+        const issueCodes = [];
+        const recommendedActions = [];
+
+        if (connectedProviders.length === 0) {
+            diagnosticState = 'blocked';
+            issueCodes.push('no_connected_providers');
+            recommendedActions.push('connect_meeting_source');
+        } else if (!configuredProject) {
+            diagnosticState = 'blocked';
+            issueCodes.push('scope_not_configured');
+            recommendedActions.push('configure_meeting_automation_scope');
+        } else if (configuredProject !== requestedProject) {
+            diagnosticState = 'unconfirmed';
+            issueCodes.push('project_scope_not_configured');
+            recommendedActions.push('confirm_meeting_automation_project_scope');
+        } else if (providerErrors.length > 0) {
+            diagnosticState = 'failed';
+            issueCodes.push(...providerErrors.map((provider) => `provider_error:${provider.provider}`));
+            recommendedActions.push('test_or_reconnect_meeting_source');
+        } else if (!lastScheduledRun) {
+            diagnosticState = 'unconfirmed';
+            issueCodes.push('sync_never_observed');
+            recommendedActions.push('observe_next_scheduled_sync');
+        } else if (lastScheduledRun.ok === true && [
+            'no_source_artifacts',
+            'no_transcript_artifacts_for_meeting_pack'
+        ].includes(lastScheduledRun.reason)) {
+            diagnosticState = 'no_data';
+            issueCodes.push(lastScheduledRun.reason);
+            recommendedActions.push('verify_source_has_new_transcript');
+        } else if (lastScheduledRun.ok !== true) {
+            const reason = lastScheduledRun.reason || 'scheduled_sync_failed';
+            diagnosticState = ['no_connected_providers', 'scope_not_configured', 'submit_disabled'].includes(reason)
+                ? 'blocked'
+                : 'failed';
+            issueCodes.push(reason);
+            recommendedActions.push(
+                reason === 'no_connected_providers'
+                    ? 'connect_meeting_source'
+                    : reason === 'scope_not_configured'
+                        ? 'configure_meeting_automation_scope'
+                        : 'inspect_and_retry_meeting_source_sync'
+            );
+        }
+
+        return {
+            project_id: requestedProject,
+            configured_project_id: configuredProject,
+            state: diagnosticState,
+            issue_codes: issueCodes,
+            recommended_actions: [...new Set(recommendedActions)],
+            providers,
+            sync_policy: this._publicSyncPolicy(state),
+            last_scheduled_run: lastScheduledRun,
             updated_at: this.clock()
         };
     }
@@ -1011,7 +1160,7 @@ export class MeetingSourceMcpSyncService {
             .map(meetingPackExclusionForPreview);
         const clusters = dedupeSourceArtifacts(meetingPackArtifacts);
         const previewId = `preview_${stableHash(`${this.clock()}:${JSON.stringify(resolvedOptions)}:${artifacts.length}`).slice(0, 20)}`;
-        state.previews[previewId] = {
+        const persistedPreview = {
             preview_id: previewId,
             created_at: this.clock(),
             options: {
@@ -1029,9 +1178,23 @@ export class MeetingSourceMcpSyncService {
             provider_results: providerResults,
             artifacts,
             meeting_pack_exclusions: meetingPackExclusions,
-            clusters,
+            artifact_count: artifacts.length,
+            expected_meeting_pack_count: clusters.length,
+            excluded_from_meeting_pack_count: meetingPackExclusions.length,
             errors
         };
+        const persistedPreviewBytes = Buffer.byteLength(JSON.stringify(persistedPreview));
+        const effectivePreviewLimit = Math.min(
+            this.syncConfig.max_preview_payload_bytes,
+            this.syncConfig.max_pending_preview_bytes
+        );
+        if (persistedPreviewBytes > effectivePreviewLimit) {
+            const error = new Error('meeting source preview payload exceeds retention limit');
+            error.statusCode = 413;
+            throw error;
+        }
+        state.previews[previewId] = persistedPreview;
+        this._compactAndPrunePreviews(state, previewId);
         await this._saveState();
 
         return {
@@ -1066,15 +1229,10 @@ export class MeetingSourceMcpSyncService {
             sourceEvent,
             supportingSourceEvents
         });
-        const taskCandidates = buildTaskCandidatesFromTranscript(meetingNoteSummary, {
-            caseScope,
-            evidenceRefs
-        });
-        const decisionCandidates = buildDecisionCandidatesFromTranscript(meetingNoteSummary, {
-            caseScope,
-            evidenceRefs
-        });
-        const followUpDraft = buildFollowUpDraft(meetingNoteSummary, taskCandidates, decisionCandidates);
+        // Candidates start empty (awaiting Eve). The pull-based reconciler fills
+        // task_candidates / decision_candidates / follow_up_draft from the LLM-generated
+        // candidates in the same Eve session that produces the meeting note.
+        const { task_candidates: taskCandidates, decision_candidates: decisionCandidates, follow_up_draft: followUpDraft } = buildAwaitingEveCandidates();
         return {
             package_id: `meeting-source:${cluster.source_cluster_id}`,
             org_id: orgId,
@@ -1128,13 +1286,25 @@ export class MeetingSourceMcpSyncService {
             error.statusCode = 409;
             throw error;
         }
+        if (preview.submitted === true) {
+            return {
+                preview_id: previewId,
+                submitted: true,
+                already_submitted: true,
+                meeting_pack_count: preview.expected_meeting_pack_count || 0,
+                review_packages: []
+            };
+        }
 
         const scope = resolveScope(preview.options, actor);
-        const reviewPackages = preview.clusters.map((cluster) => this._buildReviewPackageDraft(cluster, { actor, scope }));
+        const clusters = Array.isArray(preview.clusters)
+            ? preview.clusters
+            : dedupeSourceArtifacts((preview.artifacts || []).filter(isMeetingPackSourceArtifact));
+        const reviewPackages = clusters.map((cluster) => this._buildReviewPackageDraft(cluster, { actor, scope }));
 
         if (submit) {
-            if (!this.workflowService?.ingestMeetingReviewPackage) {
-                const error = new Error('workflowService.ingestMeetingReviewPackage is required before confirming meeting source sync');
+            if (!this.meetingAutomationService?.ingestReviewPackage) {
+                const error = new Error('meetingAutomationService.ingestReviewPackage is required before confirming meeting source sync');
                 error.statusCode = 503;
                 throw error;
             }
@@ -1143,14 +1313,14 @@ export class MeetingSourceMcpSyncService {
                 error.statusCode = 400;
                 throw error;
             }
-            if (this.workflowService.bootstrapMeetingWorkflowPack) {
-                await this.workflowService.bootstrapMeetingWorkflowPack({
+            if (this.meetingAutomationService?.bootstrapPack) {
+                await this.meetingAutomationService.bootstrapPack({
                     org_id: scope.org_id,
                     project_id: scope.project_id
                 }, actor);
             }
             for (const reviewPackage of reviewPackages) {
-                await this.workflowService.ingestMeetingReviewPackage({
+                await this.meetingAutomationService.ingestReviewPackage({
                     org_id: scope.org_id,
                     project_id: scope.project_id,
                     review_package: reviewPackage
@@ -1177,7 +1347,7 @@ export class MeetingSourceMcpSyncService {
             .filter((result) => !result.error && !result.skipped)
             .map((result) => result.provider));
         for (const provider of successfulProviders) {
-            const providerArtifacts = preview.artifacts.filter((artifact) => artifact.provider === provider);
+            const providerArtifacts = (preview.artifacts || []).filter((artifact) => artifact.provider === provider);
             const previousCursor = state.providers[provider]?.cursor || {};
             state.providers[provider] = {
                 ...state.providers[provider],
@@ -1196,11 +1366,13 @@ export class MeetingSourceMcpSyncService {
             };
         }
 
-        state.previews[previewId] = {
+        state.previews[previewId] = this._compactSubmittedPreview({
             ...preview,
             confirmed_at: this.clock(),
-            submitted: true
-        };
+            submitted: true,
+            expected_meeting_pack_count: reviewPackages.length
+        });
+        this._compactAndPrunePreviews(state);
         await this._saveState();
 
         return {

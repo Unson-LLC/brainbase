@@ -1,0 +1,60 @@
+{
+  "schema_version": "0.1.0",
+  "tool": "vibepro",
+  "workspace": ".vibepro",
+  "output": {
+    "language": "ja"
+  },
+  "execution": {
+    "managed_worktree": "preferred"
+  },
+  "budgets": {
+    "pr_artifact_bytes": 16384,
+    "delivery_efficiency": {
+      "max_elapsed_ms": null,
+      "max_observed_work_ms": null,
+      "max_active_wait_ms": null,
+      "max_tool_wait_ms": null,
+      "max_total_tokens": null,
+      "max_fresh_input_tokens": 8000000,
+      "max_cost_usd": null,
+      "max_subagent_count": 22,
+      "max_agent_consumption_ms": null,
+      "max_repair_batches": 3,
+      "max_expensive_verification_count": 1,
+      "max_review_dispatches_by_role": {
+        "architecture": 6,
+        "implementation": 4,
+        "runtime": 4,
+        "security": 2
+      },
+      "require_known_attribution": false
+    }
+  },
+  "brainbase": {
+    "stories": [
+      {
+        "story_id": "story-vibepro-diagnosis-commercialization-roadmap",
+        "title": "M1: VibePro 診断→商用化ロードマップ",
+        "ssot": "NocoDB",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null
+      },
+      {
+        "story_id": "story-brainbase-decision-events-kpi-v1",
+        "title": "判断委任KPIフェーズ1 サーバー側イベント受信・週次集計",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null
+      }
+    ],
+    "current_story_id": "story-brainbase-decision-events-kpi-v1"
+  }
+}

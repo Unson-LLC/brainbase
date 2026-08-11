@@ -6,16 +6,11 @@ import { HealthController } from '../../../server/controllers/health-controller.
 
 describe('HealthController', () => {
   let controller;
-  let mockReadiness;
   let mockConfigParser;
   let mockReq;
   let mockRes;
 
   beforeEach(() => {
-    mockReadiness = {
-      isReady: vi.fn().mockReturnValue(true)
-    };
-
     mockConfigParser = {
       checkIntegrity: vi.fn().mockResolvedValue({
         summary: { errors: 0, warnings: 0 },
@@ -24,7 +19,6 @@ describe('HealthController', () => {
     };
 
     controller = new HealthController({
-      readiness: mockReadiness,
       configParser: mockConfigParser
     });
 
@@ -42,30 +36,12 @@ describe('HealthController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          status: 'healthy',
           timestamp: expect.any(String),
           uptime: expect.any(Number),
           checks: expect.objectContaining({
             server: expect.objectContaining({ status: 'healthy' }),
-            sessionManager: expect.objectContaining({ status: 'healthy' }),
             config: expect.objectContaining({ status: 'healthy' }),
-            memory: expect.objectContaining({ status: 'healthy' })
-          })
-        })
-      );
-    });
-
-    it('SessionManagerが起動中_degradedステータスが返される', async () => {
-      mockReadiness.isReady.mockReturnValue(false);
-
-      await controller.getHealth(mockReq, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(200);
-      expect(mockRes.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: 'degraded',
-          checks: expect.objectContaining({
-            sessionManager: expect.objectContaining({ status: 'starting' })
+            memory: expect.objectContaining({ status: expect.stringMatching(/healthy|degraded/) })
           })
         })
       );
@@ -109,28 +85,29 @@ describe('HealthController', () => {
       );
     });
 
-    it('SessionManagerがnull_OSS版対応でhealthyが返される', async () => {
-      const ossController = new HealthController({
-        readiness: null,
-        configParser: mockConfigParser
+    it('Project Catalog無効runtimeはnot_applicableとしてhealthyを維持する', async () => {
+      mockConfigParser.checkIntegrity.mockResolvedValue({
+        applicability: 'not_applicable',
+        source: { status: 'not_applicable', mode: 'disabled' },
+        summary: { errors: 0, warnings: 0 },
+        stats: { projects: 0 }
       });
 
-      await ossController.getHealth(mockReq, mockRes);
+      await controller.getHealth(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(200);
-      expect(mockRes.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: 'healthy',
-          checks: expect.objectContaining({
-            sessionManager: expect.objectContaining({ status: 'healthy' })
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        checks: expect.objectContaining({
+          config: expect.objectContaining({
+            status: 'not_applicable',
+            message: 'Project catalog is disabled for this runtime'
           })
         })
-      );
+      }));
     });
 
     it('ConfigParserがnull_OSS版対応でhealthyが返される', async () => {
       const ossController = new HealthController({
-        readiness: mockReadiness,
         configParser: null
       });
 
@@ -139,12 +116,21 @@ describe('HealthController', () => {
       expect(mockRes.status).toHaveBeenCalledWith(200);
       expect(mockRes.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          status: 'healthy',
           checks: expect.objectContaining({
             config: expect.objectContaining({ status: 'healthy' })
           })
         })
       );
+    });
+
+    it('terminal runtime healthは廃止済みとして410を返す', async () => {
+      await controller.getTerminalHealth(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(410);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: 'capability_retired',
+        capability: 'brainbase.terminal-runtime'
+      }));
     });
 
     it('例外発生時_503とエラーメッセージが返される', async () => {

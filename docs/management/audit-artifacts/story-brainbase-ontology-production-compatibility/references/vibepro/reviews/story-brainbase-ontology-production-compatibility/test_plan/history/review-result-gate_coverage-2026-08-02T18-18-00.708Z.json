@@ -1,0 +1,139 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-ontology-production-compatibility",
+  "stage": "test_plan",
+  "role": "gate_coverage",
+  "status": "pass",
+  "summary": "All six acceptance criteria have executable current-HEAD evidence and activation remains forbidden",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Mapped Story, Architecture, Spec, source, tests, and production audit artifact to all acceptance criteria",
+    "evidence": "E2E 27/27, focused unit API 86/86, ontology verify current null, syntax and diff checks passed",
+    "inputs": [
+      "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md",
+      "docs/management/architecture/ADR-021-ontology-production-compatibility.md",
+      "server/services/ontology-kernel.js",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json"
+    ]
+  },
+  "judgment_delta": [
+    "Decision scope endpoint gap is closed by project-only inference and current-HEAD negative tests; Graph writes and activation remain prohibited"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+    "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+    "expected_root": null,
+    "expected_head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+    "current_head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+      "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+      "expected_root": null,
+      "expected_head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+      "current_head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-02T18:18:00.708Z",
+  "git_context": {
+    "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+    "current_branch": "codex/ontology-production-compat",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-02T18:18:00.628Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 3 file(s)",
+    "recorded_head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+    "surface_files": [
+      {
+        "path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json",
+        "sha256": "1582df991c9e8d325745e60acc7c691df4f870c0b52317aeb609d16828e429e2",
+        "size": 5340
+      },
+      {
+        "path": "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md",
+        "sha256": "5092bc8ffdee73e8b27edd2c64a5f0fac66d9df44b954f32974034e6f5ce36d6",
+        "size": 3827
+      },
+      {
+        "path": "server/services/ontology-kernel.js",
+        "sha256": "5bd60e18635857b1ff102272cb8ace4c0fb76e9c7018bd7afeb628566969f875",
+        "size": 22365
+      }
+    ],
+    "missing_files": [
+      "docs/management/architecture/ADR-021-ontology-production-compatibility.md"
+    ],
+    "surface_hash": "59afaf0a5a9f6a8b627651d4fddeb2b847cec6c02550d45e6fd5c027799d012b"
+  },
+  "source_fingerprint": "e887fee9a8d03459f3f3ed92656f167540315dab7828a55fe6ebc10e4785af7e",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/ontology_endpoint_gate_verify",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ontology_endpoint_gate_verify",
+    "session_id": "test-plan-gate-coverage-560f7212",
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/transcript-gate_coverage-560f7212.json",
+    "request_artifact": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/review-request-gate_coverage.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/transcript-gate_coverage-560f7212.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "test-plan-gate-coverage-560f7212",
+      "implementation_session_id": "/root",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

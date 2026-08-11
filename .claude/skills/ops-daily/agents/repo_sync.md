@@ -28,7 +28,7 @@ worktreeから実行する場合はcdで移動。
 ### Step 2: update-all-repos.sh 実行
 
 ```bash
-cd /Users/ksato/workspace && ./shared/_codex/common/ops/scripts/nocodb/update-all-repos.sh
+cd /Users/ksato/workspace && ./common/ops/scripts/nocodb/update-all-repos.sh
 ```
 
 **出力例**:

@@ -11,7 +11,7 @@ import {
     sha256
 } from './local-data-server-ssot-inventory.js';
 
-const SUPPORTED_TARGET_TABLES = new Set(['graph_entities', 'wiki_pages']);
+const SUPPORTED_TARGET_TABLES = new Set(['graph_entities']);
 const DEFAULT_MAX_WRITES = 100;
 const MIGRATION_SOURCE = 'local_ssot_additive_upsert';
 

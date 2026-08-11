@@ -1,0 +1,22 @@
+{
+  "status": "needs_changes",
+  "head_sha": "2e62d753946b562cb445cc8106562c959a0d30a4",
+  "summary": "current-headのunit、integration、E2E、typecheckは通っているが、既存typecheckはpublic/jsconfig.jsonだけを対象にしており変更されたserver JSを含まない。",
+  "inspection_summary": "package.json、public/jsconfig.json、変更serverファイル、current-headの検証証跡を確認した。",
+  "inspection_evidence": ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/verification-evidence.json",
+  "inspection_inputs": [
+    "package.json",
+    "public/jsconfig.json",
+    "server/services/external-runner/eve-meeting-note-reconciler.js",
+    "server/services/meeting-source/meeting-source-mcp-sync-service.js",
+    "server/services/workflow/workflow-service.js"
+  ],
+  "judgment_delta": "runtime operator E2Eは解消済み。server側の静的検査範囲だけが未解消。",
+  "findings": [
+    {
+      "severity": "medium",
+      "id": "server_static_scope",
+      "detail": "変更server JSに対して、このリポジトリで有効な静的検査を実行し証跡化する。"
+    }
+  ]
+}

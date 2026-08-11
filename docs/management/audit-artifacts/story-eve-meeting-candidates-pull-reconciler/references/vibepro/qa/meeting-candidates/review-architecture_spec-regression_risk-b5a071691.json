@@ -1,0 +1,20 @@
+{
+  "status": "needs_changes",
+  "summary": "Runbook drift is fixed, but blank candidate titles can still replace existing outputs with empty arrays.",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "regression-malformed-empty-title-overwrites",
+      "detail": "Blank or whitespace-only titles pass validation, are removed by normalization, and can replace existing task or decision candidates with an empty array."
+    }
+  ],
+  "inspection_summary": "Reviewed candidate validation, transactional writes, reconciler metadata and audits, runbook, and focused tests at b5a071691.",
+  "inspection_evidence": "b5a071691c689b657d12cb3864eb4cd9104ca7e0; focused Vitest 38/38",
+  "inspection_inputs": [
+    "server/services/workflow/workflow-service.js",
+    "server/services/external-runner/eve-meeting-note-reconciler.js",
+    "docs/runbooks/eve-meeting-note-backfill.md",
+    "tests/server/services/eve-meeting-note-reconciler.test.js"
+  ],
+  "judgment_delta": "Type-invalid payload overwrite is fixed, but blank titles leave a destructive empty-normalization path."
+}

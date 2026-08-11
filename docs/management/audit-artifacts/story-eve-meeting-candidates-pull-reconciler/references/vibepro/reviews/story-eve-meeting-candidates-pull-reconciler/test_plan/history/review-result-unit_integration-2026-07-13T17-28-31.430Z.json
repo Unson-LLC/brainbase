@@ -1,0 +1,104 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "test_plan",
+  "role": "unit_integration",
+  "status": "pass",
+  "summary": "HEAD 9be369d82332a4764b3462053f584522e6d8d706 passes this unit_integration review: current evidence is bound to this HEAD and shows 62/62 unit, 157/157 integration, and 28/28 Playwright, with invalid-payload Mission Control behavior and final owner-resolution reason labels covered and aligned.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [
+    ".vibepro/qa/meeting-candidates/review-test_plan-unit_integration-9be369d82.json"
+  ],
+  "inspection": {
+    "summary": "Read the review request, Story and architecture docs, inspected server/services/workflow/workflow-service.js owner-resolution and invalid-candidate paths, server/services/external-runner/eve-meeting-note-reconciler.js candidate reconciliation/error surfacing, public/workflows.html reason/status label rendering, verified artifact counts from .vibepro/qa/meeting-candidates/vitest-unit-9be369d82.json, vitest-integration-surface-9be369d82.json, and playwright-surface-9be369d82.json, and checked tests covering malformed candidate rejection, Mission Control blocked/error visibility, and owner-resolution label rendering in tests/server/services/eve-meeting-note-reconciler.test.js, tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts, tests/server/services/workflow-org-agent-control.test.js, and tests/e2e/story-meeting-task-owner-ssot-resolution-flow.spec.ts.",
+    "evidence": ".vibepro/qa/meeting-candidates/review-test_plan-unit_integration-9be369d82.json",
+    "inputs": [
+      ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/test_plan/review-request-unit_integration.md"
+    ]
+  },
+  "judgment_delta": [
+    "Initial concern was whether the reported counts were merely attached artifacts and whether invalid-payload/operator visibility plus final owner-resolution labels had gaps; after confirming HEAD-bound evidence counts, code paths, and explicit assertions for blocked_invalid_candidates, Mission Control blocked/error surfacing, and rendered human-readable owner-resolution reasons, I judge the unit/integration surface sufficient for pass."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "expected_root": null,
+    "expected_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "current_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "expected_root": null,
+      "expected_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+      "current_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-13T17:28:31.430Z",
+  "git_context": {
+    "head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-13T17:28:31.429Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "668e0a156a1dab3b7f974d063e1a5f9734e7530f95c1cf4119bff4174c3ac497",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f5c83-13f1-7503-834e-62303fddffc2",
+    "agent_role": null,
+    "model": "gpt-5.4",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/qa/meeting-candidates/review-test_plan-unit_integration-9be369d82.json",
+    "request_artifact": ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/test_plan/review-request-unit_integration.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/qa/meeting-candidates/review-test_plan-unit_integration-9be369d82.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

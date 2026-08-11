@@ -23,8 +23,8 @@
 ├─────────────────────────────────────────────────┤
 │ Server Service Layer                              │
 │  WorktreeService.getCommitLog(sessionId, repoPath)│
-│  - _isJujutsuRepo() で VCS判定                    │
-│  - jj log / git log 実行                          │
+│  - Git worktree/repository を判定                 │
+│  - git log 実行                                   │
 │  - JSON変換して返却                               │
 └─────────────────────────────────────────────────┘
 ```
@@ -38,7 +38,7 @@ SESSION_CHANGED event
   → httpClient.get(`/api/sessions/${id}/commit-log`)
   → SessionController.getCommitLog(req, res)
   → WorktreeService.getCommitLog(sessionId, repoPath)
-  → jj log / git log (VCS)
+  → git log (VCS)
   → JSON response { commits, repoType, worktreePath }
   → CommitTreeService: Store更新 + COMMIT_LOG_LOADED emit
   → CommitTreeView.render()
@@ -62,4 +62,4 @@ SESSION_CHANGED event
 
 ## SSOT
 
-コミット履歴の正本はVCS（jj/git）。UIはビューのみ（キャッシュなし、毎回取得）。
+コミット履歴の正本はGit。UIはビューのみ（キャッシュなし、毎回取得）。

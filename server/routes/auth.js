@@ -17,7 +17,7 @@ export function createAuthRouter(authService) {
     // Device Code Flow endpoints
     router.post('/device/code', controller.deviceCodeRequest);
     router.post('/device/verify-user-code', controller.verifyUserCodeEndpoint);
-    router.post('/device/approve', controller.approveDevice);
+    router.post('/device/approve', requireAuth(authService, { allowInsecureHeaders: false }), controller.approveDevice);
     router.post('/device/deny', controller.denyDevice);
     router.post('/device/token', controller.deviceTokenRequest);
 

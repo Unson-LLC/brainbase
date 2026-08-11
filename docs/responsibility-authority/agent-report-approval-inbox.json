@@ -19,7 +19,8 @@
         "paths": [
           "scripts/bin/bb-report-submit.mjs",
           "server/services/external-runner/contract-schema.js",
-          "server/services/workflow/workflow-service.js"
+          "server/services/automation-run/automation-run-service.js",
+          "server/services/companion/approval-inbox-service.js"
         ],
         "symbols": [
           "buildAgentReportPayload",

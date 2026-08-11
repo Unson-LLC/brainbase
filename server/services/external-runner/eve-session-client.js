@@ -88,6 +88,26 @@ export function parseEveNdjson(text) {
         .map((line) => JSON.parse(line));
 }
 
+const DEFAULT_STREAM_IDLE_MS = 3000;
+
+// The eve session stream route is a live tail: it replays the durable event
+// history immediately but then keeps the HTTP connection open for future
+// events, so `response.text()` never resolves for a parked session. These
+// boundary events mark the end of the replayed history — once one arrives as
+// the latest complete line, no further events can follow without new input.
+const STREAM_BOUNDARY_EVENT_TYPES = new Set([
+    'session.waiting',
+    'session.completed',
+    'session.failed'
+]);
+
+function parseCompleteNdjsonLines(buffered) {
+    const lastNewline = buffered.lastIndexOf('\n');
+    if (lastNewline === -1) return { events: [], lastType: null };
+    const events = parseEveNdjson(buffered.slice(0, lastNewline + 1));
+    return { events, lastType: events.at(-1)?.type ?? null };
+}
+
 export class EveSessionClient {
     constructor({
         baseUrl = process.env.EVE_API_BASE_URL || process.env.EVE_BASE_URL || '',
@@ -189,7 +209,7 @@ export class EveSessionClient {
         }
     }
 
-    async readSessionStream({ sessionId, signal = null } = {}) {
+    async readSessionStream({ sessionId, signal = null, idleMs = DEFAULT_STREAM_IDLE_MS } = {}) {
         if (!this.isConfigured()) {
             throw new EveSessionClientError('Eve session client is not configured', {
                 code: 'eve_session_client_not_configured'
@@ -210,15 +230,15 @@ export class EveSessionClient {
                 },
                 signal: timeout.signal
             });
-            const text = await response.text();
             if (!response.ok) {
+                const text = await response.text();
                 throw new EveSessionClientError(`Eve session stream failed with HTTP ${response.status}`, {
                     code: 'eve_session_stream_failed',
                     status: response.status,
                     response: text
                 });
             }
-            return parseEveNdjson(text);
+            return await this._readReplayedStreamEvents(response, { idleMs, outerSignal: timeout.signal });
         } catch (error) {
             if (error instanceof EveSessionClientError) throw error;
             const aborted = error?.name === 'AbortError';
@@ -231,6 +251,59 @@ export class EveSessionClient {
         } finally {
             timeout.clear();
         }
+    }
+
+    // Reads the live-tail stream incrementally and returns once the replayed
+    // history is complete instead of waiting for a connection close that never
+    // comes: a boundary event (session.waiting/completed/failed) as the latest
+    // complete line ends the read, and an idle gap of `idleMs` without new
+    // bytes ends it for mid-turn sessions that have no boundary yet.
+    async _readReplayedStreamEvents(response, { idleMs, outerSignal }) {
+        if (!response.body?.getReader) {
+            // Test doubles and non-streaming fetch implementations still
+            // resolve text() immediately; keep the simple path for them.
+            return parseEveNdjson(await response.text());
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffered = '';
+        let streamClosed = false;
+        try {
+            for (;;) {
+                if (outerSignal?.aborted) {
+                    throw new EveSessionClientError(`Eve session stream timed out after ${this.timeoutMs}ms`, {
+                        code: 'eve_session_timeout'
+                    });
+                }
+                let idleTimer = null;
+                const chunk = await Promise.race([
+                    reader.read(),
+                    new Promise((resolve) => {
+                        idleTimer = setTimeout(() => resolve({ idle: true }), idleMs);
+                        idleTimer.unref?.();
+                    })
+                ]).finally(() => clearTimeout(idleTimer));
+                if (chunk.done) {
+                    streamClosed = true;
+                    buffered += decoder.decode();
+                    break;
+                }
+                if (chunk.idle) break;
+                buffered += decoder.decode(chunk.value, { stream: true });
+                const { lastType } = parseCompleteNdjsonLines(buffered);
+                if (lastType && STREAM_BOUNDARY_EVENT_TYPES.has(lastType)) break;
+            }
+        } finally {
+            try {
+                await reader.cancel();
+            } catch {
+                // The tail connection is being abandoned either way.
+            }
+        }
+        // A closed stream has no partial trailing line, so parse everything;
+        // an abandoned live tail may end mid-line, so keep complete lines only.
+        if (streamClosed) return parseEveNdjson(buffered);
+        return parseCompleteNdjsonLines(buffered).events;
     }
 }
 

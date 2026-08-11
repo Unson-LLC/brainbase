@@ -11,7 +11,7 @@ import { WorkflowRunner } from '../../../server/services/workflow/workflow-runne
 import {
     createBrainbaseAliveWorkflow,
     createDefaultWorkflowHandlers
-} from '../../../server/services/workflow/workflow-service.js';
+} from '../../helpers/test-automation-runtime.js';
 
 function makeRunner(workflow = createBrainbaseAliveWorkflow()) {
     const repository = new InMemoryWorkflowRepository({ seedWorkflows: [workflow] });
@@ -24,7 +24,95 @@ function makeRunner(workflow = createBrainbaseAliveWorkflow()) {
     return { repository, runner, workflow };
 }
 
+function createTransactionGuardedRepository(workflow) {
+    const target = new InMemoryWorkflowRepository({ seedWorkflows: [workflow] });
+    const mutationMethods = new Set([
+        'createRun',
+        'createRunStep',
+        'createContextSnapshot',
+        'createHumanStep',
+        'createOutput',
+        'updateRun',
+        'updateRunStep',
+        'writeAuditLog'
+    ]);
+    let transactionDepth = 0;
+    const repository = new Proxy(target, {
+        get(object, property) {
+            if (property === 'activeTransactionCount') return transactionDepth;
+            if (property === 'transaction') {
+                return (callback) => object.transaction(async () => {
+                    transactionDepth += 1;
+                    try {
+                        return await callback();
+                    } finally {
+                        transactionDepth -= 1;
+                    }
+                });
+            }
+            const value = object[property];
+            if (typeof value !== 'function') return value;
+            if (mutationMethods.has(property)) {
+                return (...args) => {
+                    if (transactionDepth === 0) {
+                        throw new Error(`${String(property)} requires repository.transaction()`);
+                    }
+                    return value.apply(object, args);
+                };
+            }
+            return value.bind(object);
+        }
+    });
+    return repository;
+}
+
 describe('WorkflowRunner', () => {
+    it('persists initial and terminal groups in separate transactions with the remote handler outside the lease', async () => {
+        const workflow = {
+            ...createBrainbaseAliveWorkflow(),
+            id: 'transaction-boundary-workflow',
+            implementation_key: 'transaction-boundary-workflow',
+            context_sources: []
+        };
+        const repository = createTransactionGuardedRepository(workflow);
+        let releaseHandler;
+        let handlerEntered;
+        const entered = new Promise((resolve) => {
+            handlerEntered = resolve;
+        });
+        const runner = new WorkflowRunner({
+            repository,
+            handlers: {
+                'transaction-boundary-workflow': async () => {
+                    expect(repository.activeTransactionCount).toBe(0);
+                    handlerEntered();
+                    await new Promise((resolve) => {
+                        releaseHandler = resolve;
+                    });
+                    return { status: 'success', closureState: 'closed' };
+                }
+            }
+        });
+
+        const running = runner.runWorkflow(workflow, { runId: 'run-transaction-boundary' });
+        await Promise.race([
+            entered,
+            running.then(() => {
+                throw new Error('workflow finished before the remote handler entered');
+            })
+        ]);
+        let unrelatedCommitted = false;
+        await repository.transaction(async () => {
+            unrelatedCommitted = true;
+        });
+        expect(unrelatedCommitted).toBe(true);
+
+        releaseHandler();
+        const result = await running;
+        expect(result.run.status).toBe('success');
+        expect(repository.getRun('run-transaction-boundary')).toMatchObject({ status: 'success' });
+    });
+
     it('records brainbase-alive as a successful closed run with output and context snapshot', async () => {
         const { repository, runner, workflow } = makeRunner();
 
@@ -272,5 +360,40 @@ describe('WorkflowRunner', () => {
             locked_by: 'process-b',
             ttl_ms: 600000
         })).toMatchObject({ locked_by: 'process-b' });
+    });
+
+    it('runs through initial and terminal commits on the production Json repository', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-workflow-runner-json-'));
+        const filePath = path.join(dir, 'workflow-ledger.json');
+        const workflow = {
+            ...createBrainbaseAliveWorkflow(),
+            id: 'json-production-workflow',
+            implementation_key: 'json-production-workflow',
+            context_sources: []
+        };
+        const repository = new JsonFileWorkflowRepository({
+            filePath,
+            seedWorkflows: [workflow]
+        });
+        const runner = new WorkflowRunner({
+            repository,
+            handlers: {
+                'json-production-workflow': async () => ({
+                    status: 'success',
+                    closureState: 'closed',
+                    outputCount: 1,
+                    data: { persisted: true }
+                })
+            }
+        });
+
+        const { run } = await runner.runWorkflow(workflow, { runId: 'run-json-production' });
+        const reloaded = new JsonFileWorkflowRepository({ filePath });
+
+        expect(run).toMatchObject({ id: 'run-json-production', status: 'success' });
+        expect(reloaded.getRun(run.id)).toMatchObject({ status: 'success', closure_state: 'closed' });
+        expect(reloaded.listOutputs(run.id)).toHaveLength(1);
+        expect(fs.existsSync(path.join(dir, '.workflow-locks'))).toBe(true);
+        expect(fs.readdirSync(path.join(dir, '.workflow-locks'))).toEqual([]);
     });
 });

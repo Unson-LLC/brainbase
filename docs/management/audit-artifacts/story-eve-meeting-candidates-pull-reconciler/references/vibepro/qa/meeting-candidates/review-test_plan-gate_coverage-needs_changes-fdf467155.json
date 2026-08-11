@@ -1,0 +1,22 @@
+{
+  "status": "needs_changes",
+  "summary": "AC-001 through AC-007 are executable, but stale verification artifacts prevent a clean current-HEAD AC-008 binding.",
+  "findings": [
+    {
+      "id": "GC-001",
+      "severity": "high",
+      "detail": "playwright-visible-contract.json and typecheck-current.json do not consistently reflect HEAD fdf467155."
+    }
+  ],
+  "inspection_summary": "Verified source-hash rejection, write-failure blocking, and unique/ambiguous People SSOT owner resolution; only evidence freshness remains.",
+  "inspection_evidence": [
+    ".vibepro/qa/meeting-candidates/playwright-visible-contract.json",
+    ".vibepro/qa/meeting-candidates/typecheck-current.json",
+    "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts"
+  ],
+  "inspection_inputs": [
+    ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/test_plan/review-request-gate_coverage.md",
+    "docs/stories/story-eve-meeting-candidates-pull-reconciler.md"
+  ],
+  "judgment_delta": "Implementation coverage passed; verdict remains needs_changes only for stale current-HEAD evidence binding."
+}

@@ -7,6 +7,11 @@ import axios, { AxiosInstance } from 'axios';
 import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { CanonicalTaskWriteGuard } from './canonical-task-write-guard.js';
+import type {
+  NocoDBColumnIdentity,
+  NocoDBTableIdentity,
+} from './canonical-task-write-guard.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -60,6 +65,7 @@ export class NocoDBClient {
   private baseUrl: string;
   private apiToken: string;
   private axios: AxiosInstance;
+  private canonicalTaskWriteGuard: CanonicalTaskWriteGuard;
 
   constructor(
     baseUrl: string = process.env.NOCODB_URL || '',
@@ -78,6 +84,10 @@ export class NocoDBClient {
         'Content-Type': 'application/json'
       },
       timeout: 10000
+    });
+    this.canonicalTaskWriteGuard = new CanonicalTaskWriteGuard({
+      listTables: (baseId) => this.listTableIdentities(baseId),
+      getColumn: (columnId) => this.getColumnIdentity(columnId),
     });
   }
 
@@ -153,6 +163,8 @@ export class NocoDBClient {
    * レコード作成
    */
   async create(baseId: string, tableName: string, fields: Record<string, any>): Promise<AirtableRecord> {
+    await this.canonicalTaskWriteGuard.assertRecordMutationAllowed(baseId, tableName);
+
     try {
       const projectId = await this.resolveProjectId(baseId);
       const nocodbTableName = this.resolveTableName(baseId, tableName);
@@ -177,6 +189,8 @@ export class NocoDBClient {
    * レコード更新
    */
   async update(baseId: string, tableName: string, recordId: string, fields: Record<string, any>): Promise<AirtableRecord> {
+    await this.canonicalTaskWriteGuard.assertRecordMutationAllowed(baseId, tableName);
+
     try {
       const projectId = await this.resolveProjectId(baseId);
       const nocodbTableName = this.resolveTableName(baseId, tableName);
@@ -200,6 +214,8 @@ export class NocoDBClient {
    * レコード削除
    */
   async delete(baseId: string, tableName: string, recordId: string): Promise<void> {
+    await this.canonicalTaskWriteGuard.assertRecordMutationAllowed(baseId, tableName);
+
     try {
       const projectId = await this.resolveProjectId(baseId);
       const nocodbTableName = this.resolveTableName(baseId, tableName);
@@ -247,6 +263,8 @@ export class NocoDBClient {
    * @param options 更新オプション
    */
   async updateColumn(columnId: string, options: ColumnUpdateOptions): Promise<any> {
+    await this.canonicalTaskWriteGuard.assertColumnMutationAllowed(columnId);
+
     try {
       const response = await this.axios.patch(
         `/api/v2/meta/columns/${columnId}`,
@@ -273,6 +291,34 @@ export class NocoDBClient {
     }
 
     return fields;
+  }
+
+  private async listTableIdentities(baseId: string): Promise<NocoDBTableIdentity[]> {
+    try {
+      const response = await this.axios.get(`/api/v2/meta/bases/${baseId}/tables`);
+      const tables = response.data?.list;
+      if (!Array.isArray(tables)) {
+        throw new Error('table metadata response is missing list');
+      }
+
+      return tables.map((table: any) => ({
+        id: String(table.id || ''),
+        title: String(table.title || ''),
+      }));
+    } catch (error: any) {
+      const detail = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+      throw new Error(`NocoDB listTableIdentities error: ${detail}`);
+    }
+  }
+
+  private async getColumnIdentity(columnId: string): Promise<NocoDBColumnIdentity> {
+    try {
+      const response = await this.axios.get(`/api/v2/meta/columns/${columnId}`);
+      return response.data as NocoDBColumnIdentity;
+    } catch (error: any) {
+      const detail = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+      throw new Error(`NocoDB getColumnIdentity error: ${detail}`);
+    }
   }
 
   /**

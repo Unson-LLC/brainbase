@@ -1,0 +1,56 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-stream-replay-reader",
+  "created_at": "2026-07-11T15:50:00.616Z",
+  "status": "satisfied",
+  "required": true,
+  "architecture_decision": "ADR不要: クライアント内部の読取方式変更のみで、公開契約・依存・永続状態は不変。代替案（eve側にreplay-onlyオプション追加）はeve packageの改変が必要で管轄外のため却下。ロールバックはgit revertで安全（読取方式が戻るだけ）。",
+  "source_artifacts": {
+    "story": "docs/stories/story-eve-stream-replay-reader.md",
+    "review_cockpit": ".vibepro/pr/story-eve-stream-replay-reader/review-cockpit.html",
+    "gate_dag": ".vibepro/pr/story-eve-stream-replay-reader/gate-dag.json"
+  },
+  "gates": {
+    "architecture": {
+      "status": "satisfied",
+      "reason": "ADR不要: クライアント内部の読取方式変更のみで、公開契約・依存・永続状態は不変。代替案（eve側にreplay-onlyオプション追加）はeve packageの改変が必要で管轄外のため却下。ロールバックはgit revertで安全（読取方式が戻るだけ）。"
+    },
+    "spec": {
+      "status": "inferred",
+      "reason": "6 clauses inferred from Story+Code+Test"
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-07-11T15:49:58.221Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.1.0-beta.0",
+      "root": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/bin/vibepro",
+      "runtime_module": "/Users/ksato/workspace/code/.worktrees/vibepro-current-runtime/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "670f7b40a64a5352c41d76bbc35d7bd87bc080dc",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "c08eb5187e676a1263878c1a045713f55e375d7c",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M src/responsibility-authority.js",
+        " M test/responsibility-authority.test.js"
+      ]
+    }
+  },
+  "review_record": {
+    "approved": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

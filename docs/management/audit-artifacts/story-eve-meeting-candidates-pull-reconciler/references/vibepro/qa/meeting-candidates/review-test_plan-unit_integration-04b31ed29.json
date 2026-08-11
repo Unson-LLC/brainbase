@@ -1,0 +1,15 @@
+{
+  "status": "pass",
+  "summary": "Exact-head unit and integration evidence covers malformed payload rejection, rollback, scope filtering, operator blocking, retry semantics, and owner resolution.",
+  "inspection_summary": "Inspected the clean test-only diff, implementation paths, and 62/62 unit plus 157/157 integration artifacts.",
+  "inspection_evidence": [
+    ".vibepro/qa/meeting-candidates/vitest-unit-04b31ed29.json",
+    ".vibepro/qa/meeting-candidates/vitest-integration-surface-04b31ed29.json",
+    ".vibepro/qa/meeting-candidates/playwright-surface-04b31ed29.json"
+  ],
+  "inspection_inputs": [
+    ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/test_plan/review-request-unit_integration.md"
+  ],
+  "judgment_delta": "Backend coverage remains complete, and the new browser assertions close the prior operator-visible invalid-payload gap.",
+  "findings": []
+}

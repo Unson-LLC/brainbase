@@ -1,11 +1,11 @@
 #!/usr/bin/env npx tsx
 
 /**
- * git push gate: VibePro pr prepare の gate_dag を検証してから push を許可する。
+ * git push gate: canonical VibePro runtimeとpr prepare identityを検証してpushを許可する。
  *
  * 効力:
  * - Claude Code Bash tool で `git push ...` を実行しようとした時に発火
- * - vibepro CLI が gate_dag.overall_status === 'ready_for_review' を返さないと deny
+ * - exact npm runtimeまたはpr prepare identityを検証できなければdeny
  *
  * escape:
  * - BRAINBASE_ALLOW_PUSH_WITHOUT_GATE=1 を export
@@ -15,7 +15,7 @@
  */
 
 import { execFileSync, spawnSync } from "child_process";
-import { existsSync } from "fs";
+import path from "node:path";
 import { logHookExecution } from "../../lib/logging/hook-logger.js";
 
 interface BashToolInput {
@@ -53,47 +53,57 @@ function isSessionBranch(branch: string): boolean {
   return branch.startsWith("session/") || branch.startsWith("feat/") || branch.startsWith("fix/");
 }
 
-function findVibeproBin(): string | null {
-  const candidates = [
-    "/Users/ksato/workspace/code/vibepro/bin/vibepro.js",
-  ];
-  for (const p of candidates) if (existsSync(p)) return p;
-  return null;
+function getRepoRoot(): string {
+  return execFileSync("git", ["rev-parse", "--show-toplevel"], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
 }
 
 function checkGate(): { passed: boolean; reason?: string } {
+  const root = getRepoRoot();
+  const contract = path.join(root, ".claude/scripts/hooks/lib/vibepro-runtime-contract.mjs");
+  const identityResult = spawnSync(process.execPath, [contract, "identity", "--cwd", root], {
+    cwd: root,
+    encoding: "utf8",
+    timeout: 30000,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (identityResult.status !== 0) {
+    return { passed: false, reason: `canonical runtime identity failed: ${identityResult.stderr?.slice(0, 400) ?? ""}` };
+  }
+  const identity = JSON.parse(identityResult.stdout ?? "{}").runtime_identity;
+  const identitySummary = `${identity.package.exact_version} source=${identity.source_git.commit} identity=${identity.identity_digest}`;
+
   if (process.env.BRAINBASE_ALLOW_PUSH_WITHOUT_GATE === "1") {
-    return { passed: true, reason: "BRAINBASE_ALLOW_PUSH_WITHOUT_GATE=1" };
+    return { passed: true, reason: `BRAINBASE_ALLOW_PUSH_WITHOUT_GATE=1; runtime ${identitySummary}` };
   }
 
   const branch = getCurrentBranch();
-  if (!branch) return { passed: true, reason: "branch unknown, skip" };
-  if (!isSessionBranch(branch)) return { passed: true, reason: `non-session branch: ${branch}` };
+  if (!branch) return { passed: false, reason: `branch unknown; runtime ${identitySummary}` };
+  if (!isSessionBranch(branch)) return { passed: true, reason: `non-session branch: ${branch}; runtime ${identitySummary}` };
 
-  const vibeproBin = findVibeproBin();
-  if (!vibeproBin) return { passed: true, reason: "vibepro CLI not found, skip" };
-
-  const result = spawnSync("node", [vibeproBin, "pr", "prepare", ".", "--base", "origin/develop", "--json"], {
-    cwd: process.cwd(),
+  const result = spawnSync(process.execPath, [contract, "pr-prepare", "--cwd", root, "--base", "origin/develop"], {
+    cwd: root,
     encoding: "utf8",
     timeout: 30000,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
   if (result.status !== 0) {
-    return { passed: false, reason: `vibepro pr prepare failed: ${result.stderr?.slice(0, 200) ?? ""}` };
+    return { passed: false, reason: `canonical pr prepare failed: ${result.stderr?.slice(0, 400) ?? ""}` };
   }
 
   try {
-    const out = result.stdout ?? "";
-    const start = out.indexOf("{");
-    if (start < 0) return { passed: true, reason: "no JSON output, skip" };
-    const json = JSON.parse(out.slice(start));
-    const status = json?.pr_context?.gate_dag?.overall_status;
-    if (status === "ready_for_review") return { passed: true, reason: status };
-    return { passed: false, reason: `gate_dag.overall_status = ${status}` };
+    const json = JSON.parse(result.stdout ?? "{}");
+    const preparedDigest = json?.runtime_identity?.identity_digest;
+    if (preparedDigest !== identity.identity_digest) {
+      return { passed: false, reason: "pr prepare runtime identity mismatch" };
+    }
+    return { passed: true, reason: `pr prepared; runtime ${identitySummary}` };
   } catch (e) {
-    return { passed: true, reason: `parse error, skip: ${(e as Error).message}` };
+    return { passed: false, reason: `canonical pr prepare parse error: ${(e as Error).message}` };
   }
 }
 
@@ -117,23 +127,22 @@ async function main() {
     logHookExecution("PreToolUse", "git-push-gate", `passed=${gate.passed} reason=${gate.reason ?? ""}`);
 
     if (gate.passed) {
-      console.log(JSON.stringify({ permissionDecision: "allow", blocked: false }));
+      console.log(JSON.stringify({ permissionDecision: "allow", blocked: false, reason: gate.reason }));
       return;
     }
 
     const message = [
-      "❌ VibePro DAG ガード: git push がブロックされました",
+      "❌ VibePro runtime integrity guard: git push がブロックされました",
       "",
       `理由: ${gate.reason}`,
       "",
       "対処:",
-      "  1. Unit / Integration / E2E test を追加して各 gate に証跡を残す",
-      "  2. `node /Users/ksato/workspace/code/vibepro/bin/vibepro.js pr prepare . --base origin/develop` で gate_dag 確認",
-      "  3. ready_for_review に到達してから再 push",
+      "  1. canonical npm版VibeProで必要な検証証跡を再生成する",
+      "  2. `vibepro pr prepare . --base origin/develop` を成功させる",
       "",
       "緊急時の escape:",
       "  BRAINBASE_ALLOW_PUSH_WITHOUT_GATE=1 を export",
-      "  （PR本文に bypass 理由を残すこと）",
+      "  （runtime identity検証は省略されません。PR本文にbypass理由を残すこと）",
     ].join("\n");
 
     console.error(message);
@@ -145,17 +154,17 @@ async function main() {
     console.log(JSON.stringify(hookResult));
     process.exit(1);
   } catch (error) {
-    // hook 自身のエラーで push を止めない（fail-open）
+    // identityを証明できないhook errorはpushを止める（fail-closed）
     console.error("git-push-gate hook error:", error instanceof Error ? error.message : String(error));
-    console.log(JSON.stringify({ permissionDecision: "allow", blocked: false }));
-    process.exit(0);
+    console.log(JSON.stringify({ permissionDecision: "deny", blocked: true, reason: String(error) }));
+    process.exit(1);
   }
 }
 
 if (process.argv[1] === import.meta.url.replace("file://", "")) {
   main().catch((error) => {
     console.error("git-push-gate fatal:", error);
-    console.log(JSON.stringify({ permissionDecision: "allow", blocked: false }));
-    process.exit(0);
+    console.log(JSON.stringify({ permissionDecision: "deny", blocked: true, reason: String(error) }));
+    process.exit(1);
   });
 }

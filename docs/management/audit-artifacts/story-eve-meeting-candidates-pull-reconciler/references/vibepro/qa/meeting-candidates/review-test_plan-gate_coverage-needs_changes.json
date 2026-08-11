@@ -1,0 +1,38 @@
+{
+  "status": "needs_changes",
+  "summary": "Current-head verification is real and green, but executable coverage and fallback-placeholder coverage are incomplete and PR synthesis artifacts are stale.",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "e2e-coverage-claims-are-non-executable",
+      "detail": "The executable coverage test only checks hard-coded marker membership and does not execute the claimed scenario and failure-mode behavior."
+    },
+    {
+      "severity": "medium",
+      "id": "fallback-reconciler-tests-miss-current-placeholder-surface",
+      "detail": "Note-only and hash-mismatch tests use legacy pre-seeded candidates rather than the current empty awaiting-Eve placeholder surface."
+    },
+    {
+      "severity": "medium",
+      "id": "vibepro-synthesis-artifacts-are-stale-for-this-head",
+      "detail": "Verification evidence is current-head bound, but pr-prepare and evidence-plan still reference the prior remote head."
+    }
+  ],
+  "inspection_summary": "Inspected story, architecture, candidate write-back, reconciler, ingest placeholder, current VibePro artifacts, and matching unit/integration/E2E tests; reran the recorded commands on HEAD 5c3226254e32bbe510d6fbfae69b47212342a43c.",
+  "inspection_evidence": [
+    "unit: 30 passed",
+    "integration: 115 passed",
+    "typecheck: passed",
+    "Playwright: 15 passed",
+    ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/verification-evidence.json"
+  ],
+  "inspection_inputs": [
+    ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/test_plan/review-request-gate_coverage.md",
+    "tests/server/services/eve-meeting-note-reconciler.test.js",
+    "tests/server/meeting-source-mcp-sync-worker.test.js",
+    "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+    ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/pr-prepare.json",
+    ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/evidence-plan.json"
+  ],
+  "judgment_delta": "Initial broad pass expectation -> needs_changes after the tests showed marker-only coverage and legacy fixtures instead of current empty placeholders."
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "implementation",
+  "role": "runtime_contract",
+  "status": "pass",
+  "head_sha": "10547dd32311fe497c790ca6f306a9dd97572714",
+  "agent": {
+    "system": "codex",
+    "agent_id": "019f5ad1-5f76-7161-9927-5c740fd847b9",
+    "model": "gpt-5.4",
+    "reasoning_effort": "high",
+    "cost_tier": "high"
+  },
+  "summary": "Exact-head review found the prior runtime-contract-candidate-binding-too-loose issue resolved by exact org_id, project_id, run_id, and source_text_hash binding.",
+  "inspection": "Inspected story, architecture, reconciler, workflow handoff, People SSOT owner path, Mission Control mismatch output, focused tests, and exact clean HEAD. Focused unit tests passed 31/31 and focused E2E passed 7/7.",
+  "judgment_delta": "Previous stale needs_changes becomes pass because exact candidate scope binding, mismatch evidence, documented contract alignment, and targeted test coverage are present on the current HEAD.",
+  "findings": [],
+  "resolved_findings": [
+    {
+      "id": "runtime-contract-candidate-binding-too-loose",
+      "ref": "server/services/external-runner/eve-meeting-note-reconciler.js"
+    }
+  ]
+}

@@ -7,7 +7,7 @@ import { registerApiRoutes } from '../../../server/bootstrap/register-api-routes
 import { createCompanionRouter } from '../../../server/routes/companion.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
-import { WorkflowService } from '../../../server/services/workflow/workflow-service.js';
+import { TestAutomationRuntime } from '../../helpers/test-automation-runtime.js';
 
 function createAuthService({ valid = true, serviceValid = true, personId = 'per_keigo', projectCodes = ['sample-project'] } = {}) {
     return {
@@ -33,8 +33,7 @@ function createAuthService({ valid = true, serviceValid = true, personId = 'per_
     };
 }
 
-function makeApp({ authService = createAuthService(), infoSSOTService = null } = {}) {
-    const repository = new InMemoryWorkflowRepository();
+function createTestAutomationRuntime(repository = new InMemoryWorkflowRepository()) {
     const runner = new WorkflowRunner({ repository, handlers: new Map() });
     const configParser = {
         async getProjects() {
@@ -46,7 +45,12 @@ function makeApp({ authService = createAuthService(), infoSSOTService = null } =
             };
         }
     };
-    const workflowService = new WorkflowService({ repository, runner, configParser });
+    return new TestAutomationRuntime({ repository, runner, configParser });
+}
+
+function makeApp({ authService = createAuthService(), infoSSOTService = null } = {}) {
+    const repository = new InMemoryWorkflowRepository();
+    const workflowService = createTestAutomationRuntime(repository);
     const app = express();
     app.use(express.json());
     app.use('/api/companion', createCompanionRouter({
@@ -54,7 +58,7 @@ function makeApp({ authService = createAuthService(), infoSSOTService = null } =
             createDraft: vi.fn(),
             createContext: vi.fn()
         },
-        workflowService,
+        companionApprovalInboxService: workflowService.companionApprovalInboxService,
         infoSSOTService,
         authGuard: requireAuth(authService),
         accessGuardOptions: {
@@ -67,13 +71,12 @@ function makeApp({ authService = createAuthService(), infoSSOTService = null } =
 
 function makeBootstrapApp({
     authService = createAuthService(),
-    workflowService,
+    automationRuntime = createTestAutomationRuntime(),
     infoSSOTService = { getContext: vi.fn(), listGraphEntities: vi.fn() }
 } = {}) {
     const app = express();
     app.use(express.json());
     registerApiRoutes(app, {
-        taskParser: {},
         stateStore: {},
         sessionServices: {
             runtime: {
@@ -100,7 +103,14 @@ function makeBootstrapApp({
         candidateRepository: null,
         wikiService: {},
         tokenUsageService: {},
-        workflowService,
+        agentControlCatalogService: automationRuntime.agentControlCatalogService,
+        loopIntentService: automationRuntime.loopIntentService,
+        eveSessionDispatchService: automationRuntime.eveSessionDispatchService,
+        meetingAutomationService: automationRuntime.meetingAutomationService,
+        automationRunService: automationRuntime.automationRunService,
+        runReceiptQueryService: automationRuntime.runReceiptQueryService,
+        companionApprovalInboxService: automationRuntime.companionApprovalInboxService,
+        runReceiptIngestService: {},
         externalRunnerIngestService: {},
         uploadMiddleware: (_req, _res, next) => next(),
         appVersion: 'test',
@@ -315,13 +325,7 @@ describe('companion approval inbox route', () => {
             action_kind: 'task_candidates',
             workflow_id: 'wf_meeting',
             run_id: 'run_pending_old',
-            web_url: '/workflows?run_id=run_pending_old',
-            web_route: {
-                path: '/workflows',
-                view: 'run',
-                run_id: 'run_pending_old',
-                api_path: '/api/workflow-runs/run_pending_old'
-            },
+            api_path: '/api/workflow-runs/run_pending_old',
             project_id: 'sample-project',
             status: 'waiting_human',
             action_required: 'approve',
@@ -796,7 +800,12 @@ describe('companion approval inbox route', () => {
                 name: '矢島剛',
                 display_name: '矢島剛',
                 aliases: ['矢島さん'],
-                status: 'active'
+                email: 'yajima@example.com',
+                org: 'Hotel Client',
+                role: '営業',
+                status: 'active',
+                guard_status: 'inactive_no_current',
+                ontology_version: null
             }))
         };
         const { app } = makeApp({ infoSSOTService });
@@ -808,7 +817,10 @@ describe('companion approval inbox route', () => {
                 source: 'graph_ssot',
                 type: 'person',
                 name: '矢島剛',
-                aliases: ['矢島さん']
+                aliases: ['矢島さん'],
+                email: 'yajima@example.com',
+                org: 'Hotel Client',
+                role: '営業'
             })
             .expect(201);
 
@@ -827,6 +839,8 @@ describe('companion approval inbox route', () => {
         expect(res.body).toMatchObject({
             source: 'graph_ssot',
             type: 'person',
+            guard_status: 'inactive_no_current',
+            ontology_version: null,
             person: {
                 id: 'person_yajima_tsuyoshi',
                 entity_id: 'person_yajima_tsuyoshi',
@@ -834,6 +848,9 @@ describe('companion approval inbox route', () => {
                 display_name: '矢島剛',
                 name: '矢島剛',
                 aliases: ['矢島さん'],
+                email: 'yajima@example.com',
+                org: 'Hotel Client',
+                role: '営業',
                 status: 'active',
                 source: 'graph_ssot'
             }
@@ -866,7 +883,7 @@ describe('companion approval inbox route', () => {
         expect(infoSSOTService.listGraphEntities).not.toHaveBeenCalled();
     });
 
-    it('registers approval inbox through registerApiRoutes production bootstrap with workflowService', async () => {
+    it('registers approval inbox through the production bootstrap with its dedicated service', async () => {
         const { repository } = makeApp();
         const runner = new WorkflowRunner({ repository, handlers: new Map() });
         const configParser = {
@@ -879,10 +896,10 @@ describe('companion approval inbox route', () => {
                 };
             }
         };
-        const workflowService = new WorkflowService({ repository, runner, configParser });
+        const automationRuntime = new TestAutomationRuntime({ repository, runner, configParser });
         const app = makeBootstrapApp({
             authService: createAuthService({ personId: 'sato_keigo' }),
-            workflowService
+            automationRuntime
         });
         seedWorkflow(repository);
         seedApprovalRun(repository);
@@ -894,6 +911,52 @@ describe('companion approval inbox route', () => {
 
         expect(res.status).not.toBe(404);
         expect(res.body.items.map((item) => item.run_id)).toEqual(['run_pending_old']);
+    });
+
+    it('registers /api/info with strict bearer authentication', async () => {
+        const infoSSOTService = {
+            listGraphEntities: vi.fn(async () => [])
+        };
+        const app = makeBootstrapApp({ infoSSOTService });
+
+        await request(app)
+            .get('/api/info/graph/entities?project=brainbase')
+            .set('x-brainbase-role', 'ceo')
+            .set('x-brainbase-projects', 'brainbase')
+            .set('x-brainbase-clearance', 'restricted')
+            .expect(401);
+
+        expect(infoSSOTService.listGraphEntities).not.toHaveBeenCalled();
+    });
+
+    it('passes verified bearer claims to /api/info instead of spoofed headers', async () => {
+        const infoSSOTService = {
+            listGraphEntities: vi.fn(async () => [])
+        };
+        const app = makeBootstrapApp({
+            authService: createAuthService({ personId: 'per_verified', projectCodes: ['sample-project'] }),
+            infoSSOTService
+        });
+
+        await request(app)
+            .get('/api/info/graph/entities?project=sample-project')
+            .set('Authorization', 'Bearer verified-token')
+            .set('x-brainbase-role', 'ceo')
+            .set('x-brainbase-projects', 'all-projects')
+            .set('x-brainbase-clearance', 'restricted')
+            .expect(200);
+
+        expect(infoSSOTService.listGraphEntities).toHaveBeenCalledWith(
+            expect.objectContaining({
+                role: 'gm',
+                projectCodes: ['sample-project'],
+                personId: 'per_verified'
+            }),
+            expect.objectContaining({
+                projectCode: 'sample-project',
+                entityType: null
+            })
+        );
     });
 
     it('does not write default workflows during read-only approval inbox projection', async () => {

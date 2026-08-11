@@ -1,0 +1,16 @@
+{
+  "status": "pass",
+  "role": "code_spec_alignment",
+  "agent_id": "019f5bb3-9419-7462-96e0-f6403d72b9eb",
+  "head": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+  "summary": "meeting candidates write-back, note優先close, owner_hintのpeople SSOT解決、曖昧担当者の未選択UXはStory/Spec/architectureと整合。",
+  "findings": [],
+  "evidence": [
+    ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/verification-evidence.json",
+    "server/services/workflow/workflow-service.js",
+    "server/services/external-runner/eve-meeting-note-reconciler.js",
+    "server/services/meeting-source/meeting-source-mcp-sync-service.js",
+    "public/workflows.html",
+    "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts"
+  ]
+}

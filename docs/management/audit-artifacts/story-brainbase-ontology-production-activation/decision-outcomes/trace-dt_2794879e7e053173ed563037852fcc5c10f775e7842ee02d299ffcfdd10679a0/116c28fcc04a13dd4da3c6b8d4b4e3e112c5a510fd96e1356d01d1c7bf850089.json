@@ -1,0 +1,101 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-ontology-production-activation",
+  "ledger_path": ".vibepro/pr/story-brainbase-ontology-production-activation/decision-outcome-ledger.json",
+  "selector": {
+    "decision_trace_id": "dt_2794879e7e053173ed563037852fcc5c10f775e7842ee02d299ffcfdd10679a0"
+  },
+  "parent_revision_fingerprint": "d662a4ee9ab73c2f4d402391d5210823c4c65a3639037b4009e8bb70d338e292",
+  "revision_fingerprint": "116c28fcc04a13dd4da3c6b8d4b4e3e112c5a510fd96e1356d01d1c7bf850089",
+  "trace": {
+    "decision_trace_id": "dt_2794879e7e053173ed563037852fcc5c10f775e7842ee02d299ffcfdd10679a0",
+    "collision_group": null,
+    "trace_source_ref": "tsr_d563a6978c21537f1264d3d285bf694ab2236902ee7503eaccee33a27ed926d5",
+    "normalized_subject_key": "gate:bug_physics_observability_signal_source",
+    "source_identity": {
+      "source_kind": "linked_sources",
+      "source_ref": ".vibepro/pr/story-brainbase-ontology-production-activation/decision-records.json,.vibepro/pr/story-brainbase-ontology-production-activation/decision-records.json,.vibepro/pr/story-brainbase-ontology-production-activation/decision-records.json,.vibepro/pr/story-brainbase-ontology-production-activation/decision-records.json",
+      "native_id": "decision-1785705309088-786cfe21,decision-1785706721909-d9f58ffb,decision-1785727392566-904fe86b,decision-1785727705490-162a5442",
+      "digest": "f3252f2fdc72523574bebaf1a4705ac1d61441525716884d37fb08d27220d7f1",
+      "multiplicity": 1
+    },
+    "evidence_head_sha": "5f1a34f615520fed59d3d1f691c279560343508d",
+    "parent_revision_fingerprint": "d662a4ee9ab73c2f4d402391d5210823c4c65a3639037b4009e8bb70d338e292",
+    "revision_fingerprint": "116c28fcc04a13dd4da3c6b8d4b4e3e112c5a510fd96e1356d01d1c7bf850089",
+    "observation_identity": null,
+    "observation_read_aliases": [
+      {
+        "trace_selector": {
+          "decision_trace_id": "dt_2794879e7e053173ed563037852fcc5c10f775e7842ee02d299ffcfdd10679a0"
+        },
+        "parent_revision_fingerprint": "26a23524f2a08d1fa098b96a4ebc57f8ec96a9e3d1e8a8910906f7939d3e7076"
+      }
+    ],
+    "trace_status": "partial",
+    "missing_reason": "observation_missing",
+    "finding": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "gate": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "detector": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "disposition": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "decision": {
+      "status": "not_observed",
+      "value": null,
+      "provenance": []
+    },
+    "behavior_delta": {
+      "status": "not_observed",
+      "before": null,
+      "after": null,
+      "change_refs": [],
+      "verification_refs": [],
+      "verification_sources": [],
+      "missing_reason": "explicit_behavior_delta_missing",
+      "excluded_sources": []
+    },
+    "delivery": {
+      "status": "merged",
+      "pr": {
+        "number": 1116,
+        "url": "https://github.com/Unson-LLC/brainbase-unson/pull/1116",
+        "state": "MERGED"
+      },
+      "merge": {
+        "sha": "9e51c759340fe92231ff1bd4fe7d545cfbd1efdf",
+        "status": "merged_externally",
+        "merged_at": "2026-08-03T04:06:35Z"
+      },
+      "source_ref": ".vibepro/pr/story-brainbase-ontology-production-activation/pr-merge.json"
+    },
+    "downstream_outcome": {
+      "status": "not_observed",
+      "value": null,
+      "reason": null,
+      "source_ref": null,
+      "missing_reason": "observation_missing"
+    },
+    "eligible_outcome_sources": {
+      "total_count": 0,
+      "returned_count": 0,
+      "omitted_count": 0,
+      "truncated": false,
+      "entries": []
+    },
+    "source_errors": []
+  }
+}

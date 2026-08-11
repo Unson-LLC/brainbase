@@ -1,0 +1,15 @@
+{
+  "agent_id": "019f5bc7-0cab-72d0-8260-bdc6e14419d8",
+  "stage": "gate",
+  "role": "pr_split_scope",
+  "head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+  "verdict": "PASS",
+  "summary": "The 11-file diff is one atomic Eve-to-Brainbase candidate protocol change; splitting would leave the protocol or its verification incomplete.",
+  "findings": [
+    {
+      "severity": "low",
+      "id": "pr-split-artifact-stale",
+      "detail": "Older pr-prepare and split-plan artifacts referenced a prior HEAD and commit-count heuristic; current-HEAD inspection does not support splitting."
+    }
+  ]
+}

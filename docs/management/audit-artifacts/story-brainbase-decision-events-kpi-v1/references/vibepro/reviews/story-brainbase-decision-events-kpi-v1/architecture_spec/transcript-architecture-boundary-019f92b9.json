@@ -1,0 +1,25 @@
+{
+  "agent_id": "019f92b9-c69f-7f81-8cd7-7acac1d24387",
+  "agent_model": "gpt-5.6-luna",
+  "agent_reasoning_effort": "high",
+  "head_sha": "b53247cc44eff6c7fcc87601ed672c9afa7afb3c",
+  "authorization_id": "724bd3ce-3863-48d7-a786-dd81a4d99bab",
+  "status": "pass",
+  "summary": "Pending index-only data cannot be promoted into the authoritative monthly ledger. All five prior architecture findings are resolved at current HEAD.",
+  "evidence": [
+    "server/services/companion/decision-event-service.js:410-426 requires an authoritative ledger match before pending-index recovery and quarantines stale index-only data",
+    "server/services/companion/decision-event-service.js:568-578 persists only the received event as a new authoritative event",
+    "tests/server/services/companion/decision-event-service.test.js:386-418 verifies index-only data is not restored and is quarantined",
+    "server/services/companion/decision-event-service.js:266-309 fails closed on corrupt ledger and quarantine errors",
+    "server/services/companion/decision-event-service.js:741-753 synchronizes by generation and unseen changes rather than rescanning the full index",
+    "server/services/companion/decision-event-service.js:437-513 publishes lock ownership with atomic rename",
+    "docs/architecture/decision-events-kpi-architecture.md:39-48 documents same-host local-filesystem lock scope"
+  ],
+  "finding_dispositions": {
+    "corrupt-ledger-recovery-can-be-silent-or-overwritten": "resolved",
+    "derived-index-can-override-ledger-authority": "resolved",
+    "get-path-full-index-rescan-per-request": "resolved",
+    "lock-bootstrap-window-can-reclaim-live-lock": "resolved",
+    "same-host-lock-scope-not-explicit": "resolved"
+  }
+}

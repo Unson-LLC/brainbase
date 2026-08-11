@@ -1,0 +1,1361 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-note-pull-reconciler",
+  "source": "execute_merge",
+  "promoted_at": "2026-07-11T15:17:07.267Z",
+  "canonical_dir": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler",
+  "source_workspace_dir": ".vibepro",
+  "audit_index_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-index.json",
+  "decision_summary_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/decision-summary.md",
+  "artifact_policy": {
+    "scope": "compact_manifest_only",
+    "evidence_depth": "standard",
+    "compacted": true,
+    "persisted_for_main_audit": true,
+    "why_compacted": [],
+    "excludes": [
+      "duplicated decision index body",
+      "duplicated cost summary body",
+      "full PR lifecycle JSON",
+      "full review lifecycle JSON",
+      "HTML reports",
+      "raw logs",
+      "dispatch scratch artifacts",
+      "temporary execution state"
+    ]
+  },
+  "evidence_depth": "standard",
+  "cost_summary_ref": {
+    "source": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-index.json",
+    "pointer": "/cost_summary"
+  },
+  "automation_value_audit_ref": {
+    "source": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-index.json",
+    "pointer": "/automation_value_audit"
+  },
+  "replay_bundle": {
+    "schema_version": "0.1.0",
+    "path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+    "compression": "gzip",
+    "media_type": "application/json",
+    "content_hash": "sha256:c502341cc7f3d00bdcb7a898b53359915c9d2e6181d5567b6473249748c0894b",
+    "compressed_hash": "sha256:400c324af43a53ccd3fa93692a9c873eecad1c1861b39f90c105aa6239f3c8da",
+    "expanded_bytes": 32434,
+    "compressed_bytes": 6650,
+    "expanded_line_count": 762,
+    "persisted_line_count": 1,
+    "included_artifact_kinds": [
+      "evidence_reuse",
+      "gate_dag",
+      "pr_create",
+      "pr_merge",
+      "pr_prepare",
+      "review_lifecycle",
+      "review_request",
+      "review_result",
+      "review_summary",
+      "senior_gap_judgment",
+      "traceability",
+      "verification_evidence"
+    ],
+    "replay_command": "vibepro audit replay . --story-id story-eve-meeting-note-pull-reconciler",
+    "cost": {
+      "compressed_bytes": 6650,
+      "expanded_bytes": 32434,
+      "expanded_line_count": 762,
+      "persisted_line_count": 1
+    }
+  },
+  "merge": {
+    "status": "merged",
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1033",
+    "merge_commit_sha": "e0692317a4174286c0b6bead9f830db1cf612755",
+    "merged_at": "2026-07-11T15:17:05Z",
+    "current_head_sha": "bf7c7b0c92293ef9f8641d02af05ca79ce436d59",
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...bf7c7b0c92293ef9f8641d02af05ca79ce436d59"
+  },
+  "handoff_replay_status": "blocked",
+  "handoff_replay": {
+    "status": "blocked",
+    "resolved_reference_count": 88,
+    "copied_reference_count": 63,
+    "unresolved_reference_count": 7,
+    "replay_bundle": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+    "replay_command": "vibepro audit replay . --story-id story-eve-meeting-note-pull-reconciler"
+  },
+  "artifacts": [
+    {
+      "kind": "audit_index",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-index.json"
+    },
+    {
+      "kind": "decision_summary",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/decision-summary.md"
+    },
+    {
+      "kind": "compressed_replay_bundle",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "compression": "gzip",
+      "content_hash": "sha256:c502341cc7f3d00bdcb7a898b53359915c9d2e6181d5567b6473249748c0894b"
+    }
+  ],
+  "raw_artifact_manifest": [
+    {
+      "kind": "evidence_reuse",
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/evidence-reuse.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:55dba64f8db78502a2a832ce339f3d07f816ac1bfbf2626adfb6c055a3780fa1",
+      "audit_digest": "sha256:55dba64f8db78502a2a832ce339f3d07f816ac1bfbf2626adfb6c055a3780fa1",
+      "line_count": 196,
+      "raw_line_count": 196,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "pr_prepare",
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-prepare.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:025e866531f612aba6b2eb598ba6f620c45f479f6a3a8ab6277e565540c1fce1",
+      "audit_digest": "sha256:ea2656b32e88a166d111bd051a7e515175e57429ff6c7833f0da5c98a4897884",
+      "line_count": 7319,
+      "raw_line_count": 21079,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_prepare.diagnostics.progress_snapshots",
+        "pr_prepare.pr_context.full_gate_dag",
+        "pr_prepare.pr_context.design_ssot_full_registry_inventory",
+        "pr_prepare.pr_context.inactive_judgment_axis_details",
+        "pr_prepare.duplicated_child_artifacts",
+        "design_ssot.unregistered_docs_full_inventory",
+        "design_ssot.registered_docs_full_inventory",
+        "responsibility_authority.full_registry_entries",
+        "requirement_consistency.verbose_code_scenarios",
+        "engineering_judgment.inactive_axis_details",
+        "engineering_judgment.verbose_matched_evidence",
+        "verification.raw_command_output",
+        "senior_gap_judgment.verbose_supporting_context",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "pr_create",
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-create.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:9d0e171e7e031d6a5ac50e615da1371bcdffa24f1ee2fb42441b232c2eddadd6",
+      "audit_digest": "sha256:ac26ce5972bf1a7f009a388322ebcca1da51184b4af17c083f429be763eac871",
+      "line_count": 2437,
+      "raw_line_count": 5115,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "gate_dag",
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/gate-dag.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:82acd23c155a1577009d4d4abf4b4c489e331ffe51c94689a34a2a9b8299225d",
+      "audit_digest": "sha256:75cea47ecac0219bd382e9918326aa5c6ae04e58b52026fc752462ccfa9cd95b",
+      "line_count": 2316,
+      "raw_line_count": 4980,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "senior_gap_judgment",
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/senior-gap-judgment.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:20bab660a740650d0b524bd9ce85ee46f422b1509faadbd918d8dcac20b705ee",
+      "audit_digest": "sha256:83adbdac72ada2b99bff6ab15dc09d274d5fb1d47474cb9662192ce9a7b76f15",
+      "line_count": 53,
+      "raw_line_count": 865,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "senior_gap_judgment.verbose_supporting_context"
+      ]
+    },
+    {
+      "kind": "pr_merge",
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-merge.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:04401b488581908fb2f93ac25a527f7161b716a30b34432ed102d2fb2b628512",
+      "audit_digest": "sha256:fe4641ff3884632ce3f3593a4c5874afb95e98e5823bf3db89a60e07f2c5dcaa",
+      "line_count": 2486,
+      "raw_line_count": 5210,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects",
+        "pr_merge.canonical_audit",
+        "pr_merge.roi_ledger_promotion"
+      ]
+    },
+    {
+      "kind": "traceability",
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/traceability.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:925a738a7929e1d97cdc5a03e84572fb47deeb33db311b787d1da5b2c2b9ef69",
+      "audit_digest": "sha256:925a738a7929e1d97cdc5a03e84572fb47deeb33db311b787d1da5b2c2b9ef69",
+      "line_count": 485,
+      "raw_line_count": 485,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "verification_evidence",
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/verification-evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:5ee91e56de77117290a13a9e868ccae3fc9c32954899fe8b5f9f3cb602ee38d8",
+      "audit_digest": "sha256:32f0ef6c10c1c3e096402af807e64d40cfc08d0345ff6055e62d2ccef3535e76",
+      "line_count": 68,
+      "raw_line_count": 518,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "verification.raw_command_output"
+      ]
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:0568c52051f5e99dc13964311a9364353f6b84f185cccfab504a722def50d7e7",
+      "audit_digest": "sha256:0568c52051f5e99dc13964311a9364353f6b84f185cccfab504a722def50d7e7",
+      "line_count": 84,
+      "raw_line_count": 84,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/review-request-regression_risk.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:57a43df5f585d2d6626f5682734754f872b8015e0c817922b3f340b48799064c",
+      "audit_digest": "sha256:57a43df5f585d2d6626f5682734754f872b8015e0c817922b3f340b48799064c",
+      "line_count": 133,
+      "raw_line_count": 133,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/review-result-regression_risk.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:3014dab38624fcfe6b4f6980706eec6ed2676688248eaa7c856e5a516b3ac709",
+      "audit_digest": "sha256:3014dab38624fcfe6b4f6980706eec6ed2676688248eaa7c856e5a516b3ac709",
+      "line_count": 138,
+      "raw_line_count": 138,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:f9d95e405639b46abe27ace01a5616a2065984fe62102eb512597307fa00674f",
+      "audit_digest": "sha256:f9d95e405639b46abe27ace01a5616a2065984fe62102eb512597307fa00674f",
+      "line_count": 242,
+      "raw_line_count": 242,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:88f57d8dd882628d2cc6c3499fdcb6584603b9cc0ec8847c691fe7b017749979",
+      "audit_digest": "sha256:88f57d8dd882628d2cc6c3499fdcb6584603b9cc0ec8847c691fe7b017749979",
+      "line_count": 59,
+      "raw_line_count": 59,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/review-request-gate_evidence.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:3def367006a090f69f8e22270de717c7f1af7e5957235d9c85af2757de52dd9a",
+      "audit_digest": "sha256:3def367006a090f69f8e22270de717c7f1af7e5957235d9c85af2757de52dd9a",
+      "line_count": 127,
+      "raw_line_count": 127,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/review-request-release_risk.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:bfbdd6ae1a414782c2ef4ee988729316f24e34ca35c2c6b19c93d4f6d7ecdfd8",
+      "audit_digest": "sha256:bfbdd6ae1a414782c2ef4ee988729316f24e34ca35c2c6b19c93d4f6d7ecdfd8",
+      "line_count": 127,
+      "raw_line_count": 127,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/review-result-gate_evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:6a372130f7752ac0d1f6d6ded7f2a6b4da2b19b6879b9cdf45a5d6e1975dcd02",
+      "audit_digest": "sha256:6a372130f7752ac0d1f6d6ded7f2a6b4da2b19b6879b9cdf45a5d6e1975dcd02",
+      "line_count": 139,
+      "raw_line_count": 139,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/review-result-release_risk.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:fde87007920305eb72c97dd2a7599eee04d10109bbdee76ddfe17064e38c4655",
+      "audit_digest": "sha256:fde87007920305eb72c97dd2a7599eee04d10109bbdee76ddfe17064e38c4655",
+      "line_count": 146,
+      "raw_line_count": 146,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:7d321ebe749152f340d08787464f2d275d8237cb51289df7a59268a67347e3d6",
+      "audit_digest": "sha256:7d321ebe749152f340d08787464f2d275d8237cb51289df7a59268a67347e3d6",
+      "line_count": 331,
+      "raw_line_count": 331,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:9e76f72202eb6006619d3caa4e79c991cfa90395e3217c67daa6641f592f8fce",
+      "audit_digest": "sha256:9e76f72202eb6006619d3caa4e79c991cfa90395e3217c67daa6641f592f8fce",
+      "line_count": 109,
+      "raw_line_count": 109,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/review-request-runtime_contract.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:5c0e5b4ca7b02d63573f5b766bf4624a0c72ae16e015a9f79f59451cce061215",
+      "audit_digest": "sha256:5c0e5b4ca7b02d63573f5b766bf4624a0c72ae16e015a9f79f59451cce061215",
+      "line_count": 133,
+      "raw_line_count": 133,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/review-request-ux_completion.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:4e8f44c938b08db9bfecb52a4dc14e92c63528156943f3660423813b01dd1df1",
+      "audit_digest": "sha256:4e8f44c938b08db9bfecb52a4dc14e92c63528156943f3660423813b01dd1df1",
+      "line_count": 133,
+      "raw_line_count": 133,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/review-result-runtime_contract.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:858921f682b8837dbe0fbb4c8d5c4a895c36194b8c0a7c7c27da0371b1401840",
+      "audit_digest": "sha256:858921f682b8837dbe0fbb4c8d5c4a895c36194b8c0a7c7c27da0371b1401840",
+      "line_count": 142,
+      "raw_line_count": 142,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/review-result-ux_completion.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:2a74b1a3750305b84961d5116dda7a619b3d2077c7f3dc54689cfc722a73b5c0",
+      "audit_digest": "sha256:2a74b1a3750305b84961d5116dda7a619b3d2077c7f3dc54689cfc722a73b5c0",
+      "line_count": 138,
+      "raw_line_count": 138,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:2eb1a6fc622aa31332d38af5efb2e0ab6538c2537689437244276a868b60a2a7",
+      "audit_digest": "sha256:2eb1a6fc622aa31332d38af5efb2e0ab6538c2537689437244276a868b60a2a7",
+      "line_count": 387,
+      "raw_line_count": 387,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:0a536ec4a438fc536013c9355532d3e6ccc380af4b515d866bbb527658918b64",
+      "audit_digest": "sha256:0a536ec4a438fc536013c9355532d3e6ccc380af4b515d866bbb527658918b64",
+      "line_count": 109,
+      "raw_line_count": 109,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/review-request-human_usability.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:e9b2d04abeccebb531b2fb62ab9ae9febdd0fad611f0bf3d195a7a84d685bb0b",
+      "audit_digest": "sha256:e9b2d04abeccebb531b2fb62ab9ae9febdd0fad611f0bf3d195a7a84d685bb0b",
+      "line_count": 133,
+      "raw_line_count": 133,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/review-request-network_runtime.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:a5be8cb685399a54d1949e75871d648dae4328a82fb638c800ecbdeb37d8819b",
+      "audit_digest": "sha256:a5be8cb685399a54d1949e75871d648dae4328a82fb638c800ecbdeb37d8819b",
+      "line_count": 133,
+      "raw_line_count": 133,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/review-result-human_usability.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:40afd7df23d0d786ea15fe9086fb7fddb0d6717f80ed56e54c67e056c4ab8416",
+      "audit_digest": "sha256:40afd7df23d0d786ea15fe9086fb7fddb0d6717f80ed56e54c67e056c4ab8416",
+      "line_count": 144,
+      "raw_line_count": 144,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/review-result-network_runtime.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:0fe3eafae3209db798718bbc8d160b97246ddf638a0f144cab86e1743b95c557",
+      "audit_digest": "sha256:0fe3eafae3209db798718bbc8d160b97246ddf638a0f144cab86e1743b95c557",
+      "line_count": 140,
+      "raw_line_count": 140,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:e3894aea52fcfd480b8bbb10eb51fafa8f0e697a4615022eadecaaffcdec38ad",
+      "audit_digest": "sha256:e3894aea52fcfd480b8bbb10eb51fafa8f0e697a4615022eadecaaffcdec38ad",
+      "line_count": 386,
+      "raw_line_count": 386,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:e503310579f5a5b02825d0a0fdc274a19891c71c23f71735c9dc58e68c4c109b",
+      "audit_digest": "sha256:e503310579f5a5b02825d0a0fdc274a19891c71c23f71735c9dc58e68c4c109b",
+      "line_count": 159,
+      "raw_line_count": 159,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/review-request-e2e_ux.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:216489951fa1e71ec714ebab8cb220d6aa32f660a0e03620d61fbf93ff361403",
+      "audit_digest": "sha256:216489951fa1e71ec714ebab8cb220d6aa32f660a0e03620d61fbf93ff361403",
+      "line_count": 133,
+      "raw_line_count": 133,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/review-request-gate_coverage.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:83b71e0943b6b0c538af688226a5a07c4eca46b42b20bea506b0c18db1d51dc9",
+      "audit_digest": "sha256:83b71e0943b6b0c538af688226a5a07c4eca46b42b20bea506b0c18db1d51dc9",
+      "line_count": 133,
+      "raw_line_count": 133,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/review-result-e2e_ux.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:daa02db025ac73d628f454aceb19e2cdc445cfa727b503c7767941dca94eeba0",
+      "audit_digest": "sha256:daa02db025ac73d628f454aceb19e2cdc445cfa727b503c7767941dca94eeba0",
+      "line_count": 138,
+      "raw_line_count": 138,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/review-result-gate_coverage.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:66897b80f19b45d424f9f666afe980acdc4edc0a05a5a4a6f00e4c9cb901b25a",
+      "audit_digest": "sha256:66897b80f19b45d424f9f666afe980acdc4edc0a05a5a4a6f00e4c9cb901b25a",
+      "line_count": 136,
+      "raw_line_count": 136,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/audit-replay-bundle.json.gz",
+      "digest": "sha256:f876265ca6ef515673d78830c0ff73127cf558e8088e725d1cbb2326db0de137",
+      "audit_digest": "sha256:f876265ca6ef515673d78830c0ff73127cf558e8088e725d1cbb2326db0de137",
+      "line_count": 432,
+      "raw_line_count": 432,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    }
+  ],
+  "missing_artifacts": [],
+  "resolved_references": [
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/decision-index.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/decision-records.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/decision-records.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/evidence-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/evidence-reuse.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/pr/evidence-reuse.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/gate-dag.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/gate-dag.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/gate-dag.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/pr/gate-dag.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/gate-dag.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/gate-dag.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-create.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/pr/pr-create.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-merge.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/pr/pr-merge.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-prepare.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-prepare.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-prepare.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/pr/pr-prepare.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/review-cockpit.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/review-cockpit.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/senior-gap-judgment.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/pr/senior-gap-judgment.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/split-plan.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/split-plan.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/verification-evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/pr/verification-evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/history/review-result-regression_risk-2026-07-11T12-48-22.828Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/history/review-result-regression_risk-2026-07-11T12-48-22.828Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/history/review-result-regression_risk-2026-07-11T13-39-06.231Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/history/review-result-regression_risk-2026-07-11T13-39-06.231Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/history/review-result-regression_risk-2026-07-11T13-54-50.946Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/history/review-result-regression_risk-2026-07-11T13-54-50.946Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/review-request-regression_risk.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/architecture_spec/review-request-regression_risk.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/review-result-regression_risk.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/architecture_spec/review-result-regression_risk.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/transcripts/regression_risk-cc01-reverify.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/transcripts/regression_risk-cc01-reverify.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/history/review-result-gate_evidence-2026-07-11T14-04-31.726Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/history/review-result-gate_evidence-2026-07-11T14-04-31.726Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/history/review-result-release_risk-2026-07-11T14-05-25.828Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/history/review-result-release_risk-2026-07-11T14-05-25.828Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/review-request-gate_evidence.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/gate/review-request-gate_evidence.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/review-request-release_risk.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/gate/review-request-release_risk.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/review-result-gate_evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/gate/review-result-gate_evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/review-result-release_risk.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/gate/review-result-release_risk.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/transcripts/gate_evidence-cc01.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/transcripts/gate_evidence-cc01.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/transcripts/release_risk-cc01.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/transcripts/release_risk-cc01.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-runtime_contract-2026-07-11T13-34-49.109Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-runtime_contract-2026-07-11T13-34-49.109Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-runtime_contract-2026-07-11T13-56-16.798Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-runtime_contract-2026-07-11T13-56-16.798Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-ux_completion-2026-07-11T13-34-51.688Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-ux_completion-2026-07-11T13-34-51.688Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-ux_completion-2026-07-11T13-56-19.500Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-ux_completion-2026-07-11T13-56-19.500Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/review-request-runtime_contract.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/implementation/review-request-runtime_contract.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/review-request-ux_completion.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/implementation/review-request-ux_completion.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/review-result-runtime_contract.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/implementation/review-result-runtime_contract.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/review-result-ux_completion.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/implementation/review-result-ux_completion.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/transcripts/runtime_contract-cc01.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/transcripts/runtime_contract-cc01.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/transcripts/ux_completion-cc01.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/transcripts/ux_completion-cc01.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/history/review-result-human_usability-2026-07-11T13-56-35.697Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/history/review-result-human_usability-2026-07-11T13-56-35.697Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/history/review-result-network_runtime-2026-07-11T13-56-33.171Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/history/review-result-network_runtime-2026-07-11T13-56-33.171Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/review-request-human_usability.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/preview/review-request-human_usability.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/review-request-network_runtime.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/preview/review-request-network_runtime.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/review-result-human_usability.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/preview/review-result-human_usability.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/review-result-network_runtime.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/preview/review-result-network_runtime.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/transcripts/human_usability-cc01.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/transcripts/human_usability-cc01.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/transcripts/network_runtime-cc01.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/transcripts/network_runtime-cc01.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-e2e_ux-2026-07-11T13-16-51.537Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-e2e_ux-2026-07-11T13-16-51.537Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-e2e_ux-2026-07-11T13-39-53.120Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-e2e_ux-2026-07-11T13-39-53.120Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-e2e_ux-2026-07-11T13-55-07.349Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-e2e_ux-2026-07-11T13-55-07.349Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-gate_coverage-2026-07-11T13-16-54.132Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-gate_coverage-2026-07-11T13-16-54.132Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-gate_coverage-2026-07-11T13-39-55.782Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-gate_coverage-2026-07-11T13-39-55.782Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-gate_coverage-2026-07-11T13-55-10.270Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-gate_coverage-2026-07-11T13-55-10.270Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/review-request-e2e_ux.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/test_plan/review-request-e2e_ux.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/review-request-gate_coverage.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/test_plan/review-request-gate_coverage.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/review-result-e2e_ux.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/test_plan/review-result-e2e_ux.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/review-result-gate_coverage.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/reviews/test_plan/review-result-gate_coverage.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/transcripts/e2e_ux-cc01-reverify.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/transcripts/e2e_ux-cc01-reverify.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/transcripts/gate_coverage-cc01-reverify.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/transcripts/gate_coverage-cc01-reverify.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-meeting-note-pull-reconciler/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/stories/story-eve-meeting-note-pull-reconciler/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-meeting-note-pull-reconciler/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/stories/story-eve-meeting-note-pull-reconciler/tasks/tasks.md",
+      "resolution": "copied_reference"
+    }
+  ],
+  "copied_references": [
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/diagnostics/2026-07-11T122559Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/decision-index.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/decision-records.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/decision-records.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/evidence-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/gate-dag.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/gate-dag.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/gate-dag.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/gate-dag.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-prepare.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/pr-prepare.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/review-cockpit.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/review-cockpit.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/split-plan.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/split-plan.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-meeting-note-pull-reconciler/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/pr/story-eve-meeting-note-pull-reconciler/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/history/review-result-regression_risk-2026-07-11T12-48-22.828Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/history/review-result-regression_risk-2026-07-11T12-48-22.828Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/history/review-result-regression_risk-2026-07-11T13-39-06.231Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/history/review-result-regression_risk-2026-07-11T13-39-06.231Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/history/review-result-regression_risk-2026-07-11T13-54-50.946Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/history/review-result-regression_risk-2026-07-11T13-54-50.946Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/transcripts/regression_risk-cc01-reverify.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/architecture_spec/transcripts/regression_risk-cc01-reverify.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/history/review-result-gate_evidence-2026-07-11T14-04-31.726Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/history/review-result-gate_evidence-2026-07-11T14-04-31.726Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/history/review-result-release_risk-2026-07-11T14-05-25.828Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/history/review-result-release_risk-2026-07-11T14-05-25.828Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/transcripts/gate_evidence-cc01.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/transcripts/gate_evidence-cc01.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/transcripts/release_risk-cc01.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/gate/transcripts/release_risk-cc01.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-runtime_contract-2026-07-11T13-34-49.109Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-runtime_contract-2026-07-11T13-34-49.109Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-runtime_contract-2026-07-11T13-56-16.798Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-runtime_contract-2026-07-11T13-56-16.798Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-ux_completion-2026-07-11T13-34-51.688Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-ux_completion-2026-07-11T13-34-51.688Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-ux_completion-2026-07-11T13-56-19.500Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/history/review-result-ux_completion-2026-07-11T13-56-19.500Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/transcripts/runtime_contract-cc01.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/transcripts/runtime_contract-cc01.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/transcripts/ux_completion-cc01.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/implementation/transcripts/ux_completion-cc01.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/history/review-result-human_usability-2026-07-11T13-56-35.697Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/history/review-result-human_usability-2026-07-11T13-56-35.697Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/history/review-result-network_runtime-2026-07-11T13-56-33.171Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/history/review-result-network_runtime-2026-07-11T13-56-33.171Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/transcripts/human_usability-cc01.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/transcripts/human_usability-cc01.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/transcripts/network_runtime-cc01.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/preview/transcripts/network_runtime-cc01.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-e2e_ux-2026-07-11T13-16-51.537Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-e2e_ux-2026-07-11T13-16-51.537Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-e2e_ux-2026-07-11T13-39-53.120Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-e2e_ux-2026-07-11T13-39-53.120Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-e2e_ux-2026-07-11T13-55-07.349Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-e2e_ux-2026-07-11T13-55-07.349Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-gate_coverage-2026-07-11T13-16-54.132Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-gate_coverage-2026-07-11T13-16-54.132Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-gate_coverage-2026-07-11T13-39-55.782Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-gate_coverage-2026-07-11T13-39-55.782Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-gate_coverage-2026-07-11T13-55-10.270Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/history/review-result-gate_coverage-2026-07-11T13-55-10.270Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/transcripts/e2e_ux-cc01-reverify.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/transcripts/e2e_ux-cc01-reverify.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/transcripts/gate_coverage-cc01-reverify.jsonl",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/reviews/story-eve-meeting-note-pull-reconciler/test_plan/transcripts/gate_coverage-cc01-reverify.jsonl",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-meeting-note-pull-reconciler/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/stories/story-eve-meeting-note-pull-reconciler/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-meeting-note-pull-reconciler/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-meeting-note-pull-reconciler/references/vibepro/stories/story-eve-meeting-note-pull-reconciler/tasks/tasks.md",
+      "resolution": "copied_reference"
+    }
+  ],
+  "unresolved_references": [
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/evidence.json",
+      "reason": "source_too_large",
+      "size_bytes": 10346435
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T122559Z/static-site-check-result.md",
+      "reason": "source_too_large",
+      "size_bytes": 1485705
+    },
+    {
+      "source": ".vibepro/graphify/graph.json",
+      "reason": "source_too_large",
+      "size_bytes": 8907598
+    },
+    {
+      "source": ".vibepro/pr/",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/stories/story-brainbase-agent-report-approval-inbox/spec.md",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-eve-meeting-note-pull-reconciler/ia-flow-map.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-eve-meeting-note-pull-reconciler/responsive-a11y-matrix.json",
+      "reason": "source_missing"
+    }
+  ]
+}

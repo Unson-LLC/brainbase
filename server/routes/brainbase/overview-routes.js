@@ -10,9 +10,10 @@ export function createBrainbaseOverviewRouter(options = {}) {
         systemService,
         storageService,
         nocodbService,
-        taskParser,
-        worktreeService,
-        configParser
+        configParser,
+        projectCatalogAuthGuard = (_req, res) => res.status(503).json({
+            error: 'Project catalog authentication is not configured'
+        })
     } = options;
 
     /**
@@ -20,14 +21,12 @@ export function createBrainbaseOverviewRouter(options = {}) {
      * すべての監視情報を一括取得
      */
     router.get('/', asyncHandler(async (req, res) => {
-        const [github, system, tasks, worktrees, projects] = await Promise.all([
+        const [github, system, projects] = await Promise.all([
             getGitHubInfo(),
             systemService.getSystemStatus(),
-            getTasksInfo(),
-            getWorktreesInfo(),
             getProjectsWithHealth()
         ]);
-        res.json({ github, system, tasks, worktrees, projects, timestamp: new Date().toISOString() });
+        res.json({ github, system, projects, timestamp: new Date().toISOString() });
     }));
 
     router.get('/github/runners', asyncHandler(async (req, res) => {
@@ -50,16 +49,18 @@ export function createBrainbaseOverviewRouter(options = {}) {
         res.json(await storageService.getStorageSummary());
     }));
 
-    router.get('/tasks', asyncHandler(async (req, res) => {
-        res.json(await getTasksInfo());
-    }));
+    router.get('/worktrees', (req, res) => {
+        res.status(410).json({
+            error: 'capability_retired',
+            capability: 'brainbase.worktree-status',
+            owner: 'Codex app and CLI',
+            replacement: 'Use Codex task and worktree status directly'
+        });
+    });
 
-    router.get('/worktrees', asyncHandler(async (req, res) => {
-        res.json(await getWorktreesInfo());
-    }));
-
-    router.get('/projects', asyncHandler(async (req, res) => {
-        res.json(await getProjectsWithHealth());
+    router.get('/projects', projectCatalogAuthGuard, asyncHandler(async (req, res) => {
+        const projectCodes = Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [];
+        res.json(await getProjectsWithHealth(projectCodes));
     }));
 
     /**
@@ -190,91 +191,21 @@ export function createBrainbaseOverviewRouter(options = {}) {
         };
     }
 
-    async function getTasksInfo() {
-        if (!taskParser) {
-            return { error: 'TaskParser not initialized' };
-        }
-
-        try {
-            const tasks = await taskParser.getTasks();
-            const total = tasks.length;
-            const completed = tasks.filter((t) => t.status === 'completed').length;
-            const inProgress = tasks.filter((t) => t.status === 'in_progress').length;
-            const pending = tasks.filter((t) => t.status === 'pending').length;
-            const blocked = tasks.filter((t) => t.status === 'blocked').length;
-
-            const now = new Date();
-            const overdue = tasks.filter((t) => {
-                if (t.status === 'completed') return false;
-                if (!t.deadline) return false;
-                return new Date(t.deadline) < now;
-            });
-
-            const focus = tasks.find((t) => t.focus) || null;
-
-            return {
-                total,
-                completed,
-                inProgress,
-                pending,
-                blocked,
-                overdue: overdue.length,
-                overdueList: overdue.slice(0, 5).map((t) => ({
-                    title: t.title,
-                    deadline: t.deadline,
-                    status: t.status
-                })),
-                focus: focus ? {
-                    title: focus.title,
-                    status: focus.status,
-                    deadline: focus.deadline
-                } : null
-            };
-        } catch (error) {
-            logger.error('Error parsing tasks', { error });
-            return { error: 'Failed to parse tasks' };
-        }
-    }
-
-    async function getWorktreesInfo() {
-        if (!worktreeService) {
-            return { error: 'WorktreeService not initialized' };
-        }
-
-        try {
-            const worktrees = await worktreeService.listWorktrees();
-            const active = worktrees.filter((w) => w.branch !== 'main' && w.branch !== 'master');
-
-            const uncommitted = [];
-            for (const wt of active) {
-                void wt;
-            }
-
-            return {
-                total: worktrees.length,
-                active: active.length,
-                uncommitted: uncommitted.length,
-                list: active.slice(0, 5).map((wt) => ({
-                    branch: wt.branch,
-                    path: wt.path
-                }))
-            };
-        } catch (error) {
-            logger.error('Error getting worktrees', { error });
-            return { error: 'Failed to get worktrees' };
-        }
-    }
-
-    async function getProjectsWithHealth() {
+    async function getProjectsWithHealth(allowedProjectCodes = null) {
         try {
             const config = await configParser.getAll();
-            const projects = (config.projects?.projects || [])
+            let projects = (config.projects?.projects || [])
                 .filter((p) => !p.archived)
                 .map((p) => ({
                     id: p.id,
                     name: p.name || p.id,
                     project_id: p.nocodb?.project_id || null
                 }));
+
+            if (Array.isArray(allowedProjectCodes)) {
+                const allowed = new Set(allowedProjectCodes.map(normalizeProjectCode).filter(Boolean));
+                projects = projects.filter((project) => allowed.has(normalizeProjectCode(project.id)));
+            }
 
             const mappedProjects = projects.filter((p) => p.project_id);
 
@@ -351,8 +282,14 @@ export function createBrainbaseOverviewRouter(options = {}) {
                 });
         } catch (error) {
             logger.error('Error getting projects health', { error });
-            return [];
+            throw error;
         }
+    }
+
+    function normalizeProjectCode(value) {
+        if (typeof value !== 'string') return null;
+        const normalized = value.trim().toLowerCase().replace(/_/g, '-');
+        return normalized || null;
     }
 
     return router;

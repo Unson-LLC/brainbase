@@ -1,0 +1,12 @@
+{
+  "status": "block",
+  "summary": "Decision entity-only validation bypasses required authority edges, production audit provenance is not fully reproducible, and current gate artifacts remain unresolved.",
+  "findings": [
+    "gate-evidence-decision-entity-path-bypasses-authority",
+    "gate-evidence-production-audit-provenance-gap",
+    "gate-evidence-current-gate-binding-unresolved",
+    "gate-evidence-e2e-rerun-environment-conflict"
+  ],
+  "inspection_summary": "Reviewed clean HEAD 2bd41183 across Story, Spec, ADR, manifest, kernel, InfoSSOT call paths, audit runner/report, tests and current VibePro artifacts; reproduced validateEntity accepting a decided Decision without required edges while validateSnapshot rejects it.",
+  "agent": "/root/ontology_compat_gate_review"
+}

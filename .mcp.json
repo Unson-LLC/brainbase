@@ -34,6 +34,14 @@
     "slack-techknight": {
       "type": "http",
       "url": "http://127.0.0.1:13083/mcp"
+    },
+    "slack-t0882t8n9uh": {
+      "type": "http",
+      "url": "http://127.0.0.1:13084/mcp"
+    },
+    "slack-t0882t8n9uh-upload": {
+      "type": "http",
+      "url": "http://127.0.0.1:13085/mcp"
     }
   }
 }

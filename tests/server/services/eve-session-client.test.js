@@ -279,3 +279,95 @@ describe('EveSessionClient', () => {
         ]);
     });
 });
+
+describe('EveSessionClient live-tail stream reads', () => {
+    function liveTailResponse(lines, { close = false } = {}) {
+        // Emulates the eve session stream route: replays history immediately,
+        // then keeps the connection open (never closes) unless close=true.
+        const stream = new ReadableStream({
+            start(controller) {
+                controller.enqueue(new TextEncoder().encode(lines.map((line) => `${JSON.stringify(line)}\n`).join('')));
+                if (close) controller.close();
+            }
+        });
+        return new Response(stream, { status: 200 });
+    }
+
+    it('returns replayed events without waiting for the live tail to close (boundary event)', async () => {
+        const client = new EveSessionClient({
+            baseUrl: 'https://eve.example',
+            token: 'token-123',
+            fetchImpl: async () => liveTailResponse([
+                { type: 'session.started' },
+                { type: 'message.completed', data: { message: 'done' } },
+                { type: 'turn.completed' },
+                { type: 'session.waiting', data: { wait: 'next-user-message' } }
+            ]),
+            timeoutMs: 30000
+        });
+
+        const started = Date.now();
+        const events = await client.readSessionStream({ sessionId: 'wrun_live_tail_1' });
+        expect(Date.now() - started).toBeLessThan(2000);
+        expect(events).toHaveLength(4);
+        expect(events.at(-1)).toMatchObject({ type: 'session.waiting' });
+    });
+
+    it('returns mid-turn replays after the idle window when no boundary event exists yet', async () => {
+        const client = new EveSessionClient({
+            baseUrl: 'https://eve.example',
+            token: 'token-123',
+            fetchImpl: async () => liveTailResponse([
+                { type: 'turn.started' },
+                { type: 'message.appended', data: { messageDelta: '生成中' } }
+            ]),
+            timeoutMs: 30000
+        });
+
+        const events = await client.readSessionStream({ sessionId: 'wrun_live_tail_2', idleMs: 100 });
+        expect(events).toHaveLength(2);
+        expect(events.at(-1)).toMatchObject({ type: 'message.appended' });
+    });
+
+    it('drops a trailing partial line from an abandoned live tail but keeps it on a closed stream', async () => {
+        const partial = '{"type":"message.appended","data":{"messageDelta":"tru';
+        const makeStream = (close) => new ReadableStream({
+            start(controller) {
+                controller.enqueue(new TextEncoder().encode(`${JSON.stringify({ type: 'turn.started' })}\n${close ? `${JSON.stringify({ type: 'turn.completed' })}\n` : partial}`));
+                if (close) controller.close();
+            }
+        });
+        const clientFor = (close) => new EveSessionClient({
+            baseUrl: 'https://eve.example',
+            token: 'token-123',
+            fetchImpl: async () => new Response(makeStream(close), { status: 200 }),
+            timeoutMs: 30000
+        });
+
+        const abandoned = await clientFor(false).readSessionStream({ sessionId: 'wrun_partial', idleMs: 100 });
+        expect(abandoned).toEqual([{ type: 'turn.started' }]);
+
+        const closed = await clientFor(true).readSessionStream({ sessionId: 'wrun_closed', idleMs: 100 });
+        expect(closed).toEqual([{ type: 'turn.started' }, { type: 'turn.completed' }]);
+    });
+
+    it('stops at a boundary event even when the tail keeps emitting later chunks', async () => {
+        let released = null;
+        const stream = new ReadableStream({
+            start(controller) {
+                controller.enqueue(new TextEncoder().encode(`${JSON.stringify({ type: 'session.waiting' })}\n`));
+                released = () => controller.enqueue(new TextEncoder().encode(`${JSON.stringify({ type: 'turn.started' })}\n`));
+            }
+        });
+        const client = new EveSessionClient({
+            baseUrl: 'https://eve.example',
+            token: 'token-123',
+            fetchImpl: async () => new Response(stream, { status: 200 }),
+            timeoutMs: 30000
+        });
+
+        const events = await client.readSessionStream({ sessionId: 'wrun_boundary_stop' });
+        expect(events).toEqual([{ type: 'session.waiting' }]);
+        expect(typeof released).toBe('function');
+    });
+});

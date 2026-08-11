@@ -1,0 +1,13 @@
+{
+  "status": "needs_changes",
+  "head_sha": "676349855a97c92295a6764ffc08c0f101415df4",
+  "agent_id": "019f5b25-dbd9-75e1-b10f-b75db051f77a",
+  "summary": "Preserved poll diagnostics are hidden by Mission Control after recovery closes the run.",
+  "findings": [
+    {
+      "severity": "medium",
+      "id": "human-usability-recovered-poll-error-hidden",
+      "detail": "Mission Control gates Eve Poll Error on retrying status even when historical poll diagnostics remain in metadata."
+    }
+  ]
+}

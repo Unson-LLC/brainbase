@@ -65,7 +65,7 @@ remains retired and must not receive input or commits.
 ## Boundaries
 
 - `Session` is a logical product identity.
-- `WorkspaceGeneration` is an implementation identity for jj/git workspace,
+- `WorkspaceGeneration` is an implementation identity for a Git worktree,
   bookmark, path, runtime cwd, and merge status.
 - Runtime ownership, xterm transport, and terminal logs follow the visible
   session ID, but command execution uses the active workspace generation path.

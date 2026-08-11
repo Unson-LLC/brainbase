@@ -8,7 +8,7 @@ RUNNER="$SCRIPT_DIR/run-slack-mcp.sh"
 if [ "$#" -gt 0 ]; then
   WORKSPACES=("$@")
 else
-  WORKSPACES=(salestailor unson techknight)
+  WORKSPACES=(salestailor unson techknight t0882t8n9uh)
 fi
 
 status=0

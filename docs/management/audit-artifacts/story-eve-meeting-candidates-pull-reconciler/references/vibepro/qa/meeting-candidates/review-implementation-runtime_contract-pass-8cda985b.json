@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "implementation",
+  "role": "runtime_contract",
+  "status": "pass",
+  "head_sha": "8cda985b0887c166d37bb02c44899789f7308f2a",
+  "agent_id": "019f5b04-4c90-7242-ab66-94445c90a2b9",
+  "summary": "Tuple matching, note-primary close behavior, candidate retry semantics, and Brainbase authority boundaries pass on exact HEAD.",
+  "inspection": "Reviewed the Story, Architecture, Spec, verification evidence, reconciler, workflow service, meeting-source sync, routes, unit tests, and owner SSOT E2E coverage; reran the focused 33-test reconciler suite.",
+  "judgment_delta": "No runtime-contract drift remains; active candidate write failures retry, ended failures block, mismatches remain visible, and candidate ownership stays Brainbase-side.",
+  "findings": []
+}

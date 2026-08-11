@@ -11,24 +11,24 @@ description: brainbaseのマーケ10倍運用で、正本（SSOT）・作業場�
 
 ## 正本（SSOT）
 - **運用状態の正本**: NocoDB（Brainbase）
-- **ガードレールの正本**: `_codex/sns/`
+- **ガードレールの正本**: `/Users/ksato/workspace/sns/`
 - **議事録の正本**: `config.yml` の `projects[*].local.path` 配下の `meetings/minutes/`
 
 ## 管理場所（成果物の保存先）
 - **長文の正本（note & X記事共通）**:
-  - `_codex/sns/drafts/{topic}_final.md`
+  - `/Users/ksato/workspace/sns/drafts/{topic}_final.md`
 - **状態・出荷管理**:
   - NocoDB `Content`（1レコード=1チャンネル=1出荷物）
   - noteとX記事は別レコード、同一Pillar参照
 - **週次ログ**（任意）:
-  - `_codex/sns/log/`
+  - `/Users/ksato/workspace/sns/log/`
 
 ## 参照するガードレール
 必要に応じて以下を読む（コピーしない）:
-- `_codex/sns/sns_strategy_os.md`
-- `_codex/sns/rules.md`
-- `_codex/sns/style_guide.md`
-- `_codex/sns/x_account_profile.md`
+- `/Users/ksato/workspace/sns/sns_strategy_os.md`
+- `/Users/ksato/workspace/sns/rules.md`
+- `/Users/ksato/workspace/sns/style_guide.md`
+- `/Users/ksato/workspace/sns/x_account_profile.md`
 - `_codex/common/00_stories.md` の E0-002
 
 ## 議事録の取り出し方（Pillar抽出）
@@ -38,7 +38,7 @@ description: brainbaseのマーケ10倍運用で、正本（SSOT）・作業場�
 
 ## 出荷フロー（最短）
 1) **Pillar決定**（3本）
-2) **note-smart**で長文生成 → `_codex/sns/drafts/{topic}_final.md`
+2) **note-smart**で長文生成 → `/Users/ksato/workspace/sns/drafts/{topic}_final.md`
 3) **X記事は同一本文で出荷**（noteと同じ）
 4) **X短文**は各Pillarから10本ずつ（合計30本/日）
 5) NocoDBに `Content` を起票し `status` を進める
@@ -51,7 +51,7 @@ description: brainbaseのマーケ10倍運用で、正本（SSOT）・作業場�
 /Users/ksato/workspace/.venv/bin/python \
   /Users/ksato/workspace/common/ops/scripts/nano_banana.py \
   -p "Create a clean Japanese business framework banner for an X Article header. Aspect ratio 5:2 (e.g., 1500x600). Title text in Japanese: {topic}. Show exactly 3 short points in Japanese from {points_text} with small icons and numbered labels 1-3. Keep text large and legible, high contrast, ample whitespace, professional blue/gray palette with one accent color. Horizontal banner composition, no extra logos, no dense paragraphs, no English text." \
-  -o /Users/ksato/workspace/shared/_codex/sns/images/x_article_YYYYMMDD_1600x640.jpg \
+  -o /Users/ksato/workspace/sns/images/x_article_YYYYMMDD_1600x640.jpg \
   "タイトル" "ポイント1" "ポイント2" "ポイント3"
 ```
 
@@ -68,7 +68,7 @@ open -na "Google Chrome" --args \
 
 ### 2) 画像挿入 + 公開（画像必須チェック付き）
 ```bash
-python3 shared/_codex/common/ops/scripts/x_article_post.py \
+python3 /Users/ksato/workspace/common/ops/scripts/x_article_post.py \
   /path/to/draft.md \
   --edit-url "https://x.com/compose/articles/edit/xxxxxxxxxxxxxxxx" \
   --connect-cdp http://127.0.0.1:9222 \
@@ -79,7 +79,7 @@ python3 shared/_codex/common/ops/scripts/x_article_post.py \
 
 ### 3) 画像挿入だけ（公開しない）
 ```bash
-python3 shared/_codex/common/ops/scripts/x_article_post.py \
+python3 /Users/ksato/workspace/common/ops/scripts/x_article_post.py \
   --edit-url "https://x.com/compose/articles/edit/xxxxxxxxxxxxxxxx" \
   --connect-cdp http://127.0.0.1:9222 \
   --image /path/to/header.jpg \
@@ -104,4 +104,4 @@ python3 shared/_codex/common/ops/scripts/x_article_post.py \
 - **X短文量産**: sns-smart
 
 ## コマンド（任意）
-- People同期: `/Users/ksato/workspace/shared/_codex/common/ops/scripts/sync_people_all.sh`
+- People同期: `/Users/ksato/workspace/common/ops/scripts/sync_people_all.sh`

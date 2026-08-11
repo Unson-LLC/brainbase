@@ -1,0 +1,4 @@
+
+> brainbase-ui@0.4.19 typecheck
+> tsc --noEmit -p public/jsconfig.json
+

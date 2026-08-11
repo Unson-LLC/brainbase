@@ -1,9 +1,9 @@
 ---
 story_id: story-meeting-workflow-pack-cockpit-ui-v1
 title: Meeting Workflow Pack Cockpit UI v1
-status: active
+status: retired
 created_at: 2026-06-21
-updated_at: 2026-06-21
+updated_at: 2026-07-16
 architecture_docs:
   - docs/architecture/meeting-workflow-pack-cockpit-ui-architecture.md
 spec_docs:
@@ -13,6 +13,8 @@ source_design:
 ---
 
 # Meeting Workflow Pack Cockpit UI v1
+
+> Retired by `TSK-WEBRET-002` under `ADR-017-agent-first-product-surface`. This document preserves the prototype's design intent; it is no longer a current Web UI contract. Meeting Workflow Core data and APIs remain active.
 
 ## 背景
 

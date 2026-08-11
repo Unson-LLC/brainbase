@@ -97,6 +97,25 @@ describe('PgCandidateRepository contract', () => {
         expect(pg.calls[0].params).toEqual(['cand_pg_1', 1]);
     });
 
+    it('lists durable onboarding candidates by exact source system and source-event prefix', async () => {
+        const pg = new ScriptedPg([{ rows: [dbRow()] }]);
+        const repo = new PgCandidateRepository({ pool: pg });
+
+        await repo.list({
+            owner_person_id: 'sato_keigo',
+            source_system: 'onboarding:drive',
+            source_event_prefix: `run_1:source_sha256:${'a'.repeat(64)}:`
+        });
+
+        expect(pg.calls[0].sql).toContain('source_system = $2');
+        expect(pg.calls[0].sql).toContain('starts_with(event_id, $3)');
+        expect(pg.calls[0].params).toEqual([
+            'sato_keigo',
+            'onboarding:drive',
+            `run_1:source_sha256:${'a'.repeat(64)}:`
+        ]);
+    });
+
     it('lists Personal KG rows with owner ACL, derived policy fields, and bounded limit', async () => {
         const pg = new ScriptedPg([{ rows: [dbRow({ memory_layer: 'personal_kg_core', sns_ready: true })] }]);
         const repo = new PgCandidateRepository({ pool: pg });
@@ -184,6 +203,20 @@ describe('PgCandidateRepository contract', () => {
         const pg = new ScriptedPg([{ error: Object.assign(new Error('duplicate'), { code: '23505' }) }]);
         const repo = new PgCandidateRepository({ pool: pg });
         await expect(repo.create(baseDraft())).rejects.toBeInstanceOf(DuplicateCandidateError);
+    });
+
+    it('rejects an existing primary id before insert even when the source key differs', async () => {
+        const pg = new ScriptedPg([{ rows: [{ id: 'candidate-stable-id' }] }]);
+        const repo = new PgCandidateRepository({ pool: pg });
+
+        await expect(repo.create(baseDraft({
+            id: 'candidate-stable-id',
+            source_event_ids: ['session:different-source-key']
+        }))).rejects.toBeInstanceOf(DuplicateCandidateError);
+
+        expect(pg.calls).toHaveLength(1);
+        expect(pg.calls[0].sql).toContain('id = $1');
+        expect(pg.calls[0].params[0]).toBe('candidate-stable-id');
     });
 
     it('transitions status in one transaction and appends audit', async () => {

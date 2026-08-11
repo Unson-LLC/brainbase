@@ -1,0 +1,21 @@
+{
+  "status": "pass",
+  "role": "runtime_contract",
+  "agent_id": "019f5bba-e1d8-7982-928b-ce56a922631d",
+  "head": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+  "summary": "C-001はEveMeetingNoteReconciler境界の契約であり、direct WorkflowService APIのpackage_id互換とは意図的に分離されている。",
+  "findings": [],
+  "resolved_finding": {
+    "id": "runtime-contract-record-meeting-candidates-package-fallback",
+    "disposition": "false_positive",
+    "reason": "Eve pullはorg/project/run/source_text_hash完全一致後にrun_idを明示して呼び出し、package_id fallbackを使用しない。"
+  },
+  "evidence": [
+    ".vibepro/spec/story-eve-meeting-candidates-pull-reconciler/spec.json",
+    "docs/architecture/story-eve-meeting-candidates-pull-reconciler.md",
+    "server/services/external-runner/eve-meeting-note-reconciler.js",
+    "server/services/workflow/workflow-service.js",
+    "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts",
+    "tests/server/services/eve-meeting-note-reconciler.test.js"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "test_plan",
+  "role": "e2e_ux",
+  "status": "pass",
+  "head_sha": "12880d75b68f2b12f500e09bee5cccc314564c17",
+  "agent_id": "019f5aee-296c-7032-a1b5-b6d17f294c02",
+  "summary": "The exact-head 7/7 E2E suite and supporting tests cover AC-001 through AC-008 and the required user-visible states.",
+  "inspection": "Inspected Story, Architecture, spec, verification evidence, E2E tests, reconciler, workflow service, meeting sync, and Mission Control UI.",
+  "judgment_delta": "Concern that only the happy path was covered -> pass because note-only close, delayed repoll, mismatch preservation, owner resolution outcomes, and visible running and blocked states are exercised.",
+  "findings": []
+}

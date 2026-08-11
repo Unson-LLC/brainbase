@@ -1,0 +1,22 @@
+{
+  "status": "needs_changes",
+  "summary": "Mission Control exposes raw internal reason codes for two reachable owner-resolution paths.",
+  "inspection_summary": "Compared WorkflowService owner-resolution reasons with Mission Control labels and current E2E coverage.",
+  "inspection_evidence": [
+    "public/workflows.html",
+    "server/services/workflow/workflow-service.js",
+    "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts"
+  ],
+  "inspection_inputs": [
+    ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/implementation/review-request-ux_completion.md",
+    "docs/stories/story-eve-meeting-candidates-pull-reconciler.md"
+  ],
+  "judgment_delta": "Two valid owner-resolution branches still surface implementation tokens instead of operator-facing explanations.",
+  "findings": [
+    {
+      "severity": "medium",
+      "id": "ux-owner-resolution-reason-label-gaps",
+      "detail": "Add operator-facing labels for generic_owner_hint_requires_human_selection and unique_partial_name_or_alias, then assert both in Mission Control E2E coverage."
+    }
+  ]
+}

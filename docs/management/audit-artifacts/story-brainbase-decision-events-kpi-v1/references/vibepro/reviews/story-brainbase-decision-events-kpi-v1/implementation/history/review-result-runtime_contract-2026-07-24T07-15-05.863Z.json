@@ -1,0 +1,121 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-decision-events-kpi-v1",
+  "stage": "implementation",
+  "role": "runtime_contract",
+  "status": "pass",
+  "summary": "Frozen runtime contract and Mac sender compatibility passed independent review",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "reviewed final frozen-HEAD runtime contract including ledger authority, same-host idempotency, auth, Slack KPI fail-closed behavior, and Mac Companion sender compatibility",
+    "evidence": "tests/e2e/story-brainbase-decision-events-kpi-v1-decision-events-api-contract.spec.ts",
+    "inputs": [
+      "server/services/companion/decision-event-service.js"
+    ]
+  },
+  "judgment_delta": [
+    "Exact frozen HEAD preserves all runtime contracts with no blocking findings after 59 focused tests and 9 freeze-after E2E scenarios"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+    "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+    "expected_root": null,
+    "expected_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+    "current_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+      "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+      "expected_root": null,
+      "expected_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+      "current_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-24T07:15:05.863Z",
+  "git_context": {
+    "head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+    "current_branch": "codex/decision-event-global-dedupe",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-24T07:15:05.859Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "bind final runtime review to frozen release candidate"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+    "surface_files": [
+      {
+        "path": "server/services/companion/decision-event-service.js",
+        "sha256": "ee5fc765d6358f72bd0d97fa86251ca3699a447c59ae046c3a9caebb2ba496ed",
+        "size": 35774
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "0aa8f0a9390e7b10f15f69f26e9f7d4bf07686b689f81bd0e43a576605c7f3b4"
+  },
+  "source_fingerprint": "ba7b5037a5ce42ea118c387e353fc0ac99a81de0b739bd3b38887d8b7cb5f037",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f92f3-8666-7860-a97f-cf55acf640b3",
+    "agent_role": null,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "cost_tier": "low",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/transcript-runtime-contract-019f92f3.json",
+    "request_artifact": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/review-request-runtime_contract.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/implementation/transcript-runtime-contract-019f92f3.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": null,
+      "implementation_session_id": null,
+      "source": "cli_flag"
+    }
+  },
+  "agent_usage": null
+}

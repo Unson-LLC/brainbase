@@ -39,18 +39,25 @@ troubleshooting: []
 | Capability | Why it exists |
 |---|---|
 | `runtime.launchd` | Canonical port `31013` is managed by launchd and syncs selected paths from `origin/develop` before startup. |
-| `project.catalog` | Defines the complete configured project list from `/api/config`. |
+| `runtime.lightsail` | Production SSOT on `bb.unson.jp` runs from `/home/ubuntu/brainbase` under systemd (`brainbase-ssot.service`); deploy is manual ff-merge + restart. |
+| `project.catalog` | Defines the configured project catalog, authenticated grant scope, MCP status envelope, and audit evidence. |
 | `project.selector` | Defines which projects appear in the session creation dropdown. |
 | `auth.grants` | Defines user project access through `auth_grants.project_codes` and JWT/localStorage access payloads. |
-| `session.create` | Defines how sessions are created, including project selection, engine, worktree handling, and verification. |
-| `terminal.transport` | Defines xterm transport behavior, Enter feedback, and terminal rendering constraints. |
-| `session.hibernation` | Defines runtime inventory and read-only hibernation eligibility before process-stopping lifecycle behavior. |
-| `workflow.mission-control` | Defines Workflow Mission Control ledger, workflow APIs, HITL approval boundaries, and `/workflows` visibility. |
-| `codex.app-server` | Defines the first structured Codex App Server adapter path for threads, turns, and notifications. |
+| `session.create` | Historical record of retired Brainbase session/worktree creation. Codex owns this lifecycle. |
+| `terminal.transport` | Historical record of retired Brainbase xterm/tmux/ttyd transport. |
+| `session.hibernation` | Historical record of retired Brainbase process lifecycle management. |
+| `workflow.mission-control` | Historical record of the retired generic Workflow product. Only domain-specific Control and Automation Run compatibility paths remain. |
+| `automation.run-core` | Defines project-scoped run, step, output, human approval, and audit semantics without a generic Workflow product. |
+| `run-receipt.inbox` | Defines cross-runtime receipt ingest, uncertainty-preserving projection, history, and Agent Inbox boundaries. |
+| `meeting.automation` | Defines the live meeting-source ingest, Eve dispatch/reconcile, approval, and evidence path retained during Workflow retirement. |
+| `codex.app-server` | Historical record of the retired Brainbase Codex-like UI adapter. |
 | `graph.ssot` | Defines when Brainbase Graph is the canonical source for names, projects, terminology, and decisions. |
+| `judgment.resolve` | Codex Host opens one canonical-context-bound judgment episode before model generation; the internal-LLM-free Resolver deterministically selects the initial route, the Codex model may perform 0..N actual Brainbase calls recorded through `PostToolUse`, and `Stop` verifies the stored owner-visible lines in the final answer before finalizing one non-authorizing receipt. Claude Code remains a future Host-adapter candidate. |
+| `knowledge.resolve` | Resolves the canonical knowledge source before search and preserves unsearched scope and uncertainty in a routing receipt. |
+| `onboarding.connected-world` | Defines the host-agent workflow that starts from callable MCP, Drive, Gmail, or explicit local folders, preserves unavailable states, and routes reviewed candidates through Promotion Gate. |
 | `requirements.nocodb` | Defines how `FRD-*`, `REQ-*`, and `BUG-*` references are resolved before scope or implementation changes. |
 | `code.reading` | Defines how agents should inspect code without loading broad files unnecessarily. |
-| `development.workflow` | Defines Brainbase's jj-first development workflow, including working-copy commits, dirty state checks, and commit splitting. |
+| `development.workflow` | Defines Brainbase's Git workflow, including focused staging, dirty-state checks, commits, and PR review. |
 | `git.protected-push` | Defines the PreToolUse guard (Claude Code + Codex) that blocks direct push, refspec push, force push, and force branch-update against `develop` / `main` / `master`. |
 | `verification.testing` | Defines how test-related prompts and changed files map to required test execution. |
 | `requirements.coverage` | Defines how completed TODOs are checked against acceptance requirements before stopping. |

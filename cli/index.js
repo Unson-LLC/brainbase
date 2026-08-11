@@ -22,19 +22,19 @@ Usage:
   brainbase auth login     Login to brainbase server
   brainbase auth status    Show authentication status
   brainbase auth logout    Clear saved credentials
-  brainbase wiki sync      Bidirectional wiki sync
-  brainbase wiki pull      Download wiki from server
-  brainbase wiki push      Upload local wiki to server
-  brainbase wiki status    Show sync diff (no changes)
-  brainbase learn add      Record explicit learn and propose candidates
-  brainbase learn ingest-reviews  Import verify-first review artifacts
-  brainbase learn daily    Run daily review backfill + inbox summary
-  brainbase learn inbox    Show pending manual candidates
-  brainbase learn dedupe-existing  Merge semantically duplicate pending candidates
-  brainbase learn show ID  Show one candidate
-  brainbase learn apply ID Apply one candidate
-  brainbase learn reject ID [--reason TEXT] Reject one candidate
-  brainbase help           Show this help
+  brainbase wiki sync      Read-only export (legacy alias)
+  brainbase wiki pull      Export wiki from server
+  brainbase wiki push      Refused: Wiki writes are retired
+  brainbase wiki status    Show retirement/export diff
+  brainbase learn add      明示した学びを記録し、知識候補を作成する
+  brainbase learn ingest-reviews  検証レビューから知識候補を作成する
+  brainbase learn daily    日次の候補収集と確認待ち一覧を更新する
+  brainbase learn inbox    確認待ちの知識候補を表示する
+  brainbase learn dedupe-existing  重複する確認待ち候補を統合する
+  brainbase learn show ID  候補を1件表示する
+  brainbase learn apply ID 候補を保存先に応じて正式登録・手順化する
+  brainbase learn reject ID [--reason TEXT] 候補を今回は見送る
+  brainbase help           このヘルプを表示する
 `;
 
 async function main() {

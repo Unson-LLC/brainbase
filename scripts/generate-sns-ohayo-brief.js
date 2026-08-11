@@ -6,24 +6,37 @@ import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-import { evaluatePersonaAffect } from '../server/services/sns/personal-kg-sns-weekly-planner.js';
+import { resolveSnsRoot } from './workspace-paths.js';
 
 const ROOT = process.cwd();
 const X_SEARCH_DIR = path.join(ROOT, '.claude/skills/x-research-skill');
-const SHARED_SNS_ROOT = '/Users/ksato/workspace/shared/_codex/sns';
-const DEFAULT_OUT_DIR = path.join(SHARED_SNS_ROOT, 'x/ops/daily-briefs');
+const SNS_ROOT = resolveSnsRoot();
+const DEFAULT_OUT_DIR = path.join(SNS_ROOT, 'x/ops/daily-briefs');
 const COST_PER_TWEET_READ_USD = 0.005;
+const FIRST_PERSON_EXPERIENCE_PATTERN = /俺|私|自分|うち|今日|昨日|今朝|今夜|やってみ|作った|決めた|迷っ|失敗|止まった|感じた|思い出した|残しておく|まだ答え/u;
+const ADVICE_PATTERN = /すべき|した方がいい|しよう|してください|正解は|最初に見るべき|間違えてる|できてない|みんなはどう|詳しくは|DM(?:ください)?|プロフィール(?:へ|から)|問い合わせ/u;
 
 const SEARCH_SPECS = {
     jpPeer: {
-        kind: 'peer_post',
+        kind: 'reflection_prompt',
         query: '(Claude Code OR Codex OR AIエージェント OR AI PM OR AI駆動経営) (会社 OR 業務 OR 現場 OR PM OR 経営 OR 運用 OR 導入) lang:ja -is:reply -is:retweet'
     },
     enNews: {
-        kind: 'news',
+        kind: 'reflection_prompt',
         query: '("Claude Code" OR Codex OR "AI agents") (workflow OR company OR product OR PM OR "long running" OR management) lang:en -is:reply -is:retweet'
     }
 };
+
+function todayJst() {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Tokyo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).formatToParts(new Date());
+    const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${byType.year}-${byType.month}-${byType.day}`;
+}
 
 function parseArgs(argv) {
     const args = {
@@ -52,17 +65,6 @@ function parseArgs(argv) {
         if (arg === '--dry-run') args.dryRun = true;
     }
     return args;
-}
-
-function todayJst() {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Asia/Tokyo',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    }).formatToParts(new Date());
-    const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-    return `${byType.year}-${byType.month}-${byType.day}`;
 }
 
 function readJsonArray(filePath) {
@@ -96,32 +98,13 @@ function runXSearch(query, { since, maxResults, limit }) {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe']
     });
-    if (result.status !== 0) {
-        throw new Error(`x-search failed: ${result.stderr || result.stdout}`);
-    }
+    if (result.status !== 0) throw new Error(`x-search failed: ${result.stderr || result.stdout}`);
     const tweets = JSON.parse(result.stdout || '[]');
     const readMatch = String(result.stderr || '').match(/(\d+)\s+tweets read/u);
     return {
         tweets,
-        reads: readMatch ? Number(readMatch[1]) : tweets.length,
-        stderr: result.stderr
+        reads: readMatch ? Number(readMatch[1]) : tweets.length
     };
-}
-
-function loadWeeklyPlan(date) {
-    const opsDir = path.join(SHARED_SNS_ROOT, 'x/ops');
-    if (!fs.existsSync(opsDir)) return '';
-    const files = fs.readdirSync(opsDir)
-        .filter((file) => /^weekly_content_calendar_\d{4}-\d{2}-\d{2}\.md$/u.test(file))
-        .sort()
-        .reverse();
-    for (const file of files) {
-        const content = fs.readFileSync(path.join(opsDir, file), 'utf8');
-        const escapedDate = date.replace(/[\\^$*+?.()|[\]{}]/g, '\\$&');
-        const dayMatch = content.match(new RegExp(`## [^\\n]*${escapedDate}[\\s\\S]*?(?=\\n## |\\n# |$)`, 'u'));
-        if (dayMatch) return dayMatch[0].trim();
-    }
-    return '';
 }
 
 function metricsOf(tweet) {
@@ -129,44 +112,62 @@ function metricsOf(tweet) {
 }
 
 function engagementScore(tweet) {
-    const m = metricsOf(tweet);
-    return (m.likes || 0) * 3 + (m.retweets || 0) * 4 + (m.quotes || 0) * 3 + (m.replies || 0) * 2 + (m.bookmarks || 0) * 2 + Math.floor((m.impressions || 0) / 1000);
-}
-
-function followerCount(tweet) {
-    return Number(tweet.author_followers ?? tweet.author?.followers_count ?? tweet.user?.public_metrics?.followers_count ?? 0);
+    const metrics = metricsOf(tweet);
+    return Number(metrics.likes || 0) * 3
+        + Number(metrics.retweets || 0) * 4
+        + Number(metrics.quotes || 0) * 3
+        + Number(metrics.replies || 0) * 2
+        + Number(metrics.bookmarks || 0) * 2;
 }
 
 export function classifyAuthorBand(tweet) {
-    const followers = followerCount(tweet);
+    const followers = Number(tweet?.author_followers);
+    if (!Number.isFinite(followers)) return 'unknown';
     if (followers >= 2000 && followers <= 20000) return 'primary';
     if (followers > 20000 && followers <= 50000) return 'secondary';
-    if (followers > 0) return 'out_of_band';
-    return 'unknown';
+    return 'out_of_band';
 }
 
-function cleanTweetText(text, max = 120) {
-    const cleaned = String(text || '').replace(/https:\/\/t\.co\/\S+/gu, '').replace(/\s+/gu, ' ').trim();
-    if (cleaned.length <= max) return cleaned;
-    return `${cleaned.slice(0, max - 1).trim()}…`;
+function topicFor(text) {
+    for (const topic of ['Claude Code', 'Codex', 'AI PM', 'AI駆動経営', 'AIエージェント']) {
+        if (String(text || '').toLowerCase().includes(topic.toLowerCase())) return topic;
+    }
+    return '今日見かけた話';
 }
 
-function compactText(text, max = 120) {
-    const cleaned = String(text || '').replace(/。/gu, '、').replace(/\s+/gu, ' ').trim().replace(/[、,]+$/u, '');
-    if (cleaned.length <= max) return cleaned;
-    return `${cleaned.slice(0, max - 1).trim()}…`;
+function toReflectionPrompt(tweet, sourceKind) {
+    return {
+        id: tweet.id,
+        kind: 'reflection_prompt',
+        source_kind: sourceKind,
+        author_handle: tweet.username ? `@${tweet.username}` : null,
+        author_followers: Number.isFinite(Number(tweet.author_followers)) ? Number(tweet.author_followers) : null,
+        target_band: classifyAuthorBand(tweet),
+        topic: topicFor(tweet.text),
+        text: tweet.text || '',
+        url: tweet.tweet_url || tweet.url || null,
+        prompt: 'これを見て、自分の経験として思い出すことがあるか。なければ投稿にしない',
+        may_become_post_without_first_person_source: false
+    };
 }
 
-function publicKgSnippet(text, max = 72) {
-    const withoutLabels = String(text || '')
-        .replace(/Own Proof:\s*/gu, '')
-        .replace(/Reusable Pattern:\s*/gu, '')
-        .replace(/\s+Apply When:[\s\S]*$/u, '')
-        .replace(/\s+Do Not Apply When:[\s\S]*$/u, '');
-    return compactText(withoutLabels, max);
+function selectPrompts(tweets, sourceKind, limit = 3) {
+    return [...tweets]
+        .sort((a, b) => engagementScore(b) - engagementScore(a))
+        .slice(0, limit)
+        .map((tweet) => toReflectionPrompt(tweet, sourceKind));
 }
 
-function normalizeBodyFingerprint(body) {
+function normalizeBody(body) {
+    const text = String(body || '')
+        .replace(/[ \t]+/gu, ' ')
+        .replace(/\n{3,}/gu, '\n\n')
+        .trim();
+    if (text.length <= 280) return text;
+    return `${text.slice(0, 279).trim()}…`;
+}
+
+function fingerprint(body) {
     return String(body || '')
         .normalize('NFKC')
         .toLowerCase()
@@ -176,491 +177,88 @@ function normalizeBodyFingerprint(body) {
         .trim();
 }
 
-function isNearFingerprint(candidate, existing) {
-    if (!candidate || !existing) return false;
-    if (candidate === existing) return true;
-    const minLength = Math.min(candidate.length, existing.length);
-    if (minLength < 42) return false;
-    return candidate.includes(existing) || existing.includes(candidate);
+function laneFor(category) {
+    if (category === 'work_log' || category === 'proof') return 'work_log';
+    if (category === 'life_log') return 'life_log';
+    if (category === 'memory') return 'memory';
+    if (category === 'unresolved') return 'unresolved';
+    return 'today_log';
 }
 
-function recentHistory(generationContext) {
-    return generationContext?.generation_policy?.recent_history || {
-        posts: [],
-        used_source_urls: [],
-        blocked_body_fingerprints: []
-    };
-}
-
-function dedupeReasons({ body, sourceUrl = null, generationContext = null }) {
-    const history = recentHistory(generationContext);
-    const fingerprint = normalizeBodyFingerprint(body);
-    const blocked = new Set((history.blocked_body_fingerprints || []).map(normalizeBodyFingerprint));
+function qualityGate(body, blockedFingerprints = []) {
     const reasons = [];
-    if (fingerprint && blocked.has(fingerprint)) {
-        reasons.push('duplicate_recent_body');
-    } else if (fingerprint && [...blocked].some((existing) => isNearFingerprint(fingerprint, existing))) {
-        reasons.push('near_duplicate_recent_body');
-    }
-    if (sourceUrl && new Set(history.used_source_urls || []).has(sourceUrl)) {
-        reasons.push('source_url_already_used');
-    }
-    return [...new Set(reasons)];
-}
-
-function topicFromTweet(tweet) {
-    const text = String(tweet.text || '');
-    if (/Claude Code/u.test(text)) return 'Claude Code';
-    if (/Codex/u.test(text)) return 'Codex';
-    if (/AI PM|PdM|PM/u.test(text)) return 'AI PM';
-    if (/経営|management/u.test(text)) return 'AI駆動経営';
-    if (/agent|エージェント/iu.test(text)) return 'AI Agent';
-    return 'AI運用';
-}
-
-function tweetUrl(tweet) {
-    return tweet.tweet_url || `https://x.com/${tweet.username || '?'}/status/${tweet.id}`;
-}
-
-function toPeerSignal(tweet) {
-    return {
-        id: tweet.id,
-        kind: 'peer_post',
-        author_handle: `@${tweet.username || '?'}`,
-        author_followers: followerCount(tweet),
-        target_band: classifyAuthorBand(tweet),
-        text: cleanTweetText(tweet.text),
-        url: tweetUrl(tweet),
-        topic: topicFromTweet(tweet)
-    };
-}
-
-function toNewsSignal(tweet) {
-    return {
-        id: tweet.id,
-        kind: 'news',
-        title: cleanTweetText(tweet.text),
-        url: tweetUrl(tweet),
-        topic: topicFromTweet(tweet),
-        author_handle: `@${tweet.username || '?'}`,
-        author_followers: followerCount(tweet)
-    };
-}
-
-function pickTopTweets(tweets, limit = 3) {
-    return [...tweets]
-        .filter((tweet) => tweet && tweet.id && tweet.text)
-        .sort((a, b) => engagementScore(b) - engagementScore(a))
-        .slice(0, limit);
-}
-
-function pickPeerTweets(tweets, limit = 3) {
-    const ranked = pickTopTweets(tweets, tweets.length);
-    const primary = ranked.filter((tweet) => classifyAuthorBand(tweet) === 'primary');
-    const secondary = ranked.filter((tweet) => classifyAuthorBand(tweet) === 'secondary');
-    const pool = primary.length > 0 ? primary : (secondary.length > 0 ? secondary : ranked);
-    return pool.slice(0, limit);
-}
-
-function draftHintForPeer(signal) {
-    return [
-        'これ、Claude Codeを会社で使う時も同じだと思ってる',
-        '',
-        'うちでも便利なコマンドより先に、レビュー境界と権限を決めないと現場で止まる',
-        '',
-        'AIが賢いほど、人間側の運用が雑だと怖いんよな',
-        signal.url
-    ].join('\n');
-}
-
-function draftHintForNews(signal) {
-    return [
-        '海外のClaude Code事例って、ツール紹介より「長く走る業務フロー」に話が寄ってきてる',
-        '',
-        '日本の会社で見る時も、機能比較より先に、どこまでAIに任せてどこで人間が戻るかを決める方が大事',
-        signal.url
-    ].join('\n');
-}
-
-function draftHintAlternativesForPeer(signal, generationContext = null) {
-    const anchor = publicKgSnippet((generationContext?.personal_kg?.anchors || [])[0] || '', 70);
-    const sourceText = compactText(signal.text || signal.topic || 'この論点', 64);
-    return [
-        draftHintForPeer(signal),
-        [
-            `${sourceText}、かなり現場の論点だと思う`,
-            '',
-            anchor || '会社導入では、便利さより先に責任境界と戻し方を決める必要がある',
-            '',
-            'AIを入れるほど、人間側の設計の粗さがそのまま出る',
-            signal.url
-        ].join('\n'),
-        [
-            'この話、AI活用を個人技で終わらせないために大事だと思ってる',
-            '',
-            '会社で見るべきなのは、誰が判断し、どこでレビューし、何を記憶に戻すか',
-            '',
-            'ツールの前に運用の型がいる',
-            signal.url
-        ].join('\n')
-    ];
-}
-
-function draftHintAlternativesForNews(signal, generationContext = null) {
-    const anchor = publicKgSnippet((generationContext?.personal_kg?.anchors || [])[1] || (generationContext?.personal_kg?.anchors || [])[0] || '', 70);
-    const sourceText = compactText(signal.topic || '海外のAI事例', 64);
-    return [
-        draftHintForNews(signal),
-        [
-            `${sourceText}という話、日本企業だと「どう使うか」より「どこまで任せるか」に翻訳した方がよさそう`,
-            '',
-            anchor || '現場に入るAIは、業務ログと責任分界まで含めて設計する必要がある',
-            signal.url
-        ].join('\n'),
-        [
-            '海外のAI事例を見る時、機能名だけ追うと浅くなる',
-            '',
-            '日本の現場では、AIが動いた後に人間がどこで戻れるかまで設計して初めて使える',
-            signal.url
-        ].join('\n')
-    ];
-}
-
-function personaBrain(topic) {
-    return {
-        target_person: 'AI導入を任された事業責任者 / PM / 経営者',
-        current_situation: `${topic} に関心はあるが、自社の業務フローへどう落とすか迷っている`,
-        existing_belief: '良いツールを選べばAI活用が進むと思っている',
-        misunderstanding: 'AI活用は個人スキルや投稿生成の問題だと捉えている',
-        fear: '現場で事故が起きた時の責任境界が曖昧なまま進むことを怖がっている',
-        blocker: '権限、記憶、レビュー境界、学習の戻し先をどう決めるか分からない',
-        resonant_detail: '現場、業務、責任境界、レビュー',
-        avoid_phrasing: 'AIで全部自動化できます',
-        natural_next_action: '保存して、自社ならどの業務に当てるか考える',
-        success_signal: 'peer_reply_or_repost'
-    };
-}
-
-function withAffect(signal, body, lane) {
-    const brain = personaBrain(signal.topic || 'AI運用');
-    return {
-        ...signal,
-        draft_hint: body,
-        persona_brain: brain,
-        persona_affect: evaluatePersonaAffect({ body, lane, personaBrain: brain, signal })
-    };
-}
-
-function parseBaselineItems(weeklyPlan) {
-    const baselineMatch = String(weeklyPlan || '').match(/Baseline:\s*([\s\S]*?)(?=\n[A-Z][A-Za-z ]+:|\n## |\n# |$)/u);
-    const block = baselineMatch ? baselineMatch[1] : '';
-    const items = block
-        .split('\n')
-        .map((line) => line.match(/^\s*\d+\.\s*(.+?)\s*$/u)?.[1])
-        .filter(Boolean);
-    const fallback = ['Own Proof', 'Claude Code法人導入'];
-    return [...items, ...fallback].slice(0, 2);
-}
-
-function contextEvidence(generationContext) {
-    if (!generationContext) return null;
-    return {
-        policy_ref: 'generation_policy',
-        date: generationContext.date || null,
-        recommended_lanes: generationContext.generation_policy?.recommended_lanes || [],
-        avoid_patterns: generationContext.generation_policy?.avoid_patterns || [],
-        winning_angles: generationContext.generation_policy?.winning_angles || [],
-        evidence: generationContext.evidence || []
-    };
-}
-
-function generationConstraints(generationContext) {
-    const avoid = generationContext?.generation_policy?.avoid_patterns || [];
-    if (!avoid.length) return [];
-    return [
-        'SNS Generation Contextのavoid_patternsを本文に露出せず生成前制約として扱う',
-        ...avoid.slice(0, 4).map((pattern) => `avoid:${pattern}`)
-    ];
-}
-
-function graphCheckFor(topic, generationContext = null) {
-    return {
-        scope: 'growth',
-        entities: ['さとけい', 'Unson', 'AI駆動経営', topic],
-        source_of_truth: 'brainbase Graph + shared/_codex/sns',
-        decision: 'checked_for_review',
-        constraints: [
-            '投稿実行は人間レビュー後',
-            '読者に運用都合を見せない',
-            '固有名詞はGraph SSOT優先',
-            ...generationConstraints(generationContext)
-        ]
-    };
-}
-
-function peerCircleBrain(signal) {
-    return {
-        source: signal.author_handle,
-        relation_mode: '同じ実務界隈の仲間として補強する',
-        give_first: '相手の論点に、会社導入で起きる責任境界の現場知見を足す',
-        avoid: '相手選定や成長施策の都合を本文に出さない'
-    };
-}
-
-function amplifierBrain(signal) {
-    return {
-        source: signal.author_handle,
-        relation_mode: '海外の話題を日本の事業責任者 / PM の業務判断に翻訳する',
-        give_first: '機能紹介ではなく、責任境界とレビュー設計に接続する',
-        avoid: '英語混じりの説明やニュース要約だけで終わらせない'
-    };
-}
-
-function baselineBodyFor(item, index) {
-    if (/Claude Code/u.test(item) || index === 1) {
-        return [
-            'Claude Codeを会社で使う時、小技を増やすより先に決めることがある',
-            '',
-            'CLAUDE.md、スキル、hook、レビュー、権限',
-            '',
-            'ここがないと、個人の便利ツールで止まる',
-            '会社で使うAIは、行動ルールまで含めて設計するものなんよな'
-        ].join('\n');
-    }
-    return [
-        'SNS運用を「投稿を作る仕組み」じゃなくて、読者理解を学習に戻す個人ナレッジグラフとして作ってる',
-        '',
-        'Xで反応を見る',
-        '反応から読者理解を更新する',
-        '次の仮説に戻す',
-        '',
-        '投稿生成より、こっちが本体なんよな'
-    ].join('\n');
-}
-
-function baselineBodyAlternatives(item, index, generationContext = null) {
-    const personalKg = generationContext?.personal_kg || {};
-    const proof = publicKgSnippet((personalKg.proof_points || [])[index] || (personalKg.proof_points || [])[0] || '', 86);
-    const anchor = publicKgSnippet((personalKg.anchors || [])[index] || (personalKg.anchors || [])[0] || '', 86);
-    const defaultBody = baselineBodyFor(item, index);
-    if (index === 0) {
-        return [
-            defaultBody,
-            [
-                proof || 'MANAの実運用では、AI駆動PMが会議時間やPM工数の削減に効いている',
-                '',
-                'この話を単なる成功事例で終わらせず、どの業務をAIに渡し、どこで人間が責任を持つかまで設計する',
-                '',
-                'ここまで戻して初めて会社のAI活用になる'
-            ].join('\n'),
-            [
-                '個人KGをSNSに使う価値は、投稿を増やすことじゃない',
-                '',
-                anchor || '読者が何を誤解し、何を怖がっているかを先に立ち上げる',
-                '',
-                '反応を見て、次の仮説に戻せることが本体'
-            ].join('\n')
-        ];
-    }
-    return [
-        defaultBody,
-        [
-            'Claude Codeを会社に入れる時、最初に見るのは機能より責任の置き方だと思ってる',
-            '',
-            '誰が指示し、どこまで任せ、どこでレビューし、失敗時にどう戻すか',
-            '',
-            'ここが曖昧だと、便利な個人ツールで止まる'
-        ].join('\n'),
-        [
-            anchor || 'AI活用支援では、相手の決断の怖さを減らして責任を支えることが人間の仕事になる',
-            '',
-            'Claude Codeも同じで、導入論はプロンプト集より運用設計から始めた方がいい'
-        ].join('\n')
-    ];
-}
-
-function qualityGate({ body, lane, personaBrain: brain, signal, requireSignal = false }) {
-    const affect = evaluatePersonaAffect({ body, lane, personaBrain: brain, signal });
-    const checks = [];
-    const reasons = [];
-
-    checks.push({ name: 'persona_affect', pass: affect.decision === 'pass' });
-    if (affect.decision !== 'pass') reasons.push(...affect.negative_feeling_risks);
-
-    const text = String(body || '');
-    const forbidden = /少し上の人に絡む|相手の読者に入る|APIで投稿|自動投稿|AI使って書いてます|ルー大柴/u.test(text);
-    checks.push({ name: 'no_internal_or_cold_phrasing', pass: !forbidden });
-    if (forbidden) reasons.push('internal_or_cold_phrasing');
-
-    const hasJapaneseReaderWorld = /会社|現場|業務|運用|責任|権限|レビュー|経営|PM|読者|学習/u.test(text);
-    checks.push({ name: 'reader_world_anchor', pass: hasJapaneseReaderWorld });
-    if (!hasJapaneseReaderWorld) reasons.push('reader_world_anchor_missing');
-
-    const isShortEnough = text.length <= 280;
-    checks.push({ name: 'under_280_chars', pass: isShortEnough });
-    if (!isShortEnough) reasons.push('too_long');
-
-    const noSentencePeriod = !/。/u.test(text);
-    checks.push({ name: 'style_no_sentence_period', pass: noSentencePeriod });
-    if (!noSentencePeriod) reasons.push('style_sentence_period');
-
-    if (requireSignal) {
-        const followers = Number(signal?.author_followers || 0);
-        const passesSignal = signal?.kind === 'peer_post'
-            ? ['primary', 'secondary'].includes(signal.target_band)
-            : followers >= 500;
-        checks.push({ name: 'source_strength', pass: Boolean(passesSignal) });
-        if (!passesSignal) reasons.push('source_strength_insufficient');
-    }
-
+    if (!FIRST_PERSON_EXPERIENCE_PATTERN.test(body)) reasons.push('missing_first_person_experience');
+    if (ADVICE_PATTERN.test(body)) reasons.push('advice_or_instruction');
+    if (body.length > 280) reasons.push('too_long');
+    if (blockedFingerprints.includes(fingerprint(body))) reasons.push('duplicate_recent_body');
     return {
         decision: reasons.length === 0 ? 'pass' : 'hold',
-        checks,
-        reasons: [...new Set(reasons)],
-        persona_affect: affect
+        check_type: 'lifelog_integrity',
+        reasons,
+        checks: {
+            first_person_experience: !reasons.includes('missing_first_person_experience'),
+            no_advice_or_instruction: !reasons.includes('advice_or_instruction'),
+            under_280_chars: !reasons.includes('too_long'),
+            not_recent_duplicate: !reasons.includes('duplicate_recent_body')
+        }
     };
 }
 
-function buildPost({ slot, label, lane, topic, body, signal, extra = {}, requireSignal = false, generationContext = null }) {
-    const brain = personaBrain(topic);
-    const quality_gate = qualityGate({ body, lane, personaBrain: brain, signal, requireSignal });
-    return {
-        slot,
-        label,
-        lane,
-        topic,
-        body,
-        source_url: signal?.url,
-        persona_brain: brain,
-        graph_check: graphCheckFor(topic, generationContext),
-        generation_context_evidence: contextEvidence(generationContext),
-        quality_gate,
-        ...extra
-    };
-}
-
-function buildReviewPack({ date, weeklyPlan, peerCards, newsCards, generationContext = null }) {
-    const holds = [];
+function buildReviewPack(date, generationContext) {
+    const entries = generationContext?.personal_kg?.lifelog_entries || [];
+    const blockedFingerprints = generationContext?.generation_policy?.recent_history?.blocked_body_fingerprints || [];
     const posts = [];
+    const holds = [];
 
-    for (const [index, item] of parseBaselineItems(weeklyPlan).entries()) {
-        const lane = index === 0 ? 'own_proof' : 'trust_balance';
-        const candidates = baselineBodyAlternatives(item, index, generationContext).map((body) => buildPost({
-            slot: `baseline_${index + 1}`,
-            label: `Baseline ${index + 1}`,
-            lane,
-            topic: item,
-            body,
-            generationContext
-        }));
-        let selected = null;
-        for (const candidate of candidates) {
-            if (candidate.quality_gate.decision !== 'pass') continue;
-            const reasons = dedupeReasons({ body: candidate.body, generationContext });
-            if (reasons.length > 0) {
-                holds.push({
-                    lane,
-                    decision: 'dedupe hold',
-                    reasons,
-                    slot: candidate.slot,
-                    topic: candidate.topic
-                });
-                continue;
-            }
-            selected = candidate;
-            break;
-        }
-        if (selected) {
-            posts.push(selected);
-        } else if (!holds.some((hold) => hold.slot === `baseline_${index + 1}`)) {
+    for (const [index, entry] of entries.entries()) {
+        const body = normalizeBody(entry.body);
+        const gate = qualityGate(body, blockedFingerprints);
+        if (gate.decision !== 'pass') {
             holds.push({
-                lane,
-                decision: 'quality hold',
-                reasons: ['baseline_quality_or_dedupe_blocked'],
-                slot: `baseline_${index + 1}`,
-                topic: item
+                source_id: entry.id,
+                decision: 'lifelog integrity hold',
+                reasons: gate.reasons
             });
+            continue;
         }
-    }
-
-    const peerPost = peerCards
-        .flatMap((signal) => draftHintAlternativesForPeer(signal, generationContext).map((body) => buildPost({
-            slot: 'peer_quote_1',
-            label: 'Peer Quote 1',
-            lane: 'peer_circle',
-            topic: signal.topic,
+        posts.push({
+            slot: `lifelog_${index + 1}`,
+            label: `公開ライフログ候補 ${index + 1}`,
+            lane: laneFor(entry.category),
+            format: 'first_person_lifelog',
             body,
-            signal,
-            requireSignal: true,
-            generationContext,
-            extra: { peer_circle_brain: peerCircleBrain(signal) }
-        })))
-        .find((post) => {
-            if (post.quality_gate.decision !== 'pass') return false;
-            const reasons = dedupeReasons({ body: post.body, sourceUrl: post.source_url, generationContext });
-            if (reasons.length > 0) {
-                holds.push({
-                    lane: post.lane,
-                    decision: 'dedupe hold',
-                    reasons,
-                    slot: post.slot,
-                    topic: post.topic,
-                    source_url: post.source_url
-                });
-                return false;
+            source_url: null,
+            quality_gate: gate,
+            lifelog_check: {
+                decision: 'pass',
+                source_id: entry.id,
+                source_system: entry.source_system || 'candidate_store',
+                source_category: entry.category || null,
+                occurred_at: entry.occurred_at || null,
+                first_person_evidence: true,
+                evidence_ids: entry.evidence_ids || []
+            },
+            graph_check: {
+                scope: 'personal_experience',
+                decision: 'source_attached',
+                source_of_truth: 'Personal KG owner-visible lifelog entry'
+            },
+            generation_context_evidence: {
+                policy_ref: 'generation_policy',
+                source_ref: `personal_kg.lifelog_entries:${entry.id}`
             }
-            return true;
-        });
-    if (peerPost) {
-        posts.push(peerPost);
-    } else if (!holds.some((hold) => hold.slot === 'peer_quote_1')) {
-        holds.push({
-            lane: 'Peer Quote',
-            decision: 'quality hold',
-            reasons: ['source_strength_insufficient_or_persona_affect_blocked']
         });
     }
 
-    const newsPost = newsCards
-        .flatMap((signal) => draftHintAlternativesForNews(signal, generationContext).map((body) => buildPost({
-            slot: 'news_commentary_1',
-            label: 'News Commentary 1',
-            lane: 'trust_balance',
-            topic: signal.topic,
-            body,
-            signal,
-            requireSignal: true,
-            generationContext,
-            extra: { amplifier_brain: amplifierBrain(signal) }
-        })))
-        .find((post) => {
-            if (post.quality_gate.decision !== 'pass') return false;
-            const reasons = dedupeReasons({ body: post.body, sourceUrl: post.source_url, generationContext });
-            if (reasons.length > 0) {
-                holds.push({
-                    lane: post.lane,
-                    decision: 'dedupe hold',
-                    reasons,
-                    slot: post.slot,
-                    topic: post.topic,
-                    source_url: post.source_url
-                });
-                return false;
-            }
-            return true;
-        });
-    if (newsPost) {
-        posts.push(newsPost);
-    } else if (!holds.some((hold) => hold.slot === 'news_commentary_1')) {
+    if (entries.length === 0) {
         holds.push({
-            lane: 'News Commentary',
-            decision: 'quality hold',
-            reasons: ['source_strength_insufficient_or_persona_affect_blocked']
+            decision: 'no post',
+            reasons: ['no_first_person_lifelog_source']
         });
     }
-
     return {
         date,
+        mode: 'public_lifelog',
         publish_intent: 'manual_review_only',
         posts,
         holds
@@ -671,87 +269,22 @@ function generationContextSummary(generationContext) {
     if (!generationContext) return null;
     return {
         date: generationContext.date || null,
-        generation_policy: generationContext.generation_policy || {
-            recommended_lanes: [],
-            avoid_patterns: [],
-            winning_angles: [],
-            needs_more_data: [],
-            quote_target_policy: []
+        personal_kg: {
+            retrieval_purpose: generationContext.personal_kg?.retrieval_purpose || null,
+            lifelog_entry_count: generationContext.personal_kg?.lifelog_entries?.length || 0
         },
+        generation_policy: generationContext.generation_policy || {},
         evidence: generationContext.evidence || []
     };
 }
 
-export function buildBrief({ date, jpTweets, enTweets, jpReads, enReads, weeklyPlan = '', generationContext = null }) {
-    const peerSignals = pickPeerTweets(jpTweets).map(toPeerSignal);
-    const newsSignals = pickTopTweets(enTweets, 3).map(toNewsSignal);
-    const peerCards = peerSignals.map((signal) => withAffect(signal, draftHintForPeer(signal), 'peer_circle'));
-    const newsCards = newsSignals.map((signal) => withAffect(signal, draftHintForNews(signal), 'trust_balance'));
-    const totalReads = Number(jpReads ?? jpTweets.length) + Number(enReads ?? enTweets.length);
-    const cost = totalReads * COST_PER_TWEET_READ_USD;
-    const reviewPack = buildReviewPack({ date, weeklyPlan, peerCards, newsCards, generationContext });
-    const signals = {
-        peerSignals,
-        newsSignals,
-        generationContext: generationContextSummary(generationContext),
-        reviewPack
-    };
-    return {
-        markdown: renderMarkdown({ date, weeklyPlan, peerCards, newsCards, reviewPack, totalReads, cost, generationContext }),
-        signals,
-        summary: {
-            date,
-            total_reads: totalReads,
-            estimated_cost_usd: Number(cost.toFixed(3)),
-            generation_context_used: Boolean(generationContext),
-            peer_candidates: peerCards.length,
-            news_candidates: newsCards.length,
-            review_pack_posts: reviewPack.posts.length,
-            blocked_persona_affect: [...peerCards, ...newsCards].filter((card) => card.persona_affect.decision !== 'pass').length
-        }
-    };
-}
-
-function renderMetrics(signal) {
-    const followers = signal.author_followers ? `${signal.author_followers} followers` : 'followers unknown';
-    return `${signal.author_handle || ''} / ${followers} / ${signal.target_band || 'news'}`;
-}
-
-function renderCard(card, index) {
-    return [
-        `### ${index + 1}. ${card.topic} / ${renderMetrics(card)}`,
-        '',
-        `Source: ${card.url}`,
-        `Persona Affect: ${card.persona_affect.decision} - ${card.persona_affect.likely_reader_feeling}`,
-        '',
-        '本文:',
-        '',
-        '```text',
-        card.draft_hint,
-        '```'
-    ].join('\n');
-}
-
 function renderPost(post) {
-    const graphEntities = post.graph_check.entities.join(', ');
-    const quality = post.quality_gate.decision;
-    const persona = post.persona_brain.target_person;
-    const extras = [];
-    if (post.peer_circle_brain) {
-        extras.push(`Peer Circle Brain: ${post.peer_circle_brain.relation_mode}`);
-    }
-    if (post.amplifier_brain) {
-        extras.push(`Amplifier Brain: ${post.amplifier_brain.relation_mode}`);
-    }
     return [
-        `### ${post.label} / ${post.topic}`,
+        `### ${post.label}`,
         '',
-        `Quality Gate: ${quality}`,
-        `Graph Check: scope=${post.graph_check.scope}; entities=${graphEntities}`,
-        `Persona Brain: ${persona}`,
-        ...extras,
-        '',
-        '本文:',
+        `Lane: ${post.lane}`,
+        `Lifelog Integrity: ${post.quality_gate.decision}`,
+        `Source: ${post.lifelog_check.source_id}`,
         '',
         '```text',
         post.body,
@@ -759,36 +292,23 @@ function renderPost(post) {
     ].join('\n');
 }
 
-function renderGenerationContext(generationContext) {
-    if (!generationContext) {
-        return [
-            '## Generation Context',
-            '',
-            '- status: not provided',
-            '- fallback: weekly plan + today signals only'
-        ].join('\n');
-    }
-    const policy = generationContext.generation_policy || {};
+function renderPrompt(prompt, index) {
     return [
-        '## Generation Context',
+        `### ${index + 1}. ${prompt.topic} / ${prompt.author_handle || 'unknown'}`,
         '',
-        `- Context date: ${generationContext.date || 'unknown'}`,
-        `- Recommended lanes: ${(policy.recommended_lanes || []).join(', ') || '-'}`,
-        `- Avoid patterns: ${(policy.avoid_patterns || []).join(', ') || '-'}`,
-        `- Winning angles: ${(policy.winning_angles || []).slice(0, 3).join(' / ') || '-'}`,
-        `- Needs more data: ${(policy.needs_more_data || []).slice(0, 3).join(' / ') || '-'}`,
-        `- Quote target policy: ${(policy.quote_target_policy || []).slice(0, 2).join(' / ') || '-'}`
+        `Source: ${prompt.url || '-'}`,
+        `Prompt: ${prompt.prompt}`
     ].join('\n');
 }
 
-function renderMarkdown({ date, weeklyPlan, peerCards, newsCards, reviewPack, totalReads, cost, generationContext = null }) {
-    const holdLines = reviewPack.holds.length > 0
-        ? reviewPack.holds.map((hold) => `- ${hold.lane}: ${hold.decision} - ${hold.reasons.join(', ')}`)
+function renderMarkdown({ date, totalReads, cost, reviewPack, reflectionPrompts, generationContext }) {
+    const holds = reviewPack.holds.length > 0
+        ? reviewPack.holds.map((hold) => `- ${hold.decision}: ${hold.reasons.join(', ')}`)
         : ['- なし'];
-    const lines = [
+    return [
         `# SNS Ohayo Brief ${date}`,
         '',
-        '目的: 週次カレンダーを崩さず、今日のニュース/引用枠だけを低コストで差し替える。',
+        '目的: 本人の一次体験から、未来の自分へ残す公開ライフログ候補だけを確認する。',
         '',
         '## Budget',
         '',
@@ -796,42 +316,74 @@ function renderMarkdown({ date, weeklyPlan, peerCards, newsCards, reviewPack, to
         `- Estimated X API cost: $${cost.toFixed(2)}`,
         '- Posting: manual review only',
         '',
-        '## Weekly Plan For Today',
+        '## 今日の公開ライフログ候補',
         '',
-        weeklyPlan || '週次カレンダーが見つからないため、`/Users/ksato/workspace/shared/_codex/sns/x/ops/weekly_content_calendar_*.md` を確認する。',
-        '',
-        '## 今日のレビュー用投稿パック',
-        '',
-        `Publish intent: ${reviewPack.publish_intent}`,
-        '',
-        '## Graph Check',
-        '',
-        '- scope: growth',
-        '- source: brainbase Graph + shared/_codex/sns',
-        '- rule: No Graph Check, no post',
-        '',
-        renderGenerationContext(generationContext),
-        '',
-        reviewPack.posts.length > 0 ? reviewPack.posts.map(renderPost).join('\n\n') : '通過した投稿なし。',
+        reviewPack.posts.length > 0
+            ? reviewPack.posts.map(renderPost).join('\n\n')
+            : '候補なし（本人の一次体験ソースなし、または完全性チェックで保留）。',
         '',
         'Hold:',
-        ...holdLines,
+        ...holds,
         '',
-        '## Peer Quote Candidates',
+        '## 外部情報からの内省プロンプト（投稿案ではない）',
         '',
-        peerCards.length > 0 ? peerCards.map(renderCard).join('\n\n') : '候補なし。Peer Circle watchlistを手動確認する。',
+        reflectionPrompts.length > 0
+            ? reflectionPrompts.map(renderPrompt).join('\n\n')
+            : 'プロンプトなし。',
         '',
-        '## Overseas / News Candidates',
+        '## Generation Context',
         '',
-        newsCards.length > 0 ? newsCards.map(renderCard).join('\n\n') : '候補なし。ニュース枠は保留する。',
-        '',
-        '## Next Action',
-        '',
-        '1. Peer候補は本物の引用UIで出すか、通常投稿末尾に元URLを置く',
-        '2. 今日のベースライン2本は `npm run sns:weekly-pack -- --start-date <week-start> --signals-file <signals.json>` でKG由来draftと合わせる',
-        '3. 投稿後の反応は `/oyasumi` で peer reaction / reader reaction / anomaly / learning に戻す'
-    ];
-    return `${lines.join('\n')}\n`;
+        `- Mode: ${generationContext?.generation_policy?.mode || 'public_lifelog'}`,
+        `- First-person sources: ${generationContext?.personal_kg?.lifelog_entries?.length || 0}`,
+        '- Rule: 外部情報だけから投稿を作らない',
+        '- Rule: 助言・説得・CTAへ変換しない',
+        ''
+    ].join('\n');
+}
+
+export function buildBrief({
+    date,
+    jpTweets,
+    enTweets,
+    jpReads,
+    enReads,
+    weeklyPlan: _weeklyPlan = '',
+    generationContext = null
+}) {
+    const peerSignals = selectPrompts(jpTweets, 'jp_peer');
+    const newsSignals = selectPrompts(enTweets, 'en_news');
+    const reflectionPrompts = [...peerSignals, ...newsSignals];
+    const totalReads = Number(jpReads ?? jpTweets.length) + Number(enReads ?? enTweets.length);
+    const cost = totalReads * COST_PER_TWEET_READ_USD;
+    const reviewPack = buildReviewPack(date, generationContext);
+    const signals = {
+        peerSignals,
+        newsSignals,
+        reflectionPrompts,
+        generationContext: generationContextSummary(generationContext),
+        reviewPack
+    };
+    return {
+        markdown: renderMarkdown({
+            date,
+            totalReads,
+            cost,
+            reviewPack,
+            reflectionPrompts,
+            generationContext
+        }),
+        signals,
+        summary: {
+            date,
+            total_reads: totalReads,
+            estimated_cost_usd: Number(cost.toFixed(3)),
+            generation_context_used: Boolean(generationContext),
+            reflection_prompts: reflectionPrompts.length,
+            review_pack_posts: reviewPack.posts.length,
+            blocked_lifelog_integrity: reviewPack.holds.filter((hold) => hold.decision === 'lifelog integrity hold').length,
+            no_first_person_source: reviewPack.holds.some((hold) => hold.reasons.includes('no_first_person_lifelog_source'))
+        }
+    };
 }
 
 async function main() {
@@ -851,7 +403,6 @@ async function main() {
         enTweets: en.tweets,
         jpReads: jp.reads,
         enReads: en.reads,
-        weeklyPlan: loadWeeklyPlan(args.date),
         generationContext
     });
     fs.mkdirSync(path.dirname(out), { recursive: true });

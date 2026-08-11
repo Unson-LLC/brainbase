@@ -1,0 +1,36 @@
+{
+  "status": "pass",
+  "summary": "current headのCSRF除外は正しいinternal API keyだけに限定され、既存CSRF経路と後段のrequireAuthを維持している。regression_guardとpath_surface_coverageを満たす。",
+  "findings": [],
+  "inspection_summary": "origin/developとの差分7ファイル、CSRFと認証の実装・登録順序、既存例外、workflow route、Story/Spec/ADR、責任境界、current-head検証証跡、traceability、VibePro gate生成物を読み取り専用で確認した。",
+  "inspection_evidence": ".vibepro/pr/story-eve-internal-api-csrf-exemption/verification-evidence.json; .vibepro/pr/story-eve-internal-api-csrf-exemption/traceability.json; .vibepro/artifacts/story-eve-internal-api-csrf-exemption/",
+  "inspection_inputs": [
+    "git diff origin/develop...d7b7e9e764614599ec1eb5180c466053247bd6ec",
+    "server/middleware/csrf.js",
+    "server/middleware/auth.js",
+    "server/lib/auth-cookies.js",
+    "server.js",
+    "server/bootstrap/register-api-routes.js",
+    "server/routes/workflows.js",
+    "tests/unit/csrf-internal-api-key-exempt.test.js",
+    "tests/unit/csrf-report-activity-exempt.test.js",
+    "tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts",
+    "tests/server/routes/admin-visualization-routes.test.js",
+    "docs/stories/story-eve-internal-api-csrf-exemption.md",
+    "docs/specs/story-eve-internal-api-csrf-exemption.md",
+    "docs/architecture/ADR-eve-internal-api-csrf-exemption.md",
+    "docs/responsibility-authority/eve-internal-api-csrf-exemption.json",
+    ".vibepro/spec/story-eve-internal-api-csrf-exemption/spec.json",
+    ".vibepro/pr/story-eve-internal-api-csrf-exemption/verification-evidence.json",
+    ".vibepro/pr/story-eve-internal-api-csrf-exemption/traceability.json",
+    ".vibepro/pr/story-eve-internal-api-csrf-exemption/decision-records.json",
+    ".vibepro/pr/story-eve-internal-api-csrf-exemption/senior-gap-judgment.summary.json",
+    ".vibepro/pr/story-eve-internal-api-csrf-exemption/design-ssot-reconciliation.summary.json"
+  ],
+  "judgment_delta": [
+    "regression_guard: グローバルCSRF変更による既存経路の弱体化を懸念した -> exact key以外は従来処理へ流れ、誤キー・欠落・複数値・secret未設定・ブラウザ403・telemetry例外がcurrent head証跡で確認できたためpass",
+    "path_surface_coverage: workflow happy pathだけの検証を懸念した -> safe methods、既存device/report_activity/external-runner/companion例外、通常CSRF、後段requireAuth、HTTP status、authSource、access、route到達、契約文書とgate artifactまで確認できたためpass",
+    "evidence freshness: evidence reuse cacheのstale表示を懸念した -> stale cacheは再利用されておらず、verification-evidenceのunit 7/7、integration 38/38、E2E 4/4、typecheck、buildがすべてcurrent head d7b7e9e764614599ec1eb5180c466053247bd6ecへstrict-head bindingされているためpass",
+    "security boundary: CSRF通過が認証権限を直接付与する可能性を懸念した -> csrfMiddlewareはnextのみを実行し、requireAuthが同じsecretを再検証してauthSource=internalとinternal_service accessを設定するため権限境界は維持される"
+  ]
+}

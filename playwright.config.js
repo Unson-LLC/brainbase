@@ -14,6 +14,10 @@ export default defineConfig({
         'tests/e2e/**/*.test.@(js|ts)',
         'e2e/**/*.spec.@(js|ts)'
     ],
+    testIgnore: [
+        '**/.worktrees/**',
+        '**/.codex-worktrees/**',
+    ],
     outputDir: 'var/test-results',
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
@@ -35,7 +39,7 @@ export default defineConfig({
             use: { ...devices['Desktop Chrome'] },
         },
     ],
-    webServer: {
+    webServer: process.env.VIBEPRO_EVIDENCE_ID ? undefined : {
         command: 'npm run test:server',
         url: BASE_URL,
         reuseExistingServer: REUSE_EXISTING_SERVER,

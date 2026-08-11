@@ -1,0 +1,3744 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-design-ssot-reconciliation-v1",
+  "workflow": "design-ssot-reconcile",
+  "status": "not_applicable",
+  "generated_at": "2026-08-02T21:09:22.784Z",
+  "registry_sources": [],
+  "changed_paths": [
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-bundle.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-index.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-replay-bundle.json.gz",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-outcomes/collision-cg_060506d6e4161234bb7f187d47cae337f23a4feb8c1fde32981f4da470b90bf8-tsr_f61d93210fcc4cf5074da4c8f552bddea8a95dc315a46e8e669af47b932e7abe/2e3ed7bf6cf7945b74d053959a046b7cf61d401560a3f58c0b9c41c525318a63.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-outcomes/collision-cg_156dfd67ad46d0bc04c1a7e52bef9077b5452d057aebe7a8a3a1881804de2b87-tsr_a6ee4bab6cdfc30e1fde9e9111976b0ef5507f2c0460977abffff108e5baffaa/0355d9fd970b49ec132100ae7d94eacd9c9ebba9e0d51a7eddcc012d824ec773.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-outcomes/collision-cg_b9ec862ff4151a563240e71ccefb86a688596f604a44a473ea2071076a8b1282-tsr_add99182f1837661a9aaec9c9dc522b0c0b5ea38f103bc902b729de0b97ff57a/292fd6bfc9564f214b29d39fefbc79467976bd03ba859b4f5d6ed5ce5fabb1db.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-outcomes/collision-cg_c45815aac23ca3d7e0534c3d27d8b7f0f94562c615ba154eb661b191cef596e2-tsr_ed9d6655055d7877ebdaa69bdbd757ed6636046cff25304561c15b927efd8524/c76313e6733f60efa02b6d12abc553a05c200d886e2eca213e34c84d53a97558.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-outcomes/trace-dt_97c0b8cf1e6bb8b448ef2d9b872c94f2211f449b7a99118dfbd3b38e925f7851/078a4e593ae32122ccdb9adf1c45edc62cc31fa1b51bc91579bcc0130502d149.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-outcomes/trace-dt_b79a759088f6a0cfddc5de5426d18bbf42444830a4bd6c1e0d4a2321a8ff1417/fcf8584b1a6012a98d96ae7692b3e84e0aa5be5ecbb59a8445c50b6a7f098ed5.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-outcomes/trace-dt_ee93da345f49d20f283ccc7bf1fbbdb9c821d022569df50281051f5460da93bc/6b7d35cdcaea555c65a608b776cba2e28ed884befdee50cc8fb35468bbe4f518.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-summary.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/config.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/architecture-profile.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/component-style-check-result.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/finding-review.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/flow-design-check-result.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/gesture-interaction-check-result.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/refactoring-delta.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/requirement-consistency.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/risk-register.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/spec-drift.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/static-site-check-result.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/summary.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/terminal-link-check-result.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/gate-outcomes/ledger.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/judgment-axis-noise-precedents.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/architecture-review.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/ci-evidence/Verify_VibePro_Graph_SSOT.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/decision-index.summary.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/decision-records.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/decision-records.summary.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/design-ssot-reconciliation.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/design-ssot-reconciliation.summary.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-plan.summary.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-reuse.summary.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/human-review.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/pr-body.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/pr-create.html",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/pr-merge.html",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/ref-topology.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/ref-topology.summary.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/senior-gap-judgment.summary.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/split-plan.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/e2e.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/e2e.log",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/integration.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/publication-security.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/typecheck.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/typecheck.log",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/unit.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/unit.log",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T17-53-38.461Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T17-54-06.756Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T17-55-48.974Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T18-04-09.500Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T18-33-11.455Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T18-34-06.319Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T18-34-24.556Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T18-35-48.661Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/parallel-dispatch.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/transcript-architecture-boundary-152842e4.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/transcript-architecture-boundary-560f7212.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/gate/history/review-result-gate_evidence-2026-08-02T17-15-53.291Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/gate/history/review-result-gate_evidence-2026-08-02T17-35-15.761Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/gate/parallel-dispatch.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/gate/transcript-gate-evidence-2bd41183.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/gate/transcript-gate-evidence-b4c5a5c5.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/history/review-result-runtime_contract-2026-08-02T18-03-27.457Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/history/review-result-runtime_contract-2026-08-02T18-26-09.369Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/parallel-dispatch.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/transcript-runtime-contract-152842e4.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/transcript-runtime-contract-560f7212.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-e2e_ux-2026-08-02T16-38-37.619Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-e2e_ux-2026-08-02T16-47-32.215Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-e2e_ux-2026-08-02T16-57-56.643Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-e2e_ux-2026-08-02T18-17-57.164Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-gate_coverage-2026-08-02T16-38-37.582Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-gate_coverage-2026-08-02T16-48-57.183Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-gate_coverage-2026-08-02T16-55-16.322Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-gate_coverage-2026-08-02T16-58-36.452Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-gate_coverage-2026-08-02T18-18-00.708Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-unit_integration-2026-08-02T16-38-37.593Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-unit_integration-2026-08-02T16-48-06.597Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-unit_integration-2026-08-02T16-55-14.298Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-unit_integration-2026-08-02T16-58-35.358Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-unit_integration-2026-08-02T18-17-55.280Z.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/parallel-dispatch.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/transcript-e2e_ux-560f7212.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/transcript-gate_coverage-560f7212.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/transcript-unit_integration-560f7212.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/stories/story-brainbase-ontology-production-compatibility/diagnostics/2026-08-02T163157Z/tasks.json",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/stories/story-brainbase-ontology-production-compatibility/diagnostics/2026-08-02T163157Z/tasks.md",
+    "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/validation-sequencing/story-brainbase-ontology-production-compatibility/state.json",
+    "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md"
+  ],
+  "summary": {
+    "registry_source_count": 0,
+    "design_root_count": 0,
+    "changed_design_root_count": 0,
+    "changed_child_count": 0,
+    "missing_required_child_count": 0,
+    "stale_child_count": 0,
+    "frontmatter_gap_count": 0,
+    "coverage_gap_count": 0,
+    "contradiction_count": 0,
+    "action_item_count": 0
+  },
+  "coverage": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-design-ssot-coverage-v1",
+    "workflow": "design-ssot-coverage",
+    "status": "not_applicable",
+    "generated_at": "2026-08-02T21:09:22.784Z",
+    "registry_sources": [],
+    "changed_paths": [
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-bundle.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-index.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/audit-replay-bundle.json.gz",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-outcomes/collision-cg_060506d6e4161234bb7f187d47cae337f23a4feb8c1fde32981f4da470b90bf8-tsr_f61d93210fcc4cf5074da4c8f552bddea8a95dc315a46e8e669af47b932e7abe/2e3ed7bf6cf7945b74d053959a046b7cf61d401560a3f58c0b9c41c525318a63.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-outcomes/collision-cg_156dfd67ad46d0bc04c1a7e52bef9077b5452d057aebe7a8a3a1881804de2b87-tsr_a6ee4bab6cdfc30e1fde9e9111976b0ef5507f2c0460977abffff108e5baffaa/0355d9fd970b49ec132100ae7d94eacd9c9ebba9e0d51a7eddcc012d824ec773.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-outcomes/collision-cg_b9ec862ff4151a563240e71ccefb86a688596f604a44a473ea2071076a8b1282-tsr_add99182f1837661a9aaec9c9dc522b0c0b5ea38f103bc902b729de0b97ff57a/292fd6bfc9564f214b29d39fefbc79467976bd03ba859b4f5d6ed5ce5fabb1db.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-outcomes/collision-cg_c45815aac23ca3d7e0534c3d27d8b7f0f94562c615ba154eb661b191cef596e2-tsr_ed9d6655055d7877ebdaa69bdbd757ed6636046cff25304561c15b927efd8524/c76313e6733f60efa02b6d12abc553a05c200d886e2eca213e34c84d53a97558.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-outcomes/trace-dt_97c0b8cf1e6bb8b448ef2d9b872c94f2211f449b7a99118dfbd3b38e925f7851/078a4e593ae32122ccdb9adf1c45edc62cc31fa1b51bc91579bcc0130502d149.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-outcomes/trace-dt_b79a759088f6a0cfddc5de5426d18bbf42444830a4bd6c1e0d4a2321a8ff1417/fcf8584b1a6012a98d96ae7692b3e84e0aa5be5ecbb59a8445c50b6a7f098ed5.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-outcomes/trace-dt_ee93da345f49d20f283ccc7bf1fbbdb9c821d022569df50281051f5460da93bc/6b7d35cdcaea555c65a608b776cba2e28ed884befdee50cc8fb35468bbe4f518.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/decision-summary.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/delivery-validation-2026-08-03.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/config.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/architecture-profile.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/component-style-check-result.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/finding-review.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/flow-design-check-result.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/gesture-interaction-check-result.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/refactoring-delta.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/requirement-consistency.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/risk-register.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/spec-drift.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/static-site-check-result.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/summary.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/diagnostics/2026-08-02T163157Z/terminal-link-check-result.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/gate-outcomes/ledger.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/judgment-axis-noise-precedents.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/architecture-review.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/ci-evidence/Verify_VibePro_Graph_SSOT.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/decision-index.summary.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/decision-records.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/decision-records.summary.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/design-ssot-reconciliation.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/design-ssot-reconciliation.summary.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-plan.summary.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/evidence-reuse.summary.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/human-review.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/pr-body.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/pr-create.html",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/pr-merge.html",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/ref-topology.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/ref-topology.summary.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/senior-gap-judgment.summary.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/split-plan.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/e2e.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/e2e.log",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/integration.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/publication-security.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/typecheck.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/typecheck.log",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/unit.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/pr/story-brainbase-ontology-production-compatibility/verification-runs/unit.log",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T17-53-38.461Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T17-54-06.756Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T17-55-48.974Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T18-04-09.500Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T18-33-11.455Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T18-34-06.319Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T18-34-24.556Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/history/review-result-architecture_boundary-2026-08-02T18-35-48.661Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/parallel-dispatch.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/transcript-architecture-boundary-152842e4.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/architecture_spec/transcript-architecture-boundary-560f7212.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/gate/history/review-result-gate_evidence-2026-08-02T17-15-53.291Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/gate/history/review-result-gate_evidence-2026-08-02T17-35-15.761Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/gate/parallel-dispatch.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/gate/transcript-gate-evidence-2bd41183.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/gate/transcript-gate-evidence-b4c5a5c5.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/history/review-result-runtime_contract-2026-08-02T18-03-27.457Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/history/review-result-runtime_contract-2026-08-02T18-26-09.369Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/parallel-dispatch.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/transcript-runtime-contract-152842e4.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/transcript-runtime-contract-560f7212.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-e2e_ux-2026-08-02T16-38-37.619Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-e2e_ux-2026-08-02T16-47-32.215Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-e2e_ux-2026-08-02T16-57-56.643Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-e2e_ux-2026-08-02T18-17-57.164Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-gate_coverage-2026-08-02T16-38-37.582Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-gate_coverage-2026-08-02T16-48-57.183Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-gate_coverage-2026-08-02T16-55-16.322Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-gate_coverage-2026-08-02T16-58-36.452Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-gate_coverage-2026-08-02T18-18-00.708Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-unit_integration-2026-08-02T16-38-37.593Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-unit_integration-2026-08-02T16-48-06.597Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-unit_integration-2026-08-02T16-55-14.298Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-unit_integration-2026-08-02T16-58-35.358Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/history/review-result-unit_integration-2026-08-02T18-17-55.280Z.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/parallel-dispatch.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/transcript-e2e_ux-560f7212.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/transcript-gate_coverage-560f7212.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/reviews/story-brainbase-ontology-production-compatibility/test_plan/transcript-unit_integration-560f7212.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/stories/story-brainbase-ontology-production-compatibility/diagnostics/2026-08-02T163157Z/tasks.json",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/stories/story-brainbase-ontology-production-compatibility/diagnostics/2026-08-02T163157Z/tasks.md",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/references/vibepro/validation-sequencing/story-brainbase-ontology-production-compatibility/state.json",
+      "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md"
+    ],
+    "summary": {
+      "registry_source_count": 0,
+      "design_root_count": 0,
+      "total_design_doc_count": 387,
+      "registered_root_count": 0,
+      "registered_child_count": 0,
+      "registered_doc_count": 0,
+      "unregistered_doc_count": 387,
+      "changed_design_doc_count": 1,
+      "changed_unregistered_design_doc_count": 1,
+      "parent_design_declared_count": 0
+    },
+    "registered_docs": [],
+    "unregistered_docs": [
+      {
+        "path": "docs/architecture/ADR-001-wiki-project-filter.md",
+        "kind": "adr",
+        "title": "Wiki検索のproject_idフィルタは既存アーキテクチャで対応可能",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-002-mesh-architecture.md",
+        "kind": "adr",
+        "title": "Mesh MVP アーキテクチャ - Agent間リアルタイム問い合わせ基盤",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-005-conversation-linker-load-shedding.md",
+        "kind": "adr",
+        "title": "ConversationLinker周期処理の負荷分散",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-006-brain-model-4-layer.md",
+        "kind": "adr",
+        "title": "4層脳モデル（個人 / チーム / 組織 / シナプス）と認知昇格パスを brainbase の knowledge layer の中核モデルとする",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-007-type-taxonomy.md",
+        "kind": "adr",
+        "title": "Type Taxonomy（catalog types vs cognitive types）と layer 帰属の傾向",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-008-acl-vocabulary.md",
+        "kind": "adr",
+        "title": "ACL Vocabulary（owner / visibility / sensitivity / org / project / team / role / clearance）",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-009-spec-first-principle.md",
+        "kind": "adr",
+        "title": "Spec-first principle in brainbase（VibePro Spec gate が implicit のため当面手動で運用）",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-010-memory-promotion-kernel-boundary.md",
+        "kind": "adr",
+        "title": "Memory Promotion Kernel boundary for candidate-store, mana, and zeims",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-011-sns-posting-ledger-boundary.md",
+        "kind": "adr",
+        "title": "SNS Posting Ledger 境界",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-012-session-hibernation-runtime-lifecycle.md",
+        "kind": "adr",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-012-sns-growth-cockpit-visual-slice.md",
+        "kind": "adr",
+        "title": "SNS Growth Cockpit Visual Slice",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-013-sns-mobile-review-flow.md",
+        "kind": "adr",
+        "title": "SNS Growth のモバイル導線は Ship Calendar ではなく Today Review Inbox を主画面にする",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-014-settings-config-write-boundary.md",
+        "kind": "adr",
+        "title": "Settings config write boundary",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-015-workflow-mission-control-project-first-ui.md",
+        "kind": "adr",
+        "title": "Workflow Mission Control Project-first UI",
+        "status": "superseded",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-016-canonical-task-single-writer.md",
+        "kind": "adr",
+        "title": "Canonical Task single writer and explicit recovery",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-016-run-receipt-control-plane-boundary.md",
+        "kind": "adr",
+        "title": "Cross-runtime run receipt control-plane boundary",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-017-agent-first-product-surface.md",
+        "kind": "adr",
+        "title": "Agent-first product surface and Web UI retirement",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-018-retire-wiki-storage.md",
+        "kind": "adr",
+        "title": "Retire Brainbase Wiki as an independent storage system",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-019-codex-owns-development-runtime.md",
+        "kind": "adr",
+        "title": "Codex owns task, worktree, and terminal lifecycle",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-020-ai-employee-node-runtime-boundary.md",
+        "kind": "adr",
+        "title": "AI employee node runtime boundary",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-021-brainbase-ontology-kernel.md",
+        "kind": "adr",
+        "title": "Ontology Kernelの正本・検証境界・推論・version契約",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-eve-internal-api-csrf-exemption.md",
+        "kind": "adr",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ADR-terminal-history-scrollback.md",
+        "kind": "adr",
+        "title": "Terminal snapshot polling rebuilds history to preserve scrollback",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/brainbase-admin-visualization-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/brainbase-foundation.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/brainbase-surface-responsibility-matrix.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/brainbase-web-surface-retirement-inventory.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/brainbase-workflow-mission-control-architecture.md",
+        "kind": "architecture",
+        "title": "Brainbase Workflow Mission Control Architecture",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/codex-app-server-adapter-architecture.md",
+        "kind": "architecture",
+        "title": "Codex App Server adapter boundary",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/codex-appserver-assistant-ui-native-adoption-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/codex-appserver-assistant-ui-transcript-panel-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/codex-appserver-chatgpt-polish-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/codex-appserver-display-route-consumer-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/codex-appserver-indicator-stability-architecture.md",
+        "kind": "architecture",
+        "title": "Codex App Server activity indicator bridge",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/codex-appserver-repl-activity-bridge-architecture.md",
+        "kind": "architecture",
+        "title": "Codex App Server REPL activity bridge completion",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/codex-appserver-session-create-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/codex-appserver-session-state-ssot-architecture.md",
+        "kind": "architecture",
+        "title": "Codex App Server session state SSOT",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/codex-appserver-thread-session-foundation-architecture.md",
+        "kind": "architecture",
+        "title": "Codex App Server thread session display-route boundary",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/codex-appserver-transcript-ui-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/commit-tree-panel.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/companion-approval-inbox-architecture.md",
+        "kind": "architecture",
+        "title": "Companion Approval Inbox Architecture",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/companion-reply-draft-api-architecture.md",
+        "kind": "architecture",
+        "title": "Companion Reply Context API Architecture",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/decision-events-kpi-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/DESIGN.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/eve-runtime-session-connection-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/external-runner-adapter-contract-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/feedback-loop.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/graph-entity-resolver-architecture.md",
+        "kind": "architecture",
+        "title": "Graph entity resolver architecture",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/lightsail-infrastructure.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/live-feed-activity-timeline-architecture.md",
+        "kind": "architecture",
+        "title": "Live Feed Activity Timeline Architecture",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/live-feed-agent-activity-history-architecture.md",
+        "kind": "architecture",
+        "title": "Live Feed エージェント活動履歴アーキテクチャ",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/live-feed-current-session-scope-architecture.md",
+        "kind": "adr",
+        "title": "Live Feed current session scope architecture",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/live-feed-readable-current-log-architecture.md",
+        "kind": "adr",
+        "title": "Live Feed current-session log readability",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/local-data-server-ssot-migration-architecture.md",
+        "kind": "architecture",
+        "title": "Local data to server Graph SSOT migration architecture",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/local-ssot-additive-upsert-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/local-ssot-root-priority-architecture.md",
+        "kind": "architecture",
+        "title": "Local SSOT duplicate root priority architecture",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/loop-pack-design-gate-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/mana-meeting-workflow-pack-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/mana-meeting-workflow-pack-data-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/mana-secretary-memory-promotion-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/meeting-note-generation-dag-wiring-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/meeting-pack-graph-ssot-playbook-architecture.md",
+        "kind": "architecture",
+        "title": "Meeting Pack Graph SSOT Playbook Architecture",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/meeting-review-package-ingest-architecture.md",
+        "kind": "architecture",
+        "title": "Meeting Review Package Ingest Architecture",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/meeting-source-brainbase-note-generation-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/meeting-source-mcp-sync-worker-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/meeting-task-owner-ssot-resolution-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/meeting-workflow-calendar-input-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/meeting-workflow-pack-cockpit-ui-architecture.md",
+        "kind": "architecture",
+        "title": "Meeting Workflow Pack Cockpit UI Architecture",
+        "status": "retired",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/mesh-agent-query-architecture.md",
+        "kind": "adr",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/org-agent-loop-control-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/oyasumi-personal-kg-agent-fanout-architecture.md",
+        "kind": "architecture",
+        "title": "Oyasumi Personal KG agent fan-out architecture",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/personal-kg-conversation-extraction-backlog-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/personal-kg-review-projection-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/personal-kg-sns-seed-mvp-architecture.md",
+        "kind": "architecture",
+        "title": "Personal KG to SNS Seed MVP Architecture",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/personal-kg-tokenized-search-architecture.md",
+        "kind": "adr",
+        "title": "Personal KG Tokenized Search Architecture",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/PHASE1_IMPLEMENTATION_GUIDE.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/playwright-worktree-discovery-boundary.md",
+        "kind": "adr",
+        "title": "Playwright Worktree Discovery Boundary",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/PROPOSED_ARCHITECTURE.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/schedule-date-boundary.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/session-activity-indicator-lifecycle.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/session-context-window-typing-architecture.md",
+        "kind": "architecture",
+        "title": "Session context bar window typing architecture",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/session-hibernation-mvp-architecture.md",
+        "kind": "architecture",
+        "title": "Session hibernation runtime boundary",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/session-workspace-generation-rotation.md",
+        "kind": "architecture",
+        "title": "Session Workspace Generation Rotation",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/sns-approval-schedules-posting-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/sns-auth-health-unified-architecture.md",
+        "kind": "architecture",
+        "title": "SNS auth health follows posting credentials architecture",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/sns-ledger-manual-refresh-architecture.md",
+        "kind": "architecture",
+        "title": "SNS cockpit manual ledger refresh architecture",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/sns-mobile-review-terminal-guard-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/sns-ohayo-ledger-import-fail-loud-architecture.md",
+        "kind": "architecture",
+        "title": "SNS ohayo ledger import fail-loud architecture",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/sns-persona-brain-gate-architecture.md",
+        "kind": "architecture",
+        "title": "SNS Persona Brain Gate Architecture",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/sns-posted-content-dedupe-architecture.md",
+        "kind": "architecture",
+        "title": "SNS posted content dedupe architecture",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/story-brainbase-agent-report-approval-inbox-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/story-brainbase-ontology-kernel.md",
+        "kind": "architecture",
+        "title": "Ontology Kernel architecture canonical pointer",
+        "status": "generated_pointer",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/story-brainbase-ontology-production-compatibility.md",
+        "kind": "adr",
+        "title": "Ontology Kernelの正本・検証境界・推論・version契約",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/story-canonical-task-postgres-ssot.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/story-codex-appserver-xterm-default-fallback-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/story-companion-canonical-task-provider.md",
+        "kind": "architecture",
+        "title": "Companion Canonical Task Provider Architecture",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/story-cross-runtime-run-receipt-inbox-v1.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/story-eve-meeting-candidates-pull-reconciler.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/story-meeting-pack-graph-ssot-playbook.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/story-meeting-source-runtime-sync-policy-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/ten-minute-world-onboarding-architecture.md",
+        "kind": "adr",
+        "title": "Ten-minute world onboarding architecture",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/terminal-runtime-architecture.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/vibepro-brainbase-dogfood-architecture.md",
+        "kind": "adr",
+        "title": "Brainbase VibePro dogfoodの評価分離アーキテクチャ",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/wiki-retirement-inventory.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/workflow-product-retirement-architecture.md",
+        "kind": "adr",
+        "title": "Workflow Product Retirement Architecture",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/architecture/worktree-service-git-migration.md",
+        "kind": "architecture",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/design/brainbase-command-center-component-spec-2026-05-07.md",
+        "kind": "ux",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/design/brainbase-workflow-project-first-ux.md",
+        "kind": "ux",
+        "title": "Brainbase Workflow Project-first UX",
+        "status": "superseded",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/design/meeting-workflow-pack-ui.md",
+        "kind": "ux",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/management/stories/active/story-brainbase-ontology-kernel.md",
+        "kind": "story",
+        "title": "Brainbaseの意味体系を検証・推論・変更管理できるOntology Kernelとして確立する",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md",
+        "kind": "story",
+        "title": "本番GraphとOntology 1.0.0の互換性を確立する",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/management/stories/active/story-canonical-task-cutover-followup.md",
+        "kind": "story",
+        "title": "Canonical Task cutover follow-up",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/management/stories/story-graph-data-ssot-normalization.md",
+        "kind": "story",
+        "title": "Graphデータ正本の重複・欠落を可逆的に正規化する",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/account-foundation-spec.md",
+        "kind": "spec",
+        "title": "integration_accounts + integration_account_defaults Foundation",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/acl-contract-test-spec.md",
+        "kind": "spec",
+        "title": "ACL Contract Test Specification",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/brainbase-mcp-core-ontology-spec.md",
+        "kind": "spec",
+        "title": "Brainbase MCP Core ontology / Extension registry 仕様",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/brainbase-ontology-kernel-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/brainbase-ontology-production-compatibility.md",
+        "kind": "spec",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/candidate-store-mvp-spec.md",
+        "kind": "spec",
+        "title": "Memory Candidate Store + Promotion Gate MVP Specification",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/codex-app-server-adapter-spec.md",
+        "kind": "spec",
+        "title": "Codex App Server adapter first slice",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/codex-appserver-assistant-ui-native-adoption-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/codex-appserver-assistant-ui-transcript-panel-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/codex-appserver-chatgpt-polish-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/codex-appserver-display-route-consumer-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/codex-appserver-indicator-stability-spec.md",
+        "kind": "spec",
+        "title": "Codex App Server activity indicator stability",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/codex-appserver-repl-activity-bridge-spec.md",
+        "kind": "spec",
+        "title": "Codex App Server REPL activity bridge completion",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/codex-appserver-session-create-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/codex-appserver-session-state-ssot-spec.md",
+        "kind": "spec",
+        "title": "Codex App Server session state SSOT",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/codex-appserver-thread-session-foundation-spec.md",
+        "kind": "spec",
+        "title": "Codex App Server thread session foundation",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/codex-appserver-transcript-ui-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/commit-tree-panel.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/conversation-linker-load-shedding-spec.md",
+        "kind": "spec",
+        "title": "ConversationLinker負荷分散仕様",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/cross-runtime-run-receipt-inbox-v1.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/graph-entity-resolver-spec.md",
+        "kind": "spec",
+        "title": "Graph entity resolver spec",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/live-feed-current-session-scope-spec.md",
+        "kind": "spec",
+        "title": "Live Feed Current Session Scope",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/live-feed-readable-current-log-spec.md",
+        "kind": "spec",
+        "title": "Live Feed Readable Current Log",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/local-data-server-ssot-migration-spec.md",
+        "kind": "spec",
+        "title": "Local data to server Graph SSOT migration specification",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/local-ssot-additive-upsert-spec.md",
+        "kind": "spec",
+        "title": "Local SSOT additive upsert specification",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/mana-secretary-memory-promotion-spec.md",
+        "kind": "spec",
+        "title": "mana秘書 Memory Promotion Pipeline 仕様",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/mesh-agent-query-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/mobile-input-keyboard-gap.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/oyasumi-meeting-personal-kg-spec.md",
+        "kind": "spec",
+        "title": "Oyasumi meeting minutes to Personal KG",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/oyasumi-personal-kg-agent-fanout-spec.md",
+        "kind": "spec",
+        "title": "Oyasumi Personal KG agent fan-out",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/personal-kg-conversation-extraction-backlog-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/personal-kg-review-projection-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/personal-kg-sns-seed-mvp-spec.md",
+        "kind": "spec",
+        "title": "Personal KG to SNS Seed MVP Specification",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/private-preference-promotion-spec.md",
+        "kind": "spec",
+        "title": "Private Preference Auto-Promotion Specification",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/schedule-date-boundary.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/session-context-window-typing-spec.md",
+        "kind": "spec",
+        "title": "Session context bar window typing spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/session-hibernation-mvp-spec.md",
+        "kind": "spec",
+        "title": "Session Hibernation MVP",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/settings-phase0-guards-spec.md",
+        "kind": "spec",
+        "title": "Settings Phase 0 Guards Specification",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/settings-plugin-contract-v2-spec.md",
+        "kind": "spec",
+        "title": "Settings Provider Plugin Contract v2",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-account-management-spec.md",
+        "kind": "spec",
+        "title": "X Provider Adapter (sns-account-management)",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-approval-schedules-posting-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-auth-health-unified-spec.md",
+        "kind": "spec",
+        "title": "SNS auth health follows posting credentials spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-feedback-loop-spec.md",
+        "kind": "spec",
+        "title": "SNS Feedback Loop (M4-3)",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-growth-cockpit-ui-transition-spec.md",
+        "kind": "spec",
+        "title": "SNS Growth Cockpit UI Transition",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-growth-cockpit-wireframe-v0.md",
+        "kind": "spec",
+        "title": "SNS Growth Cockpit Wireframe v0",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-learning-informed-generation-spec.md",
+        "kind": "spec",
+        "title": "SNS Learning Informed Generation",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-ledger-live-refresh-spec.md",
+        "kind": "spec",
+        "title": "SNS Ledger Live Refresh",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-ledger-manual-refresh-spec.md",
+        "kind": "spec",
+        "title": "SNS cockpit manual ledger refresh spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-mobile-pwa-terminal-guard-spec.md",
+        "kind": "spec",
+        "title": "SNS mobile PWA safe back and terminal guard Specification",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-mobile-review-flow-spec.md",
+        "kind": "spec",
+        "title": "SNS Mobile Review Flow",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-mobile-review-terminal-guard-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-ohayo-dedupe-generation-spec.md",
+        "kind": "spec",
+        "title": "SNS ohayo 重複回避生成 Specification",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-persona-brain-gate-spec.md",
+        "kind": "spec",
+        "title": "SNS Persona Brain Gate Specification",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-posted-content-dedupe-spec.md",
+        "kind": "spec",
+        "title": "SNS posted content dedupe spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-posting-cockpit-feedback-to-learning-spec.md",
+        "kind": "spec",
+        "title": "SNS Posting Cockpit Feedback To Learning",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-posting-engine-spec.md",
+        "kind": "spec",
+        "title": "SNS Posting Engine (M4-2)",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-readonly-curator-spec.md",
+        "kind": "spec",
+        "title": "SNS Read-Only Curator Specification",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-scheduled-publisher-spec.md",
+        "kind": "spec",
+        "title": "SNS予約投稿の実行者 Specification",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/sns-x-algorithm-quality-spec.md",
+        "kind": "spec",
+        "title": "SNS X Algorithm Quality",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/spec-format.md",
+        "kind": "spec",
+        "title": "brainbase Spec Format v1",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-active-indicator-claude-heartbeat-revival-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-active-indicator-claude-toolless-staleness-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-active-indicator-event-flicker-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-active-indicator-pane-spinner-unchanged-drop-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-active-indicator-timeline-behavior-spec.md",
+        "kind": "spec",
+        "title": "Active Indicator Timeline Behavior",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-activity-bridge-hook-precompile-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-ai-employee-node-phase1-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-brainbase-admin-visualization-bdd-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-brainbase-agent-report-approval-inbox-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-brainbase-session-resume-integrity-guard-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-brainbase-workflow-mission-control-spec.md",
+        "kind": "spec",
+        "title": "Brainbase Workflow Mission Control Spec",
+        "status": "superseded",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-canonical-task-cutover-followup.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-canonical-task-idempotency-backfill.md",
+        "kind": "spec",
+        "title": "Canonical Task Idempotency Key Backfill Spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-canonical-task-postgres-ssot-spec.md",
+        "kind": "spec",
+        "title": "Canonical Task PostgreSQL SSOT Spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-codex-appserver-xterm-default-fallback-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-companion-approval-inbox-v1-spec.md",
+        "kind": "spec",
+        "title": "Brainbase Companion Approval Inbox API v1 Spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-companion-canonical-task-provider-spec.md",
+        "kind": "spec",
+        "title": "Mac Companion Canonical Task Provider Spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-companion-people-ssot-api-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-companion-reply-draft-api-spec.md",
+        "kind": "spec",
+        "title": "Brainbase Mac Companion Reply Context API Spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-control-mode-stdout-oncost-spec.md",
+        "kind": "spec",
+        "title": "Spec — O(n) control-mode stdout buffering",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-csrf-exempt-report-activity-spec.md",
+        "kind": "spec",
+        "title": "Spec — CSRF exemption for session activity telemetry",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-eve-internal-api-csrf-exemption.md",
+        "kind": "spec",
+        "title": "Spec - internal API key requestのCSRF境界",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-eve-runtime-session-connection-v0-spec.md",
+        "kind": "spec",
+        "title": "Eve Runtime Session Connection v0 Spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-external-runner-adapter-contract-v0-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-inline-session-creation-spec.md",
+        "kind": "spec",
+        "title": "Inline session creation shell specification",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-live-feed-activity-timeline-spec.md",
+        "kind": "spec",
+        "title": "Live Feed Activity Timeline Specification",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-live-feed-agent-activity-history-spec.md",
+        "kind": "spec",
+        "title": "Live Feed エージェント活動履歴 Spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-loop-pack-design-gate-v0-spec.md",
+        "kind": "spec",
+        "title": "Loop Pack Design Gate v0 Spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-mana-meeting-workflow-pack-data-v1-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-mana-meeting-workflow-pack-v0-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-meeting-note-generation-dag-wiring-spec.md",
+        "kind": "spec",
+        "title": "Meeting Note Generation DAG Wiring Spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-meeting-pack-graph-ssot-playbook-spec.md",
+        "kind": "spec",
+        "title": "Meeting Pack Graph SSOT Playbook Spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-meeting-pack-owner-context-candidates-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-meeting-review-package-ingest-v1-spec.md",
+        "kind": "spec",
+        "title": "Meeting Review Package Ingest v1 Spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-meeting-source-brainbase-note-generation-spec.md",
+        "kind": "spec",
+        "title": "Meeting Source Brainbase Note Generation Spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-meeting-source-integration-catalog-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-meeting-source-mcp-sync-worker-spec.md",
+        "kind": "spec",
+        "title": "Meeting Source MCP Sync Worker Spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-meeting-source-runtime-sync-policy-spec.md",
+        "kind": "spec",
+        "title": "Meeting Source Runtime Sync Policy Spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-meeting-task-owner-ssot-resolution-spec.md",
+        "kind": "spec",
+        "title": "Meeting Task Owner SSOT Resolution Spec",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-meeting-workflow-calendar-input-v1-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-meeting-workflow-pack-cockpit-ui-v1-spec.md",
+        "kind": "spec",
+        "title": "Meeting Workflow Pack Cockpit UI v1 Spec",
+        "status": "retired",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-notification-waiting-indicator-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-org-agent-loop-control-v0-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-personal-kg-tokenized-search-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-playwright-worktree-discovery-boundary.md",
+        "kind": "spec",
+        "title": "Playwright Worktree Discovery Boundary Specification",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-session-hook-provisioning-backfill-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-session-launch-picker-startup-composer-spec.md",
+        "kind": "spec",
+        "title": "Session Launch Picker and Startup Composer specification",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-session-list-idle-recency-sort-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-session-list-sticky-sort-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-session-shell-first-startup-ux-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-session-switch-auth-nonblocking-spec.md",
+        "kind": "spec",
+        "title": "Spec — non-blocking auth verify in connect()",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-session-switch-connect-hang-spec.md",
+        "kind": "spec",
+        "title": "Spec — superseded terminal connect settles deterministically",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-session-switch-performance-spec.md",
+        "kind": "spec",
+        "title": "Session switch xterm readiness specification",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-session-workspace-generation-rotation-spec.md",
+        "kind": "spec",
+        "title": "Session Workspace Generation Rotation Specification",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-settings-contract-alignment-spec.md",
+        "kind": "spec",
+        "title": "Settings Contract Alignment Specification",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-terminal-input-latency-spec.md",
+        "kind": "spec",
+        "title": "Terminal input latency specification",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-terminal-input-render-stability-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-terminal-open-scroll-bottom-spec.md",
+        "kind": "spec",
+        "title": "Terminal open scroll bottom specification",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-terminal-output-backpressure-spec.md",
+        "kind": "spec",
+        "title": "Spec — streaming terminal output backpressure",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-terminal-snapshot-handoff-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-terminal-snapshot-refresh-on-switch-spec.md",
+        "kind": "spec",
+        "title": "Terminal snapshot refresh on session switch specification",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-terminal-stale-runtime-auto-recovery-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-terminal-write-coalesce-spec.md",
+        "kind": "spec",
+        "title": "Spec — coalesce the serialized terminal write queue",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-waiting-indicator-sticky-until-response-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/story-xterm-focus-report-sanitize-spec.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/STR-008-ttyd-stderr-log-level.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/STR-009-ps-inventory-maxbuffer.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/STR-010-reconciler-xterm-transport-aware.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/STR-011-xterm-only-mode-gate.md",
+        "kind": "spec",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/str-brainbase-personal-kg-sns-weekly-planner.md",
+        "kind": "spec",
+        "title": "Personal KG SNS Weekly Planner",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/ten-minute-world-onboarding-spec.md",
+        "kind": "spec",
+        "title": "Ten-minute world onboarding specification",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/terminal-history-scrollback.md",
+        "kind": "spec",
+        "title": "Terminal session history remains scrollable",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/specs/vibepro-brainbase-self-evaluation-spec.md",
+        "kind": "spec",
+        "title": "VibePro Brainbase dogfood評価分離仕様",
+        "status": "accepted",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/ai-first-brainbase-story-map.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/audit-classify-v6-reviewer-coverage-story.md",
+        "kind": "story",
+        "title": "監査 classify.ts の VibePro reviewer 除外 regex を拡張し、真の denominator を測れるようにする",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/audit-script-classification-precision-story.md",
+        "kind": "story",
+        "title": "Graph/Capmap/KG 日次監査スクリプトを永続化し、誤判定除外で hit 率の真値を測れるようにする",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/brainbase-story.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/capability-personal-kg-story.md",
+        "kind": "story",
+        "title": "個人KG (personal-kg) capability を入口 pointer として capability map に追加",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/commit-tree-panel.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/decommission-graph-brain-base-work-story.md",
+        "kind": "story",
+        "title": "graph.brain-base.work ルートを廃止し Infisical 経由で bb.unson.jp に統一する",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/graph-ssot-trigger-improvements-story.md",
+        "kind": "story",
+        "title": "Graph SSOT / Capability Map 引きを「常時 wallpaper」から「パターン条件付き強リマインド」に変える",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/kernel-entity-id-citation-story.md",
+        "kind": "story",
+        "title": "人物・組織・顧客・案件を含む応答で Graph entity ID 併記を必須化 (kernel 規範)",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/knowledge-graph-kernel-story-map.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/mesh-agent-query-story.md",
+        "kind": "story",
+        "title": "",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/oyasumi-meeting-personal-kg-story.md",
+        "kind": "story",
+        "title": "Oyasumi meeting minutes to Personal KG",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/oyasumi-personal-kg-agent-fanout-story.md",
+        "kind": "story",
+        "title": "Oyasumi Personal KG agent fan-out",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/personal-kg-conversation-extraction-backlog-story.md",
+        "kind": "story",
+        "title": "Personal KG conversation extraction backlog",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/personal-kg-sns-seed-mvp-story.md",
+        "kind": "story",
+        "title": "Personal KG can seed SNS drafts",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/session-context-window-typing-story.md",
+        "kind": "story",
+        "title": "Session context bar window typing",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sessionstart-memory-preamble-story.md",
+        "kind": "story",
+        "title": "毎プロンプト reminder を廃し、SessionStart で3層メモリ (個人KG/Graph/Capability) を1回注入する",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/simplify-ssot-self-assessment-hook-story.md",
+        "kind": "story",
+        "title": "効かない複数介入を全削除し、meta-cognitive な単一 self-assessment hook に置き換える",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-account-management-story.md",
+        "kind": "story",
+        "title": "SNS Account Management",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-approval-schedules-posting-story.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-auth-health-unified-story.md",
+        "kind": "story",
+        "title": "SNS auth health follows posting credentials",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-learning-informed-generation-story.md",
+        "kind": "story",
+        "title": "SNS Learning Informed Generation",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-ledger-live-refresh-story.md",
+        "kind": "story",
+        "title": "SNS Ledger Live Refresh",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-ledger-manual-refresh-story.md",
+        "kind": "story",
+        "title": "SNS cockpit manual ledger refresh",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-mobile-pwa-terminal-guard-evidence.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-mobile-pwa-terminal-guard-story.md",
+        "kind": "story",
+        "title": "SNS mobile PWA safe back and terminal guard",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-mobile-review-flow-story.md",
+        "kind": "story",
+        "title": "SNS Mobile Review Flow",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-mobile-review-terminal-guard-story.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-ohayo-dedupe-generation-story.md",
+        "kind": "story",
+        "title": "SNS ohayo 重複回避生成",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-persona-brain-gate-story.md",
+        "kind": "story",
+        "title": "SNS drafts require persona brain before copy",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-posted-content-dedupe-story.md",
+        "kind": "story",
+        "title": "SNS posted content dedupe and test ledger isolation",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-posting-cockpit-mvp-story.md",
+        "kind": "story",
+        "title": "SNS Posting Cockpit MVP",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-scheduled-publisher-story.md",
+        "kind": "story",
+        "title": "SNS scheduled publisher from Posting Ledger",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/sns-x-algorithm-quality-story.md",
+        "kind": "story",
+        "title": "SNS X Algorithm Quality",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-active-indicator-claude-heartbeat-revival.md",
+        "kind": "story",
+        "title": "Claude ハートビートの稼働インジケータ表示維持",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-active-indicator-claude-toolless-staleness.md",
+        "kind": "story",
+        "title": "ツール無し区間でも Claude 稼働インジケータを維持する",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-active-indicator-event-flicker.md",
+        "kind": "story",
+        "title": "Active Indicator Flicker",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-active-indicator-pane-spinner-unchanged-drop.md",
+        "kind": "story",
+        "title": "pane-title フォールバックの 30 秒未変化ドロップで Claude 稼働インジケータが消える",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-active-indicator-timeline-behavior.md",
+        "kind": "story",
+        "title": "Active indicator timeline behavior",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-activity-bridge-hook-precompile.md",
+        "kind": "story",
+        "title": "activity-bridge フックを事前バンドル + CSRF ディスクキャッシュで 3 秒 timeout 内に収める",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-ai-session-log-kernel-adapter.md",
+        "kind": "story",
+        "title": "AI セッションログ (codex + claude) を candidate-store kernel に流す adapter",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-brainbase-admin-visualization-bdd.md",
+        "kind": "story",
+        "title": "Brainbase管理画面で個人KGとDB接続状態を可視化する",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-brainbase-agent-report-approval-inbox.md",
+        "kind": "story",
+        "title": "agentレポートをworkflow engine経由でCompanion approval inboxに集約する",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-brainbase-decision-events-kpi-v1.md",
+        "kind": "story",
+        "title": "判断委任KPIフェーズ1 サーバー側イベント受信・週次集計",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-brainbase-mcp-core-ontology.md",
+        "kind": "story",
+        "title": "Brainbase MCPを固定Core ontologyと明示的Extension registryに分ける",
+        "status": "proposed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-brainbase-session-resume-integrity-guard.md",
+        "kind": "story",
+        "title": "Brainbase session resume integrity guard",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-brainbase-web-ui-retirement-v1.md",
+        "kind": "story",
+        "title": "Brainbase Web UI retirement and Agent-first surface migration",
+        "status": "completed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-brainbase-workflow-mission-control.md",
+        "kind": "story",
+        "title": "Brainbase Workflow Mission Control",
+        "status": "superseded",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-candidate-store-cross-repo-write.md",
+        "kind": "story",
+        "title": "candidate-store の cross-repo write API endpoint を公開する",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-canonical-task-idempotency-backfill.md",
+        "kind": "story",
+        "title": "既存Taskへ冪等キーを決定的にbackfillする",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-canonical-task-postgres-ssot.md",
+        "kind": "story",
+        "title": "Canonical Taskの正本をPostgreSQLへ移行する",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-codex-app-server-adapter.md",
+        "kind": "story",
+        "title": "Codex App Server adapter first slice",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-codex-appserver-assistant-ui-native-adoption.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-codex-appserver-assistant-ui-transcript-panel.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-codex-appserver-chatgpt-polish.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-codex-appserver-display-route-consumer.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-codex-appserver-indicator-stability.md",
+        "kind": "story",
+        "title": "Codex App Server activity indicator stability",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-codex-appserver-repl-activity-bridge.md",
+        "kind": "story",
+        "title": "Codex App Server REPL activity bridge completion",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-codex-appserver-session-create.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-codex-appserver-session-state-ssot.md",
+        "kind": "story",
+        "title": "Codex App Server session state SSOT",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-codex-appserver-thread-session-foundation.md",
+        "kind": "story",
+        "title": "Codex App Server thread session foundation",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-codex-appserver-transcript-ui.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-codex-appserver-xterm-default-fallback.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-companion-approval-inbox-v1.md",
+        "kind": "story",
+        "title": "Brainbase Companion Approval Inbox API v1",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-companion-canonical-task-provider.md",
+        "kind": "story",
+        "title": "Mac Companion向け正本Task APIと承認時の一度だけ作成",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-companion-reply-draft-api.md",
+        "kind": "story",
+        "title": "Brainbase Mac Companion reply context handoff API",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-control-mode-stdout-oncost.md",
+        "kind": "story",
+        "title": "Paste freezes terminal ~1min and drops the connection — O(n^2) control-mode stdout buffering",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-cross-runtime-run-receipt-inbox-v1.md",
+        "kind": "story",
+        "title": "Cross-runtime run receipt common control plane v1",
+        "status": "completed",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-csrf-exempt-report-activity.md",
+        "kind": "story",
+        "title": "CSRF-exempt /api/sessions/report_activity (hook telemetry — dev log spam + prod activity drop)",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-eve-dispatch-handoff-transcript-context.md",
+        "kind": "story",
+        "title": "Eve dispatch handoffにtranscript本文と書き戻し契約を含める",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-eve-internal-api-csrf-exemption.md",
+        "kind": "story",
+        "title": "本番internal API key経路のCSRF除外",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-eve-meeting-candidates-pull-reconciler.md",
+        "kind": "story",
+        "title": "meeting packのtask/decision/follow-up候補をEve(LLM)由来にする（pull型reconciler相乗り）",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-eve-meeting-note-pull-reconciler.md",
+        "kind": "story",
+        "title": "Eve議事録のpull型reconciler（セッションstream監視→ローカル書き戻し）",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-eve-runtime-session-connection-v0.md",
+        "kind": "story",
+        "title": "Eve Runtime Session Connection v0",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-eve-stream-replay-reader.md",
+        "kind": "story",
+        "title": "Eve session streamのlive-tail増分読取（replay完了で打ち切り）",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-external-runner-adapter-contract-v0.md",
+        "kind": "story",
+        "title": "Eve Runtime Adapter Contract v0",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-graph-entity-resolver.md",
+        "kind": "story",
+        "title": "Graph entity resolver prevents false not-found results",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-live-feed-activity-timeline.md",
+        "kind": "story",
+        "title": "Live Feed Activity Timeline",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-live-feed-agent-activity-history.md",
+        "kind": "story",
+        "title": "Live Feed エージェント活動履歴",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-live-feed-current-session-scope.md",
+        "kind": "story",
+        "title": "Live Feed current session scope",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-live-feed-readable-current-log.md",
+        "kind": "story",
+        "title": "Live Feed readable current session log",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-local-data-server-ssot-migration.md",
+        "kind": "story",
+        "title": "Local data to server Graph SSOT migration",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-local-ssot-additive-upsert.md",
+        "kind": "story",
+        "title": "Local SSOT additive upsert dry-run and guarded execute",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-local-ssot-root-priority.md",
+        "kind": "story",
+        "title": "Local SSOT duplicate root priority",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-loop-pack-design-gate-v0.md",
+        "kind": "story",
+        "title": "Loop Pack Design Gate v0",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-mana-meeting-workflow-pack-data-v1.md",
+        "kind": "story",
+        "title": "Mana Meeting Workflow Pack Data Connection v1",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-mana-meeting-workflow-pack-v0.md",
+        "kind": "story",
+        "title": "Mana Meeting Workflow Pack v0",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-meeting-note-generation-dag-wiring.md",
+        "kind": "story",
+        "title": "Meeting Pack ingest後にBrainbase議事録生成DAGを接続する",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-meeting-pack-graph-ssot-playbook.md",
+        "kind": "story",
+        "title": "Meeting Pack Graph SSOT Playbook",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-meeting-pack-owner-context-candidates.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-meeting-review-package-ingest-v1.md",
+        "kind": "story",
+        "title": "Meeting Review Package Ingest v1",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-meeting-source-brainbase-note-generation.md",
+        "kind": "story",
+        "title": "Meeting Source MCP transcriptからBrainbase議事録を生成する",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-meeting-source-integration-catalog.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-meeting-source-mcp-sync-worker.md",
+        "kind": "story",
+        "title": "Meeting Source MCP Sync Worker",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-meeting-source-runtime-sync-policy.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-meeting-task-owner-ssot-resolution.md",
+        "kind": "story",
+        "title": "Meeting Task Owners Resolve from people SSOT",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-meeting-workflow-calendar-input-v1.md",
+        "kind": "story",
+        "title": "Meeting Workflow Pack Calendar Input v1",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-meeting-workflow-pack-cockpit-ui-v1.md",
+        "kind": "story",
+        "title": "Meeting Workflow Pack Cockpit UI v1",
+        "status": "retired",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-notification-waiting-indicator.md",
+        "kind": "story",
+        "title": "Notification hook で「ユーザー返答待ち」をオレンジ稼働インジケータにする",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-org-agent-loop-control-v0.md",
+        "kind": "story",
+        "title": "Org Agent Loop Control v0",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-personal-kg-review-projection.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-personal-kg-tokenized-search.md",
+        "kind": "story",
+        "title": "Personal KG search supports compound keyword queries",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-playwright-worktree-discovery-boundary.md",
+        "kind": "story",
+        "title": "Playwrightの探索対象をcanonical E2Eへ限定する",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-salestailor-ops-refactor-kernel-adapter.md",
+        "kind": "story",
+        "title": "salestailor ops-department-auto-refactoring を kernel adapter 化する",
+        "status": "superseded",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-schedule-date-boundary.md",
+        "kind": "story",
+        "title": "",
+        "status": null,
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-session-hibernation-mvp.md",
+        "kind": "story",
+        "title": "Session Hibernation MVP: keep only visible Codex sessions hot",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-session-hook-provisioning-backfill.md",
+        "kind": "story",
+        "title": "非brainbaseプロジェクトのセッションにhook登録ファイルを補完し稼働インジケータを機能させる",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-session-list-idle-recency-sort.md",
+        "kind": "story",
+        "title": "セッションリスト timeline の idle(無印) 並びを直近活動時刻の時系列に直す",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-session-list-sticky-sort.md",
+        "kind": "story",
+        "title": "セッションリスト timeline の sticky-done 並び順を島レンダラに復元する",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-session-shell-first-startup-ux.md",
+        "kind": "story",
+        "title": "Session shell-first startup UX",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-session-switch-auth-nonblocking.md",
+        "kind": "story",
+        "title": "Session switch — remove blocking auth verify from the connect critical path",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-session-switch-connect-hang.md",
+        "kind": "story",
+        "title": "Session switch never hangs — superseded terminal connect settles deterministically",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-session-workspace-generation-rotation.md",
+        "kind": "story",
+        "title": "Session workspace generation rotation after merge",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-settings-contract-alignment.md",
+        "kind": "story",
+        "title": "Settings contracts match story and runtime behavior",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-ten-minute-world-onboarding.md",
+        "kind": "story",
+        "title": "最初の10分で自社の世界が立ち上がるオンボーディング",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-terminal-input-latency.md",
+        "kind": "story",
+        "title": "Terminal input latency improvement",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-terminal-input-render-stability.md",
+        "kind": "story",
+        "title": "Terminal input and render stability refactor",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-terminal-open-scroll-bottom.md",
+        "kind": "story",
+        "title": "Open terminal at latest output",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-terminal-output-backpressure.md",
+        "kind": "story",
+        "title": "Long-paste hang + server instability — terminal output backpressure",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-terminal-same-viewer-multitab-orphan.md",
+        "kind": "story",
+        "title": "同一viewerIdのマルチタブでterminal接続をorphan化させずsupersedeする",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-terminal-snapshot-handoff.md",
+        "kind": "story",
+        "title": "Terminal snapshot->live handoff render stability",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-terminal-stale-runtime-auto-recovery.md",
+        "kind": "story",
+        "title": "Terminal stale runtime auto recovery",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-terminal-write-coalesce.md",
+        "kind": "story",
+        "title": "Terminal input echo lag — coalesce the serialized write queue",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-waiting-indicator-sticky-until-response.md",
+        "kind": "story",
+        "title": "入力待ち(orange)インジケータをユーザー応答まで継続させる",
+        "status": "implemented",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-workflow-product-retirement-v1.md",
+        "kind": "story",
+        "title": "Workflow product retirement and Automation Run extraction",
+        "status": "complete",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-worktree-service-git-migration.md",
+        "kind": "story",
+        "title": "worktree-serviceの完全git化（jj依存撤去）",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/story-xterm-focus-report-sanitize.md",
+        "kind": "story",
+        "title": "Xterm focus report sanitization",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/STR-001-wiki-project-filter.md",
+        "kind": "story",
+        "title": "Wiki検索結果にページのproject_idフィルタを追加",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/STR-002-archive-records-direct-push.md",
+        "kind": "story",
+        "title": "アーカイブ証跡を archive-records 専用ブランチ直push に変更しPRを廃止",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/STR-003-stale-index-lock-recovery.md",
+        "kind": "story",
+        "title": "brainbase main repo の stale .git/index.lock を自動検出・自動復旧する",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/STR-004-repo-mutex-recovery.md",
+        "kind": "story",
+        "title": "brainbase main repo の jj/git 書き込みを per-repoPath mutex で直列化し、merge() にも index.lock 自動復旧を適用",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/STR-005-conversation-linker-load-shedding.md",
+        "kind": "story",
+        "title": "ConversationLinkerの周期処理負荷を抑える",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/STR-005-terminal-history-scrollback.md",
+        "kind": "story",
+        "title": "Terminal session history remains scrollable across live sessions",
+        "status": "done",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/STR-006-mana-secretary-memory-promotion.md",
+        "kind": "story",
+        "title": "manaをBrainbase横断秘書として動かすMemory Promotion Pipeline",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/STR-006-terminal-width-sync.md",
+        "kind": "story",
+        "title": "Terminal width follows visible workspace",
+        "status": "done",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/STR-007-state-store-responsibility-split.md",
+        "kind": "story",
+        "title": "State store責務分離を段階実装する",
+        "status": "draft",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/STR-008-ttyd-stderr-log-level.md",
+        "kind": "story",
+        "title": "ttyd起動バナーをerrorとして記録せず正しいログレベルに分類する",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/STR-009-ps-inventory-maxbuffer.md",
+        "kind": "story",
+        "title": "ps inventory スキャンの maxBuffer 不足による無音失明を解消する",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/STR-010-reconciler-xterm-transport-aware.md",
+        "kind": "story",
+        "title": "xterm transport 時に reconciler が ttyd 欠落で churn しないようにする",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/STR-011-xterm-only-mode-gate.md",
+        "kind": "story",
+        "title": "本番を xterm-only と正しく認識させ ttyd-vestigial churn を解消する",
+        "status": "in_progress",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      },
+      {
+        "path": "docs/stories/vibepro-brainbase-dogfood-story.md",
+        "kind": "story",
+        "title": "BrainbaseでVibeProの評価分離dogfoodを回す",
+        "status": "shipped",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      }
+    ],
+    "changed_docs": [
+      {
+        "path": "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md",
+        "kind": "story",
+        "title": "本番GraphとOntology 1.0.0の互換性を確立する",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      }
+    ],
+    "unregistered_changed_docs": [
+      {
+        "path": "docs/management/stories/active/story-brainbase-ontology-production-compatibility.md",
+        "kind": "story",
+        "title": "本番GraphとOntology 1.0.0の互換性を確立する",
+        "status": "active",
+        "parent_design": [],
+        "registered": false,
+        "registration": null
+      }
+    ]
+  },
+  "design_roots": [],
+  "action_items": []
+}

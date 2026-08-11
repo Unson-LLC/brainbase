@@ -1,0 +1,20 @@
+{
+  "status": "needs_changes",
+  "role": "runtime_contract",
+  "agent_id": "019f5bb3-a85f-75e0-8db3-a3cea80392b2",
+  "head": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+  "summary": "WorkflowService.recordMeetingCandidatesがpackage_id単独入力を許しており、Eve pullの完全一致契約との境界確認が必要。",
+  "findings": [
+    {
+      "id": "runtime-contract-record-meeting-candidates-package-fallback",
+      "severity": "medium",
+      "detail": "recordMeetingCandidatesはpackage_idからrunを再導出できる一方、Eve candidate pullはorg/project/run/source_text_hashの完全一致を要求する。"
+    }
+  ],
+  "evidence": [
+    ".vibepro/spec/story-eve-meeting-candidates-pull-reconciler/spec.json",
+    "docs/architecture/story-eve-meeting-candidates-pull-reconciler.md",
+    "server/services/workflow/workflow-service.js",
+    "server/services/external-runner/eve-meeting-note-reconciler.js"
+  ]
+}

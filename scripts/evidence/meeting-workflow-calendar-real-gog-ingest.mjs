@@ -6,9 +6,9 @@ import { GoogleCalendarService } from '../../server/services/google-calendar-ser
 import { InMemoryWorkflowRepository } from '../../server/services/workflow/workflow-repository.js';
 import { WorkflowRunner } from '../../server/services/workflow/workflow-runner.js';
 import {
-    WorkflowService,
     createDefaultWorkflowHandlers
-} from '../../server/services/workflow/workflow-service.js';
+} from '../../server/services/automation-runtime/automation-runtime-defaults-service.js';
+import { createAutomationRuntimeServices } from '../../server/services/automation-runtime/automation-runtime-services.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -44,7 +44,7 @@ const configParser = {
         };
     }
 };
-const service = new WorkflowService({
+const service = createAutomationRuntimeServices({
     repository,
     runner,
     configParser,
@@ -58,7 +58,7 @@ const actor = {
     projectCodes: ['salestailor', 'unson']
 };
 
-const result = await service.createMeetingPackCalendarLoopIntents(input, actor);
+const result = await service.meetingAutomationService.createCalendarLoopIntents(input, actor);
 const meetingInputs = result.meeting_calendar_inputs;
 if (!meetingInputs.loop_intents.length) {
     throw new Error('real gog calendar ingest produced no Loop Intents');

@@ -1,0 +1,20 @@
+{
+  "status": "needs_changes",
+  "summary": "Operator-visible invalid candidate payload handling lacks a Mission Control browser journey.",
+  "inspection_summary": "Inspected the E2E request, strict-head evidence, and both story Playwright specs.",
+  "inspection_evidence": [
+    ".vibepro/qa/meeting-candidates/playwright-surface-9a348b309.json",
+    "tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts"
+  ],
+  "inspection_inputs": [
+    ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/test_plan/review-request-e2e_ux.md"
+  ],
+  "judgment_delta": "Backend rejection is covered, but the operator-visible invalid-payload state needs executable browser coverage.",
+  "findings": [
+    {
+      "severity": "medium",
+      "id": "invalid-payload-mission-control-gap",
+      "detail": "Add a Mission Control scenario showing the blocked state and validation error for an invalid Eve candidate payload."
+    }
+  ]
+}

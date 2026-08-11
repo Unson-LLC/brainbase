@@ -1,0 +1,169 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-data-ssot-normalization",
+  "created_at": "2026-07-18T17:33:36.135Z",
+  "recommended_decision": "split_pr",
+  "recommendation_reason": "Gate DAG is ready_for_review with 0 unresolved evidence item(s). Split Plan is split_recommended with strategy split_by_lane_then_prepare. Scope is needs_clean_branch; recommended strategy is clean_branch_or_split_pr.",
+  "source_artifacts": {
+    "review_cockpit": null,
+    "architecture_review": ".vibepro/pr/story-graph-data-ssot-normalization/architecture-review.json",
+    "pr_body": ".vibepro/pr/story-graph-data-ssot-normalization/pr-body.md",
+    "gate_dag": null,
+    "split_plan": ".vibepro/pr/story-graph-data-ssot-normalization/split-plan.json",
+    "decision_records": ".vibepro/pr/story-graph-data-ssot-normalization/decision-records.json",
+    "visual_qa": []
+  },
+  "evidence_summary": {
+    "architecture": {
+      "status": "satisfied",
+      "required": true,
+      "reason": "ADR不要: 既存Graph entity/edge・role_min/sensitivity・InfoSSOTService・Graph API・MCP・transaction/backup契約の範囲内で完結し、新規runtime境界・schema・外部APIを導入しないため"
+    },
+    "spec": {
+      "status": "inferred",
+      "required": true,
+      "reason": "12 clauses inferred from Story+Code+Test"
+    },
+    "decision_records": {
+      "total": 11,
+      "open": 0,
+      "by_type": {
+        "waiver": 9,
+        "needs_review": 2
+      },
+      "by_status": {
+        "accepted": 11
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "decision record",
+          "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+          "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+          "expected_root": null,
+          "expected_head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+          "current_head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+          "managed_worktree": null
+        }
+      ],
+      "latest": {
+        "schema_version": "0.1.0",
+        "decision_id": "decision-1784391854526-efd7a477",
+        "story_id": "story-graph-data-ssot-normalization",
+        "type": "waiver",
+        "status": "accepted",
+        "source": "architecture",
+        "source_status": "needs_review",
+        "summary": "新ADRは不要と判断する",
+        "reason": "既存Graph entity/edge・role_min/sensitivity・InfoSSOTService・Graph API・MCP・transaction/backup契約の範囲内で、runtime境界・schema・外部APIを新設しないため",
+        "reviewer": "Codex",
+        "artifact": "docs/management/stories/story-graph-data-ssot-normalization.md",
+        "verification_evidence_summary": {
+          "count": 4,
+          "entries": [
+            {
+              "path": ".vibepro/pr/story-graph-data-ssot-normalization/verification-evidence.json",
+              "type": "typecheck",
+              "result": "pass"
+            },
+            {
+              "path": ".vibepro/evidence/story-graph-data-ssot-normalization/integration-readback.json",
+              "type": "integration",
+              "result": "pass"
+            },
+            {
+              "path": ".vibepro/evidence/story-graph-data-ssot-normalization/targeted-vitest.json",
+              "type": "unit",
+              "result": "pass"
+            },
+            {
+              "path": ".vibepro/evidence/story-graph-data-ssot-normalization/playwright-e2e.json",
+              "type": "e2e",
+              "result": "pass"
+            }
+          ]
+        },
+        "secret_exposure": null,
+        "redaction": {
+          "applied": false,
+          "hit_count": 0
+        },
+        "warnings": [
+          {
+            "id": "managed_worktree_locality",
+            "status": "needs_review",
+            "mode": "preferred",
+            "required": false,
+            "command_name": "decision record",
+            "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+            "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+            "repo_root": "/private/tmp/brainbase-graph-data-ssot",
+            "actual_root": "/private/tmp/brainbase-graph-data-ssot",
+            "expected_root": null,
+            "expected_head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+            "current_head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+            "managed_worktree": null
+          }
+        ],
+        "git_context": {
+          "head_sha": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+          "current_branch": "codex/graph-data-ssot-normalization",
+          "dirty": false,
+          "status_fingerprint": "",
+          "recorded_at": "2026-07-18T16:24:14.525Z"
+        },
+        "recorded_at": "2026-07-18T16:24:14.527Z"
+      }
+    },
+    "visual_qa": null,
+    "completion_quality": {
+      "status": "ready_for_human_acceptance",
+      "e2e_experience_reach_rate": null,
+      "final_20_auto_closure_rate": null,
+      "visual_qa_pass_rate": null,
+      "required_evidence_count": 0
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-07-18T17:33:34.174Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.1.0-beta.0",
+      "root": "/Users/ksato/.codex/worktrees/d3d9/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/bin/vibepro",
+      "runtime_module": "/Users/ksato/.codex/worktrees/d3d9/vibepro/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "88dd9d39aee5be1cc2dcc359c5310f7a0faeb717",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "389ea320519c54ebe9acfd5de0504899e35b9c58",
+      "origin_main_relation": "behind",
+      "dirty": false,
+      "dirty_summary": []
+    }
+  },
+  "decision_options": [
+    "proceed",
+    "split_pr",
+    "add_evidence",
+    "waive_with_reason",
+    "block"
+  ],
+  "review_record": {
+    "selected_decision": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

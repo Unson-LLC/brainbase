@@ -17,7 +17,7 @@ export type EntityResolverAbsenceVerdict = 'candidates_found' | 'no_candidate_af
 
 export interface EntityResolverCandidate {
   entity_id: string;
-  type: EntityType;
+  type: string;
   name: string;
   aliases: string[];
   matched_terms: string[];
@@ -25,6 +25,7 @@ export interface EntityResolverCandidate {
   score: number;
   confidence: EntityResolverConfidence;
   project_code?: string;
+  details?: Record<string, string>;
   why: string;
 }
 
@@ -464,27 +465,29 @@ function stringValues(value: unknown): string[] {
   return [];
 }
 
-function getEntityDisplayName(entity: Entity): string {
+type ResolvableEntity = Entity | ExtensionEntity;
+
+function getEntityDisplayName(entity: ResolvableEntity): string {
   if ('name' in entity && entity.name) return entity.name;
   if ('title' in entity && entity.title) return entity.title;
   if ('term' in entity && entity.term) return entity.term;
   return entity.id;
 }
 
-function getEntityAliases(entity: Entity): string[] {
+function getEntityAliases(entity: ResolvableEntity): string[] {
   return 'aliases' in entity && Array.isArray(entity.aliases) ? entity.aliases : [];
 }
 
-function getEntityProjectCode(entity: Entity): string | undefined {
+function getEntityProjectCode(entity: ResolvableEntity): string | undefined {
   if (entity.project_code) return entity.project_code;
-  if (entity.type === 'project') return entity.project_id;
+  if (entity.type === 'project' && 'project_id' in entity) return entity.project_id;
   if ('project_id' in entity && typeof entity.project_id === 'string') return entity.project_id;
   if ('project' in entity && typeof entity.project === 'string') return entity.project;
   if ('projects' in entity && Array.isArray(entity.projects) && entity.projects.length > 0) return entity.projects[0];
   return undefined;
 }
 
-function searchableFields(entity: Entity): Array<{ field: string; value: string }> {
+function searchableFields(entity: ResolvableEntity): Array<{ field: string; value: string }> {
   const record = entity as unknown as Record<string, unknown>;
   const fields: Array<{ field: string; value: string }> = [];
   const addField = (field: string, value: unknown) => {
@@ -524,6 +527,11 @@ function searchableFields(entity: Entity): Array<{ field: string; value: string 
   addField('products', record.products);
   addField('related_orgs', record.related_orgs);
   addField('related_apps', record.related_apps);
+  if ('payload' in entity) {
+    for (const [field, value] of Object.entries(entity.payload)) {
+      addField(field, value);
+    }
+  }
 
   return fields;
 }
@@ -543,16 +551,16 @@ function confidenceForScore(score: number): EntityResolverConfidence {
   return 'low';
 }
 
-function requestedResolverTypes(types?: string[]): { supported: EntityType[]; unsupported: string[] } {
+function requestedResolverTypes(index: EntityIndex, types?: string[]): { supported: string[]; unsupported: string[] } {
   if (!types || types.length === 0) {
     return { supported: RESOLVER_ENTITY_TYPES, unsupported: [] };
   }
 
-  const supported: EntityType[] = [];
+  const supported: string[] = [];
   const unsupported: string[] = [];
   for (const type of types) {
-    if (RESOLVER_ENTITY_TYPE_SET.has(type)) {
-      pushUnique(supported, type as EntityType);
+    if (RESOLVER_ENTITY_TYPE_SET.has(type) || index.extensions.has(type)) {
+      pushUnique(supported, type);
     } else {
       pushUnique(unsupported, type);
     }
@@ -565,14 +573,17 @@ export function resolveEntities(index: EntityIndex, options: EntityResolverOptio
   const searchedTerms = tokenizeEntityQuery(options.query);
   const candidatesByKey = new Map<string, EntityResolverCandidate>();
   const fallbacksUsed = ['normalized_query', 'tokenized_field_match'];
-  const requestedTypes = requestedResolverTypes(options.types);
+  const requestedTypes = requestedResolverTypes(index, options.types);
 
   if (requestedTypes.unsupported.length > 0) {
     fallbacksUsed.push('unsupported_type_reported');
   }
 
   for (const type of requestedTypes.supported) {
-    for (const entity of getEntitiesByType(index, type)) {
+    const entities: ResolvableEntity[] = RESOLVER_ENTITY_TYPE_SET.has(type)
+      ? getEntitiesByType(index, type as EntityType)
+      : getExtensionEntitiesByType(index, type);
+    for (const entity of entities) {
       const matchedTerms: string[] = [];
       const matchedFields: string[] = [];
       let score = 0;
@@ -593,6 +604,9 @@ export function resolveEntities(index: EntityIndex, options: EntityResolverOptio
       if (matchedTerms.length === 0) continue;
 
       const name = getEntityDisplayName(entity);
+      const details = 'payload' in entity
+        ? contactDetails(entity.payload)
+        : undefined;
       candidatesByKey.set(`${entity.type}:${entity.id}`, {
         entity_id: entity.id,
         type: entity.type,
@@ -603,6 +617,7 @@ export function resolveEntities(index: EntityIndex, options: EntityResolverOptio
         score,
         confidence: confidenceForScore(score),
         project_code: getEntityProjectCode(entity),
+        ...(details && Object.keys(details).length > 0 ? { details } : {}),
         why: `${name} matched ${matchedTerms.join(', ')} in ${matchedFields.join(', ')}`,
       });
     }
@@ -621,6 +636,31 @@ export function resolveEntities(index: EntityIndex, options: EntityResolverOptio
     fallbacks_used: fallbacksUsed,
     unsupported_types: requestedTypes.unsupported,
   };
+}
+
+const CONTACT_DETAIL_FIELDS = [
+  'company_name',
+  'department',
+  'title',
+  'email',
+  'tel_company',
+  'tel_direct',
+  'mobile',
+  'fax',
+  'postal_code',
+  'address',
+  'url',
+  'scanned_at',
+  'exchanged_at',
+] as const;
+
+function contactDetails(payload: Record<string, unknown>): Record<string, string> {
+  const details: Record<string, string> = {};
+  for (const field of CONTACT_DETAIL_FIELDS) {
+    const value = payload[field];
+    if (typeof value === 'string' && value.trim()) details[field] = value.trim();
+  }
+  return details;
 }
 
 export function getExtensionTypeRegistrations(): EntityTypeRegistration[] {

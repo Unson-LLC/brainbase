@@ -1,0 +1,15 @@
+{
+  "status": "pass",
+  "role": "preview_smoke",
+  "agent_id": "019f5bbf-820c-7342-b755-7ce99393837b",
+  "head": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+  "summary": "build/typecheck/unit/integration/e2e/server-staticと主要Eve pull・曖昧owner UXのsmoke証跡がexact HEADで成立。",
+  "findings": [],
+  "evidence": [
+    ".vibepro/pr/story-eve-meeting-candidates-pull-reconciler/verification-evidence.json",
+    ".vibepro/qa/meeting-candidates/vitest-unit-25782dc2a.json",
+    ".vibepro/qa/meeting-candidates/vitest-integration-surface-25782dc2a.json",
+    ".vibepro/qa/meeting-candidates/playwright-surface-25782dc2a.json",
+    ".vibepro/qa/meeting-candidates/server-static-surface-25782dc2a.json"
+  ]
+}

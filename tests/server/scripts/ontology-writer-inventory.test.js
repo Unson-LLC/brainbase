@@ -1,0 +1,93 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { verifyWriterInventory } from '../../../scripts/ontology-writer-inventory.js';
+
+const roots = [];
+
+function fixture({ source, vocabulary, mode = 'runtime_guarded', classifiedLiterals }) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ontology-writer-inventory-'));
+    roots.push(root);
+    fs.mkdirSync(path.join(root, 'server'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'scripts'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'config/ontology/releases'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'server/writer.js'), source);
+    fs.writeFileSync(path.join(root, 'config/ontology/releases/1.0.0.json'), JSON.stringify({
+        entity_types: { app: {}, org: {} },
+        relation_types: { owned_by: {} }
+    }));
+    fs.writeFileSync(path.join(root, 'config/ontology/writer-inventory.json'), JSON.stringify({
+        writers: {
+            'server/writer.js': {
+                mode,
+                reason: 'fixture',
+                vocabulary,
+                ...(classifiedLiterals ? { classified_literals: classifiedLiterals } : {})
+            }
+        }
+    }));
+    return root;
+}
+
+afterEach(() => {
+    while (roots.length) fs.rmSync(roots.pop(), { recursive: true, force: true });
+});
+
+describe('ontology writer inventory vocabulary contract', () => {
+    it('accepts writer literals classified by the manifest', () => {
+        const rootDir = fixture({
+            source: "upsertGraphEntity({ entityType: 'app' }); upsertGraphEdge({ relType: 'owned_by' });",
+            vocabulary: { types: ['app'], relations: ['owned_by'] }
+        });
+        expect(verifyWriterInventory({ rootDir })).toMatchObject({ writer_count: 1 });
+    });
+
+    it('classifies indirect writers that call the guarded InfoSSOT methods', () => {
+        const rootDir = fixture({
+            source: "infoSSOTService.createOrUpdateGraphEntity(access, { entityType: 'org' });",
+            vocabulary: { types: ['org'], relations: [] }
+        });
+        expect(verifyWriterInventory({ rootDir })).toMatchObject({ writer_count: 1 });
+    });
+
+    it('fails when a classified writer adds an unknown or undeclared vocabulary literal', () => {
+        const unknownRoot = fixture({
+            source: "upsertGraphEntity({ entityType: 'unregistered_type' });",
+            vocabulary: { types: [], relations: [] }
+        });
+        expect(() => verifyWriterInventory({ rootDir: unknownRoot })).toThrow('unknown graph vocabulary=[unregistered_type]');
+
+        const undeclaredRoot = fixture({
+            source: "upsertGraphEntity({ entityType: 'app' });",
+            vocabulary: { types: [], relations: [] }
+        });
+        expect(() => verifyWriterInventory({ rootDir: undeclaredRoot })).toThrow('undeclared types=[app]');
+    });
+
+    it('requires deferred writers to classify every non-canonical literal', () => {
+        const unclassifiedRoot = fixture({
+            source: "upsertGraphEntity({ entityType: 'legacy_person' });",
+            mode: 'deferred',
+            vocabulary: { types: [], relations: [] },
+            classifiedLiterals: { compatibility: [], internal: [], rejected: [] }
+        });
+        expect(() => verifyWriterInventory({ rootDir: unclassifiedRoot })).toThrow('unknown graph vocabulary=[legacy_person]');
+
+        const classifiedRoot = fixture({
+            source: "upsertGraphEntity({ entityType: 'legacy_person' });",
+            mode: 'deferred',
+            vocabulary: { types: [], relations: [] },
+            classifiedLiterals: { compatibility: ['legacy_person'], internal: [], rejected: [] }
+        });
+        expect(verifyWriterInventory({ rootDir: classifiedRoot })).toMatchObject({
+            writer_count: 1,
+            classifications: {
+                'server/writer.js': {
+                    mode: 'deferred',
+                    classified_literals: { compatibility: ['legacy_person'], internal: [], rejected: [] }
+                }
+            }
+        });
+    });
+});

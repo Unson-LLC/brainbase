@@ -7,7 +7,7 @@
  * 書き込み・promote・投稿は行わず、SNS curator の graphReader contract に合わせて source entity を返す。
  */
 
-const SNS_SOURCE_SYSTEM = 'sns-curator';
+const SNS_SOURCE_SYSTEMS = new Set(['sns-curator', 'sns-lifelog-curator']);
 const EXCLUDED_STATUSES = new Set(['rejected', 'expired']);
 const ALLOWED_COGNITIVE_TYPES = new Set([
     'insight',
@@ -47,6 +47,10 @@ function toSourceEntity(candidate) {
         project_ids: asArray(candidate.project_ids),
         team_id: candidate.team_id || null,
         created_at: candidate.created_at,
+        category: candidate.permission_snapshot?.seed?.category
+            || candidate.permission_snapshot?.oyasumi_meeting_personal_kg?.category
+            || null,
+        lifelog_ready: candidate.permission_snapshot?.oyasumi_meeting_personal_kg?.memory_layer === 'sns_ready',
         reuse_count: candidate.permission_snapshot?.sns?.reuse_count || 0
     };
 }
@@ -76,7 +80,7 @@ export class PersonalKnowledgeGraphReader {
         return candidates
             .filter((candidate) => candidate.owner_person_id === viewer.sub)
             .filter((candidate) => candidate.visibility === 'owner')
-            .filter((candidate) => candidate.source_system !== SNS_SOURCE_SYSTEM)
+            .filter((candidate) => !SNS_SOURCE_SYSTEMS.has(candidate.source_system))
             .filter((candidate) => ALLOWED_COGNITIVE_TYPES.has(candidate.cognitive_type))
             .filter((candidate) => candidate.agency_level !== 'none')
             .filter((candidate) => candidate.redaction_status === 'none')

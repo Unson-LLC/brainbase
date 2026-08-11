@@ -1,0 +1,120 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "needs_changes",
+  "summary": "PR is not ready at HEAD 9be369d82332a4764b3462053f584522e6d8d706: the exact-run Lightsail/backfill path appears safely scoped for a single-run rollout, but the current-head VibePro gate state still records unresolved release/coverage evidence and `ready_for_pr_create=false`.",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "undefined",
+      "detail": "`.vibepro/pr/story-eve-meeting-candidates-pull-reconciler/pr-prepare.json` and `decision-index.json` both remain on the reviewed HEAD and still report `overall_status=needs_verification`, `ready_for_pr_create=false`, unresolved gate count 52, critical unresolved gate count 24, and a blocking `gate;judgment_axis_release_ops` due to unresolved release note, rollback instruction, and observability evidence. That is sufficient to hold PR readiness even though code/test evidence is stronger than the gate state suggests."
+    },
+    {
+      "severity": "medium",
+      "id": "undefined",
+      "detail": "The reviewed branch is ahead of `origin/codex/meeting-pack-eve-candidates` by 2 and contains 35 commits relative to `origin/develop`, while the story diff touches 18 files. The changed files are mostly story-scoped, but VibePro still classifies the branch scope as `needs_clean_branch`, so the evidence package has not yet demonstrated a clean PR surface suitable for release review."
+    },
+    {
+      "severity": "medium",
+      "id": "undefined",
+      "detail": "`traceability.json` and the gate artifacts still leave `gate;path_surface_matrix` at `partial_surface` and `gate;failure_mode_coverage` at `missing_coverage`, with weak mappings called out for AC-004, AC-005, and AC-007. The code and tests cover much of this behavior, but the review package has not closed the evidence loop required by the gate request."
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [
+    ".vibepro/qa/meeting-candidates/review-gate-gate_evidence-9be369d82.json"
+  ],
+  "inspection": {
+    "summary": "Verified requested HEAD match on branch `codex/meeting-pack-eve-candidates-vibepro`; inspected branch scope against `origin/develop` (35 commits, 18 changed files), reviewed the gate request plus `.vibepro` decision/traceability/verification artifacts, read Story/architecture/responsibility docs, checked release runbook and rollback contract in `docs/runbooks/eve-meeting-note-backfill.md`, inspected `script/backfill-eve-meeting-note-dispatch.mjs`, `server/services/external-runner/eve-meeting-note-reconciler.js`, `server/services/workflow/workflow-service.js`, `server/services/meeting-source/meeting-source-mcp-sync-service.js`, and reviewed targeted tests/UI evidence for source-hash scoping, owner SSOT resolution, mismatch observability, and operator-review failure handling.",
+    "evidence": ".vibepro/qa/meeting-candidates/review-gate-gate_evidence-9be369d82.json",
+    "inputs": [
+      ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/gate/review-request-gate_evidence.md"
+    ]
+  },
+  "judgment_delta": [
+    "Initial concern: the Lightsail replay/backfill path might still permit unsafe bulk execution or cross-run contamination. Final judgment: the runbook, CLI guardrails, and reconciler/workflow checks consistently enforce exact-run scope via `--run-id`, `force_new_session`, and matching `org_id`/`project_id`/`run_id`/`source_text_hash`, with additive rollback and no irreversible migration.,Initial concern: current-head evidence might be stale from a prior review cycle. Final judgment: verification artifacts are bound to HEAD `9be369d82332a4764b3462053f584522e6d8d706`, but PR readiness still fails because the gate artifacts themselves remain unresolved on this same HEAD (`overall_status=needs_verification`, `ready_for_pr_create=false`, release-ops block, stale/missing gate coverage)."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "expected_root": null,
+    "expected_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "current_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "expected_root": null,
+      "expected_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+      "current_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-13T17:37:40.172Z",
+  "git_context": {
+    "head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-13T17:37:40.171Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "9be369d82332a4764b3462053f584522e6d8d706",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "53c0cc6ab99ce2e3f11dadf946204d397a9b52c3f6fe5f7dc2fbfecf24ea67e3",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f5c8a-754b-7c80-8c35-cf099658b2ee",
+    "agent_role": null,
+    "model": "gpt-5.4",
+    "reasoning_effort": "high",
+    "cost_tier": "high",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/qa/meeting-candidates/review-gate-gate_evidence-9be369d82.json",
+    "request_artifact": ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/qa/meeting-candidates/review-gate-gate_evidence-9be369d82.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

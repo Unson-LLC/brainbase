@@ -1,0 +1,9 @@
+{
+  "status": "pass",
+  "head_sha": "e4c014c0e881ade4ae32ab23202e8351ea5c3699",
+  "agent_id": "019f5b1b-9731-79a1-8c09-389e1b891b4c",
+  "summary": "Candidate readability, unique owner defaulting, ambiguous owner handling, approvals, retry, and polling errors are usable.",
+  "inspection_summary": "Reviewed the current diff, story and architecture docs, Mission Control UI, payload contract, reconciler, and focused tests.",
+  "judgment_delta": "The current UI exposes mismatch counts and operator states without presenting ambiguous owners as assigned.",
+  "findings": []
+}

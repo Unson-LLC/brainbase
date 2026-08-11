@@ -6,7 +6,7 @@ Meeting Pack の `decision_candidates` protected output は、同一 workflow ru
 
 ## Boundary / Scope / Owner
 
-Boundary は `server/services/workflow/workflow-service.js` の review-ingest run assembly と Mac Companion inbox route の read model に限定する。責務 owner は WorkflowService が output と human step の対応を確定し、Companion inbox は保存済み metadata を読むだけにする。People SSOT owner resolution や Graph SSOT glossary/project resolution の判断ロジックはこの変更の scope 外であり、副作用 side effect を持たせない。
+Boundary は `server/services/meeting-automation/meeting-automation-service.js` の review-ingest run assembly と Mac Companion inbox route の read model に限定する。責務 owner は MeetingAutomationService が output と human step の対応を確定し、Companion inbox は保存済み metadata を読むだけにする。People SSOT owner resolution や Graph SSOT glossary/project resolution の判断ロジックはこの変更の scope 外であり、副作用 side effect を持たせない。
 
 ## Alternatives Considered
 

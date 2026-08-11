@@ -14,13 +14,7 @@ export class TimelineView extends BaseView {
         this._googleCalendarBusy = false;
         this._showGoogleCalendarDiagnostics = false;
 
-        // モーダルコールバック
-        this.onAddRequest = null;      // 追加モーダルを開く
-        this.onEditRequest = null;     // 編集モーダルを開く
-
         // バインド
-        this._handleClick = this._handleClick.bind(this);
-        this._handleDoubleClick = this._handleDoubleClick.bind(this);
         this._handleGoogleCalendarButtonClick = this._handleGoogleCalendarButtonClick.bind(this);
         this._handleGoogleCalendarDiagnosticsClick = this._handleGoogleCalendarDiagnosticsClick.bind(this);
     }
@@ -45,20 +39,6 @@ export class TimelineView extends BaseView {
     _setupDOMEventListeners() {
         if (!this.container) return;
 
-        this.container.addEventListener('click', this._handleClick);
-        this.container.addEventListener('dblclick', this._handleDoubleClick);
-
-        // section-header内のプラスボタン
-        const addBtn = document.getElementById('add-schedule-btn');
-        if (addBtn) {
-            addBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (this.onAddRequest) {
-                    this.onAddRequest();
-                }
-            });
-        }
-
         const googleBtn = document.getElementById('google-calendar-connect-btn');
         if (googleBtn) {
             googleBtn.addEventListener('click', this._handleGoogleCalendarButtonClick);
@@ -67,59 +47,6 @@ export class TimelineView extends BaseView {
         const diagnostics = document.getElementById('google-calendar-diagnostics');
         if (diagnostics) {
             diagnostics.addEventListener('click', this._handleGoogleCalendarDiagnosticsClick);
-        }
-    }
-
-    /**
-     * クリックハンドラ（完了トグル・追加ボタン）
-     * @param {Event} e
-     */
-    _handleClick(e) {
-        // 編集ボタン
-        const editBtn = e.target.closest('.timeline-edit-btn');
-        if (editBtn) {
-            e.preventDefault();
-            e.stopPropagation();
-            const eventId = editBtn.dataset.editId;
-            if (eventId && this.onEditRequest) {
-                this.onEditRequest(eventId);
-            }
-            return;
-        }
-
-        // タイムラインアイテム（完了トグル）
-        const item = e.target.closest('.timeline-item[data-event-id]');
-        if (item) {
-            const eventId = item.dataset.eventId;
-            if (eventId) {
-                this._toggleComplete(eventId);
-            }
-        }
-    }
-
-    /**
-     * ダブルクリックハンドラ（編集モーダル）
-     * @param {Event} e
-     */
-    _handleDoubleClick(e) {
-        const item = e.target.closest('.timeline-item[data-event-id]');
-        if (item) {
-            const eventId = item.dataset.eventId;
-            if (eventId && this.onEditRequest) {
-                this.onEditRequest(eventId);
-            }
-        }
-    }
-
-    /**
-     * 完了状態トグル
-     * @param {string} eventId
-     */
-    async _toggleComplete(eventId) {
-        try {
-            await this.scheduleService.toggleEventComplete(eventId);
-        } catch (error) {
-            console.error('Failed to toggle event complete:', error);
         }
     }
 
@@ -201,12 +128,6 @@ export class TimelineView extends BaseView {
             const kindBadge = this._renderTimelineKindBadge(event);
             const timelineMeta = this._renderTimelineMeta(event, index);
 
-            const editBtn = isInteractive ? `
-                <button class="timeline-edit-btn" title="編集" data-edit-id="${escapeHtml(event.id)}">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-                </button>
-            ` : '';
-
             html += `
                 <div class="timeline-item is-event${currentClass}${workTimeClass}${completedClass}${googleClass}"${eventIdAttr}>
                     <div class="timeline-marker"></div>
@@ -216,7 +137,6 @@ export class TimelineView extends BaseView {
                         ${kindBadge}
                     </span>
                     ${timelineMeta}
-                    ${editBtn}
                 </div>
             `;
         });
@@ -485,11 +405,6 @@ export class TimelineView extends BaseView {
      * クリーンアップ
      */
     unmount() {
-        if (this.container) {
-            this.container.removeEventListener('click', this._handleClick);
-            this.container.removeEventListener('dblclick', this._handleDoubleClick);
-        }
-
         const googleBtn = document.getElementById('google-calendar-connect-btn');
         if (googleBtn) {
             googleBtn.removeEventListener('click', this._handleGoogleCalendarButtonClick);

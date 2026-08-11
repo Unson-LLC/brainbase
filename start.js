@@ -8,7 +8,9 @@
 import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { resolveRuntimePaths, ensureShadowRuntimeLinks } from './lib/runtime-paths.js';
+import { resolveRuntimePaths } from './lib/runtime-paths.js';
+import { PREVIOUS_SERVER_GRACE_PERIOD_MS } from './lib/server-lifecycle-timeouts.js';
+import { loadRuntimeEnv } from './lib/load-runtime-env.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -28,6 +30,7 @@ const PID_FILE = runtimePaths.pidFile;
 process.env.BRAINBASE_VAR_DIR = runtimePaths.varDir;
 process.env.BRAINBASE_STATE_PATH = runtimePaths.stateFile;
 process.env.BRAINBASE_STARTED_BY_START_JS = '1';
+loadRuntimeEnv({ cwd: __dirname });
 process.env.BRAINBASE_SERVER_GENERATION = process.env.BRAINBASE_SERVER_GENERATION
     || `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -46,16 +49,14 @@ function sleep(ms) {
 
 try {
     mkdirSync(varDir, { recursive: true });
-    await ensureShadowRuntimeLinks(runtimePaths, console);
-
     if (existsSync(PID_FILE)) {
         const existingPid = parseInt(readFileSync(PID_FILE, 'utf-8').trim(), 10);
         if (existingPid && !isNaN(existingPid) && existingPid !== process.pid && isProcessAlive(existingPid)) {
             console.log(`[PID-LOCK] Existing brainbase server found (PID ${existingPid}). Sending SIGTERM...`);
             try { process.kill(existingPid, 'SIGTERM'); } catch { /* already dead */ }
-            await sleep(3000);
+            await sleep(PREVIOUS_SERVER_GRACE_PERIOD_MS);
             if (isProcessAlive(existingPid)) {
-                console.log(`[PID-LOCK] PID ${existingPid} still alive after 3s. Sending SIGKILL...`);
+                console.log(`[PID-LOCK] PID ${existingPid} still alive after ${PREVIOUS_SERVER_GRACE_PERIOD_MS}ms. Sending SIGKILL...`);
                 try { process.kill(existingPid, 'SIGKILL'); } catch { /* already dead */ }
                 await sleep(500);
             }
@@ -83,19 +84,7 @@ function removePidFile() {
     } catch { /* file already gone */ }
 }
 process.on('exit', removePidFile);
-process.on('SIGINT', () => { removePidFile(); process.exit(0); });
-process.on('SIGTERM', () => { removePidFile(); process.exit(0); });
-
-// --- Deploy-time build of the React session-list island bundle ---
-// public/dist/session-list-island.js is no longer committed; the runtime checkout's
-// `git clean -fd` removes it on every boot, so rebuild it here before server.js serves
-// static assets. esbuild/react are devDeps already present after `npm ci`.
-try {
-    const { execFileSync } = await import('node:child_process');
-    execFileSync(process.execPath, ['scripts/build-ui-islands.mjs'], { cwd: __dirname, stdio: 'inherit' });
-} catch (err) {
-    console.error('[island-build] FAILED to build session-list island bundle:', err?.message || err);
-    console.error('[island-build] #session-list may render empty until this is resolved.');
-}
+// server.js owns SIGINT/SIGTERM so HTTP shutdown and persistent writer release
+// finish before the process exits. The exit hook above removes the PID file.
 
 await import('./server.js');

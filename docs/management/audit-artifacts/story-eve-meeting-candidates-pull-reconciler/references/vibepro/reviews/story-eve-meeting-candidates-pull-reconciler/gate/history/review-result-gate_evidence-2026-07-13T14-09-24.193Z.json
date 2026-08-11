@@ -1,0 +1,115 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "needs_changes",
+  "summary": "Exact-head implementation evidence passes, but imported Graphify CI and final readiness artifacts are bound to older HEADs.",
+  "findings": [
+    {
+      "severity": "medium",
+      "id": "gate-evidence-ci-import-stale",
+      "detail": "Import the exact-head Graphify CI result."
+    },
+    {
+      "severity": "medium",
+      "id": "gate-evidence-readiness-binding-stale",
+      "detail": "Rerun PR preparation after current gate reviews are complete."
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [
+    ".vibepro/qa/meeting-candidates/review-gate-gate_evidence-needs_changes-25782dc2a-r1.json"
+  ],
+  "inspection": {
+    "summary": "Verified exact-head tests, static checks, earlier required reviews, and live PR checks; found stale machine-readable CI/readiness bindings.",
+    "evidence": ".vibepro/qa/meeting-candidates/review-gate-gate_evidence-needs_changes-25782dc2a-r1.json",
+    "inputs": [
+      ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/gate/review-request-gate_evidence.md"
+    ]
+  },
+  "judgment_delta": [
+    "Implementation evidence is sufficient; bounded evidence refresh is required before pass."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+    "expected_root": null,
+    "expected_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+    "current_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "actual_root": "/private/tmp/brainbase-meeting-source-owner-hint",
+      "expected_root": null,
+      "expected_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+      "current_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-13T14:09:24.193Z",
+  "git_context": {
+    "head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+    "current_branch": "codex/meeting-pack-eve-candidates-vibepro",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-13T14:09:24.192Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "c4268680943d7cb9f2b461d14dc918362d35f5baa2c090c366f7ebae749d4019",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f5bc6-f830-7b10-a31d-61669a030d32",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/qa/meeting-candidates/review-gate-gate_evidence-needs_changes-25782dc2a-r1.json",
+    "request_artifact": ".vibepro/reviews/story-eve-meeting-candidates-pull-reconciler/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/qa/meeting-candidates/review-gate-gate_evidence-needs_changes-25782dc2a-r1.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong"
+  },
+  "agent_usage": null
+}

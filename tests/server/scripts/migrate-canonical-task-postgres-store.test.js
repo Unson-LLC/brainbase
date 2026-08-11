@@ -1,0 +1,187 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+    checkCanonicalTaskPostgresSchema,
+    parseCanonicalTaskPostgresMigrationArgs,
+    runCanonicalTaskPostgresMigration
+} from '../../../scripts/migrate-canonical-task-postgres-store.js';
+
+const columns = [
+    'id', 'legacy_nocodb_id', 'title', 'description', 'status', 'priority',
+    'assignee_person_id', 'assignee_display_name', 'due_at', 'waiting_on',
+    'review_at', 'completed_at', 'source_refs', 'project_codes', 'version', 'idempotency_key',
+    'payload_fingerprint', 'last_operation_key', 'last_operation_fingerprint',
+    'created_at', 'updated_at'
+];
+
+function sourceRepository(records) {
+    return {
+        allRecords: vi.fn().mockResolvedValue(records),
+        normalize: vi.fn((record) => ({
+            title: record['タイトル'],
+            description: null,
+            status: 'pending',
+            priority: 'medium',
+            assignee_person_id: 'person-1',
+            assignee_display_name: 'Owner',
+            due_at: null,
+            waiting_on: null,
+            review_at: null,
+            completed_at: null,
+            source_refs: [],
+            project_codes: [],
+            version: 1,
+            created_at: '2026-07-28T00:00:00.000Z',
+            updated_at: '2026-07-28T00:00:00.000Z',
+            _payload_fingerprint: 'fingerprint',
+            _last_operation_key: null,
+            _last_operation_fingerprint: null
+        }))
+    };
+}
+
+function checkingPool({ existingRows = [], targetCount = 0 } = {}) {
+    return {
+        query: vi.fn(async (sql) => {
+            if (sql.includes('information_schema.tables')) return { rows: [{ table_name: 'canonical_tasks' }] };
+            if (sql.includes('information_schema.columns')) return { rows: columns.map((column_name) => ({ column_name })) };
+            if (sql.includes('pg_indexes')) {
+                return { rows: [
+                    { indexname: 'canonical_tasks_status_priority_idx' },
+                    { indexname: 'canonical_tasks_assignee_due_idx' },
+                    { indexname: 'canonical_tasks_project_codes_idx' }
+                ] };
+            }
+            if (sql.includes('SELECT legacy_nocodb_id, idempotency_key, payload_fingerprint')) {
+                return { rows: existingRows };
+            }
+            if (sql.includes('SELECT COUNT(*)::integer AS count FROM canonical_tasks')) {
+                return { rows: [{ count: targetCount }] };
+            }
+            throw new Error(`Unexpected query: ${sql}`);
+        })
+    };
+}
+
+describe('Canonical Task PostgreSQL migration', () => {
+    it('requires exactly one non-destructive or apply mode', () => {
+        expect(parseCanonicalTaskPostgresMigrationArgs(['--dry-run'])).toEqual({ mode: 'dry-run' });
+        expect(() => parseCanonicalTaskPostgresMigrationArgs([])).toThrow('Specify exactly one');
+        expect(() => parseCanonicalTaskPostgresMigrationArgs(['--check', '--apply'])).toThrow('Specify exactly one');
+    });
+
+    it('rejects direct apply outside the ordered workflow', async () => {
+        await expect(runCanonicalTaskPostgresMigration({
+            argv: ['--apply']
+        })).rejects.toThrow('Direct --apply is disabled');
+    });
+
+    it('checks the schema contract', async () => {
+        await expect(checkCanonicalTaskPostgresSchema(checkingPool())).resolves.toMatchObject({
+            ok: true,
+            table: 'canonical_tasks',
+            columns: columns.length
+        });
+    });
+
+    it('dry-runs without writing Task content or schema', async () => {
+        const pool = checkingPool();
+        const result = await runCanonicalTaskPostgresMigration({
+            argv: ['--dry-run'],
+            pool,
+            sourceRepository: sourceRepository([{ Id: 42, 'タイトル': '秘密の本文', '冪等キー': 'key-42' }])
+        });
+        expect(result).toEqual({
+            ok: true,
+            mode: 'dry-run',
+            source_count: 1,
+            target_count: 0,
+            matched_count: 0,
+            pending_count: 1,
+            inserted_count: 0,
+            conflict_count: 0
+        });
+        expect(pool.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO canonical_tasks'))).toBe(false);
+    });
+
+    it('stops before apply when legacy IDs or idempotency keys conflict', async () => {
+        const pool = checkingPool({
+            existingRows: [{
+                legacy_nocodb_id: '42',
+                idempotency_key: 'different-key',
+                payload_fingerprint: 'fingerprint',
+                version: 1,
+                last_operation_key: null,
+                last_operation_fingerprint: null
+            }]
+        });
+        await expect(runCanonicalTaskPostgresMigration({
+            argv: ['--check'],
+            pool,
+            sourceRepository: sourceRepository([{ Id: 42, 'タイトル': 'Task', '冪等キー': 'key-42' }])
+        })).rejects.toThrow('Canonical Task migration conflict');
+    });
+
+    it('treats an existing legacy/idempotency pair as an idempotent match', async () => {
+        const pool = checkingPool({
+            existingRows: [{
+                legacy_nocodb_id: '42',
+                idempotency_key: 'key-42',
+                payload_fingerprint: 'fingerprint',
+                version: 1,
+                last_operation_key: null,
+                last_operation_fingerprint: null
+            }],
+            targetCount: 1
+        });
+        const result = await runCanonicalTaskPostgresMigration({
+            argv: ['--check'],
+            pool,
+            sourceRepository: sourceRepository([{ Id: 42, 'タイトル': 'Task', '冪等キー': 'key-42' }])
+        });
+        expect(result).toMatchObject({
+            source_count: 1,
+            target_count: 1,
+            matched_count: 1,
+            pending_count: 0,
+            inserted_count: 0,
+            conflict_count: 0
+        });
+    });
+
+    it('rejects an existing identity pair when payload or operation state differs', async () => {
+        const pool = checkingPool({
+            existingRows: [{
+                legacy_nocodb_id: '42',
+                idempotency_key: 'key-42',
+                payload_fingerprint: 'stale-fingerprint',
+                version: 1,
+                last_operation_key: null,
+                last_operation_fingerprint: null
+            }]
+        });
+        await expect(runCanonicalTaskPostgresMigration({
+            argv: ['--check'],
+            pool,
+            sourceRepository: sourceRepository([{ Id: 42, 'タイトル': 'Task', '冪等キー': 'key-42' }])
+        })).rejects.toThrow('database=1');
+    });
+
+    it('rejects target-only rows before cutover', async () => {
+        const pool = checkingPool({
+            existingRows: [{
+                legacy_nocodb_id: '99',
+                idempotency_key: 'target-only',
+                payload_fingerprint: 'fingerprint',
+                version: 1,
+                last_operation_key: null,
+                last_operation_fingerprint: null
+            }]
+        });
+        await expect(runCanonicalTaskPostgresMigration({
+            argv: ['--check'],
+            pool,
+            sourceRepository: sourceRepository([{ Id: 42, 'タイトル': 'Task', '冪等キー': 'key-42' }])
+        })).rejects.toThrow('target_only=1');
+    });
+});

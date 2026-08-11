@@ -1,0 +1,169 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-decision-events-kpi-v1",
+  "stage": "architecture_spec",
+  "role": "architecture_boundary",
+  "status": "needs_changes",
+  "summary": "Four prior findings are resolved; pending index recovery can still override ledger authority.",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "derived-index-can-override-ledger-authority",
+      "detail": "Pending index recovery writes index-only event data into the monthly ledger."
+    },
+    {
+      "severity": "medium",
+      "id": "current-head-review-evidence-stale",
+      "detail": "Current-head evidence must be refreshed after the source fix."
+    }
+  ],
+  "finding_dispositions": [
+    {
+      "finding_id": "corrupt-ledger-recovery-can-be-silent-or-overwritten",
+      "disposition": "accepted",
+      "resolved_by": [
+        "server/services/companion/decision-event-service.js"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    },
+    {
+      "finding_id": "get-path-full-index-rescan-per-request",
+      "disposition": "accepted",
+      "resolved_by": [
+        "tests/server/services/companion/decision-event-service.test.js"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    },
+    {
+      "finding_id": "lock-bootstrap-window-can-reclaim-live-lock",
+      "disposition": "accepted",
+      "resolved_by": [
+        "tests/server/services/companion/decision-event-service.test.js"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    },
+    {
+      "finding_id": "same-host-lock-scope-not-explicit",
+      "disposition": "accepted",
+      "resolved_by": [
+        "docs/architecture/decision-events-kpi-architecture.md"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    }
+  ],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Inspected current service, routes, KPI, tests, story, architecture, spec, QA, and prior reviews; 52 focused tests, 9 E2E, and typecheck passed.",
+    "evidence": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92af.json",
+    "inputs": [
+      "server/services/companion/decision-event-service.js"
+    ]
+  },
+  "judgment_delta": [
+    "Five prior findings became four resolved and one still open; result remains needs_changes."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+    "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+    "expected_root": null,
+    "expected_head_sha": "0ef037175774d06c4d94c501b15e7c798845e471",
+    "current_head_sha": "0ef037175774d06c4d94c501b15e7c798845e471",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+      "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+      "expected_root": null,
+      "expected_head_sha": "0ef037175774d06c4d94c501b15e7c798845e471",
+      "current_head_sha": "0ef037175774d06c4d94c501b15e7c798845e471",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-24T05:59:44.116Z",
+  "git_context": {
+    "head_sha": "0ef037175774d06c4d94c501b15e7c798845e471",
+    "current_branch": "codex/decision-event-global-dedupe",
+    "dirty": true,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "4f53e5f34cab445080bfbe54bf6f671ef22cc8b56a49e8285e2590a75fe09a40",
+    "user_status_fingerprint_hash": "4f53e5f34cab445080bfbe54bf6f671ef22cc8b56a49e8285e2590a75fe09a40",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-24T05:59:44.108Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "Final architecture judgment must be tied to the exact source HEAD."
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "0ef037175774d06c4d94c501b15e7c798845e471",
+    "surface_files": [
+      {
+        "path": "server/services/companion/decision-event-service.js",
+        "sha256": "240d674fda86d5e06e16dd44743ad2db9ff1b9f16722b0291f1d328f9d0dec65",
+        "size": 32118
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "277396e109aa8795e4f4a687857ca2c5de719a352a7caead13b7eff36d44e8c8"
+  },
+  "source_fingerprint": "6067c19f2849e19a3645f77cd8a36d079cc0ffcdd6b8bb0a51c5634b4c4afebd",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f92af-fa08-7b01-bba5-9775cd8af182",
+    "agent_role": null,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "cost_tier": "low",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92af.json",
+    "request_artifact": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/review-request-architecture_boundary.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/architecture_spec/transcript-architecture-boundary-019f92af.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": null,
+      "implementation_session_id": null,
+      "source": "cli_flag"
+    }
+  },
+  "agent_usage": null
+}

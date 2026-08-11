@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VibePro PR Prepare</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9;
+      --fg: #14171f;
+      --muted: #667085;
+      --panel: #ffffff;
+      --panel-2: #f0f3f8;
+      --border: #d7dee8;
+      --good: #0f766e;
+      --warn: #a16207;
+      --danger: #b42318;
+      --info: #1d4ed8;
+      --neutral: #475467;
+      --code: #eef2f7;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1220;
+        --fg: #e8edf5;
+        --muted: #9aa8bc;
+        --panel: #101827;
+        --panel-2: #172235;
+        --border: #2d3a4f;
+        --code: #1d2939;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { width: min(1220px, calc(100% - 24px)); margin: 16px auto 40px; }
+    .topbar, section, article.card, .lane, .timeline-item {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .topbar { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 18px 20px; margin-bottom: 12px; }
+    .brand { font-weight: 700; color: var(--info); }
+    section { padding: 18px; margin: 12px 0; }
+    h1, h2, h3 { margin: 0 0 10px; line-height: 1.25; letter-spacing: 0; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 18px; }
+    h3 { font-size: 15px; }
+    .meta, .muted, .eyebrow { color: var(--muted); }
+    .meta, .eyebrow { margin: 0; font-size: 12px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.08em; }
+    .hero { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+    .hero h2 { font-size: 22px; margin: 4px 0; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; background: transparent; border: 0; padding: 0; }
+    .metric { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 92px; }
+    .metric span { display: block; color: var(--muted); font-size: 12px; }
+    .metric strong { display: block; margin: 6px 0; font-size: 20px; overflow-wrap: anywhere; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; background: transparent; border: 0; padding: 0; }
+    .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+    .flow-step { position: relative; padding: 14px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; min-height: 110px; overflow-wrap: anywhere; }
+    .flow-step:not(:last-child)::after { content: "->"; position: absolute; right: -12px; top: 44px; color: var(--muted); }
+    .cards, .node-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .card { padding: 14px; overflow-wrap: anywhere; }
+    .card p { margin: 6px 0 0; }
+    .lane-board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 10px; overflow-x: auto; }
+    .lane { padding: 14px; min-width: 240px; }
+    .lane ul, .card ul { padding-left: 18px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; overflow-wrap: anywhere; }
+    th, td { border: 1px solid var(--border); padding: 8px; text-align: left; vertical-align: top; }
+    th { background: var(--panel-2); }
+    code, pre { background: var(--code); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    code { padding: 0.1rem 0.3rem; }
+    pre { padding: 10px; overflow: auto; white-space: pre-wrap; }
+    .timeline { display: grid; gap: 10px; }
+    .timeline-item { padding: 12px; }
+    .status { display: inline-block; border-radius: 999px; padding: 4px 10px; font-weight: 700; font-size: 12px; border: 1px solid currentColor; }
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .danger { color: var(--danger); }
+    .info { color: var(--info); }
+    .neutral { color: var(--neutral); }
+    .dag-svg { width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+    .dag-node { fill: var(--panel); stroke: var(--border); }
+    .dag-text { fill: var(--fg); font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .dag-edge { stroke: var(--muted); stroke-width: 1.5; marker-end: url(#arrow); }
+    @media (max-width: 860px) {
+      .metrics, .grid-2, .flow, .cards, .node-grid { grid-template-columns: 1fr; }
+      .flow-step:not(:last-child)::after { display: none; }
+      .hero, .topbar { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main data-vibepro-report="pr-prepare">
+    <header class="topbar">
+      <div>
+        <h1>VibePro PR Prepare</h1>
+        <p class="meta">Generated by VibePro at 2026-07-13T20:04:44.000Z</p>
+      </div>
+      <span class="brand">VibePro</span>
+    </header>
+
+      <section class="hero" data-overall-status="ready_for_review">
+        <div>
+          <p class="eyebrow">StoryからPR前確認までのレビュー成果物</p>
+          <h2>本番internal API key経路のCSRF除外</h2>
+          <p class="muted">story-eve-internal-api-csrf-exemption / origin/develop -> HEAD</p>
+        </div>
+        <span class="status good">ready_for_review</span>
+      </section>
+      <section class="metrics"><article class="metric"><span>スコープ</span><strong>needs_clean_branch</strong><span>clean_branch_or_split_pr</span></article><article class="metric"><span>Gate DAG</span><strong>ready_for_review</strong><span>0件 未解決</span></article><article class="metric"><span>実行Gate</span><strong>ready</strong><span>PR作成可能</span></article><article class="metric"><span>Agent Review</span><strong>pass</strong><span>0件 未充足</span></article><article class="metric"><span>要件整合性</span><strong>pass</strong><span>0件 矛盾</span></article><article class="metric"><span>分割計画</span><strong>split_recommended</strong><span>3レーン</span></article></section>
+
+    <section>
+      <h2>まず見る場所</h2>
+      <div class="cards">
+        <article class="card good">
+          <h3>1. Gateの未解決</h3>
+          <p>未解決Gateはありません。PR作成前にscopeとbranchだけ確認してください。</p>
+        </article>
+        <article class="card info">
+          <h3>2. AIエージェントへの渡し方</h3>
+          <p>実装エージェントには .vibepro/pr/story-eve-internal-api-csrf-exemption/pr-body.md / .vibepro/pr/story-eve-internal-api-csrf-exemption/gate-dag.html / .vibepro/pr/story-eve-internal-api-csrf-exemption/split-plan.html を渡してください。pr-prepare.json / decision-index.json / evidence-plan.json が正本で、pr-body.md はGitHub向けの短い判断ブリーフです。Gate DAGやsplit-planは生成されている場合に詳細確認へ使います。</p>
+        </article>
+        <article class="card good">
+          <h3>3. Requirement Consistency</h3>
+          <p>Story/Spec/Architectureと既知の実装分岐に明確な矛盾はありません。</p>
+        </article>
+      </div>
+    </section>
+
+      <section>
+        <h2>Story -> Architecture -> Spec -> Code -> Gate</h2>
+        <div class="flow">
+    <article class="flow-step" data-flow-step="Story">
+      <h3>Story</h3>
+      <p>story-eve-internal-api-csrf-exemption</p>
+      <span class="status good">present</span>
+    </article>
+
+    <article class="flow-step" data-flow-step="Architecture">
+      <h3>Architecture</h3>
+      <p>ADRあり (docs/architecture/ADR-eve-internal-api-csrf-exemption.md)</p>
+      <span class="status good">satisfied</span>
+    </article>
+
+    <article class="flow-step" data-flow-step="Spec">
+      <h3>Spec</h3>
+      <p>1ファイル</p>
+      <span class="status good">present</span>
+    </article>
+
+    <article class="flow-step" data-flow-step="Code">
+      <h3>Code</h3>
+      <p>1ファイル</p>
+      <span class="status good">present</span>
+    </article>
+
+    <article class="flow-step" data-flow-step="Gate">
+      <h3>Gate</h3>
+      <p>ready_for_review</p>
+      <span class="status good">ready_for_review</span>
+    </article>
+  </div>
+      </section>
+
+    <section>
+      <h2>人間レビューの焦点</h2>
+      <div class="cards">
+
+          <article class="card danger">
+            <h3>Risk</h3>
+
+            <p>最新診断gateが needs_review</p>
+          </article>
+
+          <article class="card info">
+            <h3>Review</h3>
+
+            <p>Storyの受け入れ基準と実装差分が対応しているか</p>
+          </article>
+
+          <article class="card info">
+            <h3>Review</h3>
+
+            <p>主要ソース差分: server/middleware/csrf.js</p>
+          </article>
+
+          <article class="card info">
+            <h3>Review</h3>
+
+            <p>テスト差分: tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts, tests/unit/csrf-internal-api-key-exempt.test.js</p>
+          </article>
+
+      </div>
+    </section>
+
+
+    <section>
+      <h2>Engineering Judgment</h2>
+      <div class="metrics">
+        <article class="metric"><span>Route</span><strong>security_trust</strong><span>security_trust_dag</span></article>
+        <article class="metric"><span>Active Axes</span><strong>3</strong><span>senior first scan</span></article>
+        <article class="metric"><span>Suppressed Axes</span><strong>1</strong><span>precision filtered</span></article>
+        <article class="metric"><span>accepted_followup</span><strong>2</strong><span>passedではない後続許容</span></article>
+        <article class="metric"><span>Confidence</span><strong>82%</strong><span>classifier</span></article>
+      </div>
+      <div class="cards">
+        <article class="card neutral">
+          <h3>public_contract: active_passed</h3>
+          <p class="muted">gate=passed; confidence=84%</p>
+          <p>この変更は外部利用者、CLI/API、設定、出力形式、またはPR本文契約を壊さないか。 / required=story_spec_traceability, contract_doc, compat_or_output_test, current_verification matched=story_spec_traceability:story/spec docs in diff, contract_doc:architecture/policy/spec docs in diff, topology_diagram:architecture docs in diff, compat_or_output_test:test files in diff, semantic_invariant_test:test files in diff, focused_test:CI VibePro Graphify Impact Gate: https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415650/job/86919940305 (artifact=.vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Require_Graphify_Impact_Review.json), current_verification:CI VibePro Graphify Impact Gate: https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415650/job/86919940305 (artifact=.vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Require_Graphify_Impact_Review.json), integration_runtime_path:CI VibePro Graphify Impact Gate: https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415650/job/86919940305 (artifact=.vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Require_Graphify_Impact_Review.json), focused_test:CI VibePro Graph SSOT Check: https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415751/job/86919940338 (artifact=.vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Verify_VibePro_Graph_SSOT.json), current_verification:CI VibePro Graph SSOT Check: https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415751/job/86919940338 (artifact=.vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Verify_VibePro_Graph_SSOT.json), focused_test:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), current_verification:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), runtime_path_evidence:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), e2e_runtime_path:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), scenario_clause_e2e:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), auth_denied:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), permission_denied:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), boundary_condition:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), security_review:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), focused_test:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), current_verification:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), auth_denied:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), permission_denied:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), negative_path:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), negative_path_test:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), boundary_condition:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), split_plan:clean_branch_or_split_pr, graph_impact_scope:.vibepro/graphify/graph.json (2 changed / 11 related)</p>
+        </article>
+
+        <article class="card warn">
+          <h3>security_boundary: active_accepted_followup</h3>
+          <p class="muted">gate=accepted_followup; confidence=90%</p>
+          <p>auth、permission、secret、sandbox、path access、trust boundaryを迂回できないか。 / required=threat_model, negative_path_test, boundary_condition, security_review, current_verification matched=story_spec_traceability:story/spec docs in diff, contract_doc:architecture/policy/spec docs in diff, topology_diagram:architecture docs in diff, compat_or_output_test:test files in diff, semantic_invariant_test:test files in diff, focused_test:CI VibePro Graphify Impact Gate: https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415650/job/86919940305 (artifact=.vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Require_Graphify_Impact_Review.json), current_verification:CI VibePro Graphify Impact Gate: https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415650/job/86919940305 (artifact=.vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Require_Graphify_Impact_Review.json), integration_runtime_path:CI VibePro Graphify Impact Gate: https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415650/job/86919940305 (artifact=.vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Require_Graphify_Impact_Review.json), focused_test:CI VibePro Graph SSOT Check: https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415751/job/86919940338 (artifact=.vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Verify_VibePro_Graph_SSOT.json), current_verification:CI VibePro Graph SSOT Check: https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415751/job/86919940338 (artifact=.vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Verify_VibePro_Graph_SSOT.json), focused_test:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), current_verification:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), runtime_path_evidence:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), e2e_runtime_path:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), scenario_clause_e2e:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), auth_denied:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), permission_denied:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), boundary_condition:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), security_review:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), focused_test:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), current_verification:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), auth_denied:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), permission_denied:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), negative_path:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), negative_path_test:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), boundary_condition:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), split_plan:clean_branch_or_split_pr, graph_impact_scope:.vibepro/graphify/graph.json (2 changed / 11 related), decision_record:decision-1783972511038-ceee4c6a (artifact=docs/architecture/ADR-eve-internal-api-csrf-exemption.md) missing=threat_model</p>
+        </article>
+
+        <article class="card warn">
+          <h3>scope_reviewability: active_accepted_followup</h3>
+          <p class="muted">gate=accepted_followup; confidence=82%</p>
+          <p>このPRは1人のreviewerが一貫した判断として読める粒度か、分割すべきか。 / required=scope_reviewed, split_plan, review_owner_map, related_file_blast_radius, decision_record matched=story_spec_traceability:story/spec docs in diff, contract_doc:architecture/policy/spec docs in diff, topology_diagram:architecture docs in diff, compat_or_output_test:test files in diff, semantic_invariant_test:test files in diff, focused_test:CI VibePro Graphify Impact Gate: https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415650/job/86919940305 (artifact=.vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Require_Graphify_Impact_Review.json), current_verification:CI VibePro Graphify Impact Gate: https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415650/job/86919940305 (artifact=.vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Require_Graphify_Impact_Review.json), integration_runtime_path:CI VibePro Graphify Impact Gate: https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415650/job/86919940305 (artifact=.vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Require_Graphify_Impact_Review.json), focused_test:CI VibePro Graph SSOT Check: https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415751/job/86919940338 (artifact=.vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Verify_VibePro_Graph_SSOT.json), current_verification:CI VibePro Graph SSOT Check: https://github.com/Unson-LLC/brainbase-unson/actions/runs/29280415751/job/86919940338 (artifact=.vibepro/pr/story-eve-internal-api-csrf-exemption/ci-evidence/Verify_VibePro_Graph_SSOT.json), focused_test:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), current_verification:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), runtime_path_evidence:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), e2e_runtime_path:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), scenario_clause_e2e:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), auth_denied:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), permission_denied:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), boundary_condition:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), security_review:npx playwright test --config=/private/tmp/brainbase-in-process-playwright.config.js tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/e2e.json), focused_test:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), current_verification:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), auth_denied:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), permission_denied:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), negative_path:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), negative_path_test:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), boundary_condition:npx vitest run tests/unit/csrf-internal-api-key-exempt.test.js tests/unit/csrf-report-activity-exempt.test.js (artifact=.vibepro/artifacts/story-eve-internal-api-csrf-exemption/unit.json), split_plan:clean_branch_or_split_pr, graph_impact_scope:.vibepro/graphify/graph.json (2 changed / 11 related), related_file_blast_radius:.vibepro/graphify/graph.json (2 changed / 11 related), review_owner_map:agent review stage/role ownership map, decision_record:decision-1783972526417-7581c057 (artifact=.vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/review-result-gate_evidence.json) missing=scope_reviewed</p>
+        </article>
+
+        <article class="card warn">
+          <h3>execution_topology: suppressed</h3>
+          <p class="muted">precision filterでinactive</p>
+          <p>candidates=text:execution_topology / precision=insufficient_signal:execution_topology has only text-derived candidates; suppressing activation until a changed-path, route, scope, docs, network-contract, or risk-surface corroboration exists</p>
+        </article>
+      </div>
+    </section>
+
+
+    <section>
+      <h2>実行Gate</h2>
+      <div class="metrics">
+        <article class="metric"><span>状態</span><strong>ready</strong><span>PR作成可能</span></article>
+        <article class="metric"><span>Blocking Gate</span><strong>0</strong><span>critical</span></article>
+        <article class="metric"><span>PR作成</span><strong>allowed</strong><span>VibePro gate</span></article>
+        <article class="metric"><span>Schema</span><strong>0.1.0</strong><span>execution gate</span></article>
+      </div>
+      <div class="cards">
+        <article class="card good">
+          <h3>準備完了</h3>
+
+          <p>VibePro PR作成に対するCritical blockerは解消されています。</p>
+        </article>
+      </div>
+      <h3>必要な対応</h3>
+      <p class="muted">ブロック中の対応はありません。</p>
+    </section>
+
+
+    <section>
+      <h2>Agent Review Gate</h2>
+      <div class="metrics">
+        <article class="metric"><span>状態</span><strong>pass</strong><span>required</span></article>
+        <article class="metric"><span>必須ロール</span><strong>1</strong><span>policy</span></article>
+        <article class="metric"><span>未充足ロール</span><strong>0</strong><span>missing/stale/block</span></article>
+        <article class="metric"><span>Checkpoint未充足</span><strong>0</strong><span>checkpoint</span></article>
+        <article class="metric"><span>古い結果</span><strong>0</strong><span>current git binding</span></article>
+      </div>
+
+      <h3>未充足の必須レビュー</h3>
+      <div class="cards">
+        <article class="card good">
+          <h3>未充足レビューなし</h3>
+
+          <p>現在のgit状態に対するPR-final/checkpoint agent review roleは通過しています。</p>
+        </article>
+      </div>
+      <h3>ステージ概要</h3>
+      <div class="cards">
+        <article class="card good">
+          <h3>gate: pass</h3>
+          <p class="muted">gate</p>
+          <p>pass=1, missing=0, stale=0, block=0</p>
+        </article>
+      </div>
+    </section>
+
+
+    <section>
+      <h2>PR lifecycle artifact の鮮度</h2>
+      <p class="muted">全体: current。古い pr-create / pr-merge を最新の証跡として扱わないための HEAD 照合です。</p>
+
+    <table>
+      <thead><tr><th>Kind</th><th>Status</th><th>Artifact</th><th>Artifact HEAD</th><th>Current HEAD</th><th>Reason</th></tr></thead>
+      <tbody>
+        <tr><td>pr_create</td><td>current</td><td>.vibepro/pr/story-eve-internal-api-csrf-exemption/pr-create.json</td><td>d7b7e9e76461</td><td>d7b7e9e76461</td><td>pr-create artifact is bound to the current HEAD d7b7e9e76461</td></tr><tr><td>pr_merge</td><td>not_created</td><td>.vibepro/pr/story-eve-internal-api-csrf-exemption/pr-merge.json</td><td>-</td><td>d7b7e9e76461</td><td>pr-merge.json has not been created yet</td></tr>
+      </tbody>
+    </table>
+
+    </section>
+
+
+    <section>
+      <h2>Requirement Consistency</h2>
+      <div class="metrics">
+        <article class="metric"><span>Status</span><strong>pass</strong><span>requirement gate</span></article>
+        <article class="metric"><span>Invariants</span><strong>11</strong><span>extracted</span></article>
+        <article class="metric"><span>Scenario Gaps</span><strong>0</strong><span>needs review</span></article>
+        <article class="metric"><span>Contradictions</span><strong>0</strong><span>potential bugs</span></article>
+      </div>
+      <article class="card good">
+        <h3>次に足すもの</h3>
+        <p>Story/Spec/Architectureと既知の実装分岐に明確な矛盾はありません。</p>
+      </article>
+      <div class="cards">
+        <article class="card info">
+          <h3>Invariant</h3>
+          <p class="muted">inferred_spec:docs/stories/story-eve-internal-api-csrf-exemption.md</p>
+          <p>Given an exact configured internal key, when a production POST crosses CSRF and requireAuth, then it reaches the workflow route as an internal service.</p>
+        </article>
+
+        <article class="card info">
+          <h3>Invariant</h3>
+          <p class="muted">inferred_spec:docs/stories/story-eve-internal-api-csrf-exemption.md</p>
+          <p>Given a wrong internal key, when a production POST crosses CSRF, then it is rejected with 403 before route authority.</p>
+        </article>
+
+        <article class="card info">
+          <h3>Invariant</h3>
+          <p class="muted">inferred_spec:docs/stories/story-eve-internal-api-csrf-exemption.md</p>
+          <p>Given a browser request without an internal key, when it crosses CSRF, then the existing CSRF token requirement remains authoritative.</p>
+        </article>
+
+        <article class="card info">
+          <h3>Invariant</h3>
+          <p class="muted">inferred_spec:docs/stories/story-eve-internal-api-csrf-exemption.md</p>
+          <p>Given the exact-run workflow path and an exact internal key, when production middleware runs in order, then the request reaches the workflow route without CSRF 403.</p>
+        </article>
+      </div>
+    </section>
+
+
+    <section>
+      <h2>Network Contract検出</h2>
+      <div class="metrics">
+        <article class="metric"><span>状態</span><strong>pass</strong><span>route contract</span></article>
+        <article class="metric"><span>API呼び出し</span><strong>0</strong><span>detected</span></article>
+        <article class="metric"><span>Route不足</span><strong>0</strong><span>block</span></article>
+        <article class="metric"><span>新規呼び出し</span><strong>0</strong><span>diff</span></article>
+      </div>
+      <div class="cards"><article class="card good"><h3>検出なし</h3><p>API client callとroute fileは整合しています。</p></article></div>
+    </section>
+
+      <section>
+        <h2>Graphify影響範囲</h2>
+
+    <div class="metrics">
+      <article class="metric"><span>Graph</span><strong>available</strong><span>.vibepro/graphify/graph.json</span></article>
+      <article class="metric"><span>一致ファイル</span><strong>2</strong><span>変更ファイル</span></article>
+      <article class="metric"><span>関連ファイル</span><strong>11</strong><span>確認候補</span></article>
+      <article class="metric"><span>Graphサイズ</span><strong>6480/13610</strong><span>nodes / edges</span></article>
+    </div>
+
+    <table>
+      <thead><tr><th>変更ファイル</th><th>一致したgraph node</th><th>確認する関連ファイル</th></tr></thead>
+      <tbody>
+        <tr><td>server/middleware/csrf.js</td><td>server_middleware_csrf_js<br>middleware_csrf_generatecsrftoken<br>middleware_csrf_validatecsrftoken<br>middleware_csrf_cleanupexpiredtokens<br>middleware_csrf_warnonceperinterval<br>middleware_csrf_hasvalidinternalapikey<br>middleware_csrf_csrfmiddleware<br>middleware_csrf_csrftokenhandler</td><td>lib/state-store.js<br>public/modules/core/http-client.js<br>public/modules/core/session-data-cache.js<br>tests/e2e/story-companion-reply-draft-api-contract.spec.ts<br>tests/e2e/story-csrf-exempt-report-activity.spec.ts<br>tests/e2e/story-eve-internal-api-csrf-exemption.spec.ts<br>tests/e2e/story-eve-meeting-candidates-pull-reconciler-owner-ssot.spec.ts<br>tests/server/routes/admin-visualization-routes.test.js<br>tests/unit/csrf-internal-api-key-exempt.test.js<br>tests/unit/csrf-report-activity-exempt.test.js</td></tr><tr><td>tests/unit/csrf-internal-api-key-exempt.test.js</td><td>tests_unit_csrf_internal_api_key_exempt_test_js<br>unit_csrf_internal_api_key_exempt_test_runmiddleware</td><td>server/middleware/csrf.js</td></tr>
+      </tbody>
+    </table>
+
+
+      </section>
+      <section>
+        <h2>変更ファイル分類</h2>
+
+    <table>
+      <thead><tr><th>分類</th><th>件数</th><th>ファイル</th></tr></thead>
+      <tbody>
+        <tr><td>story_docs</td><td>1</td><td>docs/stories/story-eve-internal-api-csrf-exemption.md</td></tr><tr><td>architecture_docs</td><td>1</td><td>docs/architecture/ADR-eve-internal-api-csrf-exemption.md</td></tr><tr><td>specifications</td><td>1</td><td>docs/specs/story-eve-internal-api-csrf-exemption.md</td></tr><tr><td>responsibility_authority_metadata</td><td>1</td><td>docs/responsibility-authority/eve-internal-api-csrf-exemption.json</td></tr><tr><td>source</td><td>1</td><td>server/middleware/csrf.js</td></tr><tr><td>tests</td><td>2</td><td>tests/e2e/story-eve-internal-api-csrf-exemption-contract.spec.ts<br>tests/unit/csrf-internal-api-key-exempt.test.js</td></tr>
+      </tbody>
+    </table>
+
+      </section>
+      <section class="grid-2">
+        <div>
+          <h2>成果物</h2>
+
+    <table>
+      <thead><tr><th>Item</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>PR body draft</td><td>.vibepro/pr/story-eve-internal-api-csrf-exemption/pr-body.md</td></tr><tr><td>Gate DAG HTML</td><td>.vibepro/pr/story-eve-internal-api-csrf-exemption/gate-dag.html</td></tr><tr><td>Split Plan HTML</td><td>.vibepro/pr/story-eve-internal-api-csrf-exemption/split-plan.html</td></tr>
+      </tbody>
+    </table>
+
+        </div>
+        <div>
+          <h2>次のコマンド</h2>
+          <div><p><code>git switch -c feat/eve-internal-api-csrf-exemption origin/develop</code></p><p><code>git cherry-pick &lt;story-related-commit-sha&gt;</code></p><p><code>npx vibepro pr create . --story-id story-eve-internal-api-csrf-exemption --base origin/develop --head feat/eve-internal-api-csrf-exemption</code></p></div>
+        </div>
+      </section>
+
+  </main>
+</body>
+</html>

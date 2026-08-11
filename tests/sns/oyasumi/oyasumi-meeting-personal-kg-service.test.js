@@ -258,7 +258,7 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
         expect(repository.list({ owner_person_id: 'sato_keigo' })).toHaveLength(first.inserted);
     });
 
-    it('S-3 makes written candidates available to SNS Generation Context', async () => {
+    it('S-3 keeps meeting-derived business claims out of public lifelog entries', async () => {
         const repository = new InMemoryCandidateRepository();
         const candidateService = new PromotionGateService({ repository });
         for (let index = 0; index < 12; index += 1) {
@@ -304,12 +304,9 @@ describe('Oyasumi meeting minutes to Personal KG', () => {
         expect(context.personal_kg.candidate_sources).toEqual(expect.arrayContaining([
             expect.objectContaining({ source_system: SOURCE_SYSTEM, count: snsReadyCount })
         ]));
-        expect(context.personal_kg.anchors).toEqual(expect.arrayContaining([
-            expect.stringContaining('AI活用支援の相談')
-        ]));
-        expect(context.personal_kg.proof_points).toEqual(expect.arrayContaining([
-            expect.stringContaining('商談化率3%から10%')
-        ]));
+        expect(context.personal_kg.lifelog_entries).toEqual([]);
+        expect(context.personal_kg.anchors).toEqual([]);
+        expect(context.personal_kg.proof_points).toEqual([]);
     });
 
     it('projects owner-only core into redacted sns_ready candidate without leaking details', () => {

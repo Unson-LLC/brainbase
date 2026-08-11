@@ -1,0 +1,149 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-decision-events-kpi-v1",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "block",
+  "summary": "現在HEADの実装検証はpass相当だが最終証跡の鮮度矛盾を検出",
+  "findings": [
+    {
+      "severity": "critical",
+      "id": "vibepro-gate-evidence-missing",
+      "detail": "最終gate_evidenceのlifecycle/result bindingが未完了"
+    },
+    {
+      "severity": "high",
+      "id": "evidence-freshness-contradiction",
+      "detail": "review requestとverification/QA artifactの時刻およびdirty状態が不一致"
+    },
+    {
+      "severity": "low",
+      "id": "managed-worktree-locality-unresolved",
+      "detail": "managed worktree localityは未確認だがrequired false"
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "reviewed gate evidence; risk_surfaces=server_api,service_orchestration,test_coverage; current implementation verification passed but final evidence freshness and lifecycle binding require repair",
+    "evidence": ".vibepro/pr/story-brainbase-decision-events-kpi-v1/verification-evidence.json",
+    "inputs": [
+      "server/services/companion/decision-event-service.js",
+      "server/routes/companion.js",
+      "scripts/send-decision-kpi-to-slack.js"
+    ]
+  },
+  "judgment_delta": [
+    "機能検証のみならpass相当から、最終gate記録欠落と証跡時刻・dirty状態の不一致によりblockへ変更"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+    "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+    "expected_root": null,
+    "expected_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+    "current_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+      "actual_root": "/private/tmp/brainbase-decision-event-global-dedupe",
+      "expected_root": null,
+      "expected_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+      "current_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-24T07:31:39.192Z",
+  "git_context": {
+    "head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+    "current_branch": "codex/decision-event-global-dedupe",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-24T07:31:39.182Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "strict_head",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "bind final gate evidence review to current release candidate"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "7fc36e0b06c53e91ebd8f8243f2ceb143ab47b55",
+    "surface_files": [
+      {
+        "path": "scripts/send-decision-kpi-to-slack.js",
+        "sha256": "80851bf9d10478be400a09e47de1cc36c3637ad1ed64794c2af333327830c217",
+        "size": 8485
+      },
+      {
+        "path": "server/routes/companion.js",
+        "sha256": "a798732f5821824f927c975e1d296e287031ab1ee3315f25ea18f9c75a88a268",
+        "size": 3012
+      },
+      {
+        "path": "server/services/companion/decision-event-service.js",
+        "sha256": "ee5fc765d6358f72bd0d97fa86251ca3699a447c59ae046c3a9caebb2ba496ed",
+        "size": 35774
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "0887b133cb46a9370faf2f72dd1308428667f408ce6201a575df439fc80f6fba"
+  },
+  "source_fingerprint": "c2a115281ffbe549d0d96b4c8bfb5a69ae0b86f3ca190cc8da1fb82499b0561f",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "019f9303-5b18-7b21-9f40-9fbce96c50e5",
+    "agent_role": null,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "cost_tier": "low",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/transcript-gate-evidence-019f9303.json",
+    "request_artifact": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-brainbase-decision-events-kpi-v1/gate/transcript-gate-evidence-019f9303.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": null,
+      "implementation_session_id": null,
+      "source": "cli_flag"
+    }
+  },
+  "agent_usage": null
+}

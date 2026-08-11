@@ -1,0 +1,12 @@
+{
+  "status": "needs_changes",
+  "agent_id": "019f5bde-1c6e-79f1-8f23-434623cdbd28",
+  "head": "25782dc2a0874294284dc0b17069205d0bd30a4b",
+  "summary": "Producer deployment is verified, but committed release documentation must require scoped redispatch and describe the verified Lightsail runtime, candidate recovery, and rollback procedure.",
+  "findings": [
+    "release-scoped-redispatch-unsafe",
+    "release-order-lightsail-ambiguous",
+    "operator-candidate-recovery-missing",
+    "rollback-disable-too-broad"
+  ]
+}

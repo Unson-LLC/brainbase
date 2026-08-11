@@ -1,0 +1,711 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-stream-replay-reader",
+  "source": "execute_merge",
+  "promoted_at": "2026-07-11T15:56:06.131Z",
+  "canonical_dir": "docs/management/audit-artifacts/story-eve-stream-replay-reader",
+  "source_workspace_dir": ".vibepro",
+  "audit_index_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-index.json",
+  "decision_summary_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/decision-summary.md",
+  "artifact_policy": {
+    "scope": "compact_manifest_only",
+    "evidence_depth": "standard",
+    "compacted": true,
+    "persisted_for_main_audit": true,
+    "why_compacted": [
+      "artifact_code_ratio_exceeded"
+    ],
+    "excludes": [
+      "duplicated decision index body",
+      "duplicated cost summary body",
+      "full PR lifecycle JSON",
+      "full review lifecycle JSON",
+      "HTML reports",
+      "raw logs",
+      "dispatch scratch artifacts",
+      "temporary execution state"
+    ]
+  },
+  "evidence_depth": "standard",
+  "cost_summary_ref": {
+    "source": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-index.json",
+    "pointer": "/cost_summary"
+  },
+  "automation_value_audit_ref": {
+    "source": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-index.json",
+    "pointer": "/automation_value_audit"
+  },
+  "replay_bundle": {
+    "schema_version": "0.1.0",
+    "path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz",
+    "compression": "gzip",
+    "media_type": "application/json",
+    "content_hash": "sha256:d9d3ff8f0450ad88c2b4d83b151014c830fe0c6579cf61c5f5cbc56d95b08c27",
+    "compressed_hash": "sha256:e6f4810f722bc6f09e37c733b138b4b907e05e8f91be4438f6a39567ede49637",
+    "expanded_bytes": 13531,
+    "compressed_bytes": 3467,
+    "expanded_line_count": 350,
+    "persisted_line_count": 1,
+    "included_artifact_kinds": [
+      "evidence_reuse",
+      "gate_dag",
+      "pr_create",
+      "pr_merge",
+      "pr_prepare",
+      "review_lifecycle",
+      "review_request",
+      "review_result",
+      "review_summary",
+      "senior_gap_judgment",
+      "traceability",
+      "verification_evidence"
+    ],
+    "replay_command": "vibepro audit replay . --story-id story-eve-stream-replay-reader",
+    "cost": {
+      "compressed_bytes": 3467,
+      "expanded_bytes": 13531,
+      "expanded_line_count": 350,
+      "persisted_line_count": 1
+    }
+  },
+  "merge": {
+    "status": "merged",
+    "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/1034",
+    "merge_commit_sha": "948c55fa454395718205b5b128c949851b275367",
+    "merged_at": "2026-07-11T15:56:04Z",
+    "current_head_sha": "c7e55cafa65b933742cadb0ca7786314daa63f94",
+    "diff_stats_status": "available",
+    "diff_stats_source": "git diff --numstat origin/develop...c7e55cafa65b933742cadb0ca7786314daa63f94"
+  },
+  "handoff_replay_status": "blocked",
+  "handoff_replay": {
+    "status": "blocked",
+    "resolved_reference_count": 44,
+    "copied_reference_count": 35,
+    "unresolved_reference_count": 6,
+    "replay_bundle": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz",
+    "replay_command": "vibepro audit replay . --story-id story-eve-stream-replay-reader"
+  },
+  "artifacts": [
+    {
+      "kind": "audit_index",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-index.json"
+    },
+    {
+      "kind": "decision_summary",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/decision-summary.md"
+    },
+    {
+      "kind": "compressed_replay_bundle",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz",
+      "compression": "gzip",
+      "content_hash": "sha256:d9d3ff8f0450ad88c2b4d83b151014c830fe0c6579cf61c5f5cbc56d95b08c27"
+    }
+  ],
+  "raw_artifact_manifest": [
+    {
+      "kind": "evidence_reuse",
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/evidence-reuse.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz",
+      "digest": "sha256:366d9637efb41abf008007aeabd1085873c2d75d09c6d07374a31edbf33ce640",
+      "audit_digest": "sha256:366d9637efb41abf008007aeabd1085873c2d75d09c6d07374a31edbf33ce640",
+      "line_count": 196,
+      "raw_line_count": 196,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "pr_prepare",
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/pr-prepare.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz",
+      "digest": "sha256:10e7a1e639f595b219ce98603efa2fe18fe4d3ad5a664e651298038de9589861",
+      "audit_digest": "sha256:001c992e3ca32c4353d3b352ca53135fc7058ff97f75c5a18e6770f78eff3dc9",
+      "line_count": 4690,
+      "raw_line_count": 16844,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_prepare.diagnostics.progress_snapshots",
+        "pr_prepare.pr_context.full_gate_dag",
+        "pr_prepare.pr_context.design_ssot_full_registry_inventory",
+        "pr_prepare.pr_context.inactive_judgment_axis_details",
+        "pr_prepare.duplicated_child_artifacts",
+        "design_ssot.unregistered_docs_full_inventory",
+        "design_ssot.registered_docs_full_inventory",
+        "responsibility_authority.full_registry_entries",
+        "requirement_consistency.verbose_code_scenarios",
+        "engineering_judgment.inactive_axis_details",
+        "engineering_judgment.verbose_matched_evidence",
+        "verification.raw_command_output",
+        "senior_gap_judgment.verbose_supporting_context",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "pr_create",
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/pr-create.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz",
+      "digest": "sha256:dc7bf999b4f55dbcf7cde405be5582abd0b171a8dadb89fb8119aca7770a3b4b",
+      "audit_digest": "sha256:2103378aa6e4ada064cb7470b13a69d19440db996aaf51958bc55f0e2f2cbec2",
+      "line_count": 2091,
+      "raw_line_count": 4437,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "gate_dag",
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/gate-dag.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz",
+      "digest": "sha256:98d1105a4f3e92a419a4f11caf346aac6bff166b95da328c87a1ef10df66b562",
+      "audit_digest": "sha256:1ff73c51cbb0309614ed4035aa1c9b601d6053d238fc7d06fd544e738cc9507d",
+      "line_count": 1970,
+      "raw_line_count": 4302,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "gate_dag.verbose_evidence_objects"
+      ]
+    },
+    {
+      "kind": "senior_gap_judgment",
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/senior-gap-judgment.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz",
+      "digest": "sha256:e713aa25a1f7f611cad995df510b8a74153b27d6ac6d491327e234c92da02ab3",
+      "audit_digest": "sha256:fe10a6595f1003d10bb50fea7c3a73f240ee70c47f1703b23e32f8e3663bfa0e",
+      "line_count": 105,
+      "raw_line_count": 905,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "senior_gap_judgment.verbose_supporting_context"
+      ]
+    },
+    {
+      "kind": "pr_merge",
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/pr-merge.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz",
+      "digest": "sha256:071eab77c4eaff9f33fa1e223fa46d47210e313291c323efd69f4c835eee34b2",
+      "audit_digest": "sha256:706b9adb8e2eb8fbfc4c39bce27787f12e5a2f207f2105471ad10a4d038fa116",
+      "line_count": 2140,
+      "raw_line_count": 4500,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "pr_lifecycle.full_gate_dag",
+        "pr_lifecycle.raw_command_output",
+        "gate_dag.verbose_evidence_objects",
+        "pr_merge.canonical_audit",
+        "pr_merge.roi_ledger_promotion"
+      ]
+    },
+    {
+      "kind": "traceability",
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/traceability.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz",
+      "digest": "sha256:377b9a07f8358f6e40079bc4b5ff10f5beb149797817bd0fec4606be7d309ab0",
+      "audit_digest": "sha256:377b9a07f8358f6e40079bc4b5ff10f5beb149797817bd0fec4606be7d309ab0",
+      "line_count": 293,
+      "raw_line_count": 293,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "verification_evidence",
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/verification-evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz",
+      "digest": "sha256:2b7daa0431e513d9d2cb6cff801febbca75e00e42a5790eac1c40e73f514335b",
+      "audit_digest": "sha256:56767be890a41c081c11940e243998cf68191cea140861bda14b0be428181152",
+      "line_count": 68,
+      "raw_line_count": 485,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": [
+        "verification.raw_command_output"
+      ]
+    },
+    {
+      "kind": "review_lifecycle",
+      "source": ".vibepro/reviews/story-eve-stream-replay-reader/gate/lifecycle.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz",
+      "digest": "sha256:4d16701357cf80c90dc51436bc5dfbf26e1ad3dbb3a8b468f829889968b11d8d",
+      "audit_digest": "sha256:4d16701357cf80c90dc51436bc5dfbf26e1ad3dbb3a8b468f829889968b11d8d",
+      "line_count": 34,
+      "raw_line_count": 34,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_request",
+      "source": ".vibepro/reviews/story-eve-stream-replay-reader/gate/review-request-gate_evidence.md",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz",
+      "digest": "sha256:69cb999132c7f051a4ded59fc4b82af562b9e863939a48548c92c5892b8a45c5",
+      "audit_digest": "sha256:69cb999132c7f051a4ded59fc4b82af562b9e863939a48548c92c5892b8a45c5",
+      "line_count": 135,
+      "raw_line_count": 135,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_result",
+      "source": ".vibepro/reviews/story-eve-stream-replay-reader/gate/review-result-gate_evidence.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz",
+      "digest": "sha256:72f2c5a95f3ca5388b64125fafaeeae4fc45b3d4f89397c51ab47671fcc4b01e",
+      "audit_digest": "sha256:72f2c5a95f3ca5388b64125fafaeeae4fc45b3d4f89397c51ab47671fcc4b01e",
+      "line_count": 161,
+      "raw_line_count": 161,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    },
+    {
+      "kind": "review_summary",
+      "source": ".vibepro/reviews/story-eve-stream-replay-reader/gate/review-summary.json",
+      "persisted": "compressed",
+      "compressed_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/audit-replay-bundle.json.gz",
+      "digest": "sha256:641a94b6cae595aa347b3a0a8f7bfc9ce4b5e87b7c5a4dcfeac8050e761e3f0d",
+      "audit_digest": "sha256:641a94b6cae595aa347b3a0a8f7bfc9ce4b5e87b7c5a4dcfeac8050e761e3f0d",
+      "line_count": 202,
+      "raw_line_count": 202,
+      "audit_scope": "judgment_evidence_v1",
+      "excluded_from_audit": []
+    }
+  ],
+  "missing_artifacts": [],
+  "resolved_references": [
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/decision-index.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/decision-records.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/decision-records.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/evidence-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/evidence-reuse.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/pr/evidence-reuse.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/gate-dag.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/gate-dag.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/gate-dag.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/pr/gate-dag.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/gate-dag.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/gate-dag.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/pr-create.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/pr/pr-create.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/pr-merge.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/pr/pr-merge.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/pr-prepare.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/pr-prepare.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/pr-prepare.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/pr/pr-prepare.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/review-cockpit.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/review-cockpit.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/senior-gap-judgment.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/pr/senior-gap-judgment.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/split-plan.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/split-plan.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/verification-evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/pr/verification-evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-stream-replay-reader/gate/history/review-result-gate_evidence-2026-07-11T15-49-15.903Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/reviews/story-eve-stream-replay-reader/gate/history/review-result-gate_evidence-2026-07-11T15-49-15.903Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-stream-replay-reader/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/reviews/story-eve-stream-replay-reader/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-stream-replay-reader/gate/review-request-gate_evidence.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/reviews/gate/review-request-gate_evidence.md",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-stream-replay-reader/gate/review-result-gate_evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/reviews/gate/review-result-gate_evidence.json",
+      "resolution": "canonical_artifact"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-stream-replay-reader/gate/transcripts/gate_evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/reviews/story-eve-stream-replay-reader/gate/transcripts/gate_evidence.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-stream-replay-reader/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/stories/story-eve-stream-replay-reader/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-stream-replay-reader/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/stories/story-eve-stream-replay-reader/tasks/tasks.md",
+      "resolution": "copied_reference"
+    }
+  ],
+  "copied_references": [
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/architecture-profile.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/architecture-profile.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/component-style-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/component-style-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/finding-review.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/finding-review.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/flow-design-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/flow-design-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/gesture-interaction-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/gesture-interaction-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/refactoring-delta.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/refactoring-delta.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/requirement-consistency.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/requirement-consistency.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/risk-register.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/risk-register.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/spec-drift.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/spec-drift.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/summary.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/summary.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/terminal-link-check-result.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/diagnostics/2026-07-11T153008Z/terminal-link-check-result.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/gate-outcomes/ledger.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/gate-outcomes/ledger.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/architecture-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/architecture-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/decision-index.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/decision-index.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/decision-records.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/decision-records.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/decision-records.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/decision-records.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/design-ssot-reconciliation.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/design-ssot-reconciliation.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/design-ssot-reconciliation.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/design-ssot-reconciliation.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/evidence-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/evidence-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/gate-dag.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/gate-dag.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/gate-dag.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/gate-dag.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/human-review.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/human-review.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/pr-body.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/pr-body.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/pr-create.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/pr-create.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/pr-merge.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/pr-merge.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/pr-prepare.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/pr-prepare.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/review-cockpit.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/review-cockpit.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/senior-gap-judgment.summary.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/senior-gap-judgment.summary.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/split-plan.html",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/split-plan.html",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/pr/story-eve-stream-replay-reader/split-plan.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/pr/story-eve-stream-replay-reader/split-plan.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-stream-replay-reader/gate/history/review-result-gate_evidence-2026-07-11T15-49-15.903Z.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/reviews/story-eve-stream-replay-reader/gate/history/review-result-gate_evidence-2026-07-11T15-49-15.903Z.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-stream-replay-reader/gate/parallel-dispatch.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/reviews/story-eve-stream-replay-reader/gate/parallel-dispatch.md",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/reviews/story-eve-stream-replay-reader/gate/transcripts/gate_evidence.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/reviews/story-eve-stream-replay-reader/gate/transcripts/gate_evidence.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-stream-replay-reader/tasks/tasks.json",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/stories/story-eve-stream-replay-reader/tasks/tasks.json",
+      "resolution": "copied_reference"
+    },
+    {
+      "source": ".vibepro/stories/story-eve-stream-replay-reader/tasks/tasks.md",
+      "canonical_path": "docs/management/audit-artifacts/story-eve-stream-replay-reader/references/vibepro/stories/story-eve-stream-replay-reader/tasks/tasks.md",
+      "resolution": "copied_reference"
+    }
+  ],
+  "unresolved_references": [
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/evidence.json",
+      "reason": "source_too_large",
+      "size_bytes": 10358031
+    },
+    {
+      "source": ".vibepro/diagnostics/2026-07-11T153008Z/static-site-check-result.md",
+      "reason": "source_too_large",
+      "size_bytes": 1487599
+    },
+    {
+      "source": ".vibepro/graphify/graph.json",
+      "reason": "source_too_large",
+      "size_bytes": 8918942
+    },
+    {
+      "source": ".vibepro/pr/",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-eve-stream-replay-reader/ia-flow-map.json",
+      "reason": "source_missing"
+    },
+    {
+      "source": ".vibepro/uiux/story-eve-stream-replay-reader/responsive-a11y-matrix.json",
+      "reason": "source_missing"
+    }
+  ]
+}

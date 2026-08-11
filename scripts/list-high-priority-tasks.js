@@ -1,61 +1,44 @@
 // 高優先度タスクリスト表示
 // Usage: node scripts/list-high-priority-tasks.js
+import { pathToFileURL } from 'node:url';
 
-const NOCODB_BASE_URL = process.env.NOCODB_BASE_URL || 'https://noco.unson.jp';
-const ADMIN_EMAIL = process.env.NOCODB_ADMIN_EMAIL || 'keigo@unson.co.jp';
-const ADMIN_PASSWORD = process.env.NOCODB_ADMIN_PASSWORD;
+import { CanonicalTaskApiClient } from './lib/canonical-task-api-client.js';
 
-if (!ADMIN_PASSWORD) {
-    console.error('Error: NOCODB_ADMIN_PASSWORD is required');
-    process.exit(1);
+const STATUS_LABELS = Object.freeze({
+    pending: '未着手',
+    in_progress: '進行中'
+});
+
+export function selectHighPriorityTasks(tasks) {
+    return tasks
+        .filter(task => task.priority === 'high' && (task.status === 'pending' || task.status === 'in_progress'))
+        .sort((a, b) => String(a.id).localeCompare(String(b.id), 'ja'));
 }
 
-const BRAINBASE_TASK_TABLE_ID = 'm7iys8m7o1abr3f';
+export async function listHighPriorityTasks({ client = new CanonicalTaskApiClient(), log = console.log } = {}) {
+    log('=== 高優先度タスク（未着手/進行中） ===\n');
 
-let JWT_TOKEN = null;
+    const highPriority = selectHighPriorityTasks(await client.listTasks());
 
-async function signin() {
-    const response = await fetch(`${NOCODB_BASE_URL}/api/v1/auth/user/signin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
-    });
-    if (!response.ok) throw new Error(`Signin failed: ${response.status}`);
-    const data = await response.json();
-    JWT_TOKEN = data.token;
-}
-
-async function fetchTasks() {
-    const response = await fetch(`${NOCODB_BASE_URL}/api/v2/tables/${BRAINBASE_TASK_TABLE_ID}/records?limit=200`, {
-        headers: { 'xc-auth': JWT_TOKEN }
-    });
-    if (!response.ok) throw new Error(`Failed to fetch tasks: ${response.status}`);
-    const data = await response.json();
-    return data.list || [];
-}
-
-async function main() {
-    console.log('=== 高優先度タスク（未着手/進行中） ===\n');
-
-    await signin();
-    console.log('✓ Authenticated\n');
-
-    const tasks = await fetchTasks();
-    const highPriority = tasks
-        .filter(t => t['優先度'] === '高' && (t['ステータス'] === '未着手' || t['ステータス'] === '進行中'))
-        .sort((a, b) => (a['番号'] || 0) - (b['番号'] || 0));
-
-    highPriority.forEach(t => {
-        console.log(`[${t['番号']}] ${t['タイトル']}`);
-        console.log(`  ステータス: ${t['ステータス']}`);
-        const desc = (t['説明'] || '').substring(0, 150);
-        if (desc) {
-            console.log(`  説明: ${desc}${(t['説明'] || '').length > 150 ? '...' : ''}`);
+    highPriority.forEach(task => {
+        log(`[${task.id}] ${task.title}`);
+        log(`  ステータス: ${STATUS_LABELS[task.status]}`);
+        const description = String(task.description || '');
+        const excerpt = description.substring(0, 150);
+        if (excerpt) {
+            log(`  説明: ${excerpt}${description.length > 150 ? '...' : ''}`);
         }
-        console.log('');
+        log('');
     });
 
-    console.log(`Total: ${highPriority.length}件`);
+    log(`Total: ${highPriority.length}件`);
+    return highPriority;
 }
 
-main().catch(console.error);
+const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isDirectRun) {
+    listHighPriorityTasks().catch(error => {
+        console.error(error);
+        process.exitCode = 1;
+    });
+}

@@ -1,0 +1,156 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-decision-records-v1",
+  "story_id": "story-eve-internal-api-csrf-exemption",
+  "updated_at": "2026-07-13T19:55:26.417Z",
+  "warnings": [],
+  "decisions": [
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783972526417-7581c057",
+      "story_id": "story-eve-internal-api-csrf-exemption",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "One reviewer can assess the seven-file change as one coherent auth-boundary decision",
+      "reason": "The middleware implementation, negative-path tests, real middleware-chain E2E, Story/Spec/ADR, and authority map are all evidence for one CSRF/auth contract. Splitting them would separate the runtime change from its safety proof; the completed gate_evidence review inspected the full seven-file scope with no findings.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/review-result-gate_evidence.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [],
+      "git_context": {
+        "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+        "current_branch": "codex/internal-api-csrf-exemption",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-13T19:55:26.416Z"
+      },
+      "recorded_at": "2026-07-13T19:55:26.417Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783972511038-ceee4c6a",
+      "story_id": "story-eve-internal-api-csrf-exemption",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_security_boundary",
+      "source_status": "needs_evidence",
+      "summary": "Threat model confirms CSRF bypass does not bypass authentication",
+      "reason": "ADR threat model, exact-key timing-safe comparison, negative-path unit tests, and production-chain E2E show that only the configured internal key skips CSRF; requireAuth independently revalidates the same key and remains the sole authority for internal_service access.",
+      "reviewer": "codex",
+      "artifact": "docs/architecture/ADR-eve-internal-api-csrf-exemption.md",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [],
+      "git_context": {
+        "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+        "current_branch": "codex/internal-api-csrf-exemption",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-13T19:55:11.034Z"
+      },
+      "recorded_at": "2026-07-13T19:55:11.038Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783971856480-aea67108",
+      "story_id": "story-eve-internal-api-csrf-exemption",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:split_resolution",
+      "source_status": "needs_review",
+      "summary": "Keep the seven-file change as one atomic security-boundary PR",
+      "reason": "The middleware change, negative-path tests, production-chain E2E, Story/Spec/ADR, and authority map describe one reviewable CSRF/auth boundary; splitting would detach implementation from required security evidence.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/pr/story-eve-internal-api-csrf-exemption/split-plan.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [],
+      "git_context": {
+        "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+        "current_branch": "codex/internal-api-csrf-exemption",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-13T19:44:16.476Z"
+      },
+      "recorded_at": "2026-07-13T19:44:16.481Z"
+    },
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783971238700-d7090b68",
+      "story_id": "story-eve-internal-api-csrf-exemption",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:pr_scope_judgment",
+      "source_status": "needs_split",
+      "summary": "認証境界の実装・契約・証拠を単一PRでレビューする",
+      "reason": "変更7ファイルはCSRF認証境界の実装、同一境界のunit/E2E契約、Story/Spec/ADR/authority証拠からなる1つの原子的判断であり、分割するとコードと安全性証拠が別PRになってレビュー不能になるためbundled scopeを採用する",
+      "reviewer": "codex",
+      "artifact": ".vibepro/pr/story-eve-internal-api-csrf-exemption/split-plan.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [],
+      "git_context": {
+        "head_sha": "8038f96d0a87bdc6cbc01a4d2f4b9e21b80dad19",
+        "current_branch": "codex/internal-api-csrf-exemption",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-13T19:33:58.700Z"
+      },
+      "recorded_at": "2026-07-13T19:33:58.701Z"
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "open": 0,
+    "by_type": {
+      "needs_review": 4
+    },
+    "by_status": {
+      "accepted": 4
+    },
+    "warnings": [],
+    "latest": {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1783972526417-7581c057",
+      "story_id": "story-eve-internal-api-csrf-exemption",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": "gate:judgment_axis_scope_reviewability",
+      "source_status": "needs_evidence",
+      "summary": "One reviewer can assess the seven-file change as one coherent auth-boundary decision",
+      "reason": "The middleware implementation, negative-path tests, real middleware-chain E2E, Story/Spec/ADR, and authority map are all evidence for one CSRF/auth contract. Splitting them would separate the runtime change from its safety proof; the completed gate_evidence review inspected the full seven-file scope with no findings.",
+      "reviewer": "codex",
+      "artifact": ".vibepro/reviews/story-eve-internal-api-csrf-exemption/gate/review-result-gate_evidence.json",
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [],
+      "git_context": {
+        "head_sha": "d7b7e9e764614599ec1eb5180c466053247bd6ec",
+        "current_branch": "codex/internal-api-csrf-exemption",
+        "dirty": false,
+        "status_fingerprint": "",
+        "recorded_at": "2026-07-13T19:55:26.416Z"
+      },
+      "recorded_at": "2026-07-13T19:55:26.417Z"
+    }
+  },
+  "artifact": ".vibepro/pr/story-eve-internal-api-csrf-exemption/decision-records.json"
+}

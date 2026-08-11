@@ -1,0 +1,11 @@
+{
+  "agent_id": "019f5ca9-a74d-7302-b728-3d3bd0dace92",
+  "head_sha": "edf835544202795b3f1efcfd040d859d3c0c2676",
+  "roles": ["planning_spec/architecture_boundary", "requirement/scope_risk", "architecture_spec/spec_consistency", "test_plan/e2e_ux", "implementation/runtime_contract", "gate/pr_split_scope", "preview/network_runtime"],
+  "status": "needs_changes",
+  "finding": {
+    "severity": "medium",
+    "id": "raw-status-session-ended-without-note",
+    "detail": "EveMeetingNoteReconciler persists reason=session_ended_without_note, but eveReconciliationLabel does not translate it and the E2E surface does not cover that blocked path."
+  }
+}

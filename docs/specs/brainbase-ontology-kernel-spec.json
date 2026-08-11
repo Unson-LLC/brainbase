@@ -1,0 +1,205 @@
+{
+  "schema_version": "0.1.0",
+  "spec_id": "SPEC-BRAINBASE-ONTOLOGY-KERNEL",
+  "story_id": "story-brainbase-ontology-kernel",
+  "version": "1.0.0",
+  "status": "accepted",
+  "architecture_ref": "docs/architecture/ADR-021-brainbase-ontology-kernel.md",
+  "diagrams": [
+    {
+      "kind": "state",
+      "title": "Ontology release lifecycle",
+      "format": "mermaid",
+      "source": "stateDiagram-v2\n    [*] --> Proposed: immutable release commit\n    Proposed --> Approved: Accountable Decision and signed receipt\n    Approved --> Active: publisher updates current and compatibility view\n    Active --> Retired: a later approved release becomes current"
+    },
+    {
+      "kind": "threat_model",
+      "title": "Publication authority trust boundaries",
+      "format": "mermaid",
+      "source": "flowchart LR\n    Caller[Authenticated caller] --> Authority[Graph authority endpoint]\n    Authority --> Decision[Decision and Accountable RACI]\n    Authority --> Signer[Ed25519 signer secret]\n    Signer --> Receipt[Signed publication receipt]\n    Verifier[CI history and signature verifier] --> Receipt"
+    }
+  ],
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "Immutable Ontology releases and every definition are machine-readable by stable ID and resolvable by current, version, or as-of; when no active current exists, only explicit-version proposed readback is available and current resolution fails explicitly; invalid manifests fail loudly.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "current Ontology version and definitions are readable" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "Unknown entity types, relation types, and disallowed relation endpoints are rejected with rule-ID violations before generic Graph persistence.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "invalid relations are rejected before canonical Graph persistence" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "Atomic commits prevent Apps without an owner organization and active Decisions without a decider or scope; incomplete DB audits are unverified, never zero violations.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "shared semantic constraints and dry-run audit" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "Only an explicit effective supersedes edge resolves a current Decision; unrelated active Decisions remain a conflict with traceable evidence.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "Decision supersession is reproducible" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    },
+    {
+      "id": "C-006",
+      "type": "contract",
+      "statement": "Ontology evolution follows SemVer, preserves immutable historical releases and canonical identity, and resolves past facts by recorded version or as-of time.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "versioned evolution and history interpretation" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "Info SSOT callers with a valid access context can read current or historical definitions, dry-run, run bounded DB audits, atomically commit aggregates, infer decisions, and analyze impact; without an active current, explicit-version caller snapshots may be validated, inferred, or impact-analyzed, while DB audit and commit remain unavailable.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "API or MCP readback" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "The MCP Core and Extension type projection remains compatible and existing Graph facts are not automatically modified.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "Core and Extension compatibility" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "Only an Ontology release approved by the accountable Graph RACI actor and applied with evidence can become canonical active.",
+      "origin": { "story_refs": [{ "kind": "acceptance_criteria", "text": "Ontology release governance is linked to RACI" }], "architecture_refs": [{ "file": "docs/architecture/ADR-021-brainbase-ontology-kernel.md" }] }
+    }
+  ],
+  "requirements": [
+    {
+      "id": "ONT-001",
+      "title": "Manifest readback",
+      "shall": [
+        "Immutable releases expose version, previous version, effective date, initial_status proposed, compatibility, migration, and rollback metadata; effective lifecycle status is derived from receipts and the index",
+        "Each index release entry stores sha256 metadata for the full bytes of its release file, and the digest is not embedded in that release file",
+        "The release index resolves current, explicit version, and as-of requests; absent current returns ONTOLOGY_CURRENT_UNAVAILABLE while explicit version can read a proposed release",
+        "Types, relations, constraints, inference rules, and change rules are addressable by stable IDs",
+        "An invalid manifest fails loudly at kernel construction"
+      ]
+    },
+    {
+      "id": "ONT-002",
+      "title": "Type and relation vocabulary",
+      "shall": [
+        "Registered types expose meaning and identity boundaries",
+        "Registered relations expose endpoint types, direction, cardinality, inverse or symmetry, lifecycle, and provenance",
+        "Unknown types, relations, and invalid endpoints produce rule-ID violations"
+      ]
+    },
+    {
+      "id": "ONT-003",
+      "title": "Constraints and dry-run audit",
+      "shall": [
+        "An atomic commit containing an app without an owner org is rejected and rolled back",
+        "An active decision without a decider or scope is invalid",
+        "Entity, edge, and snapshot validation never persists data",
+        "A DB-backed audit proves access scope and pagination completeness",
+        "Missing or partial audit input returns unverified rather than zero violations"
+      ]
+    },
+    {
+      "id": "ONT-004",
+      "title": "Decision inference",
+      "shall": [
+        "Explicit effective supersedes edges resolve the current decision",
+        "Unrelated active decisions remain a conflict",
+        "Inference returns rule ID, ontology version, evidence, as-of time, and explanation"
+      ]
+    },
+    {
+      "id": "ONT-005",
+      "title": "Evolution, history, and impact",
+      "shall": [
+        "Breaking, additive, and patch changes map to SemVer",
+        "Rename, merge, and dedup rules preserve canonical identity and provenance",
+        "Past facts resolve using recorded versions or immutable as-of releases",
+        "Impact reports distinguish evaluated snapshots from unverified input"
+      ]
+    },
+    {
+      "id": "ONT-006",
+      "title": "Info SSOT API",
+      "shall": [
+        "Authenticated callers can read current, explicit-version, and as-of manifests and definitions, with absent current returning 404 ONTOLOGY_CURRENT_UNAVAILABLE",
+        "Without active current, explicit-version caller snapshots are allowed for validate, infer, and impact, but versionless calls, DB-backed audit, and graph commit return 503 ONTOLOGY_CURRENT_UNAVAILABLE",
+        "Authenticated callers can dry-run validation, run bounded DB audits, infer decisions, and analyze impact",
+        "Atomic entity-plus-edge commits reject all semantic violations transactionally, and return 503 ONTOLOGY_CURRENT_UNAVAILABLE when no active current exists",
+        "Generic split Graph writes reject unknown types, relations, and endpoints before persistence when current is active; without current all existing runtime Graph writes preserve legacy behavior and must add guard_status inactive_no_current to every successful response rather than relying only on internal audit",
+        "POST /api/info/ontology/publications/authorize derives the actor from authenticated personId and accepts release_version, source_commit_sha, release_digest, decision_id, scope_entity_id, impact_scope, proposer_entity_id, decider_entity_id, and applier_entity_id",
+        "The publication authority endpoint returns a canonical Ed25519 receipt and fails with 400, 401, 403, 404, 409, or 503 for its specified validation, authentication, authority, decision, binding, or dependency failures"
+      ]
+    },
+    {
+      "id": "ONT-007",
+      "title": "Compatibility",
+      "shall": [
+        "MCP Core and Extension type projection remains compatible",
+        "Existing specialized relation names are registered",
+        "Existing graph facts are not automatically modified",
+        "Public IDs, storage types, visibility, aliases, depends_on, ownerless legacy app creation, Companion people writes, and specialized write paths have compatibility fixtures"
+      ]
+    },
+    {
+      "id": "ONT-008",
+      "title": "Release governance",
+      "shall": [
+        "Immutable release files remain initial_status proposed while effective lifecycle status is derived as proposed, approved, active, or retired from receipts and the index",
+        "Proposer, decider, and applier identities plus RACI scope and decision evidence are recorded",
+        "An unapproved release cannot become current",
+        "The sole publisher runs on a clean source commit and validates its SHA, the sha256 of the full release-file bytes, Graph RACI, decision evidence that explicitly approves the version digest and source commit, and applier identity, then stores the digest in the index entry",
+        "The verification gate rejects manual current changes, modified or deleted published releases, and reused versions",
+        "The PR workflow fetches complete Git history, passes base and head SHAs, and fails closed when the base or source commit object cannot be resolved",
+        "A Graph authority endpoint binds the authenticated person principal to the release applier, scope, Accountable RACI, and a decision whose payload explicitly matches the release version source commit SHA and release digest, then returns an Ed25519-signed canonical receipt",
+        "The publisher generates the signed receipt, current index, and compatibility pointer view in one operation, and verification rejects receipt or view drift",
+        "On a publication PR the publication commit immediately follows the signed source commit and changes only the receipt index and compatibility pointer view; after merge the verifier accepts a merge commit only when that source and direct-child publication pair remain reachable and rejects squash or rebase history that removes the pair"
+      ]
+    }
+  ],
+  "legacy_write_surface_matrix": [
+    { "path": "POST /graph/entities and /graph/edges", "types": ["manifest_registered"], "relations": ["depends_on", "manifest_registered"], "v1": "generic_guard_with_ownerless_app_split_write_compatibility" },
+    { "path": "POST /decisions", "types": ["decision"], "relations": ["belongs_to_project", "owned_by", "member_of"], "v1": "specialized_path_manifest_contract" },
+    { "path": "POST /raci", "types": ["raci", "raci_assignment"], "relations": ["belongs_to_project", "assigned_to", "member_of"], "v1": "public_storage_projection_contract" },
+    { "path": "POST /glossary", "types": ["glossary_term"], "relations": ["belongs_to_project"], "v1": "specialized_path_manifest_contract" },
+    { "path": "POST /kpi", "types": ["kpi"], "relations": ["belongs_to_project"], "v1": "internal_type_manifest_contract" },
+    { "path": "POST /initiative", "types": ["initiative"], "relations": ["belongs_to_project", "owned_by", "member_of"], "v1": "internal_type_manifest_contract" },
+    { "path": "POST /ai/query", "types": ["ai_query"], "relations": ["belongs_to_project", "requested_by", "member_of"], "v1": "internal_type_manifest_contract" },
+    { "path": "POST /ai/decision-log", "types": ["ai_decision"], "relations": ["belongs_to_project", "made_by", "references", "member_of"], "v1": "internal_type_manifest_contract" },
+    { "path": "POST /events", "types": [], "relations": [], "v1": "not_applicable_no_graph_write" },
+    { "path": "POST /api/companion/people", "types": ["person", "project"], "relations": ["member_of"], "v1": "runtime_writer_manifest_inventory_guard_and_required_inactive_no_current_response" },
+    { "path": "POST /api/learning/memory-candidates/:id/promote-to-graph", "types": ["person", "project", "org", "customer", "decision", "raci_assignment", "philosophy", "glossary_term"], "relations": [], "v1": "runtime_direct_writer_manifest_inventory_guard" },
+    { "path": "scripts/info-ssot-migrate-codex.js", "types": ["migration_inventory"], "relations": ["compatibility_inventory"], "v1": "inventory_verify_only" },
+    { "path": "scripts/{info-ssot-sync-slack-auth.js,local-data-server-ssot-upsert.js,merge-duplicate-people.mjs,migrate_contacts_to_graph.py,normalize-graph-data-ssot.mjs,seed-sato-personal-records.js,upsert-app-environments.mjs}", "types": ["script_specific"], "relations": ["script_specific"], "v1": "seven_known_sql_helper_and_http_writers_deferred_with_inventory_finding" },
+    { "path": "server/**/*.{js,mjs} and scripts/**/*.{js,mjs,py}", "types": ["detected_graph_writer"], "relations": ["detected_graph_writer"], "v1": "bidirectional_sql_helper_and_http_writer_scan_fails_for_unclassified_writer_or_stale_allowlist" }
+  ],
+  "test_plan": [
+    "manifest-contract",
+    "validation-contract",
+    "constraint-contract",
+    "decision-inference-contract",
+    "evolution-impact-contract",
+    "info-ssot-integration",
+    "bounded-db-audit",
+    "historical-release-resolution",
+    "raci-publication-gate",
+    "legacy-write-compatibility-matrix",
+    "publication-integrity",
+    "package-command-and-ci-wiring",
+    "missing-base-object-fail-closed",
+    "publisher-authenticated-applier-and-signed-receipt",
+    "publication-source-commit-non-self-reference",
+    "publication-authority-http-contract",
+    "compatibility-view-drift",
+    "http-writer-inventory",
+    "specialized-ai-write-runtime-contract",
+    "manifest-resolver-boundary-fixtures",
+    "kernel-result-contract-assertions",
+    "current-absence-db-spy-and-rollback-counts",
+    "signed-receipt-positive-contract",
+    "publication-current-lifecycle-integration",
+    "publisher-cli-error-visibility"
+  ]
+}

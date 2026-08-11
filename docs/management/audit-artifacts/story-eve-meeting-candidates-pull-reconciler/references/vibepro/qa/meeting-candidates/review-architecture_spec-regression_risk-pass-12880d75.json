@@ -1,0 +1,18 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "architecture_spec",
+  "role": "regression_risk",
+  "status": "pass",
+  "head_sha": "12880d75b68f2b12f500e09bee5cccc314564c17",
+  "agent_id": "019f5ae7-3349-70d0-9c6d-43f04b8a9ce2",
+  "summary": "Exact-scope candidate reconciliation, mixed mismatch accounting, note-primary close semantics, SSOT-only owner resolution, and Brainbase approval boundaries remain intact at the exact HEAD.",
+  "inspection": "Inspected the review request, Story and Architecture SSOT, reconciler, workflow service, meeting source sync, Mission Control UI, focused unit and E2E tests, and the exact latest commit delta.",
+  "judgment_delta": "Initial concern about exact-scope fallback, mixed-session mismatch visibility, and note-only close regressions -> pass because exact-scope filtering, retained mismatch counts, UI surfacing, note-primary completion, and People SSOT approval boundaries are covered by implementation and tests.",
+  "findings": [],
+  "resolved_findings": [
+    "candidate-package-fallback-broken",
+    "scope-mismatch-not-distinguishable-on-output-surface",
+    "ux-mismatch-count-drops-on-mixed-session"
+  ]
+}

@@ -13,6 +13,11 @@ import {
     shouldCreateSkillCandidate,
     shouldCreateWikiCandidate
 } from '../../../server/services/learning-service.js';
+import { OntologyRegistry } from '../../../server/services/ontology-registry.js';
+import {
+    createProposedOntologyFixture,
+    createSignedActiveOntologyFixture
+} from '../../helpers/ontology-test-fixtures.js';
 
 describe('learning-service helpers', () => {
     it('wiki document type を canonical 種別へ分類する', () => {
@@ -156,6 +161,7 @@ describe('LearningService', () => {
     let selectQueue;
     let wikiService;
     let repoRoot;
+    let ontologyFixtures;
 
     beforeEach(() => {
         selectQueue = [];
@@ -164,6 +170,7 @@ describe('LearningService', () => {
             setPageAccess: vi.fn(async () => ({ success: true }))
         };
         repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bb-learning-service-'));
+        ontologyFixtures = [];
         pool = {
             query: vi.fn(async (sql) => {
                 if (sql.includes('CREATE TABLE') || sql.includes('ALTER TABLE') || sql.includes('CREATE INDEX')) {
@@ -176,6 +183,7 @@ describe('LearningService', () => {
                 return { rows: [], rowCount: 1 };
             })
         };
+        pool.connect = vi.fn(async () => ({ query: pool.query, release: vi.fn() }));
         service = new LearningService({ pool, wikiService, repoRoot });
     });
 
@@ -183,6 +191,7 @@ describe('LearningService', () => {
         if (repoRoot && fs.existsSync(repoRoot)) {
             fs.rmSync(repoRoot, { recursive: true, force: true });
         }
+        for (const fixture of ontologyFixtures) fixture.cleanup();
     });
 
     it('recordEpisode validates review/explicit_learn and inserts normalized fields', async () => {
@@ -308,7 +317,7 @@ describe('LearningService', () => {
         expect(fs.existsSync(path.join(repoRoot, '.claude/skills/recovery/SKILL.md'))).toBe(false);
     });
 
-    it('proposePromotions can auto-apply when explicitly requested', async () => {
+    it('keeps Wiki candidates manual while auto-applying eligible skill candidates', async () => {
         selectQueue.push([
             {
                 id: 'lep_auto',
@@ -333,8 +342,12 @@ describe('LearningService', () => {
         const result = await service.proposePromotions({ applyMode: 'auto' });
 
         expect(result).toHaveLength(2);
-        expect(result.every((candidate) => candidate.status === 'applied')).toBe(true);
-        expect(wikiService.savePage).toHaveBeenCalled();
+        expect(result.find((candidate) => candidate.pillar === 'skill')?.status).toBe('applied');
+        expect(result.find((candidate) => candidate.pillar === 'wiki')).toMatchObject({
+            status: 'evaluated',
+            apply_mode: 'manual'
+        });
+        expect(wikiService.savePage).not.toHaveBeenCalled();
         expect(fs.existsSync(path.join(repoRoot, '.claude/skills/recovery/SKILL.md'))).toBe(true);
     });
 
@@ -605,7 +618,7 @@ describe('LearningService', () => {
         expect(candidate.outcome).toBe('success');
     });
 
-    it('applyPromotion writes wiki and skill candidates through service handlers', async () => {
+    it('applyPromotion preserves Wiki candidates without writing retired storage', async () => {
         selectQueue.push([
             {
                 id: 'prm_apply',
@@ -643,8 +656,15 @@ describe('LearningService', () => {
 
         const result = await service.applyPromotion('prm_apply');
 
-        expect(result.success).toBe(true);
-        expect(wikiService.savePage).toHaveBeenCalled();
+        expect(result).toMatchObject({
+            success: false,
+            retired: true,
+            candidate: {
+                status: 'evaluated',
+                apply_mode: 'manual'
+            }
+        });
+        expect(wikiService.savePage).not.toHaveBeenCalled();
     });
 
     it('recordSkillUsage呼び出し時_skill_usage_logs に INSERT される', async () => {
@@ -687,5 +707,201 @@ describe('LearningService', () => {
         expect(result[0].skill_name).toBe('old-skill');
         expect(result[0].uses).toBe(3);
         expect(result[0].stale_threshold_days).toBe(90);
+    });
+
+    it('promoteMemoryCandidateToGraphは全mapped typeを分類しguard付きで返し未知型を拒否する', async () => {
+        const ontologyFixture = createProposedOntologyFixture(process.cwd());
+        ontologyFixtures.push(ontologyFixture);
+        service.ontologyRegistry = new OntologyRegistry({ rootDir: ontologyFixture.rootDir });
+        vi.spyOn(service, 'ensureSchema').mockResolvedValue();
+        vi.spyOn(service, '_transitionMemoryCandidate').mockResolvedValue({ success: true });
+        const getMemoryCandidate = vi.spyOn(service, 'getMemoryCandidate');
+        const mappedTypes = ['person', 'project', 'org', 'customer', 'decision', 'raci_assignment', 'philosophy', 'glossary_term'];
+        for (const subjectType of mappedTypes) {
+            getMemoryCandidate.mockResolvedValueOnce({
+                id: `candidate_${subjectType}`,
+                subject_type: subjectType,
+                promotion_status: 'approved',
+                redaction_status: 'none',
+                role_min: 'member',
+                sensitivity: 'internal',
+                source_event_ids: [],
+                evidence_ids: [],
+                permission_snapshot: {},
+                owner_person_id: 'person_owner',
+                memory: { summary: subjectType }
+            });
+            const result = await service.promoteMemoryCandidateToGraph(`candidate_${subjectType}`, {
+                actor_person_id: 'person_owner',
+                access: { role: 'member', projectCodes: [] }
+            });
+            expect(result).toMatchObject({
+                success: true,
+                guard_status: 'inactive_no_current',
+                ontology_version: null,
+                graph_entity: { entity_type: subjectType }
+            });
+        }
+        getMemoryCandidate.mockResolvedValueOnce({
+            id: 'candidate_unknown',
+            subject_type: 'unregistered_type',
+            promotion_status: 'approved',
+            redaction_status: 'none',
+            owner_person_id: 'person_owner'
+        });
+        await expect(service.promoteMemoryCandidateToGraph('candidate_unknown', {
+            actor_person_id: 'person_owner',
+            access: { role: 'member', projectCodes: [] }
+        }))
+            .rejects.toThrow('cannot be promoted to graph');
+    });
+
+    it('promoteMemoryCandidateToGraphはactive Ontology違反をGraph永続化前に拒否する', async () => {
+        const ontologyFixture = createSignedActiveOntologyFixture(process.cwd());
+        ontologyFixtures.push(ontologyFixture);
+        service.ontologyRegistry = new OntologyRegistry({
+            rootDir: ontologyFixture.rootDir,
+            publicKeyPem: ontologyFixture.publicKeyPem
+        });
+        vi.spyOn(service, 'ensureSchema').mockResolvedValue();
+        vi.spyOn(service, 'getMemoryCandidate').mockResolvedValue({
+            id: 'candidate_active_decision_without_authority',
+            subject_type: 'decision',
+            promotion_status: 'approved',
+            redaction_status: 'none',
+            role_min: 'member',
+            sensitivity: 'internal',
+            source_event_ids: [],
+            evidence_ids: [],
+            permission_snapshot: {},
+            owner_person_id: 'person_owner',
+            memory: {
+                title: 'authorityを欠くactive decision',
+                status: 'active'
+            }
+        });
+        const transition = vi.spyOn(service, '_transitionMemoryCandidate');
+
+        await expect(service.promoteMemoryCandidateToGraph('candidate_active_decision_without_authority', {
+            actor_person_id: 'person_owner',
+            access: { role: 'member', projectCodes: [] }
+        }))
+            .rejects.toMatchObject({
+                code: 'ONTOLOGY_VALIDATION_FAILED',
+                details: {
+                    ontology_version: '1.0.0',
+                    violations: expect.arrayContaining([
+                        expect.objectContaining({ rule_id: 'CON-DECISION-DECIDER-001' }),
+                        expect.objectContaining({ rule_id: 'CON-DECISION-SCOPE-001' })
+                    ])
+                }
+            });
+        expect(pool.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO projects'))).toBe(false);
+        expect(pool.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO graph_entities'))).toBe(false);
+        expect(transition).not.toHaveBeenCalled();
+    });
+
+    it('promoteMemoryCandidateToGraphはactive Ontologyに適合するentityを昇格する', async () => {
+        const ontologyFixture = createSignedActiveOntologyFixture(process.cwd());
+        ontologyFixtures.push(ontologyFixture);
+        service.ontologyRegistry = new OntologyRegistry({
+            rootDir: ontologyFixture.rootDir,
+            publicKeyPem: ontologyFixture.publicKeyPem
+        });
+        vi.spyOn(service, 'ensureSchema').mockResolvedValue();
+        vi.spyOn(service, 'getMemoryCandidate').mockResolvedValue({
+            id: 'candidate_valid_person',
+            subject_type: 'person',
+            promotion_status: 'approved',
+            redaction_status: 'none',
+            role_min: 'member',
+            sensitivity: 'internal',
+            source_event_ids: [],
+            evidence_ids: [],
+            permission_snapshot: {},
+            owner_person_id: 'person_owner',
+            memory: { name: 'Ontology適合人物' }
+        });
+        vi.spyOn(service, '_transitionMemoryCandidate').mockResolvedValue({ success: true });
+
+        await expect(service.promoteMemoryCandidateToGraph('candidate_valid_person', {
+            actor_person_id: 'person_owner',
+            access: { role: 'member', projectCodes: [] }
+        }))
+            .resolves.toMatchObject({
+                success: true,
+                guard_status: 'active_current',
+                ontology_version: '1.0.0',
+                graph_entity: {
+                    entity_type: 'person',
+                    payload: { name: 'Ontology適合人物' }
+                }
+            });
+        expect(pool.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO graph_entities'))).toBe(true);
+    });
+
+    it('promoteMemoryCandidateToGraphはproject外またはowner権限外のcallerを拒否する', async () => {
+        vi.spyOn(service, 'ensureSchema').mockResolvedValue();
+        vi.spyOn(service, 'getMemoryCandidate').mockResolvedValue({
+            id: 'candidate_scoped',
+            subject_type: 'person',
+            promotion_status: 'approved',
+            redaction_status: 'none',
+            project_code: 'brainbase',
+            owner_person_id: 'person_owner',
+            role_min: 'member',
+            sensitivity: 'internal',
+            source_event_ids: [],
+            evidence_ids: [],
+            permission_snapshot: {},
+            memory: { name: 'Scoped' }
+        });
+
+        await expect(service.promoteMemoryCandidateToGraph('candidate_scoped', {
+            actor_person_id: 'person_owner',
+            access: { role: 'member', projectCodes: ['other'] }
+        })).rejects.toThrow('promotion project access denied');
+        await expect(service.promoteMemoryCandidateToGraph('candidate_scoped', {
+            actor_person_id: 'person_other',
+            access: { role: 'member', projectCodes: ['brainbase'] }
+        })).rejects.toThrow('promotion owner authority denied');
+        expect(pool.connect).not.toHaveBeenCalled();
+    });
+
+    it('promoteMemoryCandidateToGraphはaudit失敗時にGraph writeもrollbackする', async () => {
+        vi.spyOn(service, 'ensureSchema').mockResolvedValue();
+        vi.spyOn(service, 'getMemoryCandidate').mockResolvedValue({
+            id: 'candidate_atomic',
+            subject_type: 'person',
+            promotion_status: 'approved',
+            redaction_status: 'none',
+            project_code: 'brainbase',
+            owner_person_id: 'person_owner',
+            recommended_owner_person_id: 'person_decider',
+            role_min: 'member',
+            sensitivity: 'internal',
+            source_event_ids: [],
+            evidence_ids: [],
+            permission_snapshot: {},
+            memory: { name: 'Atomic' }
+        });
+        const query = vi.fn(async (sql, params) => {
+            if (sql.includes('INSERT INTO memory_candidate_audit_logs')) throw new Error('audit unavailable');
+            return { rows: [], rowCount: 1, params };
+        });
+        const release = vi.fn();
+        pool.connect.mockResolvedValueOnce({ query, release });
+
+        await expect(service.promoteMemoryCandidateToGraph('candidate_atomic', {
+            actor_person_id: 'person_operator',
+            access: { role: 'gm', projectCodes: ['brainbase'] },
+            decision_owner_person_id: 'spoofed_owner'
+        })).rejects.toThrow('audit unavailable');
+        expect(query.mock.calls.some(([sql]) => sql.includes('INSERT INTO graph_entities'))).toBe(true);
+        expect(query).toHaveBeenCalledWith('ROLLBACK');
+        expect(query.mock.calls.some(([sql]) => sql === 'COMMIT')).toBe(false);
+        const auditCall = query.mock.calls.find(([sql]) => sql.includes('INSERT INTO memory_candidate_audit_logs'));
+        expect(auditCall[1][3]).toBe('person_decider');
+        expect(release).toHaveBeenCalledOnce();
     });
 });

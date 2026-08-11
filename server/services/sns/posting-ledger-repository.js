@@ -132,6 +132,7 @@ function evidenceFromDraft(draft) {
     return {
         persona_brain: draft.persona_brain || {},
         algorithm_fit: draft.algorithm_fit || null,
+        lifelog_check: draft.lifelog_check || draft.safety?.lifelog_integrity || null,
         generation_context_evidence: draft.generation_context_evidence || null,
         graph_check: draft.graph_check || {
             status: 'ok',
@@ -139,7 +140,10 @@ function evidenceFromDraft(draft) {
             derived_from: Array.isArray(draft.derived_from) ? draft.derived_from : []
         },
         quality_gate: draft.quality_gate || {
-            status: draft.safety?.persona_affect?.decision === 'blocked' ? 'blocked' : 'pass',
+            status: (draft.safety?.lifelog_integrity?.decision || draft.safety?.persona_affect?.decision) === 'blocked'
+                ? 'blocked'
+                : 'pass',
+            lifelog_integrity: draft.safety?.lifelog_integrity || null,
             persona_affect: draft.safety?.persona_affect || null,
             requires_human_review: draft.safety?.requires_human_review !== false
         },

@@ -1,0 +1,9 @@
+{
+  "status": "needs_changes",
+  "reviewed_head": "e609b7bfbd9b96c641bfffa9e40c524fb8408bf9",
+  "summary": "Agent response arrived after the VibePro lifecycle timeout. It identified a unit evidence hash mismatch and an MCP result attributed to the wrong artifact.",
+  "finding_ids": [
+    "unit-evidence-artifact-binding-mismatch"
+  ],
+  "superseded_by_head": "5c66399ddca207c08d50d17b55014be947624516"
+}

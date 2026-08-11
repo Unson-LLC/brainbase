@@ -37,6 +37,43 @@ describe('Slack auth routes', () => {
         });
     });
 
+    it('GET /api/auth/slack/callback exposes the verified Slack workspace, not a legacy workspace slug', async () => {
+        const authService = {
+            slackMode: 'oauth',
+            accessTtlSeconds: 3600,
+            refreshTtlSeconds: 3600,
+            assertReady: vi.fn(),
+            consumeState: vi.fn(() => ({ ok: true, origin: 'https://bb.unson.jp' })),
+            exchangeCode: vi.fn(async () => ({ ok: true, authed_user: { id: 'U123' }, team: { id: 'T123' } })),
+            resolveSlackIdentity: vi.fn(() => ({ slackUserId: 'U123', slackWorkspaceId: 'T123' })),
+            findUserBySlackId: vi.fn(async () => ({
+                person_id: 'per_001',
+                slack_user_id: 'U123',
+                access_level: 'admin',
+                employment_type: 'internal',
+                role: 'gm',
+                project_codes: ['brainbase'],
+                clearance: ['internal'],
+                workspace_id: 'unson',
+                name: 'Admin User'
+            })),
+            issueToken: vi.fn(() => 'jwt-token'),
+            issueRefreshToken: vi.fn(() => 'refresh-token'),
+            createAuditLog: vi.fn(async () => {}),
+            resolveRedirectUri: vi.fn(() => 'https://bb.unson.jp/api/auth/slack/callback')
+        };
+        const app = createApp(authService);
+
+        const res = await request(app)
+            .get('/api/auth/slack/callback')
+            .query({ code: 'code-123', state: 'state-123' })
+            .set('Accept', 'application/json')
+            .expect(200);
+
+        expect(authService.findUserBySlackId).toHaveBeenCalledWith('U123', 'T123');
+        expect(res.body.access.workspaceId).toBe('T123');
+    });
+
     it('GET /api/auth/slack/callback uses state redirect for same-window admin login fallback', async () => {
         const authService = {
             slackMode: 'oauth',

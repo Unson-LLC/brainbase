@@ -4,9 +4,6 @@ import { execFileSync } from 'node:child_process';
 const DEFAULT_BASE_REF = 'origin/develop';
 
 export const GRAPHIFY_REQUIRED_PATTERNS = [
-  /^server\/services\/session-core\//,
-  /^server\/services\/session-activity-ws-service\.js$/,
-  /^server\/controllers\/session\//,
   /^public\/modules\/session-indicators\.js$/,
   /^public\/modules\/session-ui-state\.js$/,
   /^public\/modules\/core\/session-activity-ws-client\.js$/,
@@ -14,9 +11,6 @@ export const GRAPHIFY_REQUIRED_PATTERNS = [
   /^public\/modules\/core\/store\.js$/,
   /^public\/modules\/core\/event-bus\.js$/,
   /^public\/modules\/terminal\//,
-  /^server\/services\/terminal-/,
-  /^scripts\/codex-pty-shim\.py$/,
-  /^scripts\/codex-hooks-activity\.sh$/,
   /^\.claude\/scripts\/hooks\//,
 ];
 

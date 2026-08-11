@@ -6,7 +6,7 @@
 /**
  * 優先度ラベルマッピング（英語→日本語）
  */
-export const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' };
+export const PRIORITY_LABELS = { urgent: '緊急', high: '高', medium: '中', low: '低' };
 
 /**
  * 優先度ラベルを日本語で取得

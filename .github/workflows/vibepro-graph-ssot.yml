@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -36,6 +38,11 @@ jobs:
 
       - name: Run Graph SSOT checker unit tests
         run: npm run test:run -- tests/unit/vibepro-graph-ssot-check.test.js
+
+      - name: Verify Ontology release integrity
+        env:
+          ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY: ${{ secrets.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY }}
+        run: npm run ontology:verify -- --base "${{ github.event.pull_request.base.sha || github.event.before || github.sha }}" --head "${{ github.event.pull_request.head.sha || github.sha }}"
 
       - name: Require Graph API token
         run: |

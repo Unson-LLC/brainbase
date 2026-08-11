@@ -1,0 +1,16 @@
+[Unit]
+Description=Check OpenRyoko pilot health
+After=openryoko.service openryoko-run-receipt.timer
+Wants=openryoko.service openryoko-run-receipt.timer
+
+[Service]
+Type=oneshot
+User=@RYOKO_USER@
+Group=@RYOKO_USER@
+WorkingDirectory=@HOME_DIR@
+Environment=HOME_DIR=@HOME_DIR@
+ExecStart=@HOME_DIR@/bin/openryoko-pilot-health
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only

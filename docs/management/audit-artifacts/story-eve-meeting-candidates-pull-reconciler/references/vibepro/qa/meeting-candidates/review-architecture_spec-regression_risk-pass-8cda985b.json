@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-eve-meeting-candidates-pull-reconciler",
+  "stage": "architecture_spec",
+  "role": "regression_risk",
+  "status": "pass",
+  "head_sha": "8cda985b0887c166d37bb02c44899789f7308f2a",
+  "agent_id": "019f5afa-18fd-7041-b43d-b59fb0271b87",
+  "summary": "Exact-HEAD candidate reconciliation architecture and approval boundaries pass, including FM-002 retry coverage.",
+  "inspection": "Reviewed Story and Architecture SSOT, exact implementation and test delta, reconciler, workflow service, Mission Control UI, and 33 passing focused tests.",
+  "judgment_delta": "Prior exact-scope, mixed mismatch, note-only closure, owner safety, and active retry risks now pass on exact HEAD with the latest test-only commit.",
+  "findings": []
+}

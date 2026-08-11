@@ -5,14 +5,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
+import { resolveWikiRoots, resolveWorkspaceRoot } from './workspace-paths.js';
 
-const DEFAULT_CODEX_ROOT = '/Users/ksato/workspace/shared/_codex';
-const DEFAULT_WORKSPACE_ROOT = '/Users/ksato/workspace';
+const DEFAULT_CODEX_ROOT = null;
+const DEFAULT_WORKSPACE_ROOT = resolveWorkspaceRoot();
 const DEFAULT_WORKSPACE_CONTENT_DIRS = ['common', 'brand', 'knowledge', 'sns', 'decisions'];
-const DEFAULT_WIKI_ROOTS = [
-    '/Users/ksato/workspace/wiki',
-    '/Users/ksato/workspace/shared/wiki'
-];
+const DEFAULT_WIKI_ROOTS = resolveWikiRoots();
 
 const FILE_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.html', '.json', '.csv']);
 const DEFAULT_MAX_FILE_BYTES = 2 * 1024 * 1024;
@@ -197,7 +195,7 @@ function workspaceContentRoots(workspaceRoot, contentDirs = DEFAULT_WORKSPACE_CO
 }
 
 function collectLocalInventory(options = {}) {
-    const codexRoot = options.codexRoot || process.env.LOCAL_SSOT_CODEX_ROOT || DEFAULT_CODEX_ROOT;
+    const codexRoot = options.codexRoot ?? process.env.LOCAL_SSOT_CODEX_ROOT ?? DEFAULT_CODEX_ROOT;
     const workspaceRoot = options.workspaceRoot || process.env.LOCAL_SSOT_WORKSPACE_ROOT || DEFAULT_WORKSPACE_ROOT;
     const includeWorkspaceContent = options.includeWorkspaceContent !== false;
     const wikiRoots = options.wikiRoots || (process.env.LOCAL_SSOT_WIKI_ROOTS

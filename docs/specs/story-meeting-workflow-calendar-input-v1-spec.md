@@ -41,7 +41,7 @@
 
 ## Invariants
 
-- INV-001: Calendar取得は`GoogleCalendarService`に閉じ、WorkflowService内で`gog`を直接実行しない。
+- INV-001: Calendar取得は`GoogleCalendarService`に閉じ、MeetingAutomationService内で`gog`を直接実行しない。
 - INV-002: Calendar予定から作るLoop Intentは`pre-meeting-briefing`のschedule triggerに紐づく。
 - INV-003: `meeting_identity.source`は`google_calendar`である。
 - INV-004: `meeting_identity`には`account`、`calendar_id`、`event_id`、`title`、`start`、`end`を保持する。

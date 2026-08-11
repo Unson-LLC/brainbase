@@ -1,0 +1,111 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-playwright-worktree-discovery-boundary",
+  "stage": "gate",
+  "role": "pr_split_scope",
+  "status": "pass",
+  "summary": "Current HEAD is a cohesive single-intent change; splitting would separate the configuration from its contract tests and evidence.",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Inspected exact-HEAD diff, Playwright config and invocation surfaces, Story/Architecture/Spec, split artifacts, and current-HEAD unit, focused E2E, and full collector evidence under both mandatory lenses.",
+    "evidence": ".vibepro/pr/story-playwright-worktree-discovery-boundary/verification-evidence.json",
+    "inputs": [
+      "playwright.config.js",
+      "tests/unit/playwright-config-boundary.test.js",
+      "tests/e2e/story-playwright-worktree-discovery-boundary-collector.spec.ts",
+      ".vibepro/qa/playwright-worktree-boundary/collector.json"
+    ]
+  },
+  "judgment_delta": [
+    "Generated split concern -> keep one PR because all six files implement or verify one collector-boundary contract; canonical configuration and 641 tests across 107 files remain preserved with zero collector errors, and both nested-worktree conventions are evidenced."
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+    "actual_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+    "expected_root": null,
+    "expected_head_sha": "1346aaa1a6283d3d39f9cb3cf8c5cafe560b25eb",
+    "current_head_sha": "1346aaa1a6283d3d39f9cb3cf8c5cafe560b25eb",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+      "actual_root": "/private/tmp/brainbase-playwright-worktree-boundary",
+      "expected_root": null,
+      "expected_head_sha": "1346aaa1a6283d3d39f9cb3cf8c5cafe560b25eb",
+      "current_head_sha": "1346aaa1a6283d3d39f9cb3cf8c5cafe560b25eb",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-07-17T13:45:59.734Z",
+  "git_context": {
+    "head_sha": "1346aaa1a6283d3d39f9cb3cf8c5cafe560b25eb",
+    "current_branch": "codex/playwright-worktree-boundary",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-07-17T13:45:59.733Z"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "1346aaa1a6283d3d39f9cb3cf8c5cafe560b25eb",
+    "surface_files": [],
+    "missing_files": [],
+    "surface_hash": null
+  },
+  "source_fingerprint": "76ed654d81ce177bf165e5b5139b151e235c80e039a69132a829fee389dae98d",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "pw_pr_split_scope_review",
+    "agent_role": null,
+    "model": "gpt-5",
+    "reasoning_effort": "high",
+    "cost_tier": "medium",
+    "thread_id": null,
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/transcripts/pr_split_scope.md",
+    "request_artifact": ".vibepro/reviews/story-playwright-worktree-discovery-boundary/gate/review-request-pr_split_scope.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": null,
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "unknown",
+      "reviewer_session_id": null,
+      "implementation_session_id": null,
+      "source": "undeclared"
+    }
+  },
+  "agent_usage": null
+}

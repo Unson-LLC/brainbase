@@ -1,0 +1,55 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-decision-events-kpi-v1",
+  "created_at": "2026-07-24T08:18:20.997Z",
+  "status": "satisfied",
+  "required": true,
+  "architecture_decision": "ADRあり (docs/architecture/decision-events-kpi-architecture.md)",
+  "source_artifacts": {
+    "story": "docs/stories/story-brainbase-decision-events-kpi-v1.md",
+    "review_cockpit": null,
+    "gate_dag": null
+  },
+  "gates": {
+    "architecture": {
+      "status": "satisfied",
+      "reason": "ADRあり (docs/architecture/decision-events-kpi-architecture.md)"
+    },
+    "spec": {
+      "status": "inferred",
+      "reason": "8 clauses inferred from Story+Code+Test"
+    }
+  },
+  "toolchain": {
+    "schema_version": "0.1.0",
+    "collected_at": "2026-07-24T08:18:19.016Z",
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.1",
+      "root": "/Users/ksato/workspace/code/vibepro/.worktrees/main-dist"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/workspace/code/vibepro/.worktrees/main-dist/bin/vibepro.js",
+      "runtime_module": "/Users/ksato/workspace/code/vibepro/.worktrees/main-dist/src/runtime-info.js"
+    },
+    "source_git": {
+      "is_git_repo": true,
+      "commit": "6b5af2c67a336e2921b6a362d2225c79789eefea",
+      "branch": "main",
+      "origin_url": "https://github.com/Unson-LLC/vibepro.git",
+      "origin_main_commit": "6222d118315e7001abcbdc786aca932e48c58232",
+      "origin_main_relation": "behind",
+      "dirty": true,
+      "dirty_summary": [
+        "M .vibepro/config.json"
+      ]
+    }
+  },
+  "review_record": {
+    "approved": null,
+    "reviewer": null,
+    "reason": null,
+    "reviewed_at": null,
+    "comments": null
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "role": "human_usability",
+  "agent_id": "019f5c9a-1e5c-7230-8346-a770bc0eabf6",
+  "status": "needs_changes",
+  "summary": "Owner-resolution UX is human-readable, but other Eve reconciliation statuses still leak raw enums in Mission Control.",
+  "inspection_summary": "Inspected owner resolution payloads, Mission Control rendering, failure and mismatch states, and E2E operator-surface assertions.",
+  "judgment_delta": "Owner behavior passes, but raw status and reason enums must be mapped before the human-usability review can pass.",
+  "findings": [
+    {
+      "id": "human_usability.raw_enum_leakage",
+      "severity": "medium",
+      "detail": "Mission Control renders no_candidate_call, awaiting_candidates_after_note, candidate_writeback_failed, and related machine values without human-readable labels."
+    }
+  ]
+}

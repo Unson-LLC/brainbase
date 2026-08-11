@@ -59,7 +59,7 @@ Skill({ skill: "learning-extraction" })
 
 **Step 3: learning_queue状態カウント**
 ```javascript
-Read({ file_path: "/Users/ksato/workspace/shared/_codex/common/learning_queue/" })
+Read({ file_path: "/Users/ksato/workspace/knowledge/learning_queue/" })
 ```
 - validated, pending, rejected の各ファイル数をカウント
 
@@ -109,13 +109,13 @@ learning_queue の内容を確認し、優先度Top3を提案。
 
 **Step 1: learning_queue読み込み**
 ```bash
-ls /Users/ksato/workspace/shared/_codex/common/learning_queue/validated/
+ls /Users/ksato/workspace/knowledge/learning_queue/validated/
 ```
 - validatedファイル一覧を取得
 
 **Step 2: 各ファイルの内容確認**
 ```javascript
-Read({ file_path: "/Users/ksato/workspace/shared/_codex/common/learning_queue/validated/XXXXX.md" })
+Read({ file_path: "/Users/ksato/workspace/knowledge/learning_queue/validated/XXXXX.md" })
 ```
 - confidence, impact, category を抽出
 

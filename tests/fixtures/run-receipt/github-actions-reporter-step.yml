@@ -1,0 +1,8 @@
+- name: Report terminal run to Brainbase
+  if: ${{ always() }}
+  uses: ./.github/actions/run-receipt-reporter
+  with:
+    endpoint: http://127.0.0.1:31989/api/run-receipts/ingest
+    service-token: bbsvc_public_fake_value
+    project-id: brainbase-fixture
+    conclusion: ${{ job.status }}

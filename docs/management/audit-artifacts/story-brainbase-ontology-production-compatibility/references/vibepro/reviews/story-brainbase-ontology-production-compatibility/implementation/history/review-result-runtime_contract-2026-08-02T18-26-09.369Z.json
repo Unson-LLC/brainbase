@@ -1,0 +1,154 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-ontology-production-compatibility",
+  "stage": "implementation",
+  "role": "runtime_contract",
+  "status": "pass",
+  "summary": "Current HEAD runtime/API/config/audit compatibility review passed; activation remains NO_GO",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "Independent current-HEAD review inspected runtime/API/config/audit and reran focused unit, integration, and in-process E2E contracts.",
+    "evidence": "HEAD 560f7212; runtime surface diff clean; ontology 85/85; Learning/Companion 54/54; Playwright 27/27",
+    "inputs": [
+      "config/ontology/index.json",
+      "server/services/ontology-registry.js",
+      "server/services/ontology-kernel.js",
+      "server/services/info-ssot-service.js",
+      "scripts/ontology-shadow-audit.js",
+      "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json"
+    ]
+  },
+  "judgment_delta": [
+    "stale runtime review -> independently rerun against current HEAD and confirmed evidence-only final commit, fail-closed current=null, READ ONLY audit, and NO_GO activation"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+    "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+    "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+    "expected_root": null,
+    "expected_head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+    "current_head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; run vibepro execute start before managed worktree protected commands",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-ontology-production-compat",
+      "actual_root": "/private/tmp/brainbase-ontology-production-compat",
+      "expected_root": null,
+      "expected_head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+      "current_head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-02T18:26:09.369Z",
+  "git_context": {
+    "head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+    "current_branch": "codex/ontology-production-compat",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ],
+      "user_includes": [
+        ".vibepro/config.json"
+      ]
+    },
+    "recorded_at": "2026-08-02T18:26:09.346Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "strict_head",
+    "source": "cli_override",
+    "reason": "preserve the recorded strict HEAD freshness policy during recovery"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "strict_head",
+    "status": "strict_head",
+    "reason": "strict HEAD binding was requested for this evidence",
+    "recorded_head_sha": "560f7212e2b0186539327f8c9fe5d5e5106f3d45",
+    "surface_files": [
+      {
+        "path": "config/ontology/index.json",
+        "sha256": "a141a88b932fac316c0fae862f63a047e43e24098d30aafc5bb27c24fc4e3870",
+        "size": 360
+      },
+      {
+        "path": "docs/management/audit-artifacts/story-brainbase-ontology-production-compatibility/production-shadow-audit-2026-08-03.json",
+        "sha256": "1582df991c9e8d325745e60acc7c691df4f870c0b52317aeb609d16828e429e2",
+        "size": 5340
+      },
+      {
+        "path": "scripts/ontology-shadow-audit.js",
+        "sha256": "280df8d21fc914a87e058495592087ae242225f900de1a1a778536cde8676261",
+        "size": 5374
+      },
+      {
+        "path": "server/services/info-ssot-service.js",
+        "sha256": "680da85246fa89d7f95600a72c943ab5b58d23d006e4ba7a2d20526810d9d9c4",
+        "size": 107556
+      },
+      {
+        "path": "server/services/ontology-kernel.js",
+        "sha256": "5bd60e18635857b1ff102272cb8ace4c0fb76e9c7018bd7afeb628566969f875",
+        "size": 22365
+      },
+      {
+        "path": "server/services/ontology-registry.js",
+        "sha256": "93f4dca166b1744fca3ab02b1f64aeab1dff5018c38bd5a3437af1362b953a3a",
+        "size": 8483
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "4ebf76516d0bc34af9949d84af2201f9794deaba41fffe441011279b8057ceeb"
+  },
+  "source_fingerprint": "b9742e2c9aa663ed884d23971d7d253a45243ee533d3bfb3368dedbf57753a00",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/ontology_compat_gate_review",
+    "agent_role": null,
+    "model": null,
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/ontology_compat_gate_review",
+    "session_id": "runtime-contract-560f7212",
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/transcript-runtime-contract-560f7212.json",
+    "request_artifact": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/review-request-runtime_contract.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-brainbase-ontology-production-compatibility/implementation/transcript-runtime-contract-560f7212.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "runtime-contract-560f7212",
+      "implementation_session_id": "/root",
+      "source": "lifecycle_agent_binding"
+    }
+  },
+  "agent_usage": null
+}

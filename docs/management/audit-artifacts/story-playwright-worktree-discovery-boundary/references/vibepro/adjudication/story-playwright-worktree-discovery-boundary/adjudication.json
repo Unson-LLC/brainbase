@@ -1,0 +1,68 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-evidence-adjudication-v1",
+  "story_id": "story-playwright-worktree-discovery-boundary",
+  "updated_at": "2026-07-17T14:18:59.165Z",
+  "verdicts": [
+    {
+      "clause_id": "AC-5",
+      "verdict": "demonstrated",
+      "reason": "Base diff changes only testIgnore and focused tests confirm server, project, reporter, worker, and output contracts remain unchanged.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "pw_final_adjudication",
+        "session_ref": "independent-fresh-context"
+      },
+      "head_commit": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "recorded_at": "2026-07-17T14:18:59.165Z"
+    },
+    {
+      "clause_id": "AC-4",
+      "verdict": "demonstrated",
+      "reason": "Exact-HEAD collector lists 641 tests across 107 canonical files with zero errors and zero nested paths; synthetic E2E proves excluded modules are not imported.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "pw_final_adjudication",
+        "session_ref": "independent-fresh-context"
+      },
+      "head_commit": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "recorded_at": "2026-07-17T14:18:52.457Z"
+    },
+    {
+      "clause_id": "AC-3",
+      "verdict": "demonstrated",
+      "reason": "Import-throwing .codex-worktrees fixture is not imported with the fix, while the no-ignore baseline imports it and fails.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "pw_final_adjudication",
+        "session_ref": "independent-fresh-context"
+      },
+      "head_commit": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "recorded_at": "2026-07-17T14:18:44.749Z"
+    },
+    {
+      "clause_id": "AC-2",
+      "verdict": "demonstrated",
+      "reason": "Import-throwing .worktrees fixture is not imported with the fix, while the no-ignore baseline imports it and fails.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "pw_final_adjudication",
+        "session_ref": "independent-fresh-context"
+      },
+      "head_commit": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "recorded_at": "2026-07-17T14:18:37.466Z"
+    },
+    {
+      "clause_id": "AC-1",
+      "verdict": "demonstrated",
+      "reason": "Canonical testMatch patterns remain configured and the exact-HEAD collector lists both canonical roots; the corrected Vitest contract passes.",
+      "provenance": {
+        "agent_system": "codex",
+        "agent_id": "pw_final_adjudication",
+        "session_ref": "independent-fresh-context"
+      },
+      "head_commit": "336faa2cc7cccbaa7e04706c4af0fb6027e9c0f2",
+      "recorded_at": "2026-07-17T14:18:29.915Z"
+    }
+  ]
+}

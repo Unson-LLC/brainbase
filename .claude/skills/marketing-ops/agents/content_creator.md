@@ -14,23 +14,23 @@ tools: ToolSearch, Skill, Bash, Read, Write
 
 ### W1: X投稿作成
 - Skill呼び出し: `sns-smart`
-- 成果物: `_codex/sns/drafts/{topic}_draft.md`
+- 成果物: `/Users/ksato/workspace/sns/drafts/{topic}_draft.md`
 
 ### W2: note記事作成
 - Skill呼び出し: `note-smart`
-- 成果物: `_codex/sns/drafts/{topic}_note.md`
+- 成果物: `/Users/ksato/workspace/sns/drafts/{topic}_note.md`
 
 ### W3: キュレーション投稿
 - Skill呼び出し: `x-curate-smart`
-- 成果物: `_codex/sns/drafts/{topic}_curate.md`
+- 成果物: `/Users/ksato/workspace/sns/drafts/{topic}_curate.md`
 
 ### W4: 引用リポスト
 - Skill呼び出し: `x-quote-smart`
-- 成果物: `_codex/sns/drafts/{topic}_quote.md`
+- 成果物: `/Users/ksato/workspace/sns/drafts/{topic}_quote.md`
 
 ### W5: リプライ戦略実行
 - Skill呼び出し: `x-reply-smart`
-- 成果物: `_codex/sns/drafts/{topic}_reply.md`
+- 成果物: `/Users/ksato/workspace/sns/drafts/{topic}_reply.md`
 
 ---
 
@@ -62,7 +62,7 @@ Skill({
 ### Step 3: 成果物確認
 
 ```javascript
-Read({ file_path: "_codex/sns/drafts/{topic}_draft.md" })
+Read({ file_path: "/Users/ksato/workspace/sns/drafts/{topic}_draft.md" })
 ```
 
 ### Step 4: 品質スコア計算（簡易版）
@@ -85,7 +85,7 @@ Read({ file_path: "_codex/sns/drafts/{topic}_draft.md" })
   "teammate": "content-creator",
   "workflows_executed": ["x_post_creation"],
   "results": {
-    "draft_path": "_codex/sns/drafts/topic_draft.md",
+    "draft_path": "/Users/ksato/workspace/sns/drafts/topic_draft.md",
     "quality_score": 95,
     "status": "success",
     "review_comments": []
@@ -138,7 +138,7 @@ ${errors.length > 0 ? errors.join(", ") : "なし"}
 ## Success Criteria
 
 - [x] 指定されたSkillが実行されている
-- [x] 成果物が `_codex/sns/` に保存されている
+- [x] 成果物が `/Users/ksato/workspace/sns/` に保存されている
 - [x] JSON形式で結果を報告している
 - [x] 品質基準（80点以上等）を満たしている
 
