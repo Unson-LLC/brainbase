@@ -32,7 +32,7 @@ any invalid Stop state -> failed_visible
 
 ### Readiness checker
 
-- Codex app-serverをstdioで起動し、`initialize`後に`hooks/list`を呼ぶ。
+- Codex app-serverをstdioで起動し、`initialize`後に`hooks/list`を呼ぶ。macOSではDesktop同梱実体を優先し、Rosetta NodeからPATH上のuniversal wrapperを起動した際のarchitecture誤選択を避ける。
 - `UserPromptSubmit`、`PostToolUse`、`Stop`にcanonical entrypointが各1件あることを確認する。
 - 3件が同じcommandを使い、enabledで、errorなしであることを確認する。
 - `PostToolUse`は`^mcp__brainbase__.*$`だけを対象にする。

@@ -8,7 +8,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
     checkHookReadiness,
     evaluateHookReadiness,
-    queryCodexHooks
+    queryCodexHooks,
+    resolveDefaultCodexBin
 } from '../../scripts/check-codex-judgment-hook-readiness.mjs';
 
 const temporaryPaths = [];
@@ -66,6 +67,13 @@ afterEach(() => {
 });
 
 describe('Codex Judgment Hook readiness', () => {
+    it('macOSではDesktop同梱Codexを優先し、他環境ではPATHへfallbackする', () => {
+        expect(resolveDefaultCodexBin({ platform: 'darwin', exists: () => true }))
+            .toBe('/Applications/ChatGPT.app/Contents/Resources/codex');
+        expect(resolveDefaultCodexBin({ platform: 'darwin', exists: () => false })).toBe('codex');
+        expect(resolveDefaultCodexBin({ platform: 'linux', exists: () => true })).toBe('codex');
+    });
+
     it('3つのcanonical Hookがcurrent trustならready_for_fresh_taskまで進める', () => {
         expect(evaluateHookReadiness(result(), { cwd })).toMatchObject({
             status: 'ready_for_fresh_task',
