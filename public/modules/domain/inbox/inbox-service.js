@@ -2,6 +2,7 @@
 import { httpClient } from '../../core/http-client.js';
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { getKnowledgeCandidatePresentation } from '../learning/knowledge-formalization-presentation.js';
 
 /**
  * Inboxのビジネスロジック
@@ -40,7 +41,8 @@ export class InboxService {
                 canonicalSummary: candidate.canonical_summary || '',
                 evaluationSummary: candidate.evaluation_summary || {},
                 proposedContent: candidate.proposed_content || '',
-                updatedAt: candidate.updated_at || candidate.created_at || null
+                updatedAt: candidate.updated_at || candidate.created_at || null,
+                presentation: getKnowledgeCandidatePresentation(candidate)
             })) : [])
         ];
         this.store.setState({ inbox: items });

@@ -63,7 +63,7 @@ describe('learning routes', () => {
         expect(service.dedupeExistingPromotions).toHaveBeenCalled();
     });
 
-    it('GET /promotions lists candidates by status', async () => {
+    it('story-knowledge-formalization-language:AC-001 GET /promotions lists candidates by the existing promotion status contract', async () => {
         const res = await request(app).get('/api/learning/promotions?status=evaluated');
 
         expect(res.status).toBe(200);
@@ -140,7 +140,7 @@ describe('learning routes', () => {
         });
     });
 
-    it('POST /promotions/:id/apply applies one candidate', async () => {
+    it('story-knowledge-formalization-language:AC-001 POST /promotions/:id/apply preserves the existing promotion API path', async () => {
         const res = await request(app).post('/api/learning/promotions/prm_1/apply');
 
         expect(res.status).toBe(200);
