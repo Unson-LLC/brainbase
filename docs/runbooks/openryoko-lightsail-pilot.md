@@ -55,9 +55,10 @@ OAuth tokens, or Slack tokens here.
    ```
 
    Install it as `/home/ryoko/.config/openryoko/gateway-environment`. Both
-   files must be owned by `ryoko:ryoko`, mode `600`. Never print or copy a
-   value into a command log. Keeping the files separate prevents Claude child
-   processes from inheriting Slack credentials.
+   files must be regular files owned by `ryoko:ryoko`, mode `600`. Never print
+   or copy a value into a command log. The files reduce automatic inheritance;
+   the pinned runtime and Claude wrapper also remove Slack credentials before
+   starting Claude.
 4. Complete Claude Code's one-time interactive screens as `ryoko`:
 
    ```bash
@@ -76,10 +77,11 @@ OAuth tokens, or Slack tokens here.
 
 The wrapper installed by `configure-runtime.sh` is required for OpenRyoko
 2026.7.10: its Interactive PTY strips every `CLAUDE_CODE_*` variable before
-spawning Claude. The wrapper reloads only the Claude OAuth projection without
-embedding or logging the token. Slack credentials remain gateway-only, are
-resolved from `OPENRYOKO_SLACK_*`, and are removed from `config.yaml`. The same
-script enforces:
+spawning Claude. The wrapper reloads only the Claude OAuth projection, removes
+any inherited `OPENRYOKO_SLACK_*` values, and never embeds or logs a token. The
+pinned runtime also strips Slack credentials on Claude child-process paths.
+Slack credentials are resolved from `OPENRYOKO_SLACK_*` and removed from
+`config.yaml`. The same script enforces:
 
 - `gateway.host = 127.0.0.1`
 - one explicit Slack `allowFrom` user

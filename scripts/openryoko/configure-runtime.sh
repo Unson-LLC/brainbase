@@ -5,6 +5,7 @@ RYOKO_USER="${RYOKO_USER:-ryoko}"
 SLACK_ALLOW_USER_ID="${SLACK_ALLOW_USER_ID:?Set SLACK_ALLOW_USER_ID}"
 GATEWAY_ENVIRONMENT_FILE="${GATEWAY_ENVIRONMENT_FILE:-/home/$RYOKO_USER/.config/openryoko/gateway-environment}"
 CLAUDE_ENVIRONMENT_FILE="${CLAUDE_ENVIRONMENT_FILE:-/home/$RYOKO_USER/.config/openryoko/claude-environment}"
+REQUIRED_OPENRYOKO_SECURITY_REF="${REQUIRED_OPENRYOKO_SECURITY_REF:-4e7582e503b55b3ebd09b84a16b36b70af090bb6}"
 HOME_DIR="/home/$RYOKO_USER"
 
 if [[ "${EUID}" -ne 0 ]]; then
@@ -12,7 +13,7 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 1
 fi
 for protected_file in "$GATEWAY_ENVIRONMENT_FILE" "$CLAUDE_ENVIRONMENT_FILE"; do
-  if [[ ! -s "$protected_file" ]]; then
+  if [[ ! -f "$protected_file" || -L "$protected_file" || ! -s "$protected_file" ]]; then
     echo "Missing protected environment file: $protected_file" >&2
     exit 1
   fi
@@ -20,12 +21,20 @@ for protected_file in "$GATEWAY_ENVIRONMENT_FILE" "$CLAUDE_ENVIRONMENT_FILE"; do
     echo "Environment file must have mode 600: $protected_file" >&2
     exit 1
   fi
+  if [[ "$(stat -c '%U:%G' "$protected_file")" != "$RYOKO_USER:$RYOKO_USER" ]]; then
+    echo "Environment file must be owned by $RYOKO_USER:$RYOKO_USER: $protected_file" >&2
+    exit 1
+  fi
 done
 grep -q '^OPENRYOKO_SLACK_APP_TOKEN=' "$GATEWAY_ENVIRONMENT_FILE"
 grep -q '^OPENRYOKO_SLACK_BOT_TOKEN=' "$GATEWAY_ENVIRONMENT_FILE"
 grep -q '^CLAUDE_CODE_OAUTH_TOKEN=' "$CLAUDE_ENVIRONMENT_FILE"
-if grep -q '^OPENRYOKO_SLACK_' "$CLAUDE_ENVIRONMENT_FILE"; then
+if grep -Eq '^[[:space:]]*OPENRYOKO_SLACK_' "$CLAUDE_ENVIRONMENT_FILE"; then
   echo "Claude environment must not contain Slack credentials" >&2
+  exit 1
+fi
+if grep -Eq '^[[:space:]]*CLAUDE_CODE_' "$GATEWAY_ENVIRONMENT_FILE"; then
+  echo "Gateway environment must not contain Claude credentials" >&2
   exit 1
 fi
 
@@ -39,6 +48,12 @@ openryoko_cli="$openryoko_root/packages/jimmy/dist/bin/jimmy.js"
 real_ryoko="$HOME_DIR/bin/ryoko"
 rendered_file="$(mktemp)"
 trap 'rm -f "$rendered_file"' EXIT
+
+if ! git -C "$openryoko_root" merge-base --is-ancestor \
+  "$REQUIRED_OPENRYOKO_SECURITY_REF" HEAD; then
+  echo "Pinned OpenRyoko runtime lacks the required Slack secret boundary" >&2
+  exit 1
+fi
 
 install -d -o "$RYOKO_USER" -g "$RYOKO_USER" -m 750 "$HOME_DIR/bin"
 if [[ ! -f "$openryoko_cli" ]]; then
@@ -114,7 +129,7 @@ install -o root -g root -m 644 "$rendered_file" \
   /etc/systemd/system/openryoko.service.d/environment.conf
 
 systemctl daemon-reload
-systemctl enable --now openryoko.service
+systemctl enable openryoko.service
 systemctl restart openryoko.service
 for attempt in $(seq 1 20); do
   if curl --fail --silent http://127.0.0.1:7777/ >/dev/null; then
