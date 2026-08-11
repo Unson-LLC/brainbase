@@ -29,7 +29,7 @@ Read all relevant current sources before updating the report.
 - NocoDB SalesTailor incident table: `mo3ayx6i2ybac4t`
 - NocoDB project/base: `pqot58neiu3o1xo`
 - GitHub repo: `Unson-LLC/salestailor`
-- Local app repo: `/Users/ksato/workspace/projects/salestailor-app`
+- Local app repo: `/Users/ksato/workspace/code/salestailor`
 - Meeting/minutes repo: `/Users/ksato/workspace/projects/salestailor`
 - Slack: SalesTailor workspace channels/DMs when status evidence is needed.
 
@@ -189,4 +189,3 @@ Guardrails:
 - Do not deploy into the existing `salestailor` production app.
 - Use the dedicated report project `salestailor-cxo-quality-report`.
 - If Vercel CLI hides a deploy failure, inspect via REST API per the Vercel failure skill.
-
