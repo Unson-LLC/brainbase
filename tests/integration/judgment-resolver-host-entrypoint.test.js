@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -221,6 +221,89 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             owner_audit_complete: true,
             owner_audit_line_count: 4
         });
+    }, 20_000);
+
+    // Traceability: story-brainbase-judgment-audit-fail-closed:ac:4
+    // Traceability: story-brainbase-judgment-audit-fail-closed:ac:5
+    it('orphan Stopと監査不足のactive再Stopを成功形へ潰さない', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const env = { ...process.env, BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
+        const orphanIdentity = { session_id: 'session-orphan-stop', turn_id: 'turn-orphan-stop' };
+
+        const orphanFirst = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({ hook_event_name: 'Stop', ...orphanIdentity, stop_hook_active: false })
+        });
+        expect(orphanFirst).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(orphanFirst.stdout)).toMatchObject({
+            decision: 'block',
+            reason: expect.stringContaining('judgment_episode_not_found')
+        });
+
+        const orphanActive = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({ hook_event_name: 'Stop', ...orphanIdentity, stop_hook_active: true })
+        });
+        expect(orphanActive.code).not.toBe(0);
+        expect(orphanActive.stdout).toBe('');
+        expect(orphanActive.stderr).toContain('judgment_episode_not_found');
+
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                const args = JSON.parse(body);
+                response.setHeader('content-type', 'application/json');
+                response.end(JSON.stringify({
+                    management_status: 'managed',
+                    receipt: {
+                        resolution_id: 'jr_fail_closed_entrypoint',
+                        turn_id: args.turn_id,
+                        request_digest: hash(canonicalJson(args)),
+                        context_digest: hash(canonicalJson(args.conversation_context)),
+                        status: 'resolved',
+                        host_binding: { status: 'managed' },
+                        classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                        classification: { intent: 'answer', domains: ['knowledge'], action_kind: 'read' },
+                        selected_dag_ids: ['knowledge.v1'],
+                        required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }],
+                        active_node_definitions: [{ id: 'knowledge', kind: 'domain', instruction: 'Resolve knowledge.' }]
+                    }
+                }));
+            });
+        });
+        const identity = { session_id: 'session-incomplete-stop', turn_id: 'turn-incomplete-stop' };
+        const started = await run('bash', [wrapper], {
+            env: { ...env, BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve` },
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT, prompt: 'Brainbaseを確認して'
+            })
+        });
+        expect(started.code).toBe(0);
+
+        const firstStop = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: false, last_assistant_message: '仮回答'
+            })
+        });
+        expect(JSON.parse(firstStop.stdout)).toMatchObject({ decision: 'block' });
+
+        const repeatedStop = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: true, last_assistant_message: '未取得のまま回答'
+            })
+        });
+        expect(repeatedStop.code).not.toBe(0);
+        expect(repeatedStop.stdout).toBe('');
+        expect(repeatedStop.stderr).toContain(
+            'judgment_episode_incomplete:knowledge.resolve,owner.audit.display'
+        );
+        const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
+        expect(existsSync(finalPath)).toBe(false);
     }, 20_000);
 
     it('同一turnの並列UserPromptSubmitを1回のResolver呼出と同一episodeへ畳み込む', async () => {

@@ -23,6 +23,8 @@ describe('judgment resolver publication surfaces', () => {
         expect(claude).toContain('専門matcher未一致の非follow-up入力はserver-owned `general/answer` fallback');
         expect(claude).toContain('Claude Codeは将来のHost adapter候補');
         expect(claude).toContain('現行episode lifecycle hook integrationには含まれない');
+        expect(claude).toContain('activeな再Stopでも不足する場合は非zeroで失敗してfinalを作らない');
+        expect(claude).toContain('episodeのないorphan Stopも成功へ潰さない');
     });
 
     it('wrapperがUserPromptSubmit・PostToolUse・Stopのepisode lifecycleを起動する', () => {
@@ -41,6 +43,10 @@ describe('judgment resolver publication surfaces', () => {
         expect(host).toContain('BEGIN IMMEDIATE');
         expect(host).toContain('transition.sqlite');
         expect(host).toContain('judgment_episode_transition_timeout');
+        expect(host).toContain('judgment_episode_identity_missing');
+        expect(host).toContain('judgment_episode_not_found');
+        expect(host).toContain('judgment_episode_incomplete');
+        expect(host).toContain("completion_status: 'complete'");
         expect(host).toContain('owner.audit.display');
         expect(host).toContain('there is no one-call-per-turn limit');
         expect(host).not.toContain('classification_proposal');
@@ -71,6 +77,8 @@ describe('judgment resolver publication surfaces', () => {
             expect(surface).toMatch(/Codex/iu);
             expect(surface).toContain('general/answer');
             expect(surface).not.toContain('classification_proposal');
+            expect(surface).toContain('ready_for_fresh_task');
+            expect(surface).toContain('proven_active');
         }
 
         expect(capability).toContain('mcp: []');
@@ -109,9 +117,35 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('Resolver API/server verifier hold the two runtime copies');
         expect(runbook).toContain('future Claude Code adapter must not hold or receive either copy');
         expect(runbook).toContain('SQLite');
-        expect(runbook).toContain('active Stop exits non-zero');
+        expect(runbook).toContain('active repeated Stop exits non-zero');
+        expect(runbook).toContain('official `hooks/list` RPC');
+        expect(runbook).toContain('Open `/hooks`');
+        expect(runbook).toContain('must never calculate or write Codex `trusted_hash`');
+        expect(runbook).toContain('transcript task was created before the current Hook/trust files');
         expect(spec).toContain('BEGIN IMMEDIATE');
         expect(spec).toContain('explicit non-zero hook failure');
+        expect(spec).toContain('Repository code never writes Codex `trusted_hash`');
+        expect(capability).toContain('scripts/check-codex-judgment-hook-readiness.mjs');
+        expect(skill).toContain('既存task、過去artifact、direct entrypoint実行はlive activationの代用にならない');
+    });
+
+    it('audit fail-closed Story・Architecture・Spec・Taskを公開する', () => {
+        const story = read('docs/management/stories/active/story-brainbase-judgment-audit-fail-closed.md');
+        const architecture = read('docs/architecture/story-brainbase-judgment-audit-fail-closed.md');
+        const spec = read('docs/specs/story-brainbase-judgment-audit-fail-closed.md');
+        const task = read('docs/management/tasks/TASK-brainbase-judgment-audit-fail-closed.md');
+        const surfaces = [story, architecture, spec, task];
+
+        for (const surface of surfaces) {
+            expect(surface).toContain('ready_for_fresh_task');
+            expect(surface).toContain('proven_active');
+            expect(surface).toMatch(/hooks\/list|Hook.*trust/iu);
+            expect(surface).toMatch(/final.*(作らない|なし|no final)/iu);
+        }
+        expect(architecture).toContain('judgment_episode_identity_missing');
+        expect(architecture).toContain('judgment_episode_not_found');
+        expect(spec).toContain('Open /hooks and approve the three current Resolver hooks.');
+        expect(story).toContain('Brainbaseはtrust hashを計算・書換しない');
     });
 
     it('capability README indexが現行integrationと将来候補を区別する', () => {
@@ -138,6 +172,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(launcher).toContain('missing BRAINBASE_JUDGMENT_BINDING_SECRET');
         expect(launcher).toContain('preflight-judgment-binding.js');
         expect(runbook).toContain('scripts/run-brainbase-mcp.sh --check');
+        expect(runbook).toContain('npm run check:judgment-hook-readiness');
         expect(runbook).toContain('signed read-only probe');
         expect(runbook).toContain('not proof that the global hook');
         expect(runbook).toContain('content-equivalent to the current contract checkout');
