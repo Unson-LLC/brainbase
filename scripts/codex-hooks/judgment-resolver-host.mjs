@@ -47,6 +47,7 @@ const TRANSIENT_REASONS = new Set([
 ]);
 const DEFAULT_LOCK_WAIT_ATTEMPTS = 300;
 const DEFAULT_LOCK_WAIT_MS = 10;
+const NO_BRAINBASE_REFERENCE_LINE = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
 
 function compareCodePoints(left, right) {
     const a = Array.from(left, (value) => value.codePointAt(0));
@@ -778,7 +779,10 @@ function episodeEvents(paths) {
 }
 
 function requiredAuditLines(episode, events) {
-    return [episode.owner_audit.display_line, ...events.map((event) => event.display_line)];
+    const zeroCallLines = events.length === 0 && !requiredKnowledgeResolution(episode.initial_route_receipt)
+        ? [NO_BRAINBASE_REFERENCE_LINE]
+        : [];
+    return [episode.owner_audit.display_line, ...zeroCallLines, ...events.map((event) => event.display_line)];
 }
 
 function orderedEventSetDigest(events) {
@@ -796,11 +800,12 @@ function orderedEventSetDigest(events) {
 
 function answerContainsExactAuditPrefix(answer, expectedLines) {
     if (typeof answer !== 'string') return false;
-    const lines = answer.replaceAll('\r\n', '\n').split('\n');
-    if (!expectedLines.every((expected, index) => lines[index] === expected)) return false;
-    const expectedCounts = new Map(expectedLines.map((line) => [
+    const lines = answer.replaceAll('\r\n', '\n').split('\n').map((line) => line.replace(/[ \t]+$/u, ''));
+    const normalizedExpectedLines = expectedLines.map((line) => line.replace(/[ \t]+$/u, ''));
+    if (!normalizedExpectedLines.every((expected, index) => lines[index] === expected)) return false;
+    const expectedCounts = new Map(normalizedExpectedLines.map((line) => [
         line,
-        expectedLines.filter((candidate) => candidate === line).length
+        normalizedExpectedLines.filter((candidate) => candidate === line).length
     ]));
     return [...expectedCounts].every(([expected, count]) => (
         lines.filter((line) => line === expected).length === count
@@ -853,8 +858,7 @@ function finalizeEpisodeLocked(payload, episode, paths) {
     const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : null;
     const expectedAuditLines = requiredAuditLines(episode, events);
     const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines);
-    const stopHookActive = payload.stop_hook_active === true;
-    if ((missingKnowledge || missingOwnerAudit) && !stopHookActive) {
+    if (missingKnowledge || missingOwnerAudit) {
         const missingCapabilities = [
             ...(missingKnowledge ? ['knowledge.resolve'] : []),
             ...(missingOwnerAudit ? ['owner.audit.display'] : [])
@@ -882,13 +886,6 @@ function finalizeEpisodeLocked(payload, episode, paths) {
             continuation: marker,
             final: null
         };
-    }
-    if (missingKnowledge || missingOwnerAudit) {
-        const missingCapabilities = [
-            ...(missingKnowledge ? ['knowledge.resolve'] : []),
-            ...(missingOwnerAudit ? ['owner.audit.display'] : [])
-        ];
-        throw new Error(`judgment_episode_incomplete:${missingCapabilities.join(',')}`);
     }
     const entry = {
         schema_version: 'brainbase-judgment-episode-final-v2',
@@ -1030,6 +1027,9 @@ export function successOutput(args, receipt, ownerAudit = buildOwnerAudit(args, 
         'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.',
         'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.',
         `The final user-facing response for this turn must start with exactly this Host-generated line, before any other text:\n${ownerReferenceLine}`,
+        ...(!requiredKnowledgeResolution(receipt) ? [
+            `If this episode records zero actual Brainbase calls, add this exact line immediately after the judgment line:\n${NO_BRAINBASE_REFERENCE_LINE}\nIf any Brainbase call is recorded, omit that zero-call line and use the Host-generated PostToolUse audit lines instead.`
+        ] : []),
         'Intermediate commentary may omit the owner-visible audit block. Put the complete audit block only at the start of the final response, after all Brainbase tool calls are known.',
         'Do not alter, translate, summarize, omit, invent, or duplicate an owner-visible audit line. Include every Host-generated PostToolUse audit line after the judgment line in journal commit order and with recorded multiplicity.',
         'It reports a turn-level judgment, not a Brainbase retrieval, action authorization, or completed knowledge retrieval. Actual successful retrievals have separate tool-generated 📚 Brainbase検索 or 📚 Brainbase取得 lines.',
