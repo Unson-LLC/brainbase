@@ -40,7 +40,7 @@ For matching `mcp__brainbase__*` tools, input includes the session/turn binding,
 
 ### Stop
 
-Input includes the session/turn binding, `stop_hook_active`, and optional answer text. The Host evaluates required capabilities against immutable events and requires the final answer to begin with the stored owner judgment line plus every stored tool-event line in atomic journal-commit order, with no extra copies. Episode start, event commits, and Stop finalization for the same turn share one per-turn SQLite `BEGIN IMMEDIATE` transaction. The Host prefers Node's built-in SQLite so Codex and shell processes with different CPU/ABI runtimes share the same portable implementation; Node 20 falls back to the locally installed `better-sqlite3` build. The OS releases the transaction lock on process exit, so the Host never reclaims or deletes a guessed-stale process lock file. Missing required knowledge or an invalid owner-visible prefix blocks the first Stop. If evidence is still missing when `stop_hook_active=true`, the Host exits non-zero with an explicit diagnostic and writes no final receipt. Transaction-acquisition failure follows the same fail-closed boundary.
+Input includes the session/turn binding, `stop_hook_active`, and optional answer text. The Host evaluates required capabilities against immutable events and requires the final answer to begin with the stored owner judgment line plus every stored tool-event line in atomic journal-commit order, with no extra copies. Episode start, event commits, and Stop finalization for the same turn share one per-turn SQLite `BEGIN IMMEDIATE` transaction. The Host prefers Node's built-in SQLite so Codex and shell processes with different CPU/ABI runtimes share the same portable implementation; Node 20 falls back to the locally installed `better-sqlite3` build. The OS releases the transaction lock on process exit, so the Host never reclaims or deletes a guessed-stale process lock file. Missing required knowledge or an invalid owner-visible prefix returns `decision:block`, including when `stop_hook_active=true`, and writes no final receipt until the repairable display contract is satisfied. Transaction-acquisition failure follows the terminal fail-closed boundary.
 
 Orphan PostToolUse events remain unrecorded. An orphan Stop cannot create evidence and fails visibly instead of returning an empty success.
 
@@ -102,7 +102,7 @@ Recognized transient timeout/connection/429/502/503/504 failures may retry only 
 
 ## 9. Finalization and authorization boundary
 
-At Stop, the Host creates one immutable complete final receipt only after the contract is satisfied. When required knowledge is absent, or the exact stored audit lines are missing, duplicated, or out of journal-commit order in `last_assistant_message`, the first Stop returns `decision:block` with a continuation reason and the exact safe lines to render. If the repeated Stop indicated by `stop_hook_active=true` is still incomplete, it exits non-zero and writes no final receipt; an orphan Stop follows the same fail-closed policy. Transaction-acquisition timeout is also an explicit non-zero hook failure, not a successful empty response. A replay reuses an existing complete final. The final records `owner_audit_complete=true`, the expected line count, and an answer digest that live verification binds to the final assistant `response_item` in the canonical JSONL transcript.
+At Stop, the Host creates one immutable complete final receipt only after the contract is satisfied. When required knowledge is absent, or the exact stored audit lines are missing, duplicated, or out of journal-commit order in `last_assistant_message`, every repairable Stop returns `decision:block` with a continuation reason and the exact safe lines to render, including when `stop_hook_active=true`. An orphan Stop follows the terminal fail-closed policy. Transaction-acquisition timeout is also an explicit non-zero hook failure, not a successful empty response. When knowledge is optional and zero Brainbase calls were recorded, the required prefix contains `📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓`. A replay reuses an existing complete final. The final records `owner_audit_complete=true`, the expected line count, and an answer digest that live verification binds to the final assistant `response_item` in the canonical JSONL transcript.
 
 Initial and final receipts are judgment and audit evidence. They do not authorize writes or external action. Platform permission, explicit approval, and executor authorization remain unchanged; no separate Effect Guard is added.
 
@@ -112,7 +112,7 @@ Initial and final receipts are judgment and audit evidence. They do not authoriz
 - terminal event: same `tool_use_id` with a different fingerprint
 - recoverable Host crash: SQLite and the OS release the per-turn transaction lock when the process exits; no stale-lock reclamation or path deletion is performed
 - explicit active-Stop contention: failure to acquire the per-turn transaction within the bounded wait exits non-zero and writes a diagnostic without fabricating a final receipt
-- terminal Stop: missing identity, missing episode, or required capability/owner-visible audit prefix still absent after the single continuation exits non-zero without a final receipt
+- terminal Stop: missing identity or missing episode exits non-zero without a final receipt; repairable required-capability or owner-visible-prefix omissions keep returning `decision:block`
 - replay: verified immutable episode/event/final is returned without new Resolver or tool evidence
 
 Specific API errors remain distinct. `brainbase_project_not_accessible` is not used merely because project policy is outside the caller's scope.
@@ -131,7 +131,7 @@ The operator commands and the four-surface rollback order are canonical in `docs
 - S-001 `workflow state transition`: episodeが存在しないmanaged turnの`UserPromptSubmit`は、検証済みinitial routeを持つopen episodeを正確に1件作る。同一入力のreplayは同じepisodeを返し、再解決しない。
 - S-002 `workflow state transition`: open episodeのmatching `PostToolUse`は、同一turnのSQLite transaction内で次の`event_sequence`へ安全なevent projectionを1件追加する。同じ`tool_use_id`と同じfingerprintはreplay、異なるfingerprintはconflictであり既存eventを上書きしない。
 - S-003 `workflow state transition`: required capabilityとowner-visible prefixを満たすopen episodeの`Stop`は、ordered event setとanswer digestを束縛したcomplete finalへ1回だけ遷移する。
-- S-004 `workflow state transition`: required capabilityまたはowner-visible prefixが不足する最初の`Stop`はcontinuationを要求し、finalを作らない。`stop_hook_active=true`の再Stopでも不足する場合は非zeroで失敗し、finalを作らない。
+- S-004 `workflow state transition`: required capabilityまたはowner-visible prefixが不足する`Stop`は、`stop_hook_active=true`の再Stopを含めて`decision:block`でcontinuationを要求し、契約を満たすまでfinalを作らない。
 - S-005 `workflow state transition`: final済みepisodeへの`Stop` replayは保存済みfinalを返し、新しいfinal、Resolver call、tool eventを作らない。
 - S-006 `workflow state transition`: activeな再Stopがbounded wait内にSQLite transactionを取得できない場合、またはepisode自体が存在しない場合は非zeroで明示的に失敗し、open/orphan stateをcompleteへ偽装しない。
 - S-007 `workflow state transition`: process crashではOSがSQLite transaction lockを解放し、次processは既存のimmutable episode/eventを再利用して継続する。推測したstale lock fileの削除は行わない。
@@ -141,7 +141,7 @@ The operator commands and the four-surface rollback order are canonical in `docs
 - service/API: strict schema, signing, deterministic manifest-backed classification without an LLM dependency, follow-up inheritance, policy scope, DAG topology
 - UserPromptSubmit Host: transcript extraction, structural exclusion, privacy, exact current message, retry/create/reuse/conflict
 - PostToolUse Host: 0..N events, exact capability qualification, replay, conflict, safe projection, accurate reference/search/retrieval wording
-- Stop Host: zero-call completion when allowed, exact ordered owner-audit prefix, one continuation, active second Stop fail-closed with no final, orphan Stop fail-closed, complete final, replay
+- Stop Host: explicit zero-call audit when allowed, exact ordered owner-audit prefix, repeated repairable continuation with no final, orphan Stop fail-closed, complete final, replay
 - end-to-end: Codex Host initial dispatch -> Codex open-ended reasoning and repeated model/tool loop -> final episode receipt
 - publication: `CLAUDE.md`/`AGENTS.md`, Skill, capability, runbook, story, and tests expose the same lifecycle
 

@@ -225,7 +225,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
 
     // Traceability: story-brainbase-judgment-audit-fail-closed:ac:4
     // Traceability: story-brainbase-judgment-audit-fail-closed:ac:5
-    it('orphan Stopと監査不足のactive再Stopを成功形へ潰さない', async () => {
+    it('orphan Stopは明示失敗にし、監査不足のactive再Stopはblockを維持する', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
@@ -308,11 +308,11 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                 hook_event_name: 'Stop', ...identity, stop_hook_active: true, last_assistant_message: '未取得のまま回答'
             })
         });
-        expect(repeatedStop.code).not.toBe(0);
-        expect(repeatedStop.stdout).toBe('');
-        expect(repeatedStop.stderr).toContain(
-            'judgment_episode_incomplete:knowledge.resolve,owner.audit.display'
-        );
+        expect(repeatedStop).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(repeatedStop.stdout)).toMatchObject({
+            decision: 'block',
+            reason: expect.stringContaining('brainbase_knowledge_resolveによる参照先判断を実行する')
+        });
         const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
         expect(existsSync(finalPath)).toBe(false);
     }, 20_000);
@@ -510,7 +510,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                 env,
                 input: JSON.stringify({
                     hook_event_name: 'Stop', ...identity, stop_hook_active: true,
-                    last_assistant_message: `${ownerLine}\n回答`
+                    last_assistant_message: `${ownerLine}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\n回答`
                 })
             });
             expect(blocked.code).not.toBe(0);
@@ -526,7 +526,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             env,
             input: JSON.stringify({
                 hook_event_name: 'Stop', ...identity, stop_hook_active: true,
-                last_assistant_message: `${ownerLine}\n回答`
+                last_assistant_message: `${ownerLine}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\n回答`
             })
         });
         expect(recovered).toMatchObject({ code: 0, stderr: '', stdout: '{}\n' });

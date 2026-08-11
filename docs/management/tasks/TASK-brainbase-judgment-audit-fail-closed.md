@@ -11,8 +11,8 @@ created_at: 2026-08-11
 ## 実装
 
 1. Codex `hooks/list`を使うreadiness checkerとfake app-server unit testを追加する。
-2. orphan Stopと監査不足のactive再Stopを明示failureへ変更し、finalを作らない。
-3. Host unit/process integration testを新しいfail-closed契約へ反転する。
+2. orphan Stopは明示failureのまま維持し、修復可能な監査不足はactive再Stopでも`decision:block`を返してfinalを作らない。
+3. optional zero-call表示と行末空白の表示同値をHost unit/process integration testで固定する。
 4. live E2Eをeffective trustとfresh task evidenceへ束縛する。
 5. Skill、Capability、Runbook、Architecture、Spec、Story、AGENTS/CLAUDEを同じ状態モデルへ同期する。
 6. exact npm `vibepro@0.2.0-beta.5`でverify、review、PR preparationを実行する。
@@ -22,6 +22,8 @@ created_at: 2026-08-11
 - targeted unit/integration/publication testがpassする。
 - current `trustStatus: modified`環境でcheckerが非zeroの`trust_required`を返す。
 - ownerが`/hooks`で再承認した後、checkerが`ready_for_fresh_task`を返す。
+- active再Stopの監査不足がexit 0の`decision:block`となり、complete finalなしでtask完了しない。
+- optional zero-call turnが`📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓`を表示してcompleteになる。
 - 承認後に作成した新規Desktop taskのlive E2Eだけが`proven_active`を証明する。
 - VibePro Gateを通し、未達のowner操作を成功扱いせずPR evidenceへ残す。
 

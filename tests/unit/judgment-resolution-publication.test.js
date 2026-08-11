@@ -23,7 +23,8 @@ describe('judgment resolver publication surfaces', () => {
         expect(claude).toContain('専門matcher未一致の非follow-up入力はserver-owned `general/answer` fallback');
         expect(claude).toContain('Claude Codeは将来のHost adapter候補');
         expect(claude).toContain('現行episode lifecycle hook integrationには含まれない');
-        expect(claude).toContain('activeな再Stopでも不足する場合は非zeroで失敗してfinalを作らない');
+        expect(claude).toContain('activeな再Stopを含む修復可能なStopで`decision:block`を返し');
+        expect(claude).toContain('Brainbase callが0件で参照必須でないturnも0件だったことを明示する');
         expect(claude).toContain('episodeのないorphan Stopも成功へ潰さない');
     });
 
@@ -45,7 +46,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(host).toContain('judgment_episode_transition_timeout');
         expect(host).toContain('judgment_episode_identity_missing');
         expect(host).toContain('judgment_episode_not_found');
-        expect(host).toContain('judgment_episode_incomplete');
+        expect(host).toContain('NO_BRAINBASE_REFERENCE_LINE');
         expect(host).toContain('新しいCodex taskを作り、同じ依頼を送ってください');
         expect(host).toContain('Settings → Hooks');
         expect(host).toContain("completion_status: 'complete'");
@@ -119,7 +120,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('Resolver API/server verifier hold the two runtime copies');
         expect(runbook).toContain('future Claude Code adapter must not hold or receive either copy');
         expect(runbook).toContain('SQLite');
-        expect(runbook).toContain('active repeated Stop exits non-zero');
+        expect(runbook).toContain('active repeated Stop returns `decision:block`');
         expect(runbook).toContain('create a new Codex task and resend the same request');
         expect(runbook).toContain('official `hooks/list` RPC');
         expect(runbook).toContain('Open `/hooks`');

@@ -191,6 +191,9 @@ describe('Codex Judgment Resolver Host', () => {
         expect(output.hookSpecificOutput.additionalContext).toContain(
             'Put the complete audit block only at the start of the final response, after all Brainbase tool calls are known.'
         );
+        expect(output.hookSpecificOutput.additionalContext).toContain(
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'
+        );
         expect(output.hookSpecificOutput.additionalContext).not.toContain('The first user-facing assistant message');
     });
 
@@ -453,7 +456,7 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env })).toThrow('judgment_tool_event_conflict');
     });
 
-    it('Stopは必要なrouting証拠を一度だけ要求し、active再Stopでも不足ならfinalなしで失敗する', async () => {
+    it('Stopは必要なrouting証拠を満たすまでactive再Stopでもblockし、finalを作らない', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = {
@@ -488,14 +491,17 @@ describe('Codex Judgment Resolver Host', () => {
         expect(first.output).toMatchObject({ decision: 'block' });
         expect(replay.output).toEqual(first.output);
 
-        expect(() => finalizeEpisode({
+        const active = finalizeEpisode({
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true, last_assistant_message: '証拠未取得を明示した回答'
-        }, { env })).toThrow('judgment_episode_incomplete:knowledge.resolve,owner.audit.display');
-        expect(() => finalizeEpisode({
+        }, { env });
+        const activeReplay = finalizeEpisode({
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true, last_assistant_message: '別の回答'
-        }, { env })).toThrow('judgment_episode_incomplete:knowledge.resolve,owner.audit.display');
+        }, { env });
+        expect(active.output).toMatchObject({ decision: 'block' });
+        expect(active.output.reason).toContain('brainbase_knowledge_resolveによる参照先判断を実行する');
+        expect(activeReplay.output).toEqual(active.output);
         const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
         expect(existsSync(finalPath)).toBe(false);
     });
@@ -524,8 +530,8 @@ describe('Codex Judgment Resolver Host', () => {
 
         const result = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id,
-            stop_hook_active: true,
-            last_assistant_message: `${episode.owner_audit.display_line}\n回答`
+            stop_hook_active: false,
+            last_assistant_message: `${episode.owner_audit.display_line}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\n回答`
         }, { env });
 
         expect(result.output).toEqual({});
@@ -693,7 +699,7 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
-    it('Brainbase capabilityが不要ならtool call 0件でもcompleteにし、orphan Stopだけはfail-closedにする', async () => {
+    it('Brainbase capabilityが不要なtool call 0件を明示してcompleteにし、orphan Stopはfail-closedにする', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         expect(recordBrainbaseToolUse({
@@ -722,15 +728,23 @@ describe('Codex Judgment Resolver Host', () => {
             })
         });
 
-        const result = finalizeEpisode({
+        const missingZeroCallAudit = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: false,
             last_assistant_message: `${episode.owner_audit.display_line}\nこんにちは`
         }, { env });
+        expect(missingZeroCallAudit.output).toMatchObject({ decision: 'block' });
+        expect(missingZeroCallAudit.output.reason).toContain('📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓');
+
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true,
+            last_assistant_message: `${episode.owner_audit.display_line}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\nこんにちは`
+        }, { env });
         expect(result.output).toEqual({});
         expect(result.final).toMatchObject({
             completion_status: 'complete', event_count: 0, qualifying_event_count: 0,
-            owner_audit_complete: true, owner_audit_line_count: 1
+            owner_audit_complete: true, owner_audit_line_count: 2
         });
     });
 
@@ -770,6 +784,40 @@ describe('Codex Judgment Resolver Host', () => {
             last_assistant_message: `${episode.owner_audit.display_line}\n${eventEntry.display_line}\n回答`
         }, { env });
         expect(corrected.final).toMatchObject({
+            completion_status: 'complete', owner_audit_complete: true, owner_audit_line_count: 2
+        });
+    });
+
+    it('監査行末のMarkdown空白は表示上同一として受理する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-audit-trailing-space', turn_id: 'turn-audit-trailing-space',
+            prompt: '判断証跡を見せて', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+            last_assistant_message: [
+                `${episode.owner_audit.display_line}  `,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\t',
+                '回答'
+            ].join('\n')
+        }, { env });
+
+        expect(result.final).toMatchObject({
             completion_status: 'complete', owner_audit_complete: true, owner_audit_line_count: 2
         });
     });
