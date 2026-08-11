@@ -317,6 +317,95 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(existsSync(finalPath)).toBe(false);
     }, 20_000);
 
+    it('監査行だけを直すactive Stopで元の回答本文を失わせない', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal');
+        const hostUrl = await listen((request, response) => {
+            let body = '';
+            request.on('data', (chunk) => { body += chunk; });
+            request.on('end', () => {
+                const args = JSON.parse(body);
+                response.setHeader('content-type', 'application/json');
+                response.end(JSON.stringify({
+                    management_status: 'managed',
+                    receipt: {
+                        resolution_id: 'jr_preserve_body_entrypoint',
+                        turn_id: args.turn_id,
+                        request_digest: hash(canonicalJson(args)),
+                        context_digest: hash(canonicalJson(args.conversation_context)),
+                        status: 'resolved',
+                        host_binding: { status: 'managed' },
+                        classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] },
+                        classification: { intent: 'answer', domains: ['general'], action_kind: 'none' },
+                        selected_dag_ids: ['general.v1'],
+                        required_capabilities: [],
+                        active_node_definitions: [{ id: 'answer', kind: 'common', instruction: 'Answer.' }]
+                    }
+                }));
+            });
+        });
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const identity = { session_id: 'session-preserve-body-entrypoint', turn_id: 'turn-preserve-body-entrypoint' };
+        const env = {
+            ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: journal
+        };
+        const started = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit', ...identity, cwd: REPO_ROOT,
+                prompt: 'どのような修正が入ったか説明して'
+            })
+        });
+        const ownerLine = JSON.parse(started.stdout).hookSpecificOutput.additionalContext
+            .split('\n')
+            .find((line) => line.startsWith('🧠 判断参照:'));
+        const detailedBody = '修正内容は3点です。\n\n- 表示修正\n- 回帰テスト追加\n- PR更新';
+
+        const firstStop = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: false,
+                last_assistant_message: `${ownerLine}\n\n${detailedBody}`
+            })
+        });
+        expect(firstStop).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(firstStop.stdout)).toMatchObject({ decision: 'block' });
+
+        const shortenedStop = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+                last_assistant_message: [
+                    ownerLine,
+                    '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                    '修正済みです。'
+                ].join('\n')
+            })
+        });
+        expect(shortenedStop).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(shortenedStop.stdout)).toMatchObject({
+            decision: 'block', reason: expect.stringContaining('削除・要約・置換せず')
+        });
+        const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
+        expect(existsSync(finalPath)).toBe(false);
+
+        const preservedStop = await run('bash', [wrapper], {
+            env,
+            input: JSON.stringify({
+                hook_event_name: 'Stop', ...identity, stop_hook_active: true,
+                last_assistant_message: [
+                    ownerLine,
+                    '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                    detailedBody
+                ].join('\n')
+            })
+        });
+        expect(preservedStop).toMatchObject({ code: 0, stderr: '', stdout: '{}\n' });
+        expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({ completion_status: 'complete' });
+    }, 20_000);
+
     it('同一turnの並列UserPromptSubmitを1回のResolver呼出と同一episodeへ畳み込む', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');

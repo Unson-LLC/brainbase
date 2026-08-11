@@ -748,6 +748,146 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
+    it('Stop監査契約をepisode開始時に固定する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-audit-contract', turn_id: 'turn-audit-contract',
+            prompt: '変更内容を説明して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+            selected_dag_ids: ['general.v1']
+        };
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+
+        expect(episode.audit_contract).toEqual({
+            schema_version: 'brainbase-owner-audit-contract-v1',
+            zero_call_display_line: '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            zero_call_display_line_digest: hash('📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'),
+            repair_body_policy: 'preserve'
+        });
+    });
+
+    it('監査契約のない既存episodeへ新しい0件表示要件を後付けしない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-legacy-audit-contract', turn_id: 'turn-legacy-audit-contract',
+            prompt: '変更内容を説明して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+        const episodePath = join(
+            root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.episode.json`
+        );
+        const legacyEpisode = { ...episode };
+        delete legacyEpisode.audit_contract;
+        writeFileSync(episodePath, `${JSON.stringify(legacyEpisode)}\n`);
+
+        const result = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false,
+            last_assistant_message: `${episode.owner_audit.display_line}\n修正内容の詳しい説明`
+        }, { env });
+
+        expect(result.output).toEqual({});
+        expect(result.final).toMatchObject({
+            completion_status: 'complete', owner_audit_line_count: 1
+        });
+    });
+
+    it('Stop差戻し後に監査行以外の回答本文が短縮された場合はcompleteにしない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-preserve-answer-body', turn_id: 'turn-preserve-answer-body',
+            prompt: 'どのような修正が入ったか説明して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+        const detailedBody = [
+            '修正内容は3点です。',
+            '',
+            '- 表示崩れを修正しました。',
+            '- 回帰テストを追加しました。',
+            '- PRへ反映しました。'
+        ].join('\n');
+        const first = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: false,
+            last_assistant_message: `${episode.owner_audit.display_line}\n\n${detailedBody}`
+        }, { env });
+
+        expect(first.output).toMatchObject({ decision: 'block' });
+        expect(first.continuation).toMatchObject({
+            schema_version: 'brainbase-judgment-continuation-v2',
+            missing_capabilities: ['owner.audit.display'],
+            answer_body_binding: {
+                schema_version: 'brainbase-answer-body-binding-v1',
+                character_count: detailedBody.length
+            }
+        });
+
+        const shortened = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '修正は完了しました。'
+            ].join('\n')
+        }, { env });
+
+        expect(shortened.output).toMatchObject({ decision: 'block' });
+        expect(shortened.output.reason).toContain('削除・要約・置換せず');
+        const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
+        expect(existsSync(finalPath)).toBe(false);
+
+        const preserved = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                detailedBody
+            ].join('\n')
+        }, { env });
+
+        expect(preserved.output).toEqual({});
+        expect(preserved.final).toMatchObject({
+            completion_status: 'complete', owner_audit_line_count: 2
+        });
+    });
+
     it('Stopは保存済み監査行の欠落・順序違い・過剰表示を一度だけ再生成させる', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };

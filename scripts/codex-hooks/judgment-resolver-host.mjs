@@ -525,6 +525,7 @@ function verifyEpisode(entry) {
         throw new Error('judgment_episode_route_digest_mismatch');
     }
     verifyOwnerAudit(entry.owner_audit, entry.initial_route_receipt);
+    if (entry.audit_contract !== undefined) verifyAuditContract(entry.audit_contract);
     return entry;
 }
 
@@ -579,7 +580,8 @@ export async function startEpisode(payload, { env = process.env, fetchImpl = glo
             request_text_digest: sha256(args.request),
             initial_route_receipt_digest: sha256(canonicalJson(initialRouteReceipt)),
             initial_route_receipt: initialRouteReceipt,
-            owner_audit: buildOwnerAudit(args, initialRouteReceipt)
+            owner_audit: buildOwnerAudit(args, initialRouteReceipt),
+            audit_contract: buildAuditContract(initialRouteReceipt)
         };
         return verifyEpisode(createImmutableJson(paths.episode, entry, 'judgment_episode_start_conflict'));
     }, env, 'judgment_episode_start_timeout');
@@ -778,9 +780,43 @@ function episodeEvents(paths) {
     });
 }
 
+function buildAuditContract(receipt) {
+    const zeroCallDisplayLine = requiredKnowledgeResolution(receipt)
+        ? null
+        : NO_BRAINBASE_REFERENCE_LINE;
+    return {
+        schema_version: 'brainbase-owner-audit-contract-v1',
+        zero_call_display_line: zeroCallDisplayLine,
+        zero_call_display_line_digest: zeroCallDisplayLine === null ? null : sha256(zeroCallDisplayLine),
+        repair_body_policy: 'preserve'
+    };
+}
+
+function verifyAuditContract(value) {
+    const contract = record(value);
+    if (!contract || contract.schema_version !== 'brainbase-owner-audit-contract-v1') {
+        throw new Error('judgment_owner_audit_contract_invalid');
+    }
+    const line = contract.zero_call_display_line;
+    const digest = contract.zero_call_display_line_digest;
+    if (!((line === null && digest === null)
+        || (typeof line === 'string' && digest === sha256(line)))) {
+        throw new Error('judgment_owner_audit_contract_digest_mismatch');
+    }
+    if (contract.repair_body_policy !== 'preserve') {
+        throw new Error('judgment_owner_audit_repair_policy_invalid');
+    }
+    return contract;
+}
+
+function episodeAuditContract(episode) {
+    return episode.audit_contract === undefined ? null : verifyAuditContract(episode.audit_contract);
+}
+
 function requiredAuditLines(episode, events) {
-    const zeroCallLines = events.length === 0 && !requiredKnowledgeResolution(episode.initial_route_receipt)
-        ? [NO_BRAINBASE_REFERENCE_LINE]
+    const auditContract = episodeAuditContract(episode);
+    const zeroCallLines = events.length === 0 && typeof auditContract?.zero_call_display_line === 'string'
+        ? [auditContract.zero_call_display_line]
         : [];
     return [episode.owner_audit.display_line, ...zeroCallLines, ...events.map((event) => event.display_line)];
 }
@@ -810,6 +846,48 @@ function answerContainsExactAuditPrefix(answer, expectedLines) {
     return [...expectedCounts].every(([expected, count]) => (
         lines.filter((line) => line === expected).length === count
     ));
+}
+
+function normalizedAnswerBody(answer, expectedLines) {
+    if (typeof answer !== 'string') return null;
+    const auditLines = new Set(expectedLines.map((line) => line.replace(/[ \t]+$/u, '')));
+    const bodyLines = answer.replaceAll('\r\n', '\n').split('\n')
+        .map((line) => line.replace(/[ \t]+$/u, ''))
+        .filter((line) => !auditLines.has(line));
+    while (bodyLines[0] === '') bodyLines.shift();
+    while (bodyLines.at(-1) === '') bodyLines.pop();
+    return bodyLines.join('\n');
+}
+
+function buildAnswerBodyBinding(answer, expectedLines) {
+    const body = normalizedAnswerBody(answer, expectedLines);
+    if (body === null) return null;
+    return {
+        schema_version: 'brainbase-answer-body-binding-v1',
+        audit_lines_digest: sha256(canonicalJson(expectedLines)),
+        body_digest: sha256(body),
+        character_count: body.length
+    };
+}
+
+function activeAnswerBodyBinding(marker, expectedLines) {
+    if (marker?.schema_version !== 'brainbase-judgment-continuation-v2') return null;
+    const binding = record(marker.answer_body_binding);
+    if (!binding) return null;
+    if (binding.schema_version !== 'brainbase-answer-body-binding-v1'
+        || !/^[0-9a-f]{64}$/u.test(String(binding.audit_lines_digest ?? ''))
+        || !/^[0-9a-f]{64}$/u.test(String(binding.body_digest ?? ''))
+        || !Number.isSafeInteger(binding.character_count)
+        || binding.character_count < 0) {
+        throw new Error('judgment_answer_body_binding_invalid');
+    }
+    return binding.audit_lines_digest === sha256(canonicalJson(expectedLines)) ? binding : null;
+}
+
+function answerBodyMatchesBinding(answer, expectedLines, binding) {
+    if (!binding) return true;
+    const body = normalizedAnswerBody(answer, expectedLines);
+    return body !== null && body.length === binding.character_count && sha256(body) === binding.body_digest;
 }
 
 function existingFinal(paths, episode) {
@@ -858,30 +936,45 @@ function finalizeEpisodeLocked(payload, episode, paths) {
     const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : null;
     const expectedAuditLines = requiredAuditLines(episode, events);
     const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines);
-    if (missingKnowledge || missingOwnerAudit) {
+    let existingContinuation = null;
+    try { existingContinuation = readJson(paths.continuation); } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+    }
+    const answerBodyBinding = activeAnswerBodyBinding(existingContinuation, expectedAuditLines);
+    const missingAnswerBody = !answerBodyMatchesBinding(answer, expectedAuditLines, answerBodyBinding);
+    if (missingKnowledge || missingOwnerAudit || missingAnswerBody) {
         const missingCapabilities = [
             ...(missingKnowledge ? ['knowledge.resolve'] : []),
-            ...(missingOwnerAudit ? ['owner.audit.display'] : [])
+            ...(missingOwnerAudit ? ['owner.audit.display'] : []),
+            ...(missingAnswerBody ? ['answer.body.preservation'] : [])
         ];
-        let marker;
-        try { marker = readJson(paths.continuation); } catch (error) {
-            if (error?.code !== 'ENOENT') throw error;
+        let marker = existingContinuation;
+        if (!marker) {
+            const shouldBindAnswerBody = !missingKnowledge
+                && missingOwnerAudit
+                && episodeAuditContract(episode)?.repair_body_policy === 'preserve';
             marker = createImmutableJson(paths.continuation, {
-                schema_version: 'brainbase-judgment-continuation-v1',
+                schema_version: 'brainbase-judgment-continuation-v2',
                 requested_at: new Date().toISOString(),
-                missing_capabilities: missingCapabilities
+                missing_capabilities: missingCapabilities,
+                ...(shouldBindAnswerBody ? {
+                    answer_body_binding: buildAnswerBodyBinding(answer, expectedAuditLines)
+                } : {})
             }, 'judgment_episode_continuation_conflict');
         }
         const reasons = [
             ...(missingKnowledge ? ['brainbase_knowledge_resolveによる参照先判断を実行する'] : []),
             ...(missingOwnerAudit ? [
                 `最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${expectedAuditLines.join('\n')}`
+            ] : []),
+            ...((missingAnswerBody || (!missingKnowledge && missingOwnerAudit && marker.answer_body_binding)) ? [
+                '最初に差し戻された回答の監査行以外の本文を、削除・要約・置換せずそのまま残す'
             ] : [])
         ];
         return {
             output: {
                 decision: 'block',
-                reason: `Brainbase judgment episodeを完了する前に${reasons.join('、その後')}。監査行の後にユーザーへの回答を続けてください。`
+                reason: `Brainbase judgment episodeを完了する前に${reasons.join('、その後')}。監査行の後に、元の回答本文をそのまま続けてください。`
             },
             continuation: marker,
             final: null
@@ -1019,7 +1112,12 @@ export function buildOwnerReferenceLine(args, receipt) {
     return buildOwnerAudit(args, receipt).display_line;
 }
 
-export function successOutput(args, receipt, ownerAudit = buildOwnerAudit(args, receipt)) {
+export function successOutput(
+    args,
+    receipt,
+    ownerAudit = buildOwnerAudit(args, receipt),
+    auditContract = buildAuditContract(receipt)
+) {
     const ownerReferenceLine = ownerAudit.display_line;
     const context = [
         'Brainbase Judgment Resolver Host opened one judgment episode before model generation. The route receipt fixes the current intent and active DAG for this episode; it is not the final episode receipt.',
@@ -1027,8 +1125,8 @@ export function successOutput(args, receipt, ownerAudit = buildOwnerAudit(args, 
         'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.',
         'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.',
         `The final user-facing response for this turn must start with exactly this Host-generated line, before any other text:\n${ownerReferenceLine}`,
-        ...(!requiredKnowledgeResolution(receipt) ? [
-            `If this episode records zero actual Brainbase calls, add this exact line immediately after the judgment line:\n${NO_BRAINBASE_REFERENCE_LINE}\nIf any Brainbase call is recorded, omit that zero-call line and use the Host-generated PostToolUse audit lines instead.`
+        ...(typeof auditContract?.zero_call_display_line === 'string' ? [
+            `If this episode records zero actual Brainbase calls, add this exact line immediately after the judgment line:\n${auditContract.zero_call_display_line}\nIf any Brainbase call is recorded, omit that zero-call line and use the Host-generated PostToolUse audit lines instead.`
         ] : []),
         'Intermediate commentary may omit the owner-visible audit block. Put the complete audit block only at the start of the final response, after all Brainbase tool calls are known.',
         'Do not alter, translate, summarize, omit, invent, or duplicate an owner-visible audit line. Include every Host-generated PostToolUse audit line after the judgment line in journal commit order and with recorded multiplicity.',
@@ -1062,7 +1160,9 @@ export async function processHookPayload(payload, dependencies = {}) {
     const eventName = payload?.hook_event_name || payload?.hookEventName;
     if (eventName === 'UserPromptSubmit') {
         const episode = await startEpisode(payload, dependencies);
-        return successOutput({}, episode.initial_route_receipt, episode.owner_audit);
+        return successOutput(
+            {}, episode.initial_route_receipt, episode.owner_audit, episodeAuditContract(episode)
+        );
     }
     if (eventName === 'PostToolUse') {
         const event = recordBrainbaseToolUse(payload, dependencies);
