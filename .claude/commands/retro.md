@@ -1,101 +1,89 @@
 # retro
 
-週次振り返り（Ship / Learn / Block）をCodex Automation内で完結させるコマンド。
+繰り返す問題を、来週の仕組み変更へ変えるBrainbaseの週次ルーティン。
 
 ## トリガー
 
 - `/retro`
-- ユーザーが「振り返りして」「今週のレトロ」と言及
+- 「今週のレトロ」「繰り返した問題を見直して」
 
-## 実行原則
+## 利用者へ返す成果
 
-- `/ohayo`、`/oyasumi`とは別の週次ワークフローとして実行する。
-- 対象期間は前回retro automation実行以降を優先し、前回実行がなければ直近7日間とする。
-- 回答とレポートは日本語で作成する。
-- 取得不能な入力を0件とみなさず、`未確認`または`pending`として残す。
-- 外部送信、公開投稿、削除、不可逆な変更、Learn候補のapply/rejectは明示確認なしに実行しない。
-- レポートの正規出力はCodex Automationのタスク本文とautomation memoryとする。Brainbase Wiki、Companion approval inbox、ファイルInboxへ複製しない。
+1. 今週繰り返した問題
+2. 学び候補を残す・見送る・保留する判断
+3. 来週変える仕組みを最大3件
+
+変更する価値がある論点がなければ、`変更なし`を正常な結果として返す。Ship数、作業数、commit数、投稿数などの活動量レポートにはしない。
+
+## 対象範囲
+
+Brainbase内の次の差分だけを使う。
+
+- 前回retro以降の`/oyasumi`と`/ohayo`のRun Receipt履歴
+- 期間中に繰り返した`部分成功`、`未確認`、`失敗`、やり直し、ユーザー訂正
+- Personal KG候補の新規・状態変化・保留理由
+- 日次で`昇格レビュー待ち`となった候補と、その根拠
+
+前回retroが確認できなければ直近7日間を対象とし、その境界を明記する。外部サービス、SNS、NocoDB、Git/GitHub、Wiki、Codexタスク全件、セッションarchive、HTML、automation memoryを正本入力にしない。
 
 ## 実行フロー
 
-### 1. Shipを収集
+1. 対象期間を確定し、Run Receipt履歴を取得する。latest表示だけで週全体を推測しない。
+2. 同じ原因または同じ人間判断で2回以上止まったものを「繰り返した問題」の候補にする。単発障害は、重大でなければ週次の仕組み変更へ膨らませない。
+3. ユーザー訂正とやり直しを優先して確認し、症状ではなく再発条件を整理する。
+4. Personal KG候補と`昇格レビュー待ち`を確認し、必要な候補だけGraph SSOTと照合して次のいずれかを推奨する。Graph昇格の判断はこのルーティンだけが担う。
+   - `残す`: 将来の本人判断を改善する、根拠付きの再利用可能な知識
+   - `見送る`: ノイズ、既出、単なる作業記録、根拠不足
+   - `保留`: 確認、所有、機密性、適用範囲が未確定
+   - `Graph候補`: 組織の正式な事実・関係・決定として別途確認すべきもの
+5. 来週の仕組み変更を、再発防止効果が高い順に最大3件へ絞る。各項目に変更内容、対象、検証方法を付ける。
+6. Learn候補やGraphを自動でapply/reject/writeしない。外部送信、公開、削除も行わない。
+7. 次の判定規則で実行状態と確認範囲を分け、Brainbaseの実行記録に残す。
 
-- NocoDBのcompleted項目、gitのmerge/commit、関連するCodexタスクを対象期間で確認する。
-- Shipは「外部または利用者へ価値が到達した」と確認できるものだけを数える。
-- local edit、commit、merge、CI、deploy、runtime、外部到達を区別する。
+## 判定
 
-### 2. WorkとBlockを収集
+実行状態はレトロ自身の成否、確認範囲は期間中の履歴をどこまで確定できたかを表す。
 
-- NocoDBのactive項目、関連するCodexタスク、未完了の実行証跡を確認する。
-- Brainbaseの旧session archive、archive finalizer、worktree状態をBlockの入力にしない。
-- Blockには現在も結果を妨げているものだけを含め、各項目へ次を付ける。
-  - owner
-  - next action
-  - due
-- 入力ソース自体が失敗した場合は、その失敗をBlockまたは未確認sourceとして残す。
+| 実行状態 | 条件 |
+|---|---|
+| `成功` | 取得を試み、週次判断を表示し、実行記録の保存を完了した |
+| `部分成功` | 表示または実行記録は残せたが、レトロ自身の一部処理を完了できない |
+| `失敗` | 利用者が使えるレトロ結果を生成できない、または実行記録を残せない |
 
-### 3. Learn候補をレビュー
+| 確認範囲 | 条件 |
+|---|---|
+| `確認済み` | 対象期間の必須履歴を取得し、変更の有無を判断できた |
+| `部分的` | 一部だけ取得でき、確認できない範囲と影響を特定できた |
+| `未確認` | 認証失敗、未接続、timeout、履歴欠落で週次判断ができない |
 
-```bash
-cd /Users/ksato/workspace/code/brainbase
-node cli/index.js learn inbox
-```
+- 確認済みの0件と、取得できなかった0件を分ける。
+- `blocked`、`unconfirmed`、`no_data`、`unavailable`、`failed`を成功へ潰さない。
+- 入力が部分取得なら、結論の適用範囲も部分的であることを明記する。
 
-pending候補を一覧し、既存のGraph、owning repository、team Drive、workspace home、skillとの重複を確認する。候補ごとに次を推奨する。
-
-- `graph`: 組織の事実・関係としてGraphへ反映
-- `owning_repo`: コード、技術設計、共有ポリシー、runbook、skillとして所有repoへ反映
-- `team_drive`: 事業文書、共同編集資料、バイナリとして担当team Driveへ反映
-- `workspace_home`: 個人・private情報としてworkspace homeへ反映
-- `reject`: ノイズ、既出、粒度不適切
-- `hold`: 根拠、所有者、保存先が未確定
-
-現行のLearn CLIが保存先を安全に表現できない場合はapplyせず、推奨と理由だけを残す。
-
-### 4. 公開ライフログ週次点検
-
-対象期間のdaily brief、feedback、content calendar、確認可能な反応証拠を集計する。
-
-- 本人の一次体験ソースから生成されたか、助言・説得・CTAへ変換されていないかを点検する。
-- 投稿数や反応値を目標にしない。反応は観測記録として保存し、次週の本文最適化には使わない。
-- 一次体験がない日の候補0件は正常とし、入力取得失敗や誤projectionとは分ける。
-- 第三者・顧客・家族・健康・秘密情報の誤projectionがあればBlockとして扱う。
-- 認証やmetrics取得に失敗した場合は0件扱いせず、未確認sourceに残す。
-
-### 5. 週次レポートを生成
+## 表示形式
 
 ```markdown
-# Weekly Retro: YYYY-MM-DD
+# レトロ YYYY-MM-DD
 
-## 🚀 Ship
-- [項目]: [到達した価値と証拠]
+対象期間: YYYY-MM-DD〜YYYY-MM-DD
+実行: 成功 | 部分成功 | 失敗
+確認範囲: 確認済み | 部分的 | 未確認
 
-## 📚 Learn
-- [候補]: [推奨分類 / 理由 / 重複確認]
-- 公開ライフログ: [一次体験との一致 / 助言・CTA混入 / privacy / 欠落・誤projection]
+## 繰り返した問題
+- [再発条件 / 影響 / 根拠]
 
-## 🔴 Block
-- [項目]: [状況 / owner / next action / due]
+## 学びの判断
+- [候補 / 残す・見送る・保留・Graph候補 / 理由]
 
-## ❓ 未確認source
-- [source]: [失敗理由 / 影響範囲]
+## 来週変える仕組み
+1. [変更内容 / 対象 / 検証方法]
 
-## 📊 メトリクス
-- Ship数: X件
-- Learn推奨: graph X / owning_repo X / team_drive X / workspace_home X / reject X / hold X
-- Block数: X件
+<details>
+<summary>確認根拠</summary>
+
+- [参照したBrainbase記録と状態]
+
+</details>
 ```
 
-### 6. Codex Automationへ結果を残す
-
-- 完成した週次レポートをCodex Automationのタスク本文として返す。
-- automation memoryへ次を記録する。
-  - 実行時刻
-  - 対象期間
-  - Ship / Learn / Block件数
-  - 重要なBlock
-  - Learn分類別件数
-  - 公開ライフログの一次体験一致件数 / hold理由 / 誤projection
-  - 未確認source
-- 判断が必要な項目は、選択肢、推奨、影響をそのCodexタスク内に記載する。
-- Brainbase WikiへのPOST、`bb-report-submit`、`_inbox/pending.md`への追記は行わない。
+仕組み変更が不要なら、各入力を確認できたことを根拠に`来週変える仕組み: 変更なし`とする。証拠が取れないため変更なし、とはしない。

@@ -1,232 +1,87 @@
 # ohayo
 
-朝のインプット整理ルーティン。今日の予定・メール・フォーカスに加えて、前日までに止まった運用キューを確認する。
+今日、人間が決めることを明らかにするBrainbaseの朝ルーティン。
 
 ## トリガー
 
 - `/ohayo`
-- ユーザーが「おはよう」「今日の整理」「朝の確認」と言及
+- 「おはよう」「今日の判断を整理して」
 
-## Calendar Check
+## 利用者へ返す成果
 
-毎朝必ず `gog` で今日のカレンダーを確認する。`gog` は `--account` を付けないとデフォルトアカウントの primary calendar だけを見るため、最初に認証済みアカウントを列挙し、Calendar権限が有効な全アカウントを横断する。
+表示するのは次の3区分だけとする。
 
-認証済みアカウント確認:
+1. `要判断`: 今日、佐藤さんが決めることで進む項目
+2. `異常`: 夜間に失敗・部分成功・未確認となり、対応が必要な項目
+3. `持ち越し`: 前夜から残り、まだ有効な項目
 
-```bash
-gog auth list --check --json --no-input
-```
+単なるFYI、全件一覧、処理件数、内部の仕組み名は通常表示しない。該当がなければ「該当なし」と明記する。
 
-2026-05時点の主要Calendar取得対象:
+## 対象範囲
 
-| account | 用途 |
+Brainbase内の次の情報だけを使う。
+
+- 直近の`/oyasumi`結果と持ち越し
+- 前回確認以降のRun Receiptの新規・状態変化
+- Brainbase内で人間確認を待っている判断
+- 必要な時だけ、Personal KGまたはGraph SSOTにある判断の背景
+
+外部サービスを直接巡回しない。SNS生成・投稿、カレンダー、メール、Slack、NocoDB、Git/GitHub、Wiki、Codexタスク全件列挙、HTML生成、セッションarchiveはこのルーティンの責務外とする。
+
+外部連携の結果はBrainbaseへ届いたRun Receiptだけを読む。Receipt未着と判定するのは、現在有効なAutomation定義が対象Runと実行予定・猶予時間を宣言し、その期限を過ぎてもReceiptがない場合だけとする。無効化・廃止済み、期待期限なし、対象Runなしの処理は未着異常にしない。認証失敗、未接続、timeoutは「異常」とし、0件へ変換しない。
+
+## 実行フロー
+
+1. 対象日を現在のJST日付で確定する。
+2. 直近の`/oyasumi`の実行記録を確認する。現在有効な実行予定と猶予時間を過ぎても存在しない場合、または古い・未確認の場合は異常として扱う。
+3. Run Receipt履歴から、前回確認以降に新規発生または状態変化したものを抽出する。latest表示だけで全履歴を推測しない。
+4. 人間の判断で進むものを`要判断`、運用上の異常を`異常`、前夜から継続するものを`持ち越し`へ分類する。
+5. 同一論点は1件へまとめ、推奨する次の行動を付ける。情報だけの項目は表示しない。
+6. 次の判定規則で実行状態と確認範囲を分け、Brainbaseの実行記録に残す。
+
+## 判定
+
+実行状態は朝ルーティン自身の成否、確認範囲は朝の入力をどこまで確定できたかを表す。異常や持ち越しを正しく表示できたこと自体は実行失敗ではない。
+
+| 実行状態 | 条件 |
 |---|---|
-| `info@unson.jp` | Unson/BackOffice代表 |
-| `k.sato.unson@gmail.com` | Unson個人 |
-| `k.sato@sales-tailor.jp` | SalesTailor |
-| `k0127s@gmail.com` | 個人/開発通知 |
-| `sin310135@gmail.com` | TechKnight |
+| `成功` | 取得を試み、3区分を表示し、実行記録の保存を完了した |
+| `部分成功` | 3区分または実行記録は残せたが、ルーティン自身の一部処理を完了できない |
+| `失敗` | 利用者が使える朝の結果を生成できない、または実行記録を残せない |
 
-※ `gog auth list --check` の結果が増減した場合は、表より実結果を優先する。
-
-最低限の確認:
-
-```bash
-TODAY=$(date +%F)
-TOMORROW=$(date -v+1d +%F)
-for ACCOUNT in info@unson.jp k.sato.unson@gmail.com k.sato@sales-tailor.jp k0127s@gmail.com sin310135@gmail.com; do
-  gog --account "$ACCOUNT" calendar events primary --from "${TODAY}T00:00:00+09:00" --to "${TOMORROW}T00:00:00+09:00" --json --no-input
-done
-```
-
-必要に応じて直近7日も確認する:
-
-```bash
-TODAY=$(date +%F)
-NEXT_WEEK=$(date -v+7d +%F)
-for ACCOUNT in info@unson.jp k.sato.unson@gmail.com k.sato@sales-tailor.jp k0127s@gmail.com sin310135@gmail.com; do
-  gog --account "$ACCOUNT" calendar events primary --from "${TODAY}T00:00:00+09:00" --to "${NEXT_WEEK}T00:00:00+09:00" --json --no-input
-done
-```
-
-扱い:
-
-- 今日の予定が 0 件: 0件と報告
-- 今日の予定が 1 件以上: 時刻、件名、相手、準備が必要なもの、移動/衝突リスクを朝のブリーフィングに載せる
-- HTMLレポートの各予定 item には Calendar の `htmlLink` または開けるURLを `links` に必ず入れる。複数アカウント横断時は対象アカウントを evidence に残す
-- 予定の作成・更新・返信は勝手に実行せず、必要なら提案またはドラフト化する
-- 認証エラーの場合は `gog auth list --check` で状態を確認し、未認証ならセットアップ不足として報告する
-
-## Mail Check
-
-毎朝必ず `gog` で Gmail の未処理メールを確認する。`gog` は `--account` を付けないとデフォルトアカウントしか見ないため、最初に認証済みアカウントを列挙し、Gmail権限が有効な全アカウントを横断する。
-
-認証済みアカウント確認:
-
-```bash
-gog auth list --check --json --no-input
-```
-
-2026-05時点の主要Gmail取得対象:
-
-| account | 用途 |
+| 確認範囲 | 条件 |
 |---|---|
-| `info@unson.jp` | Unson/BackOffice代表 |
-| `k.sato.unson@gmail.com` | Unson個人 |
-| `k.sato@sales-tailor.jp` | SalesTailor |
-| `k0127s@gmail.com` | 個人/開発通知 |
-| `sin310135@gmail.com` | TechKnight |
+| `確認済み` | 必須入力を取得し、3区分を確定できた |
+| `部分的` | 一部だけ取得でき、確認できない範囲と影響を特定できた |
+| `未確認` | 認証失敗、未接続、timeout、期限超過のReceipt未着などで朝の状態を確定できない |
 
-※ `gog auth list --check` の結果が増減した場合は、表より実結果を優先する。
+- 確認済みの空集合だけを「該当なし」とする。
+- `blocked`、`unconfirmed`、`no_data`、`unavailable`、`failed`を相互に読み替えない。
+- 夜間処理が部分成功なら、朝の確認範囲は影響が解消されるまで`確認済み`へ繰り上げない。朝ルーティンがそれを正しく表示・保存できれば、実行状態は`成功`とする。
 
-最低限の確認:
+## 表示形式
 
-```bash
-for ACCOUNT in info@unson.jp k.sato.unson@gmail.com k.sato@sales-tailor.jp k0127s@gmail.com sin310135@gmail.com; do
-  gog --account "$ACCOUNT" gmail search "in:inbox is:unread newer_than:3d" --max 20 --json --no-input
-  gog --account "$ACCOUNT" gmail search "in:inbox is:important newer_than:7d" --max 20 --json --no-input
-  gog --account "$ACCOUNT" gmail search "in:inbox is:starred newer_than:7d" --max 20 --json --no-input
-done
+```markdown
+# おはよう YYYY-MM-DD
+
+実行: 成功 | 部分成功 | 失敗
+確認範囲: 確認済み | 部分的 | 未確認
+
+## 要判断
+- [推奨する結論 / 理由 / 影響 / 選択肢]
+
+## 異常
+- [何が確認できないか、または失敗したか / 影響 / 次の確認]
+
+## 持ち越し
+- [残っている論点 / 現在地 / 次の行動]
+
+<details>
+<summary>確認根拠</summary>
+
+- [参照したBrainbase記録と状態]
+
+</details>
 ```
 
-スレッド本文の確認が必要な場合:
-
-```bash
-gog --account "$ACCOUNT" gmail thread get <threadId> --json --no-input
-```
-
-扱い:
-
-- 未処理メールが 0 件: 0件と報告
-- 未処理メールが 1 件以上: 送信者、件名、要約、必要アクション、期限が見えるものを朝のブリーフィングに載せる
-- 検索結果はアカウント別に raw ledger として残し、HTML生成前に「各アカウントの `unread3d` / `important7d` / `starred7d` の全件」が、(a)個別item化、(b)同種itemに統合、(c)ノイズとして明示除外、のどれかに分類済みであることを確認する。件数サマリだけで済ませない
-- HTMLレポートの各メール item には Gmail で開ける thread link を `links` に必ず入れる。リンクは `https://mail.google.com/mail/?authuser=<account>#all/<threadId>` を優先し、threadId と account を evidence に残す。複数アカウント横断時は `mail/u/0` 固定だけに頼らず、対象アカウントも明記する。
-- evidence の `gmail_thread_id` をレポート生成器が自動リンク化する場合は、説明文を混ぜず純粋なIDだけを入れる。説明は `gmail_subject` など別 evidence に分ける
-- 返信や送信は勝手に実行せず、必要ならドラフトまたはタスク化する
-- Gmail検索結果だけで判断しきれないものは thread を開いて本文を確認する
-- 認証エラーの場合は `gog auth list --check` で状態を確認し、未認証ならセットアップ不足として報告する
-
-## Slack Check
-
-毎朝必ず `slack-mentions` skill に従って、佐藤圭吾宛のSlackメンション・DMを直近3日分確認する。目的は「今日来たもの」ではなく「直近3日で返信すべきなのに未対応のもの」を拾うこと。Slackは1ワークスペースではなく、少なくとも `salestailor` / `unson` / `techknight` の3ワークスペースを横断する。
-
-取得前に必ず Slack MCP の起動前チェックを実行する。
-
-```bash
-cd /Users/ksato/workspace/code/brainbase
-scripts/check-slack-mcp-health.sh
-```
-
-扱い:
-
-- 3ワークスペースすべて `ok` の場合だけ、以下のSlack取得に進む
-- `blocked` / `SLACK_MCP_UNAVAILABLE` が出た場合は、Slack未対応件数を 0 件として扱わず「Slack未確認」として HTML レポートとブリーフィングに明記する
-- 失敗理由は secret 値を出さず、workspace名、失敗した前提（token file missing / Infisical access denied / missing key / binary missing など）だけを evidence に残す
-
-ワークスペース別 User ID:
-
-| workspace | MCP namespace | 佐藤圭吾 User ID |
-|---|---|---|
-| salestailor | `mcp__slack_salestailor__` | `U08FB9S7HUL` |
-| unson | `mcp__slack_unson__` | `U07LNUP582X` |
-| techknight | `mcp__slack_techknight__` | `U07B19N048G` |
-
-最低限の確認:
-
-1. 各ワークスペースの User ID検索で直近3日分の全チャンネル横断メンションを拾う
-
-```text
-salestailor: slack_search_public_and_private(query="<@U08FB9S7HUL>", filter_date_after="<3日前の日付 YYYY-MM-DD>", sort="timestamp", count=50)
-unson: slack_search_public_and_private(query="<@U07LNUP582X>", filter_date_after="<3日前の日付 YYYY-MM-DD>", sort="timestamp", count=50)
-techknight: slack_search_public_and_private(query="<@U07B19N048G>", filter_date_after="<3日前の日付 YYYY-MM-DD>", sort="timestamp", count=50)
-```
-
-2. メンションなしDMを補完するため、主要DMを直近3日分直接読む。下記は salestailor の主要DM例。unson / techknight は `users_search` でDM IDを確認し、直接読めない場合は `filter_users_with=<workspace user id>` で補完して evidence に制限を残す。
-
-```text
-slack_read_channel(channel_id="D08FB9SB97W", limit=50)  # 堀さんDM
-slack_read_channel(channel_id="D09GQSYG42H", limit=50)  # 渡邊さんDM
-slack_read_channel(channel_id="D0A264FGG65", limit=20)  # mana DM
-```
-
-3. 返信済み/未対応の判定に必要なスレッドだけ展開する
-
-```text
-slack_read_thread(channel_id="<channel_id>", message_ts="<parent_ts>")
-```
-
-扱い:
-
-- 未対応メンション/DMが 0 件: 0件と報告
-- 未対応メンション/DMが 1 件以上: 送信者、チャンネル/DM、要約、必要アクションを朝のブリーフィングに載せる
-- 未対応判定は、依頼・質問・確認待ち・判断待ち・返信要求があり、その後に各ワークスペースの佐藤圭吾 User ID による返信または明示的な完了反応が見つからないものを対象にする
-- HTMLレポートの各Slack item には Slack permalink（可能なら `https://<workspace>.slack.com/archives/<channel>/p<ts>`）を `links` に必ず入れる。permalinkが作れない場合も channel_id / ts / thread_ts を evidence に残す
-- 返信や送信が必要な場合は、勝手に送らずドラフトまたはタスク化する
-- Slack検索APIだけを信用せず、主要DMの直接確認で補完する
-
-## SNS Ohayo Brief
-
-SNS運用は `/ohayo` に寄せる。Xは公開ライフログであり、毎朝、Personal KGにある本人の一次体験から「未来の自分へ残す候補」だけを確認する。候補数のノルマはなく、一次体験ソースがなければ0件を正常とする。
-
-```bash
-cd /Users/ksato/workspace/code/brainbase
-TODAY=$(date +%F)
-CONTEXT_FILE="/Users/ksato/workspace/sns/x/ops/generation-contexts/${TODAY}.json"
-npm run sns:generation-context -- \
-  --date "$TODAY" \
-  --out "$CONTEXT_FILE"
-
-npm run sns:ohayo-brief -- \
-  --date "$TODAY" \
-  --since 1d \
-  --max-results 10 \
-  --limit 5 \
-  --generation-context "$CONTEXT_FILE"
-
-# reviewPack.posts が1件以上ある時だけ取り込む
-npm run sns:import-review-pack -- --date "$TODAY"
-```
-
-出力:
-
-| 出力 | 場所 |
-|---|---|
-| 人間レビュー用brief | `/Users/ksato/workspace/sns/x/ops/daily-briefs/YYYY-MM-DD.md` |
-| 公開ライフログ候補と内省プロンプト | `/Users/ksato/workspace/sns/x/ops/daily-briefs/YYYY-MM-DD-signals.json` |
-| AI生成用context | `/Users/ksato/workspace/sns/x/ops/generation-contexts/YYYY-MM-DD.json` |
-| UI用SNS Posting Ledger | `POST /api/sns-growth/review-pack` 経由で `GET /api/sns-growth/posts?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` に反映 |
-
-扱い:
-
-- X検索を行う場合は低コスト固定。外部投稿やニュースは「自分の経験として思い出すことがあるか」を考える内省プロンプトにだけ使い、外部情報だけから投稿案を作らない
-- 投稿生成前にSNS Generation Contextを作り、Personal KGの `lifelog_entries` だけを投稿候補ソースとして使う
-- 本文は一次体験を忠実に残し、人への助言・指導・訂正・説得、CTA、営業導線へ変換しない
-- `Lifelog Integrity: hold` の本文は投稿対象にしない。修辞で救済せず、一次体験ソースへ戻る。ソースがなければ投稿しない
-- 過去の投稿や反応は履歴・観測値として保存するが、反応最大化のために次の本文を最適化しない
-- `sns:import-review-pack` は生成済み review pack を SNS Posting Ledger へ取り込むだけで、X/Slack等への投稿は行わない
-- Ledger import 後、可能なら `GET /api/sns-growth/posts?startDate=$TODAY&endDate=$TODAY` で件数を確認し、HTMLレポートの SNS item に `created` / `updated` / UI表示件数を載せる
-- 一次体験ソースが0件なら「公開ライフログ候補0件（正常）」と記録し、Ledger importは実行しない。候補があるのに import が失敗した場合だけ「SNS Ledger未投入」として明記する
-- 投稿は manual review only。`/ohayo` では投稿実行しない
-
-## HTML Report
-
-Calendar / Mail / Slack / 今日の優先タスクを整理したら、日付別HTMLレポートを必ず生成する。
-
-```bash
-TODAY=$(date +%F)
-node scripts/daily-ops-report.mjs ohayo \
-  --date "$TODAY" \
-  --input "/tmp/ohayo-${TODAY}.json"
-```
-
-各 item には可能な限り `links` を入れる。Calendar は `htmlLink`、Mail は Gmail thread link、Slack は permalink を優先する。
-証跡は Slack channel/thread ts、Gmail thread id、Calendar event id、NocoDB table/record など、後で追える粒度で `evidence` に残す。
-HTML内のボタンはAIに渡す構造化指示だけを生成する。Slack投稿・NocoDB更新など外部副作用は既定で `draft_only` / `dry_run` とし、実送信・実更新は別確認なしに行わない。
-
-## 関連トリガー
-
-| コマンド | 役割 |
-|---|---|
-| `/ohayo` | 検知: カレンダー、メール、Slack未対応連絡、業務上のblocked、SNS当日briefとPosting Ledger取り込みを朝に必ず見える化 |
-| `/oyasumi` | 日次整理: 当日分を fix/retry/task 化し、SNS反応を学習に戻す |
-| `/retro` | 週次棚卸し: 残った業務上のblockedと公開ライフログ運用の欠落・誤投影をLearn/Blockとしてエスカレーション |
+要判断がなければ新しい仕事を作らない。`要判断: 該当なし`とし、異常または持ち越しだけを必要な範囲で伝える。

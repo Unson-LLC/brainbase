@@ -7,8 +7,8 @@
 # - Claude Code 側 .claude/scripts/hooks/session-start/inject-memory-preamble.ts
 #   の codex 版。codex は母集団の約3割だが従来 hooks 空で何も注入されていなかった。
 # - ~/.brainbase/memory-preamble.txt を読むだけ。DB / Lightsail tunnel を hot path
-#   に持ち込まない。生成は scripts/generate-memory-preamble.mjs が日次 (oyasumi) or
-#   手動で先に materialize する。
+#   に持ち込まない。生成は日次ルーティンと分離し、
+#   scripts/generate-memory-preamble.mjs で明示的に materialize する。
 # - tsx/node ではなく POSIX shell + python3 で実装し、codex hook 実行の
 #   node/esbuild arch mismatch / timeout 飽和の罠を避ける。
 # - file が無い/空/古い時は安全に縮退 (continue:true, additionalContext 無し or 警告)。
@@ -54,7 +54,7 @@ note = ""
 if age_days > stale_days:
     note = (
         f" (注意: この preamble は {int(age_days)} 日前のもの。"
-        "/oyasumi or generate-memory-preamble.mjs で更新を)"
+        "generate-memory-preamble.mjs で更新を)"
     )
 
 print(json.dumps({
