@@ -145,6 +145,14 @@ export class CompanionController {
         }
     };
 
+    searchTasks = async (req, res) => {
+        try {
+            res.json(await this.canonicalTaskService.searchTasks(req.query || {}, this.taskContext(req)));
+        } catch (error) {
+            this.sendTaskError(res, error);
+        }
+    };
+
     getTask = async (req, res) => {
         try {
             res.json(await this.canonicalTaskService.getTask(req.params.taskId, this.taskContext(req)));

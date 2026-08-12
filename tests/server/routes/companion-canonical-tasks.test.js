@@ -5,9 +5,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { registerApiRoutes } from '../../../server/bootstrap/register-api-routes.js';
 import { createCompanionRouter } from '../../../server/routes/companion.js';
 
+// VibePro traceability: story-canonical-task-bounded-search:ac:1, story-canonical-task-bounded-search:ac:2, story-canonical-task-bounded-search:ac:6, story-canonical-task-bounded-search:ac:7, story-canonical-task-bounded-search:ac:8, story-canonical-task-bounded-search:ac:9.
+
 function appFor({ source = 'bearer', personId = 'sato_keigo', service } = {}) {
     const taskService = service || {
         listTasks: vi.fn(async () => ({ items: [], total_count: 0, count_status: 'exact', next_cursor: null, read_status: 'complete', warnings: [], as_of: '2026-07-14T00:00:00Z' })),
+        searchTasks: vi.fn(async () => ({ items: [], total_count: null, count_status: 'not_requested', has_more: false, next_cursor: null, read_status: 'complete', warnings: [], as_of: '2026-07-14T00:00:00Z' })),
         getTask: vi.fn(async () => ({ id: 'ct1.task' })),
         createTask: vi.fn(async (_body, context) => ({ id: 'ct1.created', context })),
         updateTask: vi.fn(async () => ({ id: 'ct1.updated' })),
@@ -36,6 +39,10 @@ function bootstrapAppFor({ personId = 'legacy_owner' } = {}) {
         listTasks: vi.fn(async () => ({
             items: [], total_count: 0, count_status: 'exact', next_cursor: null,
             read_status: 'complete', warnings: [], as_of: '2026-07-14T00:00:00Z'
+        })),
+        searchTasks: vi.fn(async () => ({
+            items: [], total_count: null, count_status: 'not_requested', has_more: false,
+            next_cursor: null, read_status: 'complete', warnings: [], as_of: '2026-07-14T00:00:00Z'
         })),
         getTask: vi.fn(),
         createTask: vi.fn(),
@@ -108,6 +115,34 @@ describe('Companion canonical Task routes', () => {
             cursor: 'opaque-next-page',
             limit: '25'
         }), expect.any(Object));
+    });
+
+    it('routes bounded task search before the task ID route', async () => {
+        const { app, taskService } = appFor();
+        taskService.searchTasks.mockResolvedValueOnce({
+            items: [], total_count: null, count_status: 'not_requested', has_more: true,
+            next_cursor: 'search-next', read_status: 'complete', warnings: [], as_of: '2026-07-14T00:00:00Z'
+        });
+        const response = await request(app).get(
+            '/api/companion/tasks/search?query=%E6%9C%88%E6%AC%A1&status=pending'
+            + '&project_code=back-office&assignee_person_id=person-1&cursor=next&limit=10'
+        );
+        expect(response.status).toBe(200);
+        expect(response.body).toMatchObject({
+            total_count: null,
+            count_status: 'not_requested',
+            has_more: true,
+            next_cursor: 'search-next'
+        });
+        expect(taskService.searchTasks).toHaveBeenCalledWith(expect.objectContaining({
+            query: '月次',
+            status: 'pending',
+            project_code: 'back-office',
+            assignee_person_id: 'person-1',
+            cursor: 'next',
+            limit: '10'
+        }), expect.any(Object));
+        expect(taskService.getTask).not.toHaveBeenCalled();
     });
 
     it('uses Idempotency-Key and typed owner principal on create', async () => {

@@ -46,9 +46,10 @@
       `legacy:nocodb:<record-id>`形式の決定的キーを採番する。applyは競合検出時に書込前へ停止し、
       完了後に未設定行0件を再検証する。出力は件数のみで本文・secretを含まない。
    1. 本番applyの明示承認を作業記録へ残したoperatorだけが、`npm run migrate:canonical-task-postgres-workflow -- --approve-apply`を実行する。`--approve-apply`がなければ全phaseを開始せず拒否する。このコマンドだけが`dry-run -> check -> apply -> final-check`を順番に実行でき、途中失敗時は後続phaseへ進まない。
+      dry-run/checkは旧本番にも存在する基礎スキーマを検査し、applyは`pg_trgm`を確認して検索索引を`CREATE INDEX CONCURRENTLY`で1本ずつ追加する。final-checkは検索索引の存在に加えて`pg_index.indisvalid = true`かつ`indisready = true`を含む完全スキーマを検査する。apply前にDB roleが拡張を作成できることを確認し、権限不足時は開始しない。並行索引作成の失敗で無効索引が残った場合はreadinessをclosedのまま維持し、DB運用者が該当名とvalid/ready状態を確認して無効索引だけを明示的に削除した後、workflow全体を先頭から再実行する。
    2. 各phaseの出力には本文やsecretを含めず、`source_count`、`target_count`、`matched_count`、`pending_count`、`inserted_count`、`conflict_count`だけを残す。
    3. `final_check_passed: true`、`pending_count: 0`、`conflict_count: 0`、`source_count`と`target_count`の一致を確認する。一致しなければreadinessをenableしない。
-   4. `npm run migrate:canonical-task-postgres -- --apply`の直接実行は拒否される。apply phase内の失敗はtransactionがrollbackされる。applyのCOMMIT後にfinal-checkが失敗した場合、挿入済みrowは削除せずreadinessをclosedのまま維持し、原因を解消して冪等なworkflow全体を先頭から再実行する。
+   4. `npm run migrate:canonical-task-postgres -- --apply`の直接実行は拒否される。row移行処理内の失敗は、そのrow移行transactionをrollbackする。一方、`CREATE INDEX CONCURRENTLY`はtransaction外で1文ずつ実行するため、失敗済み索引を自動rollbackしたとはみなさず、手順1のvalid/ready確認と無効索引の明示削除を行う。row移行のCOMMIT後または索引作成後にfinal-checkが失敗した場合、挿入済みrowや有効な索引は削除せずreadinessをclosedのまま維持し、原因を解消して冪等なworkflow全体を先頭から再実行する。
    active writerが存在しない排水済み状態で`npm run canonical-task:check-postgres-concurrency`を実行し、実operation repositoryへの同時2要求が1回だけ処理され、同一結果を返し、検査行と一時writerが削除されたことを確認する。既存writerが現れた場合は検査を中止する。
 2. guardを含む新BrainbaseとMCPを起動する。process-local mutation gateがclosedで、mutationが503 `canonical_task_mutation_not_ready`になることを確認する。
 3. 下記「必須証跡」の全回帰をcurrent HEADで実行する。Macはこの時点ではTask一覧の実HTTP読み取りと認証拒否だけを確認し、mutationは実行しない。

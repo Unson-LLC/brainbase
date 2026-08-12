@@ -28,6 +28,41 @@ function encodeCursor(offset) {
     return Buffer.from(JSON.stringify({ v: 1, offset }), 'utf8').toString('base64url');
 }
 
+function invalidSearchCursor() {
+    const error = new Error('Canonical Task search cursor is invalid');
+    error.code = 'validation_failed';
+    error.status = 422;
+    error.fieldErrors = { cursor: ['invalid_cursor'] };
+    return error;
+}
+
+function encodeSearchCursor(row) {
+    return Buffer.from(JSON.stringify({
+        v: 1,
+        created_at: isoOrNull(row.created_at),
+        id: String(row.id)
+    }), 'utf8').toString('base64url');
+}
+
+function decodeSearchCursor(cursor) {
+    if (!cursor) return null;
+    try {
+        const decoded = JSON.parse(Buffer.from(String(cursor), 'base64url').toString('utf8'));
+        const createdAt = isoOrNull(decoded.created_at);
+        if (decoded.v !== 1 || !createdAt
+            || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(decoded.id || ''))) {
+            throw new Error();
+        }
+        return { createdAt, id: String(decoded.id) };
+    } catch {
+        throw invalidSearchCursor();
+    }
+}
+
+function escapeLikeToken(value) {
+    return String(value).replace(/[\\%_]/g, '\\$&');
+}
+
 function isoOrNull(value) {
     if (!value) return null;
     const date = new Date(value);
@@ -222,6 +257,51 @@ export class CanonicalTaskPostgresRepository {
             countStatus: 'exact',
             readStatus: 'complete',
             nextCursor: offset + rows.rows.length < totalCount ? encodeCursor(offset + rows.rows.length) : null
+        };
+    }
+
+    async search({
+        tokens = [],
+        statuses = [],
+        priorities = [],
+        projectCodes = [],
+        assigneePersonId,
+        cursor,
+        limit = 20
+    } = {}) {
+        const after = decodeSearchCursor(cursor);
+        const conditions = [];
+        const values = [];
+        const add = (sql, value) => {
+            values.push(value);
+            conditions.push(sql.replace('?', `$${values.length}`));
+        };
+        for (const token of tokens) add("title ILIKE ? ESCAPE E'\\\\'", `%${escapeLikeToken(token)}%`);
+        if (statuses.length) add('status = ANY(?::text[])', statuses);
+        if (priorities.length) add('priority = ANY(?::text[])', priorities);
+        if (projectCodes.length) add('project_codes && ?::text[]', projectCodes);
+        if (assigneePersonId !== undefined) add('assignee_person_id IS NOT DISTINCT FROM ?', assigneePersonId);
+        if (after) {
+            values.push(after.createdAt, after.id);
+            conditions.push(`(created_at, id) < ($${values.length - 1}::timestamptz, $${values.length}::uuid)`);
+        }
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        values.push(limit + 1);
+        const result = await this.query(
+            `SELECT * FROM canonical_tasks ${where}
+             ORDER BY created_at DESC, id DESC
+             LIMIT $${values.length}`,
+            values
+        );
+        const hasMore = result.rows.length > limit;
+        const rows = result.rows.slice(0, limit);
+        return {
+            items: rows.map((row) => this.normalize(row)),
+            totalCount: null,
+            countStatus: 'not_requested',
+            readStatus: 'complete',
+            hasMore,
+            nextCursor: hasMore && rows.length ? encodeSearchCursor(rows.at(-1)) : null
         };
     }
 

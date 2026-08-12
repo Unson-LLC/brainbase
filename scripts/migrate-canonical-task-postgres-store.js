@@ -10,6 +10,7 @@ import { createCanonicalTaskStoreConfig } from '../server/services/companion/can
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCHEMA_PATH = path.join(ROOT, 'server/sql/canonical-task-store-schema.sql');
+const SEARCH_INDEX_SCHEMA_PATH = path.join(ROOT, 'server/sql/canonical-task-search-indexes.sql');
 const REQUIRED_COLUMNS = [
     'id', 'legacy_nocodb_id', 'title', 'description', 'status', 'priority',
     'assignee_person_id', 'assignee_display_name', 'due_at', 'waiting_on',
@@ -33,7 +34,7 @@ export function parseCanonicalTaskPostgresMigrationArgs(argv) {
     return { mode: modes[0] };
 }
 
-export async function checkCanonicalTaskPostgresSchema(pool) {
+export async function checkCanonicalTaskPostgresSchema(pool, { requireSearchIndexes = true } = {}) {
     const tableResult = await pool.query(
         `SELECT table_name FROM information_schema.tables
          WHERE table_schema = current_schema() AND table_name = 'canonical_tasks'`
@@ -47,14 +48,42 @@ export async function checkCanonicalTaskPostgresSchema(pool) {
     const missing = REQUIRED_COLUMNS.filter((column) => !present.has(column));
     if (missing.length) throw new Error(`Canonical Task PostgreSQL schema has missing columns: ${missing.join(', ')}`);
     const indexResult = await pool.query(
-        `SELECT indexname FROM pg_indexes
-         WHERE schemaname = current_schema() AND tablename = 'canonical_tasks'`
+        `SELECT index_class.relname AS indexname,
+                index_state.indisvalid,
+                index_state.indisready
+         FROM pg_index AS index_state
+         JOIN pg_class AS table_class ON table_class.oid = index_state.indrelid
+         JOIN pg_class AS index_class ON index_class.oid = index_state.indexrelid
+         JOIN pg_namespace AS table_namespace ON table_namespace.oid = table_class.relnamespace
+         WHERE table_namespace.nspname = current_schema()
+           AND table_class.relname = 'canonical_tasks'`
     );
-    const indexes = new Set(indexResult.rows.map((row) => row.indexname));
-    for (const required of ['canonical_tasks_status_priority_idx', 'canonical_tasks_assignee_due_idx', 'canonical_tasks_project_codes_idx']) {
-        if (!indexes.has(required)) throw new Error(`Canonical Task PostgreSQL schema is missing ${required}`);
+    const indexes = new Map(indexResult.rows.map((row) => [row.indexname, row]));
+    const requiredIndexes = [
+        'canonical_tasks_status_priority_idx',
+        'canonical_tasks_assignee_due_idx',
+        'canonical_tasks_project_codes_idx'
+    ];
+    if (requireSearchIndexes) requiredIndexes.push(
+        'canonical_tasks_title_trgm_idx',
+        'canonical_tasks_search_cursor_idx'
+    );
+    for (const required of requiredIndexes) {
+        const index = indexes.get(required);
+        if (!index) throw new Error(`Canonical Task PostgreSQL schema is missing ${required}`);
+        if (index.indisvalid !== true || index.indisready !== true) {
+            throw new Error(`Canonical Task PostgreSQL schema has invalid or unready index ${required}`);
+        }
     }
     return { ok: true, table: 'canonical_tasks', columns: REQUIRED_COLUMNS.length };
+}
+
+export async function applyCanonicalTaskSearchIndexes(pool) {
+    const statements = (await readFile(SEARCH_INDEX_SCHEMA_PATH, 'utf8'))
+        .split(';')
+        .map((statement) => statement.trim())
+        .filter(Boolean);
+    for (const statement of statements) await pool.query(statement);
 }
 
 async function sourceRows(repository) {
@@ -190,7 +219,8 @@ export async function runCanonicalTaskPostgresMigration({
     argv = process.argv.slice(2),
     pool = null,
     sourceRepository = null,
-    workflowAuthorized = false
+    workflowAuthorized = false,
+    schemaContract = 'current'
 } = {}) {
     const { mode } = parseCanonicalTaskPostgresMigrationArgs(argv);
     if (mode === 'apply' && !workflowAuthorized) {
@@ -204,8 +234,11 @@ export async function runCanonicalTaskPostgresMigration({
     try {
         if (mode === 'apply') {
             await activePool.query(await readFile(SCHEMA_PATH, 'utf8'));
+            await applyCanonicalTaskSearchIndexes(activePool);
         }
-        await checkCanonicalTaskPostgresSchema(activePool);
+        await checkCanonicalTaskPostgresSchema(activePool, {
+            requireSearchIndexes: schemaContract === 'current' || mode === 'apply'
+        });
         const repository = sourceRepository || new CanonicalTaskNocoDBRepository({
             storeConfig: createCanonicalTaskStoreConfig()
         });
