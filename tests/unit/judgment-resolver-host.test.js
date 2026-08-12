@@ -232,6 +232,44 @@ describe('Codex Judgment Resolver Host', () => {
         expect(context).toContain('The full route receipt stays in the per-session judgment journal');
     });
 
+    it('required capabilityの正確な実行契約を初期指示へ注入し、曖昧なResolver禁止文を使わない', () => {
+        const args = { request: '正本を確認して', conversation_context: { messages: [] } };
+        const requiredReceipt = {
+            classification: { intent: 'investigate', domains: ['knowledge'], action_kind: 'read' },
+            selected_dag_ids: ['knowledge.v1'],
+            required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }]
+        };
+        const optionalReceipt = {
+            classification: { intent: 'answer', domains: ['general'], action_kind: 'none' },
+            selected_dag_ids: ['general.v1'],
+            required_capabilities: [{ capability: 'knowledge.resolve', status: 'optional' }]
+        };
+        const legacyReceipt = {
+            classification: { intent: 'investigate', domains: ['knowledge'], action_kind: 'read' },
+            selected_dag_ids: ['knowledge.v1'],
+            required_capabilities: [{ capability: 'knowledge.resolve' }]
+        };
+
+        const requiredContext = successOutput(args, requiredReceipt).hookSpecificOutput.additionalContext;
+        const optionalContext = successOutput(args, optionalReceipt).hookSpecificOutput.additionalContext;
+        const legacyContext = successOutput(args, legacyReceipt).hookSpecificOutput.additionalContext;
+        const sharedActionContract = 'このツールは正本の所在と次の取得経路を選び、回答本文を取得しません。' +
+            'これはHostが確定したJudgment routeの再分類ではありません。';
+        expect(requiredContext).toContain(
+            '必須capability `knowledge.resolve`を実行してください。許可されている正確なツールは ' +
+            '`mcp__brainbase__brainbase_knowledge_resolve` です。' + sharedActionContract
+        );
+        expect(requiredContext).toContain(
+            'The Host-fixed initial route and classification are immutable for this episode; do not recalculate or change them.'
+        );
+        expect(requiredContext).toContain(sharedActionContract);
+        expect(requiredContext).not.toContain('Do not call Judgment Resolver again');
+        expect(optionalContext).not.toContain('`mcp__brainbase__brainbase_knowledge_resolve`');
+        expect(optionalContext).not.toContain('必須capability `knowledge.resolve`');
+        expect(optionalContext).not.toContain('Do not call Judgment Resolver again');
+        expect(legacyContext).toContain('`mcp__brainbase__brainbase_knowledge_resolve`');
+    });
+
     it('raw transcriptから順序付き文脈を作り、host envelopeと内部情報を除外する', () => {
         const root = temporaryDirectory();
         const transcript = join(root, 'session.jsonl');
@@ -585,7 +623,17 @@ describe('Codex Judgment Resolver Host', () => {
             stop_hook_active: true, last_assistant_message: '別の回答'
         }, { env });
         expect(active.output).toMatchObject({ decision: 'block' });
-        expect(active.output.reason).toContain('brainbase_knowledge_resolveによる参照先判断を実行する');
+        expect(active.output.reason).toContain(
+            '必須capability `knowledge.resolve`が未完了です。許可されている正確なツール ' +
+            '`mcp__brainbase__brainbase_knowledge_resolve` を今実行してください。' +
+            'このツールは正本の所在と次の取得経路を選び、回答本文を取得しません。' +
+            'これはHostが確定したJudgment routeの再分類ではありません。'
+        );
+        expect(active.output.reason).toContain(
+            'このツールは正本の所在と次の取得経路を選び、回答本文を取得しません。' +
+            'これはHostが確定したJudgment routeの再分類ではありません。'
+        );
+        expect(active.output.reason).not.toContain('ではありません。、その後');
         expect(activeReplay.output).toEqual(active.output);
         const finalPath = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.final.json`);
         expect(existsSync(finalPath)).toBe(false);

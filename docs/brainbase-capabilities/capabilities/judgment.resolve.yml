@@ -34,6 +34,7 @@ visibility_rules:
   - Judgment Resolver has no internal LLM; deterministic manifest-owned semantic_matchers, bounded prior-context inheritance, safety floors, and policies select the initial route.
   - Non-follow-up input with no explicit specialist domain or intent match uses the server-owned `general/answer` fallback; unresolved follow-up references or knowledge routes missing required project context use the clarification DAG.
   - UserPromptSubmit adopts exactly one initial route receipt; retries are bounded before episode creation and no reclassification occurs afterwards.
+  - The Host fixes the initial route and classification. When `knowledge.resolve` is required, UserPromptSubmit explicitly names the allowed exact tool `mcp__brainbase__brainbase_knowledge_resolve`, explains that it selects the canonical source and next retrieval path without retrieving the answer body, and distinguishes it from route reclassification. Stop repair uses the same capability-action contract.
   - The current Codex model is the open-ended LLM in the execution loop. It decides how to answer inside the selected DAG and may formulate, refine, and call Brainbase knowledge/retrieval tools 0..N times as results create new questions; there is no one-call-per-turn limit.
   - Claude Code is a future Host-adapter candidate for the same responsibility split, but is not part of the current episode-lifecycle hook integration.
   - Knowledge Resolver deterministically chooses a canonical source route and required retrieval capability; it does not search or retrieve content.

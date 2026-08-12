@@ -132,6 +132,12 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(additionalContext).toContain('Intermediate commentary may omit the owner-visible audit block.');
         expect(additionalContext).toContain('opened one judgment episode');
         expect(additionalContext).toContain('there is no one-call-per-turn limit');
+        expect(additionalContext).toContain(
+            '必須capability `knowledge.resolve`を実行してください。許可されている正確なツールは ' +
+            '`mcp__brainbase__brainbase_knowledge_resolve` です。このツールは正本の所在と次の取得経路を選び、' +
+            '回答本文を取得しません。これはHostが確定したJudgment routeの再分類ではありません。'
+        );
+        expect(additionalContext).not.toContain('Do not call Judgment Resolver again');
         expect(first.stdout).not.toContain('jr_symlink_entrypoint');
         expect(first.stdout).not.toContain('Initial route receipt:');
         expect(additionalContext).toContain('The full route receipt stays in the per-session judgment journal');
@@ -164,6 +170,10 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const firstStop = await run('bash', [wrapper], { env, input: firstStopPayload });
         const firstStopReplay = await run('bash', [wrapper], { env, input: firstStopPayload });
         expect(JSON.parse(firstStop.stdout)).toMatchObject({ decision: 'block' });
+        expect(JSON.parse(firstStop.stdout).reason).toContain(
+            'このツールは正本の所在と次の取得経路を選び、回答本文を取得しません。' +
+            'これはHostが確定したJudgment routeの再分類ではありません。'
+        );
         expect(JSON.parse(firstStopReplay.stdout)).toEqual(JSON.parse(firstStop.stdout));
 
         const routePayload = JSON.stringify({

@@ -48,6 +48,14 @@ const TRANSIENT_REASONS = new Set([
 const DEFAULT_LOCK_WAIT_ATTEMPTS = 300;
 const DEFAULT_LOCK_WAIT_MS = 10;
 const NO_BRAINBASE_REFERENCE_LINE = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
+const CAPABILITY_ACTION_CONTRACTS = Object.freeze({
+    'knowledge.resolve': Object.freeze({
+        capability: 'knowledge.resolve',
+        exactTool: 'mcp__brainbase__brainbase_knowledge_resolve',
+        actionDescription: '正本の所在と次の取得経路を選び、回答本文を取得しません',
+        distinctFrom: 'Hostが確定したJudgment routeの再分類'
+    })
+});
 
 function compareCodePoints(left, right) {
     const a = Array.from(left, (value) => value.codePointAt(0));
@@ -718,8 +726,9 @@ function embeddedAuditLine(response) {
 }
 
 function eventKind(toolName) {
-    const name = String(toolName).replace(/^mcp__brainbase__/u, '');
-    if (name === 'brainbase_knowledge_resolve') return 'route';
+    const exactToolName = String(toolName);
+    if (exactToolName === CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'].exactTool) return 'route';
+    const name = exactToolName.replace(/^mcp__brainbase__/u, '');
     if (/(?:create|update|delete|write|record|link|unlink)/iu.test(name)) return 'write';
     if (/(?:get|list|search|resolve|context|read)/iu.test(name)) return 'retrieve';
     return 'call';
@@ -1019,7 +1028,10 @@ function finalizeEpisodeLocked(payload, episode, paths) {
             }, 'judgment_episode_continuation_conflict');
         }
         const reasons = [
-            ...(missingKnowledge ? ['brainbase_knowledge_resolveによる参照先判断を実行する'] : []),
+            ...(missingKnowledge ? [capabilityActionInstruction(
+                CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'],
+                { repair: true }
+            )] : []),
             ...(missingOwnerAudit ? [
                 `最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${expectedAuditLines.join('\n')}`
             ] : []),
@@ -1027,10 +1039,13 @@ function finalizeEpisodeLocked(payload, episode, paths) {
                 '最初に差し戻された回答の監査行以外の本文を、削除・要約・置換せずそのまま残す'
             ] : [])
         ];
+        const reasonSequence = reasons
+            .map((reason) => reason.replace(/。$/u, ''))
+            .join('。その後');
         return {
             output: {
                 decision: 'block',
-                reason: `Brainbase judgment episodeを完了する前に${reasons.join('、その後')}。監査行の後に、元の回答本文をそのまま続けてください。`
+                reason: `Brainbase judgment episodeを完了する前に${reasonSequence}。監査行の後に、元の回答本文をそのまま続けてください。`
             },
             continuation: marker,
             final: null
@@ -1099,9 +1114,25 @@ function ownerEvidenceSource(args, receipt) {
     };
 }
 
+function requiredCapabilityActionContracts(receipt) {
+    if (!Array.isArray(receipt?.required_capabilities)) return [];
+    return receipt.required_capabilities.map((entry) => {
+        if (record(entry) && entry.status && entry.status !== 'required') return null;
+        const capability = typeof entry === 'string' ? entry : entry?.capability;
+        return CAPABILITY_ACTION_CONTRACTS[capability] ?? null;
+    }).filter(Boolean);
+}
+
+function capabilityActionInstruction(contract, { repair = false } = {}) {
+    const lead = repair
+        ? `必須capability \`${contract.capability}\`が未完了です。許可されている正確なツール \`${contract.exactTool}\` を今実行してください。`
+        : `必須capability \`${contract.capability}\`を実行してください。許可されている正確なツールは \`${contract.exactTool}\` です。`;
+    return `${lead}このツールは${contract.actionDescription}。これは${contract.distinctFrom}ではありません。`;
+}
+
 function requiredKnowledgeResolution(receipt) {
-    return Array.isArray(receipt?.required_capabilities) && receipt.required_capabilities.some((entry) => (
-        entry === 'knowledge.resolve' || entry?.capability === 'knowledge.resolve'
+    return requiredCapabilityActionContracts(receipt).some((contract) => (
+        contract.capability === 'knowledge.resolve'
     ));
 }
 
@@ -1177,9 +1208,13 @@ export function successOutput(
     auditContract = buildAuditContract(receipt)
 ) {
     const ownerReferenceLine = ownerAudit.display_line;
+    const requiredCapabilityInstructions = requiredCapabilityActionContracts(receipt)
+        .map((contract) => capabilityActionInstruction(contract));
     const context = [
         'Brainbase Judgment Resolver Host opened one judgment episode before model generation. The route receipt fixes the current intent and active DAG for this episode; it is not the final episode receipt.',
-        'Do not call Judgment Resolver again and do not reclassify the route. Use Brainbase knowledge and retrieval tools repeatedly when later evidence makes another lookup useful; there is no one-call-per-turn limit.',
+        'The Host-fixed initial route and classification are immutable for this episode; do not recalculate or change them.',
+        ...requiredCapabilityInstructions,
+        'Use Brainbase knowledge and retrieval tools repeatedly when later evidence makes another lookup useful; there is no one-call-per-turn limit.',
         'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.',
         'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.',
         `The final user-facing response for this turn must start with exactly this Host-generated line, before any other text:\n${ownerReferenceLine}`,
