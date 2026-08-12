@@ -1,0 +1,145 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-canonical-task-search-index-rollout",
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "Postgres切替後の検索索引適用は明示承認を要求し、旧NocoDB行またはCanonical Task本文を参照・移行・更新しない。",
+      "rationale": "Postgres正本の正当な追加行を初回移行の競合として扱わないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0,
+            "ac_id": "AC-1",
+            "text_snippet": "明示承認なしでは検索索引を適用しない"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/run-canonical-task-search-index-workflow.js",
+            "anchor": "runCanonicalTaskSearchIndexWorkflow"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/run-canonical-task-search-index-workflow.test.js",
+            "case": "story-canonical-task-search-index-rollout:ac:1 requires an exact explicit apply approval"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/scripts/run-canonical-task-search-index-workflow.test.js",
+            "must_cover": "story-canonical-task-search-index-rollout:ac:1 requires an exact explicit apply approval"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-12T07:46:00.366Z",
+      "last_revised_at": "2026-08-12T07:46:00.366Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "検索索引workflowは基礎schema検査、transaction外の並行索引適用、valid-ready最終検査を順番に実行する。",
+      "rationale": "稼働中のPostgres正本へ加算的な索引だけを安全に適用するため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1,
+            "ac_id": "AC-2",
+            "text_snippet": "基礎schema検査、並行索引追加、valid/ready最終検査だけを行う"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-task-search-index-rollout.md",
+            "section": "決定",
+            "text_snippet": "別workflowにする"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/run-canonical-task-search-index-workflow.js",
+            "anchor": "runCanonicalTaskSearchIndexWorkflow"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/run-canonical-task-search-index-workflow.test.js",
+            "case": "story-canonical-task-search-index-rollout:ac:2 checks the base schema, applies only concurrent search indexes, and verifies valid-ready state"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/scripts/run-canonical-task-search-index-workflow.test.js",
+            "must_cover": "story-canonical-task-search-index-rollout:ac:2 checks the base schema, applies only concurrent search indexes, and verifies valid-ready state"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-12T07:46:00.366Z",
+      "last_revised_at": "2026-08-12T08:15:00.000Z"
+    },
+    {
+      "id": "C-003",
+      "type": "operation",
+      "statement": "runbookは初回データ移行とPostgres切替後の検索索引適用を別のコマンドとして案内する。",
+      "rationale": "Postgres正本の運用中に旧NocoDBとの完全一致検査を再実行しないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "ac_id": "AC-3",
+            "text_snippet": "初回データ移行とPostgres切替後の索引追加をrunbookで区別する"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-canonical-task-search-index-rollout.md",
+            "section": "決定",
+            "text_snippet": "別workflowにする"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "docs/runbooks/canonical-task-cutover.md",
+            "anchor": "デプロイ・再起動時のHEAD更新（enable後の通常運用）"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/run-canonical-task-search-index-workflow.test.js",
+            "case": "story-canonical-task-search-index-rollout:ac:3 distinguishes initial migration from post-cutover index rollout"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/scripts/run-canonical-task-search-index-workflow.test.js",
+            "must_cover": "story-canonical-task-search-index-rollout:ac:3 distinguishes initial migration from post-cutover index rollout"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-12T08:15:00.000Z",
+      "last_revised_at": "2026-08-12T08:15:00.000Z"
+    }
+  ],
+  "diagrams": [],
+  "open_questions": [],
+  "generated_at": "2026-08-12T07:46:00.363Z",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "previous_spec_id": null
+}
