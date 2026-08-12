@@ -23,7 +23,8 @@ describe('judgment resolver publication surfaces', () => {
         expect(claude).toContain('専門matcher未一致の非follow-up入力はserver-owned `general/answer` fallback');
         expect(claude).toContain('Claude Codeは将来のHost adapter候補');
         expect(claude).toContain('現行episode lifecycle hook integrationには含まれない');
-        expect(claude).toContain('activeな再Stopを含む修復可能なStopで`decision:block`を返し');
+        expect(claude).toContain('最初の修復可能なStopで`decision:block`を返し');
+        expect(claude).toContain('`judgment_stop_repair_exhausted`で非zero終了し');
         expect(claude).toContain('Brainbase callが0件で参照必須でないturnも0件だったことを明示する');
         expect(claude).toContain('episodeのないorphan Stopも成功へ潰さない');
     });
@@ -120,7 +121,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('Resolver API/server verifier hold the two runtime copies');
         expect(runbook).toContain('future Claude Code adapter must not hold or receive either copy');
         expect(runbook).toContain('SQLite');
-        expect(runbook).toContain('active repeated Stop returns `decision:block`');
+        expect(runbook).toContain('active repeated Stop exits non-zero with `judgment_stop_repair_exhausted`');
         expect(runbook).toContain('create a new Codex task and resend the same request');
         expect(runbook).toContain('official `hooks/list` RPC');
         expect(runbook).toContain('Open `/hooks`');

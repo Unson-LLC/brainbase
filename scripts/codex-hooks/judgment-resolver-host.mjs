@@ -855,7 +855,10 @@ function normalizedAnswerBody(answer, expectedLines) {
     const bodyLines = answer.replaceAll('\r\n', '\n').split('\n')
         .map((line) => line.replace(/[ \t]+$/u, ''))
         .filter((line) => !auditLines.has(line));
-    while (bodyLines[0] === '') bodyLines.shift();
+    while (bodyLines.length > 0 && (
+        bodyLines[0] === ''
+        || /^(?:🧠 判断参照:|📚 Brainbase|⚠️ Brainbase)/u.test(bodyLines[0])
+    )) bodyLines.shift();
     while (bodyLines.at(-1) === '') bodyLines.pop();
     return bodyLines.join('\n');
 }
@@ -864,7 +867,7 @@ function buildAnswerBodyBinding(answer, expectedLines) {
     const body = normalizedAnswerBody(answer, expectedLines);
     if (body === null) return null;
     return {
-        schema_version: 'brainbase-answer-body-binding-v1',
+        schema_version: 'brainbase-answer-body-binding-v2',
         audit_lines_digest: sha256(canonicalJson(expectedLines)),
         body_digest: sha256(body),
         character_count: body.length
@@ -875,7 +878,7 @@ function activeAnswerBodyBinding(marker, expectedLines) {
     if (marker?.schema_version !== 'brainbase-judgment-continuation-v2') return null;
     const binding = record(marker.answer_body_binding);
     if (!binding) return null;
-    if (binding.schema_version !== 'brainbase-answer-body-binding-v1'
+    if (!['brainbase-answer-body-binding-v1', 'brainbase-answer-body-binding-v2'].includes(binding.schema_version)
         || !/^[0-9a-f]{64}$/u.test(String(binding.audit_lines_digest ?? ''))
         || !/^[0-9a-f]{64}$/u.test(String(binding.body_digest ?? ''))
         || !Number.isSafeInteger(binding.character_count)
@@ -1171,7 +1174,13 @@ export async function processHookPayload(payload, dependencies = {}) {
         const event = recordBrainbaseToolUse(payload, dependencies);
         return event ? { systemMessage: event.display_line } : {};
     }
-    if (eventName === 'Stop') return finalizeEpisode(payload, dependencies).output;
+    if (eventName === 'Stop') {
+        const output = finalizeEpisode(payload, dependencies).output;
+        if (payload.stop_hook_active === true && output?.decision === 'block') {
+            throw new Error('judgment_stop_repair_exhausted');
+        }
+        return output;
+    }
     return {};
 }
 

@@ -43,7 +43,7 @@ any invalid Stop state -> failed_visible
 
 - identityがないStopは`judgment_episode_identity_missing`。
 - 対応episodeがないStopは`judgment_episode_not_found`。
-- required knowledgeまたはowner監査prefixが不足する修復可能なStopは、activeな再Stopでも`decision: block`で継続し、final receiptを作らない。Codexが非zero Hook failureをblockとして扱わないため、修復可能な不足へ非zeroを使わない。
+- required knowledgeまたはowner監査prefixが不足する最初の修復可能なStopは`decision: block`で1回だけ継続し、final receiptを作らない。なお不完全なactive再Stopは`judgment_stop_repair_exhausted`で非zero終了し、無限再生成を防ぐ。
 - 監査prefix比較は行末の空白・tabだけを正規化し、本文・順序・multiplicityはexactに保つ。
 - 参照必須でなくeventが0件なら、Host-ownedの`📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓`をrequired audit lineへ追加する。
 - orphan PostToolUseは証拠を捏造しないため引き続きignoreする。

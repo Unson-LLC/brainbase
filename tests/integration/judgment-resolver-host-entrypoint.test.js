@@ -225,7 +225,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
 
     // Traceability: story-brainbase-judgment-audit-fail-closed:ac:4
     // Traceability: story-brainbase-judgment-audit-fail-closed:ac:5
-    it('orphan Stopは明示失敗にし、監査不足のactive再Stopはblockを維持する', async () => {
+    it('orphan Stopは明示失敗にし、監査不足のactive再Stopは有限回で明示終了する', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
@@ -308,16 +308,14 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                 hook_event_name: 'Stop', ...identity, stop_hook_active: true, last_assistant_message: '未取得のまま回答'
             })
         });
-        expect(repeatedStop).toMatchObject({ code: 0, stderr: '' });
-        expect(JSON.parse(repeatedStop.stdout)).toMatchObject({
-            decision: 'block',
-            reason: expect.stringContaining('brainbase_knowledge_resolveによる参照先判断を実行する')
-        });
+        expect(repeatedStop.code).not.toBe(0);
+        expect(repeatedStop.stdout).toBe('');
+        expect(repeatedStop.stderr).toContain('judgment_stop_repair_exhausted');
         const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
         expect(existsSync(finalPath)).toBe(false);
     }, 20_000);
 
-    it('監査行だけを直すactive Stopで元の回答本文を失わせない', async () => {
+    it('本文を短縮したactive Stopは再blockせず明示終了してfinalを作らない', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const hostUrl = await listen((request, response) => {
@@ -384,26 +382,11 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                 ].join('\n')
             })
         });
-        expect(shortenedStop).toMatchObject({ code: 0, stderr: '' });
-        expect(JSON.parse(shortenedStop.stdout)).toMatchObject({
-            decision: 'block', reason: expect.stringContaining('削除・要約・置換せず')
-        });
+        expect(shortenedStop.code).not.toBe(0);
+        expect(shortenedStop.stdout).toBe('');
+        expect(shortenedStop.stderr).toContain('judgment_stop_repair_exhausted');
         const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
         expect(existsSync(finalPath)).toBe(false);
-
-        const preservedStop = await run('bash', [wrapper], {
-            env,
-            input: JSON.stringify({
-                hook_event_name: 'Stop', ...identity, stop_hook_active: true,
-                last_assistant_message: [
-                    ownerLine,
-                    '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-                    detailedBody
-                ].join('\n')
-            })
-        });
-        expect(preservedStop).toMatchObject({ code: 0, stderr: '', stdout: '{}\n' });
-        expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({ completion_status: 'complete' });
     }, 20_000);
 
     it('同一turnの並列UserPromptSubmitを1回のResolver呼出と同一episodeへ畳み込む', async () => {

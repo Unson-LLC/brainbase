@@ -28,7 +28,7 @@ global `UserPromptSubmit`、`PostToolUse`、`Stop`は設定ファイルに存在
 
 Codex自身の`hooks/list`で確認すると、3つのResolver Hookは登録・有効だったが、すべて`trustStatus: modified`だった。保存済みtrust recordの存在を現在のHook identityへの信頼と取り違えたため、未稼働を復旧済みと報告していた。
 
-またHost adapterは、監査不足のactive再Stopを非zeroで終了していた。しかしCodex DesktopはHookの非zero終了をblockではなく失敗通知として扱い、回答を`task_complete`へ進める。さらに、参照必須でない0-call turnには`🧠`行しかなく、意図した未参照と監査欠落をownerが区別できなかった。
+またHost adapterは、当初、監査不足のactive再Stopを非zeroで終了していた。Codex DesktopはHookの非zero終了をblockではなく失敗通知として扱うため、最初の修復要求には`decision:block`が必要である。一方、active再Stopでも同じblockを無制限に返すと再生成が終わらないため、修復機会を1回に限定して明示終了する。さらに、参照必須でない0-call turnには`🧠`行しかなく、意図した未参照と監査欠落をownerが区別できなかった。
 
 ## 受け入れ基準
 
@@ -36,7 +36,7 @@ Codex自身の`hooks/list`で確認すると、3つのResolver Hookは登録・�
 - [ ] `modified`、`untrusted`、missing、Codex status取得失敗は`trust_required`または診断エラーとして非zeroで終了する。Brainbaseはtrust hashを計算・書換しない。
 - [ ] readiness check成功は`ready_for_fresh_task`までとし`active`とは呼ばない。Hookのtrust承認後に作成した新規taskのepisode、final receipt、実transcriptのowner監査prefixがそろった場合だけ`proven_active`とする。
 - [ ] episode identityまたは対応episodeがないStopは無音の`{}`を返さず、activation failureとして明示的にfail-closedする。
-- [ ] required knowledgeまたはowner監査prefixが欠ける修復可能なStopは、activeな再Stopでも`decision:block`を返してfinal receiptを作らない。
+- [ ] required knowledgeまたはowner監査prefixが欠ける最初の修復可能なStopは`decision:block`を返し、なお不完全なactive再Stopは`judgment_stop_repair_exhausted`で非zero終了してfinal receiptを作らない。
 - [ ] owner監査prefixは行末の空白・tabだけを表示上同一として扱い、本文・順序・回数は保存値と一致させる。
 - [ ] 参照必須でなく実際のBrainbase callが0件なら、`📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓`を必ず表示する。
 - [ ] `task_complete`として扱えるのは、同一turnにcomplete final receiptが1件ある場合だけとする。

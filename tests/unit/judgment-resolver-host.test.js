@@ -876,10 +876,16 @@ describe('Codex Judgment Resolver Host', () => {
             schema_version: 'brainbase-judgment-continuation-v2',
             missing_capabilities: ['owner.audit.display'],
             answer_body_binding: {
-                schema_version: 'brainbase-answer-body-binding-v1',
+                schema_version: 'brainbase-answer-body-binding-v2',
                 character_count: detailedBody.length
             }
         });
+        const continuationPath = join(
+            root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.continuation.json`
+        );
+        const legacyContinuation = JSON.parse(readFileSync(continuationPath, 'utf8'));
+        legacyContinuation.answer_body_binding.schema_version = 'brainbase-answer-body-binding-v1';
+        writeFileSync(continuationPath, `${JSON.stringify(legacyContinuation)}\n`, 'utf8');
 
         const shortened = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id,
@@ -910,6 +916,112 @@ describe('Codex Judgment Resolver Host', () => {
         expect(preserved.final).toMatchObject({
             completion_status: 'complete', owner_audit_line_count: 2
         });
+    });
+
+    it('先頭の誤形式Brainbase監査行を本文bindingから除外してactive修復を完了する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-malformed-audit-repair', turn_id: 'turn-malformed-audit-repair',
+            prompt: '修正結果を説明して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+        const answerBody = '修正を完了し、回帰テストを追加しました。';
+        const first = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase取得: 未参照として処理しました ✓',
+                answerBody
+            ].join('\n')
+        }, { env });
+        expect(first.output).toMatchObject({ decision: 'block' });
+        expect(first.continuation.answer_body_binding).toMatchObject({
+            schema_version: 'brainbase-answer-body-binding-v2', character_count: answerBody.length
+        });
+
+        const repaired = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                answerBody
+            ].join('\n')
+        }, { env });
+        expect(repaired.output).toEqual({});
+        expect(repaired.final).toMatchObject({ completion_status: 'complete', owner_audit_line_count: 2 });
+    });
+
+    it('本文開始後の行頭予約namespaceと行途中の部分文字列を本文bindingへ保持する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-audit-namespace-boundary', turn_id: 'turn-audit-namespace-boundary',
+            prompt: '監査行と本文の境界を確認して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const episode = await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+                    selected_dag_ids: ['general.v1']
+                } })
+            })
+        });
+        const answerBody = [
+            '本文開始',
+            '📚 Brainbase取得: この行は本文として保持する',
+            '説明中の 📚 Brainbase取得: も本文として保持する'
+        ].join('\n');
+        const first = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase取得: 先頭の誤形式監査行',
+                '',
+                answerBody
+            ].join('\n')
+        }, { env });
+        expect(first.output).toMatchObject({ decision: 'block' });
+        expect(first.continuation.answer_body_binding).toMatchObject({
+            schema_version: 'brainbase-answer-body-binding-v2', character_count: answerBody.length
+        });
+
+        const omitted = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                '本文開始'
+            ].join('\n')
+        }, { env });
+        expect(omitted.output).toMatchObject({ decision: 'block' });
+        expect(omitted.output.reason).toContain('削除・要約・置換せず');
+
+        const preserved = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                answerBody
+            ].join('\n')
+        }, { env });
+        expect(preserved.output).toEqual({});
+        expect(preserved.final).toMatchObject({ completion_status: 'complete' });
     });
 
     it('Stopは保存済み監査行の欠落・順序違い・過剰表示を一度だけ再生成させる', async () => {
