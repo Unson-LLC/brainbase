@@ -11,6 +11,7 @@
 - 実Postgres並行検査: `npm run canonical-task:check-postgres-concurrency`
 - 既存行の冪等キーbackfill: `npm run backfill:canonical-task-idempotency-keys -- --dry-run|--apply`
 - Task移行（承認後のみ）: `npm run migrate:canonical-task-postgres-workflow -- --approve-apply`
+- Postgres切替後の検索索引追加（承認後のみ）: `npm run migrate:canonical-task-search-indexes -- --approve-apply`
 - readiness操作: `scripts/set-canonical-task-readiness.js`
 - Postgres向けenable: `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence <artifact>`
 - disable: `npm run canonical-task:readiness -- --disable --reason <reason>`
@@ -61,6 +62,12 @@
 9. Brainbaseを起動し、APIの作成・再送・更新・競合・完了・承認materializationの実契約をMac testから確認してからMac Companionを反映する。
 
 ## デプロイ・再起動時のHEAD更新（enable後の通常運用）
+
+Postgres正本への切替後に検索索引だけを追加する場合は、NocoDBとの行一致を再検査する初回移行workflowを再利用しない。
+`npm run migrate:canonical-task-search-indexes -- --approve-apply`を実行し、基礎schema検査、transaction外の
+`CREATE INDEX CONCURRENTLY`、`pg_index.indisvalid = true`かつ`indisready = true`の最終検査を順番に通す。
+この経路はTask本文の参照・移行・更新を行わない。失敗時はreadinessを変更せず、無効索引が残った場合だけ
+前節の手順どおり索引名とvalid/ready状態を確認して明示的に削除し、先頭から再実行する。
 
 readiness rowは`source_head`を固定するため、enable後にデプロイでHEADが進んだ再起動は原則そのままでよい。
 起動時に以下の決定論的ガードが自動で判定する（`server/services/companion/canonical-task-source-head-guard.js`）。
