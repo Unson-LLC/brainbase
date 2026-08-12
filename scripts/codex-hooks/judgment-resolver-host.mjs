@@ -589,6 +589,7 @@ export async function startEpisode(payload, { env = process.env, fetchImpl = glo
 }
 
 const TOOL_EXCERPT_LIMIT = 40;
+const TOOL_SCOPE_LIMIT = 320;
 
 function sanitizeToolExcerpt(value, limit = TOOL_EXCERPT_LIMIT) {
     const redacted = String(value ?? '')
@@ -621,6 +622,49 @@ function toolQuery(input) {
     return sanitizeToolExcerpt(value);
 }
 
+function toolInputText(args, key) {
+    const value = args[key];
+    return typeof value === 'string' && value.trim() ? sanitizeToolExcerpt(value) : null;
+}
+
+function toolInputLimit(args) {
+    return Number.isSafeInteger(args.limit) && args.limit > 0 ? `最大${args.limit}件` : null;
+}
+
+function toolCallScope(toolName, input) {
+    const name = String(toolName).replace(/^mcp__brainbase__/u, '');
+    const args = record(input) ?? {};
+    const scope = (parts) => sanitizeToolExcerpt(parts.filter(Boolean).join('・'), TOOL_SCOPE_LIMIT);
+    const labeled = (key, label = key) => {
+        const value = toolInputText(args, key);
+        return value ? `${label}=${value}` : null;
+    };
+
+    if (name === 'brainbase_projects') return 'プロジェクト一覧';
+    if (name === 'brainbase_admin_read') {
+        const view = toolInputText(args, 'view');
+        return scope([
+            view ? `管理ビュー ${view}` : '管理ビュー',
+            labeled('project'), toolInputLimit(args)
+        ]);
+    }
+    if (name === 'brainbase_run_receipt_inbox') {
+        return scope([
+            'Run Receipt Inbox', labeled('project_id'), labeled('source_type'),
+            labeled('run_status'), labeled('evidence_state'), toolInputLimit(args)
+        ]);
+    }
+    if (name === 'brainbase_run_receipt_history') {
+        return scope([
+            'Run Receipt履歴', labeled('project_id'), labeled('source_type'),
+            labeled('source_identity'), toolInputLimit(args)
+        ]);
+    }
+
+    const query = toolQuery(input);
+    return query === '対象未指定' ? '入力なし' : query;
+}
+
 function nestedRecords(value, depth = 0) {
     if (depth > 5) return [];
     const item = record(value);
@@ -645,6 +689,12 @@ function responseFailed(response) {
         || ['error', 'unavailable', 'failed'].includes(String(item.status))
         || (record(item.error) && item.status !== 'ok')
     ));
+}
+
+function responseCount(response) {
+    return nestedRecords(response)
+        .map((item) => item.count)
+        .find((count) => Number.isSafeInteger(count) && count >= 0) ?? null;
 }
 
 function knowledgeResolutionData(response) {
@@ -698,6 +748,8 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const responseDigest = sha256(canonicalJson(responseValue));
     const fingerprint = sha256(canonicalJson({ tool_name: toolName, tool_use_id: toolUseId, input_digest: inputDigest, response_digest: responseDigest }));
     const success = !responseFailed(responseValue);
+    const callScope = toolCallScope(toolName, inputValue);
+    const resultCount = responseCount(responseValue);
     const kind = eventKind(toolName);
     const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
     const qualifies = kind === 'route' && success && Boolean(resolution);
@@ -714,7 +766,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const displayLine = kind === 'route'
         ? routeDisplayLine(inputValue, resolution, success)
         : embeddedAuditLine(responseValue)
-            ?? `${success ? '📚' : '⚠️'} Brainbase呼出: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${toolQuery(inputValue)}」→ ${success ? '成功 ✓' : '失敗'}`;
+            ?? `${success ? '📚' : '⚠️'} Brainbase呼出: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${callScope}」→ ${success ? `${resultCount === null ? '' : `${resultCount}件・`}呼び出し完了 ✓` : '失敗'}`;
     return withEpisodeTransitionLock(paths, () => {
         const episode = existingEpisode(payload, env);
         if (!episode) return null;
@@ -756,7 +808,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             input_digest: inputDigest,
             response_digest: responseDigest,
             event_fingerprint: fingerprint,
-            query_excerpt: toolQuery(inputValue),
+            query_excerpt: callScope,
             safe_metadata: safeMetadata,
             display_line: displayLine
         };

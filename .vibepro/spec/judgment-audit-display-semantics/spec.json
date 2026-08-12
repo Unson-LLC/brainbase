@@ -1,0 +1,196 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "judgment-audit-display-semantics",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "brainbase_projects を入力なしで呼び出した監査行は対象を『プロジェクト一覧』と表示し、『対象未指定』と表示しない。",
+      "rationale": "一覧取得という操作対象はツール契約から確定できるため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0,
+            "ac_id": "AC-1",
+            "text_snippet": "対象が確定している呼出を対象未指定と表示しない"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "function toolCallScope"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "汎用Brainbase監査行は呼出範囲と件数を示し、通信完了を業務結果の成功と表示しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "汎用Brainbase監査行は呼出範囲と件数を示し、通信完了を業務結果の成功と表示しない"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-12T02:43:10.594Z",
+      "last_revised_at": "2026-08-12T03:04:08.642Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "brainbase_run_receipt_inbox と brainbase_run_receipt_history は入力された識別条件と件数上限を、brainbase_admin_read は管理ビュー名を監査行の呼出範囲として表示する。",
+      "rationale": "入力で安全に確定できる呼出範囲を監査表示から失わないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1,
+            "ac_id": "AC-2",
+            "text_snippet": "操作対象・範囲を安全かつ具体的に表示する"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "export function recordBrainbaseToolUse"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "汎用Brainbase監査行は呼出範囲と件数を示し、通信完了を業務結果の成功と表示しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "汎用Brainbase監査行は呼出範囲と件数を示し、通信完了を業務結果の成功と表示しない"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-12T02:48:46.447Z",
+      "last_revised_at": "2026-08-12T03:04:08.642Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "監査行はツール応答がエラーでないことを『呼び出し完了』と表示し、対象データや業務結果の成功を意味する『成功』とは表示しない。",
+      "rationale": "success は responseFailed の否定であり、検索結果や対象の存在を検証していないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "ac_id": "AC-3",
+            "text_snippet": "呼び出し完了と表示し、対象データや業務結果の成功とは表示しない"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "const success = !responseFailed(responseValue)"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "汎用Brainbase監査行は呼出範囲と件数を示し、通信完了を業務結果の成功と表示しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "汎用Brainbase監査行は呼出範囲と件数を示し、通信完了を業務結果の成功と表示しない"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-12T02:43:10.594Z",
+      "last_revised_at": "2026-08-12T03:04:08.642Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "参照先ルーティング行、ツール応答に埋め込まれた固有監査行、失敗表示、knowledge.resolve の達成判定は汎用監査表示の修正後も変わらない。",
+      "rationale": "CodexからPostToolUse Hookを経てJournalへ保存する経路のうち、今回の変更を generic MCP fallback の表示意味に限定するため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "ac_id": "AC-4",
+            "text_snippet": "参照先ルーティング行、ツール応答内の固有監査行、失敗表示、knowledge.resolveの達成判定は変更しない"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": ".vibepro/graphify/GRAPH_REPORT.md",
+            "section": "Graph Summary",
+            "text_snippet": "Graphifyで影響経路を確認"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "function routeDisplayLine"
+          },
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "embeddedAuditLine(responseValue)"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "PostToolUseを複数回記録し、routingを取得済みと誤表示せずraw payloadも保存しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "PostToolUseを複数回記録し、routingを取得済みと誤表示せずraw payloadも保存しない"
+          },
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "symlink経由でepisode開始・複数Brainbase参照・Stop確定を1つのturnへ束縛する"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-12T02:43:10.594Z",
+      "last_revised_at": "2026-08-12T03:04:08.642Z"
+    }
+  ],
+  "diagrams": [
+    {
+      "kind": "sequence",
+      "mermaid": "sequenceDiagram\n  participant Codex\n  participant Hook as PostToolUse Hook\n  participant Journal\n  Codex->>Hook: tool_name + safe tool_input + tool_response\n  Hook->>Hook: call subjectを決定\n  Hook->>Hook: responseFailedで完了/失敗を決定\n  Hook->>Journal: 意味を限定したdisplay_lineを保存",
+      "entities": [
+        "Codex",
+        "PostToolUse Hook",
+        "Journal"
+      ],
+      "rationale": "Graphifyで確認したCodexからPostToolUse Hookを経てJournalへ保存する表示データフローを固定する。"
+    }
+  ],
+  "open_questions": [],
+  "generated_at": "2026-08-12T03:04:08.640Z",
+  "previous_spec_id": "2026-08-12T03:00:25.427Z"
+}

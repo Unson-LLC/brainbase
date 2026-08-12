@@ -140,11 +140,23 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
 
         const unrelated = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'PostToolUse', ...identity,
-            tool_name: 'mcp__brainbase__get_context', tool_use_id: 'tool-unrelated',
+            tool_name: 'mcp__brainbase__brainbase_projects', tool_use_id: 'tool-unrelated',
+            tool_input: {}, tool_response: { status: 'ok', data: { projects: [], count: 0 } }
+        }) });
+        expect(JSON.parse(unrelated.stdout).systemMessage).toBe(
+            '📚 Brainbase呼出: brainbase_projects「プロジェクト一覧」→ 0件・呼び出し完了 ✓'
+        );
+        const unrelatedLine = JSON.parse(unrelated.stdout).systemMessage;
+
+        const generic = await run('bash', [wrapper], { env, input: JSON.stringify({
+            hook_event_name: 'PostToolUse', ...identity,
+            tool_name: 'mcp__brainbase__get_context', tool_use_id: 'tool-generic',
             tool_input: { topic: 'resolver' }, tool_response: { content: [{ type: 'text', text: 'context' }] }
         }) });
-        expect(JSON.parse(unrelated.stdout).systemMessage).toContain('Brainbase呼出');
-        const unrelatedLine = JSON.parse(unrelated.stdout).systemMessage;
+        expect(JSON.parse(generic.stdout).systemMessage).toBe(
+            '📚 Brainbase呼出: get_context「resolver」→ 呼び出し完了 ✓'
+        );
+        const genericLine = JSON.parse(generic.stdout).systemMessage;
 
         const firstStopPayload = JSON.stringify({
             hook_event_name: 'Stop', ...identity, stop_hook_active: false, last_assistant_message: '仮回答'
@@ -185,6 +197,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             last_assistant_message: [
                 '🧠 判断参照: 「Resolverを実行して」を参照 → Brainbase参照先の判断が必要 ✓',
                 unrelatedLine,
+                genericLine,
                 routeLine,
                 searchLine,
                 '確認後の回答'
@@ -216,10 +229,10 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(JSON.parse(readFileSync(join(journalDirectory, `${hash('turn-symlink-entrypoint')}.final.json`), 'utf8'))).toMatchObject({
             schema_version: 'brainbase-judgment-episode-final-v2',
             completion_status: 'complete',
-            event_count: 3,
+            event_count: 4,
             qualifying_event_count: 1,
             owner_audit_complete: true,
-            owner_audit_line_count: 4
+            owner_audit_line_count: 5
         });
     }, 20_000);
 

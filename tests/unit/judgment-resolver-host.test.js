@@ -480,6 +480,67 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env })).toThrow('judgment_tool_event_conflict');
     });
 
+    it('汎用Brainbase監査行は呼出範囲と件数を示し、通信完了を業務結果の成功と表示しない', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-tool-display', turn_id: 'turn-tool-display',
+            prompt: 'おやすみ処理の証拠を確認して', cwd: process.cwd()
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: validReceipt(buildJudgmentRequest(payload, { env })) })
+            })
+        });
+
+        const record = (toolName, toolUseId, toolInput, toolResponse) => recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: `mcp__brainbase__${toolName}`, tool_use_id: toolUseId,
+            tool_input: toolInput, tool_response: toolResponse
+        }, { env });
+
+        const projects = record('brainbase_projects', 'tool-projects', {}, {
+            status: 'ok', data: { projects: [{ id: 'brainbase' }], count: 1 }
+        });
+        const inbox = record('brainbase_run_receipt_inbox', 'tool-inbox', {
+            project_id: 'brainbase', source_type: 'codex_automations',
+            run_status: 'blocked', evidence_state: 'unconfirmed', limit: 100
+        }, {
+            status: 'ok', data: { items: [], count: 0 }
+        });
+        const history = record('brainbase_run_receipt_history', 'tool-history', {
+            project_id: 'brainbase', source_type: 'codex_automations',
+            source_identity: 'brainbase-oyasumi', limit: 20
+        }, { status: 'ok', data: { items: [], count: 0 } });
+        const admin = record('brainbase_admin_read', 'tool-admin', {
+            view: 'candidates', project: 'brainbase', limit: 100
+        }, {
+            status: 'ok', data: { candidates: [] }
+        });
+        const failed = record('brainbase_admin_read', 'tool-admin-failed', { view: 'health' }, {
+            status: 'error', error: { code: 'brainbase_api_error' }
+        });
+        const genericEmpty = record('get_context', 'tool-generic-empty', {}, {
+            status: 'ok', data: {}
+        });
+
+        expect(projects.display_line).toBe('📚 Brainbase呼出: brainbase_projects「プロジェクト一覧」→ 1件・呼び出し完了 ✓');
+        expect(inbox.display_line).toBe('📚 Brainbase呼出: brainbase_run_receipt_inbox「Run Receipt Inbox・project_id=brainbase・source_type=codex_automations・run_status=blocked・evidence_state=unconfirmed・最大100件」→ 0件・呼び出し完了 ✓');
+        expect(history.display_line).toBe('📚 Brainbase呼出: brainbase_run_receipt_history「Run Receipt履歴・project_id=brainbase・source_type=codex_automations・source_identity=brainbase-oyasumi・最大20件」→ 0件・呼び出し完了 ✓');
+        expect(admin.display_line).toBe('📚 Brainbase呼出: brainbase_admin_read「管理ビュー candidates・project=brainbase・最大100件」→ 呼び出し完了 ✓');
+        expect(admin.query_excerpt).toBe('管理ビュー candidates・project=brainbase・最大100件');
+        expect(failed.display_line).toBe('⚠️ Brainbase呼出: brainbase_admin_read「管理ビュー health」→ 失敗');
+        expect(genericEmpty.display_line).toBe('📚 Brainbase呼出: get_context「入力なし」→ 呼び出し完了 ✓');
+        expect(genericEmpty.query_excerpt).toBe('入力なし');
+
+        for (const event of [projects, inbox, history, admin, failed, genericEmpty]) {
+            expect(event.display_line).not.toContain('対象未指定');
+            expect(event.display_line).not.toContain('→ 成功');
+        }
+    });
+
     it('Stopは必要なrouting証拠を満たすまでactive再Stopでもblockし、finalを作らない', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
