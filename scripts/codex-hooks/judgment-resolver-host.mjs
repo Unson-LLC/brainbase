@@ -96,6 +96,7 @@ function contentText(content) {
 function isInjectedHostEnvelope(text) {
     const trimmed = text.trimStart();
     return trimmed.startsWith('<recommended_plugins>')
+        || /^<hook_prompt(?:\s|>)/u.test(trimmed)
         || trimmed.startsWith('# AGENTS.md instructions for ')
         || trimmed.startsWith('<environment_context>')
         || trimmed.startsWith('<app-context>');
@@ -1005,6 +1006,8 @@ function sanitizeOwnerExcerpt(value) {
         .replace(/\b(?:sk-[a-z0-9_-]{8,}|ghp_[a-z0-9_]{8,}|github_pat_[a-z0-9_]{8,}|xox[a-z]-[a-z0-9-]{8,}|AIza[a-z0-9_-]{8,})\b/giu, '[秘密情報]')
         .replace(/[\u0000-\u001f\u007f]+/gu, ' ')
         .replace(/[「」]/gu, ' ')
+        .replaceAll('<', '＜')
+        .replaceAll('>', '＞')
         .replace(/\s+/gu, ' ')
         .trim();
     const points = Array.from(redacted);

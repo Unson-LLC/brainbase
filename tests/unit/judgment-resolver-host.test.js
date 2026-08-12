@@ -113,6 +113,24 @@ describe('Codex Judgment Resolver Host', () => {
         expect(line).not.toContain('使用しました');
     });
 
+    it('owner監査行の山括弧を表示時に変形しない安全な文字へ正規化する', () => {
+        const args = {
+            request: '<hook_prompt id="repair">監査行を直して</hook_prompt>',
+            turn_id: 'turn-current',
+            conversation_context: { messages: [] }
+        };
+        const receipt = {
+            classification_evidence: { source: 'current_request', source_turn_ids: ['turn-current'] },
+            classification: { intent: 'implement', domains: ['engineering'], action_kind: 'write' },
+            selected_dag_ids: ['engineering.v1']
+        };
+
+        const line = buildOwnerReferenceLine(args, receipt);
+        expect(line).toContain('＜hook_prompt id="repair"＞');
+        expect(line).not.toContain('<hook_prompt');
+        expect(line).not.toContain('&lt;hook_prompt');
+    });
+
     it('clarification receiptは停止ではなく追加確認の判断として表示する', () => {
         const args = {
             request: 'それでいい。修正して',
@@ -223,6 +241,11 @@ describe('Codex Judgment Resolver Host', () => {
         writeFileSync(transcript, [
             event('session_meta', { id: sessionId }),
             event('response_item', { type: 'message', role: 'user', content: [{ type: 'input_text', text: '<recommended_plugins>hidden</recommended_plugins>' }] }),
+            event('response_item', { type: 'message', role: 'user', content: [{ type: 'input_text', text: '<hook_prompt id="repair">hidden repair instruction</hook_prompt>' }] }),
+            event('response_item', {
+                type: 'message', role: 'user', content: [{ type: 'input_text', text: '<hook_prompt_fake>通常入力</hook_prompt_fake>' }],
+                internal_chat_message_metadata_passthrough: { turn_id: 'turn-prior', phase: 'final' }
+            }),
             event('response_item', { type: 'message', role: 'developer', content: [{ type: 'input_text', text: 'hidden instruction body' }] }),
             event('response_item', {
                 type: 'message', role: 'user', content: [{ type: 'input_text', text: '文脈は入る？' }],
@@ -252,9 +275,10 @@ describe('Codex Judgment Resolver Host', () => {
 
         expect(args.request).toBe(prompt);
         expect(args.conversation_context.messages).toEqual([
-            { sequence: 0, turn_id: 'turn-prior', role: 'user', phase: 'final', text: '文脈は入る？' },
-            { sequence: 1, turn_id: 'turn-prior', role: 'assistant', phase: 'final', text: 'Hostが生の履歴を渡します。' },
-            { sequence: 2, turn_id: turnId, role: 'user', phase: null, text: prompt }
+            { sequence: 0, turn_id: 'turn-prior', role: 'user', phase: 'final', text: '<hook_prompt_fake>通常入力</hook_prompt_fake>' },
+            { sequence: 1, turn_id: 'turn-prior', role: 'user', phase: 'final', text: '文脈は入る？' },
+            { sequence: 2, turn_id: 'turn-prior', role: 'assistant', phase: 'final', text: 'Hostが生の履歴を渡します。' },
+            { sequence: 3, turn_id: turnId, role: 'user', phase: null, text: prompt }
         ]);
         expect(args.conversation_context.messages.filter((message) => message.turn_id === turnId)).toHaveLength(1);
         expect(args.conversation_context.runtime).toMatchObject({ host: 'codex', model: 'gpt-test', permission_mode: 'never' });
