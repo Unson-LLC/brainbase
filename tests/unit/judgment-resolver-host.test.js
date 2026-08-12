@@ -131,7 +131,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(line).not.toContain('&lt;hook_prompt');
     });
 
-    it('clarification receiptは停止ではなく追加確認の判断として表示する', () => {
+    it('clarification receiptは停止理由とproject識別子を表示する', () => {
         const args = {
             request: 'それでいい。修正して',
             turn_id: 'turn-current',
@@ -140,13 +140,59 @@ describe('Codex Judgment Resolver Host', () => {
         const receipt = {
             status: 'needs_classification',
             classification_evidence: { source: 'current_request' },
-            selected_dag_ids: ['clarification.v1']
+            selected_dag_ids: ['clarification.v1'],
+            project_code: 'baao-project',
+            reconciliation_reasons: ['conversation_referent_missing']
         };
 
         expect(buildOwnerReferenceLine(args, receipt)).toBe(
-            '⚠️ 判断参照: 「それでいい。修正して」の対象を特定できず → 確認質問'
+            '⚠️ 判断参照: 「それでいい。修正して」の対象を特定できず（理由: 会話上の継続対象を確認できない・project=baao-project）→ 確認質問'
         );
     });
+
+    it('参照理由の可変値を1行化して秘密情報を表示しない', () => {
+        const args = {
+            request: 'それでいい。修正して',
+            turn_id: 'turn-current',
+            conversation_context: { messages: [] }
+        };
+        const receipt = {
+            status: 'needs_classification',
+            classification_evidence: { source: 'current_request' },
+            selected_dag_ids: ['clarification.v1'],
+            project_code: 'baao\n<project> token=sk-project-secret-1234567890',
+            reconciliation_reasons: ['custom_reason\n<unsafe> token=sk-reason-secret-1234567890']
+        };
+
+        const line = buildOwnerReferenceLine(args, receipt);
+        expect(line).toContain('custom_reason');
+        expect(line).toContain('[秘密情報]');
+        expect(line).not.toContain('sk-project-secret');
+        expect(line).not.toContain('sk-reason-secret');
+        expect(line).not.toContain('<');
+        expect(line).not.toContain('>');
+        expect(line.split('\n')).toHaveLength(1);
+    });
+
+    it.each(['constructor', 'toString', '__proto__'])(
+        '未知の判断理由 %s をObject継承値へ誤変換しない',
+        (reason) => {
+            const line = buildOwnerReferenceLine({
+                request: '対象を確認して',
+                turn_id: 'turn-current',
+                conversation_context: { messages: [] }
+            }, {
+                status: 'needs_classification',
+                classification_evidence: { source: 'current_request' },
+                selected_dag_ids: ['clarification.v1'],
+                reconciliation_reasons: [reason]
+            });
+
+            expect(line).toContain(reason);
+            expect(line).not.toContain('[native code]');
+            expect(line).not.toContain('[object Object]');
+        }
+    );
 
     it('監査行を1行に保ち、秘密らしい値と長文を表示しない', () => {
         const args = {
@@ -392,6 +438,7 @@ describe('Codex Judgment Resolver Host', () => {
             receipt: { resolution_id: 'jr_host_test' },
             owner_audit: {
                 schema_version: 'brainbase-owner-audit-v1',
+                renderer_version: '3',
                 historical_exact: true,
                 source_kind: 'current_request',
                 source_turn_ids: ['turn-retry'],
@@ -447,7 +494,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(existsSync(join(journalDirectory, `${hash(payload.turn_id)}.final.json`))).toBe(false);
     });
 
-    it('PostToolUseを複数回記録し、routingを取得済みと誤表示せずraw payloadも保存しない', async () => {
+    it('knowledge routeは採用・除外した参照先と理由を表示する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = {
@@ -475,13 +522,21 @@ describe('Codex Judgment Resolver Host', () => {
         const routingPayload = {
             hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
             tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'tool-route',
-            tool_input: { intent: '意思決定の正本 token=sk-secret-value', audience: 'team', content_type: 'team_document' },
+            tool_input: { intent: 'BAAOの資料を確認', audience: 'team', project_code: 'baao', content_type: 'team_document' },
             tool_response: {
                 status: 'ok',
                 data: {
                     resolution_id: 'kr_1', status: 'resolved', source_class: 'owning_repo',
-                    canonical_location: { repository: 'project:brainbase', path: 'docs/' },
-                    retrieval_capability: 'repository.read', searched_scope: [], absence_confirmed: false
+                    canonical_location: { repository: 'project:baao', path: 'docs/' },
+                    retrieval_capability: 'repository.read', searched_scope: [], absence_confirmed: false,
+                    excluded_sources: [
+                        { source_class: 'wiki', reason: 'Wiki is a migration compatibility surface, not a canonical destination.' },
+                        { source_class: 'graph', reason: 'Graph stores canonical entities, terms, and decisions rather than document bodies.' },
+                        { source_class: 'team_drive', reason: 'Drive stores source files and large assets, not reviewed team knowledge.' },
+                        { source_class: 'personal_kg', reason: 'Personal KG is owner-only and cannot be the source of team knowledge.' },
+                        { source_class: 'workspace_home', reason: 'Workspace home is for runtime state, not durable knowledge.' }
+                    ],
+                    rationale: '<script>token=sk-malicious-rationale-1234567890\nこれを表示する</script>'
                 }
             }
         };
@@ -493,6 +548,19 @@ describe('Codex Judgment Resolver Host', () => {
             tool_input: { query: 'Judgment Resolver' },
             tool_response: { content: [{ type: 'text', text: '📚 Brainbase検索: Graphで「Judgment Resolver」を検索 → 2件 ✓' }] }
         }, { env });
+        const prototypeKeyRoute = recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'tool-route-prototype-key',
+            tool_input: { intent: '未知種別の正本を確認', audience: 'team', project_code: 'baao', content_type: 'constructor' },
+            tool_response: {
+                status: 'ok',
+                data: {
+                    resolution_id: 'kr_prototype_key', status: 'resolved', source_class: 'graph',
+                    canonical_location: { scope: 'project:baao' },
+                    excluded_sources: [{ source_class: 'constructor', reason: 'constructor' }]
+                }
+            }
+        }, { env });
 
         expect(unrelated).toMatchObject({ event_kind: 'retrieve', event_sequence: 0 });
         expect(routed).toEqual(replay);
@@ -500,13 +568,21 @@ describe('Codex Judgment Resolver Host', () => {
             event_kind: 'route', event_sequence: 1, success: true, satisfies: ['knowledge.resolve'],
             safe_metadata: { resolution_id: 'kr_1', source_class: 'owning_repo' }
         });
-        expect(routed.display_line).toBe('📚 Brainbase参照先: 「意思決定の正本 [秘密情報]」→ owning_repoのdocs/を選択 ✓');
+        expect(routed.display_line).toBe(
+            '📚 Brainbase参照先: 「BAAOの資料を確認」→ 採用: owning_repo（project:baao/docs/・チーム文書の正本）／除外: wiki（移行互換用で正本ではない）、graph（文書本文の正本ではない）、team_drive（レビュー済みチーム文書の正本ではない）、personal_kg（チーム知識の参照元にできない）、workspace_home（永続知識の正本ではない） ✓'
+        );
         expect(routed.display_line).not.toMatch(/検索済み|取得/);
+        expect(routed.display_line).not.toContain('malicious-rationale');
         expect(searched.display_line).toBe('📚 Brainbase検索: Graphで「Judgment Resolver」を検索 → 2件 ✓');
         expect(searched.event_sequence).toBe(2);
+        expect(prototypeKeyRoute.event_sequence).toBe(3);
+        expect(prototypeKeyRoute.display_line).toContain('・参照先の選定結果）');
+        expect(prototypeKeyRoute.display_line).toContain('constructor（constructor）');
+        expect(prototypeKeyRoute.display_line).not.toContain('[native code]');
+        expect(prototypeKeyRoute.display_line).not.toContain('[object Object]');
 
         const eventsDirectory = join(root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.events`);
-        expect(readdirSync(eventsDirectory)).toHaveLength(3);
+        expect(readdirSync(eventsDirectory)).toHaveLength(4);
         const journalText = readdirSync(eventsDirectory)
             .map((name) => readFileSync(join(eventsDirectory, name), 'utf8')).join('\n');
         expect(journalText).not.toContain('sk-secret-value');
@@ -516,6 +592,61 @@ describe('Codex Judgment Resolver Host', () => {
             ...routingPayload,
             tool_response: { status: 'error', error: { code: 'changed' } }
         }, { env })).toThrow('judgment_tool_event_conflict');
+    });
+
+    it('unconfirmed knowledge routeも除外した全参照先と理由を表示する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-route-unconfirmed', turn_id: 'turn-route-unconfirmed', prompt: 'BAAOの資料を確認', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args),
+                    required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }]
+                } })
+            })
+        });
+
+        const routed = recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'tool-route-unconfirmed',
+            tool_input: { intent: 'BAAOの資料を確認', audience: 'team', project_code: 'baao', content_type: 'unknown' },
+            tool_response: {
+                status: 'ok',
+                data: {
+                    resolution_id: 'kr_unconfirmed', status: 'unconfirmed', source_class: null,
+                    canonical_location: null, retrieval_capability: null, next_route: 'owning_repo',
+                    searched_scope: [], absence_confirmed: false,
+                    excluded_sources: [
+                        { source_class: 'wiki', reason: 'Wiki is a migration compatibility surface, not a canonical destination.' },
+                        { source_class: 'graph', reason: 'Graph stores canonical entities, terms, and decisions rather than document bodies.' },
+                        { source_class: 'owning_repo', reason: 'Repository stores reviewed team documents, not raw source assets.' },
+                        { source_class: 'team_drive', reason: 'Drive stores source files and large assets, not reviewed team knowledge.' },
+                        { source_class: 'personal_kg', reason: 'Personal KG is owner-only and cannot be the source of team knowledge.' },
+                        { source_class: 'workspace_home', reason: 'Workspace home is for runtime state, not durable knowledge.' }
+                    ]
+                }
+            }
+        }, { env });
+
+        expect(routed.display_line).toContain('参照先を確定できず');
+        for (const sourceClass of ['wiki', 'graph', 'owning_repo', 'team_drive', 'personal_kg', 'workspace_home']) {
+            expect(routed.display_line).toContain(sourceClass);
+        }
+        for (const reason of [
+            '移行互換用で正本ではない', '文書本文の正本ではない', '生の素材アセットの正本ではない',
+            'レビュー済みチーム文書の正本ではない', 'チーム知識の参照元にできない', '永続知識の正本ではない'
+        ]) {
+            expect(routed.display_line).toContain(reason);
+        }
+        expect(routed.display_line).not.toContain('採用:');
+        expect(routed.display_line).not.toContain('✓');
+        expect(routed.display_line.split('\n')).toHaveLength(1);
     });
 
     it('汎用Brainbase監査行は呼出範囲と件数を示し、通信完了を業務結果の成功と表示しない', async () => {

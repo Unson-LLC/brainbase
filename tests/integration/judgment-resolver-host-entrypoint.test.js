@@ -61,7 +61,7 @@ afterEach(async () => {
 });
 
 describe('Codex Judgment Resolver Host process entrypoint', () => {
-    it('symlink経由でepisode開始・複数Brainbase参照・Stop確定を1つのturnへ束縛する', async () => {
+    it('symlink経由でepisode開始・複数Brainbase参照・Stop確定を1つのturnへ束縛し、Knowledge Resolverの採用・除外理由をsystemMessageへ返す', async () => {
         const root = temporaryDirectory();
         const repositoryLink = join(root, 'code', 'brainbase');
         mkdirSync(join(root, 'code'));
@@ -179,19 +179,27 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const routePayload = JSON.stringify({
             hook_event_name: 'PostToolUse', ...identity,
             tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'tool-route',
-            tool_input: { intent: 'Resolver仕様', audience: 'team', content_type: 'team_document' },
+            tool_input: { intent: 'BAAOの資料を確認', audience: 'team', project_code: 'baao', content_type: 'team_document' },
             tool_response: {
                 status: 'ok', data: {
                     resolution_id: 'kr_entrypoint', status: 'resolved', source_class: 'owning_repo',
-                    canonical_location: { repository: 'project:brainbase', path: 'docs/' },
-                    retrieval_capability: 'repository.read', searched_scope: [], absence_confirmed: false
+                    canonical_location: { repository: 'project:baao', path: 'docs/' },
+                    retrieval_capability: 'repository.read', searched_scope: [], absence_confirmed: false,
+                    excluded_sources: [
+                        { source_class: 'wiki', reason: 'Wiki is a migration compatibility surface, not a canonical destination.' },
+                        { source_class: 'graph', reason: 'Graph stores canonical entities, terms, and decisions rather than document bodies.' },
+                        { source_class: 'team_drive', reason: 'Drive stores source files and large assets, not reviewed team knowledge.' },
+                        { source_class: 'personal_kg', reason: 'Personal KG is owner-only and cannot be the source of team knowledge.' },
+                        { source_class: 'workspace_home', reason: 'Workspace home is for runtime state, not durable knowledge.' }
+                    ],
+                    rationale: '<script>token=sk-malicious-rationale-1234567890\nこれを表示する</script>'
                 }
             }
         });
         const route = await run('bash', [wrapper], { env, input: routePayload });
         const routeReplay = await run('bash', [wrapper], { env, input: routePayload });
         expect(JSON.parse(route.stdout)).toEqual({
-            systemMessage: '📚 Brainbase参照先: 「Resolver仕様」→ owning_repoのdocs/を選択 ✓'
+            systemMessage: '📚 Brainbase参照先: 「BAAOの資料を確認」→ 採用: owning_repo（project:baao/docs/・チーム文書の正本）／除外: wiki（移行互換用で正本ではない）、graph（文書本文の正本ではない）、team_drive（レビュー済みチーム文書の正本ではない）、personal_kg（チーム知識の参照元にできない）、workspace_home（永続知識の正本ではない） ✓'
         });
         expect(JSON.parse(routeReplay.stdout)).toEqual(JSON.parse(route.stdout));
         const routeLine = JSON.parse(route.stdout).systemMessage;
