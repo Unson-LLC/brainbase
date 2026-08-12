@@ -273,6 +273,26 @@ export class CanonicalTaskService {
         return { statuses, priorities, projectCodes, limit, cursor: query.cursor, dueAfter, dueBefore, assigneePersonId };
     }
 
+    validateSearchQuery(query = {}, context) {
+        const normalizedQuery = typeof query.query === 'string'
+            ? query.query.normalize('NFKC').trim().replace(/\s+/g, ' ')
+            : '';
+        const errors = {};
+        if (!normalizedQuery || normalizedQuery.length > 200) {
+            errors.query = ['must_be_between_1_and_200_characters'];
+        }
+        const limit = query.limit == null ? 20 : Number(query.limit);
+        if (!Number.isInteger(limit) || limit < 1 || limit > 20) {
+            errors.limit = ['must_be_between_1_and_20'];
+        }
+        if (Object.keys(errors).length) throw validationError(errors);
+        const filters = this.validateQuery({ ...query, limit }, context);
+        return {
+            ...filters,
+            tokens: normalizedQuery.split(' ')
+        };
+    }
+
     async listTasks(query, context) {
         context = this.normalizeOwnerContext(context);
         const filters = this.validateQuery(query, context);
@@ -284,6 +304,32 @@ export class CanonicalTaskService {
             items,
             total_count: Number.isInteger(page.totalCount) ? page.totalCount : items.length,
             count_status: page.countStatus || 'exact',
+            next_cursor: page.nextCursor || null,
+            read_status: page.readStatus || 'complete',
+            warnings: items.flatMap((task) => task.normalization_warnings || []),
+            as_of: this.clock().toISOString()
+        };
+    }
+
+    async searchTasks(query, context) {
+        context = this.normalizeOwnerContext(context);
+        const filters = this.validateSearchQuery(query, context);
+        if (typeof this.repository.search !== 'function') {
+            throw new CanonicalTaskError(
+                'task_search_unavailable',
+                'Canonical Task bounded search is unavailable',
+                503
+            );
+        }
+        const page = await this.read(() => this.repository.search(filters));
+        const items = page.items
+            .map((task) => this.normalizeTaskResponse(task))
+            .filter((task) => !this.isOwner(context) || task.assignee_person_id === this.ownerPersonId);
+        return {
+            items,
+            total_count: null,
+            count_status: 'not_requested',
+            has_more: Boolean(page.hasMore),
             next_cursor: page.nextCursor || null,
             read_status: page.readStatus || 'complete',
             warnings: items.flatMap((task) => task.normalization_warnings || []),

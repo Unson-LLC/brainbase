@@ -260,10 +260,19 @@ describe('canonical task evidence registry and runner parsing', () => {
       'utf8',
     );
 
-    const dryRun = workflow.indexOf("{ name: 'dry-run', argv: ['--dry-run'] }");
-    const initialCheck = workflow.indexOf("{ name: 'check', argv: ['--check'] }", dryRun);
-    const apply = workflow.indexOf("{ name: 'apply', argv: ['--apply'] }", initialCheck);
-    const finalCheck = workflow.indexOf("{ name: 'final-check', argv: ['--check'] }", apply);
+    const dryRun = workflow.indexOf("{ name: 'dry-run', argv: ['--dry-run'], schemaContract: 'base' }");
+    const initialCheck = workflow.indexOf(
+      "{ name: 'check', argv: ['--check'], schemaContract: 'base' }",
+      dryRun,
+    );
+    const apply = workflow.indexOf(
+      "{ name: 'apply', argv: ['--apply'], schemaContract: 'current' }",
+      initialCheck,
+    );
+    const finalCheck = workflow.indexOf(
+      "{ name: 'final-check', argv: ['--check'], schemaContract: 'current' }",
+      apply,
+    );
 
     expect(runbook).toContain('npm run migrate:canonical-task-postgres-workflow');
     expect(dryRun).toBeGreaterThan(-1);

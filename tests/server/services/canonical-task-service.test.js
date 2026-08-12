@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CanonicalTaskService, CanonicalTaskError } from '../../../server/services/companion/canonical-task-service.js';
 
+// VibePro traceability: story-canonical-task-bounded-search:ac:2, story-canonical-task-bounded-search:ac:3, story-canonical-task-bounded-search:ac:4, story-canonical-task-bounded-search:ac:6, story-canonical-task-bounded-search:ac:7, story-canonical-task-bounded-search:ac:8, story-canonical-task-bounded-search:ac:9.
+
 const OWNER = 'sato_keigo';
 
 function task(overrides = {}) {
@@ -20,6 +22,14 @@ function setup({ ownerAliasIds = [] } = {}) {
     const auditEntries = new Map();
     const repository = {
         list: vi.fn(async () => ({ items: [task()], nextCursor: null })),
+        search: vi.fn(async () => ({
+            items: [task({ title: '月次 締め作業' })],
+            totalCount: null,
+            countStatus: 'not_requested',
+            hasMore: false,
+            nextCursor: null,
+            readStatus: 'complete'
+        })),
         get: vi.fn(async () => task()),
         findByIdempotencyKey: vi.fn(async () => null),
         create: vi.fn(async (fields) => task(fields)),
@@ -82,6 +92,59 @@ describe('CanonicalTaskService', () => {
         const page = await fixture.service.listTasks({}, ownerContext());
         expect(fixture.repository.list).toHaveBeenCalledWith(expect.objectContaining({ assigneePersonId: OWNER }));
         expect(page).toMatchObject({ total_count: 1, count_status: 'exact', read_status: 'complete', warnings: [] });
+    });
+
+    it('normalizes bounded title search and preserves incomplete-count metadata', async () => {
+        fixture.repository.search.mockResolvedValueOnce({
+            items: [task({ title: '月次 締め作業' })],
+            totalCount: null,
+            countStatus: 'not_requested',
+            hasMore: true,
+            nextCursor: 'search-next',
+            readStatus: 'complete'
+        });
+        const page = await fixture.service.searchTasks({
+            query: '  月次　締め  ',
+            status: 'pending',
+            project_code: ['back-office'],
+            limit: '20'
+        }, ownerContext());
+
+        expect(fixture.repository.search).toHaveBeenCalledWith(expect.objectContaining({
+            tokens: ['月次', '締め'],
+            statuses: ['pending'],
+            projectCodes: ['back-office'],
+            assigneePersonId: OWNER,
+            limit: 20
+        }));
+        expect(page).toMatchObject({
+            total_count: null,
+            count_status: 'not_requested',
+            has_more: true,
+            next_cursor: 'search-next',
+            read_status: 'complete'
+        });
+    });
+
+    it.each([
+        [{}, 'query'],
+        [{ query: 'x', limit: 21 }, 'limit']
+    ])('rejects invalid bounded search input %j', async (query, field) => {
+        await expect(fixture.service.searchTasks(query, ownerContext())).rejects.toMatchObject({
+            code: 'validation_failed',
+            fieldErrors: expect.objectContaining({ [field]: expect.any(Array) })
+        });
+        expect(fixture.repository.search).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when the canonical repository cannot provide bounded search', async () => {
+        delete fixture.repository.search;
+
+        await expect(fixture.service.searchTasks({ query: '月次' }, ownerContext())).rejects.toMatchObject({
+            code: 'task_search_unavailable',
+            status: 503
+        });
+        expect(fixture.repository.list).not.toHaveBeenCalled();
     });
 
     it.each([

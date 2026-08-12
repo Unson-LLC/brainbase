@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CanonicalTaskPostgresRepository } from '../../../server/services/companion/canonical-task-postgres-repository.js';
 
+// VibePro traceability: story-canonical-task-bounded-search:ac:2, story-canonical-task-bounded-search:ac:3, story-canonical-task-bounded-search:ac:4, story-canonical-task-bounded-search:ac:5, story-canonical-task-bounded-search:ac:9.
+
 const storeConfig = Object.freeze({
     schemaVersion: '1.0.0',
     baseId: 'base',
@@ -77,6 +79,71 @@ describe('CanonicalTaskPostgresRepository', () => {
         expect(pool.query.mock.calls[0][0]).toContain('status = ANY($1::text[])');
         expect(pool.query.mock.calls[0][0]).toContain('project_codes && $3::text[]');
         expect(pool.query.mock.calls[1][0]).toContain('LIMIT $7 OFFSET $8');
+    });
+
+    it('searches title tokens with bounded keyset pagination and no count or offset scan', async () => {
+        const second = {
+            ...persisted,
+            id: '6246fb20-9d7a-42af-9df0-5223e331bc83',
+            title: '月次 締め作業',
+            created_at: '2026-07-27T00:00:00Z'
+        };
+        const pool = { query: vi.fn().mockResolvedValue({ rows: [persisted, second] }) };
+        const page = await repository(pool).search({
+            tokens: ['月次', '締め'],
+            statuses: ['pending'],
+            projectCodes: ['back-office'],
+            assigneePersonId: 'person-1',
+            limit: 1
+        });
+
+        expect(page).toMatchObject({
+            totalCount: null,
+            countStatus: 'not_requested',
+            readStatus: 'complete',
+            hasMore: true,
+            items: [{ title: 'PostgreSQL Task' }]
+        });
+        expect(page.nextCursor).toBeTruthy();
+        expect(pool.query).toHaveBeenCalledTimes(1);
+        const [sql, values] = pool.query.mock.calls[0];
+        expect(sql).toContain("title ILIKE $1 ESCAPE E'\\\\'");
+        expect(sql).toContain("title ILIKE $2 ESCAPE E'\\\\'");
+        expect(sql).toContain('project_codes && $4::text[]');
+        expect(sql).toContain('ORDER BY created_at DESC, id DESC');
+        expect(sql).not.toContain('COUNT(');
+        expect(sql).not.toContain('OFFSET');
+        expect(values.at(-1)).toBe(2);
+    });
+
+    it('rejects an invalid bounded search cursor before querying PostgreSQL', async () => {
+        const pool = { query: vi.fn() };
+
+        await expect(repository(pool).search({
+            tokens: ['月次'],
+            cursor: 'not-a-valid-cursor'
+        })).rejects.toMatchObject({
+            code: 'validation_failed',
+            status: 422,
+            fieldErrors: { cursor: ['invalid_cursor'] }
+        });
+        expect(pool.query).not.toHaveBeenCalled();
+    });
+
+    it('rejects a search cursor whose ID is not a valid UUID', async () => {
+        const pool = { query: vi.fn() };
+        const cursor = Buffer.from(JSON.stringify({
+            v: 1,
+            created_at: '2026-07-27T00:00:00Z',
+            id: '------------------------------------'
+        })).toString('base64url');
+
+        await expect(repository(pool).search({ tokens: ['月次'], cursor })).rejects.toMatchObject({
+            code: 'validation_failed',
+            status: 422,
+            fieldErrors: { cursor: ['invalid_cursor'] }
+        });
+        expect(pool.query).not.toHaveBeenCalled();
     });
 
     it('creates idempotently and preserves operation markers', async () => {

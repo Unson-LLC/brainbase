@@ -46,12 +46,13 @@ describe('Canonical Task PostgreSQL migration workflow', () => {
 
         expect(runMigration.mock.calls.map(([input]) => ({
             argv: input.argv,
+            schemaContract: input.schemaContract,
             workflowAuthorized: input.workflowAuthorized
         }))).toEqual([
-            { argv: ['--dry-run'], workflowAuthorized: false },
-            { argv: ['--check'], workflowAuthorized: false },
-            { argv: ['--apply'], workflowAuthorized: true },
-            { argv: ['--check'], workflowAuthorized: false }
+            { argv: ['--dry-run'], schemaContract: 'base', workflowAuthorized: false },
+            { argv: ['--check'], schemaContract: 'base', workflowAuthorized: false },
+            { argv: ['--apply'], schemaContract: 'current', workflowAuthorized: true },
+            { argv: ['--check'], schemaContract: 'current', workflowAuthorized: false }
         ]);
         expect(output).toMatchObject({
             ok: true,

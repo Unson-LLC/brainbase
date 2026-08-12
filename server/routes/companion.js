@@ -117,6 +117,7 @@ export function createCompanionRouter({
 
     if (canonicalTaskService) {
         router.get('/tasks', ...taskGuards, controller.listTasks);
+        router.get('/tasks/search', ...taskGuards, controller.searchTasks);
         router.get('/tasks/:taskId', ...taskGuards, controller.getTask);
         router.post('/tasks', ...taskGuards, controller.createTask);
         router.patch('/tasks/:taskId', ...taskGuards, controller.updateTask);

@@ -4,10 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { runCanonicalTaskPostgresMigration } from './migrate-canonical-task-postgres-store.js';
 
 const PHASES = [
-    { name: 'dry-run', argv: ['--dry-run'] },
-    { name: 'check', argv: ['--check'] },
-    { name: 'apply', argv: ['--apply'] },
-    { name: 'final-check', argv: ['--check'] }
+    { name: 'dry-run', argv: ['--dry-run'], schemaContract: 'base' },
+    { name: 'check', argv: ['--check'], schemaContract: 'base' },
+    { name: 'apply', argv: ['--apply'], schemaContract: 'current' },
+    { name: 'final-check', argv: ['--check'], schemaContract: 'current' }
 ];
 
 function phaseSummary(name, result) {
@@ -48,6 +48,7 @@ export async function runCanonicalTaskPostgresMigrationWorkflow({
             argv: phase.argv,
             pool,
             sourceRepository,
+            schemaContract: phase.schemaContract,
             workflowAuthorized: applyAuthorized && phase.name === 'apply'
         });
         phases.push(phaseSummary(phase.name, result));

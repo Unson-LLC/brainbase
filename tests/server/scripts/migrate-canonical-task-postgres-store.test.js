@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+    applyCanonicalTaskSearchIndexes,
     checkCanonicalTaskPostgresSchema,
     parseCanonicalTaskPostgresMigrationArgs,
     runCanonicalTaskPostgresMigration
 } from '../../../scripts/migrate-canonical-task-postgres-store.js';
+
+// VibePro traceability: story-canonical-task-bounded-search:ac:5, story-canonical-task-bounded-search:ac:9.
 
 const columns = [
     'id', 'legacy_nocodb_id', 'title', 'description', 'status', 'priority',
@@ -40,17 +43,30 @@ function sourceRepository(records) {
     };
 }
 
-function checkingPool({ existingRows = [], targetCount = 0 } = {}) {
+function checkingPool({ existingRows = [], targetCount = 0, searchIndexes = true, invalidSearchIndex = null } = {}) {
     return {
         query: vi.fn(async (sql) => {
             if (sql.includes('information_schema.tables')) return { rows: [{ table_name: 'canonical_tasks' }] };
             if (sql.includes('information_schema.columns')) return { rows: columns.map((column_name) => ({ column_name })) };
-            if (sql.includes('pg_indexes')) {
-                return { rows: [
-                    { indexname: 'canonical_tasks_status_priority_idx' },
-                    { indexname: 'canonical_tasks_assignee_due_idx' },
-                    { indexname: 'canonical_tasks_project_codes_idx' }
-                ] };
+            if (sql.includes('pg_index AS index_state')) {
+                const rows = [
+                    { indexname: 'canonical_tasks_status_priority_idx', indisvalid: true, indisready: true },
+                    { indexname: 'canonical_tasks_assignee_due_idx', indisvalid: true, indisready: true },
+                    { indexname: 'canonical_tasks_project_codes_idx', indisvalid: true, indisready: true }
+                ];
+                if (searchIndexes) rows.push(
+                    {
+                        indexname: 'canonical_tasks_title_trgm_idx',
+                        indisvalid: invalidSearchIndex !== 'canonical_tasks_title_trgm_idx',
+                        indisready: invalidSearchIndex !== 'canonical_tasks_title_trgm_idx'
+                    },
+                    {
+                        indexname: 'canonical_tasks_search_cursor_idx',
+                        indisvalid: invalidSearchIndex !== 'canonical_tasks_search_cursor_idx',
+                        indisready: invalidSearchIndex !== 'canonical_tasks_search_cursor_idx'
+                    }
+                );
+                return { rows };
             }
             if (sql.includes('SELECT legacy_nocodb_id, idempotency_key, payload_fingerprint')) {
                 return { rows: existingRows };
@@ -82,6 +98,36 @@ describe('Canonical Task PostgreSQL migration', () => {
             table: 'canonical_tasks',
             columns: columns.length
         });
+    });
+
+    it('allows the workflow preflight to inspect an older base schema before additive search indexes exist', async () => {
+        const pool = checkingPool({ searchIndexes: false });
+        await expect(checkCanonicalTaskPostgresSchema(pool, {
+            requireSearchIndexes: false
+        })).resolves.toMatchObject({ ok: true });
+        await expect(checkCanonicalTaskPostgresSchema(pool)).rejects.toThrow(
+            'missing canonical_tasks_title_trgm_idx'
+        );
+    });
+
+    it('rejects an invalid concurrent search index instead of accepting its name', async () => {
+        const pool = checkingPool({ invalidSearchIndex: 'canonical_tasks_title_trgm_idx' });
+
+        await expect(checkCanonicalTaskPostgresSchema(pool)).rejects.toThrow(
+            'invalid or unready index canonical_tasks_title_trgm_idx'
+        );
+    });
+
+    it('applies each search prerequisite and index outside a transaction using concurrent index builds', async () => {
+        const pool = { query: vi.fn().mockResolvedValue({ rows: [] }) };
+
+        await applyCanonicalTaskSearchIndexes(pool);
+
+        expect(pool.query).toHaveBeenCalledTimes(3);
+        expect(pool.query.mock.calls[0][0]).toBe('CREATE EXTENSION IF NOT EXISTS pg_trgm');
+        expect(pool.query.mock.calls[1][0]).toContain('CREATE INDEX CONCURRENTLY IF NOT EXISTS canonical_tasks_title_trgm_idx');
+        expect(pool.query.mock.calls[2][0]).toContain('CREATE INDEX CONCURRENTLY IF NOT EXISTS canonical_tasks_search_cursor_idx');
+        expect(pool.query.mock.calls.every(([sql]) => !sql.includes('BEGIN'))).toBe(true);
     });
 
     it('dry-runs without writing Task content or schema', async () => {
