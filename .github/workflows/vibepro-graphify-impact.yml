@@ -4,10 +4,18 @@ on:
   pull_request:
     branches: [main, develop]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   graphify-impact:
     name: Require Graphify Impact Review
-    runs-on: [self-hosted, Linux, X64, wsl-linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -19,7 +27,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: npm
 
       - name: Install dependencies
         run: npm ci
