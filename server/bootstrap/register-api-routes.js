@@ -112,6 +112,12 @@ export function registerOnboardingApiRoute(app, { authService, onboardingRuntime
     );
 }
 
+export function registerPersonalKnowledgePreAuth(app, { authService }) {
+    const authGuard = requireAuth(authService, { allowInsecureHeaders: false });
+    app.use('/api/learning', authGuard);
+    app.use('/api/personal-knowledge', authGuard);
+}
+
 export function registerKnowledgeResolutionApiRoute(app, { authService, service = new KnowledgeResolutionService() }) {
     app.use(
         '/api/knowledge',
