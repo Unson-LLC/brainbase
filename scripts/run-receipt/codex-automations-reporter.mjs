@@ -107,6 +107,7 @@ export async function deliverCodexAutomationOutbox({
     deadLetterDir = process.env.CODEX_RUN_RECEIPT_DEAD_LETTER_DIR || 'var/run-receipt-dead-letter/codex-automations',
     endpoint = process.env.BRAINBASE_RUN_RECEIPT_INGEST_URL,
     serviceToken = process.env.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN,
+    internalApiKey = null,
     fetchImpl = globalThis.fetch,
     maxAttempts = 5,
     now = () => new Date()
@@ -114,7 +115,7 @@ export async function deliverCodexAutomationOutbox({
     const files = fs.existsSync(outboxDir)
         ? fs.readdirSync(outboxDir).filter((name) => name.endsWith('.json')).sort()
         : [];
-    if (!endpoint || !serviceToken || typeof fetchImpl !== 'function') {
+    if (!endpoint || (!serviceToken && !internalApiKey) || typeof fetchImpl !== 'function') {
         return { status: 'unavailable', reason: !endpoint ? 'missing_endpoint' : 'missing_service_token', pending: files.length };
     }
 
@@ -126,7 +127,7 @@ export async function deliverCodexAutomationOutbox({
         receipt.delivery = { ...receipt.delivery, attempt, sent_at: toIso(now(), 'sent_at') };
         let response;
         try {
-            response = await postReceipt(receipt, { endpoint, serviceToken, fetchImpl });
+            response = await postReceipt(receipt, { endpoint, serviceToken, internalApiKey, fetchImpl });
         } catch {
             response = { ok: false, status: 0 };
         }
