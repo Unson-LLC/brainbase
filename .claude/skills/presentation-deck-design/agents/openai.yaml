@@ -1,0 +1,4 @@
+interface:
+  display_name: "資料デッキ設計"
+  short_description: "構成設計からページ検品とPDF検証まで一貫して制作"
+  default_prompt: "Use $presentation-deck-design to plan, produce, and validate this presentation."

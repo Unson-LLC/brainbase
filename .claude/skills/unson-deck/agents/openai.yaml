@@ -1,0 +1,4 @@
+interface:
+  display_name: "合同会社雲孫 資料制作"
+  short_description: "雲孫の正本ブランドとCURRENTテンプレートで資料を制作"
+  default_prompt: "Use $unson-deck to create a 合同会社雲孫 presentation from the canonical brand and current template."
