@@ -88,6 +88,7 @@ const http = createBrainbaseHttpClient({
     baseUrl,
     accessToken: tokenAuth?.token,
     internalApiKey: internalApi?.secret,
+    authPreference: internalApi ? 'internal-api-key' : 'access-token',
     sessionId
 });
 

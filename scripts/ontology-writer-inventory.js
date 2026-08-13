@@ -58,6 +58,12 @@ function expressionText(node, constants, seen = new Set()) {
             .map((span) => expressionText(span.expression, constants, seen) + span.literal.text)
             .join('');
     }
+    if (ts.isNewExpression(node)
+        && ts.isIdentifier(node.expression)
+        && node.expression.text === 'URL'
+        && node.arguments?.length) {
+        return expressionText(node.arguments[0], constants, seen);
+    }
     return '';
 }
 
@@ -71,31 +77,50 @@ function methodFromOptions(node, constants, seen = new Set()) {
     if (!ts.isObjectLiteralExpression(node)) return null;
 
     let method = '';
-    let unresolvedSpread = false;
+    let unresolvedProperty = false;
     for (const property of node.properties) {
         if (ts.isSpreadAssignment(property)) {
             const spreadMethod = methodFromOptions(property.expression, constants, seen);
-            if (spreadMethod === null) unresolvedSpread = true;
+            if (spreadMethod === null) unresolvedProperty = true;
             else if (spreadMethod) method = spreadMethod;
             continue;
         }
+        if (ts.isShorthandPropertyAssignment(property) && property.name.text === 'method') {
+            method = expressionText(property.name, constants).toUpperCase();
+            if (!method) unresolvedProperty = true;
+            else unresolvedProperty = false;
+            continue;
+        }
         if (ts.isPropertyAssignment(property)) {
-            const propertyName = ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)
-                ? property.name.text
-                : '';
+            let propertyName = '';
+            if (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) {
+                propertyName = property.name.text;
+            } else if (ts.isComputedPropertyName(property.name)) {
+                propertyName = expressionText(property.name.expression, constants);
+                if (!propertyName) unresolvedProperty = true;
+            }
             if (propertyName === 'method') {
                 method = expressionText(property.initializer, constants).toUpperCase();
-                unresolvedSpread = false;
+                if (!method) unresolvedProperty = true;
+                else unresolvedProperty = false;
             }
         }
     }
-    if (unresolvedSpread) return null;
+    if (unresolvedProperty) return null;
     return method;
 }
 
-function isHttpRequestCall(node) {
-    return (ts.isIdentifier(node.expression) && node.expression.text === 'fetch')
-        || (ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'request');
+function callMethod(node) {
+    if (ts.isIdentifier(node.expression)) {
+        return node.expression.text === 'fetch' ? 'REQUEST' : 'UNKNOWN';
+    }
+    if (ts.isPropertyAccessExpression(node.expression)) {
+        const name = node.expression.name.text.toUpperCase();
+        if (name === 'FETCH' || name === 'REQUEST') return 'REQUEST';
+        if (name === 'GET') return 'GET';
+        if (MUTATION_HTTP_METHODS.has(name)) return name;
+    }
+    return 'UNKNOWN';
 }
 
 function directGraphHttpMutation(source, fileName) {
@@ -112,12 +137,18 @@ function directGraphHttpMutation(source, fileName) {
 
     let detected = false;
     function inspect(node) {
-        if (ts.isCallExpression(node) && isHttpRequestCall(node) && node.arguments.length >= 2) {
+        if (ts.isCallExpression(node) && node.arguments.length >= 1) {
             const target = expressionText(node.arguments[0], constants);
-            const options = node.arguments[1];
             if (/\/api\/info\/graph\/(?:entities|edges)/.test(target)) {
-                const method = methodFromOptions(options, constants);
-                if (method === null || MUTATION_HTTP_METHODS.has(method)) detected = true;
+                const calleeMethod = callMethod(node);
+                if (calleeMethod === 'GET') {
+                    // Explicit GET helpers are safe reads.
+                } else if (MUTATION_HTTP_METHODS.has(calleeMethod) || calleeMethod === 'UNKNOWN') {
+                    detected = true;
+                } else if (node.arguments.length >= 2) {
+                    const method = methodFromOptions(node.arguments[1], constants);
+                    if (method === null || MUTATION_HTTP_METHODS.has(method)) detected = true;
+                }
             }
         }
         ts.forEachChild(node, inspect);

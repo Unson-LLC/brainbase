@@ -3,13 +3,37 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createBrainbaseHttpClient } from '../../../scripts/lib/brainbase-http-client.mjs';
-import { createBrainbaseGraphHttpClient, GRAPH_ENTITY_PATH } from '../../../scripts/lib/brainbase-graph-http-client.mjs';
+import { createBrainbaseGraphHttpClient } from '../../../scripts/lib/brainbase-graph-http-client.mjs';
 
 function jsonResponse(payload, status = 200) {
     return new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
 describe('Brainbase Graph HTTP write contract', () => {
+    it('uses the explicitly preferred credential when both are available', async () => {
+        const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ ok: true }));
+        const http = createBrainbaseHttpClient({
+            baseUrl: 'https://bb.unson.jp',
+            accessToken: 'access-token',
+            internalApiKey: 'internal-secret',
+            authPreference: 'internal-api-key',
+            fetchImpl
+        });
+
+        await http.request('/api/health');
+
+        expect(fetchImpl).toHaveBeenCalledWith('https://bb.unson.jp/api/health', expect.objectContaining({
+            headers: expect.objectContaining({ 'x-internal-api-key': 'internal-secret' })
+        }));
+        expect(fetchImpl.mock.calls[0][1].headers.Authorization).toBeUndefined();
+    });
+
+    it('rejects an auth preference when its credential is missing', () => {
+        expect(() => createBrainbaseHttpClient({
+            baseUrl: 'https://bb.unson.jp', accessToken: 'access-token', authPreference: 'internal-api-key'
+        })).toThrow('authPreference internal-api-key requires internalApiKey');
+    });
+
     it('supports the shared transport with an internal API key', async () => {
         const fetchImpl = vi.fn()
             .mockResolvedValueOnce(jsonResponse({ token: 'csrf-token' }))
@@ -44,7 +68,7 @@ describe('Brainbase Graph HTTP write contract', () => {
         expect(fetchImpl).toHaveBeenNthCalledWith(1, 'https://bb.unson.jp/api/csrf-token', expect.objectContaining({
             method: 'GET', headers: expect.objectContaining({ Authorization: 'Bearer secret-token', 'X-Session-Id': 'test-session' })
         }));
-        expect(fetchImpl).toHaveBeenNthCalledWith(2, `https://bb.unson.jp${GRAPH_ENTITY_PATH}`, expect.objectContaining({
+        expect(fetchImpl).toHaveBeenNthCalledWith(2, 'https://bb.unson.jp/api/info/graph/entities', expect.objectContaining({
             method: 'POST', headers: expect.objectContaining({
                 Authorization: 'Bearer secret-token',
                 'Content-Type': 'application/json',

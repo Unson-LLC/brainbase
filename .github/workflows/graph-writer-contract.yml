@@ -1,0 +1,36 @@
+name: Graph writer contract
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: graph-writer-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run ontology:inventory
+      - run: >-
+          npm run test:run --
+          tests/server/scripts/ontology-writer-inventory.test.js
+          tests/server/scripts/brainbase-graph-http-client.test.js
+          tests/server/scripts/admin-api-path-surface-smoke.test.js
