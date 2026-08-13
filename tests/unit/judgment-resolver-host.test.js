@@ -782,6 +782,8 @@ describe('Codex Judgment Resolver Host', () => {
         expect(recordEvent('empty-content', { content: [] })).toMatchObject({ success: false });
         expect(recordEvent('empty-ok', { Ok: {} })).toMatchObject({ success: false });
         expect(recordEvent('invalid-resource', { content: [{ type: 'resource' }] })).toMatchObject({ success: false });
+        expect(recordEvent('empty-resource', { content: [{ type: 'resource', resource: {} }] })).toMatchObject({ success: false });
+        expect(recordEvent('uri-only-resource', { content: [{ type: 'resource', resource: { uri: 'brainbase://item' } }] })).toMatchObject({ success: false });
         expect(recordEvent('invalid-resource-link', { content: [{ type: 'resource_link' }] })).toMatchObject({ success: false });
         expect(recordEvent('unknown-call', { content: [{ type: 'text', text: 'completed' }] }, 'submit_approval')).toMatchObject({ success: false, event_kind: 'call' });
     });

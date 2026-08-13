@@ -718,7 +718,10 @@ function validCallToolResultEnvelope(value) {
         if (!entry || typeof entry.type !== 'string') return false;
         if (entry.type === 'text') return typeof entry.text === 'string';
         if (entry.type === 'image' || entry.type === 'audio') return typeof entry.data === 'string' && typeof entry.mimeType === 'string';
-        if (entry.type === 'resource') return Boolean(record(entry.resource));
+        if (entry.type === 'resource') {
+            const resource = record(entry.resource);
+            return Boolean(resource && typeof resource.uri === 'string' && resource.uri.trim() && (typeof resource.text === 'string' || typeof resource.blob === 'string'));
+        }
         if (entry.type === 'resource_link') return typeof entry.name === 'string' && entry.name.trim() && typeof entry.uri === 'string' && entry.uri.trim();
         return false;
     });
