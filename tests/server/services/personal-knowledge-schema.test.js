@@ -57,4 +57,12 @@ describe('personal and organization knowledge schema', () => {
         const source = read('scripts/migrate-m5a-production-schema.js');
         expect(source).toContain("{ id: 'personal-knowledge', path: 'server/sql/personal-knowledge-schema.sql' }");
     });
+
+    it('does not rewrite immutable organization events when the migration is replayed', () => {
+        const sql = read('server/sql/personal-knowledge-schema.sql');
+
+        expect(sql).toMatch(
+            /UPDATE knowledge_events\s+SET organization_id = COALESCE\([\s\S]*?\)\s+WHERE organization_id IS NULL;/
+        );
+    });
 });
