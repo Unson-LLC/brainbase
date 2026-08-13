@@ -6,10 +6,11 @@
 //   node scripts/upsert-app-environments.mjs                # targets https://bb.unson.jp
 //   BB_BASE_URL=http://localhost:31013 node scripts/upsert-app-environments.mjs
 //
-// Auth: Bearer token from ~/.brainbase/tokens.json (access_token).
+// Auth: Bearer token plus a same-session CSRF token.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createBrainbaseGraphHttpClient } from './lib/brainbase-graph-http-client.mjs';
 
 const BASE_URL = process.env.BB_BASE_URL || 'https://bb.unson.jp';
 const TOKENS_PATH = path.join(os.homedir(), '.brainbase', 'tokens.json');
@@ -19,24 +20,6 @@ function loadToken() {
     const json = JSON.parse(raw);
     if (!json.access_token) throw new Error('access_token missing in ~/.brainbase/tokens.json');
     return json.access_token;
-}
-
-async function graphGet(token, entityId) {
-    const url = `${BASE_URL}/api/info/graph/entities?type=app&limit=500`;
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) throw new Error(`GET failed: ${res.status} ${await res.text()}`);
-    const json = await res.json();
-    return json.records.find((r) => r.id === entityId) || null;
-}
-
-async function upsertEntity(token, body) {
-    const res = await fetch(`${BASE_URL}/api/info/graph/entities`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    });
-    if (!res.ok) throw new Error(`POST ${body.id} failed: ${res.status} ${await res.text()}`);
-    return res.json();
 }
 
 const BRAINBASE_ENV = {
@@ -79,13 +62,17 @@ const MANA_ENV = {
 
 async function main() {
     const token = loadToken();
+    const graph = createBrainbaseGraphHttpClient({ baseUrl: BASE_URL, accessToken: token });
     console.log(`[upsert-app-envs] target = ${BASE_URL}`);
 
-    const existingSt = await graphGet(token, 'app_salestailor');
+    const existingSt = await graph.findEntity({
+        entityType: 'app',
+        entityId: 'app_salestailor'
+    });
     if (!existingSt) throw new Error('app_salestailor not found — aborting to avoid wiping existing data');
     console.log('[salestailor] existing payload keys:', Object.keys(existingSt.payload));
 
-    await upsertEntity(token, {
+    await graph.upsertEntity({
         id: 'app_salestailor',
         entityType: 'app',
         projectCode: 'salestailor',
@@ -96,7 +83,7 @@ async function main() {
     });
     console.log('[salestailor] upserted');
 
-    await upsertEntity(token, {
+    await graph.upsertEntity({
         id: 'app_brainbase',
         entityType: 'app',
         projectCode: 'brainbase',
@@ -115,7 +102,7 @@ async function main() {
     });
     console.log('[brainbase] upserted');
 
-    await upsertEntity(token, {
+    await graph.upsertEntity({
         id: 'app_mana',
         entityType: 'app',
         projectCode: 'mana',

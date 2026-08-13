@@ -6,7 +6,7 @@ import { verifyWriterInventory } from '../../../scripts/ontology-writer-inventor
 
 const roots = [];
 
-function fixture({ source, vocabulary, mode = 'runtime_guarded', classifiedLiterals }) {
+function fixture({ source, vocabulary, mode = 'runtime_guarded', classifiedLiterals, graphHttpMutationOwners = [] }) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ontology-writer-inventory-'));
     roots.push(root);
     fs.mkdirSync(path.join(root, 'server'), { recursive: true });
@@ -18,6 +18,7 @@ function fixture({ source, vocabulary, mode = 'runtime_guarded', classifiedLiter
         relation_types: { owned_by: {} }
     }));
     fs.writeFileSync(path.join(root, 'config/ontology/writer-inventory.json'), JSON.stringify({
+        graph_http_mutation_owners: graphHttpMutationOwners,
         writers: {
             'server/writer.js': {
                 mode,
@@ -89,5 +90,79 @@ describe('ontology writer inventory vocabulary contract', () => {
                 }
             }
         });
+    });
+
+    it('rejects direct Graph HTTP mutations outside the declared owner module', () => {
+        const rootDir = fixture({
+            source: [
+                "const graphPath = '/api/info/graph/' + 'entities';",
+                "fetch(`https://bb.unson.jp${graphPath}`, { method: 'POST' });"
+            ].join('\n'),
+            vocabulary: { types: [], relations: [] },
+            graphHttpMutationOwners: ['scripts/lib/brainbase-graph-http-client.mjs']
+        });
+        expect(() => verifyWriterInventory({ rootDir }))
+            .toThrow('unauthorized Graph HTTP mutation owners=[server/writer.js]');
+    });
+
+    it('rejects a Graph mutation whose request options are stored in a variable', () => {
+        const rootDir = fixture({
+            source: [
+                "const endpoint = '/api/info/graph/entities';",
+                "const requestOptions = { method: 'POST' };",
+                'fetch(endpoint, requestOptions);'
+            ].join('\n'),
+            vocabulary: { types: [], relations: [] }
+        });
+        expect(() => verifyWriterInventory({ rootDir }))
+            .toThrow('unauthorized Graph HTTP mutation owners=[server/writer.js]');
+    });
+
+    it('rejects direct Graph edge mutations outside the declared owner module', () => {
+        const rootDir = fixture({
+            source: "fetch('/api/info/graph/edges', { method: 'POST' });",
+            vocabulary: { types: [], relations: [] }
+        });
+        expect(() => verifyWriterInventory({ rootDir }))
+            .toThrow('unauthorized Graph HTTP mutation owners=[server/writer.js]');
+    });
+
+    it('fails closed when an unresolved spread can override a known safe method', () => {
+        const rootDir = fixture({
+            source: [
+                "const endpoint = '/api/info/graph/entities';",
+                "const requestOptions = { method: 'GET', ...runtimeOptions };",
+                'fetch(endpoint, requestOptions);'
+            ].join('\n'),
+            vocabulary: { types: [], relations: [] }
+        });
+        expect(() => verifyWriterInventory({ rootDir }))
+            .toThrow('unauthorized Graph HTTP mutation owners=[server/writer.js]');
+    });
+
+    it('allows a known safe method that overrides an earlier unresolved spread', () => {
+        const rootDir = fixture({
+            source: [
+                "const endpoint = '/api/info/graph/entities';",
+                "const requestOptions = { ...runtimeOptions, method: 'GET' };",
+                'fetch(endpoint, requestOptions);'
+            ].join('\n'),
+            vocabulary: { types: [], relations: [] }
+        });
+        expect(verifyWriterInventory({ rootDir })).toMatchObject({ writer_count: 1 });
+    });
+
+    it('rejects a mutation inherited through a known options spread', () => {
+        const rootDir = fixture({
+            source: [
+                "const endpoint = '/api/info/graph/entities';",
+                "const knownPostOptions = { method: 'POST' };",
+                'const requestOptions = { ...knownPostOptions };',
+                'fetch(endpoint, requestOptions);'
+            ].join('\n'),
+            vocabulary: { types: [], relations: [] }
+        });
+        expect(() => verifyWriterInventory({ rootDir }))
+            .toThrow('unauthorized Graph HTTP mutation owners=[server/writer.js]');
     });
 });

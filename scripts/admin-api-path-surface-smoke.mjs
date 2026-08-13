@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createBrainbaseHttpClient } from './lib/brainbase-http-client.mjs';
 
 const args = new Map();
 for (let i = 2; i < process.argv.length; i += 1) {
@@ -47,11 +48,11 @@ function readInternalApiSecret() {
     return { secret: match[1].replace(/^['"]|['"]$/g, ''), source: '~/workspace/.env' };
 }
 
-function cacheHeaders(response) {
+function cacheHeaders(headers) {
     return {
-        cache_control: response.headers.get('cache-control'),
-        pragma: response.headers.get('pragma'),
-        expires: response.headers.get('expires')
+        cache_control: headers.get('cache-control'),
+        pragma: headers.get('pragma'),
+        expires: headers.get('expires')
     };
 }
 
@@ -62,27 +63,14 @@ function assertNoCache(headers, label) {
 }
 
 async function requestJson({ method = 'GET', endpoint, headers = {}, body = null, auth = true }) {
-    const startedAt = Date.now();
-    const response = await fetch(`${baseUrl}${endpoint}`, {
-        method,
-        headers: {
-            Accept: 'application/json',
-            ...(body ? { 'Content-Type': 'application/json' } : {}),
-            ...(auth ? authHeaders : {}),
-            ...headers
-        },
-        body: body ? JSON.stringify(body) : undefined
-    });
-    const text = await response.text();
-    let payload;
-    try { payload = JSON.parse(text); } catch { payload = { raw: text }; }
+    const result = await http.request(endpoint, { method, headers, body: body || undefined, auth, throwOnError: false });
     return {
         method,
         endpoint,
-        status: response.status,
-        latency_ms: Date.now() - startedAt,
-        headers: cacheHeaders(response),
-        payload
+        status: result.status,
+        latency_ms: result.latencyMs,
+        headers: cacheHeaders(result.headers),
+        payload: result.payload
     };
 }
 
@@ -94,17 +82,14 @@ try {
     if (!internalApi) throw error;
 }
 
-const authHeaders = internalApi
-    ? { 'x-internal-api-key': internalApi.secret }
-    : { Authorization: `Bearer ${tokenAuth.token}` };
 const authSource = internalApi?.source || tokenAuth.source;
 const sessionId = 'admin-path-surface-smoke';
-
-const csrfResponse = await fetch(`${baseUrl}/api/csrf-token`, {
-    headers: { Accept: 'application/json', 'X-Session-Id': sessionId }
+const http = createBrainbaseHttpClient({
+    baseUrl,
+    accessToken: tokenAuth?.token,
+    internalApiKey: internalApi?.secret,
+    sessionId
 });
-const csrfPayload = await csrfResponse.json();
-assert(csrfPayload.token, 'CSRF token missing');
 
 const liveChecks = [];
 for (const check of [
@@ -115,7 +100,6 @@ for (const check of [
     {
         method: 'POST',
         endpoint: '/api/admin/context-preview',
-        headers: { 'X-Session-Id': sessionId, 'X-CSRF-Token': csrfPayload.token },
         body: { project: 'brainbase', includeEdges: true, includeMemory: false, includePhilosophy: true }
     },
     { method: 'GET', endpoint: '/api/admin/data-flow?project=brainbase' },
