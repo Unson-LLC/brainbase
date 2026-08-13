@@ -66,5 +66,11 @@ Graphにはリポジトリ、Workflow、環境、責任主体、重要な出荷�
 | ジョブ名 | トリガー | 目的 | ワークフロー | ランナー |
 |---|---|---|---|---|
 | Graph書き込み契約 | `develop`・`main`へのPull Requestとpush | Graph書き込み所有者、認証・CSRF契約、利用スクリプトの実行入口を検証する | `.github/workflows/graph-writer-contract.yml` | `ubuntu-latest` |
+| VibePro Graphify影響ゲート | `develop`・`main`へのPull Request | Graph影響を伴う変更にGraphify証跡を要求する | `.github/workflows/vibepro-graphify-impact.yml` | `ubuntu-latest` |
+| VibePro Graph SSOT（マージ前） | `develop`・`main`へのPull Request | チェッカーの単体テスト、Ontology履歴、外部Graph SSOTを検証する | `.github/workflows/vibepro-graph-ssot.yml` | `ubuntu-latest` |
+| VibePro Ontology（push後） | `develop`・`main`・`session/**`へのpush | マージ後を含む実際のpush履歴でOntology公開契約を再検証する | `.github/workflows/vibepro-graph-ssot.yml` | `ubuntu-latest` |
+| VibePro Graph SSOT（定期） | 毎日09:45（日本時間）・手動実行 | 外部Graph SSOTのドリフトを検出する | `.github/workflows/vibepro-graph-ssot.yml` | `ubuntu-latest` |
 
-このジョブに秘密情報は不要。テスト用のローカルHTTPサーバーだけを使い、本番Graphへの書き込みは行わない。
+Graph書き込み契約ジョブに秘密情報は不要。テスト用のローカルHTTPサーバーだけを使い、本番Graphへの書き込みは行わない。
+
+VibePro Graph SSOTは読み取り専用の`BRAINBASE_GRAPH_API_TOKEN`を外部Graph検証ステップだけに渡す。Pull Requestとpushは同じ検査を重複させず、マージ前のコード・Graph検証とpush後の履歴検証に責務を分ける。各ワークフローは同一Pull Requestや定期実行の古い実行を中止する一方、pushはSHAごとに別の排他グループとして履歴検証を欠落させない。旧npmキャッシュの大容量復元を避けるため、対象ジョブでは`setup-node`のnpmキャッシュを使わない。各ジョブは10分で打ち切る。

@@ -8,7 +8,7 @@ description: GitHub Actionsワークフローの作成・変更時に守る管�
 以下の状況で使用：
 - GitHub Actionsワークフローを作成・変更するとき
 - スケジュールジョブを追加したいとき
-- scheduled-jobs.mdを更新する必要があるとき
+- GitHub Actionsの管理ガイドを更新する必要があるとき
 
 # GitHub Actions管理ルール
 
@@ -20,7 +20,7 @@ GitHub Actionsワークフローを作成・変更した際の管理ルール。
 
 ### ワークフロー作成時
 
-1. **管理ドキュメントを更新**: `_codex/common/ops/scheduled-jobs.md`
+1. **管理ドキュメントを更新**: `docs/guides/github-actions-cicd-operating-guide.md`
    - スケジュール実行の場合: 「スケジュール実行」テーブルに追加
    - イベントトリガーの場合: 「イベントトリガー実行」テーブルに追加
    - 必要なSecretsがあれば「必要なSecrets」セクションに追加
@@ -41,7 +41,7 @@ GitHub Actionsワークフローを作成・変更した際の管理ルール。
 
 ## 参照
 
-- 管理ドキュメント: `_codex/common/ops/scheduled-jobs.md`
+- 管理ドキュメント: `docs/guides/github-actions-cicd-operating-guide.md`
 - ワークフロー置き場: `.github/workflows/`
 - セルフホストランナー設定: `~/actions-runner/`
 

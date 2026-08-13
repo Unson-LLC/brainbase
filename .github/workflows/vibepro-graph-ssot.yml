@@ -9,14 +9,22 @@ on:
     - cron: '45 0 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'push' && github.sha || 'latest' }}
+  cancel-in-progress: true
+
 jobs:
-  graph-ssot:
-    name: Verify VibePro Graph SSOT
-    runs-on: [self-hosted, Linux, X64, wsl-linux]
+  pr-graph-ssot:
+    if: github.event_name == 'pull_request'
+    name: Verify VibePro Graph SSOT before merge
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     env:
       BRAINBASE_GRAPH_API_URL: https://bb.unson.jp
-      BRAINBASE_GRAPH_API_TOKEN: ${{ secrets.BRAINBASE_GRAPH_API_TOKEN }}
       BRAINBASE_ROLE: gm
       BRAINBASE_PROJECTS: brainbase
       BRAINBASE_CLEARANCE: internal,restricted,finance,hr,contract
@@ -31,7 +39,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -45,6 +52,8 @@ jobs:
         run: npm run ontology:verify -- --base "${{ github.event.pull_request.base.sha || github.event.before || github.sha }}" --head "${{ github.event.pull_request.head.sha || github.sha }}"
 
       - name: Require Graph API token
+        env:
+          BRAINBASE_GRAPH_API_TOKEN: ${{ secrets.BRAINBASE_GRAPH_API_TOKEN }}
         run: |
           if [ -z "$BRAINBASE_GRAPH_API_TOKEN" ]; then
             echo "BRAINBASE_GRAPH_API_TOKEN secret is required for VibePro Graph SSOT verification."
@@ -52,4 +61,66 @@ jobs:
           fi
 
       - name: Verify VibePro Graph SSOT
+        env:
+          BRAINBASE_GRAPH_API_TOKEN: ${{ secrets.BRAINBASE_GRAPH_API_TOKEN }}
+        run: npm run vibepro:graph-ssot
+
+  post-merge-ontology:
+    if: github.event_name == 'push'
+    name: Verify Ontology after push
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify Ontology release integrity after push
+        env:
+          ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY: ${{ secrets.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY }}
+        run: npm run ontology:verify -- --base "${{ github.event.before }}" --head "${{ github.sha }}"
+
+  scheduled-graph-ssot:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    name: Verify scheduled VibePro Graph SSOT drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      BRAINBASE_GRAPH_API_URL: https://bb.unson.jp
+      BRAINBASE_ROLE: gm
+      BRAINBASE_PROJECTS: brainbase
+      BRAINBASE_CLEARANCE: internal,restricted,finance,hr,contract
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Require Graph API token
+        env:
+          BRAINBASE_GRAPH_API_TOKEN: ${{ secrets.BRAINBASE_GRAPH_API_TOKEN }}
+        run: |
+          if [ -z "$BRAINBASE_GRAPH_API_TOKEN" ]; then
+            echo "BRAINBASE_GRAPH_API_TOKEN secret is required for VibePro Graph SSOT verification."
+            exit 1
+          fi
+
+      - name: Verify VibePro Graph SSOT
+        env:
+          BRAINBASE_GRAPH_API_TOKEN: ${{ secrets.BRAINBASE_GRAPH_API_TOKEN }}
         run: npm run vibepro:graph-ssot
