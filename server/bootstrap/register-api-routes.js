@@ -17,6 +17,7 @@ import { createJudgmentResolutionRouter } from '../routes/judgment-resolution.js
 import { createCompanionRouter } from '../routes/companion.js';
 import { createExternalRunnerRouter } from '../routes/external-runner.js';
 import { createRunReceiptRouter } from '../routes/run-receipts.js';
+import { createRoutineRouter } from '../routes/routines.js';
 import { createMeetingSourceSettingsRouter } from '../routes/meeting-source-settings.js';
 import { adminNoCacheMiddleware, createAdminVisualizationRouter } from '../routes/admin-visualization.js';
 import { createSetupRouter } from '../routes/setup.js';
@@ -175,6 +176,7 @@ export function registerApiRoutes(app, {
     externalRunnerIngestService,
     runReceiptIngestService,
     routineLivenessService,
+    routineCycleExecutor,
     uploadMiddleware,
     appVersion,
     workspaceRoot,
@@ -288,6 +290,9 @@ export function registerApiRoutes(app, {
         queryService: runReceiptQueryService,
         routineLivenessService
     }));
+    if (routineCycleExecutor) {
+        app.use('/api/routines', workflowAuthGuard, createRoutineRouter({ routineCycleExecutor }));
+    }
     if (meetingSourceMcpSyncService) {
         app.use('/api/settings/meeting-sources', workflowAuthGuard, createMeetingSourceSettingsRouter(meetingSourceMcpSyncService));
     }

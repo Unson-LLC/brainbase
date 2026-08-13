@@ -87,6 +87,39 @@ describe('KnowledgeEventService knowledge_event.v1 contract', () => {
         });
     });
 
+    it('非Decision judgment candidateはanswer hashでなく安全な本文summaryを記憶する', async () => {
+        const { service, candidateRepository, graphRepository, externalActions } = createHarness();
+        const event = decisionEvent({
+            event_id: 'kev_judgment_summary_1',
+            source: { type: 'codex_judgment', ref: 'session-1:turn-1' },
+            subject: { type: 'judgment_episode', id: 'je-session-1-turn-1' },
+            decision: undefined,
+            decision_authority: {
+                kind: 'judgment_receipt',
+                authorized: false,
+                graph_promotion_allowed: false
+            },
+            source_pointer: {
+                type: 'codex_thread',
+                uri: 'codex://threads/session-1#turn=turn-1'
+            },
+            payload: { summary: '価格改定は段階導入し、結果を次回会議で確認する。' },
+            body_hash: 'sha256:answer-only-for-identity'
+        });
+
+        await service.ingest(event);
+
+        expect(candidateRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+            cognitive_type: 'observation',
+            target_tier: 'episode',
+            body: '価格改定は段階導入し、結果を次回会議で確認する。',
+            requires_approval: true
+        }));
+        expect(candidateRepository.create.mock.calls[0][0].body).not.toBe(event.body_hash);
+        expect(graphRepository.upsertDecision).not.toHaveBeenCalled();
+        expect(externalActions.execute).not.toHaveBeenCalled();
+    });
+
     it('同じevent_idとbody_hashの再送は保存せず同じ結果を返す', async () => {
         const priorResult = {
             event_id: 'kev_decision_1',

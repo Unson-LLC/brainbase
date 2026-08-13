@@ -65,6 +65,55 @@ function makeService(runs) {
 }
 
 describe('RunReceiptQueryService', () => {
+    it('retroの停止数は対象期間内の3ルーティンごとの最新実行だけで算出する', async () => {
+        const { service } = makeService([
+            makeRun({
+                id: 'ohayo-old-failed',
+                sourceType: 'codex_automations',
+                sourceIdentity: 'brainbase-ohayo',
+                sourceStatus: 'failed',
+                effectiveAt: '2026-08-10T00:00:00Z'
+            }),
+            makeRun({
+                id: 'ohayo-latest-success',
+                sourceType: 'codex_automations',
+                sourceIdentity: 'brainbase-ohayo',
+                effectiveAt: '2026-08-12T00:00:00Z'
+            }),
+            makeRun({
+                id: 'oyasumi-latest-blocked',
+                sourceType: 'codex_automations',
+                sourceIdentity: 'brainbase-oyasumi',
+                sourceStatus: 'blocked',
+                effectiveAt: '2026-08-12T01:00:00Z'
+            }),
+            makeRun({
+                id: 'retro-outside-window',
+                sourceType: 'codex_automations',
+                sourceIdentity: 'brainbase-retro',
+                sourceStatus: 'failed',
+                effectiveAt: '2026-07-30T00:00:00Z'
+            }),
+            makeRun({
+                id: 'unrelated-failed',
+                sourceType: 'codex_automations',
+                sourceIdentity: 'other-automation',
+                sourceStatus: 'failed',
+                effectiveAt: '2026-08-12T02:00:00Z'
+            })
+        ]);
+
+        await expect(service.summarizeRoutineState({
+            project_id: 'brainbase',
+            since: '2026-08-06T00:00:00Z',
+            until: '2026-08-13T00:00:00Z',
+            routine_automation_ids: ['brainbase-ohayo', 'brainbase-oyasumi', 'brainbase-retro']
+        }, {
+            role: 'member',
+            projectCodes: ['brainbase']
+        })).resolves.toMatchObject({ stoppage_count: 1 });
+    });
+
     it('Inboxでは権限内の最新状態を優先度順に投影する', async () => {
         const { service, repository, prepareProjectAccess, assertProjectAccess } = makeService([
             makeRun({

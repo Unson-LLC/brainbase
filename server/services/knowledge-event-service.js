@@ -175,7 +175,7 @@ function candidateInput(event, quarantineReason) {
         sensitivity: event.permission_snapshot?.sensitivity || 'internal',
         permission_snapshot: event.permission_snapshot,
         evidence_ids: [event.event_id],
-        body: event.decision?.statement || event.body_hash,
+        body: event.decision?.statement || event.payload?.summary || event.body_hash,
         recommended_subject_type: event.subject?.type || null,
         recommended_subject_id: event.subject?.id || null,
         processing_stage: 'received',

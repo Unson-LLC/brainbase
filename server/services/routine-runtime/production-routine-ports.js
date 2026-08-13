@@ -1,0 +1,256 @@
+const ROUTINE_PROJECT_ID = 'brainbase';
+const ROUTINE_AUTOMATION_IDS = Object.freeze([
+    'brainbase-ohayo',
+    'brainbase-oyasumi',
+    'brainbase-retro'
+]);
+
+function projectInput(input = {}) {
+    const projectId = input?.input?.project_id || input?.project_id || ROUTINE_PROJECT_ID;
+    if (projectId !== ROUTINE_PROJECT_ID) {
+        const error = new Error('routine project is not supported');
+        error.code = 'routine_project_not_supported';
+        throw error;
+    }
+    return { project_id: projectId };
+}
+
+function unavailable(source, error) {
+    return {
+        code: error?.code === 'routine_dependency_unavailable'
+            ? 'routine_dependency_unavailable'
+            : 'routine_source_unavailable',
+        source,
+        reason: error?.code || error?.name || 'unavailable'
+    };
+}
+
+function requireDependency(value, name, method = null) {
+    if (!value || (method && typeof value[method] !== 'function')) {
+        const error = new Error(`routine dependency unavailable: ${name}`);
+        error.code = 'routine_dependency_unavailable';
+        error.dependency = name;
+        throw error;
+    }
+    return value;
+}
+
+async function readSource(source, reader) {
+    try {
+        return { value: await reader(), anomaly: null };
+    } catch (error) {
+        return { value: null, anomaly: unavailable(source, error) };
+    }
+}
+
+function sourceEventId(item) {
+    const isFormalKnowledgeEventId = (id) => typeof id === 'string' && /^kev(?:_|$)/u.test(id);
+    if (isFormalKnowledgeEventId(item?.payload?.derived_from_event_id)) {
+        return item.payload.derived_from_event_id;
+    }
+    if (isFormalKnowledgeEventId(item?.source_knowledge_event_id)) return item.source_knowledge_event_id;
+    if (isFormalKnowledgeEventId(item?.source_event_id)) return item.source_event_id;
+    if (Array.isArray(item?.source_event_ids)) {
+        return item.source_event_ids.find(isFormalKnowledgeEventId) || null;
+    }
+    return null;
+}
+
+function safeException(item) {
+    return {
+        ...(typeof item?.code === 'string' ? { code: item.code } : {}),
+        ...(typeof item?.summary === 'string' ? { summary: item.summary.slice(0, 2000) } : {})
+    };
+}
+
+function safeMemory(item) {
+    const summary = item?.summary || item?.name || item?.title || item?.body;
+    return typeof summary === 'string' && summary.trim()
+        ? { summary: summary.trim().slice(0, 2000) }
+        : null;
+}
+
+export class ProductionRoutinePorts {
+    constructor({
+        knowledgeEventRepository,
+        candidateRepository,
+        infoSSOTService,
+        runReceiptQueryService,
+        listJudgmentOutboxExceptions,
+        knowledgeFeedbackService,
+        countRunReceiptOutbox = null,
+        now = () => new Date()
+    } = {}) {
+        this.knowledgeEventRepository = knowledgeEventRepository;
+        this.candidateRepository = candidateRepository;
+        this.infoSSOTService = infoSSOTService;
+        this.runReceiptQueryService = runReceiptQueryService;
+        this.listJudgmentOutboxExceptions = listJudgmentOutboxExceptions;
+        this.knowledgeFeedbackService = knowledgeFeedbackService;
+        this.countRunReceiptOutbox = countRunReceiptOutbox;
+        this.now = now;
+    }
+
+    async reconcile(input, context) {
+        const project = projectInput(input);
+        const [knowledge, receipts, judgmentOutbox, receiptOutbox] = await Promise.all([
+            readSource('knowledge_events', () => requireDependency(
+                this.knowledgeEventRepository,
+                'knowledgeEventRepository',
+                'summarizeRoutineState'
+            ).summarizeRoutineState(project, context)),
+            readSource('run_receipts', () => requireDependency(
+                this.runReceiptQueryService,
+                'runReceiptQueryService',
+                'summarizeRoutineState'
+            ).summarizeRoutineState(project, context)),
+            readSource('judgment_knowledge_event_outbox', () => requireDependency(
+                this.listJudgmentOutboxExceptions,
+                'listJudgmentOutboxExceptions'
+            )(context)),
+            this.countRunReceiptOutbox
+                ? readSource('run_receipt_outbox', () => this.countRunReceiptOutbox(context))
+                : Promise.resolve({ value: null, anomaly: null })
+        ]);
+        const anomalies = [knowledge.anomaly, receipts.anomaly, judgmentOutbox.anomaly, receiptOutbox.anomaly]
+            .filter(Boolean);
+        const runReceiptOutboxCount = receiptOutbox.value ?? receipts.value?.outbox_count;
+        return {
+            unprocessed_count: knowledge.value?.unprocessed_count ?? null,
+            contradiction_count: knowledge.value?.contradiction_count ?? null,
+            expired_count: knowledge.value?.expired_count ?? null,
+            outbox_count: runReceiptOutboxCount == null || !Array.isArray(judgmentOutbox.value)
+                ? null
+                : runReceiptOutboxCount + judgmentOutbox.value.length,
+            ...(Array.isArray(knowledge.value?.episode_ids) ? { episode_ids: knowledge.value.episode_ids } : {}),
+            ...(anomalies.length > 0 ? { anomalies } : {})
+        };
+    }
+
+    async compress({ reconciliation } = {}, context) {
+        if (typeof this.knowledgeEventRepository.compressRoutineEpisodes === 'function') {
+            return this.knowledgeEventRepository.compressRoutineEpisodes({
+                project_id: ROUTINE_PROJECT_ID,
+                episode_ids: reconciliation?.episode_ids || []
+            }, context);
+        }
+        return {
+            episode_ids: Array.isArray(reconciliation?.episode_ids) ? reconciliation.episode_ids : [],
+            confirmed: false,
+            reason: 'episode_compressor_unavailable'
+        };
+    }
+
+    async verify({ reconciliation, compression } = {}, context) {
+        if (typeof this.knowledgeEventRepository.verifyRoutineRetrievability === 'function') {
+            return this.knowledgeEventRepository.verifyRoutineRetrievability({
+                project_id: ROUTINE_PROJECT_ID,
+                episode_ids: compression?.episode_ids || reconciliation?.episode_ids || []
+            }, context);
+        }
+        return { retrievable: undefined, reason: 'retrievability_verifier_unavailable' };
+    }
+
+    async recallGraph(input, context) {
+        const project = projectInput(input);
+        return requireDependency(this.infoSSOTService, 'infoSSOTService', 'listGraphEntities').listGraphEntities(context?.access, {
+            projectCode: project.project_id,
+            query: input?.input?.query,
+            limit: 50
+        });
+    }
+
+    async recallPersonalKg(input, context) {
+        const project = projectInput(input);
+        return requireDependency(this.candidateRepository, 'candidateRepository', 'listPersonalKg').listPersonalKg({
+            project_code: project.project_id,
+            query: input?.input?.query,
+            limit: 50
+        }, context);
+    }
+
+    async generate({
+        exceptions,
+        graph_memories: graphMemories,
+        personal_memories: personalMemories
+    } = {}) {
+        const graph = Array.isArray(graphMemories) ? graphMemories : [];
+        const personal = Array.isArray(personalMemories) ? personalMemories : [];
+        const recalled = [...graph, ...personal];
+        const recalledIds = recalled.map((item) => item?.id).filter(Boolean);
+        const recalledById = new Map(recalled.map((item) => [item?.id, item]));
+        const displayedIds = [...new Set(recalled
+            .filter((item) => sourceEventId(item))
+            .slice(0, 3)
+            .map((item) => item.id))];
+        const displayedMemories = displayedIds.map((id) => safeMemory(recalledById.get(id))).filter(Boolean);
+        const visibleExceptions = (Array.isArray(exceptions) ? exceptions : []).slice(0, 3).map(safeException);
+        return {
+            exceptions: visibleExceptions,
+            graph_memories: graph,
+            personal_memories: personal,
+            recalled_memory_ids: recalledIds,
+            displayed_memory_ids: displayedIds,
+            used_knowledge_ids: [...new Set(displayedIds.map((id) => sourceEventId(recalledById.get(id))).filter(Boolean))],
+            morning_output: { exceptions: visibleExceptions, memories: displayedMemories }
+        };
+    }
+
+    async recordUsage({ knowledge_id: knowledgeId }, context) {
+        return requireDependency(
+            this.knowledgeFeedbackService,
+            'knowledgeFeedbackService',
+            'recordFeedback'
+        ).recordFeedback({
+            event_id: knowledgeId,
+            action: 'adopt',
+            reason: 'used_by_ohayo'
+        }, { access: context?.access });
+    }
+
+    async evaluateMetrics({ input } = {}, context) {
+        const project = projectInput({ input });
+        const until = input?.until || this.now().toISOString();
+        const since = input?.since || new Date(Date.parse(until) - 7 * 24 * 60 * 60 * 1000).toISOString();
+        const scope = {
+            ...(input || {}),
+            ...project,
+            since,
+            until,
+            routine_automation_ids: [...ROUTINE_AUTOMATION_IDS]
+        };
+        const [knowledge, receipts] = await Promise.all([
+            readSource('knowledge_events', () => requireDependency(
+                this.knowledgeEventRepository,
+                'knowledgeEventRepository',
+                'summarizeRoutineState'
+            ).summarizeRoutineState(scope, context)),
+            readSource('run_receipts', () => requireDependency(
+                this.runReceiptQueryService,
+                'runReceiptQueryService',
+                'summarizeRoutineState'
+            ).summarizeRoutineState(scope, context))
+        ]);
+        const anomalies = [knowledge.anomaly, receipts.anomaly].filter(Boolean);
+        return {
+            misregistration_rate: knowledge.value?.misregistration_rate ?? null,
+            correction_rate: knowledge.value?.correction_rate ?? null,
+            open_contradictions: knowledge.value?.open_contradictions ?? null,
+            processing_time_ms: knowledge.value?.processing_time_ms ?? null,
+            stoppage_count: receipts.value?.stoppage_count ?? null,
+            ...(anomalies.length > 0 ? { anomalies } : {})
+        };
+    }
+
+    async createImprovementCandidates({ metrics, limit = 3 } = {}) {
+        const candidates = Object.entries(metrics || {})
+            .filter(([, value]) => typeof value === 'number' && value > 0)
+            .map(([metric, value]) => ({
+                kind: 'story_pr_candidate',
+                metric,
+                observed_value: value,
+                applies_changes: false
+            }));
+        return candidates.slice(0, limit);
+    }
+}

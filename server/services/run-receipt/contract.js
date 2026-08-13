@@ -48,7 +48,8 @@ const RUN_KEYS = new Set([
 ]);
 const DELIVERY_KEYS = new Set(['idempotency_key', 'attempt', 'sent_at']);
 const EVIDENCE_KEYS = new Set(['kind', 'ref', 'label']);
-const OPAQUE_REF_PATTERN = /^[a-z][a-z0-9+.-]{1,31}:[^\s]{1,2000}$/;
+const OPAQUE_REF_PATTERN = /^[a-z][a-z0-9_+.-]{1,31}:[^\s]{1,2000}$/;
+const ROUTINE_ARTIFACT_REF_PATTERN = /^routine-artifacts\/[a-z0-9_-]+\/[a-f0-9]{64}\.json$/;
 const EMBEDDED_CREDENTIAL_PATTERN = /^[a-z][a-z0-9+.-]{1,31}:(?:\/\/)?[^/?#\s@]+(?::[^/?#\s@]*)?@/i;
 const RFC3339_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 const CONTROL_OR_NEWLINE_PATTERN = /[\u0000-\u001f\u007f]/;
@@ -203,7 +204,7 @@ function validateEvidenceRefs(value) {
             if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
                 fail('invalid_evidence_ref', `${path}.ref must be an absolute HTTPS URL without credentials`, { path: `${path}.ref` });
             }
-        } else if (!OPAQUE_REF_PATTERN.test(reference)) {
+        } else if (!OPAQUE_REF_PATTERN.test(reference) && !ROUTINE_ARTIFACT_REF_PATTERN.test(reference)) {
             fail('invalid_evidence_ref', `${path}.ref must be a source-owned opaque reference`, { path: `${path}.ref` });
         }
         return { kind, ref: reference, ...(label ? { label } : {}) };

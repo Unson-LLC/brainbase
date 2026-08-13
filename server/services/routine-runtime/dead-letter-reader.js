@@ -16,10 +16,15 @@ export async function listRoutineDeadLetters({ directory }) {
         items.push({
             automation_id: automationId,
             created_at: fs.statSync(filePath).mtime.toISOString(),
-            path: filePath
+            path: name
         });
     }
 
     return items.sort((left, right) => right.created_at.localeCompare(left.created_at)
         || left.automation_id.localeCompare(right.automation_id));
+}
+
+export async function countRoutineOutbox({ directory }) {
+    if (!fs.existsSync(directory)) return 0;
+    return fs.readdirSync(directory).filter((entry) => entry.endsWith('.json')).length;
 }

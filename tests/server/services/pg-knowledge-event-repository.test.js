@@ -65,6 +65,203 @@ function scriptedClient(handler = async () => ({ rows: [], rowCount: 0 })) {
 }
 
 describe('PgKnowledgeEventRepository', () => {
+    it('Episode圧縮は同一transactionで読取りと状態更新を完了した時だけconfirmedにする', async () => {
+        const client = scriptedClient(async (sql) => {
+            if (String(sql).includes('FROM knowledge_events') && !String(sql).includes('episode_compaction')) {
+                return {
+                    rows: [{
+                        parent_episode_id: 'episode-1',
+                        event_id: 'kev-1',
+                        subject: { type: 'decision', id: 'decision-1' },
+                        payload: { decision: { statement: '価格を10万円に決定' } },
+                        semantic_state: 'active',
+                        result: { outcome: 'approved', unresolved_items: ['公開日'] }
+                    }],
+                    rowCount: 1
+                };
+            }
+            if (/UPDATE\s+knowledge_events/i.test(String(sql))) return { rows: [], rowCount: 1 };
+            if (String(sql).includes('episode_compaction')) {
+                return {
+                    rows: [{ parent_episode_id: 'episode-1', event_id: 'kev-1', compaction_matches: true }],
+                    rowCount: 1
+                };
+            }
+            return { rows: [], rowCount: 0 };
+        });
+        const pool = { connect: vi.fn(async () => client), query: vi.fn() };
+        const repository = new PgKnowledgeEventRepository({ pool });
+
+        const result = await repository.compressRoutineEpisodes({
+            project_id: 'brainbase',
+            episode_ids: ['episode-1']
+        }, {
+            access: { role: 'member', projectCodes: ['brainbase'], clearance: ['internal'] }
+        });
+
+        const transactionSql = client.query.mock.calls.map(([sql]) => String(sql).trim());
+        expect(transactionSql[0]).toBe('BEGIN');
+        expect(transactionSql.at(-1)).toBe('COMMIT');
+        expect(transactionSql.some((sql) => /(?:UPDATE\s+knowledge_events|INSERT\s+INTO\s+knowledge_event_stage_history)/i.test(sql)))
+            .toBe(true);
+        const sourceSelect = transactionSql.find((sql) => /SELECT[\s\S]+FROM knowledge_events/i.test(sql));
+        expect(sourceSelect).toMatch(/subject/i);
+        expect(sourceSelect).toMatch(/payload/i);
+        expect(sourceSelect).toMatch(/semantic_state/i);
+        expect(sourceSelect).toMatch(/result/i);
+        expect(client.query.mock.calls.filter(([sql]) => /episode_compaction/i.test(String(sql)))).toHaveLength(2);
+        expect(result).toMatchObject({ episode_ids: ['episode-1'], confirmed: true });
+    });
+
+    it('Episode圧縮はepisode_compaction.v1 artifactの必須状態を同一transactionで永続化する', async () => {
+        const client = scriptedClient(async (sql) => {
+            if (String(sql).includes('FROM knowledge_events')) {
+                return {
+                    rows: [
+                        { parent_episode_id: 'episode-1', event_id: 'kev-1' },
+                        { parent_episode_id: 'episode-1', event_id: 'kev-2' }
+                    ],
+                    rowCount: 2
+                };
+            }
+            return { rows: [], rowCount: 2 };
+        });
+        const repository = new PgKnowledgeEventRepository({
+            pool: { connect: vi.fn(async () => client), query: vi.fn() }
+        });
+
+        await repository.compressRoutineEpisodes({
+            project_id: 'brainbase',
+            episode_ids: ['episode-1']
+        }, { access: { role: 'member', projectCodes: ['brainbase'] } });
+
+        const persistedSql = client.query.mock.calls.map(([sql]) => String(sql)).join('\n');
+        for (const field of [
+            'episode_compaction.v1',
+            'episode_id',
+            'source_event_ids',
+            'version',
+            'hash',
+            'compacted_at'
+        ]) {
+            expect(persistedSql).toContain(field);
+        }
+        expect(persistedSql).toMatch(/(?:summary|source_pointer)/i);
+        const updateCall = client.query.mock.calls.find(([sql]) => /UPDATE\s+knowledge_events/i.test(String(sql)));
+        const summary = JSON.parse(updateCall?.[1]?.[6] || '{}');
+        expect(summary).toMatchObject({
+            decisions: expect.any(Array),
+            outcomes: expect.any(Array),
+            unresolved_items: expect.any(Array)
+        });
+        expect(summary).not.toEqual({ source_event_count: 2 });
+        expect(client.query.mock.calls.map(([sql]) => String(sql).trim()).at(-1)).toBe('COMMIT');
+    });
+
+    it.each([
+        ['UPDATEが0件', 0, true],
+        ['readback不一致', 1, false]
+    ])('Episode圧縮は%sならconfirmed:falseにする', async (_case, updateRowCount, readbackMatches) => {
+        const client = scriptedClient(async (sql) => {
+            const text = String(sql);
+            if (text.includes('FROM knowledge_events') && !text.includes('episode_compaction')) {
+                return {
+                    rows: [{
+                        parent_episode_id: 'episode-1',
+                        event_id: 'kev-1',
+                        subject: { type: 'decision', id: 'decision-1' },
+                        payload: { summary: '決定内容' },
+                        semantic_state: 'active',
+                        result: { outcome: 'done' }
+                    }],
+                    rowCount: 1
+                };
+            }
+            if (/UPDATE\s+knowledge_events/i.test(text)) return { rows: [], rowCount: updateRowCount };
+            if (text.includes('episode_compaction')) {
+                return {
+                    rows: [{ parent_episode_id: 'episode-1', compaction_matches: readbackMatches }],
+                    rowCount: 1
+                };
+            }
+            return { rows: [], rowCount: 0 };
+        });
+        const repository = new PgKnowledgeEventRepository({
+            pool: { connect: vi.fn(async () => client), query: vi.fn() }
+        });
+
+        await expect(repository.compressRoutineEpisodes({
+            project_id: 'brainbase',
+            episode_ids: ['episode-1']
+        }, { access: { role: 'member', projectCodes: ['brainbase'] } })).resolves.toMatchObject({
+            confirmed: false
+        });
+    });
+
+    it('Episode圧縮は要求した全Episodeのartifact保存を確認できた時だけconfirmedにする', async () => {
+        const client = scriptedClient(async (sql) => String(sql).includes('FROM knowledge_events')
+            ? { rows: [{ parent_episode_id: 'episode-1', event_id: 'kev-1' }], rowCount: 1 }
+            : { rows: [], rowCount: 1 });
+        const repository = new PgKnowledgeEventRepository({
+            pool: { connect: vi.fn(async () => client), query: vi.fn() }
+        });
+
+        await expect(repository.compressRoutineEpisodes({
+            project_id: 'brainbase',
+            episode_ids: ['episode-1', 'episode-2']
+        }, { access: { role: 'member', projectCodes: ['brainbase'] } })).resolves.toMatchObject({
+            episode_ids: ['episode-1'],
+            confirmed: false,
+            missing_episode_ids: ['episode-2']
+        });
+    });
+
+    it('retro集計SQLはeventをoccurred_at、feedbackをcreated_atの独立した期間で測る', async () => {
+        const client = scriptedClient(async (sql) => String(sql).includes('WITH latest_stage')
+            ? { rows: [{}], rowCount: 1 }
+            : { rows: [], rowCount: 0 });
+        const repository = new PgKnowledgeEventRepository({
+            pool: { connect: vi.fn(async () => client), query: vi.fn() }
+        });
+
+        await repository.summarizeRoutineState({
+            project_id: 'brainbase',
+            since: '2026-08-06T12:00:00.000Z',
+            until: '2026-08-13T12:00:00.000Z'
+        });
+
+        const aggregateCall = client.query.mock.calls.find(([sql]) => String(sql).includes('WITH latest_stage'));
+        expect(aggregateCall?.[1]).toEqual([
+            'brainbase',
+            '2026-08-06T12:00:00.000Z',
+            '2026-08-13T12:00:00.000Z'
+        ]);
+        const aggregateSql = String(aggregateCall?.[0]);
+        const feedbackCte = aggregateSql.match(/feedback_counts AS \(([\s\S]*?)\), event_stats AS/i)?.[1] || '';
+        const eventCte = aggregateSql.match(/event_stats AS \(([\s\S]*?)\)\s*SELECT/i)?.[1] || '';
+        expect(feedbackCte).toMatch(/feedback\.created_at\s*>=\s*\$2::timestamptz/i);
+        expect(feedbackCte).toMatch(/feedback\.created_at\s*<\s*\$3::timestamptz/i);
+        expect(feedbackCte).not.toMatch(/event\.occurred_at\s*[<>]=?/i);
+        expect(eventCte).toMatch(/event\.occurred_at\s*>=\s*\$2::timestamptz/i);
+        expect(eventCte).toMatch(/event\.occurred_at\s*<\s*\$3::timestamptz/i);
+    });
+
+    it('open_contradictionsはquarantined全件ではなく未解決conflict理由だけを集計する', async () => {
+        const client = scriptedClient(async (sql) => String(sql).includes('WITH latest_stage')
+            ? { rows: [{}], rowCount: 1 }
+            : { rows: [], rowCount: 0 });
+        const pool = { connect: vi.fn(async () => client), query: vi.fn() };
+        const repository = new PgKnowledgeEventRepository({ pool });
+
+        await repository.summarizeRoutineState({ project_id: 'brainbase' });
+
+        const aggregateSql = client.query.mock.calls
+            .map(([sql]) => String(sql))
+            .find((sql) => sql.includes('AS open_contradictions'));
+        expect(aggregateSql).toContain('unresolved_conflict');
+        expect(aggregateSql).not.toMatch(/semantic_state\s+IN\s*\(\s*'contradicted'\s*,\s*'quarantined'\s*\)/i);
+    });
+
     it('正式migrationがevent・stage・feedbackだけを所有しreceipt正本テーブルを作らない', async () => {
         const schemaPath = path.resolve(process.cwd(), 'server/sql/knowledge-event-schema.sql');
         const schemaText = (await readFile(schemaPath, 'utf8')).toLowerCase();

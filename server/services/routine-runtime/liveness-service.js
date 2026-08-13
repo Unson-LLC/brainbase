@@ -1,5 +1,12 @@
 const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000;
-const PRIORITY = Object.freeze({ dead_letter: 0, missing_receipt: 1, blocked_receipt: 2 });
+const PRIORITY = Object.freeze({
+    knowledge_event_outbox: 0,
+    knowledge_event_dead_letter: 0,
+    dead_letter: 0,
+    missing_receipt: 1,
+    required_artifact_missing: 2,
+    blocked_receipt: 3
+});
 
 function asDate(value, fieldName) {
     const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
@@ -66,6 +73,8 @@ export class RoutineLivenessService {
         expectations,
         runReceiptQueryService,
         listDeadLetters = async () => [],
+        listKnowledgeEventDeadLetters = async () => [],
+        listKnowledgeEventOutboxExceptions = async () => [],
         now = () => new Date()
     }) {
         if (!Array.isArray(expectations)) throw new Error('expectations must be an array');
@@ -73,19 +82,31 @@ export class RoutineLivenessService {
         this.expectations = expectations;
         this.runReceiptQueryService = runReceiptQueryService;
         this.listDeadLetters = listDeadLetters;
+        this.listKnowledgeEventDeadLetters = listKnowledgeEventDeadLetters;
+        this.listKnowledgeEventOutboxExceptions = listKnowledgeEventOutboxExceptions;
         this.now = now;
     }
 
-    async listExceptions({ limit = 3 } = {}) {
+    async listExceptions({ limit = 3 } = {}, context) {
         const now = asDate(this.now(), 'now');
-        const deadLetters = await this.listDeadLetters();
+        const [deadLetters, knowledgeEventDeadLetters, knowledgeEventOutboxExceptions] = await Promise.all([
+            this.listDeadLetters(context),
+            this.listKnowledgeEventDeadLetters(context),
+            this.listKnowledgeEventOutboxExceptions(context)
+        ]);
         const deadLettersByAutomation = new Map();
         for (const item of deadLetters) {
             if (!item?.automation_id || deadLettersByAutomation.has(item.automation_id)) continue;
             deadLettersByAutomation.set(item.automation_id, item);
         }
 
-        const exceptions = [];
+        const exceptions = [
+            ...(Array.isArray(knowledgeEventDeadLetters) ? knowledgeEventDeadLetters : []),
+            ...(Array.isArray(knowledgeEventOutboxExceptions) ? knowledgeEventOutboxExceptions : [])
+        ].map((item) => ({
+            ...item,
+            ...(item?.path ? { path: String(item.path).split(/[\\/]/).pop() } : {})
+        }));
         for (const expectation of this.expectations) {
             const scheduledAt = scheduledAtFor(expectation, now);
             const graceDeadline = new Date(scheduledAt.getTime() + expectation.grace_minutes * 60 * 1000);
@@ -101,12 +122,15 @@ export class RoutineLivenessService {
                 });
             }
 
-            const history = await this.runReceiptQueryService.listHistory({
+            const historyInput = {
                 projectId: expectation.project_id,
                 sourceType: expectation.source_type,
                 sourceIdentity: expectation.automation_id,
                 limit: 1
-            });
+            };
+            const history = context === undefined
+                ? await this.runReceiptQueryService.listHistory(historyInput)
+                : await this.runReceiptQueryService.listHistory(historyInput, context.actor || context.access || context);
             const latest = history?.items?.[0];
             const latestFinishedAt = latest?.finished_at ? asDate(latest.finished_at, 'receipt.finished_at') : null;
             const receiptForSchedule = latest && latestFinishedAt >= scheduledAt ? latest : null;
@@ -126,7 +150,7 @@ export class RoutineLivenessService {
             const missingArtifacts = missingRequiredArtifacts(expectation, receiptForSchedule);
             if (isBlockedReceipt(receiptForSchedule) || missingArtifacts.length > 0) {
                 exceptions.push({
-                    code: 'blocked_receipt',
+                    code: isBlockedReceipt(receiptForSchedule) ? 'blocked_receipt' : 'required_artifact_missing',
                     automation_id: expectation.automation_id,
                     source_status: receiptForSchedule.source_status,
                     evidence_state: receiptForSchedule.evidence_state,
@@ -142,7 +166,8 @@ export class RoutineLivenessService {
             .map((item) => ({ item, overdueMs: exceptionOverdueMs(item, now) }))
             .sort((a, b) => PRIORITY[a.item.code] - PRIORITY[b.item.code]
                 || b.overdueMs - a.overdueMs
-                || a.item.automation_id.localeCompare(b.item.automation_id))
+                || String(a.item.automation_id || a.item.event_id || '')
+                    .localeCompare(String(b.item.automation_id || b.item.event_id || '')))
             .slice(0, Math.max(0, limit))
             .map(({ item }) => item);
     }

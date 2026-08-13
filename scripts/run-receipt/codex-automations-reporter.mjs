@@ -76,7 +76,9 @@ export function buildCodexAutomationReceipt(input) {
         action_required: mapped.action,
         evidence_refs: evidenceRefs
     };
-    if (mapped.status === 'failed') run.blocker_reason = 'Codex Automation reported a failed terminal state';
+    if (mapped.status === 'failed') {
+        run.blocker_reason = input.blocker_reason || 'Codex Automation reported a failed terminal state';
+    }
     return {
         contract_version: 'run_receipt.v1',
         source: { type: 'codex_automations', workflow_id: automationId, name: automationId },

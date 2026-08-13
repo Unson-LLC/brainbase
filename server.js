@@ -310,6 +310,7 @@ const {
     externalRunnerIngestService,
     runReceiptIngestService,
     routineLivenessService,
+    routineCycleExecutor,
     uploadMiddleware
 } = createCoreServices({
     varDir: VAR_DIR,
@@ -432,6 +433,7 @@ registerApiRoutes(app, {
     externalRunnerIngestService,
     runReceiptIngestService,
     routineLivenessService,
+    routineCycleExecutor,
     uploadMiddleware,
     appVersion: APP_VERSION,
     workspaceRoot,
