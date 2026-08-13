@@ -165,4 +165,58 @@ describe('ontology writer inventory vocabulary contract', () => {
         expect(() => verifyWriterInventory({ rootDir }))
             .toThrow('unauthorized Graph HTTP mutation owners=[server/writer.js]');
     });
+
+    it('fails closed when a shorthand method cannot be resolved', () => {
+        const rootDir = fixture({
+            source: [
+                "const endpoint = '/api/info/graph/entities';",
+                'const method = runtimeMethod;',
+                'fetch(endpoint, { method });'
+            ].join('\n'),
+            vocabulary: { types: [], relations: [] }
+        });
+        expect(() => verifyWriterInventory({ rootDir }))
+            .toThrow('unauthorized Graph HTTP mutation owners=[server/writer.js]');
+    });
+
+    it('resolves a safe shorthand GET method', () => {
+        const rootDir = fixture({
+            source: [
+                "const endpoint = '/api/info/graph/entities';",
+                "const method = 'GET';",
+                'fetch(endpoint, { method });'
+            ].join('\n'),
+            vocabulary: { types: [], relations: [] }
+        });
+        expect(() => verifyWriterInventory({ rootDir })).not.toThrow();
+    });
+
+    it.each([
+        "globalThis.fetch('/api/info/graph/entities', { method: 'POST' });",
+        "axios.post('/api/info/graph/entities', { id: 'app_mana' });",
+        "const endpoint = new URL('/api/info/graph/entities', baseUrl); fetch(endpoint, { method: 'POST' });"
+    ])('rejects alternate direct Graph mutation calls: %s', (source) => {
+        const rootDir = fixture({ source, vocabulary: { types: [], relations: [] } });
+        expect(() => verifyWriterInventory({ rootDir }))
+            .toThrow('unauthorized Graph HTTP mutation owners=[server/writer.js]');
+    });
+
+    it('fails closed when a computed option can hide the HTTP method', () => {
+        const rootDir = fixture({
+            source: [
+                "const endpoint = '/api/info/graph/entities';",
+                "fetch(endpoint, { [runtimeKey]: 'POST' });"
+            ].join('\n'),
+            vocabulary: { types: [], relations: [] }
+        });
+        expect(() => verifyWriterInventory({ rootDir }))
+            .toThrow('unauthorized Graph HTTP mutation owners=[server/writer.js]');
+    });
+
+    it('runs the writer inventory for pull requests targeting develop', () => {
+        const workflow = fs.readFileSync(path.resolve('.github/workflows/graph-writer-contract.yml'), 'utf8');
+        expect(workflow).toContain('pull_request:');
+        expect(workflow).toContain('- develop');
+        expect(workflow).toContain('npm run ontology:inventory');
+    });
 });

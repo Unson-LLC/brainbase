@@ -45,18 +45,34 @@ export function createBrainbaseHttpClient({
     baseUrl,
     accessToken,
     internalApiKey,
+    authPreference,
     fetchImpl = globalThis.fetch,
     sessionId = `brainbase-script-${randomUUID()}`
 }) {
     const normalizedBaseUrl = requiredString(baseUrl, 'baseUrl').replace(/\/$/, '');
     const stableSessionId = requiredString(sessionId, 'sessionId');
     if (typeof fetchImpl !== 'function') throw new Error('fetchImpl is required');
-    if (accessToken && internalApiKey) throw new Error('choose either accessToken or internalApiKey');
+    const supportedAuthPreferences = new Set(['access-token', 'internal-api-key']);
+    if (authPreference && !supportedAuthPreferences.has(authPreference)) {
+        throw new Error(`unsupported authPreference: ${authPreference}`);
+    }
+    if (accessToken && internalApiKey && !authPreference) {
+        throw new Error('choose either accessToken or internalApiKey, or set authPreference');
+    }
 
-    const authHeaders = accessToken
-        ? { Authorization: `Bearer ${requiredString(accessToken, 'accessToken')}` }
-        : internalApiKey
-            ? { 'x-internal-api-key': requiredString(internalApiKey, 'internalApiKey') }
+    const selectedAccessToken = authPreference === 'internal-api-key' ? undefined : accessToken;
+    const selectedInternalApiKey = authPreference === 'access-token' ? undefined : internalApiKey;
+    if (authPreference === 'access-token' && !selectedAccessToken) {
+        throw new Error('authPreference access-token requires accessToken');
+    }
+    if (authPreference === 'internal-api-key' && !selectedInternalApiKey) {
+        throw new Error('authPreference internal-api-key requires internalApiKey');
+    }
+
+    const authHeaders = selectedAccessToken
+        ? { Authorization: `Bearer ${requiredString(selectedAccessToken, 'accessToken')}` }
+        : selectedInternalApiKey
+            ? { 'x-internal-api-key': requiredString(selectedInternalApiKey, 'internalApiKey') }
             : {};
     let csrfToken = null;
     let csrfTokenPromise = null;

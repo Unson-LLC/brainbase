@@ -60,3 +60,11 @@
 ## Brainbaseでの適用
 
 Graphにはリポジトリ、Workflow、環境、責任主体、重要な出荷判断を置く。Workflow本体と実行可能な規則は所有リポジトリを正本とする。ローカル成功、CI成功、マージ、デプロイ、利用者成果を別々の証跡として記録する。
+
+### イベントトリガー実行
+
+| ジョブ名 | トリガー | 目的 | ワークフロー | ランナー |
+|---|---|---|---|---|
+| Graph書き込み契約 | `develop`・`main`へのPull Requestとpush | Graph書き込み所有者、認証・CSRF契約、利用スクリプトの実行入口を検証する | `.github/workflows/graph-writer-contract.yml` | `ubuntu-latest` |
+
+このジョブに秘密情報は不要。テスト用のローカルHTTPサーバーだけを使い、本番Graphへの書き込みは行わない。
