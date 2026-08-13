@@ -179,14 +179,15 @@ describe('Routine execution API production wiring', () => {
         expect(coreSource).toMatch(/new RoutineLivenessService\(\{[\s\S]*listKnowledgeEventDeadLetters/);
     });
 
-    it('server内judgment Outbox配送は起動時に発行したbrainbase限定service tokenを使う', () => {
+    it('server内judgment Outbox配送はloopbackだけ内部API認証を使い外部へ漏らさない', () => {
         const coreSource = fs.readFileSync(
             path.resolve(process.cwd(), 'server/bootstrap/core-services.js'),
             'utf8'
         );
 
-        expect(coreSource).toMatch(/authService\.issueServiceToken\(\{[\s\S]*projectCodes:\s*\['brainbase'\]/);
-        expect(coreSource).toMatch(/deliverJudgmentKnowledgeEventOutbox\(\{[\s\S]*serviceToken:\s*judgmentKnowledgeEventServiceToken/);
+        expect(coreSource).toContain('resolveJudgmentKnowledgeEventDeliveryAuth');
+        expect(coreSource).toMatch(/deliverJudgmentKnowledgeEventOutbox\(\{[\s\S]*\.\.\.judgmentKnowledgeEventDeliveryAuth/);
+        expect(coreSource).not.toMatch(/authService\.issueServiceToken\(\{[\s\S]*svc_brainbase_judgment_knowledge_event/);
         expect(coreSource).not.toMatch(/deliverJudgmentKnowledgeEventOutbox\(\{[\s\S]*serviceToken:\s*process\.env\.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN/);
     });
 

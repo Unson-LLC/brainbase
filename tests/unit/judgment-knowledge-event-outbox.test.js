@@ -13,7 +13,10 @@ import {
     startEpisode
 } from '../../scripts/codex-hooks/judgment-resolver-host.mjs';
 import { resolveRoutineReceiptPaths } from '../../scripts/routines/runtime-paths.mjs';
-import { resolveJudgmentKnowledgeEventOutboxPath } from '../../server/services/routine-runtime/judgment-event-outbox.js';
+import {
+    resolveJudgmentKnowledgeEventDeliveryAuth,
+    resolveJudgmentKnowledgeEventOutboxPath
+} from '../../server/services/routine-runtime/judgment-event-outbox.js';
 
 const temporaryPaths = [];
 
@@ -64,6 +67,56 @@ afterEach(() => {
 });
 
 describe('Judgment Host knowledge event outbox', () => {
+    it('loopback配送だけinternal API keyを使い、外部URLへは送らない', () => {
+        const env = {
+            INTERNAL_API_SECRET: 'internal-secret',
+            BRAINBASE_KNOWLEDGE_EVENT_SERVICE_TOKEN: 'service-token'
+        };
+
+        expect(resolveJudgmentKnowledgeEventDeliveryAuth({
+            endpoint: 'http://127.0.0.1:31013/api/knowledge/events',
+            env
+        })).toEqual({ internalApiKey: 'internal-secret', serviceToken: null });
+        expect(resolveJudgmentKnowledgeEventDeliveryAuth({
+            endpoint: 'https://bb.unson.jp/api/knowledge/events',
+            env
+        })).toEqual({ internalApiKey: null, serviceToken: 'service-token' });
+    });
+
+    it('internal API key配送はCSRF免除headerだけを送りBearerへ複製しない', async () => {
+        const outboxModuleUrl = pathToFileURL(join(
+            process.cwd(),
+            'server/services/routine-runtime/judgment-event-outbox.js'
+        )).href;
+        const { deliverJudgmentKnowledgeEventOutbox, enqueueJudgmentKnowledgeEvent } = await import(
+            /* @vite-ignore */ outboxModuleUrl
+        );
+        const root = temporaryDirectory();
+        const outboxDir = join(root, 'outbox');
+        enqueueJudgmentKnowledgeEvent({ event_id: 'kev_internal_auth', contract_version: 'knowledge_event.v1' }, {
+            directory: outboxDir
+        });
+        const fetchImpl = vi.fn(async () => ({ ok: true, status: 201 }));
+
+        await deliverJudgmentKnowledgeEventOutbox({
+            outboxDir,
+            endpoint: 'http://127.0.0.1:31013/api/knowledge/events',
+            internalApiKey: 'internal-secret',
+            serviceToken: 'must-not-be-used',
+            fetchImpl
+        });
+
+        expect(fetchImpl).toHaveBeenCalledWith(
+            'http://127.0.0.1:31013/api/knowledge/events',
+            expect.objectContaining({
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-internal-api-key': 'internal-secret'
+                }
+            })
+        );
+    });
+
     it('env未設定・任意cwdでもHostとserverはrepo由来の同じcanonical varを解決する', () => {
         const root = temporaryDirectory();
         const repoDir = join(root, 'workspace', 'code', 'brainbase');
