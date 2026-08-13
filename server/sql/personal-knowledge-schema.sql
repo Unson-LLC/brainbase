@@ -157,7 +157,9 @@ ALTER TABLE knowledge_events ADD COLUMN IF NOT EXISTS sensitivity TEXT NOT NULL 
 ALTER TABLE knowledge_events ADD COLUMN IF NOT EXISTS role_min TEXT NOT NULL DEFAULT 'member';
 ALTER TABLE knowledge_events ADD COLUMN IF NOT EXISTS venue TEXT NOT NULL DEFAULT 'legacy';
 ALTER TABLE knowledge_events ADD COLUMN IF NOT EXISTS permission_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb;
-UPDATE knowledge_events SET organization_id = COALESCE(organization_id, applicability_scope->>'organization_id', '__quarantine__');
+UPDATE knowledge_events
+SET organization_id = COALESCE(organization_id, applicability_scope->>'organization_id', '__quarantine__')
+WHERE organization_id IS NULL;
 ALTER TABLE knowledge_events ALTER COLUMN organization_id SET NOT NULL;
 
 CREATE OR REPLACE VIEW knowledge_event_current WITH (security_invoker = true) AS
