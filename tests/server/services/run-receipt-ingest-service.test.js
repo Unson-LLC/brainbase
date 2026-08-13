@@ -92,10 +92,10 @@ function makeExternalRunnerPayload() {
     return {
         contract_version: 'external_runner.v0',
         runner: {
-            type: 'eve',
-            external_run_id: 'shared-ledger-eve-run-1',
+            type: 'cloudflare_computer',
+            external_run_id: 'shared-ledger-cloudflare-run-1',
             agent_id: 'shared-ledger-agent',
-            eve: { trace_ref: 'https://evidence.example.invalid/eve/shared-ledger-eve-run-1' }
+            trace_ref: 'https://evidence.example.invalid/computer/shared-ledger-cloudflare-run-1'
         },
         run: {
             org_id: 'brainbase',
@@ -127,7 +127,7 @@ function makeExternalRunnerPayload() {
         rounds: [{
             round_id: 'round-1',
             status: 'completed',
-            evidence_refs: ['eve://shared-ledger-eve-run-1/round-1']
+            evidence_refs: ['cloudflare-computer://shared-ledger-cloudflare-run-1/round-1']
         }],
         outputs: [],
         learning_candidates: []

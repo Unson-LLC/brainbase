@@ -16,7 +16,6 @@ surfaces:
     - server/services/automation-runtime/automation-runtime-services.js
     - server/services/automation-runtime/agent-control-catalog-service.js
     - server/services/automation-runtime/loop-intent-service.js
-    - server/services/automation-runtime/eve-session-dispatch-service.js
     - server/services/workflow/workflow-runner.js
     - server/services/workflow/workflow-repository.js
     - server/routes/workflows.js

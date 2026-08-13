@@ -42,7 +42,6 @@ export class TestAutomationRuntime {
                 }
                 if (property === 'listLoopIntents') return target.loopIntentService.list.bind(target.loopIntentService);
                 if (property === 'createLoopIntent') return target.loopIntentService.create.bind(target.loopIntentService);
-                if (property === 'dispatchLoopIntentToEve') return target.eveSessionDispatchService.dispatch.bind(target.eveSessionDispatchService);
                 return undefined;
             }
         });

@@ -30,11 +30,6 @@ import { WikiService } from '../services/wiki-service.js';
 import { TokenUsageService } from '../services/token-usage-service.js';
 import { ExternalRunnerIngestService } from '../services/external-runner/ingest-service.js';
 import { RunReceiptIngestService } from '../services/run-receipt/ingest-service.js';
-import { createEveSessionClientFromEnv } from '../services/external-runner/eve-session-client.js';
-import {
-    EveMeetingNoteReconciler,
-    createEveMeetingNoteReconcilerConfigFromEnv
-} from '../services/external-runner/eve-meeting-note-reconciler.js';
 import { createMeetingSourceMcpAdaptersFromEnv } from '../services/meeting-source/meeting-source-mcp-adapters.js';
 import { MeetingSourceMcpSyncService } from '../services/meeting-source/meeting-source-mcp-sync-service.js';
 import { MeetingTaskOwnerResolver } from '../services/meeting-automation/meeting-task-owner-resolver.js';
@@ -136,7 +131,6 @@ export function createCoreServices({
         repository: workflowRepository,
         handlers: createDefaultWorkflowHandlers()
     });
-    const eveSessionClient = createEveSessionClientFromEnv();
     const meetingTaskOwnerResolver = new MeetingTaskOwnerResolver({ infoSSOTService });
     const projectAccessPolicy = new ProjectAccessPolicy({ configParser });
     const automationRuntime = createAutomationRuntimeServices({
@@ -144,16 +138,10 @@ export function createCoreServices({
         runner: workflowRunner,
         configParser,
         googleCalendarService,
-        eveSessionClient,
         infoSSOTService,
         meetingTaskOwnerResolver,
         projectAccessPolicy,
         canonicalTaskService
-    });
-    const eveMeetingNoteReconciler = new EveMeetingNoteReconciler({
-        meetingAutomationService: automationRuntime.meetingAutomationService,
-        eveSessionClient,
-        config: createEveMeetingNoteReconcilerConfigFromEnv()
     });
     const meetingSourceMcpSyncService = new MeetingSourceMcpSyncService({
         stateFile: path.join(varDir, 'meeting-source-mcp-state.json'),
@@ -226,7 +214,6 @@ export function createCoreServices({
         meetingSourceMcpSyncService,
         externalRunnerIngestService,
         runReceiptIngestService,
-        eveMeetingNoteReconciler,
         uploadMiddleware: upload.single('file')
     };
 }

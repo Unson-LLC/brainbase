@@ -81,7 +81,7 @@ Response body:
 
 ## Invariants
 
-- INV-001: Review Package ingest は Eve 実行ではなく、`runner.type=codex_generated_package` として記録する。
+- INV-001: Review Package ingest は Cloudflare/computer 実行ではなく、`runner.type=codex_generated_package` として記録する。
 - INV-002: API は local file path を読まない。入力は JSON payload として受け取る。
 - INV-003: `org_id` / `project_id` は明示入力を優先し、なければ `meeting_identity.candidate_org_id` / `candidate_project_id` を使う。
 - INV-004: `loop_intent_ids` は必要keyが揃っていることを確認し、書き込み前に既存 `loop_intents` と照合する。
@@ -152,7 +152,7 @@ Response body:
   - service-level ingest rolls back partial writes when persistence fails mid-transaction.
 
 - `tests/e2e/story-meeting-review-package-ingest-v1-contract.spec.ts`
-  - S-001/S-003/AC1-AC11 contract checks cover package scope, context hash, output/human step mapping, idempotency, audit, and Eve-not-connected metadata.
+  - S-001/S-003/AC1-AC11 contract checks cover package scope, context hash, output/human step mapping, idempotency, audit, and external-runtime-not-connected metadata.
   - S-005 missing output payload key fails before run/output/human step/audit writes.
   - S-008 approval progression keeps the run waiting until all approvals are resolved.
   - S-009 rejection progression prevents a rejected Review Package run from returning to success.
@@ -163,13 +163,13 @@ Response body:
 
 ## Operational Verification
 
-- Release note: Eve未接続、Codex生成Packageの候補取り込み、外部write-backなし、承認待ちrunが `/workflows` に出ることを明示する。
+- Release note: Cloudflare/computer未接続、Codex生成Packageの候補取り込み、外部write-backなし、承認待ちrunが `/workflows` に出ることを明示する。
 - Rollback instruction: v1は外部副作用を起こさないため、誤Packageは対象runを無効化または別package_idで再取り込みし、Task/Graph/外部送信の取り消し作業は不要である。
 - Observability evidence: run metadata、context snapshot content hash、pending human step数、audit actionをoperator-visible evidenceとして確認する。
 
 ## Anti-Patterns
 
-- AP-001: Treating Codex-generated package as Eve execution evidence.
+- AP-001: Treating Codex-generated package as Cloudflare/computer execution evidence.
 - AP-002: Writing tasks, decisions, Graph records, or external messages during ingest.
 - AP-003: Parsing Markdown when JSON Review Package is available.
 - AP-004: Creating one-off tables outside Workflow Mission Control.

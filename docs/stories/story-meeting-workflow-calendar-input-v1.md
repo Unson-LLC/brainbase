@@ -79,7 +79,7 @@ request received
 
 ## 非スコープ
 
-- Eveやrunnerの実行開始。
+- Cloudflare/computerやrunnerの実行開始。
 - Task / Decision / Graph SSOTへの昇格。
 - 外部メッセージ送信、予定作成、予定更新。
 - UIの完成実装。

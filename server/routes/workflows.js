@@ -16,8 +16,6 @@ function actorFromRequest(req) {
 export function createWorkflowRouter({
     agentControlCatalogService,
     loopIntentService,
-    eveSessionDispatchService,
-    eveMeetingNoteReconciler = null,
     meetingAutomationService = null
 } = {}) {
     const router = express.Router();
@@ -100,23 +98,6 @@ export function createWorkflowRouter({
         res.status(201).json(await loopIntentService.create(req.body || {}, actorFromRequest(req)));
     }));
 
-    router.post('/control/loop-intents/:loopIntentId/eve-session', asyncHandler(async (req, res) => {
-        try {
-            const result = await eveSessionDispatchService.dispatch(req.params.loopIntentId, req.body || {}, actorFromRequest(req));
-            res.status(result.eve_session_dispatch?.idempotent ? 200 : 201).json(result);
-        } catch (error) {
-            if (error?.statusCode === 400 && error?.details?.state_transition) {
-                res.status(400).json({
-                    error: error.message,
-                    state_transition: error.details.state_transition,
-                    details: error.details
-                });
-                return;
-            }
-            throw error;
-        }
-    }));
-
     router.post('/control/meeting-pack/bootstrap', asyncHandler(async (req, res) => {
         res.status(201).json(await meetingAutomationService.bootstrapPack(req.body || {}, actorFromRequest(req)));
     }));
@@ -157,25 +138,6 @@ export function createWorkflowRouter({
             }
             throw error;
         }
-    }));
-
-    router.post('/control/meeting-pack/eve-note-reconcile', asyncHandler(async (req, res) => {
-        if (!eveMeetingNoteReconciler) {
-            res.status(503).json({ error: 'eve_note_reconciler_unavailable' });
-            return;
-        }
-        // The reconcile pass is cross-project and runs as the internal actor,
-        // so gate the trigger (and its cross-project summary) the same way as
-        // global workflow-template management: internal / admin / ceo only.
-        const actor = actorFromRequest(req);
-        const isGlobalOperator = !actor || Object.keys(actor).length === 0
-            || actor.authSource === 'internal' || actor.sub === 'internal_api' || actor.person_id === 'internal_api'
-            || ['admin', 'ceo'].includes(String(actor.role || '').toLowerCase());
-        if (!isGlobalOperator) {
-            res.status(403).json({ error: 'eve_note_reconcile_requires_global_operator' });
-            return;
-        }
-        res.json(await eveMeetingNoteReconciler.runOnce());
     }));
 
     router.post('/control/meeting-pack/note-generation', asyncHandler(async (req, res) => {

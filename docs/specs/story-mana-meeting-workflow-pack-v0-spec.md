@@ -23,7 +23,7 @@ Meeting Workflow Pack v0 adds a UI projection for meeting Workflow Definitions i
 - UI-004: The panel shows guardrails for Graph SSOT promotion, external send, event retry, and privacy scope leak.
 - UI-005: The panel shows a Human Gate queue projection for task, Decision, and message approval.
 - UI-006: The panel links the imported prototype and screenshots as design evidence.
-- UI-007: The panel must be useful even before real Mana/Eve events exist.
+- UI-007: The panel must be useful even before real Mana/Cloudflare/computer events exist.
 
 ## Data Mapping
 

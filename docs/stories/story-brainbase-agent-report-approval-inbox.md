@@ -5,7 +5,7 @@ status: implemented
 horizon: quarter
 view: business
 period: 2026-07
-reason: C2。/ceo /cso /retro のagentレポートを既存 external-runner ingest 経由でCompanion approval inboxに集約し、承認でrunをクローズする。既存eve契約は不変（ALLOWED_RUNNER_TYPESにagent_report追加のみ）、DB migrationなし、eve/meeting_review経路は不変。退行リスクは低く、承認専用runの孤児化のみが新規リスクだったが本Storyで根本対応済み。
+reason: C2。/ceo /cso /retro のagentレポートを既存 external-runner ingest 経由でCompanion approval inboxに集約し、承認でrunをクローズする。既存cloudflare_computer契約は不変（ALLOWED_RUNNER_TYPESにagent_report追加のみ）、DB migrationなし、cloudflare_computer/meeting_review経路は不変。退行リスクは低く、承認専用runの孤児化のみが新規リスクだったが本Storyで根本対応済み。
 architecture_docs:
   - path: docs/architecture/story-brainbase-agent-report-approval-inbox-architecture.md
     status: accepted

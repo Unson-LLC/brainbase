@@ -4,7 +4,6 @@ import { HTTP_SERVER_CLOSE_TIMEOUT_MS } from '../../lib/server-lifecycle-timeout
 export function registerGracefulShutdown({
     server,
     meetingSourceMcpSyncService = null,
-    eveMeetingNoteReconciler = null,
     canonicalTaskOperationRepository = null,
     getMeshService = () => null,
     log = console
@@ -32,10 +31,6 @@ export function registerGracefulShutdown({
             {
                 name: 'stop-meeting-source-mcp-sync',
                 fn: () => { meetingSourceMcpSyncService?.stopScheduledSync?.(); }
-            },
-            {
-                name: 'stop-eve-note-reconciler',
-                fn: () => { eveMeetingNoteReconciler?.stopScheduledReconcile?.(); }
             },
             {
                 name: 'stop-mesh-service',

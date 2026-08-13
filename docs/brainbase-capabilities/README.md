@@ -49,7 +49,7 @@ troubleshooting: []
 | `workflow.mission-control` | Historical record of the retired generic Workflow product. Only domain-specific Control and Automation Run compatibility paths remain. |
 | `automation.run-core` | Defines project-scoped run, step, output, human approval, and audit semantics without a generic Workflow product. |
 | `run-receipt.inbox` | Defines cross-runtime receipt ingest, uncertainty-preserving projection, history, and Agent Inbox boundaries. |
-| `meeting.automation` | Defines the live meeting-source ingest, Eve dispatch/reconcile, approval, and evidence path retained during Workflow retirement. |
+| `meeting.automation` | Defines the live meeting-source ingest, external-runtime handoff/write-back, approval, and evidence path retained during Workflow retirement. |
 | `codex.app-server` | Historical record of the retired Brainbase Codex-like UI adapter. |
 | `graph.ssot` | Defines when Brainbase Graph is the canonical source for names, projects, terminology, and decisions. |
 | `judgment.resolve` | Codex Host opens one canonical-context-bound judgment episode before model generation; the internal-LLM-free Resolver deterministically selects the initial route, the Codex model may perform 0..N actual Brainbase calls recorded through `PostToolUse`, and `Stop` verifies the stored owner-visible lines in the final answer before finalizing one non-authorizing receipt. Claude Code remains a future Host-adapter candidate. |

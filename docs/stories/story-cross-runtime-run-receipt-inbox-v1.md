@@ -23,7 +23,7 @@ spec_docs:
 
 Mana、Codex Automations、GitHub Actions、SalesTailorでは自動実行が増えているが、成否・停止理由・証跡の見え方がランタイムごとに分断されている。そのため、実行されていない状態を「0件」、証拠未取得を「成功」と誤認しやすく、人間が確認すべきrunを横断して発見できない。
 
-BrainbaseにはWorkflow Mission Controlのrun台帳があり、Eve向けには詳細な `external_runner.v0` がある。4ソースの運用結果を集約するためにEve専用契約を流用すると、Role Agent、round、learning candidateなど不要な責務まで各connectorへ強制してしまう。
+BrainbaseにはWorkflow Mission Controlのrun台帳があり、Cloudflare/computer向けには詳細な `external_runner.v0` がある。4ソースの運用結果を集約するためにCloudflare/computer専用契約を流用すると、Role Agent、round、learning candidateなど不要な責務まで各connectorへ強制してしまう。
 
 ## User Story
 
@@ -253,7 +253,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
   - `story-codex-automations-run-receipt-connector-v1`: `implemented_locally`。`docs/connectors/run-receipt/story-codex-automations-run-receipt-connector-v1.md`（owner: `code/brainbase`、実装artifact: `scripts/run-receipt/codex-automations-reporter.mjs`）
   - `story-github-actions-run-receipt-connector-v1`: `implemented_locally`。`docs/connectors/run-receipt/story-github-actions-run-receipt-connector-v1.md`（owner: `code/brainbase`、実装artifact: `.github/actions/run-receipt-reporter/action.yml`）
   - `story-salestailor-run-receipt-connector-v1`: `blocked_local_environment`。`docs/connectors/run-receipt/story-salestailor-run-receipt-connector-v1.md`（owner: `code/salestailor`、planned artifact: `src/services/run-receipt/run-receipt-outbox.ts`、安全な分離worktreeを作れず未実装・未確認）
-- Eve向け `external_runner.v0` を置き換えない。
+- Cloudflare/computer向け `external_runner.v0` を置き換えない。
 - raw logs、顧客返信、transcriptをBrainbaseへ複製しない。
 - receiptからGraph SSOTへ自動学習・自動昇格しない。
 

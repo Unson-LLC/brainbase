@@ -145,10 +145,13 @@ export class MeetingReviewLedgerService {
                     idempotent_source: 'source_artifact_match',
                     prior_package_id: replayRun.metadata?.package_id || null
                 } : {}),
-                note_generation_dispatch: {
-                    status: 'skipped',
+                note_generation_handoff: {
+                    status: 'ready',
                     reason: 'idempotent_replay',
-                    loop_intent_id: loopIntentByKey.get('transcript_to_meeting_note')?.id || null
+                    runtime_type: 'cloudflare_computer',
+                    loop_intent_id: loopIntentByKey.get('transcript_to_meeting_note')?.id || null,
+                    run_id: replayRun.id,
+                    write_back_path: '/api/workflows/control/meeting-pack/note-generation'
                 },
                 state_transitions: ['package_received', 'scope_resolved', 'loop_intents_verified', 'idempotent_replay'],
                 run: replayRun,
@@ -316,7 +319,7 @@ export class MeetingReviewLedgerService {
     }) {
         const now = new Date().toISOString();
         const generatedBy = {
-            type: typeof runner.type === 'string' && runner.type ? runner.type : 'eve',
+            type: typeof runner.type === 'string' && runner.type ? runner.type : 'external_runtime',
             session_id: typeof runner.session_id === 'string' ? runner.session_id : null,
             actor_id: actorId
         };
@@ -465,7 +468,7 @@ export class MeetingReviewLedgerService {
                     loop_intent_ids: jsonClone(reviewPackage.loop_intent_ids || {}),
                     evidence_refs: evidenceRefs,
                     stop_conditions: stopConditions,
-                    runner: { type: 'codex_generated_package', eve_connected: false }
+                    runner: { type: 'codex_generated_package' }
                 }
             });
             this.repository.createRunStep({
@@ -608,7 +611,7 @@ export class MeetingReviewLedgerService {
                     output_ids: outputs.map((output) => output.id),
                     human_step_ids: humanSteps.map((step) => step.id),
                     loop_intent_ids: loopIntents.map((entry) => entry.loop_intent.id),
-                    runner: { type: 'codex_generated_package', eve_connected: false },
+                    runner: { type: 'codex_generated_package' },
                     project_resolution: jsonClone(projectResolution),
                     graph_ssot_playbook: jsonClone(graphPlaybookContext.graph_playbook),
                     state_transitions: SUCCESS_STATE_TRANSITIONS,

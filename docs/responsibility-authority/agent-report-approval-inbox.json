@@ -39,7 +39,7 @@
       "required_evidence": [
         "current_head_verification"
       ],
-      "unknown_policy": "agent_report runs are approval-only ingest runs (implementation_key external-runner:agent_report) with no executable runner handler. They MUST be closed by resolveHumanStep's approval-only special-case (isApprovalOnlyIngestWorkflow), never dispatched through the generic runWorkflow fallback, to avoid orphan needs_action runs. The eve runner (external-runner:eve) is explicitly excluded and retains its registered resume handler. Owner/approver ids on ingested agent_report payloads default to sato_keigo and are validated by the existing runner-type-agnostic delegation guards in server/routes/external-runner.js; they are never accepted as delegated authority for a different person."
+      "unknown_policy": "agent_report runs are approval-only ingest runs (implementation_key external-runner:agent_report) with no executable runner handler. They MUST be closed by resolveHumanStep's approval-only special-case (isApprovalOnlyIngestWorkflow), never dispatched through the generic runWorkflow fallback, to avoid orphan needs_action runs. The cloudflare_computer runner (external-runner:cloudflare_computer) is explicitly excluded and retains its registered resume handler. Owner/approver ids on ingested agent_report payloads default to sato_keigo and are validated by the existing runner-type-agnostic delegation guards in server/routes/external-runner.js; they are never accepted as delegated authority for a different person."
     }
   ]
 }

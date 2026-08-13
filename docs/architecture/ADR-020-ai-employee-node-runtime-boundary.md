@@ -50,7 +50,7 @@ used as the fork name because Mana Lambda and the node runtime have different
 availability and ownership boundaries.
 
 `run_receipt.v1` is the Phase 1 operational ledger contract. OpenRyoko is a
-generic run source and does not acquire Eve-specific rounds, Judgment DAG, or
+generic run source and does not acquire provider-specific rounds, Judgment DAG, or
 learning-candidate semantics merely to fit `external_runner.v0`.
 `external_runner.v0` remains available for future rich worker dispatch where
 those semantics are real.
@@ -120,7 +120,7 @@ flowchart LR
 - **Store node facts in OpenRyoko memory:** rejected because it creates a
   second SSOT on an ephemeral host.
 - **Use `external_runner.v0` for every Slack task:** rejected because it would
-  fabricate Eve-specific semantics.
+  fabricate provider-specific semantics.
 - **Treat prompts as `draft_only`:** rejected because prompt injection can
   override behavioral instructions.
 - **Install on the Graph SSOT Lightsail instance:** rejected because gateway

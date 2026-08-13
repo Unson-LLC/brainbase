@@ -337,7 +337,7 @@ describe('WorkflowRunner', () => {
 
         const lock = first.acquireWorkflowLock({
             workspace_id: 'default',
-            workflow_id: 'eve_session_dispatch:loop-001',
+            workflow_id: 'external_runtime_dispatch:loop-001',
             locked_by: 'process-a',
             ttl_ms: 600000
         });
@@ -345,18 +345,18 @@ describe('WorkflowRunner', () => {
         expect(lock).toMatchObject({ locked_by: 'process-a' });
         expect(second.acquireWorkflowLock({
             workspace_id: 'default',
-            workflow_id: 'eve_session_dispatch:loop-001',
+            workflow_id: 'external_runtime_dispatch:loop-001',
             locked_by: 'process-b',
             ttl_ms: 600000
         })).toBeNull();
         expect(first.releaseWorkflowLock({
             workspace_id: 'default',
-            workflow_id: 'eve_session_dispatch:loop-001',
+            workflow_id: 'external_runtime_dispatch:loop-001',
             locked_by: 'process-a'
         })).toBe(true);
         expect(second.acquireWorkflowLock({
             workspace_id: 'default',
-            workflow_id: 'eve_session_dispatch:loop-001',
+            workflow_id: 'external_runtime_dispatch:loop-001',
             locked_by: 'process-b',
             ttl_ms: 600000
         })).toMatchObject({ locked_by: 'process-b' });

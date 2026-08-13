@@ -14,19 +14,17 @@ const storyId = 'story-external-runner-adapter-contract-v0';
 
 function expectRunIdForExternalRun(runId: string, externalRunId: string) {
   const readable = String(externalRunId || 'unknown').replace(/[^a-zA-Z0-9_.:-]/g, '_').slice(0, 80);
-  expect(runId).toMatch(new RegExp(`^run_brainbase_eve_${readable}_[a-f0-9]{12}$`));
+  expect(runId).toMatch(new RegExp(`^run_brainbase_cloudflare_computer_${readable}_[a-f0-9]{12}$`));
 }
 
 function makePayload(overrides = {}) {
   return {
     contract_version: 'external_runner.v0',
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-001',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-001',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-001'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-001'
     },
     run: {
       project_id: 'brainbase',
@@ -58,7 +56,7 @@ function makePayload(overrides = {}) {
     rounds: [{
       round_id: 'round-1',
       status: 'completed',
-      evidence_refs: ['eve://trace/eve-e2e-001/round-1']
+      evidence_refs: ['cloudflare-computer://trace/cloudflare-computer-e2e-001/round-1']
     }],
     outputs: [{
       id: 'out-1',
@@ -67,7 +65,7 @@ function makePayload(overrides = {}) {
       body: '次回提案の返信案',
       visibility: 'internal',
       approval_required: true,
-      evidence_refs: ['eve://trace/eve-e2e-001/output/out-1']
+      evidence_refs: ['cloudflare-computer://trace/cloudflare-computer-e2e-001/output/out-1']
     }],
     learning_candidates: [{
       candidate_id: 'lc-1',
@@ -75,7 +73,7 @@ function makePayload(overrides = {}) {
       body: '営業フォローでは期限と顧客温度感を同時に見る',
       promotion_policy: 'manual_review',
       redaction_status: 'not_required',
-      evidence_refs: ['eve://trace/eve-e2e-001/output/out-1']
+      evidence_refs: ['cloudflare-computer://trace/cloudflare-computer-e2e-001/output/out-1']
     }],
     ...overrides
   };
@@ -98,7 +96,7 @@ function createGuardedRouteApp() {
     },
     verifyServiceToken(token) {
       if (token !== 'bbsvc_valid') throw new Error('invalid service token');
-      return { sub: 'eve-runtime', role: 'member', projectCodes: ['brainbase'], employmentType: 'internal_service' };
+      return { sub: 'cloudflare-computer-runtime', role: 'member', projectCodes: ['brainbase'], employmentType: 'internal_service' };
     }
   };
   app.use(express.json());
@@ -106,22 +104,21 @@ function createGuardedRouteApp() {
   return { app, repository };
 }
 
-test('story-external-runner-adapter-contract-v0 ac:1 `external_runner.v0` は `runner.type=eve` とEve trace参照を必須にする。', async () => {
+test('story-external-runner-adapter-contract-v0 ac:1 `external_runner.v0` は `runner.type=Cloudflare/computer` とCloudflare/computer trace参照を必須にする。', async () => {
   const { repository, service } = makeService();
 
   await expect(service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-ac1',
-      agent_id: 'sales-agent',
-      eve: {}
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-ac1',
+      agent_id: 'sales-agent'
     }
   }))).rejects.toMatchObject({ code: 'missing_string' });
-  expect(`${storyId} ac:1 external_runner.v0 runner.type=eve Eve trace参照`).toContain('external_runner.v0');
+  expect(`${storyId} ac:1 external_runner.v0 runner.type=Cloudflare/computer Cloudflare/computer trace参照`).toContain('external_runner.v0');
   expect(repository.listRuns()).toHaveLength(0);
 });
 
-test('story-external-runner-adapter-contract-v0 ac:2 Eve実行結果はAutomation Run Coreのrun/context/human step/output/auditへ決定的に写る。 S-001 workflow state transition', async () => {
+test('story-external-runner-adapter-contract-v0 ac:2 Cloudflare/computer実行結果はAutomation Run Coreのrun/context/human step/output/auditへ決定的に写る。 S-001 workflow state transition', async () => {
   const { repository, service } = makeService();
 
   const result = await service.ingest(makePayload());
@@ -131,11 +128,11 @@ test('story-external-runner-adapter-contract-v0 ac:2 Eve実行結果はAutomatio
     closure_state: 'closed',
     action_required: 'none'
   });
-  expectRunIdForExternalRun(result.run.id, 'eve-e2e-001');
+  expectRunIdForExternalRun(result.run.id, 'cloudflare-computer-e2e-001');
   expect(result.workflow).toMatchObject({
     id: 'wf_sales_followup',
     execution_env: 'external',
-    implementation_key: 'external-runner:eve'
+    implementation_key: 'external-runner:cloudflare_computer'
   });
   expect(result.context_snapshots).toHaveLength(1);
   expect(result.outputs).toHaveLength(1);
@@ -144,7 +141,7 @@ test('story-external-runner-adapter-contract-v0 ac:2 Eve実行結果はAutomatio
     expect.objectContaining({ action: 'external_runner.round_recorded' }),
     expect.objectContaining({ action: 'external_runner.learning_candidate.deferred' })
   ]));
-  expect(`${storyId} ac:2 Eve実行結果 Automation Run Core run context human step output audit`).toContain('Automation Run Core');
+  expect(`${storyId} ac:2 Cloudflare/computer実行結果 Automation Run Core run context human step output audit`).toContain('Automation Run Core');
 });
 
 test('story-external-runner-adapter-contract-v0 ac:3 Role Agent、Workflow選択理由、Judgment DAG trace、停止条件、人間承認者が保存される。', async () => {
@@ -152,12 +149,10 @@ test('story-external-runner-adapter-contract-v0 ac:3 Role Agent、Workflow選択
 
   const result = await service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-ac3',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-ac3',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-ac3'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-ac3'
     }
   }));
 
@@ -184,12 +179,10 @@ test('story-external-runner-adapter-contract-v0 ac:4 Learning CandidateはGraph 
 
   await expect(service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-auto-promote',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-auto-promote',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-auto-promote'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-auto-promote'
     },
     learning_candidates: [{
       candidate_id: 'lc-auto',
@@ -202,17 +195,15 @@ test('story-external-runner-adapter-contract-v0 ac:4 Learning CandidateはGraph 
 
   const result = await service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-candidate-store',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-candidate-store',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-candidate-store'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-candidate-store'
     }
   }));
   expect(result.learning_candidates).toHaveLength(1);
   expect(stored[0]).toMatchObject({
-    id: 'lc-1',
+    id: expect.stringMatching(/^extcand_/),
     source_system: 'external_runner',
     owner_person_id: 'keigo',
     actor_person_id: 'sales-agent',
@@ -221,17 +212,15 @@ test('story-external-runner-adapter-contract-v0 ac:4 Learning CandidateはGraph 
   expect(`${storyId} ac:4 Learning Candidate Graph SSOT Candidate Store deferred audit`).toContain('Graph SSOT');
 });
 
-test('story-external-runner-adapter-contract-v0 ac:5 外部送信・公開・契約・Graph昇格が必要な結果は人間承認待ちとして表現できる。 S-002 Workflow state transition maps Eve approval_required status to Brainbase waiting_human status, open closure_state, approve action_required, and a required human approval step.', async () => {
+test('story-external-runner-adapter-contract-v0 ac:5 外部送信・公開・契約・Graph昇格が必要な結果は人間承認待ちとして表現できる。 S-002 Workflow state transition maps Cloudflare/computer approval_required status to Brainbase waiting_human status, open closure_state, approve action_required, and a required human approval step.', async () => {
   const { service } = makeService();
 
   const result = await service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-approval',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-approval',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-approval'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-approval'
     },
     run: {
       project_id: 'brainbase',
@@ -261,7 +250,7 @@ test('story-external-runner-adapter-contract-v0 ac:5 外部送信・公開・契
     prompt: 'Slack送信を承認する',
     title: 'Slack送信を承認する'
   });
-  expect('S-002 Workflow state transition maps Eve approval_required status to Brainbase waiting_human status, open closure_state, approve action_required, and a required human approval step.').toContain('approval_required');
+  expect('S-002 Workflow state transition maps Cloudflare/computer approval_required status to Brainbase waiting_human status, open closure_state, approve action_required, and a required human approval step.').toContain('approval_required');
   expect(`${storyId} ac:5 外部送信 公開 契約 Graph昇格 人間承認待ち`).toContain('人間承認待ち');
 });
 
@@ -270,12 +259,10 @@ test('story-external-runner-adapter-contract-v0 ac:5 S-002b waiting_human create
 
   const result = await service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-waiting-human',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-waiting-human',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-waiting-human'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-waiting-human'
     },
     run: {
       project_id: 'brainbase',
@@ -283,12 +270,12 @@ test('story-external-runner-adapter-contract-v0 ac:5 S-002b waiting_human create
       workflow_id: 'wf_sales_followup',
       workflow_name: '営業フォローアップ',
       status: 'waiting_human',
-      selected_workflow_reason: 'Eve側でhuman approval待ち'
+      selected_workflow_reason: 'Cloudflare/computer側でhuman approval待ち'
     },
     human_steps: [{
       id: 'hs-waiting-human',
       step_type: 'approval',
-      prompt: 'Eve承認を確認する',
+      prompt: 'Cloudflare/computer承認を確認する',
       required_role: 'owner'
     }]
   }));
@@ -302,12 +289,12 @@ test('story-external-runner-adapter-contract-v0 ac:5 S-002b waiting_human create
   expect(result.human_steps[0]).toMatchObject({
     step_type: 'approval',
     status: 'pending',
-    prompt: 'Eve承認を確認する',
-    title: 'Eve承認を確認する'
+    prompt: 'Cloudflare/computer承認を確認する',
+    title: 'Cloudflare/computer承認を確認する'
   });
 });
 
-test('story-external-runner-adapter-contract-v0 ac:6 同じproject内の同じEve run idの再送は重複実行ではなく冪等なduplicateとして扱い、別projectの同一Eve run idは別runとして扱う。 S-004 workflow retry matrix', async () => {
+test('story-external-runner-adapter-contract-v0 ac:6 同じproject内の同じCloudflare/computer run idの再送は重複実行ではなく冪等なduplicateとして扱い、別projectの同一Cloudflare/computer run idは別runとして扱う。 S-004 workflow retry matrix', async () => {
   const { service } = makeService();
 
   const first = await service.ingest(makePayload({
@@ -335,9 +322,9 @@ test('story-external-runner-adapter-contract-v0 ac:6 同じproject内の同じEv
     status: 'duplicate',
     run: { id: first.run.id }
   });
-  expectRunIdForExternalRun(first.run.id, 'eve-e2e-001');
+  expectRunIdForExternalRun(first.run.id, 'cloudflare-computer-e2e-001');
   expect(second.outputs).toHaveLength(1);
-  expect(`${storyId} ac:6 同じproject内 同じEve run id 再送 重複実行 冪等 duplicate`).toContain('duplicate');
+  expect(`${storyId} ac:6 同じproject内 同じCloudflare/computer run id 再送 重複実行 冪等 duplicate`).toContain('duplicate');
 });
 
 test('story-external-runner-adapter-contract-v0 ac:7 S-004d workflow_idが省略されたfallback workflowはprojectごとに分離される。', async () => {
@@ -345,12 +332,10 @@ test('story-external-runner-adapter-contract-v0 ac:7 S-004d workflow_idが省略
 
   const first = await service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-fallback-workflow',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-fallback-workflow',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-fallback-workflow-brainbase'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-fallback-workflow-brainbase'
     },
     run: {
       project_id: 'brainbase',
@@ -361,12 +346,10 @@ test('story-external-runner-adapter-contract-v0 ac:7 S-004d workflow_idが省略
   }));
   const second = await service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-fallback-workflow',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-fallback-workflow',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-fallback-workflow-salestailor'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-fallback-workflow-salestailor'
     },
     run: {
       project_id: 'salestailor',
@@ -412,7 +395,7 @@ test('story-external-runner-adapter-contract-v0 ac:8 S-004e bearer requestのlea
   expect(`${storyId} S-004e bearer learning candidate actor authenticated person`).toContain('S-004e');
 });
 
-test('story-external-runner-adapter-contract-v0 ac:7 既存Workflow IDを指定する場合、WorkflowのprojectとEve payloadのprojectが一致しないrunは保存前に拒否する。 S-004b workflow rollback guard', async () => {
+test('story-external-runner-adapter-contract-v0 ac:7 既存Workflow IDを指定する場合、WorkflowのprojectとCloudflare/computer payloadのprojectが一致しないrunは保存前に拒否する。 S-004b workflow rollback guard', async () => {
   const { repository, service } = makeService();
   repository.upsertWorkflow({
     id: 'wf_cross_project_collision',
@@ -429,12 +412,10 @@ test('story-external-runner-adapter-contract-v0 ac:7 既存Workflow IDを指定�
 
   await expect(service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-workflow-project-mismatch',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-workflow-project-mismatch',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-workflow-project-mismatch'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-workflow-project-mismatch'
     },
     run: {
       project_id: 'salestailor',
@@ -466,17 +447,15 @@ test('story-external-runner-adapter-contract-v0 ac:8 service/internal credential
   expect(`${storyId} ac:8 service/internal credential owner cost owner approval owner 委任拒否`).toContain('ac:8');
 });
 
-test('story-external-runner-adapter-contract-v0 S-003 Workflow state transition maps Eve cancelled status to Brainbase cancelled status and closed closure_state instead of success.', async () => {
+test('story-external-runner-adapter-contract-v0 S-003 Workflow state transition maps Cloudflare/computer cancelled status to Brainbase cancelled status and closed closure_state instead of success.', async () => {
   const { service } = makeService();
 
   const result = await service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-cancelled',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-cancelled',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-cancelled'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-cancelled'
     },
     run: {
       project_id: 'brainbase',
@@ -493,7 +472,7 @@ test('story-external-runner-adapter-contract-v0 S-003 Workflow state transition 
     closure_state: 'closed',
     action_required: 'none'
   });
-  expect('S-003 Workflow state transition maps Eve cancelled status to Brainbase cancelled status and closed closure_state instead of success.').toContain('cancelled');
+  expect('S-003 Workflow state transition maps Cloudflare/computer cancelled status to Brainbase cancelled status and closed closure_state instead of success.').toContain('cancelled');
 });
 
 test('story-external-runner-adapter-contract-v0 workflow replay matrix covers blocked and failed statuses', async () => {
@@ -501,12 +480,10 @@ test('story-external-runner-adapter-contract-v0 workflow replay matrix covers bl
 
   const blocked = await service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-blocked',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-blocked',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-blocked'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-blocked'
     },
     run: {
       project_id: 'brainbase',
@@ -518,12 +495,10 @@ test('story-external-runner-adapter-contract-v0 workflow replay matrix covers bl
   }));
   const failed = await service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-failed',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-failed',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-failed'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-failed'
     },
     run: {
       project_id: 'brainbase',
@@ -608,12 +583,10 @@ test('story-external-runner-adapter-contract-v0 description-only human steps rem
 
   const result = await service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-description-human',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-description-human',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-description-human'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-description-human'
     },
     run: {
       project_id: 'brainbase',
@@ -637,12 +610,10 @@ test('story-external-runner-adapter-contract-v0 description-only human steps rem
 
   const whitespacePrompt = await service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-whitespace-human',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-whitespace-human',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-whitespace-human'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-whitespace-human'
     },
     run: {
       project_id: 'brainbase',
@@ -674,22 +645,18 @@ test('story-external-runner-adapter-contract-v0 S-005b Candidate Store write fai
 
   const first = await service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-candidate-failure',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-candidate-failure',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-candidate-failure'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-candidate-failure'
     }
   }));
   const second = await service.ingest(makePayload({
     runner: {
-      type: 'eve',
-      external_run_id: 'eve-e2e-candidate-failure',
+      type: 'cloudflare_computer',
+      external_run_id: 'cloudflare-computer-e2e-candidate-failure',
       agent_id: 'sales-agent',
-      eve: {
-        trace_ref: 'https://vercel.com/acme/eve/traces/eve-e2e-candidate-failure'
-      }
+      trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-e2e-candidate-failure'
     }
   }));
 
@@ -724,7 +691,7 @@ test('story-external-runner-adapter-contract-v0 ac:9 Mermaid図は既存ビュ�
   const graphResolver = readFileSync('docs/architecture/graph-entity-resolver-architecture.md', 'utf8');
   const runtime = readFileSync('docs/internal/unson-os-lead-runtime-architecture.md', 'utf8');
 
-  expect(architecture).toContain('flowchart LR;');
+  expect(architecture).toContain('flowchart LR');
   expect(graphResolver).not.toContain(']    graph[');
   expect(runtime).not.toContain(']    graph[');
   expect(`${storyId} ac:7 Mermaid図 既存ビューア 構文エラー`).toContain('Mermaid図');

@@ -37,7 +37,7 @@ Brainbase operatorとして、汎用Workflowの作成・編集UIや抽象概念�
 
 ```text
 Meeting Automation
-  -> source sync / ingest / Eve dispatch / reconcile
+  -> source sync / ingest / Cloudflare/computer dispatch / reconcile
 
 Automation Run Core
   -> run / step / output / human approval / audit
@@ -57,7 +57,7 @@ Mac Companion
 ## Acceptance criteria
 
 - [x] ac:1 Workflow Mission Control、Workflow Builder、汎用Workflow CRUD/draft/test/publish/manual runをretiring surfaceとして固定する。
-- [x] ac:2 Meeting Source Sync、Meeting Pack ingest、Eve dispatch/reconcileのschedulerとstate transitionを維持する。
+- [x] ac:2 Meeting Source Sync、Meeting Pack ingest、Cloudflare/computer dispatch/reconcileのschedulerとstate transitionを維持する。
 - [x] ac:3 Run、Run Step、Output、Human Approval、Audit、Run Receiptの正本とproject/auth境界を維持する。
 - [x] ac:4 MCPへ汎用Workflow CRUDを移植せず、Run Receiptの全件・filter・history・failure stateと、必要なdomain-specific操作だけを提供する。
 - [x] ac:5 blocked、unconfirmed、no_data、unavailableを成功または0件へ丸めない。
@@ -102,12 +102,12 @@ Mac Companion
 - Meeting Packの設計レビュー、design gate付きbootstrap、Google Calendar入力正規化を`MeetingAutomationService`へ分離した。
 - Meeting Automation routeと内部callerを`MeetingAutomationService`へ直接接続した。同期workerもbootstrapとReview Package ingestを直接呼ぶ。`WorkflowService`のdesign review、bootstrap、calendar input、Review Package ingest互換adapterは削除した。
 - Review Package ingestのオーケストレーションを`MeetingAutomationService.ingestReviewPackage`へ移し、HTTP routeと同期workerを直接接続した。
-- Review Package取り込み後のEve note生成handoffとrequested/skipped監査を`MeetingAutomationService.dispatchNoteGeneration`へ分離した。Eve完了検知とwrite-back reconcileは既存の`EveMeetingNoteReconciler`を継続利用する。
+- Review Package取り込み後のCloudflare/computer note生成handoffを`MeetingAutomationService.prepareNoteGenerationHandoff`へ分離した。Brainbase内のruntime session起動、完了polling、reconcilerは廃止し、外部runtimeからwrite-backする境界へ移した。
 - Review Packageのoutput/human gate定義と必須loop intent、project scope整合性検証を`meeting-review-contract`と`MeetingAutomationService.verifyReviewPackage`へ分離した。既存ingest routeのerror/state transitionは維持する。
 - People SSOTによる担当者候補解決を`MeetingTaskOwnerResolver`へ分離し、`WorkflowService`から人物照合methodを除去した。
 - project/org accessのcacheと判定を`ProjectAccessPolicy`へ分離し、`WorkflowService`の旧access methodを除去した。
 - Run Receipt queryとMeeting Automationの直接contract testを追加した。Run Receiptの互換adapterはproduction caller 0件を確認して削除済みである。
-- org-agent catalog、Loop Intent、Eve dispatchを`AgentControlCatalogService`、`LoopIntentService`、`EveSessionDispatchService`へ分離した。Meeting AutomationはLoop Intent作成とEve dispatchを専用境界へ直接接続する。
+- org-agent catalogとLoop Intentを`AgentControlCatalogService`、`LoopIntentService`へ分離した。Meeting AutomationはCloudflare/computer向けhandoffを返すだけで、runtime固有serviceを保持しない。
 - Mac Companion承認projectionを`CompanionApprovalInboxService`へ分離し、Companion route/controllerはこのread serviceだけを受け取る。
 - default automationのseedを`AutomationRuntimeDefaultsService`へ分離した。`AutomationRunService`はこの明示的な初期化callbackを使う。
 - production bootstrap、routes、workers、evidence scriptから`WorkflowService`と`AgentLoopControlService`の参照を0件にし、旧service fileを削除した。共有ledgerの原子的なcontrol書込みは公開面を持たない内部runtimeに閉じ込めた。

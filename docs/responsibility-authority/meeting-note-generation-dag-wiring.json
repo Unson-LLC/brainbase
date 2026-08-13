@@ -12,13 +12,12 @@
             "supporting_authority": [
                 {
                     "kind": "spec",
-                    "ref": "docs/specs/story-meeting-note-generation-dag-wiring-spec.md#note-generation-write-back-contract"
+                    "ref": "docs/specs/story-external-runner-adapter-contract-v0-spec.md#runtime-boundary"
                 }
             ],
             "owned_surfaces": {
                 "paths": [
                     "server/routes/workflows.js",
-                    "server/services/automation-runtime/eve-session-dispatch-service.js",
                     "server/services/workflow/workflow-repository.js",
                     "server/services/meeting-automation/meeting-automation-service.js",
                     "server/services/meeting-automation/meeting-review-ledger-service.js",
@@ -26,10 +25,10 @@
                 ],
                 "symbols": [
                     "MeetingAutomationService.recordNoteGeneration",
-                    "MeetingAutomationService.dispatchNoteGeneration",
+                    "MeetingAutomationService.prepareNoteGenerationHandoff",
                     "InMemoryWorkflowRepository.updateOutput",
                     "transcriptSegmentsToText",
-                    "note_generation_dispatch",
+                    "note_generation_handoff",
                     "brainbase_generated"
                 ],
                 "risk_surfaces": [
@@ -39,7 +38,7 @@
             "required_evidence": [
                 "current_head_verification"
             ],
-            "unknown_policy": "meeting_note_draft output body may transition to brainbase_generated only through the note-generation write-back contract with a matching source_text_hash, run scope, and non-empty generated body. Auto-dispatch to Eve is best-effort: any unconfigured or failed dispatch must be recorded as skipped without failing Review Package ingest, and provider-generated notes must never be promoted into the Brainbase minutes body."
+            "unknown_policy": "meeting_note_draft output body may transition to brainbase_generated only through the note-generation write-back contract with a matching source_text_hash, run scope, and non-empty generated body. Brainbase returns a Cloudflare/computer handoff but does not create, poll, or reconcile runtime sessions. Provider-generated notes must never be promoted into the Brainbase minutes body without the existing human gate."
         }
     ]
 }

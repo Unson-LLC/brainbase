@@ -243,7 +243,7 @@ export function buildMeetingWorkflowPackManifest({
         ],
         runner_policy: {
             source_of_truth: 'brainbase_control_plane',
-            allowed_runners: ['eve', 'codex', 'claude_code', 'mana'],
+            allowed_runners: ['cloudflare_computer', 'codex', 'claude_code', 'mana'],
             direct_runtime_state_mutation: false
         }
     };

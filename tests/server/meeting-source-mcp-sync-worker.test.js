@@ -347,11 +347,11 @@ describe('MeetingSourceMcpSyncService', () => {
         expect(confirmed.review_packages[0].meeting_note_summary.source_transcripts[0].text).toBeUndefined();
         expect(confirmed.review_packages[0].meeting_note_summary.source_transcripts[0].text_redacted).toBe(true);
         // Candidates are no longer generated deterministically at ingest; they
-        // start empty (awaiting Eve) and are filled by the pull-based reconciler.
+        // start empty (awaiting external runtime) and are filled by the pull-based reconciler.
         expect(confirmed.review_packages[0].task_candidates).toEqual([]);
         expect(confirmed.review_packages[0].decision_candidates).toEqual([]);
         expect(confirmed.review_packages[0].follow_up_draft).toMatchObject({
-            status: 'awaiting_eve_generation',
+            status: 'awaiting_external_runtime',
             external_send_required_approval: true,
             body: ''
         });
@@ -398,11 +398,11 @@ describe('MeetingSourceMcpSyncService', () => {
                 promotion_candidates: expect.any(Object)
             })
         });
-        // Ingest hands empty awaiting-Eve candidate placeholders (no deterministic splitter).
+        // Ingest hands empty awaiting-external-runtime candidate placeholders (no deterministic splitter).
         expect(submitted.review_package.task_candidates).toEqual([]);
         expect(submitted.review_package.decision_candidates).toEqual([]);
         expect(submitted.review_package.follow_up_draft).toEqual({
-            status: 'awaiting_eve_generation',
+            status: 'awaiting_external_runtime',
             external_send_required_approval: true,
             body: ''
         });

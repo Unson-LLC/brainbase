@@ -20,7 +20,7 @@ related_stories:
 
 BrainbaseのLoop Packは、単なる自動化テンプレートではない。業務の入力、判断、実行、人間承認、出力、証跡、Graph / Task / Decisionへの昇格候補、学習候補、次回反映までをまとめて扱う業務ループである。
 
-Packを作る段階で設計が弱いままCodex、Claude Code、Eveなどへ実装を投げると、低品質なループが大量に走る。実行前に、ループ設計そのものを批判し、完了条件をルーブリック化し、停止条件と予算を決め、Judge席を置く必要がある。
+Packを作る段階で設計が弱いままCodex、Claude Code、Cloudflare/computerなどへ実装を投げると、低品質なループが大量に走る。実行前に、ループ設計そのものを批判し、完了条件をルーブリック化し、停止条件と予算を決め、Judge席を置く必要がある。
 
 このStoryは、LOOPER的な「ループ設計レイヤー」をBrainbaseのPack作成フローへ取り込む。ただしBrainbaseの中心は外部runnerではなく、Business Loop Control Planeである。CodexやClaude CodeはPack manifestを作る補助には使えるが、Brainbaseの正本状態を直接書き換えるものではない。
 
@@ -38,7 +38,7 @@ Control Plane
   Role Agent / Workflow Definition / Binding / Trigger / Loop Intent / Run / Human Step / Output / Audit
 
 Runner Layer
-  Eve / Codex / Claude Code / Mana / tool calls
+  Cloudflare/computer / Codex / Claude Code / Mana / tool calls
 ```
 
 CodexやClaude Codeに書かせてよいのは、Design Layerの宣言的なPack manifestである。Brainbaseがそのmanifestを検査し、通過したものだけをControl Planeの既存surfaceへcompileする。
@@ -92,6 +92,6 @@ release_or_operation: Operatorはまず `design-review` を使い、`status=pass
 ## Non-goals
 
 - v0では新しいPack作成UIを実装しない。
-- v0ではEve実行やrunner orchestrationを実装しない。
+- v0ではCloudflare/computer実行やrunner orchestrationを実装しない。
 - v0ではWorkflow Mission Controlの永続ledgerに新しいcollectionを追加しない。
 - v0ではLLM Councilの実モデル呼び出しを実装しない。

@@ -19,9 +19,9 @@ related_stories:
 
 ## 背景
 
-Meeting Workflow Pack は、Role Agent、Workflow Template、Binding、Trigger、Loop Intent までは Brainbase の Workflow Control に載った。次に必要なのは Eve 接続ではなく、実会議から生成した Review Package を `workflow_runs`、`workflow_outputs`、`workflow_human_steps`、`workflow_audit_logs` に載せ、最初の業務ループを人間確認まで進めることである。
+Meeting Workflow Pack は、Role Agent、Workflow Template、Binding、Trigger、Loop Intent までは Brainbase の Workflow Control に載った。次に必要なのは Cloudflare/computer 接続ではなく、実会議から生成した Review Package を `workflow_runs`、`workflow_outputs`、`workflow_human_steps`、`workflow_audit_logs` に載せ、最初の業務ループを人間確認まで進めることである。
 
-この Story は Eve を接続しない。Codex が生成した Review Package を一時的な実行結果候補として取り込み、Brainbase 側に判断、出力、承認待ち、証跡を残す。Eve は後続 Story で同じ出力契約に差し替える。
+この Story は Cloudflare/computer を接続しない。Codex が生成した Review Package を一時的な実行結果候補として取り込み、Brainbase 側に判断、出力、承認待ち、証跡を残す。Cloudflare/computer は後続 Story で同じ出力契約に差し替える。
 
 ## User Story
 
@@ -33,7 +33,7 @@ Brainbase operator として、Mana の実会議から作った Review Package �
 - 入力は JSON の Review Package とし、API はローカルファイルパスを直接読む責務を持たない。
 - `meeting_identity.candidate_org_id`、`meeting_identity.candidate_project_id`、`meeting_identity.case_scope` を Brainbase 側の業務スコープとして正規化する。
 - Review Package に必要な output payload key と `loop_intent_ids` が揃っており、各 Loop Intent が同じ org / project の既存 Loop Intent であることを検証する。
-- Codex 生成物は `runner.type=codex_generated_package` として記録し、Eve 実行済みとは扱わない。
+- Codex 生成物は `runner.type=codex_generated_package` として記録し、Cloudflare/computer 実行済みとは扱わない。
 - 取り込みは単一の `meeting_review_package_ingest` run として記録し、各 output に対応する Loop Intent と evidence を紐付ける。
 - 1件のHuman Gateを承認しても残りの承認待ちをMission Control上に残し、全Human Gate承認後だけrunを閉じる。
 - 1件のHuman GateがRejectされた場合はReview Package run全体を `cancelled/closed` とし、残りのpending stepも停止して後続Approveで `success/closed` に戻さない。
@@ -43,7 +43,7 @@ Brainbase operator として、Mana の実会議から作った Review Package �
 
 ## Current Reality
 
-- Manaの会議ループは、Calendar/Slack/議事録候補を人間が見て判断している段階で、Eveの実runner接続はまだない。
+- Manaの会議ループは、Calendar/Slack/議事録候補を人間が見て判断している段階で、Cloudflare/computerの実runner接続はまだない。
 - 既存のWorkflow Mission Controlには `workflow_runs`、context snapshots、outputs、human steps、audit logs があり、最初の一周はこの既存面へCodex生成Packageを載せるのが最短である。
 - Graph SSOTやTask Storeへ直書きすると、候補と正本の境界が壊れるため、v1は承認待ち候補として止める。
 
@@ -59,7 +59,7 @@ Brainbase operator として、Mana の実会議から作った Review Package �
 - [ ] ac:8 `workflow_human_steps` には meeting note publish、task create、decision / graph promotion、follow-up external send、learning / promotion confirmation の pending step が作られる。
 - [ ] ac:9 取り込みは `package_id + org_id + project_id` で冪等になり、再実行しても run / output / human step を重複作成しない。
 - [ ] ac:10 Audit log は ingest した package、run、output、human step、loop intent、runner type、state transition を記録する。
-- [ ] ac:11 Eve 接続は後続 Story とし、この Story では Eve 成功や外部runner実行済みを名乗らない。
+- [ ] ac:11 Cloudflare/computer 接続は後続 Story とし、この Story では Cloudflare/computer 成功や外部runner実行済みを名乗らない。
 - [ ] ac:12 1件のHuman Gateを承認しても review run は `waiting_human` のまま残り、全Human Gate承認後だけ `success/closed` になる。
 - [ ] ac:13 Tech Knight / UnitedホテルDX案件のReview Package fixtureを再実行でき、`/workflows` で承認待ちrunとして確認できる。
 - [ ] ac:14 `meeting-review-package-ingest` workflow は既存のmanual run / rerun APIから実行できず、Review Packageなしの `success/closed` runを作らない。
@@ -84,9 +84,9 @@ Brainbase operator として、Mana の実会議から作った Review Package �
 
 ## Operator / Rollback
 
-- Operatorの入口は `/workflows` の `Meeting Review Package Ingest` runであり、Mac CompanionやEve接続前でもWebのWorkflow Mission Controlで承認待ちを確認できる。
+- Operatorの入口は `/workflows` の `Meeting Review Package Ingest` runであり、Mac CompanionやCloudflare/computer接続前でもWebのWorkflow Mission Controlで承認待ちを確認できる。
 - v1のrollbackは外部副作用の取り消しではない。v1は外部送信、Task作成、Graph昇格を実行しないため、誤取り込み時は対象package_idのrun/output/human step/auditを運用手順で無効化または再取り込み対象外にする。
-- Release noteでは「Eve未接続」「Codex生成Packageの候補取り込み」「全write-backはHuman Gate以降」と明記する。
+- Release noteでは「Cloudflare/computer未接続」「Codex生成Packageの候補取り込み」「全write-backはHuman Gate以降」と明記する。
 
 ## State Transitions
 
@@ -107,7 +107,7 @@ Brainbase operator として、Mana の実会議から作った Review Package �
 
 ## Non-goals
 
-- Eve agent の実行。
+- Cloudflare/computer agent の実行。
 - Mana への書き戻し。
 - Task Store への task 作成。
 - Graph SSOT への Decision 昇格。

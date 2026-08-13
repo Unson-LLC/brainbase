@@ -25,12 +25,10 @@ function makePayload(overrides = {}) {
     const payload = {
         contract_version: 'external_runner.v0',
         runner: {
-            type: 'eve',
-            external_run_id: 'eve-run-001',
+            type: 'cloudflare_computer',
+            external_run_id: 'cloudflare-run-001',
             agent_id: 'sales-agent',
-            eve: {
-                trace_ref: 'https://vercel.com/acme/eve/traces/eve-run-001'
-            }
+            trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-run-001'
         },
         run: {
             org_id: 'brainbase',
@@ -63,7 +61,7 @@ function makePayload(overrides = {}) {
         rounds: [{
             round_id: 'round-1',
             status: 'completed',
-            evidence_refs: ['eve://trace/eve-run-001/round-1']
+            evidence_refs: ['cloudflare-computer://trace/cloudflare-run-001/round-1']
         }],
         outputs: [{
             id: 'out-1',
@@ -72,7 +70,7 @@ function makePayload(overrides = {}) {
             body: '次回提案の返信案',
             visibility: 'internal',
             approval_required: true,
-            evidence_refs: ['eve://trace/eve-run-001/output/out-1']
+            evidence_refs: ['cloudflare-computer://trace/cloudflare-run-001/output/out-1']
         }],
         learning_candidates: [{
             candidate_id: 'lc-1',
@@ -80,7 +78,7 @@ function makePayload(overrides = {}) {
             body: '営業フォローでは期限と顧客温度感を同時に見る',
             promotion_policy: 'manual_review',
             redaction_status: 'not_required',
-            evidence_refs: ['eve://trace/eve-run-001/output/out-1']
+            evidence_refs: ['cloudflare-computer://trace/cloudflare-run-001/output/out-1']
         }],
         ...overrides
     };
@@ -115,8 +113,8 @@ function expectedCandidateIdentity({
     workspaceId = 'default',
     orgId = 'brainbase',
     projectId = 'brainbase',
-    runnerType = 'eve',
-    externalRunId = 'eve-run-001',
+    runnerType = 'cloudflare_computer',
+    externalRunId = 'cloudflare-run-001',
     sourceCandidateId = 'lc-1'
 } = {}) {
     return {
@@ -203,10 +201,10 @@ function seedLoopControlRefs(repository, {
 describe('ExternalRunnerIngestService', () => {
     function expectRunIdForExternalRun(runId, externalRunId) {
         const readable = String(externalRunId || 'unknown').replace(/[^a-zA-Z0-9_.:-]/g, '_').slice(0, 80);
-        expect(runId).toMatch(new RegExp(`^run_brainbase_brainbase_eve_${readable}_[a-f0-9]{12}$`));
+        expect(runId).toMatch(new RegExp(`^run_brainbase_brainbase_cloudflare_computer_${readable}_[a-f0-9]{12}$`));
     }
 
-    it('ingests S-001 runner.type=eve envelope into Workflow Mission Control surfaces', async () => {
+    it('ingests S-001 runner.type=cloudflare_computer envelope into Workflow Mission Control surfaces', async () => {
         const { repository, service } = makeService();
 
         const result = await service.ingest(makePayload());
@@ -215,14 +213,14 @@ describe('ExternalRunnerIngestService', () => {
         expect(result.workflow).toMatchObject({
             id: 'wf_sales_followup',
             execution_env: 'external',
-            implementation_key: 'external-runner:eve'
+            implementation_key: 'external-runner:cloudflare_computer'
         });
         expect(result.run).toMatchObject({
             status: 'success',
             closure_state: 'closed',
             action_required: 'none'
         });
-        expectRunIdForExternalRun(result.run.id, 'eve-run-001');
+        expectRunIdForExternalRun(result.run.id, 'cloudflare-run-001');
         expect(result.context_snapshots).toHaveLength(1);
         expect(result.outputs).toHaveLength(1);
         expect(result.learning_candidates).toEqual([
@@ -238,18 +236,16 @@ describe('ExternalRunnerIngestService', () => {
         ]));
     });
 
-    it('propagates org agent loop control references from Eve payload into WMC and learning candidates', async () => {
+    it('propagates org agent loop control references from Cloudflare/computer payload into WMC and learning candidates', async () => {
         const { repository, service } = makeService();
         seedLoopControlRefs(repository);
 
         const result = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-org-loop-001',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-org-loop-001',
                 agent_id: 'sales-agent',
-                eve: {
-                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-org-loop-001'
-                }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-org-loop-001'
             },
             run: {
                 org_id: 'salestailor',
@@ -276,11 +272,11 @@ describe('ExternalRunnerIngestService', () => {
                 promotion_policy: 'manual_review',
                 redaction_status: 'not_required',
                 org_ids: [],
-                evidence_refs: ['eve://trace/eve-org-loop-001/output/out-1']
+                evidence_refs: ['cloudflare-computer://trace/cloudflare-org-loop-001/output/out-1']
             }]
         }));
 
-        expect(result.run.id).toMatch(/^run_salestailor_salestailor_eve_eve-org-loop-001_[a-f0-9]{12}$/);
+        expect(result.run.id).toMatch(/^run_salestailor_salestailor_cloudflare_computer_cloudflare-org-loop-001_[a-f0-9]{12}$/);
         expect(result.workflow).toMatchObject({
             id: 'external_runner_salestailor_salestailor_sales-agent',
             org_id: 'salestailor',
@@ -350,18 +346,16 @@ describe('ExternalRunnerIngestService', () => {
         ]));
     });
 
-    it('derives learning candidate org and project scope from validated run scope instead of Eve payload', async () => {
+    it('derives learning candidate org and project scope from validated run scope instead of Cloudflare/computer payload', async () => {
         const { repository, service } = makeService();
         seedLoopControlRefs(repository);
 
         const result = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-org-loop-scope-override',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-org-loop-scope-override',
                 agent_id: 'sales-agent',
-                eve: {
-                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-org-loop-scope-override'
-                }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-org-loop-scope-override'
             },
             run: {
                 org_id: 'salestailor',
@@ -385,7 +379,7 @@ describe('ExternalRunnerIngestService', () => {
                 org_ids: ['unson'],
                 project_ids: ['unson'],
                 project_id: 'unson',
-                evidence_refs: ['eve://trace/eve-org-loop-scope-override/output/out-1']
+                evidence_refs: ['cloudflare-computer://trace/cloudflare-org-loop-scope-override/output/out-1']
             }]
         }));
 
@@ -412,18 +406,16 @@ describe('ExternalRunnerIngestService', () => {
         ]));
     });
 
-    it('requires run.org_id when Eve payload carries loop control references', async () => {
+    it('requires run.org_id when Cloudflare/computer payload carries loop control references', async () => {
         const { repository, service } = makeService();
         seedLoopControlRefs(repository);
 
         await expect(service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-loop-ref-missing-org',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-loop-ref-missing-org',
                 agent_id: 'sales-agent',
-                eve: {
-                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-loop-ref-missing-org'
-                }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-loop-ref-missing-org'
             },
             run: {
                 org_id: undefined,
@@ -442,17 +434,15 @@ describe('ExternalRunnerIngestService', () => {
         expect(repository.listRuns()).toHaveLength(0);
     });
 
-    it('rejects unknown org references from Eve payloads without loop-control refs before persistence', async () => {
+    it('rejects unknown org references from Cloudflare/computer payloads without loop-control refs before persistence', async () => {
         const { repository, service } = makeService();
 
         await expect(service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-unknown-org-no-loop-refs',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-unknown-org-no-loop-refs',
                 agent_id: 'sales-agent',
-                eve: {
-                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-unknown-org-no-loop-refs'
-                }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-unknown-org-no-loop-refs'
             },
             run: {
                 org_id: 'unknown-org',
@@ -480,7 +470,7 @@ describe('ExternalRunnerIngestService', () => {
         { field: 'trigger_id', type: 'workflow_trigger' },
         { field: 'loop_intent_id', type: 'loop_intent' }
     ]) {
-        it(`rejects orgless ${type} refs for org-scoped Eve payloads`, async () => {
+        it(`rejects orgless ${type} refs for org-scoped Cloudflare/computer payloads`, async () => {
             const { repository, service } = makeService();
             seedLoopControlRefs(repository, { orgId: null });
             const refIds = {
@@ -492,12 +482,10 @@ describe('ExternalRunnerIngestService', () => {
 
             await expect(service.ingest(makePayload({
                 runner: {
-                    type: 'eve',
-                    external_run_id: `eve-orgless-${type}`,
+                    type: 'cloudflare_computer',
+                    external_run_id: `cloudflare-orgless-${type}`,
                     agent_id: 'sales-agent',
-                    eve: {
-                        trace_ref: `https://vercel.com/acme/eve/traces/eve-orgless-${type}`
-                    }
+                    trace_ref: `https://vercel.com/acme/computer/traces/cloudflare-orgless-${type}`
                 },
                 run: {
                     org_id: 'salestailor',
@@ -537,12 +525,10 @@ describe('ExternalRunnerIngestService', () => {
 
         await expect(service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-org-loop-workflow-collision',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-org-loop-workflow-collision',
                 agent_id: 'sales-agent',
-                eve: {
-                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-org-loop-workflow-collision'
-                }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-org-loop-workflow-collision'
             },
             run: {
                 org_id: 'salestailor',
@@ -583,12 +569,10 @@ describe('ExternalRunnerIngestService', () => {
 
         await expect(service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-cross-loop-ref',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-cross-loop-ref',
                 agent_id: 'sales-agent',
-                eve: {
-                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-cross-loop-ref'
-                }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-cross-loop-ref'
             },
             run: {
                 org_id: 'salestailor',
@@ -605,7 +589,7 @@ describe('ExternalRunnerIngestService', () => {
             code: 'loop_control_ref_scope_mismatch'
         });
         expect(repository.listRuns()).toHaveLength(0);
-        expect(repository.listAuditLogs({ targetId: 'run_salestailor_salestailor_eve_eve-cross-loop-ref_fallback' })).toHaveLength(0);
+        expect(repository.listAuditLogs({ targetId: 'run_salestailor_salestailor_cloudflare_computer_cloudflare-cross-loop-ref_fallback' })).toHaveLength(0);
     });
 
     it('rejects same-scope partial loop refs when lineage points to a different binding', async () => {
@@ -631,12 +615,10 @@ describe('ExternalRunnerIngestService', () => {
 
         await expect(service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-partial-loop-ref',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-partial-loop-ref',
                 agent_id: 'sales-agent',
-                eve: {
-                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-partial-loop-ref'
-                }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-partial-loop-ref'
             },
             run: {
                 org_id: 'salestailor',
@@ -665,8 +647,8 @@ describe('ExternalRunnerIngestService', () => {
         await expect(service.ingest(makePayload())).rejects.toThrow('output storage unavailable');
         expect(repository.listWorkflows()).toHaveLength(0);
         expect(repository.listRuns()).toHaveLength(0);
-        expect(repository.listContextSnapshots('run_brainbase_brainbase_eve_eve-run-001')).toHaveLength(0);
-        expect(repository.listOutputs('run_brainbase_brainbase_eve_eve-run-001')).toHaveLength(0);
+        expect(repository.listContextSnapshots('run_brainbase_brainbase_cloudflare_computer_cloudflare-run-001')).toHaveLength(0);
+        expect(repository.listOutputs('run_brainbase_brainbase_cloudflare_computer_cloudflare-run-001')).toHaveLength(0);
         expect(repository.listAuditLogs()).toHaveLength(0);
     });
 
@@ -686,14 +668,13 @@ describe('ExternalRunnerIngestService', () => {
         expect(repository.listOutputs(normalized.run.id)).toHaveLength(0);
     });
 
-    it('rejects S-003 Eve payloads without trace_ref before creating a completed run', async () => {
+    it('rejects S-003 Cloudflare/computer payloads without trace_ref before creating a completed run', async () => {
         const { repository, service } = makeService();
         const payload = makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-run-002',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-run-002',
                 agent_id: 'sales-agent',
-                eve: {}
             }
         });
 
@@ -740,10 +721,10 @@ describe('ExternalRunnerIngestService', () => {
                 name: 'missing external run id',
                 patch: {
                     runner: {
-                        type: 'eve',
+                        type: 'cloudflare_computer',
                         external_run_id: '',
                         agent_id: 'sales-agent',
-                        eve: { trace_ref: 'https://vercel.com/acme/eve/traces/missing-run-id' }
+                        trace_ref: 'https://vercel.com/acme/computer/traces/missing-run-id'
                     }
                 },
                 code: 'missing_string'
@@ -752,10 +733,10 @@ describe('ExternalRunnerIngestService', () => {
                 name: 'missing runner agent id',
                 patch: {
                     runner: {
-                        type: 'eve',
-                        external_run_id: 'eve-run-missing-agent',
+                        type: 'cloudflare_computer',
+                        external_run_id: 'cloudflare-run-missing-agent',
                         agent_id: '',
-                        eve: { trace_ref: 'https://vercel.com/acme/eve/traces/eve-run-missing-agent' }
+                        trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-run-missing-agent'
                     }
                 },
                 code: 'missing_string'
@@ -820,12 +801,12 @@ describe('ExternalRunnerIngestService', () => {
             },
             {
                 name: 'missing round id',
-                patch: { rounds: [{ round_id: '', status: 'completed', evidence_refs: ['eve://trace/round'] }] },
+                patch: { rounds: [{ round_id: '', status: 'completed', evidence_refs: ['cloudflare-computer://trace/round'] }] },
                 code: 'missing_string'
             },
             {
                 name: 'missing round status',
-                patch: { rounds: [{ round_id: 'round-missing-status', status: '', evidence_refs: ['eve://trace/round'] }] },
+                patch: { rounds: [{ round_id: 'round-missing-status', status: '', evidence_refs: ['cloudflare-computer://trace/round'] }] },
                 code: 'missing_string'
             },
             {
@@ -1152,7 +1133,7 @@ describe('ExternalRunnerIngestService', () => {
         expect(repository.listAuditLogs()).toHaveLength(0);
     });
 
-    it('treats repeated Eve run ids as idempotent duplicates', async () => {
+    it('treats repeated Cloudflare/computer run ids as idempotent duplicates', async () => {
         const { repository, service } = makeService();
 
         const first = await service.ingest(makePayload());
@@ -1226,18 +1207,16 @@ describe('ExternalRunnerIngestService', () => {
         expect(repository.listRuns()).toHaveLength(1);
     });
 
-    it('normalizes loop-control Eve trigger_type from the referenced workflow trigger', async () => {
+    it('normalizes loop-control Cloudflare/computer trigger_type from the referenced workflow trigger', async () => {
         const { repository, service } = makeService();
         seedLoopControlRefs(repository);
 
         const result = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-loop-legacy-trigger-type',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-loop-legacy-trigger-type',
                 agent_id: 'sales-agent',
-                eve: {
-                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-loop-legacy-trigger-type'
-                }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-loop-legacy-trigger-type'
             },
             run: {
                 org_id: 'salestailor',
@@ -1276,18 +1255,18 @@ describe('ExternalRunnerIngestService', () => {
                 id: 'out-1',
                 output_type: 'draft',
                 title: 'Slack返信案',
-                body: '同じEve run idで本文が変わった返信案',
+                body: '同じCloudflare/computer run idで本文が変わった返信案',
                 visibility: 'internal',
                 approval_required: true,
-                evidence_refs: ['eve://trace/eve-run-001/output/out-1']
+                evidence_refs: ['cloudflare-computer://trace/cloudflare-run-001/output/out-1']
             }],
             learning_candidates: [{
                 candidate_id: 'lc-1',
                 cognitive_type: 'insight',
-                body: '同じEve run idで学習候補が変わった',
+                body: '同じCloudflare/computer run idで学習候補が変わった',
                 promotion_policy: 'manual_review',
                 redaction_status: 'not_required',
-                evidence_refs: ['eve://trace/eve-run-001/output/out-1']
+                evidence_refs: ['cloudflare-computer://trace/cloudflare-run-001/output/out-1']
             }]
         }))).rejects.toMatchObject({
             code: 'duplicate_payload_mismatch',
@@ -1320,10 +1299,10 @@ describe('ExternalRunnerIngestService', () => {
 
         const first = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-conflicting-duplicate',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-conflicting-duplicate',
                 agent_id: 'sales-agent',
-                eve: { trace_ref: 'https://vercel.com/acme/eve/traces/eve-conflicting-duplicate' }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-conflicting-duplicate'
             },
             run: {
                 org_id: 'salestailor',
@@ -1341,10 +1320,10 @@ describe('ExternalRunnerIngestService', () => {
 
         await expect(service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-conflicting-duplicate',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-conflicting-duplicate',
                 agent_id: 'sales-agent',
-                eve: { trace_ref: 'https://vercel.com/acme/eve/traces/eve-conflicting-duplicate' }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-conflicting-duplicate'
             },
             run: {
                 org_id: 'salestailor',
@@ -1372,23 +1351,23 @@ describe('ExternalRunnerIngestService', () => {
         });
     });
 
-    it('does not collapse distinct Eve run ids that normalize to the same readable prefix', async () => {
+    it('does not collapse distinct Cloudflare/computer run ids that normalize to the same readable prefix', async () => {
         const { repository, service } = makeService();
 
         const slash = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve/run-collision',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare/run-collision',
                 agent_id: 'sales-agent',
-                eve: { trace_ref: 'https://vercel.com/acme/eve/traces/eve-run-collision-slash' }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-run-collision-slash'
             }
         }));
         const underscore = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve_run-collision',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare_run-collision',
                 agent_id: 'sales-agent',
-                eve: { trace_ref: 'https://vercel.com/acme/eve/traces/eve-run-collision-underscore' }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-run-collision-underscore'
             },
             outputs: [{
                 id: 'out-2',
@@ -1396,7 +1375,7 @@ describe('ExternalRunnerIngestService', () => {
                 title: '別runの返信案',
                 body: '正規化衝突しない返信案',
                 visibility: 'internal',
-                evidence_refs: ['eve://trace/eve-run-collision-underscore/output/out-2']
+                evidence_refs: ['cloudflare-computer://trace/cloudflare-run-collision-underscore/output/out-2']
             }]
         }));
 
@@ -1433,7 +1412,7 @@ describe('ExternalRunnerIngestService', () => {
             }
         }));
 
-        expectRunIdForExternalRun(first.run.id, 'eve-run-001');
+        expectRunIdForExternalRun(first.run.id, 'cloudflare-run-001');
         expect(second).toMatchObject({
             status: 'duplicate',
             run: { id: first.run.id }
@@ -1441,15 +1420,15 @@ describe('ExternalRunnerIngestService', () => {
         expect(repository.listRuns()).toHaveLength(1);
     });
 
-    it('does not replay a duplicate across project boundaries for the same Eve external run id', async () => {
+    it('does not replay a duplicate across project boundaries for the same Cloudflare/computer external run id', async () => {
         const { repository, service } = makeService();
 
         const first = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-cross-project',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-cross-project',
                 agent_id: 'sales-agent',
-                eve: { trace_ref: 'https://vercel.com/acme/eve/traces/eve-cross-project-brainbase' }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-cross-project-brainbase'
             },
             run: {
                 project_id: 'brainbase',
@@ -1461,10 +1440,10 @@ describe('ExternalRunnerIngestService', () => {
         }));
         const second = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-cross-project',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-cross-project',
                 agent_id: 'sales-agent',
-                eve: { trace_ref: 'https://vercel.com/acme/eve/traces/eve-cross-project-salestailor' }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-cross-project-salestailor'
             },
             run: {
                 project_id: 'salestailor',
@@ -1488,10 +1467,10 @@ describe('ExternalRunnerIngestService', () => {
 
         const first = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-fallback-workflow',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-fallback-workflow',
                 agent_id: 'sales-agent',
-                eve: { trace_ref: 'https://vercel.com/acme/eve/traces/eve-fallback-workflow-brainbase' }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-fallback-workflow-brainbase'
             },
             run: {
                 project_id: 'brainbase',
@@ -1502,10 +1481,10 @@ describe('ExternalRunnerIngestService', () => {
         }));
         const second = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-fallback-workflow',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-fallback-workflow',
                 agent_id: 'sales-agent',
-                eve: { trace_ref: 'https://vercel.com/acme/eve/traces/eve-fallback-workflow-salestailor' }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-fallback-workflow-salestailor'
             },
             run: {
                 project_id: 'salestailor',
@@ -1593,17 +1572,15 @@ describe('ExternalRunnerIngestService', () => {
         expect(repository.listAuditLogs()).toHaveLength(0);
     });
 
-    it('maps cancelled Eve runs to closed cancelled workflow state', async () => {
+    it('maps cancelled Cloudflare/computer runs to closed cancelled workflow state', async () => {
         const { service } = makeService();
 
         const result = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-run-cancelled',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-run-cancelled',
                 agent_id: 'sales-agent',
-                eve: {
-                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-run-cancelled'
-                }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-run-cancelled'
             },
             run: {
                 project_id: 'brainbase',
@@ -1622,17 +1599,15 @@ describe('ExternalRunnerIngestService', () => {
         });
     });
 
-    it('maps waiting_human Eve runs to approval-required workflow state', async () => {
+    it('maps waiting_human Cloudflare/computer runs to approval-required workflow state', async () => {
         const { service } = makeService();
 
         const result = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-run-waiting-human',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-run-waiting-human',
                 agent_id: 'sales-agent',
-                eve: {
-                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-run-waiting-human'
-                }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-run-waiting-human'
             },
             run: {
                 project_id: 'brainbase',
@@ -1640,12 +1615,12 @@ describe('ExternalRunnerIngestService', () => {
                 workflow_id: 'wf_sales_followup',
                 workflow_name: '営業フォローアップ',
                 status: 'waiting_human',
-                selected_workflow_reason: 'Eve側で人間承認待ち'
+                selected_workflow_reason: 'Cloudflare/computer側で人間承認待ち'
             },
             human_steps: [{
                 id: 'hs-waiting-human',
                 step_type: 'approval',
-                prompt: 'Eve側の承認をBrainbaseで確認する'
+                prompt: 'Cloudflare/computer側の承認をBrainbaseで確認する'
             }]
         }));
 
@@ -1658,8 +1633,8 @@ describe('ExternalRunnerIngestService', () => {
         expect(result.human_steps[0]).toMatchObject({
             id: 'hs-waiting-human',
             status: 'pending',
-            prompt: 'Eve側の承認をBrainbaseで確認する',
-            title: 'Eve側の承認をBrainbaseで確認する',
+            prompt: 'Cloudflare/computer側の承認をBrainbaseで確認する',
+            title: 'Cloudflare/computer側の承認をBrainbaseで確認する',
             requested_to: 'keigo',
             required_by: 'keigo'
         });
@@ -1671,7 +1646,7 @@ describe('ExternalRunnerIngestService', () => {
             repository,
             handlers: createDefaultWorkflowHandlers()
         });
-        runner.registerHandler('external-runner:eve', async (ctx) => ({
+        runner.registerHandler('external-runner:cloudflare_computer', async (ctx) => ({
             status: 'success',
             closureState: 'closed',
             actionRequired: 'none',
@@ -1693,12 +1668,10 @@ describe('ExternalRunnerIngestService', () => {
 
         const result = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-run-resolvable-human',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-run-resolvable-human',
                 agent_id: 'sales-agent',
-                eve: {
-                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-run-resolvable-human'
-                }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-run-resolvable-human'
             },
             run: {
                 project_id: 'brainbase',
@@ -1711,7 +1684,7 @@ describe('ExternalRunnerIngestService', () => {
             human_steps: [{
                 id: 'hs-external-resolvable',
                 step_type: 'approval',
-                prompt: 'Eve側の外部送信を承認する'
+                prompt: 'Cloudflare/computer側の外部送信を承認する'
             }]
         }));
 
@@ -1913,12 +1886,10 @@ describe('ExternalRunnerIngestService', () => {
 
         const result = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-run-description-human',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-run-description-human',
                 agent_id: 'sales-agent',
-                eve: {
-                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-run-description-human'
-                }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-run-description-human'
             },
             run: {
                 project_id: 'brainbase',
@@ -1947,12 +1918,10 @@ describe('ExternalRunnerIngestService', () => {
 
         const result = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-run-whitespace-human',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-run-whitespace-human',
                 agent_id: 'sales-agent',
-                eve: {
-                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-run-whitespace-human'
-                }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-run-whitespace-human'
             },
             run: {
                 project_id: 'brainbase',
@@ -1976,17 +1945,15 @@ describe('ExternalRunnerIngestService', () => {
         });
     });
 
-    it('maps blocked and failed Eve statuses to actionable workflow states', async () => {
+    it('maps blocked and failed Cloudflare/computer statuses to actionable workflow states', async () => {
         const { service } = makeService();
 
         const blocked = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-run-blocked',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-run-blocked',
                 agent_id: 'sales-agent',
-                eve: {
-                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-run-blocked'
-                }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-run-blocked'
             },
             run: {
                 project_id: 'brainbase',
@@ -1998,12 +1965,10 @@ describe('ExternalRunnerIngestService', () => {
         }));
         const failed = await service.ingest(makePayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-run-failed',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-run-failed',
                 agent_id: 'sales-agent',
-                eve: {
-                    trace_ref: 'https://vercel.com/acme/eve/traces/eve-run-failed'
-                }
+                trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-run-failed'
             },
             run: {
                 project_id: 'brainbase',
@@ -2084,7 +2049,7 @@ describe('ExternalRunnerIngestService', () => {
                     promotion_policy: 'manual_review',
                     redaction_status: 'not_required',
                     body: '営業フォローでは期限と顧客温度感を同時に見る',
-                    evidence_refs: ['eve://trace/eve-run-001/output/out-1']
+                    evidence_refs: ['cloudflare-computer://trace/cloudflare-run-001/output/out-1']
                 })
             })
         ]));
@@ -2231,7 +2196,7 @@ describe('ExternalRunnerIngestService', () => {
                     promotion_policy: 'manual_review',
                     redaction_status: 'not_required',
                     body: '営業フォローでは期限と顧客温度感を同時に見る',
-                    evidence_refs: ['eve://trace/eve-run-001/output/out-1']
+                    evidence_refs: ['cloudflare-computer://trace/cloudflare-run-001/output/out-1']
                 })
             })
         ]));
@@ -2280,7 +2245,7 @@ describe('ExternalRunnerIngestService', () => {
                 promotion_status: 'promoted_to_graph',
                 requires_approval: false,
                 redaction_status: 'not_required',
-                evidence_refs: ['eve://trace/eve-run-001/output/injected']
+                evidence_refs: ['cloudflare-computer://trace/cloudflare-run-001/output/injected']
             }]
         }));
 

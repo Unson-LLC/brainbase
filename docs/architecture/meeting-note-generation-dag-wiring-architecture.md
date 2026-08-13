@@ -1,58 +1,25 @@
-# Meeting Note Generation DAG Wiring Architecture
+# Meeting Note Generation Handoff Architecture
 
 ## Decision
 
-Review Package ingest (`ingestReviewPackage`) remains the single entry point that records the `meeting_note_draft` output and human steps. This story wires two missing edges around it, without changing its approval semantics:
+`ingestReviewPackage` は `meeting_note_draft` とhuman stepを記録し、Cloudflare/computer向けの `note_generation_handoff` を返す。Brainbase自身は外部ランタイムを起動・監視・再照合しない。
 
-1. **Generation dispatch edge**: after a successful (non-idempotent) ingest, the meeting automation service best-effort dispatches the `transcript_to_meeting_note` loop intent to an Eve session via the existing `dispatchLoopIntentToEve` path. Dispatch failure or an unconfigured Eve client never fails the ingest; the outcome is recorded in the ingest response (`note_generation_dispatch`) and audit log.
-2. **Generation write-back edge**: a new control contract `POST /api/workflows/control/meeting-pack/note-generation` lets a runner (Eve session, codex, claude_code, mana) replace the `meeting_note_draft` output payload with the generated minutes, transitioning `generation_status` from `brainbase_source_ready` to `brainbase_generated`.
-
-Upstream of both edges, the source sync worker guarantees the generation input is readable text: transcripts arriving as JSON-encoded segment arrays (Plaud `data_content` shape) are expanded to speaker-attributed plain text inside `normalizeSourceArtifact`, before hashing and deduplication.
-
-## Boundary
-
-Meeting Automation service owns:
-
-- Auto-dispatch decision after ingest (configured / unconfigured / failed classification).
-- Note-generation write-back validation: run existence, output existence, `source_text_hash` match, monotonic `generation_status`.
-- Audit trail for both dispatch attempts and write-backs.
-
-Meeting Automation service does not own:
-
-- The generation itself (runner responsibility, via Eve session handoff).
-- Publishing minutes (existing `approve_meeting_note_publish` human step, unchanged).
-- Transcript normalization (sync worker responsibility).
-
-Source sync worker owns:
-
-- Detecting JSON segment transcripts and normalizing them to plain text before `transcript_hash` computation.
-
-## Scenario Mapping
-
-- S-001 maps to `normalizeSourceArtifact`: JSON segment detection → speaker text expansion → hash/dedupe on normalized text.
-- S-002 maps to the ingest tail: loop intent resolution → `dispatchLoopIntentToEve` guarded by `eveSessionClient.isConfigured()` → `note_generation_dispatch` result recording.
-- S-003 maps to `MeetingAutomationService.recordNoteGeneration`: access validation → run/output resolution → hash validation → payload replacement → `brainbase_generated`.
-
-## Data Flow
+外部ランタイムはhandoffに含まれるrun、package、source hash、write-back pathを使い、`POST /api/workflows/control/meeting-pack/note-generation` へ生成済み議事録を返す。Brainbaseはhashとrun/outputの対応を検証し、`generation_status` を `brainbase_generated` へ進める。
 
 ```mermaid
 flowchart LR
-  plaud["Plaud data_content JSON segments"] --> norm["transcriptSegmentsToText"]
-  norm --> artifact["source_artifact.source_text (readable)"]
-  artifact --> pack["Review Package (brainbase_source_ready)"]
-  pack --> ingest["ingestReviewPackage"]
-  ingest --> output["meeting_note_draft output"]
-  ingest --> autodispatch["auto dispatch (best-effort)"]
-  autodispatch --> eve["Eve session run (await_eve_result)"]
-  eve --> writeback["control/meeting-pack/note-generation"]
-  writeback --> output2["meeting_note_draft (brainbase_generated)"]
-  output2 --> human["approve_meeting_note_publish"]
+  source["Meeting source"] --> normalize["normalize + hash"]
+  normalize --> ingest["review-ingest"]
+  ingest --> handoff["note_generation_handoff: ready"]
+  handoff --> runtime["Cloudflare / computer"]
+  runtime --> writeback["note-generation write-back"]
+  writeback --> draft["meeting_note_draft: brainbase_generated"]
+  draft --> approval["human approval"]
 ```
 
-## Failure Isolation
+## Boundary
 
-- Eve unconfigured → `note_generation_dispatch: { status: 'skipped', reason: 'eve_not_configured' }`; manual dispatch via `/control/loop-intents/:id/eve-session` remains available.
-- Eve dispatch error → `status: 'skipped'`, `reason: 'dispatch_failed'` + error detail in audit; ingest still returns 201.
-- Write-back with wrong hash → 400 `blocked_source_hash_mismatch`; output untouched.
-- Write-back for unknown run/output → 404 / 400; output untouched.
-- Re-generation write-back → allowed, payload overwritten, audited; `generation_status` never regresses to `brainbase_source_ready`.
+- Brainbase: source normalization、handoff、hash検証、write-back、承認、監査。
+- Cloudflare/computer: 生成処理、ツール実行、再試行、実行状態。
+- handoffは実行完了を意味しない。結果がwrite-backされるまで生成状態は未完了。
+- wrong hash、unknown run/output、project mismatchは保存前に拒否する。

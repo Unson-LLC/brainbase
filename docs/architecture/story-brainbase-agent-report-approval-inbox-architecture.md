@@ -43,7 +43,7 @@ Mac Companion（別リポジトリ・表示consumer）
 
 1. `server/services/external-runner/contract-schema.js`
    `ALLOWED_RUNNER_TYPES` に `agent_report` を追加。`runner.type=agent_report` のとき
-   `runner.eve.trace_ref` を要求しない。eve 系の検証は不変。
+   `runner.cloudflare_computer.trace_ref` を要求しない。cloudflare_computer 系の検証は不変。
 
 2. `scripts/bin/bb-report-submit.mjs`（新規CLI）
    markdown → external_runner.v0 payload 組み立て → ingest POST。送信失敗時のみ
@@ -65,11 +65,11 @@ agent_report run は実行可能な workflow 実体（登録ランナーハン�
   - human step 全承認 → run を `status=success` / `closure_state=closed` にクローズ
   - 却下 → run を `cancelled` にし、兄弟 pending step を cancel
   - 部分承認 → `waiting_human` を維持
-- **eve 系（`external-runner:eve`）は除外**: 正当な登録ハンドラを持ち resume 経路が必要なため巻き込まない。
+- **cloudflare_computer 系（`external-runner:cloudflare_computer`）は除外**: 正当な登録ハンドラを持ち resume 経路が必要なため巻き込まない。
 
 ## テスト
 
-- `contract-schema`: agent_report 受理 / eve 要件スキップ / 不正 payload 拒否
+- `contract-schema`: agent_report 受理 / cloudflare_computer 要件スキップ / 不正 payload 拒否
 - `external-runner-routes`: agent_report が route 層（auth 込み）を通り waiting_human run として永続される
 - `external-runner-ingest-service`: 承認 / 却下 / 部分承認の3経路で run がクローズし、孤児 needs_action run がゼロ
 - `bb-report-submit`: payload 組み立て、run.id 冪等、submitReport 送信成功 + フォールバック3経路（fetch 失敗 / HTTP 非2xx / token 欠如）
@@ -92,7 +92,7 @@ stateDiagram-v2
         kind: workflow_approval として露出
     end note
     note right of success
-        eve(external-runner:eve)は除外され
+        cloudflare_computer(external-runner:cloudflare_computer)は除外され
         従来のrunWorkflow resume経路を維持
     end note
 ```
@@ -116,7 +116,7 @@ flowchart LR
 ```
 
 脅威と緩和:
-- **なりすまし送信**: owner/approver/human-step の required_by が認証 actor と一致しない場合、runner.type 非依存の delegation guard が 403 で拒否（既存 eve spoofing テストで担保）。
+- **なりすまし送信**: owner/approver/human-step の required_by が認証 actor と一致しない場合、runner.type 非依存の delegation guard が 403 で拒否（既存 cloudflare_computer spoofing テストで担保）。
 - **不正 payload**: contract-schema が contract_version / runner.type / 必須フィールドを永続前に検証、400 で拒否。
 - **孤児 run 蓄積**: 承認専用 run を resolveHumanStep が確実にクローズ（本PRで対策済み）。
 - **読み取り 403（前提条件・スコープ外）**: `companion.js` の owner_id 一致チェックにより、正規トークンの personId が `sato_keigo` と一致しないと approval-inbox 読み取りが 403。env `BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS` への alias 追加が C2 稼働の前提（Known Issue）。
@@ -152,7 +152,7 @@ C2「agent レポート → Companion approval inbox 集約」。`/ceo` `/cso` `
 
 - 契約変更の revert: `ALLOWED_RUNNER_TYPES` から `agent_report` を除去すれば元に戻る。
 - 新規 CLI（bb-report-submit）と docs は独立で、削除しても既存機能に影響なし。
-- workflow-service の特殊ケースは述語追加のみで、revert しても既存 eve/meeting_review 経路は不変。
+- workflow-service の特殊ケースは述語追加のみで、revert しても既存 cloudflare_computer/meeting_review 経路は不変。
 - DB migration なし（既存 workflow run/human_step/output テーブルに新 run を追加するのみ）。冪等 run.id で二重取り込みなし。
 - ロールバック後、稼働サーバーを再起動すれば旧挙動に戻る。
 

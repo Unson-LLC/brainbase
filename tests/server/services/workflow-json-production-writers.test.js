@@ -4,7 +4,6 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { EveMeetingNoteReconciler } from '../../../server/services/external-runner/eve-meeting-note-reconciler.js';
 import {
     JsonFileWorkflowRepository
 } from '../../../server/services/workflow/workflow-repository.js';
@@ -108,48 +107,4 @@ describe('production workflow shared-ledger writers', () => {
         ]));
     });
 
-    it('persists Eve reconciler run and audit changes in one JSON transaction', async () => {
-        const { filePath, repository } = makeRepository();
-        await repository.transaction(() => {
-            repository.createRun({
-                id: 'run-eve-reconcile-json',
-                workspace_id: 'brainbase',
-                org_id: 'salestailor',
-                project_id: 'salestailor',
-                workflow_id: 'wf-eve-dispatch',
-                workflow_name: 'Eve dispatch',
-                status: 'running',
-                env: 'eve',
-                metadata: {
-                    meeting_note_generation: { run_id: 'run-ingest', source_text_hash: 'hash-1' },
-                    runner: { session_id: 'eve-session-1' }
-                }
-            });
-        });
-        const reconciler = new EveMeetingNoteReconciler({
-            repository,
-
-            meetingAutomationService: { repository, recordNoteGeneration: async () => {}, recordCandidates: async () => {} },
-            eveSessionClient: {
-                isConfigured: () => true,
-                readSessionStream: async () => [{ type: 'session.completed' }]
-            },
-            clock: () => '2026-07-15T00:00:00.000Z'
-        });
-
-        const result = await reconciler.runOnce();
-
-        expect(result.blocked).toBe(1);
-        const reloaded = new JsonFileWorkflowRepository({ filePath });
-        expect(reloaded.getRun('run-eve-reconcile-json')).toMatchObject({
-            status: 'blocked',
-            action_required: 'operator_review_eve_session'
-        });
-        expect(reloaded.listAuditLogs({ limit: 100 })).toEqual(expect.arrayContaining([
-            expect.objectContaining({
-                action: 'workflow.meeting_pack.note_generation.reconcile_blocked',
-                target_id: 'run-eve-reconcile-json'
-            })
-        ]));
-    });
 });
