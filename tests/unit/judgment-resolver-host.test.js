@@ -779,6 +779,11 @@ describe('Codex Judgment Resolver Host', () => {
         expect(recordEvent('is-error', { isError: true, content: [{ type: 'text', text: 'success-looking text' }] })).toMatchObject({ success: false });
         expect(recordEvent('err', { Err: { code: 'transport_error' } })).toMatchObject({ success: false });
         expect(recordEvent('write-spoof', { content: [{ type: 'text', text: JSON.stringify({ status: 'ok', success: true }) }] }, 'create_task')).toMatchObject({ success: false, event_kind: 'write' });
+        expect(recordEvent('empty-content', { content: [] })).toMatchObject({ success: false });
+        expect(recordEvent('empty-ok', { Ok: {} })).toMatchObject({ success: false });
+        expect(recordEvent('invalid-resource', { content: [{ type: 'resource' }] })).toMatchObject({ success: false });
+        expect(recordEvent('invalid-resource-link', { content: [{ type: 'resource_link' }] })).toMatchObject({ success: false });
+        expect(recordEvent('unknown-call', { content: [{ type: 'text', text: 'completed' }] }, 'submit_approval')).toMatchObject({ success: false, event_kind: 'call' });
     });
 
     it('Stopは必要なrouting証拠を満たすまでactive再Stopでもblockし、finalを作らない', async () => {

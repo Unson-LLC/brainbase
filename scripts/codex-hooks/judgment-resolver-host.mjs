@@ -712,13 +712,15 @@ function nestedRecords(value, depth = 0, { parseContent = true } = {}) {
 
 function validCallToolResultEnvelope(value) {
     const item = record(value);
-    if (!item || !Array.isArray(item.content)) return false;
+    if (!item || !Array.isArray(item.content) || item.content.length === 0) return false;
     return item.content.every((block) => {
         const entry = record(block);
         if (!entry || typeof entry.type !== 'string') return false;
         if (entry.type === 'text') return typeof entry.text === 'string';
         if (entry.type === 'image' || entry.type === 'audio') return typeof entry.data === 'string' && typeof entry.mimeType === 'string';
-        return entry.type === 'resource' || entry.type === 'resource_link';
+        if (entry.type === 'resource') return Boolean(record(entry.resource));
+        if (entry.type === 'resource_link') return typeof entry.name === 'string' && entry.name.trim() && typeof entry.uri === 'string' && entry.uri.trim();
+        return false;
     });
 }
 
@@ -736,7 +738,7 @@ function responseSucceeded(response, { allowTransportSuccess = false, allowExpli
     if (failed) return false;
     const trustedEnvelopeItems = nestedRecords(response, 0, { parseContent: false });
     return semanticSuccess || trustedEnvelopeItems.some((item) => (
-        (allowTransportSuccess && Object.hasOwn(item, 'Ok'))
+        (allowTransportSuccess && validCallToolResultEnvelope(item.Ok))
         || (allowTransportSuccess && validCallToolResultEnvelope(item))
         || (allowExplicitSuccess && (item.isError === false || item.is_error === false || item.ok === true || item.success === true || ['ok', 'success', 'completed'].includes(String(item.status).toLowerCase())))
     ));
@@ -843,7 +845,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
     const taskResult = kind === 'write' ? taskResultData(responseValue) : null;
     const success = responseSucceeded(responseValue, {
-        allowTransportSuccess: ['search', 'retrieve', 'call'].includes(kind),
+        allowTransportSuccess: ['search', 'retrieve'].includes(kind),
         allowExplicitSuccess: !['write', 'route'].includes(kind),
         semanticSuccess: Boolean(resolution || taskResult)
     });
