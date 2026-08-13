@@ -1,5 +1,8 @@
 {
   "schema_version": "1.0.0",
+  "graph_http_mutation_owners": [
+    "scripts/lib/brainbase-graph-http-client.mjs"
+  ],
   "writers": {
     "server/controllers/info-ssot-controller.js": { "mode": "runtime", "reason": "Info SSOT HTTP write surface", "vocabulary": { "types": [], "relations": [] } },
     "server/routes/info-ssot.js": { "mode": "runtime", "reason": "Info SSOT HTTP route registration", "vocabulary": { "types": [], "relations": [] } },
@@ -9,6 +12,7 @@
     "scripts/generate-memory-preamble.mjs": { "mode": "deferred", "reason": "Graph query text includes writer vocabulary; runtime migration is out of v1", "vocabulary": { "types": [], "relations": [] }, "classified_literals": { "compatibility": [], "internal": [], "rejected": [] } },
     "scripts/info-ssot-migrate-codex.js": { "mode": "deferred", "reason": "legacy migration", "vocabulary": { "types": ["app", "brand", "capital", "contact", "contract", "customer", "decision", "finance", "frame", "glossary_term", "partner", "raci_assignment", "story"], "relations": ["belongs_to_project", "references"] }, "classified_literals": { "compatibility": ["event"], "internal": [], "rejected": [] } },
     "scripts/info-ssot-sync-slack-auth.js": { "mode": "deferred", "reason": "Slack auth migration", "vocabulary": { "types": [], "relations": [] }, "classified_literals": { "compatibility": [], "internal": [], "rejected": [] } },
+    "scripts/lib/brainbase-graph-http-client.mjs": { "mode": "runtime_guarded", "reason": "Graph write-schema adapter over the shared authenticated HTTP client", "vocabulary": { "types": [], "relations": [] } },
     "scripts/local-data-server-ssot-upsert.js": { "mode": "deferred", "reason": "local SSOT migration", "vocabulary": { "types": [], "relations": [] }, "classified_literals": { "compatibility": [], "internal": ["path"], "rejected": [] } },
     "scripts/merge-duplicate-people.mjs": { "mode": "deferred", "reason": "explicit dedup migration", "vocabulary": { "types": ["person", "person_alias"], "relations": ["alias_of", "member_of"] }, "classified_literals": { "compatibility": ["member"], "internal": [], "rejected": [] } },
     "scripts/migrate_contacts_to_graph.py": { "mode": "deferred", "reason": "contact migration", "vocabulary": { "types": ["contact"], "relations": [] }, "classified_literals": { "compatibility": [], "internal": [], "rejected": [] } },
