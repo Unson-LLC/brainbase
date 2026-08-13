@@ -26,9 +26,14 @@ RETURNS TEXT LANGUAGE sql STABLE AS $$
   SELECT NULLIF(current_setting('app.person_id', true), '')
 $$;
 
-CREATE OR REPLACE FUNCTION app_role_rank(value TEXT)
-RETURNS INTEGER LANGUAGE sql IMMUTABLE AS $$
-  SELECT CASE value WHEN 'ceo' THEN 30 WHEN 'gm' THEN 20 WHEN 'member' THEN 10 ELSE 0 END
+CREATE OR REPLACE FUNCTION app_role_rank(role TEXT)
+RETURNS INTEGER LANGUAGE sql STABLE AS $$
+  SELECT CASE lower(coalesce(role, ''))
+    WHEN 'member' THEN 1
+    WHEN 'gm' THEN 2
+    WHEN 'ceo' THEN 3
+    ELSE 0
+  END
 $$;
 
 CREATE OR REPLACE FUNCTION app_sensitivity_rank(value TEXT)

@@ -23,6 +23,7 @@ describe('personal and organization knowledge schema', () => {
 
     it('adds organization ACL fields and transition-derived current state', () => {
         const sql = read('server/sql/personal-knowledge-schema.sql');
+        const infoSsotRls = read('server/sql/info-ssot-rls.sql');
 
         expect(sql).toContain('ADD COLUMN IF NOT EXISTS organization_id');
         expect(sql).toContain('ADD COLUMN IF NOT EXISTS sensitivity');
@@ -33,6 +34,9 @@ describe('personal and organization knowledge schema', () => {
         expect(sql).toMatch(/episode_compaction_artifacts[\s\S]*sensitivity TEXT NOT NULL/);
         expect(sql).toMatch(/episode_compaction_artifacts[\s\S]*role_min TEXT NOT NULL/);
         expect(sql).toMatch(/episode_compaction_scope[\s\S]*app_role_rank[\s\S]*app_sensitivity_rank/);
+        expect(infoSsotRls).toMatch(/CREATE OR REPLACE FUNCTION app_role_rank\(role text\)/i);
+        expect(sql).toMatch(/CREATE OR REPLACE FUNCTION app_role_rank\(role TEXT\)/);
+        expect(sql).not.toMatch(/CREATE OR REPLACE FUNCTION app_role_rank\(value TEXT\)/);
     });
 
     it('enables and forces owner-scoped RLS on candidate queue and history', () => {
