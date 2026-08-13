@@ -34,7 +34,7 @@ Calendar and Slack can enrich `meeting_identity` and `evidence_refs`, but they c
 
 Runtime bootstrap must create MCP provider adapters from `BRAINBASE_MEETING_SOURCE_MCP_ADAPTERS_JSON` and start the scheduler only when `BRAINBASE_MEETING_SOURCE_SYNC_ENABLED=1`. The worker must not submit generated Review Packages or advance provider cursors unless `org_id` and `project_id` are configured by env, request scope, or actor scope.
 
-Runtime shutdown must invoke `stopScheduledSync()` for the Meeting Source MCP sync service from the graceful shutdown path. This cleanup is limited to the sync worker schedule timer and must not alter the existing session runtime lifecycle cleanup contract.
+Runtime shutdown must invoke `stopScheduledSync()` for the Meeting Source MCP sync service from the graceful shutdown path. This cleanup is limited to the sync worker schedule timer and must complete before the remaining runtime services stop.
 
 ## Provider Config API
 
@@ -111,7 +111,7 @@ The Review Package must include:
 - WSC-011: server bootstrap wires configured MCP adapters into the worker.
 - WSC-012: graceful shutdown stops the scheduled worker timer.
 - WSC-013: missing org/project scope leaves scheduled sync in preview-only blocked state.
-- WSC-014: graceful shutdown runs Meeting Source MCP worker cleanup before session runtime cleanup completes.
+- WSC-014: graceful shutdown runs Meeting Source MCP worker cleanup before the remaining runtime services stop.
 
 ## Scenarios
 
@@ -124,7 +124,7 @@ The Review Package must include:
 - S-007: Owner hint is ambiguous in People SSOT. Task owner remains unset with candidates.
 - S-008: Operator opens settings UI, tests both provider connections, sees last sync/error state, runs bounded resync preview, then confirms.
 - S-009: Scheduled sync is enabled but project scope is not configured. The worker records `scope_not_configured`, keeps the preview for inspection, and does not advance provider cursors.
-- S-010: Mac Companion is shutting down while the Meeting Source MCP schedule is active. Graceful shutdown stops the scheduled worker timer and then proceeds with existing session runtime cleanup.
+- S-010: Mac Companion is shutting down while the Meeting Source MCP schedule is active. Graceful shutdown stops the scheduled worker timer and then proceeds with the remaining runtime services.
 
 ## Acceptance Tests
 

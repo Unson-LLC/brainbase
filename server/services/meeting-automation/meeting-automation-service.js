@@ -98,7 +98,6 @@ export class MeetingAutomationService {
     constructor({
         repository,
         googleCalendarService = null,
-        eveSessionClient = null,
         infoSSOTService = null,
         projectAccessPolicy = null,
         prepareProjectAccess,
@@ -107,12 +106,10 @@ export class MeetingAutomationService {
         assertProjectAccess,
         createLoopIntent,
         meetingTaskOwnerResolver = null,
-        resolveReviewTaskOwners = null,
-        dispatchLoopIntentToEve = null
+        resolveReviewTaskOwners = null
     }) {
         this.repository = repository;
         this.googleCalendarService = googleCalendarService;
-        this.eveSessionClient = eveSessionClient;
         this.prepareProjectAccess = projectAccessPolicy?.prepare
             ? projectAccessPolicy.prepare.bind(projectAccessPolicy)
             : prepareProjectAccess;
@@ -126,7 +123,6 @@ export class MeetingAutomationService {
             ? projectAccessPolicy.assertProjectAccess.bind(projectAccessPolicy)
             : assertProjectAccess;
         this.createLoopIntent = createLoopIntent;
-        this.dispatchLoopIntentToEve = dispatchLoopIntentToEve;
         this.resolveReviewTaskOwners = meetingTaskOwnerResolver?.resolveReviewTaskOwners
             ? meetingTaskOwnerResolver.resolveReviewTaskOwners.bind(meetingTaskOwnerResolver)
             : resolveReviewTaskOwners;
@@ -406,61 +402,43 @@ export class MeetingAutomationService {
         const { orgId, projectId, packageId, loopIntentByKey } = reviewScope;
         const runId = ingestResult.meeting_review_ingest.run.id;
         const actorId = actor.person_id || actor.sub || DEFAULT_OWNER_ID;
-        ingestResult.meeting_review_ingest.note_generation_dispatch = await this.dispatchNoteGeneration({
+        ingestResult.meeting_review_ingest.note_generation_handoff = await this.prepareNoteGenerationHandoff({
             loopIntent: loopIntentByKey.get('transcript_to_meeting_note') || null,
             orgId,
             projectId,
             packageId,
             runId,
             actorId,
-            actor
         });
         return ingestResult;
     }
 
-    async dispatchNoteGeneration({ loopIntent, orgId, projectId, packageId, runId, actorId, actor }) {
-        let result;
-        if (!loopIntent) {
-            result = { status: 'skipped', reason: 'loop_intent_missing', loop_intent_id: null };
-        } else if (!this.eveSessionClient?.isConfigured?.()) {
-            result = { status: 'skipped', reason: 'eve_not_configured', loop_intent_id: loopIntent.id };
-        } else {
-            try {
-                const dispatched = await this.dispatchLoopIntentToEve(loopIntent.id, {
-                    meeting_note_generation: { run_id: runId, package_id: packageId }
-                }, actor);
-                result = {
-                    status: 'requested',
-                    loop_intent_id: loopIntent.id,
-                    eve_session_run_id: dispatched?.eve_session_dispatch?.run?.id || null
-                };
-            } catch (error) {
-                result = {
-                    status: 'skipped',
-                    reason: 'dispatch_failed',
-                    loop_intent_id: loopIntent.id,
-                    error: error?.message || String(error)
-                };
+    async prepareNoteGenerationHandoff({ loopIntent, orgId, projectId, packageId, runId, actorId }) {
+        const result = loopIntent
+            ? {
+                status: 'ready',
+                runtime_type: 'cloudflare_computer',
+                loop_intent_id: loopIntent.id,
+                run_id: runId,
+                package_id: packageId,
+                output_key: 'meeting_note_draft',
+                write_back_path: '/api/workflows/control/meeting-pack/note-generation'
             }
-        }
+            : { status: 'blocked', reason: 'loop_intent_missing', loop_intent_id: null };
         await this._transaction(() => {
             this.repository.writeAuditLog({
                 workspace_id: DEFAULT_WORKSPACE_ID,
                 org_id: orgId,
                 project_id: projectId,
                 actor_id: actorId,
-                action: result.status === 'requested'
-                    ? 'workflow.meeting_pack.note_generation.dispatch_requested'
-                    : 'workflow.meeting_pack.note_generation.dispatch_skipped',
+                action: result.status === 'ready'
+                    ? 'workflow.meeting_pack.note_generation.handoff_ready'
+                    : 'workflow.meeting_pack.note_generation.handoff_blocked',
                 target_type: 'workflow_run',
                 target_id: runId,
                 after: {
                     package_id: packageId,
-                    ...result,
-                    ...(result.status === 'requested' ? {
-                        runner_type: 'eve',
-                        external_run_id: result.eve_session_run_id || null
-                    } : {})
+                    ...result
                 }
             });
         });

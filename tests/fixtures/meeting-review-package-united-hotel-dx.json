@@ -61,7 +61,7 @@
   ],
   "decision_candidates": [
     "Meeting Workflow Packの初回一周対象はTech KnightのUnitedホテルDX案件にする",
-    "Eve接続前はCodex生成Review PackageをBrainbaseの承認待ちrunへ取り込む"
+    "外部runtime接続前はCodex生成Review PackageをBrainbaseの承認待ちrunへ取り込む"
   ],
   "follow_up_draft": {
     "status": "draft_only",

@@ -18,16 +18,16 @@ function makeRuntime(overrides = {}) {
 }
 
 describe('createAutomationRuntimeServices', () => {
-    it('生成時_CatalogとLoopIntentとEveDispatchを別serviceとして返す', () => {
+    it('生成時_CatalogとLoopIntentを別serviceとして返す', () => {
         const runtime = makeRuntime();
 
         expect(runtime.agentControlCatalogService).toBeDefined();
         expect(runtime.loopIntentService).toBeDefined();
-        expect(runtime.eveSessionDispatchService).toBeDefined();
+        expect(runtime.eveSessionDispatchService).toBeUndefined();
         expect(runtime.meetingAutomationService).toBeDefined();
         expect(runtime.automationRunService).toBeDefined();
         expect(runtime.agentControlCatalogService).not.toBe(runtime.loopIntentService);
-        expect(runtime.loopIntentService).not.toBe(runtime.eveSessionDispatchService);
+        expect(runtime.agentControlCatalogService).not.toBe(runtime.loopIntentService);
     });
 
     it('生成時_Companion承認Inboxを専用read serviceとして返す', () => {

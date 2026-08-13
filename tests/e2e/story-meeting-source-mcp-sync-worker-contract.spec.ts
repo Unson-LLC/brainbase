@@ -196,11 +196,11 @@ test.describe(storyId, () => {
     // story-meeting-source-mcp-sync-worker ac:12 AC-012: workerのcursorは成功submit後だけ進む。
     expect(story + service, `${storyId} ac:12 AC-012 cursor advancement`).toContain('last_seen_external_id');
     expect(gracefulShutdown, `${storyId} ac:12 AC-012 scheduler shutdown`).toContain('stopScheduledSync');
-    // story-meeting-source-mcp-sync-worker ac:13 AC-013: graceful shutdownはMeeting Source MCP workerをsession runtime cleanup前に停止する。
+    // story-meeting-source-mcp-sync-worker ac:13 AC-013: graceful shutdownはMeeting Source MCP workerを終了前に停止する。
     expect(story + spec, `${storyId} ac:13 AC-013 shutdown contract`).toContain('AC-013');
     expect(gracefulShutdown, `${storyId} ac:13 AC-013 stop worker`).toContain('stop-meeting-source-mcp-sync');
-    expect(gracefulShutdown.indexOf('stop-meeting-source-mcp-sync'), `${storyId} ac:13 AC-013 stop before session cleanup`)
-      .toBeLessThan(gracefulShutdown.indexOf('cleanup-session-runtime'));
+    expect(gracefulShutdown.indexOf('stop-meeting-source-mcp-sync'), `${storyId} ac:13 AC-013 stop before mesh cleanup`)
+      .toBeLessThan(gracefulShutdown.indexOf('stop-mesh-service'));
     // story-meeting-source-mcp-sync-worker S-001 S-002 S-003: source_event、provider isolation、Settings運用の3つをStory contractに含める。
     expect(spec + architecture, `${storyId} S-001 S-002 S-003`).toContain('S-001');
     expect(spec + architecture, `${storyId} S-001 S-002 S-003`).toContain('S-002');
@@ -294,11 +294,11 @@ test.describe(storyId, () => {
     expect(confirmed.body.review_packages[0].meeting_note_summary.body_redacted).toBe(true);
     expect(confirmed.body.review_packages[0].meeting_note_summary.source_transcripts[0].text).toBeUndefined();
     expect(confirmed.body.review_packages[0].meeting_note_summary.source_transcripts[0].text_redacted).toBe(true);
-    // Candidates start empty (awaiting Eve); the pull-based reconciler fills them post-ingest.
+    // Candidates start empty (awaiting external runtime); the pull-based reconciler fills them post-ingest.
     expect(confirmed.body.review_packages[0].task_candidates).toEqual([]);
     expect(confirmed.body.review_packages[0].decision_candidates).toEqual([]);
     expect(confirmed.body.review_packages[0].follow_up_draft).toMatchObject({
-      status: 'awaiting_eve_generation',
+      status: 'awaiting_external_runtime',
       external_send_required_approval: true,
       body: ''
     });
@@ -366,7 +366,7 @@ test.describe(storyId, () => {
         task_candidates: [],
         decision_candidates: [],
         follow_up_draft: expect.objectContaining({
-          status: 'awaiting_eve_generation',
+          status: 'awaiting_external_runtime',
           external_send_required_approval: true,
           body: ''
         }),

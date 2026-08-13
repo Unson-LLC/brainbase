@@ -4,9 +4,9 @@ import crypto from 'node:crypto';
 
 import { AppError } from '../../lib/errors.js';
 
-const EVE_CANDIDATE_SOURCE = 'eve_meeting_agent';
-const EVE_CANDIDATE_MAX_COUNT = 5;
-const EVE_CANDIDATE_FIELD_MAX_LENGTHS = Object.freeze({
+const EXTERNAL_RUNTIME_CANDIDATE_SOURCE = 'external_meeting_runtime';
+const EXTERNAL_RUNTIME_CANDIDATE_MAX_COUNT = 5;
+const EXTERNAL_RUNTIME_CANDIDATE_FIELD_MAX_LENGTHS = Object.freeze({
     title: 500,
     owner_hint: 200,
     ownerHint: 200,
@@ -17,7 +17,7 @@ const EVE_CANDIDATE_FIELD_MAX_LENGTHS = Object.freeze({
     decision_type: 100,
     decisionType: 100
 });
-const EVE_FOLLOW_UP_BODY_MAX_LENGTH = 10_000;
+const EXTERNAL_RUNTIME_FOLLOW_UP_BODY_MAX_LENGTH = 10_000;
 
 function readOptionalString(input, snakeKey, camelKey = snakeKey) {
     const value = input?.[snakeKey] ?? input?.[camelKey];
@@ -52,7 +52,7 @@ function assertOptionalCandidateString(candidate, fieldName, index, collectionNa
             state_transition: 'blocked_invalid_candidates'
         });
     }
-    const maxLength = EVE_CANDIDATE_FIELD_MAX_LENGTHS[fieldName];
+    const maxLength = EXTERNAL_RUNTIME_CANDIDATE_FIELD_MAX_LENGTHS[fieldName];
     if (typeof candidate[fieldName] === 'string' && maxLength && candidate[fieldName].length > maxLength) {
         throw AppError.validation(`${collectionName}[${index}].${fieldName} must be at most ${maxLength} characters`, {
             state_transition: 'blocked_invalid_candidates'
@@ -66,8 +66,8 @@ function assertCandidateList(value, collectionName, optionalStringFields) {
             state_transition: 'blocked_invalid_candidates'
         });
     }
-    if (value.length > EVE_CANDIDATE_MAX_COUNT) {
-        throw AppError.validation(`${collectionName} must contain at most ${EVE_CANDIDATE_MAX_COUNT} candidates`, {
+    if (value.length > EXTERNAL_RUNTIME_CANDIDATE_MAX_COUNT) {
+        throw AppError.validation(`${collectionName} must contain at most ${EXTERNAL_RUNTIME_CANDIDATE_MAX_COUNT} candidates`, {
             state_transition: 'blocked_invalid_candidates'
         });
     }
@@ -82,8 +82,8 @@ function assertCandidateList(value, collectionName, optionalStringFields) {
                 state_transition: 'blocked_invalid_candidates'
             });
         }
-        if (candidate.title.length > EVE_CANDIDATE_FIELD_MAX_LENGTHS.title) {
-            throw AppError.validation(`${collectionName}[${index}].title must be at most ${EVE_CANDIDATE_FIELD_MAX_LENGTHS.title} characters`, {
+        if (candidate.title.length > EXTERNAL_RUNTIME_CANDIDATE_FIELD_MAX_LENGTHS.title) {
+            throw AppError.validation(`${collectionName}[${index}].title must be at most ${EXTERNAL_RUNTIME_CANDIDATE_FIELD_MAX_LENGTHS.title} characters`, {
                 state_transition: 'blocked_invalid_candidates'
             });
         }
@@ -118,8 +118,8 @@ export function assertMeetingCandidatesInput(input) {
             state_transition: 'blocked_invalid_candidates'
         });
     }
-    if (input.follow_up_draft.body.length > EVE_FOLLOW_UP_BODY_MAX_LENGTH) {
-        throw AppError.validation(`follow_up_draft.body must be at most ${EVE_FOLLOW_UP_BODY_MAX_LENGTH} characters`, {
+    if (input.follow_up_draft.body.length > EXTERNAL_RUNTIME_FOLLOW_UP_BODY_MAX_LENGTH) {
+        throw AppError.validation(`follow_up_draft.body must be at most ${EXTERNAL_RUNTIME_FOLLOW_UP_BODY_MAX_LENGTH} characters`, {
             state_transition: 'blocked_invalid_candidates'
         });
     }
@@ -137,7 +137,7 @@ export function normalizeTaskCandidates(rawCandidates, { caseScope = null, evide
                 id: stableId('task_candidate', caseScope || '', 'task', title, index),
                 title,
                 status: 'candidate',
-                source: EVE_CANDIDATE_SOURCE,
+                source: EXTERNAL_RUNTIME_CANDIDATE_SOURCE,
                 case_scope: caseScope,
                 owner_hint: taskCandidateOwnerHint(candidate),
                 due_hint: readOptionalString(candidate, 'due_hint', 'dueHint'),
@@ -160,7 +160,7 @@ export function normalizeDecisionCandidates(rawCandidates, { caseScope = null, e
                 id: stableId('decision_candidate', caseScope || '', 'decision', title, index),
                 title,
                 status: 'candidate',
-                source: EVE_CANDIDATE_SOURCE,
+                source: EXTERNAL_RUNTIME_CANDIDATE_SOURCE,
                 case_scope: caseScope,
                 decision_type: readOptionalString(candidate, 'decision_type', 'decisionType') || 'meeting_decision',
                 source_excerpt: readOptionalString(candidate, 'source_excerpt', 'sourceExcerpt'),

@@ -35,7 +35,7 @@ function createGuardedApp() {
         },
         verifyServiceToken(token) {
             if (token !== 'bbsvc_valid') throw new Error('invalid service token');
-            return { sub: 'eve-runtime', role: 'member', projectCodes: ['brainbase'], employmentType: 'internal_service' };
+            return { sub: 'cloudflare-runtime', role: 'member', projectCodes: ['brainbase'], employmentType: 'internal_service' };
         }
     };
     app.use(express.json());
@@ -48,10 +48,10 @@ function makePayload() {
     return {
         contract_version: 'external_runner.v0',
         runner: {
-            type: 'eve',
-            external_run_id: 'eve-route-001',
+            type: 'cloudflare_computer',
+            external_run_id: 'cloudflare-route-001',
             agent_id: 'marketing-agent',
-            eve: { trace_ref: 'https://vercel.com/acme/eve/traces/eve-route-001' }
+            trace_ref: 'https://dash.cloudflare.com/acme/computers/cloudflare-route-001'
         },
         run: {
             org_id: 'brainbase',
@@ -75,7 +75,7 @@ function makePayload() {
         rounds: [{
             round_id: 'round-1',
             status: 'completed',
-            evidence_refs: ['eve://route/round-1']
+            evidence_refs: ['cloudflare-computer://route/round-1']
         }],
         outputs: []
     };
@@ -83,11 +83,11 @@ function makePayload() {
 
 function expectRunIdForExternalRun(runId, externalRunId) {
     const readable = String(externalRunId || 'unknown').replace(/[^a-zA-Z0-9_.:-]/g, '_').slice(0, 80);
-    expect(runId).toMatch(new RegExp(`^run_brainbase_brainbase_eve_${readable}_[a-f0-9]{12}$`));
+    expect(runId).toMatch(new RegExp(`^run_brainbase_brainbase_cloudflare_computer_${readable}_[a-f0-9]{12}$`));
 }
 
 describe('external runner routes', () => {
-    it('ingests Eve payloads through /api/external-runner/ingest', async () => {
+    it('ingests Cloudflare/computer payloads through /api/external-runner/ingest', async () => {
         const { app, repository } = createApp();
 
         const response = await request(app)
@@ -96,16 +96,16 @@ describe('external runner routes', () => {
             .expect(201);
 
         expect(response.body.run).toMatchObject({ status: 'success' });
-        expectRunIdForExternalRun(response.body.run.id, 'eve-route-001');
+        expectRunIdForExternalRun(response.body.run.id, 'cloudflare-route-001');
         expect(repository.getRun(response.body.run.id)).toMatchObject({
             workflow_id: 'wf_marketing_post'
         });
     });
 
-    it('returns contract errors for invalid Eve trace_ref', async () => {
+    it('returns contract errors for invalid Cloudflare/computer trace_ref', async () => {
         const { app } = createApp();
         const payload = makePayload();
-        payload.runner.eve = {};
+        delete payload.runner.trace_ref;
 
         const response = await request(app)
             .post('/api/external-runner/ingest')
@@ -140,7 +140,7 @@ describe('external runner routes', () => {
             .send(makePayload())
             .expect(201);
 
-        expectRunIdForExternalRun(response.body.run.id, 'eve-route-001');
+        expectRunIdForExternalRun(response.body.run.id, 'cloudflare-route-001');
         expect(repository.getRun(response.body.run.id)).toMatchObject({
             workflow_id: 'wf_marketing_post'
         });
@@ -229,10 +229,10 @@ describe('external runner routes', () => {
         expect(repository.listRuns()).toHaveLength(0);
     });
 
-    it('allows service-token Eve runtime ownership delegation before persistence', async () => {
+    it('allows service-token Cloudflare/computer runtime ownership delegation before persistence', async () => {
         const { app, repository } = createGuardedApp();
         const payload = makePayload();
-        payload.runner.external_run_id = 'eve-route-service-delegation-001';
+        payload.runner.external_run_id = 'cloudflare-route-service-delegation-001';
         payload.run.status = 'approval_required';
         payload.loop_control.owner_id = 'sales-owner';
         payload.loop_control.cost_owner_id = 'finance-owner';
@@ -248,7 +248,7 @@ describe('external runner routes', () => {
             cognitive_type: 'insight',
             body: 'External runner learned a marketing review heuristic.',
             owner_person_id: 'knowledge-owner',
-            actor_person_id: 'eve-runtime',
+            actor_person_id: 'cloudflare-runtime',
             recommended_owner_person_id: 'sales-owner'
         }];
 
@@ -283,7 +283,7 @@ describe('external runner routes', () => {
             expect.objectContaining({
                 candidate_id: 'cand-service-delegated-owner',
                 owner_person_id: 'knowledge-owner',
-                actor_person_id: 'eve-runtime'
+                actor_person_id: 'cloudflare-runtime'
             })
         ]);
         expect(repository.getWorkflow(response.body.workflow.id)).toMatchObject({
@@ -349,7 +349,7 @@ describe('external runner routes', () => {
                 },
                 verifyServiceToken(token) {
                     if (token !== 'bbsvc_valid') throw new Error('invalid service token');
-                    return { sub: 'eve-runtime', role: 'member', projectCodes: ['brainbase'], employmentType: 'internal_service' };
+                    return { sub: 'cloudflare-runtime', role: 'member', projectCodes: ['brainbase'], employmentType: 'internal_service' };
                 }
             };
             app.use(express.json());
@@ -363,15 +363,15 @@ describe('external runner routes', () => {
                 .expect(201);
 
             const servicePayload = makePayload();
-            servicePayload.runner.external_run_id = 'eve-route-service-001';
+            servicePayload.runner.external_run_id = 'cloudflare-route-service-001';
             const serviceResponse = await request(app)
                 .post('/api/external-runner/ingest')
                 .set('Authorization', 'Bearer bbsvc_valid')
                 .send(servicePayload)
                 .expect(201);
 
-            expectRunIdForExternalRun(bearerResponse.body.run.id, 'eve-route-001');
-            expectRunIdForExternalRun(serviceResponse.body.run.id, 'eve-route-service-001');
+            expectRunIdForExternalRun(bearerResponse.body.run.id, 'cloudflare-route-001');
+            expectRunIdForExternalRun(serviceResponse.body.run.id, 'cloudflare-route-service-001');
             expect(repository.getRun(bearerResponse.body.run.id)).toMatchObject({
                 workflow_id: 'wf_marketing_post'
             });

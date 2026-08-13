@@ -150,7 +150,6 @@ export function registerApiRoutes(app, {
     tokenUsageService,
     agentControlCatalogService,
     loopIntentService,
-    eveSessionDispatchService,
     meetingAutomationService,
     automationRunService,
     runReceiptQueryService,
@@ -158,7 +157,6 @@ export function registerApiRoutes(app, {
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
     runReceiptIngestService,
-    eveMeetingNoteReconciler = null,
     uploadMiddleware,
     appVersion,
     workspaceRoot,
@@ -254,8 +252,6 @@ export function registerApiRoutes(app, {
     app.use('/api/workflows', workflowAuthGuard, createWorkflowRouter({
         agentControlCatalogService,
         loopIntentService,
-        eveSessionDispatchService,
-        eveMeetingNoteReconciler,
         meetingAutomationService
     }));
     app.use('/api/workflow-runs', workflowAuthGuard, createWorkflowRunRouter(automationRunService));

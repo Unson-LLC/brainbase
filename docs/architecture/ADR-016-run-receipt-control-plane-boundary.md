@@ -21,7 +21,7 @@ superseded_by: []
 
 ## Context
 
-Brainbase must observe operational runs owned by Mana, Codex Automations, GitHub Actions, and SalesTailor. Existing `external_runner.v0` is a rich Eve/Role Agent contract that owns context snapshots, human steps, outputs, rounds, Judgment DAG trace, and learning candidates. Generic jobs do not all have those concepts.
+Brainbase must observe operational runs owned by Mana, Codex Automations, GitHub Actions, and SalesTailor. Existing `external_runner.v0` is a rich Cloudflare/computer and Role Agent contract that owns context snapshots, human steps, outputs, rounds, Judgment DAG trace, and learning candidates. Generic jobs do not all have those concepts.
 
 Routing every source through Mana would turn Mana into an accidental integration control plane. Copying source logs into Brainbase would create competing log stores and expand the privacy boundary.
 
@@ -29,7 +29,7 @@ Routing every source through Mana would turn Mana into an accidental integration
 
 Brainbase owns the canonical operational receipt contract and Agent Run Inbox. Each source owns its connector, retry/outbox behavior, source API credentials, and raw evidence.
 
-`run_receipt.v1` is a separate, thin contract. It maps into the existing Automation Run/run/audit ledger; it does not create a second run SSOT. `external_runner.v0` remains the rich Eve contract. Both adapters converge only after contract-specific validation.
+`run_receipt.v1` is a separate, thin contract. It maps into the existing Automation Run/run/audit ledger; it does not create a second run SSOT. `external_runner.v0` remains the rich external-runtime contract. Both adapters converge only after contract-specific validation.
 
 Idempotency is scoped by `project_id + source.type + external_run_id`. Brainbase stores normalized status, evidence state, metrics, summaries, and references. It does not store raw logs or customer content.
 
@@ -60,7 +60,7 @@ Graph SSOT is outside the receipt write path. A later, explicit human-reviewed l
 
 ## Rejected Alternatives
 
-- Reuse `external_runner.v0`: rejected because it forces Eve-specific role/round/learning semantics on generic jobs.
+- Reuse `external_runner.v0`: rejected because it forces provider-specific role/round/learning semantics on generic jobs.
 - Create a standalone receipt database: rejected because Automation Run Core already owns operational run facts.
 - Route all receipts through Mana: rejected because it couples independent runtime availability and credentials.
 - Copy raw source logs: rejected because source systems remain evidence authorities.

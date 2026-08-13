@@ -2,7 +2,7 @@
 
 ## Contract
 
-Org Agent Loop Control v0は、Eve接続前提でBrainbase側が持つRole Agent、Workflow選択、Trigger、Loop Eligibilityの最小契約である。
+Org Agent Loop Control v0は、Cloudflare/computer接続前提でBrainbase側が持つRole Agent、Workflow選択、Trigger、Loop Eligibilityの最小契約である。
 
 ## Data Model
 
@@ -22,7 +22,7 @@ Org Agent Loop Control v0は、Eve接続前提でBrainbase側が持つRole Agent
 
 ## Mapping
 
-| Brainbase Field | Eve / WMC Surface |
+| Brainbase Field | Cloudflare/computer / WMC Surface |
 |---|---|
 | `role_agent_instances.id` | `external_runner.v0 run.role_agent_instance_id` |
 | `workflow_templates.id` | `external_runner.v0 run.workflow_template_id` |
@@ -48,13 +48,13 @@ Org Agent Loop Control v0は、Eve接続前提でBrainbase側が持つRole Agent
 - Loop Intentの `project_id` はWorkflow BindingおよびWorkflow Triggerの `project_id` と一致し、指定したTriggerは同じBindingに属さなければならない。
 - Loop Intentは `input_ref`、`input_summary`、`input_payload` を保存でき、`input_payload` は任意の文字列ではなくJSON互換object/arrayまたは `null` として保持する。
 - disabledなBindingまたはTriggerから作るLoop Intentは `eligibility.status=blocked` にする。
-- Eve ingestでRole Agent Instance、Workflow Template、Workflow Binding、Trigger、Loop Intent参照を受け取る場合は `run.org_id` を必須にし、WMCとLearning Candidateへ決定的に伝播する。
-- Eve ingestでRole Agent Instance、Workflow Template、Workflow Binding、Trigger、Loop Intent参照を受け取る場合、Brainbase側の既存台帳に存在し、`org_id` / `project_id` / parent lineageが一致しなければならない。
-- Eve ingestでLoop Control参照付きpayloadが既存 `workflow_id` を指定する場合、既存Workflowの `org_id` / `project_id` は `run.org_id` / `run.project_id` と一致しなければならず、orgなしWorkflowをorg付きLoop Control runへ再利用してはならない。
-- Eve ingest中にWMC run/context/output/audit保存の途中で失敗した場合、Workflow Mission Controlの部分保存をrollbackし、後続retryをsilent duplicateにしない。
-- Eve ingestのduplicate replayは保存済みのrun/context/human/output/audit/Learning Candidateと再送payloadの安定フィールドが一致する場合だけduplicateとして扱い、内容差分がある再送は保存前に拒否する。
+- Cloudflare/computer ingestでRole Agent Instance、Workflow Template、Workflow Binding、Trigger、Loop Intent参照を受け取る場合は `run.org_id` を必須にし、WMCとLearning Candidateへ決定的に伝播する。
+- Cloudflare/computer ingestでRole Agent Instance、Workflow Template、Workflow Binding、Trigger、Loop Intent参照を受け取る場合、Brainbase側の既存台帳に存在し、`org_id` / `project_id` / parent lineageが一致しなければならない。
+- Cloudflare/computer ingestでLoop Control参照付きpayloadが既存 `workflow_id` を指定する場合、既存Workflowの `org_id` / `project_id` は `run.org_id` / `run.project_id` と一致しなければならず、orgなしWorkflowをorg付きLoop Control runへ再利用してはならない。
+- Cloudflare/computer ingest中にWMC run/context/output/audit保存の途中で失敗した場合、Workflow Mission Controlの部分保存をrollbackし、後続retryをsilent duplicateにしない。
+- Cloudflare/computer ingestのduplicate replayは保存済みのrun/context/human/output/audit/Learning Candidateと再送payloadの安定フィールドが一致する場合だけduplicateとして扱い、内容差分がある再送は保存前に拒否する。
 - Learning Candidateの外部Candidate Store書き込みに失敗した場合、WMC runをrollbackせず、`external_runner.learning_candidate.deferred` auditと `persistence_status=deferred` を証跡として残す。
-- Eve `run.status=cancelled` はWMC `status=cancelled`、`closure_state=closed`、`action_required=none` に正規化し、承認待ちや再試行待ちとして扱わない。
+- Cloudflare/computer `run.status=cancelled` はWMC `status=cancelled`、`closure_state=closed`、`action_required=none` に正規化し、承認待ちや再試行待ちとして扱わない。
 
 ## Scenario Clauses
 
@@ -62,16 +62,16 @@ Org Agent Loop Control v0は、Eve接続前提でBrainbase側が持つRole Agent
 - S-002: `workflow state transition` `human`、`event`、`schedule` triggerを同じBindingに紐付け、入力payloadを保持したまま同じEligibility構造へ遷移できる。
 - S-003: `workflow state transition` `autonomy_level=approval_required` のLoop Intentは `eligibility.status=needs_approval` として保存される。
 - S-004: `workflow state transition` disabled Bindingまたはdisabled Triggerから作るLoop Intentは `eligibility.status=blocked` として保存され、Agent Loop Control UIでenabled/disabled状態を確認・設定できる。
-- S-005: `workflow state transition` `autonomy_level=human_only` のLoop Intentは `eligibility.status=human_only` として判断記録だけを保存し、Eve実行へ進めない。
-- S-006: `workflow state transition` Eve payloadの `org_id` とLoop Control参照はRun TraceとLearning Candidateへ伝播される。
+- S-005: `workflow state transition` `autonomy_level=human_only` のLoop Intentは `eligibility.status=human_only` として判断記録だけを保存し、Cloudflare/computer実行へ進めない。
+- S-006: `workflow state transition` Cloudflare/computer payloadの `org_id` とLoop Control参照はRun TraceとLearning Candidateへ伝播される。
 - S-007: `workflow retry matrix` `human`、`event`、`schedule` triggerは同じBindingから個別Loop Intentとして再生できる。
 - S-008: `control namespace isolation` Role Agent / Workflow Template / Binding / Trigger / Loop Intentの管理APIは`/api/workflows/control/...`を正とする。legacy GET aliasはControl応答だけを返し、廃止済みの汎用Workflow detailへfallbackしない。
 - S-009: `workflow rollback guard` org不一致のRole Agent / Workflow Binding / Trigger / Loop Intent / 既存Workflow再利用は保存前に拒否される。
-- S-010: `schema_failure` Loop Control参照付きで `run.org_id` が空または欠落したEve payload、不正な `trigger_type`、不正な `autonomy_level` は保存前に拒否される。
+- S-010: `schema_failure` Loop Control参照付きで `run.org_id` が空または欠落したCloudflare/computer payload、不正な `trigger_type`、不正な `autonomy_level` は保存前に拒否される。
 - S-011: `auth_denied` 未認証の外部runner ingestはWorkflow Mission Controlへ入らない。
-- S-012: `workflow state transition` Eve `run.status=cancelled` はWMC `status=cancelled`、`closure_state=closed`、`action_required=none` として保存され、承認待ちや再試行待ちには入らない。
+- S-012: `workflow state transition` Cloudflare/computer `run.status=cancelled` はWMC `status=cancelled`、`closure_state=closed`、`action_required=none` として保存され、承認待ちや再試行待ちには入らない。
 - S-013: `parse_failure` malformed JSONまたは非object external runner payloadはparser/contract境界で拒否され、WMC run/context/output/auditへ保存されない。
-- S-014: `retry_or_async_failure` 同じEve external runの同一内容再送はduplicateとして同じWMC runを返し、内容差分のある再送は `duplicate_payload_mismatch` として拒否する。
+- S-014: `retry_or_async_failure` 同じCloudflare/computer external runの同一内容再送はduplicateとして同じWMC runを返し、内容差分のある再送は `duplicate_payload_mismatch` として拒否する。
 - S-015: `persistence_failure` WMC run/context/output/auditは部分保存を許容せず、Learning Candidateは保存済みまたはdeferred audit evidence付きで可視化される。
 
 ## Design Diagrams
@@ -86,11 +86,11 @@ flowchart LR;
   trigger --> eligibility["Loop Eligibility Gate"];
   eligibility --> intent["Loop Intent"];
   intent --> wmc["Workflow Mission Control"];
-  wmc --> adapter["Eve Runtime Adapter<br/>external_runner.v0"];
-  adapter --> eve["Eve Agent Runtime"];
-  eve --> tools["Tools / Channels / Schedules / Sandbox"];
-  tools --> eve;
-  eve --> adapter;
+  wmc --> adapter["Cloudflare/computer Runtime Adapter<br/>external_runner.v0"];
+  adapter --> cloudflare_computer["Cloudflare/computer Agent Runtime"];
+  cloudflare_computer --> tools["Tools / Channels / Schedules / Sandbox"];
+  tools --> cloudflare_computer;
+  cloudflare_computer --> adapter;
   adapter --> wmc;
   wmc --> kg["Candidate Store / Personal KG"];
   wmc --> graph["Graph SSOT refs<br/>org / project / person / decision"];
@@ -131,7 +131,7 @@ stateDiagram-v2
 | Trigger | `POST /api/workflows/control/triggers` | `workflow_triggers` | `tests/server/services/workflow-org-agent-control.test.js` |
 | Loop Eligibility | `POST /api/workflows/control/loop-intents` | `loop_intents.input_payload` + `loop_intents.eligibility` | `tests/e2e/story-org-agent-loop-control-v0-contract.spec.ts` |
 | Agent Loop Control UI | `/workflows.html` Agent Loop Control | Binding / Trigger enabled state and Loop Intent creation form | `tests/e2e/story-org-agent-loop-control-v0-contract.spec.ts` |
-| Eve ingest | `POST /api/external-runner/ingest` | WMC run/context/output/audit + Learning Candidate stored/deferred evidence | `tests/server/services/external-runner-ingest-service.test.js` |
+| Cloudflare/computer ingest | `POST /api/external-runner/ingest` | WMC run/context/output/audit + Learning Candidate stored/deferred evidence | `tests/server/services/external-runner-ingest-service.test.js` |
 | UI trace | `/workflows.html` Run Trace | Decision Context display | `tests/e2e/story-org-agent-loop-control-v0-contract.spec.ts` |
 
 ## Workflow Replay Matrix
@@ -142,14 +142,14 @@ stateDiagram-v2
 | Event request | `trigger_type=event` + `input_payload` | Loop Intent uses the same binding eligibility as human and stores event input payload |
 | Schedule request | `trigger_type=schedule` + `input_payload` | Loop Intent uses the same binding eligibility as human and stores schedule input payload |
 | Approval-required binding | `autonomy_level=approval_required` | `eligibility.status=needs_approval` |
-| Human-only binding | `autonomy_level=human_only` | `eligibility.status=human_only`; Loop Intent is retained as a decision record and does not advance to Eve |
+| Human-only binding | `autonomy_level=human_only` | `eligibility.status=human_only`; Loop Intent is retained as a decision record and does not advance to Cloudflare/computer |
 | Disabled binding | `enabled=false` | `eligibility.status=blocked` |
 | Disabled trigger | `enabled=false` | `eligibility.status=blocked` |
-| Eve return | `external_runner.v0 run.org_id` | WMC and Learning Candidate include org and loop refs |
-| Eve cancelled | `external_runner.v0 run.status=cancelled` | WMC run is `status=cancelled`, `closure_state=closed`, `action_required=none` |
+| Cloudflare/computer return | `external_runner.v0 run.org_id` | WMC and Learning Candidate include org and loop refs |
+| Cloudflare/computer cancelled | `external_runner.v0 run.status=cancelled` | WMC run is `status=cancelled`, `closure_state=closed`, `action_required=none` |
 | Malformed runner request | malformed JSON / non-object payload | Parser/contract rejects before WMC persistence |
-| Eve retry / async resend | same `runner.external_run_id` and org/project with same normalized payload | Duplicate response returns the same WMC run without double persistence |
-| Eve retry / async conflict | same `runner.external_run_id` and org/project with changed normalized payload | Reject with `duplicate_payload_mismatch` before suppressing changed evidence |
+| Cloudflare/computer retry / async resend | same `runner.external_run_id` and org/project with same normalized payload | Duplicate response returns the same WMC run without double persistence |
+| Cloudflare/computer retry / async conflict | same `runner.external_run_id` and org/project with changed normalized payload | Reject with `duplicate_payload_mismatch` before suppressing changed evidence |
 | Partial storage failure | missing WMC run/context/output/audit or silent Learning Candidate failure | Treated as `persistence_failure`; Candidate Store write failure must be visible deferred audit evidence |
 
 ## Verification

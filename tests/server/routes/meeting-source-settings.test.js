@@ -453,12 +453,12 @@ describe('meeting source settings routes', () => {
                 project_id: 'brainbase',
                 source_event: expect.objectContaining({ source_system: 'tactiq' }),
                 meeting_note_summary: expect.any(Object),
-                // Candidates are Eve(LLM)-generated post-ingest; the ingest payload
-                // carries empty awaiting-Eve placeholders, not deterministic splits.
+                // Candidates are external runtime-generated post-ingest; the ingest payload
+                // carries empty awaiting-external-runtime placeholders, not deterministic splits.
                 task_candidates: [],
                 decision_candidates: [],
                 follow_up_draft: expect.objectContaining({
-                    status: 'awaiting_eve_generation',
+                    status: 'awaiting_external_runtime',
                     external_send_required_approval: true,
                     body: ''
                 }),

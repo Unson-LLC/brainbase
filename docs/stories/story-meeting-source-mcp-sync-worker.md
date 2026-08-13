@@ -26,7 +26,7 @@ Mac Companionには、Tactiq/Plaud MCP接続を設定・確認・再同期でき
 - INV-mcp-sync-006: 同期workerはprovider由来のproject/person hintをReview Packageへ渡すが、People SSOTの正本更新やtask owner確定は行わない。owner解決は既存のBrainbase People SSOT境界で行い、未解決や曖昧さは例外分岐として保持する。
 - INV-mcp-sync-007: Mac CompanionのMCP設定UIはsecret値を再表示しない。保存後は接続状態とmetadataだけを表示する。
 - INV-mcp-sync-008: MCP設定UIの手動再同期はdry-run previewを経由し、意図せず大量replayしない。
-- INV-mcp-sync-009: Mac Companionのgraceful shutdownは同期workerのschedule timerを停止し、既存のsession runtime cleanupとは独立して後続プロセスを残さない。
+- INV-mcp-sync-009: Mac Companionのgraceful shutdownは同期workerのschedule timerを停止し、後続プロセスを残さない。
 
 ## Source Routing Policy
 
@@ -70,7 +70,7 @@ flowchart TD
 - S-010 workflow state transition: provider cursors advance only after artifact normalization and enqueue/ingest result are persisted.
 - S-011 workflow state transition: UI-triggered resync uses dry-run preview first, then explicit confirmation with bounded date/source filters.
 - S-012 workflow state transition: provider auth errors and rate limits are surfaced in the settings UI and do not become empty sync results.
-- S-013 workflow state transition: graceful shutdown stops the Meeting Source MCP scheduled worker before session runtime cleanup completes.
+- S-013 workflow state transition: graceful shutdown stops the Meeting Source MCP scheduled worker before runtime shutdown completes.
 
 ## MCP Settings UI
 
@@ -133,7 +133,7 @@ When both providers contain the same conversation, non-primary sources are attac
 - AC-010: Settings UI supports bounded manual resync with dry-run preview before replay.
 - AC-011: Secret values are not rendered after save and are read only through the secure credential boundary.
 - AC-012: Cursor advancement is idempotent and happens only after normalization and enqueue/ingest persistence.
-- AC-013: Graceful shutdown invokes Meeting Source MCP scheduled worker cleanup without changing existing session runtime cleanup semantics.
+- AC-013: Graceful shutdown invokes Meeting Source MCP scheduled worker cleanup before the remaining runtime services stop.
 
 ## Verification
 

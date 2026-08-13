@@ -2,7 +2,7 @@
 
 ## Direction
 
-Meeting Workflow Pack v1 turns the v0 UI projection into Workflow Control data. Brainbase remains the control plane. Mana and Eve remain execution surfaces.
+Meeting Workflow Pack v1 turns the v0 UI projection into Workflow Control data. Brainbase remains the control plane. Mana and Cloudflare/computer remain execution surfaces.
 
 ```mermaid
 flowchart LR;
@@ -57,7 +57,7 @@ Output:
 
 ## Job Infrastructure
 
-This Story defines job control records, not a scheduler process. Time, event, and human triggers are persisted as `workflow_triggers` so Eve or Mana can later bind scheduler/event-channel infrastructure to the same Brainbase records.
+This Story defines job control records, not a scheduler process. Time, event, and human triggers are persisted as `workflow_triggers` so Cloudflare/computer or Mana can later bind scheduler/event-channel infrastructure to the same Brainbase records.
 
 - Schedule trigger definitions are stored but not fired by bootstrap.
 - Event trigger definitions are stored but no webhook or message consumer is started.
@@ -94,4 +94,4 @@ The Meeting Workflow Pack panel reads existing Workflow Control data:
 
 ## Boundaries
 
-This Story does not implement Eve execution, Mana event ingestion, Workflow Run creation, Graph SSOT write-back, Task Store writes, or external sending.
+This Story does not implement Cloudflare/computer execution, Mana event ingestion, Workflow Run creation, Graph SSOT write-back, Task Store writes, or external sending.

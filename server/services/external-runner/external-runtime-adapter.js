@@ -51,7 +51,7 @@ function firstNonBlank(...values) {
     return '';
 }
 
-export class EveRuntimeAdapter {
+export class ExternalRuntimeAdapter {
     normalize(payload) {
         const envelope = validateExternalRunnerEnvelope(payload);
         const workspaceId = envelope.run.workspace_id || 'default';
@@ -210,7 +210,7 @@ export class EveRuntimeAdapter {
                     org_id: orgId,
                     runner_type: envelope.runner.type,
                     external_run_id: envelope.runner.external_run_id,
-                    eve_trace_ref: envelope.runner.eve?.trace_ref || null,
+                    trace_ref: envelope.runner.trace_ref || null,
                     role_agent_instance_id: roleAgentInstanceId,
                     workflow_template_id: workflowTemplateId,
                     workflow_binding_id: workflowBindingId,

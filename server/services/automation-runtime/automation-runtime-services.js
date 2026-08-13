@@ -13,7 +13,6 @@ import {
     AutomationRuntimeDefaultsService,
     createBrainbaseAliveWorkflow
 } from './automation-runtime-defaults-service.js';
-import { EveSessionDispatchService } from './eve-session-dispatch-service.js';
 import { LoopIntentService } from './loop-intent-service.js';
 
 function assertActorCanResolveHumanStep(step, actor = {}) {
@@ -30,7 +29,6 @@ export function createAutomationRuntimeServices({
     runner,
     configParser = null,
     googleCalendarService = null,
-    eveSessionClient = null,
     infoSSOTService = null,
     canonicalTaskService = null,
     meetingTaskOwnerResolver = null,
@@ -39,12 +37,10 @@ export function createAutomationRuntimeServices({
     const accessPolicy = projectAccessPolicy || new ProjectAccessPolicy({ configParser });
     const controlRuntime = new AutomationControlRuntime({
         repository,
-        eveSessionClient,
         projectAccessPolicy: accessPolicy
     });
     const agentControlCatalogService = new AgentControlCatalogService({ runtime: controlRuntime });
     const loopIntentService = new LoopIntentService({ runtime: controlRuntime });
-    const eveSessionDispatchService = new EveSessionDispatchService({ runtime: controlRuntime });
     const ownerResolver = meetingTaskOwnerResolver || new MeetingTaskOwnerResolver({ infoSSOTService });
     const runReceiptQueryService = new RunReceiptQueryService({
         repository,
@@ -55,12 +51,10 @@ export function createAutomationRuntimeServices({
     const meetingAutomationService = new MeetingAutomationService({
         repository,
         googleCalendarService,
-        eveSessionClient,
         infoSSOTService,
         projectAccessPolicy: accessPolicy,
         createLoopIntent: (input, actor) => loopIntentService.create(input, actor),
-        meetingTaskOwnerResolver: ownerResolver,
-        dispatchLoopIntentToEve: (loopIntentId, input, actor) => eveSessionDispatchService.dispatch(loopIntentId, input, actor)
+        meetingTaskOwnerResolver: ownerResolver
     });
     const automationRuntimeDefaultsService = new AutomationRuntimeDefaultsService({
         repository,
@@ -84,7 +78,6 @@ export function createAutomationRuntimeServices({
     return {
         agentControlCatalogService,
         loopIntentService,
-        eveSessionDispatchService,
         meetingAutomationService,
         automationRunService,
         runReceiptQueryService,

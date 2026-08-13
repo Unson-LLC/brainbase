@@ -1,7 +1,7 @@
 // @ts-check
 
 const CONTRACT_VERSION = 'external_runner.v0';
-const ALLOWED_RUNNER_TYPES = new Set(['eve', 'agent_report']);
+const ALLOWED_RUNNER_TYPES = new Set(['cloudflare_computer', 'agent_report']);
 const ALLOWED_RUN_STATUSES = new Set(['completed', 'approval_required', 'waiting_human', 'blocked', 'cancelled', 'failed']);
 const ALLOWED_RUN_TRIGGER_TYPES = new Set(['human', 'event', 'schedule', 'external_runner']);
 const ALLOWED_AUTONOMY_LEVELS = new Set(['human_only', 'draft_only', 'approval_required', 'auto_execute']);
@@ -221,12 +221,11 @@ export function validateExternalRunnerEnvelope(payload) {
     }
     requireString(runner.external_run_id, 'runner.external_run_id');
     requireString(runner.agent_id, 'runner.agent_id');
-    if (runnerType === 'eve') {
-        const eve = requireObject(runner.eve, 'runner.eve');
-        requireString(eve.trace_ref, 'runner.eve.trace_ref');
+    if (runnerType === 'cloudflare_computer') {
+        requireString(runner.trace_ref, 'runner.trace_ref');
     }
     // agent_report runners are CLI-submitted markdown reports (bb-report-submit).
-    // They do not have an eve trace, so runner.eve.trace_ref is not required.
+    // They do not have a hosted-runtime trace, so runner.trace_ref is not required.
 
     const run = requireObject(envelope.run, 'run');
     requireString(run.project_id, 'run.project_id');

@@ -157,9 +157,9 @@ OSレベルの割り込み・break-glass・強い認証での高リスク承認�
                      │ LoopIntent dispatch        ↑ external_runner.v0 ingest
         ┌────────────┴────────────┐               │（両ランナーがここへ報告）
         ▼                         ▼               │
-  Eve（Vercel）            OpenRyoko（Lightsail）──┘
-  マネージドagent実行基盤    Slack gateway + Triage + PTYエンジン
-  durable session/tool実行  会話・人格・チャネル層
+  Cloudflare/computer runtime       OpenRyoko（Lightsail）──┘
+  browser/computer/tool実行          Slack gateway + Triage + PTYエンジン
+  外部runtime状態を所有               会話・人格・チャネル層
 ```
 
 ノードの行動は3モードに分かれ、モードごとに担当ランナーと台帳の扱いが決まる:
@@ -168,7 +168,7 @@ OSレベルの割り込み・break-glass・強い認証での高リスク承認�
 |---|---|---|---|
 | **会話** | 話しかけへの応答、Triage発の自発コメント・リアクション | **OpenRyoko**（gateway内で即時。dispatchの往復なし） | 意味のある判断のみDecision Events。全発言のReceipt化はしない |
 | **反射** | heartbeat起床、Canvas描画、ヘルスチェック、セッションGC | 各ランナーのインフラ機構 | 載せない（ヘルスログ程度） |
-| **業務ループ** | learn daily、リマインド、議事録→Graph反映、mana M系等の登録された仕事 | **原則Eve**（schedule/LoopIntent→dispatch）。一部Ryokoエンジン | Run Receipt必須、Decision Events発行、スケジュール定義の正本はagent-control-catalog |
+| **業務ループ** | learn daily、リマインド、議事録→Graph反映、mana M系等の登録された仕事 | **原則Cloudflare/computer**（schedule/LoopIntent→dispatch）。一部Ryokoエンジン | Run Receipt必須、Decision Events発行、スケジュール定義の正本はagent-control-catalog |
 
 **ガバナンスは起動経路ではなく行為の効果に付く（入口で縛らず出口で縛る）**:
 
@@ -188,13 +188,13 @@ OSレベルの割り込み・break-glass・強い認証での高リスク承認�
 
 **ランナー間の振り分け判定軸**（業務ループをどちらで回すか）:
 
-1. **経済性**: Eve=API従量系 / RyokoのPTY=サブスク定額。大量・長時間ループはコスト構造で選ぶ
+1. **経済性**: Cloudflare/computerとRyokoの実測コストを比較し、大量・長時間ループはコスト構造で選ぶ
 2. **接地性**: Slackスレッド文脈・Lightsailローカル状態に濃く触る仕事はRyoko。
-   headlessでAPI越しに完結する仕事（議事録reconcile等）はEve
-3. **信頼性**: 落ちてはいけない定期業務はマネージドなEve。Ryokoは自前運用で障害対応は自分持ち
+   headlessでAPI越しに完結する仕事（議事録reconcile等）はCloudflare/computer
+3. **信頼性**: 落ちてはいけない定期業務は、実行証跡と再試行を持つCloudflare/computer。Ryokoは自前運用で障害対応は自分持ち
 
 境界ケース:「会話から派生した重い仕事」（「調べときます」の裏作業）は、RyokoがLoopIntentを
-起票してEveへ投げるのが基本形。Ryoko自身のエンジンで捌く場合も第2のexternal runnerとして
+起票してCloudflare/computerへ投げるのが基本形。Ryoko自身のエンジンで捌く場合も第2のexternal runnerとして
 Receiptを返す義務を負う。
 
 ### 3.8 見える化アーキテクチャ（投影の一本道）
@@ -208,7 +208,7 @@ Receiptを返す義務を負う。
    から描画する。Ryoko素のCanvas同期（自セッション状態の描画）はデータソースを
    Brainbase投影API（読み取り専用・決定論集約）に付け替える。
    「見える物＝監査される物」を一致させ、何面増やしても真実は1つのまま
-2. **Slackへの書き手はRyoko1人**: EveはSlackに直接書かない。Eveの仕事ぶりは
+2. **Slackへの書き手はRyoko1人**: Cloudflare/computerはSlackに直接書かない。Cloudflare/computerの仕事ぶりは
    台帳→投影API→Ryoko経由でのみSlackに現れる。人格の一意性・ノイズ制御・レート制御を守る
 
 **4つの面**:
@@ -224,7 +224,7 @@ Receiptを返す義務を負う。
 
 - **会話はCanvasに載せない**。会話はチャンネルにそのまま見えている（自己見える化）。
   Canvasの役割は「チャンネルから見えない裏の稼働を窓にする」こと
-- 実行者（Eve/Ryoko）表記は添え書きの脇役。メンバーに重要なのは「何が動いているか」であって
+- 実行者（Cloudflare/computer/Ryoko）表記は添え書きの脇役。メンバーに重要なのは「何が動いているか」であって
   ランナーではない
 - **不実行の見える化が最重要**。過去の障害はすべて「沈黙する失敗」（SNS poller stale、
   トンネル断のlearn daily停止）。Receiptの `blocked/unconfirmed/no_data` 区別を使い、
@@ -237,7 +237,7 @@ Receiptを返す義務を負う。
 
 1. Brainbaseに投影API（台帳→チャンネル別集約、読み取り専用・決定論）を追加
 2. Ryoko forkのCanvas同期のデータソースを投影APIへ差し替え（Slack配管は流用）
-3. Eve dispatchの各Workflow Runに `channel_binding` を必須メタデータとして持たせる（§3.9）
+3. Cloudflare/computer dispatchの各Workflow Runに `channel_binding` を必須メタデータとして持たせる（§3.9）
 4. スレッド発タスクは `thread_ref` を保持し、完了Receiptのingestをトリガに完了投稿
 
 ### 3.9 Canvas binding規則（どのCanvasに書くか）
@@ -318,7 +318,7 @@ Receiptを返す義務を負う。
 - Agent-first分業: `docs/architecture/ADR-017-agent-first-product-surface.md`
 - 4層脳モデル: `docs/architecture/ADR-006-brain-model-4-layer.md`
 - 自律度・実行委譲境界: `docs/architecture/org-agent-loop-control-architecture.md`
-- Eve接続（Vercel）: `docs/architecture/eve-runtime-session-connection-architecture.md`
+- Cloudflare/computer接続: `docs/architecture/external-runner-adapter-contract-architecture.md`
 - 判断委任KPI: `docs/architecture/decision-events-kpi-architecture.md`
 - 脱属人化・自律運転への収束: `docs/frames/mesh-ai-driven-management.md`
 - UnsonOS構想群: `docs/internal/unson-os-*.md`
@@ -336,7 +336,7 @@ Receiptを返す義務を負う。
 
 - **ノード**: 顔/体/脳/脳幹からなるAI社員の1単位。全フェーズで同型
 - **ランナー**: `external_runner.v0` 契約で台帳に実行結果を返す実行体。現状2体
-  — **Eve**（Vercelのマネージドエージェント基盤。業務ループのdurable実行）と
+  — **Cloudflare/computer**（業務ループのbrowser/computer/tool実行runtime）と
   **OpenRyoko**（Lightsail常駐のJinn fork。会話・人格・チャネル層+PTYエンジン）
 - **投影**: 台帳を正本として見える化面（Canvas/スレッド/日報/Companion）へ描画すること。
   面を増やしても真実は1つ

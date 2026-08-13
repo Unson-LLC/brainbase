@@ -25,7 +25,7 @@ Meeting Workflow Pack Data v1 adds a deterministic bootstrap path that writes me
 - S-005: Given the meeting workflow UI starts in missing state, when bootstrap succeeds after `records_persisted`, then the workflow state transition refreshes to `data_connected`.
 - S-006: State transition `missing -> bootstrap_requested -> records_persisted -> data_connected` is replayed by the UI test.
 - S-007: Given `persistence_failure` while writing `workflow_triggers`, when bootstrap is requested, then the workflow rollback transition removes Role Agent, templates, bindings, triggers, Loop Intents, and audit logs.
-- S-008: Given bootstrap is requested, when the meeting workflow pack is built, then the workflow process invokes no Eve, Mana, LLM, mail, Slack, CRM, or Workflow Runner provider.
+- S-008: Given bootstrap is requested, when the meeting workflow pack is built, then the workflow process invokes no Cloudflare/computer, Mana, LLM, mail, Slack, CRM, or Workflow Runner provider.
 - S-009: A repeated bootstrap for the same org/project updates the same records and does not duplicate templates, bindings, triggers, or Loop Intents.
 - S-010: Existing individual Workflow Control POST and GET paths still work.
 
@@ -33,7 +33,7 @@ Meeting Workflow Pack Data v1 adds a deterministic bootstrap path that writes me
 
 - FM-001 `auth_denied`: project access denial must stop bootstrap before writes.
 - FM-002 `persistence_failure`: repository failure during the transaction must roll back partial records and audit logs.
-- FM-003 `provider_failure`: not applicable to bootstrap execution because this story does not call Eve, Mana, LLM, mail, Slack, CRM, or Workflow Runner providers; executable tests assert provider handlers are not invoked.
+- FM-003 `provider_failure`: not applicable to bootstrap execution because this story does not call Cloudflare/computer, Mana, LLM, mail, Slack, CRM, or Workflow Runner providers; executable tests assert provider handlers are not invoked.
 
 ## Anti-patterns
 

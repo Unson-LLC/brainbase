@@ -20,7 +20,7 @@ updated_at: 2026-07-18
 MeetingSourceMcpSyncService
   -> MeetingAutomationService.bootstrapPack (direct injection)
   -> MeetingAutomationService.ingestReviewPackage
-  -> Eve session dispatch / reconciler
+  -> external-runtime handoff / write-back
   -> WorkflowRepository
 
 Meeting Automation routes
@@ -38,7 +38,7 @@ MeetingAutomationService.ingestReviewPackage
   -> meeting-review-contract (output / human gate / loop intent contract)
   -> MeetingReviewLedgerService (idempotency / run / output / human step / audit)
   -> MeetingAutomationService.dispatchNoteGeneration
-  -> Eve session dispatch / WorkflowRepository audit
+  -> external-runtime handoff / WorkflowRepository audit
 
 RunReceiptIngestService
   -> WorkflowRepository
@@ -54,13 +54,13 @@ Automation Run routes
   -> ProjectAccessPolicy / human-step access callback
 
 server/routes/workflows.js
-  -> AgentControlCatalogService / LoopIntentService / EveSessionDispatchService
+  -> AgentControlCatalogService / LoopIntentService / MeetingAutomationService handoff
   -> /control/*: Meeting Automation / automation-control compatibility
   -> /api/workflow-runs/*: Automation Run detail / retry / human resolve compatibility
   -> generic list/create/detail/update/draft/draft-test/manual-run: retired (404)
 ```
 
-Run Receipt、Meeting Automation、Automation Run、Companion approval、Agent control、Loop Intent、Eve dispatchのproduction callerはすべて専用serviceへ直接接続した。旧`WorkflowService`と`AgentLoopControlService`のproduction callerは0件で、実装fileも削除済みである。`workflow` prefixを持つrouteとledger schemaはrollback互換のため残すが、製品面や汎用serviceを意味しない。
+Run Receipt、Meeting Automation、Automation Run、Companion approval、Agent control、Loop Intent、external-runtime handoffのproduction callerはすべて専用serviceへ直接接続した。旧`WorkflowService`と`AgentLoopControlService`のproduction callerは0件で、実装fileも削除済みである。`workflow` prefixを持つrouteとledger schemaはrollback互換のため残すが、製品面や汎用serviceを意味しない。
 
 ## Target components
 
@@ -74,7 +74,6 @@ Run Receipt、Meeting Automation、Automation Run、Companion approval、Agent c
 | `RunReceiptIngestService` / `RunReceiptQueryService` | ingest、latest collapse、filter、history、diagnosis | MCP + service ingest API |
 | `AgentControlCatalogService` | role agent、template、binding、triggerのcatalog操作 | compatibility API + internal |
 | `LoopIntentService` | Loop Intentの作成、eligibility、一覧 | compatibility API + internal |
-| `EveSessionDispatchService` | scope-safe、idempotentなEve session dispatch | domain API + internal |
 | `CompanionApprovalInboxService` | human interventionが必要なRunのread projection | Mac Companion API |
 | `AutomationRuntimeDefaultsService` | 必須default automationの明示的seed | internal only |
 | `ExecutionLedgerRepository` | transaction、idempotency、run/output/audit persistence | internal only |
@@ -89,7 +88,7 @@ Run Receipt、Meeting Automation、Automation Run、Companion approval、Agent c
 
 この手順は完了した。旧service名を残すadapterはなく、互換性はroute pathとledger schemaだけで維持している。
 
-最初の分割sliceでは`RunReceiptQueryService`を追加し、read routeへ直接注入して旧3 methodを`WorkflowService`から削除した。次のsliceでは`MeetingAutomationService`を追加し、Pack設計レビュー、bootstrap、Calendar入力の旧3 methodを薄いadapterに縮退した。その後、Meeting Automation routeへ専用serviceを直接注入し、HTTP経路を旧adapterから切り離した。Meeting Source sync workerも同Serviceへ直接注入し、Review Package ingestの旧adapterを削除した。続くsliceでReview Package取り込み後のEve note生成handoffと監査も同Serviceへ移した。さらにReview Packageのoutput/human gate定義とloop intent整合性検証を`meeting-review-contract`と`MeetingAutomationService.verifyReviewPackage`へ移し、Workflow側からMeeting固有contractを除去した。scopeとcontract validation、Graph SSOT context/playbookは`MeetingReviewContextResolver`へ移した。People SSOTによるtask owner候補解決は`MeetingTaskOwnerResolver`へ分離し、Core compositionから`MeetingAutomationService`へ注入する。これにより人物照合の生成・実装・公開methodは`WorkflowService`から外れた。project設定の読込、選択可能性、org参照、actor accessは`ProjectAccessPolicy`へ分離し、Core compositionで一度生成してMeeting Automation、Run Receipt、Automation Run、残存する内部Agent Loopへ共有する。これにより認可規則を複製せず、旧project access methodとcache ownershipを`WorkflowService`から除去した。scope解決とGraph lookupを二段階に分け、既存のidempotent replayがGraphを再取得しない順序も維持している。Review Packageの二重取り込み防止、run/output/human-step/context snapshot/audit永続化は`MeetingReviewLedgerService`へ移し、Graph lookup後のtransaction内recheckも維持した。Automation Runの手動実行guard、retry、run詳細、human approval/rejection/cancel/resume状態遷移は`AutomationRunService`へ移した。汎用manual-run HTTP route廃止後にproduction callerが0件となった`WorkflowService.runWorkflow` adapterを削除し、続いてrun detail/retry/human resolve routeへ`AutomationRunService`を直接注入した。これにより実行系4 methodはすべて`WorkflowService`から外れた。汎用Workflow製品のproduction callerが0件であることを確認し、list/create/detail/update/draft/draft-test route、対応する`WorkflowService` method、draft generatorを削除した。いずれもrepositoryとproject access policyはconstructor injectionし、新旧経路が同じ認可と永続化を使うため、caller単位で段階移行できる。Meeting review packageのnote/candidate write-backも`MeetingAutomationService`と`MeetingReviewLedgerService`へ移し、`EveMeetingNoteReconciler`から`WorkflowService`依存を除去した。候補の検証、決定論的正規化、source hash照合、SSOT owner解決、human approval gateは維持している。
+最初の分割sliceでは`RunReceiptQueryService`を追加し、read routeへ直接注入して旧3 methodを`WorkflowService`から削除した。次のsliceでは`MeetingAutomationService`を追加し、Pack設計レビュー、bootstrap、Calendar入力の旧3 methodを薄いadapterに縮退した。その後、Meeting Automation routeへ専用serviceを直接注入し、HTTP経路を旧adapterから切り離した。Meeting Source sync workerも同Serviceへ直接注入し、Review Package ingestの旧adapterを削除した。Review Package取り込み後のnote生成は、Brainbase内でruntime sessionを起動・監視する方式を廃止し、`MeetingAutomationService`がCloudflare/computer向けhandoffを返し、外部runtimeが結果を書き戻す境界へ移した。候補の検証、決定論的正規化、source hash照合、SSOT owner解決、human approval gateは維持している。
 
 ## Public contract rule
 

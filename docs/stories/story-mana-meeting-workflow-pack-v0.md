@@ -45,7 +45,7 @@ Trigger
   -> Workflow Definition選択
   -> Loop Eligibility
   -> Context Snapshot
-  -> Eveまたはrunner実行
+  -> Cloudflare/computerまたはrunner実行
   -> Workflow Mission Control run
   -> Human Gate
   -> Task / Decision / Meeting Note / Message Draft / Learning Candidate
@@ -89,10 +89,10 @@ BrainbaseがControl Planeを持つ。
 - Workflow Mission Controlのrun、output、audit。
 - Graph SSOT、task、Decision、candidate-storeへのwrite-back mapping。
 
-ManaとEveは実行面である。
+ManaとCloudflare/computerは実行面である。
 
 - Manaはmeeting event、transcript、Slack/channel context、人間向け会議操作を提供する。
-- Eveまたは他runnerはWorkflow stepを実行してよい。
+- Cloudflare/computerまたは他runnerはWorkflow stepを実行してよい。
 - runner outputは、Brainbaseが検証・記録するまで正本ではない。
 
 ## Trigger Scenarios
@@ -157,7 +157,7 @@ Then Brainbaseは `trigger_type=human`、選択されたWorkflow Definition、in
 ## Non-goals
 
 - このStoryではManaの人格やSlack UXを再設計しない。
-- 後続taskで明示されない限り、このStoryではEve実行を実装しない。
+- 後続taskで明示されない限り、このStoryではCloudflare/computer実行を実装しない。
 - 既存正本と競合する新しいmeeting databaseを作らない。
 - すべてのmeeting発言を自動でtaskまたはDecisionへ昇格しない。
 - human approvalなしにMTG後messageを外部送信しない。

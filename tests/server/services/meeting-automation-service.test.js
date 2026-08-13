@@ -6,10 +6,8 @@ import { InMemoryWorkflowRepository } from '../../../server/services/workflow/wo
 function makeMeetingService({
     repository = new InMemoryWorkflowRepository(),
     googleCalendarService = null,
-    eveSessionClient = null,
     infoSSOTService = null,
     resolveReviewTaskOwners = vi.fn(async (reviewPackage) => reviewPackage),
-    dispatchLoopIntentToEve = vi.fn(),
     createLoopIntent = vi.fn(async (input) => ({ loop_intent: input }))
 } = {}) {
     const prepareProjectAccess = vi.fn(async () => {});
@@ -19,10 +17,8 @@ function makeMeetingService({
     const service = new MeetingAutomationService({
         repository,
         googleCalendarService,
-        eveSessionClient,
         infoSSOTService,
         resolveReviewTaskOwners,
-        dispatchLoopIntentToEve,
         prepareProjectAccess,
         assertProjectSelectable,
         assertOrgReferenceAllowed,
@@ -33,7 +29,6 @@ function makeMeetingService({
         repository,
         service,
         createLoopIntent,
-        dispatchLoopIntentToEve,
         prepareProjectAccess,
         assertProjectSelectable,
         assertOrgReferenceAllowed,
@@ -156,67 +151,51 @@ describe('MeetingAutomationService', () => {
         ]);
     });
 
-    it('Eveが接続済みならMeeting note生成をhandoffして監査証跡を残す', async () => {
-        const eveSessionClient = { isConfigured: vi.fn(() => true) };
-        const dispatchLoopIntentToEve = vi.fn(async () => ({
-            eve_session_dispatch: { run: { id: 'eve-run-1' } }
-        }));
-        const { service, repository } = makeMeetingService({
-            eveSessionClient,
-            dispatchLoopIntentToEve
-        });
-
-        const result = await service.dispatchNoteGeneration({
+    it('Cloudflare/computer向けMeeting note生成handoffと監査証跡を返す', async () => {
+        const { service, repository } = makeMeetingService();
+        const result = await service.prepareNoteGenerationHandoff({
             loopIntent: { id: 'loop-note-1' },
             orgId: 'salestailor',
             projectId: 'salestailor',
             packageId: 'package-1',
             runId: 'review-run-1',
-            actorId: 'keigo',
-            actor
+            actorId: 'keigo'
         });
-
-        expect(dispatchLoopIntentToEve).toHaveBeenCalledWith('loop-note-1', {
-            meeting_note_generation: { run_id: 'review-run-1', package_id: 'package-1' }
-        }, actor);
         expect(result).toEqual({
-            status: 'requested',
+            status: 'ready',
+            runtime_type: 'cloudflare_computer',
             loop_intent_id: 'loop-note-1',
-            eve_session_run_id: 'eve-run-1'
+            run_id: 'review-run-1',
+            package_id: 'package-1',
+            output_key: 'meeting_note_draft',
+            write_back_path: '/api/workflows/control/meeting-pack/note-generation'
         });
         expect(repository.listAuditLogs({ targetId: 'review-run-1' })[0]).toMatchObject({
-            action: 'workflow.meeting_pack.note_generation.dispatch_requested',
+            action: 'workflow.meeting_pack.note_generation.handoff_ready',
             after: {
                 package_id: 'package-1',
-                runner_type: 'eve',
-                external_run_id: 'eve-run-1'
+                runtime_type: 'cloudflare_computer'
             }
         });
     });
 
-    it('Eve未接続ならhandoffをskipとして監査しReview Package取り込みを失敗させない', async () => {
-        const { service, repository, dispatchLoopIntentToEve } = makeMeetingService({
-            eveSessionClient: { isConfigured: vi.fn(() => false) }
-        });
-
-        const result = await service.dispatchNoteGeneration({
-            loopIntent: { id: 'loop-note-1' },
+    it('対象loop intentがなければhandoffをblockedとして監査する', async () => {
+        const { service, repository } = makeMeetingService();
+        const result = await service.prepareNoteGenerationHandoff({
+            loopIntent: null,
             orgId: 'salestailor',
             projectId: 'salestailor',
             packageId: 'package-1',
             runId: 'review-run-1',
-            actorId: 'keigo',
-            actor
+            actorId: 'keigo'
         });
-
-        expect(dispatchLoopIntentToEve).not.toHaveBeenCalled();
         expect(result).toEqual({
-            status: 'skipped',
-            reason: 'eve_not_configured',
-            loop_intent_id: 'loop-note-1'
+            status: 'blocked',
+            reason: 'loop_intent_missing',
+            loop_intent_id: null
         });
         expect(repository.listAuditLogs({ targetId: 'review-run-1' })[0].action)
-            .toBe('workflow.meeting_pack.note_generation.dispatch_skipped');
+            .toBe('workflow.meeting_pack.note_generation.handoff_blocked');
     });
 
     it('Review Package契約とproject scopeに対するloop intent整合性を検証する', () => {
@@ -469,7 +448,7 @@ describe('MeetingAutomationService', () => {
         expect(second.meeting_review_ingest).toMatchObject({
             package_id: 'package-ledger-1',
             idempotent: true,
-            note_generation_dispatch: { status: 'skipped', reason: 'idempotent_replay' }
+            note_generation_handoff: { status: 'ready', reason: 'idempotent_replay' }
         });
         expect(repository.listRuns()).toHaveLength(1);
     });
@@ -493,8 +472,9 @@ describe('MeetingAutomationService', () => {
         vi.spyOn(service, 'findReviewPackageReplay').mockReturnValue(null);
         vi.spyOn(service, 'resolveReviewPackageGraphContext').mockResolvedValue(resolvedContext);
         vi.spyOn(service, 'persistReviewPackage').mockResolvedValue(ingestResult);
-        vi.spyOn(service, 'dispatchNoteGeneration').mockResolvedValue({
-            status: 'requested',
+        vi.spyOn(service, 'prepareNoteGenerationHandoff').mockResolvedValue({
+            status: 'ready',
+            runtime_type: 'cloudflare_computer',
             loop_intent_id: 'loop-note-1'
         });
 
@@ -506,17 +486,17 @@ describe('MeetingAutomationService', () => {
         );
         expect(service.resolveReviewPackageGraphContext).toHaveBeenCalledWith(reviewScope, actor);
         expect(service.persistReviewPackage).toHaveBeenCalledWith(resolvedContext, actor);
-        expect(service.dispatchNoteGeneration).toHaveBeenCalledWith({
+        expect(service.prepareNoteGenerationHandoff).toHaveBeenCalledWith({
             loopIntent: { id: 'loop-note-1' },
             orgId: 'salestailor',
             projectId: 'salestailor',
             packageId: 'package-orchestration-1',
             runId: 'review-run-1',
-            actorId: 'keigo',
-            actor
+            actorId: 'keigo'
         });
-        expect(result.meeting_review_ingest.note_generation_dispatch).toEqual({
-            status: 'requested',
+        expect(result.meeting_review_ingest.note_generation_handoff).toEqual({
+            status: 'ready',
+            runtime_type: 'cloudflare_computer',
             loop_intent_id: 'loop-note-1'
         });
     });

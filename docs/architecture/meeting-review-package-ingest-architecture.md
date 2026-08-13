@@ -10,7 +10,7 @@ updated_at: 2026-06-25
 
 ## 位置づけ
 
-この機能は Eve Runtime Adapter ではない。Eve 接続前に、Codex が生成した Review Package を Brainbase の Workflow Mission Control に載せるための control-plane ingest である。
+この機能は Cloudflare/computer Runtime Adapter ではない。Cloudflare/computer 接続前に、Codex が生成した Review Package を Brainbase の Workflow Mission Control に載せるための control-plane ingest である。
 
 Brainbase の責務は、実行結果候補を正本化することではなく、人間確認前の候補、証跡、停止条件、承認待ちを保持することである。したがって ingest は Task / Decision / Graph / 外部送信を実行せず、Human Gate で止める。
 
@@ -28,7 +28,7 @@ flowchart LR
   human -. "承認まで実行しない" .-> task["Task Store"]
   human -. "承認まで昇格しない" .-> graph["Graph SSOT"]
   human -. "承認まで送信しない" .-> external["Slack / Gmail"]
-  eve["Eve Runtime Adapter<br/>後続Story"] -. "同じoutput契約へ差し替え" .-> api
+  cloudflare_computer["Cloudflare/computer Runtime Adapter<br/>後続Story"] -. "同じoutput契約へ差し替え" .-> api
 ```
 
 ## データ境界
@@ -39,7 +39,7 @@ Review Package は API の JSON body として渡す。API は任意の local fi
 
 ## Trigger / Job Infrastructure
 
-このStoryは workflow scheduler を実装しない。入口は人間またはCodex/operator scriptが呼ぶ `POST /api/workflows/control/meeting-pack/review-ingest` であり、時間トリガー、Calendar polling、queue worker、cron、Eve schedule は後続Storyの責務である。
+このStoryは workflow scheduler を実装しない。入口は人間またはCodex/operator scriptが呼ぶ `POST /api/workflows/control/meeting-pack/review-ingest` であり、時間トリガー、Calendar polling、queue worker、cron、Cloudflare/computer schedule は後続Storyの責務である。
 
 したがって v1 の scheduling owner は Brainbase operator で、job infrastructure は既存のBrainbase API processである。新しいworker、queue、lambda、cron、containerは追加しない。review packageを時間・イベントトリガーで自動投入する場合も、同じAPI contractへJSON bodyを渡すだけにする。
 
@@ -59,9 +59,9 @@ run は次の意味を持つ。
 | `action_required` | `approve` |
 | `human_waiting` | `true` |
 | `runner.type` | `codex_generated_package` |
-| `runner.eve_connected` | `false` |
+| `runner.external_runtime_connected` | `false` |
 
-Eve 接続後は、Eve run が同じ output / human step 契約で返す。Brainbase 側の保存先は変えない。
+Cloudflare/computer 接続後は、Cloudflare/computer run が同じ output / human step 契約で返す。Brainbase 側の保存先は変えない。
 
 ## State Diagram
 
@@ -143,7 +143,7 @@ Graph context は `source_type=graph_ssot` の context snapshot に置く。Proj
 
 ## Release / Support / Rollback
 
-- Release時にoperatorへ伝えることは、`/workflows` に `Meeting Review Package Ingest` が承認待ちrunとして出ること、Eve未接続であること、外部write-backは実行されないことである。
+- Release時にoperatorへ伝えることは、`/workflows` に `Meeting Review Package Ingest` が承認待ちrunとして出ること、Cloudflare/computer未接続であること、外部write-backは実行されないことである。
 - Support時の一次確認は、run metadataの `package_id` / `case_scope` / `runner.type`、context snapshotの `meeting_source.content_hash`、human stepのpending数、audit action `workflow.meeting_review_package.ingested` を見る。
 - RollbackはDB正本の外部副作用を戻す操作ではない。v1ではTask/Graph/外部送信をしないため、誤Packageは対象runを無効化し、正しいPackageを別 `package_id` で再取り込みする。
 - 部分書き込みのrollbackはservice transactionで検証し、途中失敗時に run/output/human step/audit が残らないことをテスト証跡とする。

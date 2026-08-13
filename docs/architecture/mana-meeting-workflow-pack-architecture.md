@@ -14,7 +14,7 @@ flowchart LR;
   eligibility["Loop Eligibility<br/>自律度・承認要否・停止条件"];
   intent["Loop Intent<br/>meeting identity / input payload"];
   context["Context Snapshot<br/>calendar / transcript / graph / slack"];
-  runner["Eve or Mana runner<br/>実行面"];
+  runner["Cloudflare/computer or Mana runner<br/>実行面"];
   wmc["Workflow Mission Control<br/>run / output / human step / audit"];
   gates["Human Gates<br/>task / decision / external send"];
   targets["Write-back targets<br/>Task / Graph Decision / Message Draft"];
@@ -94,4 +94,4 @@ This story implements the first UI projection:
 - Run Trace expectation surface.
 - Story/Architecture/Spec/Design linkage.
 
-It does not implement Eve execution, Mana event ingestion, external message send, or Graph SSOT write-back.
+It does not implement Cloudflare/computer execution, Mana event ingestion, external message send, or Graph SSOT write-back.

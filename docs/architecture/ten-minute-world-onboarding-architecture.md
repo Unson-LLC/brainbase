@@ -166,7 +166,7 @@ Onboarding run は進行と証跡を束ねる ledger であり、entity/edge の
 | Candidate と Graph の分離表示 | `brainbase-admin-visualization-architecture.md`, `/api/admin/*` | 現行HEADにあり | 管理・診断向け read-only UI で、問い中心の world map や review mutation はない |
 | Personal KG review | `personal-kg-review-projection-*` | 一部実装済み | owner memory の CLI projection であり、組織の初期世界を review する UI ではない |
 | Entity resolution | `graph-entity-resolver-*` | 設計は proposed、現行に tokenized search の一部あり | onboarding 候補を既存 Graph entity と merge/resolve する end-to-end 契約が未完成 |
-| Meeting candidate approval | `story-eve-meeting-candidates-pull-reconciler.md` | 特定 workflow であり | meeting 外の初期 source、汎用 entity/edge、onboarding receipt へ一般化されていない |
+| Meeting candidate approval | `meeting-note-generation-dag-wiring-architecture.md` | 特定 workflow であり | meeting 外の初期 source、汎用 entity/edge、onboarding receipt へ一般化されていない |
 | Value-first onboarding | 過去ブランチ `cd86ab183` | first-value completion は有用だが現行HEAD外 | connector を demo 後へ送る順序は採用せず、接続起点の主経路へ組み直す必要がある |
 | Metadata-first import/extract/apply | 過去ブランチ `6cf1adff9` | Gmail / Calendar / Drive / local source の provider model は有用だが現行HEAD外 | source catalog、現行 schema、ACL、Promotion Gate と未統合 |
 | 10分の成果計測 | 該当する current Story/API/metric なし | 未実装 | start/end marker、run receipt、useful feedback、失敗理由が必要 |
@@ -273,4 +273,4 @@ Onboarding run は進行と証跡を束ねる ledger であり、entity/edge の
 - `docs/specs/candidate-store-mvp-spec.md`
 - `docs/architecture/brainbase-admin-visualization-architecture.md`
 - `docs/architecture/graph-entity-resolver-architecture.md`
-- `docs/architecture/story-eve-meeting-candidates-pull-reconciler.md`
+- `docs/architecture/meeting-note-generation-dag-wiring-architecture.md`

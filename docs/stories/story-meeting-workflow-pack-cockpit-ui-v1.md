@@ -52,7 +52,7 @@ Brainbase operator として、Mana の会議業務ループを `会議業務エ
 - 実際の Task Store 作成。
 - Graph SSOT Decision 昇格。
 - Slack / Gmail への外部送信。
-- Eve runner の実接続。
+- Cloudflare/computer runner の実接続。
 - Workflow Control API との実データ同期。
 
 ## Risk

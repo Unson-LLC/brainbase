@@ -20,7 +20,7 @@ related_stories:
 
 `story-mana-meeting-workflow-pack-v0` added the Meeting Workflow Pack projection to `/workflows`, but the pack was still mostly static UI. The next phase is to connect the pack to Brainbase Workflow Control records so Mana meeting operations become actual Role Agent, Workflow Definition, Binding, Trigger, and Loop Intent data.
 
-This Story does not execute Eve or Mana. It defines and bootstraps the Brainbase-side control-plane records that Eve or Mana will later consume.
+This Story does not execute Cloudflare/computer or Mana. It defines and bootstraps the Brainbase-side control-plane records that Cloudflare/computer or Mana will later consume.
 
 ## User Story
 
@@ -51,7 +51,7 @@ As a Brainbase operator preparing Mana meeting loops, I want to bootstrap the Me
 
 ## Non-goals
 
-- Do not run Eve or Mana execution.
+- Do not run Cloudflare/computer or Mana execution.
 - Do not create `workflow_runs`, `workflow_outputs`, or `workflow_human_steps` from bootstrap alone.
 - Do not write task, Decision, or external message targets.
 - Do not introduce a second meeting database.

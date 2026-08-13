@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 
 import { DuplicateCandidateError } from '../candidate-store/candidate-repository.js';
 import { ExternalRunnerContractError } from './contract-schema.js';
-import { EveRuntimeAdapter } from './eve-runtime-adapter.js';
+import { ExternalRuntimeAdapter } from './external-runtime-adapter.js';
 
 function stableValue(value) {
     if (Array.isArray(value)) return value.map((item) => stableValue(item));
@@ -45,7 +45,7 @@ function sha256(value) {
 }
 
 export class ExternalRunnerIngestService {
-    constructor({ workflowRepository, candidateRepository = null, adapter = new EveRuntimeAdapter() }) {
+    constructor({ workflowRepository, candidateRepository = null, adapter = new ExternalRuntimeAdapter() }) {
         this.workflowRepository = workflowRepository;
         this.candidateRepository = candidateRepository;
         this.adapter = adapter;

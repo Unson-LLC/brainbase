@@ -52,32 +52,32 @@ function makeAgentReportPayload(overrides = {}) {
 }
 
 describe('validateExternalRunnerEnvelope', () => {
-    it('runner.type=agent_report_かつeve要件なし_正常に受理される', () => {
+    it('runner.type=agent_report_かつcloudflare要件なし_正常に受理される', () => {
         const payload = makeAgentReportPayload();
         const result = validateExternalRunnerEnvelope(payload);
         expect(result.runner.type).toBe('agent_report');
-        expect(result.runner.eve).toBeUndefined();
+        expect(result.runner.trace_ref).toBeUndefined();
     });
 
-    it('runner.type=agent_report_かつrunner_eveが未指定でもtrace_refを要求しない', () => {
+    it('runner.type=agent_report_かつrunner_cloudflareが未指定でもtrace_refを要求しない', () => {
         const payload = makeAgentReportPayload({
             runner: {
                 type: 'agent_report',
                 external_run_id: 'cso-review-2026-07',
                 agent_id: 'agent/cso'
-                // eve フィールドなし
+                // cloudflare フィールドなし
             }
         });
         expect(() => validateExternalRunnerEnvelope(payload)).not.toThrow();
     });
 
-    it('runner.type=eve_かつeve_trace_refなし_ExternalRunnerContractErrorが投げられる', () => {
+    it('runner.type=cloudflare_かつtrace_refなし_ExternalRunnerContractErrorが投げられる', () => {
         const payload = makeAgentReportPayload({
             runner: {
-                type: 'eve',
-                external_run_id: 'eve-run-001',
+                type: 'cloudflare_computer',
+                external_run_id: 'cloudflare-run-001',
                 agent_id: 'sales-agent'
-                // eve.trace_ref なし → eve固有要件のためエラーになるはず
+                // cloudflare.trace_ref なし → cloudflare固有要件のためエラーになるはず
             }
         });
         expect(() => validateExternalRunnerEnvelope(payload)).toThrow(ExternalRunnerContractError);

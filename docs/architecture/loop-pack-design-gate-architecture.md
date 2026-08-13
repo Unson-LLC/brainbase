@@ -13,7 +13,7 @@ flowchart LR;
   review["Design Review Result<br/>rubric / issues / digest"];
   control["Workflow Mission Control<br/>Role Agent / Definition / Binding / Trigger / Intent"];
   audit["Audit Logs<br/>design review evidence"];
-  runner["Runner Layer<br/>Eve / Mana / tools"];
+  runner["Runner Layer<br/>Cloudflare/computer / Mana / tools"];
 
   story --> manifest;
   codex --> manifest;
@@ -31,7 +31,7 @@ flowchart LR;
 |---|---|---|
 | Design Layer | Story, Architecture, Spec, Loop Pack Manifest, completion rubric, stop conditions, budget, judge seats | Runtime ledger state |
 | Control Plane | Role Agent, Workflow Definition, Binding, Trigger, Loop Intent, Run, Human Step, Output, Audit | External model execution semantics |
-| Runner Layer | Eve/Codex/Claude/Mana execution, tool calls, drafts, traces | Brainbase SSOT, Graph promotion, approval truth |
+| Runner Layer | Cloudflare/computer/Codex/Claude/Mana execution, tool calls, drafts, traces | Brainbase SSOT, Graph promotion, approval truth |
 
 ## 契約
 
@@ -102,7 +102,7 @@ v0は新しいscheduler、worker、queue、lambda、long-running job infrastruct
 
 - scheduling_owner: bootstrap後のscheduled trigger metadataはWorkflow Mission Controlが持つ。
 - job_infrastructure: このStoryでは新しいruntime job infrastructureを開始しない。
-- runner_start: Pack bootstrap中にEve、Mana、Codex、Claude Code、provider callsは起動しない。
+- runner_start: Pack bootstrap中にCloudflare/computer、Mana、Codex、Claude Code、provider callsは起動しない。
 - transaction_owner: 単一のtransactional write boundaryは `bootstrapPack` が持つ。
 
 ## Gate Behavior

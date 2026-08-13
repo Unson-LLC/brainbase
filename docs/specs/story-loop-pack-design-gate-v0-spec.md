@@ -21,7 +21,7 @@ Loop Pack Design Gate v0は、BrainbaseがPackをWorkflow Mission Control record
 
 ## 不変条件
 
-- INV-001: Codex、Claude Code、EveはBrainbaseのSSOTではない。
+- INV-001: Codex、Claude Code、Cloudflare/computerはBrainbaseのSSOTではない。
 - INV-002: Pack manifestはpurpose、inputs、workflows、bindings、triggers、human gates、outputs、audit evidence、promotion candidates、learning candidates、success metrics、completion rubric、stop conditions、budget、judge seatsを定義しなければならない。
 - INV-003: Design Gateに失敗したPackは `role_agent_instances`、`workflow_templates`、`workflow_bindings`、`workflow_triggers`、`loop_intents` を書いてはならない。
 - INV-004: Meeting Workflow Pack bootstrapは `loop_pack_design_review` を返さなければならない。
@@ -85,7 +85,7 @@ And hidden runtime ledger mutationをsource of truthとして受け付けない�
 ## Failure Mode Coverage
 
 - FM-001 schema_failure: manifestの必須sectionやHuman Gate protectionが欠ける場合、Design Gateは `needs_revision` を返し、bootstrapはControl Plane recordを書かない。
-- FM-002 provider_failure: Pack bootstrapはrunner/providerを起動しない。外部providerやMana/Eve実行の失敗はPack作成時の依存にしない。
+- FM-002 provider_failure: Pack bootstrapはrunner/providerを起動しない。外部providerやMana/Cloudflare/computer実行の失敗はPack作成時の依存にしない。
 - FM-003 evidence_lifecycle_regression: bootstrap auditはDesign Reviewのstatus、digest、issues、rubricを保持し、PR Gateの証跡はHEAD boundなVibePro verification recordで再構成できる。
 
 ## Verification

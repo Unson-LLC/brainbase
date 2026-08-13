@@ -150,14 +150,14 @@ test('story-brainbase-agent-report-approval-inbox ac:6 S-006 owner/approver 委�
   expect(persisted).toMatchObject({ project_id: 'brainbase', status: 'waiting_human' });
 });
 
-test('story-brainbase-agent-report-approval-inbox INV-001 eve (external-runner:eve) は承認専用クローズ特殊ケースから除外され、登録ハンドラ経由の resume 経路を維持する', async () => {
+test('story-brainbase-agent-report-approval-inbox INV-001 Cloudflare/computer (external-runner:cloudflare_computer) は承認専用クローズ特殊ケースから除外され、登録ハンドラ経由の resume 経路を維持する', async () => {
   const repository = new InMemoryWorkflowRepository();
   const ingestService = new ExternalRunnerIngestService({ workflowRepository: repository });
   const runner = new WorkflowRunner({ repository, handlers: createDefaultWorkflowHandlers() });
   let resumeHandlerCalled = false;
-  runner.registerHandler('external-runner:eve', async (ctx) => {
+  runner.registerHandler('external-runner:cloudflare_computer', async (ctx) => {
     resumeHandlerCalled = true;
-    return { status: 'success', closureState: 'closed', actionRequired: 'none', message: `eve resume ${ctx.humanStepResolution?.resolution}`, outputCount: 1 };
+    return { status: 'success', closureState: 'closed', actionRequired: 'none', message: `Cloudflare/computer resume ${ctx.humanStepResolution?.resolution}`, outputCount: 1 };
   });
   const workflowService = new TestAutomationRuntime({
     repository, runner,
@@ -165,17 +165,17 @@ test('story-brainbase-agent-report-approval-inbox INV-001 eve (external-runner:e
   });
   const ingested = await ingestService.ingest({
     contract_version: 'external_runner.v0',
-    runner: { type: 'eve', external_run_id: 'eve-s006', agent_id: 'sales-agent', eve: { trace_ref: 'https://vercel.com/acme/eve/traces/eve-s006' } },
-    run: { project_id: 'brainbase', role_agent_id: 'sales', workflow_id: 'wf_eve_s006', status: 'approval_required' },
+    runner: { type: 'cloudflare_computer', external_run_id: 'cloudflare-computer-s006', agent_id: 'sales-agent', trace_ref: 'https://vercel.com/acme/computer/traces/cloudflare-computer-s006' },
+    run: { project_id: 'brainbase', role_agent_id: 'sales', workflow_id: 'wf_cloudflare_s006', status: 'approval_required' },
     loop_control: { owner_id: 'sato_keigo', cost_owner_id: 'sato_keigo', approval_owner_id: 'sato_keigo', stop_conditions: ['external_send_requires_approval'] },
     context_sources: [{ source_type: 'graph_ssot', source_ref: 'project:brainbase', redaction_status: 'not_required' }],
-    rounds: [{ round_id: 'r1', status: 'completed', evidence_refs: ['eve://s006/r1'] }],
-    human_steps: [{ id: 'hs-eve-s006', step_type: 'approval', prompt: 'Approve eve send' }],
+    rounds: [{ round_id: 'r1', status: 'completed', evidence_refs: ['cloudflare-computer://s006/r1'] }],
+    human_steps: [{ id: 'hs-cloudflare-computer-s006', step_type: 'approval', prompt: 'Approve Cloudflare/computer send' }],
     outputs: []
   });
   const pending = repository.listHumanSteps(ingested.run.id).find((s) => s.status === 'pending');
   const resolved = await workflowService.automationRunService.resolveHumanStep(pending.id, { resolution: 'approved' }, ACTOR);
-  // eve went through the generic runWorkflow resume path (registered handler), NOT the approval-only close.
+  // Cloudflare/computer went through the generic runWorkflow resume path (registered handler), NOT the approval-only close.
   expect(resumeHandlerCalled).toBe(true);
   expect(resolved.resumed_run).toMatchObject({ trigger_type: 'human_resume', parent_run_id: ingested.run.id });
 });

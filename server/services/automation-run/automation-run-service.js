@@ -6,7 +6,6 @@ import { AppError } from '../../lib/errors.js';
 import { PostgresWorkflowCheckpointRepository } from '../workflow/workflow-checkpoint-repository.js';
 
 const MEETING_REVIEW_PACKAGE_INGEST_IMPLEMENTATION_KEY = 'meeting-review-package-ingest';
-const EVE_SESSION_DISPATCH_IMPLEMENTATION_KEY = 'eve-session-dispatch';
 const AGENT_REPORT_INGEST_IMPLEMENTATION_KEY = 'external-runner:agent_report';
 const CANONICAL_TASK_DECISION_RESOLUTIONS = Object.freeze({
     approve: 'approved',
@@ -113,9 +112,6 @@ function canonicalTaskDecision({ decisionMode, resolution, field }) {
 function assertWorkflowRunAllowed(workflow) {
     if (workflow?.implementation_key === MEETING_REVIEW_PACKAGE_INGEST_IMPLEMENTATION_KEY) {
         throw AppError.validation('meeting-review-package-ingest workflows cannot be manually run; use /api/workflows/control/meeting-pack/review-ingest');
-    }
-    if (workflow?.implementation_key === EVE_SESSION_DISPATCH_IMPLEMENTATION_KEY) {
-        throw AppError.validation('eve-session-dispatch workflows cannot be manually run; use /api/workflows/control/loop-intents/:loopIntentId/eve-session');
     }
 }
 
