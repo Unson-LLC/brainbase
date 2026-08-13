@@ -23,6 +23,9 @@ import { LearningService } from '../services/learning-service.js';
 import { LearningHealthService } from '../services/learning-health-service.js';
 import { PgCandidateRepository } from '../services/candidate-store/candidate-repository.js';
 import { PgKnowledgeEventRepository } from '../services/knowledge-event/pg-knowledge-event-repository.js';
+import { PgPersonalKnowledgeRepository } from '../services/personal-knowledge/pg-personal-knowledge-repository.js';
+import { PersonalKnowledgeService } from '../services/personal-knowledge/personal-knowledge-service.js';
+import { PersonalKnowledgePromotionService } from '../services/personal-knowledge/personal-knowledge-promotion-service.js';
 import { InfoSSOTKnowledgeGraphRepository } from '../services/knowledge-event/info-ssot-knowledge-graph-repository.js';
 import { KnowledgeEventService } from '../services/knowledge-event-service.js';
 import { KnowledgeFeedbackService } from '../services/knowledge-feedback-service.js';
@@ -168,6 +171,18 @@ export function createCoreServices({
             candidateRepository
         })
         : null;
+    const personalKnowledgeRepository = infoSSOTService.pool
+        ? new PgPersonalKnowledgeRepository({ pool: infoSSOTService.pool })
+        : null;
+    const personalKnowledgeService = personalKnowledgeRepository
+        ? new PersonalKnowledgeService({ repository: personalKnowledgeRepository })
+        : null;
+    const personalKnowledgePromotionService = personalKnowledgeRepository && knowledgeEventService
+        ? new PersonalKnowledgePromotionService({
+            repository: personalKnowledgeRepository,
+            knowledgeEventService
+        })
+        : null;
     const meetingKnowledgeEventBridge = knowledgeEventService && candidateRepository
         ? new MeetingKnowledgeEventBridge({ knowledgeEventService, candidateRepository })
         : null;
@@ -254,11 +269,23 @@ export function createCoreServices({
         listKnowledgeEventDeadLetters: () => listKnowledgeEventDeadLetters({
             directory: judgmentKnowledgeEventDeadLetterDir
         }),
-        listKnowledgeEventOutboxExceptions: listJudgmentOutboxExceptions
+        listKnowledgeEventOutboxExceptions: listJudgmentOutboxExceptions,
+        listRuntimeIdentityExceptions: async () => {
+            const expectedGitSha = String(process.env.BRAINBASE_EXPECTED_GIT_SHA || '').trim();
+            const actualGitSha = String(sourceHead || '').trim();
+            if (!expectedGitSha || expectedGitSha === actualGitSha) return [];
+            return [{
+                code: 'runtime_git_sha_mismatch',
+                expected_git_sha: expectedGitSha,
+                actual_git_sha: actualGitSha || null,
+                summary: '実行中のGit SHAが期待値と一致しません'
+            }];
+        }
     });
     const productionRoutinePorts = new ProductionRoutinePorts({
         knowledgeEventRepository,
         candidateRepository,
+        personalKnowledgeService,
         infoSSOTService,
         runReceiptQueryService: automationRuntime.runReceiptQueryService,
         listJudgmentOutboxExceptions,
@@ -326,6 +353,9 @@ export function createCoreServices({
         knowledgeEventService,
         knowledgeFeedbackService,
         knowledgeCycleQueryService,
+        personalKnowledgeRepository,
+        personalKnowledgeService,
+        personalKnowledgePromotionService,
         meetingKnowledgeEventBridge,
         onboardingRuntimeService,
         tokenUsageService,

@@ -3,7 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { ProductionRoutinePorts } from '../../../server/services/routine-runtime/production-routine-ports.js';
 
 const context = {
-    access: { personId: 'routine-worker', projectCodes: ['brainbase'], role: 'member' },
+    access: {
+        personId: 'routine-worker',
+        organizationId: 'org:unson',
+        projectCodes: ['brainbase'],
+        role: 'member',
+        clearance: ['internal']
+    },
     actor: { person_id: 'routine-worker', role: 'member' },
     external_run_id: 'thread-production-ports'
 };
@@ -23,6 +29,23 @@ function createPorts(overrides = {}) {
     const candidateRepository = {
         listPersonalKg: vi.fn(async () => [{ id: 'event-personal-1', body: 'personal memory' }])
     };
+    const personalKnowledgeService = {
+        summarizeRoutineState: vi.fn(async () => ({
+            unprocessed_count: 0,
+            contradiction_count: 0,
+            expired_count: 0,
+            episode_ids: ['personal-episode-1']
+        })),
+        compressRoutineEpisodes: vi.fn(async () => ({
+            episode_ids: ['personal-episode-1'], confirmed: true
+        })),
+        verifyRoutineRetrievability: vi.fn(async () => ({ retrievable: true })),
+        search: vi.fn(async () => [{
+            event_id: 'pke_personal_1',
+            body: 'personal memory'
+        }]),
+        recordUsage: vi.fn(async () => ({ event_id: 'pke_personal_1', outcome: 'used' }))
+    };
     const infoSSOTService = {
         listGraphEntities: vi.fn(async () => [{ id: 'event-graph-1', name: 'graph memory' }])
     };
@@ -37,6 +60,7 @@ function createPorts(overrides = {}) {
     const dependencies = {
         knowledgeEventRepository,
         candidateRepository,
+        personalKnowledgeService,
         infoSSOTService,
         runReceiptQueryService,
         listJudgmentOutboxExceptions,
@@ -63,18 +87,24 @@ describe('ProductionRoutinePorts', () => {
             .rejects.toMatchObject({ code: 'routine_dependency_unavailable' });
     });
 
-    it('oyasumiはknowledge event/candidate状態とRun Receipt・judgment outboxを実照合する', async () => {
+    it('oyasumiは組織イベントとPersonal Vaultを別々に照合し、集計値だけを合算する', async () => {
         const { dependencies, ports } = createPorts();
 
         await expect(ports.reconcile({ input: { project_id: 'brainbase' } }, context)).resolves.toEqual({
             unprocessed_count: 2,
             contradiction_count: 1,
             expired_count: 1,
-            outbox_count: 3
+            outbox_count: 3,
+            organization_episode_ids: [],
+            personal_episode_ids: ['personal-episode-1']
         });
         expect(dependencies.knowledgeEventRepository.summarizeRoutineState).toHaveBeenCalledWith(
             { project_id: 'brainbase' },
             context
+        );
+        expect(dependencies.personalKnowledgeService.summarizeRoutineState).toHaveBeenCalledWith(
+            { project_id: 'brainbase' },
+            { access: context.access }
         );
         expect(dependencies.runReceiptQueryService.summarizeRoutineState).toHaveBeenCalledWith(
             { project_id: 'brainbase' },
@@ -121,28 +151,30 @@ describe('ProductionRoutinePorts', () => {
         });
     });
 
-    it('ohayoはInfoSSOT GraphとCandidateRepository Personal KGを想起する', async () => {
+    it('ohayoはInfoSSOT Graphと認証本人のPersonal Vaultだけを想起する', async () => {
         const { dependencies, ports } = createPorts();
 
         await expect(ports.recallGraph({ input: { project_id: 'brainbase', query: 'today' } }, context))
             .resolves.toEqual([{ id: 'event-graph-1', name: 'graph memory' }]);
         await expect(ports.recallPersonalKg({ input: { project_id: 'brainbase', query: 'today' } }, context))
-            .resolves.toEqual([{ id: 'event-personal-1', body: 'personal memory' }]);
+            .resolves.toEqual([{
+                id: 'pke_personal_1',
+                event_id: 'pke_personal_1',
+                source_knowledge_event_id: 'pke_personal_1',
+                body: 'personal memory'
+            }]);
         expect(dependencies.infoSSOTService.listGraphEntities).toHaveBeenCalledWith(
             context.access,
             expect.objectContaining({ projectCode: 'brainbase', query: 'today' })
         );
-        expect(dependencies.candidateRepository.listPersonalKg).toHaveBeenCalledWith(
-            expect.objectContaining({
-                project_code: 'brainbase',
-                owner_person_id: 'sato_keigo',
-                role: 'member'
-            }),
-            context
+        expect(dependencies.personalKnowledgeService.search).toHaveBeenCalledWith(
+            { query: 'today', limit: 50 },
+            { access: context.access }
         );
+        expect(dependencies.candidateRepository.listPersonalKg).not.toHaveBeenCalled();
     });
 
-    it('ohayoは設定された正規Personal KG ownerと呼出者clearanceをCandidate Repositoryへ渡す', async () => {
+    it('ohayoは固定owner設定を使わず、認証された本人・組織をPersonal Vaultへ渡す', async () => {
         const { dependencies } = createPorts();
         const ports = new ProductionRoutinePorts({
             ...dependencies,
@@ -155,14 +187,35 @@ describe('ProductionRoutinePorts', () => {
 
         await ports.recallPersonalKg({ input: { project_id: 'brainbase' } }, restrictedContext);
 
-        expect(dependencies.candidateRepository.listPersonalKg).toHaveBeenCalledWith(
-            expect.objectContaining({
-                owner_person_id: 'per_canonical_sato',
-                role: 'gm',
-                clearance: ['internal', 'restricted']
-            }),
-            restrictedContext
+        expect(dependencies.personalKnowledgeService.search).toHaveBeenCalledWith(
+            { query: undefined, limit: 50 },
+            { access: restrictedContext.access }
         );
+        expect(dependencies.candidateRepository.listPersonalKg).not.toHaveBeenCalled();
+    });
+
+    it('Personal Vault読取りフラグを無効化した場合だけ旧Candidate投影へ戻す', async () => {
+        const { dependencies } = createPorts();
+        const ports = new ProductionRoutinePorts({
+            ...dependencies,
+            personalVaultReadEnabled: false
+        });
+
+        await expect(ports.recallPersonalKg({
+            input: { project_id: 'brainbase', query: 'legacy fallback' }
+        }, context)).resolves.toEqual([{ id: 'event-personal-1', body: 'personal memory' }]);
+        expect(dependencies.candidateRepository.listPersonalKg).toHaveBeenCalledWith({
+            project_code: 'brainbase',
+            owner_person_id: 'routine-worker',
+            role: 'member',
+            clearance: ['internal'],
+            query: 'legacy fallback',
+            limit: 50
+        }, context);
+        expect(dependencies.personalKnowledgeService.search).not.toHaveBeenCalled();
+
+        await ports.reconcile({ input: { project_id: 'brainbase' } }, context);
+        expect(dependencies.personalKnowledgeService.summarizeRoutineState).not.toHaveBeenCalled();
     });
 
     it('ohayoで出力に使ったevent IDをKnowledgeFeedbackServiceへ記録する', async () => {
@@ -175,6 +228,18 @@ describe('ProductionRoutinePorts', () => {
             action: 'adopt',
             reason: 'used_by_ohayo'
         }, { access: context.access });
+    });
+
+    it('ohayoで使ったPersonal Vault event IDは個人履歴へ記録し組織feedbackへ送らない', async () => {
+        const { dependencies, ports } = createPorts();
+
+        await ports.recordUsage({ knowledge_id: 'pke_personal_1' }, context);
+
+        expect(dependencies.personalKnowledgeService.recordUsage).toHaveBeenCalledWith(
+            'pke_personal_1',
+            { access: context.access }
+        );
+        expect(dependencies.knowledgeFeedbackService.recordFeedback).not.toHaveBeenCalled();
     });
 
     it('ohayo generator自身が朝出力へ含める最大3記憶を選びsource event IDへ写像する', async () => {

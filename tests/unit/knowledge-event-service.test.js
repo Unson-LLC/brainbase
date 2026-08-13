@@ -120,6 +120,27 @@ describe('KnowledgeEventService knowledge_event.v1 contract', () => {
         expect(externalActions.execute).not.toHaveBeenCalled();
     });
 
+    it('個人領域から昇格した非Decision候補は洗浄本文を記憶する', async () => {
+        const { service, candidateRepository, graphRepository } = createHarness();
+        const event = decisionEvent({
+            event_id: 'kev_prom_safe_1',
+            source: { type: 'personal_knowledge_promotion', request_id: 'kpr_1' },
+            subject: { type: 'note', id: 'note_shared_1' },
+            decision: undefined,
+            decision_authority: { authorized: false, actor_person_id: 'person_a' },
+            body: '本人が承認した洗浄済みの共有メモ',
+            body_hash: 'sha256:safe-preview'
+        });
+
+        await service.ingest(event);
+
+        expect(candidateRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+            body: '本人が承認した洗浄済みの共有メモ',
+            source_event_ids: ['kev_prom_safe_1']
+        }));
+        expect(graphRepository.upsertDecision).not.toHaveBeenCalled();
+    });
+
     it('同じevent_idとbody_hashの再送は保存せず同じ結果を返す', async () => {
         const priorResult = {
             event_id: 'kev_decision_1',

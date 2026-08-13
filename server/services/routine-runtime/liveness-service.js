@@ -1,5 +1,6 @@
 const TOKYO_OFFSET_MS = 9 * 60 * 60 * 1000;
 const PRIORITY = Object.freeze({
+    runtime_git_sha_mismatch: 0,
     knowledge_event_outbox: 0,
     knowledge_event_dead_letter: 0,
     dead_letter: 0,
@@ -75,6 +76,7 @@ export class RoutineLivenessService {
         listDeadLetters = async () => [],
         listKnowledgeEventDeadLetters = async () => [],
         listKnowledgeEventOutboxExceptions = async () => [],
+        listRuntimeIdentityExceptions = async () => [],
         now = () => new Date()
     }) {
         if (!Array.isArray(expectations)) throw new Error('expectations must be an array');
@@ -84,15 +86,17 @@ export class RoutineLivenessService {
         this.listDeadLetters = listDeadLetters;
         this.listKnowledgeEventDeadLetters = listKnowledgeEventDeadLetters;
         this.listKnowledgeEventOutboxExceptions = listKnowledgeEventOutboxExceptions;
+        this.listRuntimeIdentityExceptions = listRuntimeIdentityExceptions;
         this.now = now;
     }
 
     async listExceptions({ limit = 3 } = {}, context) {
         const now = asDate(this.now(), 'now');
-        const [deadLetters, knowledgeEventDeadLetters, knowledgeEventOutboxExceptions] = await Promise.all([
+        const [deadLetters, knowledgeEventDeadLetters, knowledgeEventOutboxExceptions, runtimeIdentityExceptions] = await Promise.all([
             this.listDeadLetters(context),
             this.listKnowledgeEventDeadLetters(context),
-            this.listKnowledgeEventOutboxExceptions(context)
+            this.listKnowledgeEventOutboxExceptions(context),
+            this.listRuntimeIdentityExceptions(context)
         ]);
         const deadLettersByAutomation = new Map();
         for (const item of deadLetters) {
@@ -101,6 +105,7 @@ export class RoutineLivenessService {
         }
 
         const exceptions = [
+            ...(Array.isArray(runtimeIdentityExceptions) ? runtimeIdentityExceptions : []),
             ...(Array.isArray(knowledgeEventDeadLetters) ? knowledgeEventDeadLetters : []),
             ...(Array.isArray(knowledgeEventOutboxExceptions) ? knowledgeEventOutboxExceptions : [])
         ].map((item) => ({
@@ -164,7 +169,8 @@ export class RoutineLivenessService {
 
         return exceptions
             .map((item) => ({ item, overdueMs: exceptionOverdueMs(item, now) }))
-            .sort((a, b) => PRIORITY[a.item.code] - PRIORITY[b.item.code]
+            .sort((a, b) => (PRIORITY[a.item.code] ?? Number.MAX_SAFE_INTEGER)
+                - (PRIORITY[b.item.code] ?? Number.MAX_SAFE_INTEGER)
                 || b.overdueMs - a.overdueMs
                 || String(a.item.automation_id || a.item.event_id || '')
                     .localeCompare(String(b.item.automation_id || b.item.event_id || '')))

@@ -35,6 +35,28 @@ function queryServiceWith(historyByAutomation = {}) {
 }
 
 describe('RoutineLivenessService', () => {
+    it('実行中Git SHAが期待SHAと異なる場合は朝の最優先例外にする', async () => {
+        const service = new RoutineLivenessService({
+            expectations: [dailyExpectation('brainbase-missing', 3)],
+            runReceiptQueryService: queryServiceWith(),
+            listDeadLetters: async () => [],
+            listRuntimeIdentityExceptions: async () => [{
+                code: 'runtime_git_sha_mismatch',
+                expected_git_sha: 'expected-sha',
+                actual_git_sha: 'actual-sha',
+                summary: '実行中のGit SHAが期待値と一致しません'
+            }],
+            now: () => new Date('2026-08-12T22:00:00.000Z')
+        });
+
+        await expect(service.listExceptions({ limit: 1 })).resolves.toEqual([{
+            code: 'runtime_git_sha_mismatch',
+            expected_git_sha: 'expected-sha',
+            actual_git_sha: 'actual-sha',
+            summary: '実行中のGit SHAが期待値と一致しません'
+        }]);
+    });
+
     it('judgment knowledge event Dead Letterを朝の最上位例外へ統合し絶対pathを隠す', async () => {
         const service = new RoutineLivenessService({
             expectations: [dailyExpectation('brainbase-missing', 3)],

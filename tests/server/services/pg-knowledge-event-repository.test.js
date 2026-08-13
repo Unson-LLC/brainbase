@@ -67,7 +67,7 @@ function scriptedClient(handler = async () => ({ rows: [], rowCount: 0 })) {
 describe('PgKnowledgeEventRepository', () => {
     it('Episode圧縮は同一transactionで読取りと状態更新を完了した時だけconfirmedにする', async () => {
         const client = scriptedClient(async (sql) => {
-            if (String(sql).includes('FROM knowledge_events') && !String(sql).includes('episode_compaction')) {
+            if (String(sql).includes('FROM knowledge_event_current')) {
                 return {
                     rows: [{
                         parent_episode_id: 'episode-1',
@@ -75,15 +75,17 @@ describe('PgKnowledgeEventRepository', () => {
                         subject: { type: 'decision', id: 'decision-1' },
                         payload: { decision: { statement: '価格を10万円に決定' } },
                         semantic_state: 'active',
-                        result: { outcome: 'approved', unresolved_items: ['公開日'] }
+                        result: { outcome: 'approved', unresolved_items: ['公開日'] },
+                        sensitivity: 'restricted',
+                        role_min: 'gm'
                     }],
                     rowCount: 1
                 };
             }
-            if (/UPDATE\s+knowledge_events/i.test(String(sql))) return { rows: [], rowCount: 1 };
-            if (String(sql).includes('episode_compaction')) {
+            if (/INSERT\s+INTO\s+episode_compaction_artifacts/i.test(String(sql))) return { rows: [], rowCount: 1 };
+            if (String(sql).includes('FROM episode_compaction_artifacts')) {
                 return {
-                    rows: [{ parent_episode_id: 'episode-1', event_id: 'kev-1', compaction_matches: true }],
+                    rows: [{ artifact_id: 'epc-1', compaction_matches: true }],
                     rowCount: 1
                 };
             }
@@ -102,9 +104,12 @@ describe('PgKnowledgeEventRepository', () => {
         const transactionSql = client.query.mock.calls.map(([sql]) => String(sql).trim());
         expect(transactionSql[0]).toBe('BEGIN');
         expect(transactionSql.at(-1)).toBe('COMMIT');
-        expect(transactionSql.some((sql) => /(?:UPDATE\s+knowledge_events|INSERT\s+INTO\s+knowledge_event_stage_history)/i.test(sql)))
+        expect(transactionSql.some((sql) => /INSERT\s+INTO\s+episode_compaction_artifacts/i.test(sql)))
             .toBe(true);
-        const sourceSelect = transactionSql.find((sql) => /SELECT[\s\S]+FROM knowledge_events/i.test(sql));
+        const artifactInsert = client.query.mock.calls.find(([sql]) => /INSERT\s+INTO\s+episode_compaction_artifacts/i.test(String(sql)));
+        expect(String(artifactInsert?.[0])).toMatch(/sensitivity, role_min/);
+        expect(artifactInsert?.[1]).toEqual(expect.arrayContaining(['restricted', 'gm']));
+        const sourceSelect = transactionSql.find((sql) => /SELECT[\s\S]+FROM knowledge_event_current/i.test(sql));
         expect(sourceSelect).toMatch(/subject/i);
         expect(sourceSelect).toMatch(/payload/i);
         expect(sourceSelect).toMatch(/semantic_state/i);
@@ -115,7 +120,8 @@ describe('PgKnowledgeEventRepository', () => {
 
     it('Episode圧縮はepisode_compaction.v1 artifactの必須状態を同一transactionで永続化する', async () => {
         const client = scriptedClient(async (sql) => {
-            if (String(sql).includes('FROM knowledge_events')) {
+            const text = String(sql);
+            if (text.includes('FROM knowledge_event_current')) {
                 return {
                     rows: [
                         { parent_episode_id: 'episode-1', event_id: 'kev-1' },
@@ -124,7 +130,13 @@ describe('PgKnowledgeEventRepository', () => {
                     rowCount: 2
                 };
             }
-            return { rows: [], rowCount: 2 };
+            if (/INSERT\s+INTO\s+episode_compaction_artifacts/i.test(text)) {
+                return { rows: [], rowCount: 1 };
+            }
+            if (text.includes('FROM episode_compaction_artifacts')) {
+                return { rows: [{ artifact_id: 'epc-1', compaction_matches: true }], rowCount: 1 };
+            }
+            return { rows: [], rowCount: 0 };
         });
         const repository = new PgKnowledgeEventRepository({
             pool: { connect: vi.fn(async () => client), query: vi.fn() }
@@ -135,7 +147,8 @@ describe('PgKnowledgeEventRepository', () => {
             episode_ids: ['episode-1']
         }, { access: { role: 'member', projectCodes: ['brainbase'] } });
 
-        const persistedSql = client.query.mock.calls.map(([sql]) => String(sql)).join('\n');
+        const artifactCall = client.query.mock.calls.find(([sql]) => /INSERT\s+INTO\s+episode_compaction_artifacts/i.test(String(sql)));
+        const artifact = JSON.parse(artifactCall?.[1]?.[5] || '{}');
         for (const field of [
             'episode_compaction.v1',
             'episode_id',
@@ -144,11 +157,10 @@ describe('PgKnowledgeEventRepository', () => {
             'hash',
             'compacted_at'
         ]) {
-            expect(persistedSql).toContain(field);
+            expect(JSON.stringify(artifact)).toContain(field);
         }
-        expect(persistedSql).toMatch(/(?:summary|source_pointer)/i);
-        const updateCall = client.query.mock.calls.find(([sql]) => /UPDATE\s+knowledge_events/i.test(String(sql)));
-        const summary = JSON.parse(updateCall?.[1]?.[6] || '{}');
+        expect(artifact).toHaveProperty('summary');
+        const summary = artifact.summary;
         expect(summary).toMatchObject({
             decisions: expect.any(Array),
             outcomes: expect.any(Array),
@@ -159,12 +171,12 @@ describe('PgKnowledgeEventRepository', () => {
     });
 
     it.each([
-        ['UPDATEが0件', 0, true],
+        ['artifact INSERTが0件で既存品もない', 0, true],
         ['readback不一致', 1, false]
-    ])('Episode圧縮は%sならconfirmed:falseにする', async (_case, updateRowCount, readbackMatches) => {
+    ])('Episode圧縮は%sならconfirmed:falseにする', async (_case, insertRowCount, readbackMatches) => {
         const client = scriptedClient(async (sql) => {
             const text = String(sql);
-            if (text.includes('FROM knowledge_events') && !text.includes('episode_compaction')) {
+            if (text.includes('FROM knowledge_event_current')) {
                 return {
                     rows: [{
                         parent_episode_id: 'episode-1',
@@ -177,10 +189,12 @@ describe('PgKnowledgeEventRepository', () => {
                     rowCount: 1
                 };
             }
-            if (/UPDATE\s+knowledge_events/i.test(text)) return { rows: [], rowCount: updateRowCount };
-            if (text.includes('episode_compaction')) {
+            if (/INSERT\s+INTO\s+episode_compaction_artifacts/i.test(text)) return { rows: [], rowCount: insertRowCount };
+            if (text.includes('FROM episode_compaction_artifacts')) {
                 return {
-                    rows: [{ parent_episode_id: 'episode-1', compaction_matches: readbackMatches }],
+                    rows: insertRowCount === 0
+                        ? []
+                        : [{ artifact_id: 'epc-1', compaction_matches: readbackMatches }],
                     rowCount: 1
                 };
             }
@@ -199,7 +213,7 @@ describe('PgKnowledgeEventRepository', () => {
     });
 
     it('Episode圧縮は要求した全Episodeのartifact保存を確認できた時だけconfirmedにする', async () => {
-        const client = scriptedClient(async (sql) => String(sql).includes('FROM knowledge_events')
+        const client = scriptedClient(async (sql) => String(sql).includes('FROM knowledge_event_current')
             ? { rows: [{ parent_episode_id: 'episode-1', event_id: 'kev-1' }], rowCount: 1 }
             : { rows: [], rowCount: 1 });
         const repository = new PgKnowledgeEventRepository({
@@ -316,7 +330,7 @@ describe('PgKnowledgeEventRepository', () => {
             if (text.includes('INSERT INTO knowledge_event_stage_history')) {
                 return { rows: [{ event_id: 'kev_pg_1', stage: 'received', occurred_at: new Date('2026-08-13T01:01:00.000Z') }], rowCount: 1 };
             }
-            if (text.includes('FROM knowledge_events')) return { rows: [rowForEvent()], rowCount: 1 };
+            if (text.includes('FROM knowledge_event_current')) return { rows: [rowForEvent()], rowCount: 1 };
             return { rows: [], rowCount: 0 };
         });
         const repository = new PgKnowledgeEventRepository({ pool });
@@ -332,7 +346,7 @@ describe('PgKnowledgeEventRepository', () => {
         expect(pool.query).not.toHaveBeenCalled();
         expect(client.query).toHaveBeenCalledTimes(3);
         expect(client.query.mock.calls.map(([sql]) => String(sql))).toEqual(expect.arrayContaining([
-            expect.stringContaining('FROM knowledge_events'),
+            expect.stringContaining('FROM knowledge_event_current'),
             expect.stringContaining('INSERT INTO knowledge_events'),
             expect.stringContaining('INSERT INTO knowledge_event_stage_history')
         ]));

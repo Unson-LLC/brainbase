@@ -9,6 +9,7 @@ import { createRetiredCapabilityRouter } from '../routes/retired-capability.js';
 import { createAuthRouter } from '../routes/auth.js';
 import { createInfoSSOTRouter } from '../routes/info-ssot.js';
 import { createLearningRouter } from '../routes/learning.js';
+import { createPersonalKnowledgeRouter } from '../routes/personal-knowledge.js';
 import { createCandidateStoreRouter } from '../routes/candidate-store.js';
 import { createOnboardingRouter } from '../routes/onboarding.js';
 import { createKnowledgeResolutionRouter } from '../routes/knowledge-resolution.js';
@@ -31,6 +32,7 @@ import {
     createWorkflowRunRouter
 } from '../routes/workflows.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requirePersonalKnowledgeAccess } from '../middleware/personal-knowledge-access.js';
 import { AdminVisualizationService } from '../services/admin-visualization-service.js';
 import { AccountService } from '../services/account/account-service.js';
 import { PgAccountRepository } from '../services/account/account-repository.js';
@@ -163,6 +165,8 @@ export function registerApiRoutes(app, {
     knowledgeEventService,
     knowledgeFeedbackService,
     knowledgeCycleQueryService,
+    personalKnowledgeService,
+    personalKnowledgePromotionService,
     onboardingRuntimeService,
     wikiService,
     tokenUsageService,
@@ -220,9 +224,28 @@ export function registerApiRoutes(app, {
         requireAuth(authService, { allowInsecureHeaders: false }),
         createInfoSSOTRouter(infoSSOTService)
     );
-    app.use('/api/learning', createLearningRouter(learningService, learningHealthService, {
-        promoteToGraphAuthGuard: requireAuth(authService, { allowInsecureHeaders: false })
-    }));
+    const personalKnowledgeAuthGuard = requireAuth(authService, { allowInsecureHeaders: false });
+    const auditPersonalAccess = personalKnowledgeService
+        ? (entry) => personalKnowledgeService.auditAccess(entry)
+        : null;
+    const personalKnowledgeAccessGuard = requirePersonalKnowledgeAccess({ audit: auditPersonalAccess });
+    app.use(
+        '/api/learning',
+        personalKnowledgeAuthGuard,
+        personalKnowledgeAccessGuard,
+        createLearningRouter(learningService, learningHealthService)
+    );
+    if (personalKnowledgeService && personalKnowledgePromotionService) {
+        app.use(
+            '/api/personal-knowledge',
+            personalKnowledgeAuthGuard,
+            personalKnowledgeAccessGuard,
+            createPersonalKnowledgeRouter({
+                personalKnowledgeService,
+                promotionService: personalKnowledgePromotionService
+            })
+        );
+    }
     app.use('/api/companion', createCompanionRouter({
         replyDraftService: new ReplyDraftService({
             infoSSOTService,
@@ -259,6 +282,7 @@ export function registerApiRoutes(app, {
         // canonical Memory Promotion Kernel の外部受け口。
         app.use('/api/candidate-store', createCandidateStoreRouter({
             candidateRepository,
+            auditPersonalAccess,
             allowedSources: process.env.CANDIDATE_STORE_ALLOWED_SOURCES
                 ? process.env.CANDIDATE_STORE_ALLOWED_SOURCES.split(',').map((s) => s.trim()).filter(Boolean)
                 : null

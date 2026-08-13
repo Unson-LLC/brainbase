@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS memory_candidates (
     ('observation', 'insight', 'claim', 'preference', 'hypothesis', 'experiment', 'result')),
 
   owner_person_id TEXT NOT NULL,
+  organization_id TEXT,
   actor_person_id TEXT NOT NULL,
   source_system TEXT NOT NULL,
   source_event_ids JSONB NOT NULL,
@@ -53,6 +54,23 @@ CREATE TABLE IF NOT EXISTS memory_candidates (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS organization_id TEXT;
+
+CREATE OR REPLACE FUNCTION app_person_id_required()
+RETURNS TEXT LANGUAGE plpgsql STABLE AS $$
+DECLARE value TEXT := current_setting('app.person_id', true);
+BEGIN
+  IF value IS NULL OR btrim(value) = '' THEN RAISE EXCEPTION 'person context required' USING ERRCODE = '42501'; END IF;
+  RETURN value;
+END $$;
+CREATE OR REPLACE FUNCTION app_organization_id_required()
+RETURNS TEXT LANGUAGE plpgsql STABLE AS $$
+DECLARE value TEXT := current_setting('app.organization_id', true);
+BEGIN
+  IF value IS NULL OR btrim(value) = '' THEN RAISE EXCEPTION 'organization context required' USING ERRCODE = '42501'; END IF;
+  RETURN value;
+END $$;
+
 -- 2026-05 compatibility upgrade:
 -- Early production deployments used subject_type/subject_id/memory columns.
 -- Keep those columns if present, but add the candidate-store-mvp contract columns
@@ -69,6 +87,11 @@ ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS semantic_state TEXT NOT N
 ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS target_tier TEXT NOT NULL DEFAULT 'ledger';
 ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS promoted_graph_entity_id TEXT;
 ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS body TEXT;
+
+UPDATE memory_candidates
+SET organization_id = COALESCE(organization_id, NULLIF(org_ids[1], ''), '__quarantine__')
+WHERE organization_id IS NULL;
+ALTER TABLE memory_candidates ALTER COLUMN organization_id SET NOT NULL;
 
 DO $$
 BEGIN
@@ -187,15 +210,56 @@ CREATE TABLE IF NOT EXISTS promotion_audit_events (
 CREATE INDEX IF NOT EXISTS promotion_audit_events_candidate ON promotion_audit_events(candidate_id);
 CREATE INDEX IF NOT EXISTS promotion_audit_events_actor ON promotion_audit_events(actor_person_id);
 
+ALTER TABLE memory_candidates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE memory_candidates FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS memory_candidates_owner_scope ON memory_candidates;
+CREATE POLICY memory_candidates_owner_scope ON memory_candidates
+  USING (owner_person_id = app_person_id_required() AND organization_id = app_organization_id_required())
+  WITH CHECK (owner_person_id = app_person_id_required() AND organization_id = app_organization_id_required());
+
+ALTER TABLE promotion_audit_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE promotion_audit_events FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS promotion_audit_owner_scope ON promotion_audit_events;
+CREATE POLICY promotion_audit_owner_scope ON promotion_audit_events
+  USING (EXISTS (
+    SELECT 1 FROM memory_candidates candidate
+    WHERE candidate.id = candidate_id
+      AND candidate.owner_person_id = app_person_id_required()
+      AND candidate.organization_id = app_organization_id_required()
+  )) WITH CHECK (EXISTS (
+    SELECT 1 FROM memory_candidates candidate
+    WHERE candidate.id = candidate_id
+      AND candidate.owner_person_id = app_person_id_required()
+      AND candidate.organization_id = app_organization_id_required()
+  ));
+
 -- PII / secret scan ブロック記録（INV-4）
 CREATE TABLE IF NOT EXISTS candidate_scan_blocks (
   id BIGSERIAL PRIMARY KEY,
+  owner_person_id TEXT NOT NULL,
+  organization_id TEXT NOT NULL,
   source_system TEXT NOT NULL,
   source_event_id TEXT NOT NULL,
   actor_person_id TEXT NOT NULL,
   findings JSONB NOT NULL,
   blocked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE candidate_scan_blocks ADD COLUMN IF NOT EXISTS owner_person_id TEXT;
+ALTER TABLE candidate_scan_blocks ADD COLUMN IF NOT EXISTS organization_id TEXT;
+UPDATE candidate_scan_blocks
+SET owner_person_id = COALESCE(owner_person_id, actor_person_id),
+    organization_id = COALESCE(organization_id, '__quarantine__')
+WHERE owner_person_id IS NULL OR organization_id IS NULL;
+ALTER TABLE candidate_scan_blocks ALTER COLUMN owner_person_id SET NOT NULL;
+ALTER TABLE candidate_scan_blocks ALTER COLUMN organization_id SET NOT NULL;
+
+ALTER TABLE candidate_scan_blocks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE candidate_scan_blocks FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS candidate_scan_blocks_owner_scope ON candidate_scan_blocks;
+CREATE POLICY candidate_scan_blocks_owner_scope ON candidate_scan_blocks
+  USING (owner_person_id = app_person_id_required() AND organization_id = app_organization_id_required())
+  WITH CHECK (owner_person_id = app_person_id_required() AND organization_id = app_organization_id_required());
 
 -- INV-7: 状態遷移の単調性を trigger で強制
 CREATE OR REPLACE FUNCTION enforce_candidate_status_transitions()

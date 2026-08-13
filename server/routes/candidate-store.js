@@ -13,12 +13,14 @@ import {
     captureCandidateStoreRawBody,
     createCandidateStoreHmacMiddleware
 } from '../middleware/candidate-store-hmac.js';
+import { requirePersonalKnowledgeAccess } from '../middleware/personal-knowledge-access.js';
 
 export function createCandidateStoreRouter({
     candidateRepository,
     defaultScope,
     defaultOrgIds,
     allowedSources,
+    auditPersonalAccess = null,
     bodyLimit = '1mb'
 } = {}) {
     const router = express.Router();
@@ -37,8 +39,9 @@ export function createCandidateStoreRouter({
     });
 
     const hmac = createCandidateStoreHmacMiddleware({ allowedSources });
+    const personalAccess = requirePersonalKnowledgeAccess({ audit: auditPersonalAccess });
 
-    router.post('/raw-ledger', jsonParserWithRawBody, hmac, controller.ingestRawLedger);
+    router.post('/raw-ledger', jsonParserWithRawBody, hmac, personalAccess, controller.ingestRawLedger);
 
     return router;
 }

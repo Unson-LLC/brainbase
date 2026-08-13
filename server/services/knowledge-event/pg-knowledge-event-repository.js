@@ -1,32 +1,45 @@
 import { createHash } from 'node:crypto';
 
+const SENSITIVITY_ORDER = ['public', 'internal', 'restricted', 'confidential', 'top-secret'];
+const ROLE_ORDER = ['member', 'gm', 'ceo'];
+
+function mostRestrictive(rows, field, order, fallback) {
+    return rows.reduce((selected, row) => {
+        const value = row[field] || fallback;
+        return order.indexOf(value) > order.indexOf(selected) ? value : selected;
+    }, fallback);
+}
+
 function queryable(repository, options = {}) {
     return options.client || repository.pool;
 }
 
 function normalizeEvent(row) {
     if (!row) return null;
+    const result = row.current_result || row.result || undefined;
     return {
         ...row,
-        ...(row.result?.candidate_id ? { candidate_id: row.result.candidate_id } : {}),
-        ...(row.result?.graph_entity_id ? { graph_entity_id: row.result.graph_entity_id } : {}),
+        result,
+        semantic_state: row.current_semantic_state || row.semantic_state,
+        ...(result?.candidate_id ? { candidate_id: result.candidate_id } : {}),
+        ...(result?.graph_entity_id ? { graph_entity_id: result.graph_entity_id } : {}),
         occurred_at: row.occurred_at instanceof Date ? row.occurred_at.toISOString() : row.occurred_at,
         captured_at: row.captured_at instanceof Date ? row.captured_at.toISOString() : row.captured_at,
         stage_history: Array.isArray(row.stage_history) ? row.stage_history : []
     };
 }
 
-function scopedRepository(repository, client) {
+function scopedRepository(repository, client, access = null) {
     return {
         client,
-        findById: (eventId, options = {}) => repository.findById(eventId, { ...options, client }),
-        create: (event) => repository.create(event, { client }),
+        findById: (eventId, options = {}) => repository.findById(eventId, { ...options, client, access }),
+        create: (event) => repository.create(event, { client, access }),
         appendStage: (eventId, stage) => repository.appendStage(eventId, stage, { client }),
-        saveResult: (eventId, result) => repository.saveResult(eventId, result, { client }),
+        saveResult: (eventId, result) => repository.saveResult(eventId, result, { client, access }),
         lockDecisionSubject: (subjectId) => repository.lockDecisionSubject(subjectId, { client }),
         getEvent: (eventId) => repository.findById(eventId, { client }),
         insertEvent: (event) => repository.create(event, { client }),
-        updateSemanticState: (eventId, state) => repository.updateSemanticState(eventId, state, { client }),
+        updateSemanticState: (eventId, state) => repository.updateSemanticState(eventId, state, { client, access }),
         replaceSearchDocument: async () => undefined,
         removeSearchDocument: async () => undefined,
         appendFeedback: (feedback) => repository.appendFeedback(feedback, { client }),
@@ -53,29 +66,34 @@ export class PgKnowledgeEventRepository {
             ? ` AND e.applicability_scope->>'project_code' = $${params.push(options.projectCode)}`
             : '';
         const { rows } = await queryable(this, options).query(
-            `SELECT e.*, COALESCE(
-                jsonb_agg(jsonb_build_object('stage', h.stage, 'occurred_at', h.occurred_at)
-                    ORDER BY h.occurred_at) FILTER (WHERE h.id IS NOT NULL), '[]'::jsonb
-             ) AS stage_history
-             FROM knowledge_events e
-             LEFT JOIN knowledge_event_stage_history h ON h.event_id = e.event_id
-             WHERE e.event_id = $1${projectClause}
-             GROUP BY e.event_id`,
+            `SELECT e.*, COALESCE((
+                SELECT jsonb_agg(jsonb_build_object('stage', h.stage, 'occurred_at', h.occurred_at)
+                    ORDER BY h.occurred_at)
+                FROM knowledge_event_stage_history h WHERE h.event_id = e.event_id
+             ), '[]'::jsonb) AS stage_history
+             FROM knowledge_event_current e
+             WHERE e.event_id = $1${projectClause}`,
             params
         );
         const row = rows[0];
         if (!row) return null;
-        return normalizeEvent({ ...(row.payload || {}), ...row, result: row.result || undefined });
+        return normalizeEvent({ ...(row.payload || {}), ...row });
     }
 
     async create(event, options = {}) {
+        const organizationId = event.organization_id
+            || event.applicability_scope?.organization_id
+            || options.access?.organizationId
+            || '__quarantine__';
         const { rows } = await queryable(this, options).query(
             `INSERT INTO knowledge_events (
                 event_id, schema_version, occurred_at, captured_at, source, subject,
                 decision_authority, applicability_scope, project_code, permission_snapshot,
-                source_pointer, body_hash, parent_episode_id, payload, semantic_state
+                source_pointer, body_hash, parent_episode_id, payload, semantic_state,
+                organization_id, sensitivity, role_min, venue
              ) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb,
-                $9, $10::jsonb, $11::jsonb, $12, $13, $14::jsonb, $15)
+                $9, $10::jsonb, $11::jsonb, $12, $13, $14::jsonb, $15,
+                $16, $17, $18, $19)
              ON CONFLICT (event_id) DO NOTHING
              RETURNING *`,
             [
@@ -84,7 +102,10 @@ export class PgKnowledgeEventRepository {
                 JSON.stringify(event.decision_authority), JSON.stringify(event.applicability_scope),
                 event.applicability_scope?.project_code, JSON.stringify(event.permission_snapshot), JSON.stringify(event.source_pointer),
                 event.body_hash, event.parent_episode_id, JSON.stringify(event),
-                event.semantic_state || 'active'
+                event.semantic_state || 'active', organizationId,
+                event.sensitivity || event.permission_snapshot?.sensitivity || 'internal',
+                event.role_min || event.permission_snapshot?.role_min || 'member',
+                event.venue || event.source?.venue || event.source?.type || 'unknown'
             ]
         );
         if (rows[0]) return normalizeEvent({ ...event, ...rows[0], stage_history: [] });
@@ -103,20 +124,41 @@ export class PgKnowledgeEventRepository {
 
     async saveResult(eventId, result, options = {}) {
         const { rows } = await queryable(this, options).query(
-            `UPDATE knowledge_events SET result = $2::jsonb, semantic_state = $3, updated_at = NOW()
-             WHERE event_id = $1 RETURNING *`,
-            [eventId, JSON.stringify(result), result.semantic_state || 'active']
+            `INSERT INTO knowledge_event_transitions (
+                event_id, organization_id, project_code, transition_type,
+                processing_stage, semantic_state, reason, result, actor_person_id
+             )
+             SELECT event_id, organization_id, project_code, 'result_recorded',
+                $2, $3, $4, $5::jsonb, $6
+             FROM knowledge_events WHERE event_id = $1
+             RETURNING *`,
+            [
+                eventId,
+                result.processing_stage || null,
+                result.semantic_state || 'active',
+                result.quarantine_reason || null,
+                JSON.stringify(result),
+                options.access?.personId || 'brainbase_runtime'
+            ]
         );
-        return normalizeEvent(rows[0]);
+        if (!rows[0]) return null;
+        return this.findById(eventId, options);
     }
 
     async updateSemanticState(eventId, state, options = {}) {
         const { rows } = await queryable(this, options).query(
-            `UPDATE knowledge_events SET semantic_state = $2, updated_at = NOW()
-             WHERE event_id = $1 RETURNING *`,
-            [eventId, state]
+            `INSERT INTO knowledge_event_transitions (
+                event_id, organization_id, project_code, transition_type,
+                semantic_state, reason, actor_person_id
+             )
+             SELECT event_id, organization_id, project_code, 'semantic_state_changed',
+                $2, $3, $4
+             FROM knowledge_events WHERE event_id = $1
+             RETURNING *`,
+            [eventId, state, options.reason || null, options.access?.personId || 'brainbase_runtime']
         );
-        return normalizeEvent(rows[0]);
+        if (!rows[0]) return null;
+        return this.findById(eventId, options);
     }
 
     async appendFeedback(feedback, options = {}) {
@@ -166,16 +208,16 @@ export class PgKnowledgeEventRepository {
                  ), event_stats AS (
                     SELECT
                         COUNT(*) FILTER (
-                            WHERE event.semantic_state NOT IN ('retracted', 'expired')
+                            WHERE event.current_semantic_state NOT IN ('retracted', 'expired')
                               AND COALESCE(stage.stage, 'received') <> 'retrievable'
                         )::int AS unprocessed_count,
-                        COUNT(*) FILTER (WHERE event.semantic_state = 'contradicted')::int AS contradiction_count,
-                        COUNT(*) FILTER (WHERE event.semantic_state = 'expired')::int AS expired_count,
+                        COUNT(*) FILTER (WHERE event.current_semantic_state = 'contradicted')::int AS contradiction_count,
+                        COUNT(*) FILTER (WHERE event.current_semantic_state = 'expired')::int AS expired_count,
                         COUNT(*) FILTER (
-                            WHERE event.semantic_state = 'contradicted'
+                            WHERE event.current_semantic_state = 'contradicted'
                                OR (
-                                   event.semantic_state = 'quarantined'
-                                   AND event.result->>'quarantine_reason' = 'unresolved_conflict'
+                                   event.current_semantic_state = 'quarantined'
+                                   AND event.current_result->>'quarantine_reason' = 'unresolved_conflict'
                                )
                         )::int
                             AS open_contradictions,
@@ -184,7 +226,7 @@ export class PgKnowledgeEventRepository {
                         COALESCE(array_agg(DISTINCT event.parent_episode_id)
                             FILTER (WHERE event.parent_episode_id IS NOT NULL), '{}') AS episode_ids,
                         COUNT(*)::int AS event_count
-                    FROM knowledge_events event
+                    FROM knowledge_event_current event
                     LEFT JOIN latest_stage stage ON stage.event_id = event.event_id
                     WHERE event.project_code = $1
                       AND ($2::timestamptz IS NULL OR event.occurred_at >= $2::timestamptz)
@@ -215,8 +257,10 @@ export class PgKnowledgeEventRepository {
         return this.transaction(async ({ client }) => {
             const requestedEpisodeIds = [...new Set(Array.isArray(episodeIds) ? episodeIds : [])];
             const { rows } = await client.query(
-                `SELECT DISTINCT parent_episode_id, event_id, subject, payload, semantic_state, result
-                 FROM knowledge_events
+                `SELECT DISTINCT parent_episode_id, event_id, subject, payload,
+                        current_semantic_state AS semantic_state, current_result AS result,
+                        organization_id, sensitivity, role_min
+                 FROM knowledge_event_current
                  WHERE project_code = $1 AND parent_episode_id = ANY($2::text[])
                  ORDER BY parent_episode_id, event_id`,
                 [projectId, requestedEpisodeIds]
@@ -249,46 +293,46 @@ export class PgKnowledgeEventRepository {
                     compacted_at: new Date().toISOString(),
                     completed_at: new Date().toISOString()
                 };
+                const artifactId = `epc_${createHash('sha256').update(`${projectId}:${episodeId}:1`).digest('hex').slice(0, 32)}`;
+                const sensitivity = mostRestrictive(
+                    episodeRows, 'sensitivity', SENSITIVITY_ORDER, 'internal'
+                );
+                const roleMin = mostRestrictive(episodeRows, 'role_min', ROLE_ORDER, 'member');
                 const update = await client.query(
-                    `UPDATE knowledge_events
-                     SET result = COALESCE(result, '{}'::jsonb) || jsonb_build_object(
-                         'episode_compaction', $3::jsonb,
-                         'episode_compaction_schema', 'episode_compaction.v1',
-                         'episode_id', $4::text,
-                         'source_event_ids', $5::jsonb,
-                         'version', 1,
-                         'hash', $6::text,
-                         'summary', $7::jsonb,
-                         'source_pointer', $8::jsonb,
-                         'compacted_at', $9::timestamptz,
-                         'completed_at', $10::timestamptz
-                     )
-                     WHERE project_code = $1
-                       AND parent_episode_id = $2`,
+                    `INSERT INTO episode_compaction_artifacts (
+                        artifact_id, scope, organization_id, project_code, episode_id,
+                        source_event_ids, artifact, artifact_hash, version, created_at,
+                        sensitivity, role_min
+                     ) VALUES ($1, 'organization', $2, $3, $4, $5::jsonb, $6::jsonb, $7, 1, $8::timestamptz,
+                        $9, $10)
+                     ON CONFLICT (artifact_id) DO NOTHING`,
                     [
+                        artifactId,
+                        episodeRows[0]?.organization_id || context.access?.organizationId || '__quarantine__',
                         projectId,
                         episodeId,
-                        JSON.stringify(artifact),
-                        episodeId,
                         JSON.stringify(sourceEventIds),
+                        JSON.stringify(artifact),
                         artifact.hash,
-                        JSON.stringify(artifact.summary),
-                        JSON.stringify(artifact.source_pointer),
-                        artifact.compacted_at,
-                        artifact.completed_at
+                        artifact.completed_at,
+                        sensitivity,
+                        roleMin
                     ]
                 );
-                if (update.rowCount !== episodeRows.length) continue;
+                if (update.rowCount !== 1) {
+                    const existing = await client.query(
+                        `SELECT artifact_id FROM episode_compaction_artifacts
+                         WHERE artifact_id = $1 AND artifact_hash = $2`,
+                        [artifactId, artifact.hash]
+                    );
+                    if (existing.rows.length !== 1) continue;
+                }
                 const readback = await client.query(
-                    `SELECT parent_episode_id,
-                            (result->'episode_compaction'->>'hash' = $3) AS compaction_matches
-                     FROM knowledge_events
-                     WHERE project_code = $1 AND parent_episode_id = $2
-                       AND result ? 'episode_compaction'`,
-                    [projectId, episodeId, artifact.hash]
+                    `SELECT artifact_id, (artifact_hash = $2) AS compaction_matches
+                     FROM episode_compaction_artifacts WHERE artifact_id = $1`,
+                    [artifactId, artifact.hash]
                 );
-                if (readback.rows.length === episodeRows.length
-                    && readback.rows.every((row) => row.compaction_matches === true)) {
+                if (readback.rows.length === 1 && readback.rows[0].compaction_matches === true) {
                     persistedEpisodeIds.push(episodeId);
                 }
             }
@@ -310,11 +354,11 @@ export class PgKnowledgeEventRepository {
                     ORDER BY event_id, occurred_at DESC, id DESC
                  )
                  SELECT event.event_id
-                 FROM knowledge_events event
+                 FROM knowledge_event_current event
                  LEFT JOIN latest_stage stage ON stage.event_id = event.event_id
                  WHERE event.project_code = $1
                    AND event.parent_episode_id = ANY($2::text[])
-                   AND event.semantic_state NOT IN ('retracted', 'expired', 'quarantined')
+                   AND event.current_semantic_state NOT IN ('retracted', 'expired', 'quarantined')
                    AND COALESCE(stage.stage, 'received') <> 'retrievable'
                  ORDER BY event.event_id`,
                 [projectId, Array.isArray(episodeIds) ? episodeIds : []]
@@ -331,11 +375,19 @@ export class PgKnowledgeEventRepository {
         await client.query('BEGIN');
         try {
             if (access) {
+                if (access.personId) {
+                    await client.query('SELECT set_config($1, $2, true)', ['app.person_id', access.personId]);
+                }
+                if (access.organizationId || access.tenantId) {
+                    await client.query('SELECT set_config($1, $2, true)', [
+                        'app.organization_id', access.organizationId || access.tenantId
+                    ]);
+                }
                 await client.query('SELECT set_config($1, $2, true)', ['app.role', access.role || 'member']);
                 await client.query('SELECT set_config($1, $2, true)', ['app.project_codes', (access.projectCodes || []).join(',')]);
                 await client.query('SELECT set_config($1, $2, true)', ['app.clearance', (access.clearance || ['internal']).join(',')]);
             }
-            const result = await work(scopedRepository(this, client));
+            const result = await work(scopedRepository(this, client, access));
             await client.query('COMMIT');
             return result;
         } catch (error) {

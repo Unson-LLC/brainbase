@@ -14,6 +14,7 @@ const repoRoot = path.resolve(__dirname, '..');
 const MIGRATIONS = [
     { id: 'candidate-store', path: 'server/sql/candidate-store-schema.sql' },
     { id: 'knowledge-events', path: 'server/sql/knowledge-event-schema.sql' },
+    { id: 'personal-knowledge', path: 'server/sql/personal-knowledge-schema.sql' },
     { id: 'integration-accounts', path: 'server/sql/integration-accounts-schema.sql' },
     { id: 'sns-posting-ledger', path: 'server/sql/sns-posting-ledger-schema.sql' }
 ];

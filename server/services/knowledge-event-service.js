@@ -137,7 +137,11 @@ function sameEventIdentity(existing, incoming) {
         'decision_authority',
         'applicability_scope',
         'permission_snapshot',
-        'parent_episode_id'
+        'parent_episode_id',
+        'organization_id',
+        'sensitivity',
+        'role_min',
+        'venue'
     ];
     return identityFields.every((field) => existing[field] === undefined
         || canonicalJson(existing[field]) === canonicalJson(incoming[field]));
@@ -168,14 +172,16 @@ function candidateInput(event, quarantineReason) {
         actor_person_id: event.decision_authority?.decider_id || event.subject?.id || 'brainbase',
         source_system: event.source?.type || 'knowledge_event',
         source_event_ids: [event.event_id],
+        organization_id: event.organization_id,
         project_code: event.applicability_scope?.project_code || null,
         org_ids: event.applicability_scope?.org_ids || [],
         project_ids: event.applicability_scope?.project_code ? [event.applicability_scope.project_code] : [],
         visibility: event.permission_snapshot?.visibility || 'owner',
         sensitivity: event.permission_snapshot?.sensitivity || 'internal',
+        role_min: event.role_min || 'member',
         permission_snapshot: event.permission_snapshot,
         evidence_ids: [event.event_id],
-        body: event.decision?.statement || event.payload?.summary || event.body_hash,
+        body: event.decision?.statement || event.payload?.summary || event.body || event.body_hash,
         recommended_subject_type: event.subject?.type || null,
         recommended_subject_id: event.subject?.id || null,
         processing_stage: 'received',
@@ -364,19 +370,34 @@ export class KnowledgeEventService {
     }
 
     async ingest(event, context = {}) {
-        requireKnowledgeEvent(event);
-        const active = this.inFlight.get(event.event_id);
+        const organizationId = context.access?.organizationId
+            || context.access?.tenantId
+            || event.organization_id
+            || event.applicability_scope?.organization_id
+            || null;
+        const scopedEvent = {
+            ...event,
+            ...(organizationId ? { organization_id: organizationId } : {}),
+            ...(event.applicability_scope ? {
+                applicability_scope: {
+                    ...event.applicability_scope,
+                    ...(organizationId ? { organization_id: organizationId } : {})
+                }
+            } : {})
+        };
+        requireKnowledgeEvent(scopedEvent);
+        const active = this.inFlight.get(scopedEvent.event_id);
         if (active) {
-            if (!sameEventIdentity(active.event, event)) throw new KnowledgeEventConflictError(event.event_id);
+            if (!sameEventIdentity(active.event, scopedEvent)) throw new KnowledgeEventConflictError(scopedEvent.event_id);
             const result = await active.promise;
             return { ...result, idempotent: true };
         }
-        const operation = this._ingestWithContext(event, context);
-        this.inFlight.set(event.event_id, { event: structuredClone(event), promise: operation });
+        const operation = this._ingestWithContext(scopedEvent, context);
+        this.inFlight.set(scopedEvent.event_id, { event: structuredClone(scopedEvent), promise: operation });
         try {
             return await operation;
         } finally {
-            this.inFlight.delete(event.event_id);
+            this.inFlight.delete(scopedEvent.event_id);
         }
     }
 
