@@ -530,6 +530,7 @@ export class GraphAPISource implements EntitySource {
       type: entity.entity_type,
       name: title,
       title,
+      status: typeof payload.status === 'string' ? payload.status : undefined,
       payload,
       content: this.contentFromPayload(payload),
       project_code: entity.project_code,
@@ -542,6 +543,7 @@ export class GraphAPISource implements EntitySource {
       (payload.content as string) ||
       (payload.markdown as string) ||
       (payload.body_summary as string) ||
+      (payload.summary as string) ||
       (payload.description as string) ||
       (payload.notes as string) ||
       ''

@@ -184,6 +184,7 @@ export interface ExtensionEntity extends BaseEntity {
   type: string;
   name: string;
   title?: string;
+  status?: string;
   payload: Record<string, unknown>;
   content: string;
 }

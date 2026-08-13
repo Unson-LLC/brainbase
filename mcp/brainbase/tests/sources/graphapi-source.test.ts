@@ -10,6 +10,41 @@ import { TokenManager } from '../../src/auth/token-manager.js';
 import { getGraphFetchTypes } from '../../src/indexer/ontology.js';
 
 describe('GraphAPISource', () => {
+  it('projects extension status and canonical summary from Graph payloads', async () => {
+    const mockTokenManager = {
+      getToken: mock.fn(async () => 'mock-token'),
+      refresh: mock.fn(async () => {}),
+    } as unknown as TokenManager;
+    global.fetch = mock.fn(async (url: string) => {
+      const type = new URL(url).searchParams.get('type');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          entities: type === 'product' ? [{
+            entity_id: 'product_unson_dialogai',
+            entity_type: 'product',
+            project_code: 'dialogai',
+            payload: {
+              name: 'DialogAI',
+              status: 'maintenance',
+              summary: '保守運用契約に基づいて稼働中。',
+              description: '旧説明',
+            },
+          }] : [],
+        }),
+      };
+    }) as any;
+
+    const source = new GraphAPISource('http://localhost:31013', mockTokenManager);
+    await source.initialize();
+    const products = await source.getExtensionEntities('product');
+
+    assert.strictEqual(products.length, 1);
+    assert.strictEqual(products[0].status, 'maintenance');
+    assert.strictEqual(products[0].content, '保守運用契約に基づいて稼働中。');
+  });
+
   it('searches the Graph API on demand for extension entities beyond the startup snapshot', async () => {
     const mockTokenManager = {
       getToken: mock.fn(async () => 'mock-token'),
