@@ -37,9 +37,17 @@ import { TokenUsageService } from '../services/token-usage-service.js';
 import { ExternalRunnerIngestService } from '../services/external-runner/ingest-service.js';
 import { RunReceiptIngestService } from '../services/run-receipt/ingest-service.js';
 import { resolveRoutineReceiptPaths } from '../../scripts/routines/runtime-paths.mjs';
-import { listRoutineDeadLetters } from '../services/routine-runtime/dead-letter-reader.js';
+import { countRoutineOutbox, listRoutineDeadLetters } from '../services/routine-runtime/dead-letter-reader.js';
 import { loadRoutineExpectations } from '../services/routine-runtime/expectation-parser.js';
 import { RoutineLivenessService } from '../services/routine-runtime/liveness-service.js';
+import { RoutineCycleExecutor } from '../services/routine-runtime/cycle-executor.js';
+import { ProductionRoutinePorts } from '../services/routine-runtime/production-routine-ports.js';
+import {
+    deliverJudgmentKnowledgeEventOutbox,
+    listKnowledgeEventDeadLetters,
+    listJudgmentKnowledgeEventOutboxExceptions,
+    resolveJudgmentKnowledgeEventOutboxPath
+} from '../services/routine-runtime/judgment-event-outbox.js';
 import { createMeetingSourceMcpAdaptersFromEnv } from '../services/meeting-source/meeting-source-mcp-adapters.js';
 import { MeetingSourceMcpSyncService } from '../services/meeting-source/meeting-source-mcp-sync-service.js';
 import { MeetingTaskOwnerResolver } from '../services/meeting-automation/meeting-task-owner-resolver.js';
@@ -218,12 +226,65 @@ export function createCoreServices({
     });
     const runReceiptIngestService = new RunReceiptIngestService({ workflowRepository });
     const routineReceiptPaths = resolveRoutineReceiptPaths({ repoDir: serverDir });
+    const judgmentKnowledgeEventOutboxDir = resolveJudgmentKnowledgeEventOutboxPath({
+        env: process.env,
+        varDir
+    });
+    const judgmentKnowledgeEventDeadLetterDir = path.join(
+        varDir,
+        'knowledge-event-dead-letter',
+        'codex-judgment'
+    );
+    const listJudgmentOutboxExceptions = () => listJudgmentKnowledgeEventOutboxExceptions({
+        directory: judgmentKnowledgeEventOutboxDir
+    });
     const routineLivenessService = new RoutineLivenessService({
         expectations: loadRoutineExpectations(path.join(serverDir, 'server', 'config', 'routine-expectations.json')),
         runReceiptQueryService: automationRuntime.runReceiptQueryService,
         listDeadLetters: () => listRoutineDeadLetters({
             directory: routineReceiptPaths.deadLetterDir
+        }),
+        listKnowledgeEventDeadLetters: () => listKnowledgeEventDeadLetters({
+            directory: judgmentKnowledgeEventDeadLetterDir
+        }),
+        listKnowledgeEventOutboxExceptions: listJudgmentOutboxExceptions
+    });
+    const productionRoutinePorts = new ProductionRoutinePorts({
+        knowledgeEventRepository,
+        candidateRepository,
+        infoSSOTService,
+        runReceiptQueryService: automationRuntime.runReceiptQueryService,
+        listJudgmentOutboxExceptions,
+        knowledgeFeedbackService,
+        countRunReceiptOutbox: () => countRoutineOutbox({ directory: routineReceiptPaths.outboxDir })
+    });
+    const oyasumiReconciler = productionRoutinePorts;
+    const episodeCompressor = productionRoutinePorts;
+    const retrievabilityVerifier = productionRoutinePorts;
+    const livenessService = routineLivenessService;
+    const recallService = productionRoutinePorts;
+    const feedbackService = productionRoutinePorts;
+    const ohayoGenerator = productionRoutinePorts;
+    const retroService = productionRoutinePorts;
+    const judgmentOutboxDeliveryService = {
+        deliverPending: () => deliverJudgmentKnowledgeEventOutbox({
+            outboxDir: judgmentKnowledgeEventOutboxDir,
+            deadLetterDir: judgmentKnowledgeEventDeadLetterDir,
+            endpoint: process.env.BRAINBASE_KNOWLEDGE_EVENT_INGEST_URL
+                || `http://127.0.0.1:${port}/api/knowledge/events`,
+            serviceToken: process.env.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN
         })
+    };
+    const routineCycleExecutor = new RoutineCycleExecutor({
+        oyasumiReconciler,
+        episodeCompressor,
+        retrievabilityVerifier,
+        livenessService,
+        recallService,
+        feedbackService,
+        ohayoGenerator,
+        retroService,
+        judgmentOutboxDeliveryService
     });
 
     const tokenUsageService = new TokenUsageService();
@@ -267,6 +328,7 @@ export function createCoreServices({
         externalRunnerIngestService,
         runReceiptIngestService,
         routineLivenessService,
+        routineCycleExecutor,
         uploadMiddleware: upload.single('file')
     };
 }

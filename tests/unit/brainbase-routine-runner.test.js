@@ -122,8 +122,9 @@ describe('Brainbase Routine Runner', () => {
         expect(deadLetters).toHaveLength(1);
         expect(deadLetters[0]).toMatchObject({
             automation_id: 'brainbase-ohayo',
-            path: expect.stringMatching(`${receiptPaths.deadLetterDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/rr1_[a-f0-9]{64}\\.json$`)
+            path: expect.stringMatching(/^rr1_[a-f0-9]{64}\.json$/)
         });
+        expect(path.isAbsolute(deadLetters[0].path)).toBe(false);
         expect(fs.existsSync(path.join(foreignCwd, 'var'))).toBe(false);
     });
 });

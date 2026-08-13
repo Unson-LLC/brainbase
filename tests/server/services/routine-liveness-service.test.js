@@ -35,6 +35,52 @@ function queryServiceWith(historyByAutomation = {}) {
 }
 
 describe('RoutineLivenessService', () => {
+    it('judgment knowledge event Dead Letterを朝の最上位例外へ統合し絶対pathを隠す', async () => {
+        const service = new RoutineLivenessService({
+            expectations: [dailyExpectation('brainbase-missing', 3)],
+            runReceiptQueryService: queryServiceWith(),
+            listDeadLetters: async () => [],
+            listKnowledgeEventDeadLetters: async () => [{
+                code: 'knowledge_event_dead_letter',
+                event_id: 'kev_dead_1',
+                path: '/private/brainbase/knowledge-event-dead-letter/codex-judgment/kev_dead_1.json',
+                created_at: '2026-08-12T21:59:00.000Z'
+            }],
+            now: () => new Date('2026-08-12T22:00:00.000Z')
+        });
+
+        await expect(service.listExceptions({ limit: 1 })).resolves.toEqual([{
+            code: 'knowledge_event_dead_letter',
+            event_id: 'kev_dead_1',
+            path: 'kev_dead_1.json',
+            created_at: '2026-08-12T21:59:00.000Z'
+        }]);
+    });
+
+    it('judgment knowledge event outbox例外を朝の例外へ統合する', async () => {
+        const listKnowledgeEventOutboxExceptions = vi.fn(async () => [{
+            code: 'knowledge_event_outbox',
+            event_id: 'kev_judgment_1',
+            path: '/var/judgment-event-outbox/kev_judgment_1.json',
+            created_at: '2026-08-12T20:00:00.000Z'
+        }]);
+        const service = new RoutineLivenessService({
+            expectations: [],
+            runReceiptQueryService: queryServiceWith(),
+            listDeadLetters: async () => [],
+            listKnowledgeEventOutboxExceptions,
+            now: () => new Date('2026-08-12T22:00:00.000Z')
+        });
+
+        await expect(service.listExceptions({ limit: 3 })).resolves.toEqual([{
+            code: 'knowledge_event_outbox',
+            event_id: 'kev_judgment_1',
+            path: 'kev_judgment_1.json',
+            created_at: '2026-08-12T20:00:00.000Z'
+        }]);
+        expect(listKnowledgeEventOutboxExceptions).toHaveBeenCalledOnce();
+    });
+
     it('猶予時刻ちょうどはmissingにせず、1ms超過後にmissing_receiptにする', async () => {
         const expectation = dailyExpectation('brainbase-ohayo', 6, 20);
         const atBoundary = new RoutineLivenessService({
@@ -75,7 +121,7 @@ describe('RoutineLivenessService', () => {
         await expect(service.listExceptions()).resolves.toEqual([]);
     });
 
-    it('success/confirmedでも必須routine_summary証跡がなければblocked_receiptにする', async () => {
+    it('success/confirmedでも必須routine_summary証跡がなければrequired_artifact_missingにする', async () => {
         const expectation = dailyExpectation('brainbase-ohayo', 6, 20);
         const service = new RoutineLivenessService({
             expectations: [expectation],
@@ -90,7 +136,7 @@ describe('RoutineLivenessService', () => {
 
         await expect(service.listExceptions()).resolves.toEqual([
             expect.objectContaining({
-                code: 'blocked_receipt',
+                code: 'required_artifact_missing',
                 automation_id: 'brainbase-ohayo',
                 source_status: 'success',
                 evidence_state: 'confirmed',

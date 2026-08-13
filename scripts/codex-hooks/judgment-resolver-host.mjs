@@ -18,6 +18,14 @@ import {
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+    sanitizeJudgmentAnswer,
+    toKnowledgeEventFromJudgmentEpisode
+} from '../../server/services/routine-runtime/judgment-event-adapter.js';
+import {
+    enqueueJudgmentKnowledgeEvent,
+    resolveJudgmentKnowledgeEventOutboxPath
+} from '../../server/services/routine-runtime/judgment-event-outbox.js';
 
 let Database;
 const builtInSqlite = process.getBuiltinModule?.('node:sqlite');
@@ -1074,10 +1082,10 @@ export function finalizeEpisode(payload, { env = process.env } = {}) {
     const episode = existingEpisode(payload, env);
     if (!episode) throw new Error('judgment_episode_not_found');
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
-    return withEpisodeTransitionLock(paths, () => finalizeEpisodeLocked(payload, episode, paths), env);
+    return withEpisodeTransitionLock(paths, () => finalizeEpisodeLocked(payload, episode, paths, env), env);
 }
 
-function finalizeEpisodeLocked(payload, episode, paths) {
+function finalizeEpisodeLocked(payload, episode, paths, env) {
     const events = episodeEvents(paths);
     const finalized = existingFinal(paths, episode);
     if (finalized) {
@@ -1090,6 +1098,7 @@ function finalizeEpisodeLocked(payload, episode, paths) {
             || finalized.event_set_digest !== eventSetDigest) {
             throw new Error('judgment_episode_final_event_set_mismatch');
         }
+        enqueueFinalKnowledgeEvent(payload, finalized, env);
         return { output: {}, final: finalized };
     }
     const requiredKnowledge = requiredKnowledgeResolution(episode.initial_route_receipt);
@@ -1148,6 +1157,7 @@ function finalizeEpisodeLocked(payload, episode, paths) {
             final: null
         };
     }
+    const safeAnswer = sanitizeJudgmentAnswer(answer);
     const entry = {
         schema_version: 'brainbase-judgment-episode-final-v2',
         finalized_at: new Date().toISOString(),
@@ -1160,10 +1170,33 @@ function finalizeEpisodeLocked(payload, episode, paths) {
         event_set_digest: orderedEventSetDigest(events),
         owner_audit_complete: !missingOwnerAudit,
         owner_audit_line_count: expectedAuditLines.length,
-        answer_digest: answer === null ? null : sha256(answer)
+        answer_digest: answer === null ? null : sha256(answer),
+        ...(safeAnswer?.sensitive
+            ? { redaction_status: 'needs_redaction' }
+            : safeAnswer?.summary
+                ? { final_summary: safeAnswer.summary }
+                : {})
     };
     const final = createImmutableJson(paths.final, entry, 'judgment_episode_final_conflict');
+    enqueueFinalKnowledgeEvent(payload, final, env);
     return { output: {}, final };
+}
+
+function enqueueFinalKnowledgeEvent(payload, final, env) {
+    const event = toKnowledgeEventFromJudgmentEpisode({
+        ...final,
+        episode_id: `je_${sha256(`${payload.session_id}:${payload.turn_id}`)}`,
+        session_id: payload.session_id,
+        turn_id: payload.turn_id
+    });
+    if (event) {
+        enqueueJudgmentKnowledgeEvent(event, {
+            directory: resolveJudgmentKnowledgeEventOutboxPath({
+                env,
+                repoDir: REPO_ROOT
+            })
+        });
+    }
 }
 
 const OWNER_EXCERPT_LIMIT = 26;

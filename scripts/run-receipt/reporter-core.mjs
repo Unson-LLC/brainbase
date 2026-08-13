@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 
 const EVIDENCE_KINDS = new Set(['url', 'artifact_ref', 'log_ref']);
 const EVIDENCE_KEYS = new Set(['kind', 'ref', 'label']);
-const OPAQUE_REF_PATTERN = /^[a-z][a-z0-9+.-]{1,31}:[^\s]{1,2000}$/;
+const OPAQUE_REF_PATTERN = /^[a-z][a-z0-9_+.-]{1,31}:[^\s]{1,2000}$/;
+const ROUTINE_ARTIFACT_REF_PATTERN = /^routine-artifacts\/[a-z0-9_-]+\/[a-f0-9]{64}\.json$/;
 const EMBEDDED_CREDENTIAL_PATTERN = /^[a-z][a-z0-9+.-]{1,31}:(?:\/\/)?[^/?#\s@]+(?::[^/?#\s@]*)?@/i;
 const CONTROL_OR_NEWLINE_PATTERN = /[\u0000-\u001f\u007f]/;
 
@@ -54,7 +55,7 @@ export function normalizeEvidenceRefs(value) {
             if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
                 throw new Error(`${field}.ref must be an absolute HTTPS URL without credentials`);
             }
-        } else if (!OPAQUE_REF_PATTERN.test(ref)) {
+        } else if (!OPAQUE_REF_PATTERN.test(ref) && !ROUTINE_ARTIFACT_REF_PATTERN.test(ref)) {
             throw new Error(`${field}.ref must be a source-owned opaque reference`);
         }
         return {

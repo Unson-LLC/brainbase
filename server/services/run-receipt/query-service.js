@@ -238,4 +238,49 @@ export class RunReceiptQueryService {
             }
         };
     }
+
+    async summarizeRoutineState({
+        project_id: projectId,
+        since,
+        until,
+        routine_automation_ids: routineAutomationIds
+    } = {}, context = {}) {
+        await this.prepareProjectAccess();
+        const normalizedProjectId = requireString(projectId, 'project_id');
+        const actor = context.actor || context.access || context;
+        this.assertProjectAccess(normalizedProjectId, actor);
+        const lowerBound = since ? runReceiptEpoch(since) : null;
+        const upperBound = until ? runReceiptEpoch(until) : null;
+        const identities = Array.isArray(routineAutomationIds) ? new Set(routineAutomationIds) : null;
+        const items = this.repository.listRuns({ projectId: normalizedProjectId, limit: null })
+            .map(projectItem)
+            .filter(Boolean)
+            .filter((item) => this.canAccessProject(item.project_id, actor))
+            .filter((item) => !identities || identities.has(item.source.workflow_id))
+            .filter((item) => lowerBound === null || item.effective_epoch >= lowerBound)
+            .filter((item) => upperBound === null || item.effective_epoch < upperBound)
+            .sort(runReceiptOrder);
+        const uniqueRuns = [...items.reduce((runs, item) => {
+            const identity = item.external_run_id
+                ? `${item.source.workflow_id}:${item.external_run_id}`
+                : `${item.source.workflow_id}:${item.run_id}`;
+            if (!runs.has(identity)) runs.set(identity, item);
+            return runs;
+        }, new Map()).values()];
+        const latestByRoutine = identities
+            ? [...uniqueRuns.reduce((latest, item) => {
+                if (!latest.has(item.source.workflow_id)) latest.set(item.source.workflow_id, item);
+                return latest;
+            }, new Map()).values()]
+            : uniqueRuns;
+        return {
+            outbox_count: null,
+            stoppage_count: latestByRoutine.filter((item) => isStoppedReceipt(item)).length
+        };
+    }
+}
+
+function isStoppedReceipt(item) {
+    return ['blocked', 'failed', 'waiting_human'].includes(item.source_status)
+        || ['no_data', 'unconfirmed'].includes(item.evidence_state);
 }

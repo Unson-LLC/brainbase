@@ -36,8 +36,9 @@ describe('routine dead-letter reader', () => {
         expect(result).toEqual([{
             automation_id: 'brainbase-ohayo',
             created_at: createdAt.toISOString(),
-            path: filePath
+            path: 'workflow-id.json'
         }]);
+        expect(path.isAbsolute(result[0].path)).toBe(false);
         expect(JSON.stringify(result)).not.toContain('secret meeting content');
         expect(JSON.stringify(result)).not.toContain('sensitive failure detail');
     });
@@ -55,7 +56,7 @@ describe('routine dead-letter reader', () => {
         await expect(listRoutineDeadLetters({ directory })).resolves.toEqual([{
             automation_id: 'brainbase-oyasumi',
             created_at: createdAt.toISOString(),
-            path: filePath
+            path: 'source-name.json'
         }]);
     });
 });

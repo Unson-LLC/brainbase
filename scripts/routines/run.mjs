@@ -1,4 +1,6 @@
 import path from 'node:path';
+import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import expectationManifest from '../../server/config/routine-expectations.json' with { type: 'json' };
@@ -19,6 +21,32 @@ const EXPECTATION_BY_ROUTINE = new Map(routineExpectations.map((expectation) => 
 ]));
 const DEFAULT_REPO_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
+export function exitCodeForRoutineStatus(status) {
+    if (status === 'completed') return 0;
+    if (status === 'partial' || status === 'waiting_human') return 2;
+    return 1;
+}
+
+export function serializeRoutineCliResult(result) {
+    const output = { status: result?.status };
+    if (result?.cycle_status) output.cycle_status = result.cycle_status;
+    if (result?.morning_output) {
+        output.morning_output = {
+            exceptions: (Array.isArray(result.morning_output.exceptions) ? result.morning_output.exceptions : [])
+                .slice(0, 3)
+                .map((item) => ({
+                    ...(typeof item?.code === 'string' ? { code: item.code } : {}),
+                    ...(typeof item?.summary === 'string' ? { summary: item.summary.slice(0, 2000) } : {})
+                })),
+            memories: (Array.isArray(result.morning_output.memories) ? result.morning_output.memories : [])
+                .slice(0, 3)
+                .map((item) => ({ summary: String(item?.summary || '').slice(0, 2000) }))
+                .filter((item) => item.summary)
+        };
+    }
+    return JSON.stringify(output);
+}
+
 function requireRoutine(routine) {
     if (!ROUTINE_NAMES.includes(routine) || !EXPECTATION_BY_ROUTINE.has(routine)) {
         throw new Error('routine must be one of: ohayo, oyasumi, retro');
@@ -30,6 +58,27 @@ function toIso(value, fieldName) {
     const date = value instanceof Date ? value : new Date(value);
     if (Number.isNaN(date.getTime())) throw new Error(`${fieldName} must be a valid date`);
     return date.toISOString();
+}
+
+function persistRoutineSummary({ routine, routineSummary, varDir }) {
+    if (!routineSummary || typeof routineSummary !== 'object' || !varDir) return null;
+    const serializedSummary = JSON.stringify(routineSummary);
+    const contentSha256 = createHash('sha256').update(serializedSummary).digest('hex');
+    const relativePath = path.posix.join('routine-artifacts', routine, `${contentSha256}.json`);
+    const target = path.join(varDir, ...relativePath.split('/'));
+    fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+    if (!fs.existsSync(target)) {
+        const temporary = `${target}.${process.pid}.${Date.now()}.tmp`;
+        fs.writeFileSync(temporary, `${JSON.stringify({
+            schema_version: 'routine_summary.v1',
+            content_sha256: contentSha256,
+            routine_summary: routineSummary
+        }, null, 2)}\n`, { mode: 0o600 });
+        fs.renameSync(temporary, target);
+    }
+    const discoverableTarget = path.join(varDir, 'routine-artifacts', `${routine}-${contentSha256}.json`);
+    if (!fs.existsSync(discoverableTarget)) fs.linkSync(target, discoverableTarget);
+    return { kind: 'artifact_ref', ref: relativePath, label: 'routine_summary' };
 }
 
 export function buildRoutineRunReceipt({
@@ -53,6 +102,7 @@ export function buildRoutineRunReceipt({
         run_id: threadId,
         observation_id: threadId ? undefined : `routine:${normalizedRoutine}:${finishedAt}`,
         status: input.status,
+        ...(input.blocker_reason ? { blocker_reason: input.blocker_reason } : {}),
         ...(startedAt ? { started_at: startedAt } : {}),
         finished_at: finishedAt,
         evidence_refs: input.evidence_refs
@@ -74,9 +124,56 @@ export async function runRoutine({
     input = {},
     fetchImpl = globalThis.fetch,
     maxAttempts = 5,
-    now = () => new Date()
+    now = () => new Date(),
+    executeCycle = null
 }) {
-    const receipt = buildRoutineRunReceipt({ routine, env, input, now });
+    const cycleExecutor = executeCycle || ((cycleInput) => executeRoutineOverHttp({
+        ...cycleInput,
+        env,
+        fetchImpl
+    }));
+    let cycleResult;
+    try {
+        cycleResult = await cycleExecutor({ routine, input });
+    } catch {
+        cycleResult = {
+            status: 'failed',
+            anomalies: [{ code: 'routine_execution_failed' }],
+            routine_summary: { routine, status: 'failed', anomaly_count: 1 },
+            evidence_refs: []
+        };
+    }
+    if (cycleResult?.status === 'completed' && !cycleResult?.routine_summary) {
+        cycleResult = {
+            ...cycleResult,
+            status: 'failed',
+            anomalies: [
+                ...(Array.isArray(cycleResult.anomalies) ? cycleResult.anomalies : []),
+                { code: 'required_artifact_missing', artifact: 'routine_summary' }
+            ],
+            routine_summary: { routine, status: 'failed', anomaly_count: 1 }
+        };
+    }
+    const summaryRef = persistRoutineSummary({
+        routine,
+        routineSummary: cycleResult?.routine_summary,
+        varDir: env.BRAINBASE_VAR_DIR || resolveRoutineReceiptPaths({ repoDir, env }).varDir
+    });
+    const evidenceRefs = Array.isArray(cycleResult?.evidence_refs)
+        ? cycleResult.evidence_refs.filter((ref) => !summaryRef || ref?.label !== 'routine_summary')
+        : [];
+    if (summaryRef) evidenceRefs.push(summaryRef);
+    const receiptInput = {
+        ...cycleResult,
+        status: cycleResult?.status === 'partial' ? 'waiting_human' : cycleResult?.status,
+        finished_at: cycleResult?.finished_at || input.finished_at,
+        started_at: cycleResult?.started_at || input.started_at,
+        evidence_refs: evidenceRefs,
+        ...(cycleResult?.anomalies?.some((entry) => entry.code === 'required_artifact_missing')
+            ? { blocker_reason: 'required_artifact_missing: routine_summary' }
+            : {})
+    };
+    const receipt = buildRoutineRunReceipt({ routine, env, input: receiptInput, now });
     if (receipt.kind === 'pending') return receipt;
 
     const { outboxDir, deadLetterDir } = resolveRoutineReceiptPaths({ repoDir, env });
@@ -90,14 +187,41 @@ export async function runRoutine({
         maxAttempts,
         now
     });
-    return { queued: queued.status, delivery };
+    return {
+        ...cycleResult,
+        status: cycleResult.status,
+        cycle_status: cycleResult.status,
+        queued: queued.status,
+        delivery
+    };
+}
+
+export async function executeRoutineOverHttp({ routine, input = {}, env = process.env, fetchImpl = globalThis.fetch }) {
+    const baseUrl = String(env.BRAINBASE_API_URL || '').replace(/\/$/, '');
+    if (!baseUrl) throw new Error('BRAINBASE_API_URL is required');
+    if (typeof fetchImpl !== 'function') throw new Error('fetch is unavailable');
+    const headers = { 'Content-Type': 'application/json' };
+    if (env.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN) {
+        headers.Authorization = `Bearer ${env.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN}`;
+    }
+    const response = await fetchImpl(`${baseUrl}/api/routines/${routine}/execute`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+            thread_id: env.CODEX_THREAD_ID,
+            input
+        })
+    });
+    if (!response?.ok) throw new Error(`routine API failed (${response?.status || 'unknown'})`);
+    return response.json();
 }
 
 async function main() {
     const routine = process.argv[2];
     const input = await readStdin();
     const result = await runRoutine({ routine, input });
-    process.stdout.write(`${JSON.stringify(result)}\n`);
+    process.stdout.write(`${serializeRoutineCliResult(result)}\n`);
+    process.exitCode = exitCodeForRoutineStatus(result.status);
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
