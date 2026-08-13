@@ -51,6 +51,7 @@ describe('Brainbase MCP core ontology', () => {
   it('SPEC-brainbase-mcp-core-ontology INV-12: keeps the deliberate core type registry', () => {
     assert.deepStrictEqual([...CORE_ENTITY_TYPES], ['project', 'person', 'org', 'brand', 'app', 'customer', 'partner', 'decision', 'raci', 'glossary_term', 'document']);
     assert.ok(EXTENSION_ENTITY_TYPES.includes('contact'));
+    assert.ok(EXTENSION_ENTITY_TYPES.includes('initiative'));
   });
 
   it('SPEC-brainbase-mcp-core-ontology INV-1 INV-2 S-1: searches brand as a default core entity', async () => {

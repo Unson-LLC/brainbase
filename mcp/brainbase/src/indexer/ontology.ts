@@ -32,6 +32,7 @@ export const EXTENSION_ENTITY_TYPES = [
   'media_appearance',
   'role_assignment',
   'product',
+  'initiative',
   'publication',
   'press_mention',
 ] as const;
@@ -59,6 +60,7 @@ export const ENTITY_TYPE_REGISTRY: EntityTypeRegistration[] = [
   { type: 'media_appearance', category: 'extension', displayName: 'Media Appearance', description: 'Media appearance profile record.', defaultSearch: false },
   { type: 'role_assignment', category: 'extension', displayName: 'Role Assignment', description: 'Profile or organization-specific role assignment.', defaultSearch: false },
   { type: 'product', category: 'extension', displayName: 'Product', description: 'Profile or organization-specific product record.', defaultSearch: false },
+  { type: 'initiative', category: 'extension', displayName: 'Initiative', description: 'Cross-project program or strategic initiative.', defaultSearch: false },
   { type: 'publication', category: 'extension', displayName: 'Publication', description: 'Publication profile record.', defaultSearch: false },
   { type: 'press_mention', category: 'extension', displayName: 'Press Mention', description: 'Press mention profile record.', defaultSearch: false },
 ];
