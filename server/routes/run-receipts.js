@@ -36,7 +36,7 @@ function actorFromRequest(req) {
     };
 }
 
-export function createRunReceiptRouter({ ingestService, queryService }) {
+export function createRunReceiptRouter({ ingestService, queryService, routineLivenessService = null }) {
     const router = Router();
 
     router.post('/ingest', asyncHandler(async (req, res) => {
@@ -91,6 +91,25 @@ export function createRunReceiptRouter({ ingestService, queryService }) {
             sourceIdentity: req.query.source_identity || req.query.sourceIdentity,
             limit: req.query.limit
         }, actorFromRequest(req)));
+    }));
+
+    router.get('/routine-exceptions', asyncHandler(async (req, res) => {
+        if (!canAccessProject(req, 'brainbase')) {
+            res.status(403).json({
+                error: 'project_not_accessible',
+                message: "project 'brainbase' is not accessible"
+            });
+            return;
+        }
+        if (!routineLivenessService) {
+            res.status(503).json({
+                error: 'routine_liveness_unavailable',
+                message: 'routine liveness service is not configured'
+            });
+            return;
+        }
+        const items = await routineLivenessService.listExceptions({ limit: 3 });
+        res.json({ count: items.length, items });
     }));
 
     router.get('/:runId/diagnosis', asyncHandler(async (req, res) => {

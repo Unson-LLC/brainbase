@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import express from 'express';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { requireAuth } from '../../../server/middleware/auth.js';
 import { createRunReceiptRouter } from '../../../server/routes/run-receipts.js';
@@ -63,7 +63,8 @@ function createApp({
     projectCodes = ['brainbase'],
     role = 'member',
     repository = new InMemoryWorkflowRepository(),
-    lockAcquireTimeoutMs = 100
+    lockAcquireTimeoutMs = 100,
+    routineLivenessService = null
 } = {}) {
     const app = express();
     const ingestService = new RunReceiptIngestService({
@@ -81,7 +82,8 @@ function createApp({
     });
     app.use('/api/run-receipts', createRunReceiptRouter({
         ingestService,
-        queryService: workflowService.runReceiptQueryService
+        queryService: workflowService.runReceiptQueryService,
+        routineLivenessService
     }));
     app.use('/api/workflows', createWorkflowRouter({
         agentControlCatalogService: workflowService.agentControlCatalogService,
@@ -361,6 +363,27 @@ describe('run receipt routes', () => {
             .get('/api/run-receipts/missing-run/diagnosis')
             .query({ project_id: 'mana' })
             .expect(403);
+    });
+
+    it('GET routine-exceptionsは固定上限3でliveness serviceへ委譲する', async () => {
+        const routineLivenessService = {
+            listExceptions: vi.fn(async () => [{
+                code: 'missing_receipt',
+                automation_id: 'brainbase-ohayo'
+            }])
+        };
+        const { app } = createApp({ routineLivenessService });
+
+        const response = await request(app)
+            .get('/api/run-receipts/routine-exceptions')
+            .expect(200);
+
+        expect(routineLivenessService.listExceptions).toHaveBeenCalledOnce();
+        expect(routineLivenessService.listExceptions).toHaveBeenCalledWith({ limit: 3 });
+        expect(response.body).toEqual({
+            count: 1,
+            items: [{ code: 'missing_receipt', automation_id: 'brainbase-ohayo' }]
+        });
     });
 
     it('run receiptは廃止済みWorkflow製品APIと互換実行APIへ露出しない', async () => {
