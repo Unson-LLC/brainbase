@@ -1,0 +1,85 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-canonical-task-create-recovery",
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "同じ冪等キーと同じ入力のTask作成再実行は、保存済みの同一Task version 1を返し、追加作成しない。",
+      "rationale": "成功した副作用を失敗として報告せず、Slack再試行でも重複を作らないため。",
+      "origin": {
+        "story_refs": [{"kind":"acceptance_criteria","index":0,"ac_id":"AC-1","text_snippet":"保存済みの同一Task version 1を返し、Taskを追加作成しない"}],
+        "architecture_refs": [{"file":"docs/architecture/story-canonical-task-create-recovery.md","section":"決定","text_snippet":"同一Taskをrecovered: trueで返し、再作成しない"}],
+        "code_refs": [{"file":"server/services/companion/canonical-task-service.js","anchor":"recoverCreatedTask"}],
+        "test_refs": [
+          {"file":"tests/server/services/canonical-task-service.test.js","case":"story-canonical-task-create-recovery:ac:1 recovers a persisted create result without creating a duplicate"},
+          {"file":"tests/server/services/canonical-task-service.test.js","case":"story-canonical-task-create-recovery:ac:1 recovers a persisted Mana capture result"},
+          {"file":"tests/server/services/canonical-task-service.test.js","case":"story-canonical-task-create-recovery:ac:1 recovers a persisted workflow Task result"}
+        ]
+      },
+      "verifiable_by": {"test_pattern":[{"file_glob":"tests/server/services/canonical-task-service.test.js","must_cover":"story-canonical-task-create-recovery:ac:1 recovers a persisted create result without creating a duplicate"}]},
+      "confidence": 1,
+      "first_seen_at": "2026-08-13T10:00:00.000Z",
+      "last_revised_at": "2026-08-13T10:00:00.000Z"
+    },
+    {
+      "id": "C-002",
+      "type": "security",
+      "statement": "回収時もpayload fingerprintとowner境界を検査し、不一致を成功として返さない。",
+      "rationale": "冪等キーの再利用や別owner Taskの越境をfail-closedに拒否するため。",
+      "origin": {
+        "story_refs": [
+          {"kind":"acceptance_criteria","index":1,"ac_id":"AC-2","text_snippet":"idempotency_conflict（409）を返す"},
+          {"kind":"acceptance_criteria","index":3,"ac_id":"AC-4","text_snippet":"owner境界を満たさない保存済みTaskを回収結果として返さない"}
+        ],
+        "architecture_refs": [{"file":"docs/architecture/story-canonical-task-create-recovery.md","section":"決定","text_snippet":"payload fingerprintが現在のfingerprintと異なる場合は409"}],
+        "code_refs": [{"file":"server/services/companion/canonical-task-service.js","anchor":"recoverCreatedTask"}],
+        "test_refs": [
+          {"file":"tests/server/services/canonical-task-service.test.js","case":"story-canonical-task-create-recovery:ac:2 rejects a recovered create with a different payload fingerprint"},
+          {"file":"tests/server/services/canonical-task-service.test.js","case":"story-canonical-task-create-recovery:ac:4 reapplies the owner boundary to a recovered create"}
+        ]
+      },
+      "verifiable_by": {"test_pattern":[
+        {"file_glob":"tests/server/services/canonical-task-service.test.js","must_cover":"story-canonical-task-create-recovery:ac:2 rejects a recovered create with a different payload fingerprint"},
+        {"file_glob":"tests/server/services/canonical-task-service.test.js","must_cover":"story-canonical-task-create-recovery:ac:4 reapplies the owner boundary to a recovered create"}
+      ]},
+      "confidence": 1,
+      "first_seen_at": "2026-08-13T10:00:00.000Z",
+      "last_revised_at": "2026-08-13T10:00:00.000Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "冪等キーに対応するTaskが存在しない回収試行は未回収を返し、通常作成を継続できる。",
+      "rationale": "writer再開時に未適用の操作を安全に完遂するため。",
+      "origin": {
+        "story_refs": [{"kind":"acceptance_criteria","index":2,"ac_id":"AC-3","text_snippet":"未回収として扱い、通常の作成処理へ進める"}],
+        "architecture_refs": [{"file":"docs/architecture/story-canonical-task-create-recovery.md","section":"決定","text_snippet":"Taskがなければrecovered: false"}],
+        "code_refs": [{"file":"server/services/companion/canonical-task-service.js","anchor":"recoverCreatedTask"}],
+        "test_refs": [{"file":"tests/server/services/canonical-task-service.test.js","case":"story-canonical-task-create-recovery:ac:3 creates normally when recovery finds no persisted task"}]
+      },
+      "verifiable_by": {"test_pattern":[{"file_glob":"tests/server/services/canonical-task-service.test.js","must_cover":"story-canonical-task-create-recovery:ac:3 creates normally when recovery finds no persisted task"}]},
+      "confidence": 1,
+      "first_seen_at": "2026-08-13T10:00:00.000Z",
+      "last_revised_at": "2026-08-13T10:00:00.000Z"
+    },
+    {
+      "id": "C-004",
+      "type": "operation",
+      "statement": "Brainbase修正後、Cloudflare board OFFかつLightsail Task所有権ONのまま、同一SlackスレッドでTask作成・検索・更新・状態遷移を検証する。",
+      "rationale": "本番の誤失敗が解消したことを確認してから所有権を切り替えるため。",
+      "origin": {
+        "story_refs": [{"kind":"acceptance_criteria","index":4,"ac_id":"AC-5","text_snippet":"同じSlackスレッドでcreate→search→update→search→transition→search"}],
+        "architecture_refs": [{"file":"docs/architecture/story-canonical-task-create-recovery.md","section":"リリース境界","text_snippet":"所有権切替を再開する"}]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-13T10:00:00.000Z",
+      "last_revised_at": "2026-08-13T10:00:00.000Z"
+    }
+  ],
+  "diagrams": [],
+  "open_questions": [],
+  "generated_at": "2026-08-13T10:00:00.000Z",
+  "generated_by": {"caller":"codex","stage":"ai_synthesis"},
+  "previous_spec_id": null
+}
