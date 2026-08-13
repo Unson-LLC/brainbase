@@ -30,6 +30,10 @@ import { WikiService } from '../services/wiki-service.js';
 import { TokenUsageService } from '../services/token-usage-service.js';
 import { ExternalRunnerIngestService } from '../services/external-runner/ingest-service.js';
 import { RunReceiptIngestService } from '../services/run-receipt/ingest-service.js';
+import { resolveRoutineReceiptPaths } from '../../scripts/routines/runtime-paths.mjs';
+import { listRoutineDeadLetters } from '../services/routine-runtime/dead-letter-reader.js';
+import { loadRoutineExpectations } from '../services/routine-runtime/expectation-parser.js';
+import { RoutineLivenessService } from '../services/routine-runtime/liveness-service.js';
 import { createMeetingSourceMcpAdaptersFromEnv } from '../services/meeting-source/meeting-source-mcp-adapters.js';
 import { MeetingSourceMcpSyncService } from '../services/meeting-source/meeting-source-mcp-sync-service.js';
 import { MeetingTaskOwnerResolver } from '../services/meeting-automation/meeting-task-owner-resolver.js';
@@ -178,6 +182,14 @@ export function createCoreServices({
         candidateRepository
     });
     const runReceiptIngestService = new RunReceiptIngestService({ workflowRepository });
+    const routineReceiptPaths = resolveRoutineReceiptPaths({ repoDir: serverDir });
+    const routineLivenessService = new RoutineLivenessService({
+        expectations: loadRoutineExpectations(path.join(serverDir, 'server', 'config', 'routine-expectations.json')),
+        runReceiptQueryService: automationRuntime.runReceiptQueryService,
+        listDeadLetters: () => listRoutineDeadLetters({
+            directory: routineReceiptPaths.deadLetterDir
+        })
+    });
 
     const tokenUsageService = new TokenUsageService();
 
@@ -214,6 +226,7 @@ export function createCoreServices({
         meetingSourceMcpSyncService,
         externalRunnerIngestService,
         runReceiptIngestService,
+        routineLivenessService,
         uploadMiddleware: upload.single('file')
     };
 }

@@ -306,6 +306,7 @@ const {
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
     runReceiptIngestService,
+    routineLivenessService,
     uploadMiddleware
 } = createCoreServices({
     varDir: VAR_DIR,
@@ -424,6 +425,7 @@ registerApiRoutes(app, {
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
     runReceiptIngestService,
+    routineLivenessService,
     uploadMiddleware,
     appVersion: APP_VERSION,
     workspaceRoot,
