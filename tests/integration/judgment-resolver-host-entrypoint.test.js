@@ -150,17 +150,17 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             tool_input: {}, tool_response: { status: 'ok', data: { projects: [], count: 0 } }
         }) });
         expect(JSON.parse(unrelated.stdout).systemMessage).toBe(
-            '📚 Brainbase呼出: brainbase_projects「プロジェクト一覧」→ 0件・呼び出し完了 ✓'
+            '📚 Brainbase呼出: brainbase_projects「プロジェクト一覧」→ 0件・正常応答を確認 ✓'
         );
         const unrelatedLine = JSON.parse(unrelated.stdout).systemMessage;
 
         const generic = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'PostToolUse', ...identity,
             tool_name: 'mcp__brainbase__get_context', tool_use_id: 'tool-generic',
-            tool_input: { topic: 'resolver' }, tool_response: { content: [{ type: 'text', text: 'context' }] }
+            tool_input: { topic: 'resolver' }, tool_response: { isError: false, content: [{ type: 'text', text: 'context' }] }
         }) });
         expect(JSON.parse(generic.stdout).systemMessage).toBe(
-            '📚 Brainbase呼出: get_context「resolver」→ 呼び出し完了 ✓'
+            '📚 Brainbase取得: get_context「resolver」→ 正常応答を確認 ✓'
         );
         const genericLine = JSON.parse(generic.stdout).systemMessage;
 

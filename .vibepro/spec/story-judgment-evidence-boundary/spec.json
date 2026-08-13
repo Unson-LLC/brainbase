@@ -1,0 +1,151 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-judgment-evidence-boundary",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "既知の内部envelopeと明示的な資料領域を現在命令のmatcher入力から除外し、直接命令は従来どおり分類する。",
+      "rationale": "内部指示や貼付ログ中の語を利用者の実行指示と誤認しないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0,
+            "ac_id": "AC-1",
+            "text_snippet": "内部envelopeと資料を命令から分離する"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "function isInjectedHostEnvelope"
+          },
+          {
+            "file": "server/services/judgment-resolution-service.js",
+            "anchor": "function classificationRequest"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "canonical transcript"
+          },
+          {
+            "file": "tests/unit/judgment-resolution-service.test.js",
+            "case": "会話ログ内の語を現在命令として分類しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolution-service.test.js",
+            "must_cover": "会話ログ内の語を現在命令として分類しない"
+          }
+        ]
+      },
+      "confidence": 0.9,
+      "first_seen_at": "2026-08-13T03:00:28.076Z",
+      "last_revised_at": "2026-08-13T03:00:28.076Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "task作成・更新・遷移はwriteとして対象を表示し、既知成功schema以外は成功表示しない。",
+      "rationale": "何を書いたかと業務結果を監査可能にし、unknownを成功へ潰さないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "ac_id": "AC-3",
+            "text_snippet": "task書込と応答をfail-closedにする"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "export function recordBrainbaseToolUse"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "task書込の対象を表示し、未知結果と埋込成功行をfail-closedにする"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "task書込の対象を表示し、未知結果と埋込成功行をfail-closedにする"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-13T03:00:28.076Z",
+      "last_revised_at": "2026-08-13T03:00:28.076Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "final receiptの監査手続完了は回答内容の正しさを意味せず、両状態を別fieldで表す。",
+      "rationale": "protocol completionとcontent verificationを混同しないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4,
+            "ac_id": "AC-5",
+            "text_snippet": "手続完了と内容検証を分離する"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "const entry ="
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "completion_status"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "audit_protocol_complete"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-13T03:00:28.076Z",
+      "last_revised_at": "2026-08-13T03:00:28.076Z"
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q-001",
+      "question": "origin metadataをCodex Desktop Hostから受け取る契約は別Storyで設計する。",
+      "owner": "platform",
+      "status": "open"
+    },
+    {
+      "id": "Q-002",
+      "question": "claim-evidence ledgerと候補回答のcommit前保留は上流機能として扱う。",
+      "owner": "platform",
+      "status": "open"
+    }
+  ],
+  "generated_at": "2026-08-13T03:00:28.069Z",
+  "previous_spec_id": null
+}

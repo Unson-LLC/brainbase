@@ -105,7 +105,7 @@ function isInjectedHostEnvelope(text) {
     const trimmed = text.trimStart();
     return trimmed.startsWith('<recommended_plugins>')
         || /^<hook_prompt(?:\s|>)/u.test(trimmed)
-        || trimmed.startsWith('# AGENTS.md instructions for ')
+        || /^# AGENTS\.md instructions(?:\s+for\b|(?:\r?\n|$))/u.test(trimmed)
         || trimmed.startsWith('<environment_context>')
         || trimmed.startsWith('<app-context>');
 }
@@ -635,17 +635,6 @@ function sanitizeToolExcerpt(value, limit = TOOL_EXCERPT_LIMIT) {
         : points.join('');
 }
 
-function sanitizeToolAuditLine(value) {
-    const redacted = String(value ?? '')
-        .replace(/\b(?:token|api[_-]?key|secret|password)\s*=\s*[^\s]+/giu, '[秘密情報]')
-        .replace(/\b(?:sk-[a-z0-9_-]{8,}|ghp_[a-z0-9_]{8,}|github_pat_[a-z0-9_]{8,}|xox[a-z]-[a-z0-9-]{8,}|AIza[a-z0-9_-]{8,})\b/giu, '[秘密情報]')
-        .replace(/[\u0000-\u001f\u007f]+/gu, ' ')
-        .replace(/\s+/gu, ' ')
-        .trim();
-    const points = Array.from(redacted);
-    return points.length > 160 ? `${points.slice(0, 160).join('')}…` : points.join('');
-}
-
 function toolQuery(input) {
     const args = record(input) ?? {};
     const keys = ['intent', 'query', 'topic', 'path', 'type', 'entity_id', 'id'];
@@ -655,7 +644,8 @@ function toolQuery(input) {
 
 function toolInputText(args, key) {
     const value = args[key];
-    return typeof value === 'string' && value.trim() ? sanitizeToolExcerpt(value) : null;
+    if (typeof value === 'string' && value.trim()) return sanitizeToolExcerpt(value);
+    return Number.isSafeInteger(value) ? String(value) : null;
 }
 
 function toolInputLimit(args) {
@@ -691,6 +681,12 @@ function toolCallScope(toolName, input) {
             labeled('source_identity'), toolInputLimit(args)
         ]);
     }
+    if (/(?:create|update|transition)_task$/u.test(name)) {
+        return scope([
+            labeled('title'), labeled('task_id'), labeled('to_status'),
+            labeled('expected_version'), labeled('project_code')
+        ]);
+    }
 
     const query = toolQuery(input);
     return query === '対象未指定' ? '入力なし' : query;
@@ -714,11 +710,24 @@ function nestedRecords(value, depth = 0) {
     return direct;
 }
 
-function responseFailed(response) {
-    return nestedRecords(response).some((item) => (
+function responseSucceeded(response) {
+    const items = nestedRecords(response);
+    if (items.length === 0) return false;
+    const failed = items.some((item) => (
         item.isError === true
-        || ['error', 'unavailable', 'failed'].includes(String(item.status))
-        || (record(item.error) && item.status !== 'ok')
+        || item.is_error === true
+        || item.ok === false
+        || item.success === false
+        || ['error', 'unavailable', 'failed', 'failure'].includes(String(item.status).toLowerCase())
+        || (item.error !== undefined && item.error !== null && item.error !== false && item.status !== 'ok')
+    ));
+    if (failed) return false;
+    return items.some((item) => (
+        item.isError === false
+        || item.is_error === false
+        || item.ok === true
+        || item.success === true
+        || ['ok', 'success', 'completed'].includes(String(item.status).toLowerCase())
     ));
 }
 
@@ -735,25 +744,13 @@ function knowledgeResolutionData(response) {
     )) ?? null;
 }
 
-function embeddedAuditLine(response) {
-    for (const item of nestedRecords(response)) {
-        if (!Array.isArray(item.content)) continue;
-        for (const block of item.content) {
-            const text = record(block)?.text;
-            if (typeof text !== 'string') continue;
-            const line = text.split('\n').find((entry) => entry.startsWith('📚 Brainbase'));
-            if (line) return sanitizeToolAuditLine(line);
-        }
-    }
-    return null;
-}
-
 function eventKind(toolName) {
     const exactToolName = String(toolName);
     if (exactToolName === CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'].exactTool) return 'route';
     const name = exactToolName.replace(/^mcp__brainbase__/u, '');
-    if (/(?:create|update|delete|write|record|link|unlink)/iu.test(name)) return 'write';
-    if (/(?:get|list|search|resolve|context|read)/iu.test(name)) return 'retrieve';
+    if (/(?:create|update|transition|delete|write|record|link|unlink)/iu.test(name)) return 'write';
+    if (/search/iu.test(name)) return 'search';
+    if (/(?:get|list|resolve|context|read)/iu.test(name)) return 'retrieve';
     return 'call';
 }
 
@@ -825,7 +822,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const inputDigest = sha256(canonicalJson(inputValue));
     const responseDigest = sha256(canonicalJson(responseValue));
     const fingerprint = sha256(canonicalJson({ tool_name: toolName, tool_use_id: toolUseId, input_digest: inputDigest, response_digest: responseDigest }));
-    const success = !responseFailed(responseValue);
+    const success = responseSucceeded(responseValue);
     const callScope = toolCallScope(toolName, inputValue);
     const resultCount = responseCount(responseValue);
     const kind = eventKind(toolName);
@@ -841,10 +838,16 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         } : null,
         retrieval_capability: typeof resolution.retrieval_capability === 'string' ? resolution.retrieval_capability : null
     } : {};
+    const operationLabel = kind === 'write'
+        ? '書込'
+        : kind === 'search'
+            ? '検索'
+            : kind === 'retrieve'
+                ? '取得'
+                : '呼出';
     const displayLine = kind === 'route'
         ? routeDisplayLine(inputValue, resolution, success)
-        : embeddedAuditLine(responseValue)
-            ?? `${success ? '📚' : '⚠️'} Brainbase呼出: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${callScope}」→ ${success ? `${resultCount === null ? '' : `${resultCount}件・`}呼び出し完了 ✓` : '失敗'}`;
+        : `${success ? '📚' : '⚠️'} Brainbase${operationLabel}: ${sanitizeToolExcerpt(toolName.replace(/^mcp__brainbase__/u, ''))}「${callScope}」→ ${success ? `${resultCount === null ? '' : `${resultCount}件・`}正常応答を確認 ✓` : '失敗または結果不明'}`;
     return withEpisodeTransitionLock(paths, () => {
         const episode = existingEpisode(payload, env);
         if (!episode) return null;
@@ -1124,6 +1127,8 @@ function finalizeEpisodeLocked(payload, episode, paths) {
         schema_version: 'brainbase-judgment-episode-final-v2',
         finalized_at: new Date().toISOString(),
         completion_status: 'complete',
+        protocol_status: 'audit_protocol_complete',
+        content_verification_status: 'not_evaluated',
         initial_route_receipt_digest: episode.initial_route_receipt_digest,
         event_count: events.length,
         qualifying_event_count: qualifyingEvents.length,
