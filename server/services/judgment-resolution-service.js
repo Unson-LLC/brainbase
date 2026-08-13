@@ -197,6 +197,20 @@ function includesRequestedEffectTerm(request, terms) {
     });
 }
 
+function classificationRequest(request) {
+    const withoutStructuredMaterial = request
+        .replace(/<response-annotations>[\s\S]*?<\/response-annotations>/giu, ' ')
+        .replace(/```[\s\S]*?```/gu, ' ')
+        .replace(/^>.*$/gmu, ' ');
+    const paragraphs = withoutStructuredMaterial.split(/\n\s*\n/u);
+    const materialStart = paragraphs.findIndex((paragraph, index) => index > 0 && (
+        /(?:^|\n)\s*(?:添付|引用|会話ログ|ログ|参考|資料)\s*[:：]/u.test(paragraph)
+        || /(?:^|\n)\s*(?:\d{1,2}:\d{2}|\d{4}[./-]\d{1,2}[./-]\d{1,2}|\d{4}\.\d{2}\.\d{2}\s+.+曜日)/u.test(paragraph)
+    ));
+    const commandParagraphs = materialStart < 0 ? paragraphs : paragraphs.slice(0, materialStart);
+    return commandParagraphs.join('\n\n').trim();
+}
+
 function sortByOrder(values, order) {
     const indexes = new Map(order.map((value, index) => [value, index]));
     return [...values].sort((left, right) => (indexes.get(left) ?? Number.MAX_SAFE_INTEGER) - (indexes.get(right) ?? Number.MAX_SAFE_INTEGER));
@@ -517,10 +531,11 @@ function classificationFromPriorContext(input, manifest) {
 
 function classify(input, manifest) {
     const matchers = manifest.semantic_matchers;
-    const detectedDomains = matchingKeys(input.request, matchers.domains, manifest.selectors.domain_order.filter((domain) => domain !== 'general'));
-    const detectedSignals = matchingKeys(input.request, matchers.signals, manifest.selectors.signal_order);
-    const detectedIntent = matchingIntent(input.request, manifest);
-    const followsPrior = includesTerm(input.request, matchers.follow_up);
+    const request = classificationRequest(input.request);
+    const detectedDomains = matchingKeys(request, matchers.domains, manifest.selectors.domain_order.filter((domain) => domain !== 'general'));
+    const detectedSignals = matchingKeys(request, matchers.signals, manifest.selectors.signal_order);
+    const detectedIntent = matchingIntent(request, manifest);
+    const followsPrior = includesTerm(request, matchers.follow_up);
     const prior = followsPrior ? classificationFromPriorContext(input, manifest) : null;
     const inheritedDomains = detectedDomains.length === 0 && prior ? prior.classification.domains.filter((domain) => domain !== 'general') : [];
     const inheritedSignals = detectedSignals.length === 0 && prior ? prior.classification.signals : [];
@@ -540,13 +555,13 @@ function classify(input, manifest) {
             evidence: { source: 'resolver', source_turn_ids: [], matcher_ids: [] }
         };
     }
-    const detectedAction = includesRequestedEffectTerm(input.request, matchers.safety.external)
+    const detectedAction = includesRequestedEffectTerm(request, matchers.safety.external)
         ? 'external'
-        : includesRequestedEffectTerm(input.request, matchers.safety.write)
+        : includesRequestedEffectTerm(request, matchers.safety.write)
             ? 'write'
             : 'none';
     const minimumAction = indexFloor(ACTIONS, actionFloor(intent), detectedAction);
-    const minimumRisk = includesTerm(input.request, matchers.safety.critical)
+    const minimumRisk = includesTerm(request, matchers.safety.critical)
         ? 'critical'
         : minimumAction === 'external'
             ? 'high'

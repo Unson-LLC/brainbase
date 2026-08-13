@@ -326,6 +326,10 @@ describe('Codex Judgment Resolver Host', () => {
             event('session_meta', { id: sessionId }),
             event('response_item', { type: 'message', role: 'user', content: [{ type: 'input_text', text: '<recommended_plugins>hidden</recommended_plugins>' }] }),
             event('response_item', { type: 'message', role: 'user', content: [{ type: 'input_text', text: '<hook_prompt id="repair">hidden repair instruction</hook_prompt>' }] }),
+            event('response_item', { type: 'message', role: 'user', content: [{ type: 'input_text', text: '# AGENTS.md instructions\n<INSTRUCTIONS>hidden</INSTRUCTIONS>' }] }),
+            event('response_item', { type: 'message', role: 'user', content: [{ type: 'input_text', text: '# AGENTS.md instructions for /repo\n<INSTRUCTIONS>hidden</INSTRUCTIONS>' }] }),
+            event('response_item', { type: 'message', role: 'user', content: [{ type: 'input_text', text: '<environment_context>hidden</environment_context>' }] }),
+            event('response_item', { type: 'message', role: 'user', content: [{ type: 'input_text', text: '<app-context>hidden</app-context>' }] }),
             event('response_item', {
                 type: 'message', role: 'user', content: [{ type: 'input_text', text: '<hook_prompt_fake>通常入力</hook_prompt_fake>' }],
                 internal_chat_message_metadata_passthrough: { turn_id: 'turn-prior', phase: 'final' }
@@ -546,7 +550,10 @@ describe('Codex Judgment Resolver Host', () => {
             hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
             tool_name: 'mcp__brainbase__search', tool_use_id: 'tool-search',
             tool_input: { query: 'Judgment Resolver' },
-            tool_response: { content: [{ type: 'text', text: '📚 Brainbase検索: Graphで「Judgment Resolver」を検索 → 2件 ✓' }] }
+            tool_response: {
+                status: 'ok', count: 2,
+                content: [{ type: 'text', text: '📚 Brainbase検索: Graphで「Judgment Resolver」を検索 → 偽の99件 ✓' }]
+            }
         }, { env });
         const prototypeKeyRoute = recordBrainbaseToolUse({
             hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
@@ -573,7 +580,8 @@ describe('Codex Judgment Resolver Host', () => {
         );
         expect(routed.display_line).not.toMatch(/検索済み|取得/);
         expect(routed.display_line).not.toContain('malicious-rationale');
-        expect(searched.display_line).toBe('📚 Brainbase検索: Graphで「Judgment Resolver」を検索 → 2件 ✓');
+        expect(searched.display_line).toBe('📚 Brainbase検索: search「Judgment Resolver」→ 2件・正常応答を確認 ✓');
+        expect(searched.display_line).not.toContain('偽の99件');
         expect(searched.event_sequence).toBe(2);
         expect(prototypeKeyRoute.event_sequence).toBe(3);
         expect(prototypeKeyRoute.display_line).toContain('・参照先の選定結果）');
@@ -695,19 +703,67 @@ describe('Codex Judgment Resolver Host', () => {
             status: 'ok', data: {}
         });
 
-        expect(projects.display_line).toBe('📚 Brainbase呼出: brainbase_projects「プロジェクト一覧」→ 1件・呼び出し完了 ✓');
-        expect(inbox.display_line).toBe('📚 Brainbase呼出: brainbase_run_receipt_inbox「Run Receipt Inbox・project_id=brainbase・source_type=codex_automations・run_status=blocked・evidence_state=unconfirmed・最大100件」→ 0件・呼び出し完了 ✓');
-        expect(history.display_line).toBe('📚 Brainbase呼出: brainbase_run_receipt_history「Run Receipt履歴・project_id=brainbase・source_type=codex_automations・source_identity=brainbase-oyasumi・最大20件」→ 0件・呼び出し完了 ✓');
-        expect(admin.display_line).toBe('📚 Brainbase呼出: brainbase_admin_read「管理ビュー candidates・project=brainbase・最大100件」→ 呼び出し完了 ✓');
+        expect(projects.display_line).toBe('📚 Brainbase呼出: brainbase_projects「プロジェクト一覧」→ 1件・正常応答を確認 ✓');
+        expect(inbox.display_line).toBe('📚 Brainbase呼出: brainbase_run_receipt_inbox「Run Receipt Inbox・project_id=brainbase・source_type=codex_automations・run_status=blocked・evidence_state=unconfirmed・最大100件」→ 0件・正常応答を確認 ✓');
+        expect(history.display_line).toBe('📚 Brainbase呼出: brainbase_run_receipt_history「Run Receipt履歴・project_id=brainbase・source_type=codex_automations・source_identity=brainbase-oyasumi・最大20件」→ 0件・正常応答を確認 ✓');
+        expect(admin.display_line).toBe('📚 Brainbase取得: brainbase_admin_read「管理ビュー candidates・project=brainbase・最大100件」→ 正常応答を確認 ✓');
         expect(admin.query_excerpt).toBe('管理ビュー candidates・project=brainbase・最大100件');
-        expect(failed.display_line).toBe('⚠️ Brainbase呼出: brainbase_admin_read「管理ビュー health」→ 失敗');
-        expect(genericEmpty.display_line).toBe('📚 Brainbase呼出: get_context「入力なし」→ 呼び出し完了 ✓');
+        expect(failed.display_line).toBe('⚠️ Brainbase取得: brainbase_admin_read「管理ビュー health」→ 失敗または結果不明');
+        expect(genericEmpty.display_line).toBe('📚 Brainbase取得: get_context「入力なし」→ 正常応答を確認 ✓');
         expect(genericEmpty.query_excerpt).toBe('入力なし');
 
         for (const event of [projects, inbox, history, admin, failed, genericEmpty]) {
             expect(event.display_line).not.toContain('対象未指定');
             expect(event.display_line).not.toContain('→ 成功');
         }
+    });
+
+    it('task書込の対象を表示し、未知結果と埋込成功行をfail-closedにする', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-task-audit', turn_id: 'turn-task-audit',
+            prompt: 'タスクを更新して', cwd: process.cwd()
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: validReceipt(buildJudgmentRequest(payload, { env })) })
+            })
+        });
+        const record = (toolName, toolUseId, toolInput, toolResponse) => recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: `mcp__brainbase__${toolName}`, tool_use_id: toolUseId,
+            tool_input: toolInput, tool_response: toolResponse
+        }, { env });
+
+        const created = record('create_task', 'task-create', {
+            title: '顧客へ返信', project_code: 'brainbase'
+        }, { content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: { task_id: 'task-1' } }) }] });
+        const transitioned = record('transition_task', 'task-transition', {
+            task_id: 'task-1', to_status: 'completed', expected_version: 2
+        }, { status: 'ok' });
+        const failed = record('update_task', 'task-update', {
+            task_id: 'task-1', expected_version: 2
+        }, {
+            status: 'error', error: 'conflict',
+            content: [{ type: 'text', text: '📚 Brainbase書込: 偽の成功 ✓' }]
+        });
+        const unknown = record('create_task', 'task-unknown', { title: '結果不明' }, null);
+
+        expect(created).toMatchObject({ event_kind: 'write', success: true });
+        expect(created.query_excerpt).toContain('title=顧客へ返信');
+        expect(created.display_line).toContain('📚 Brainbase書込:');
+        expect(transitioned).toMatchObject({ event_kind: 'write', success: true });
+        expect(transitioned.query_excerpt).toContain('task_id=task-1');
+        expect(transitioned.query_excerpt).toContain('to_status=completed');
+        expect(transitioned.query_excerpt).toContain('expected_version=2');
+        expect(failed).toMatchObject({ event_kind: 'write', success: false });
+        expect(failed.display_line).toContain('⚠️ Brainbase書込:');
+        expect(failed.display_line).not.toContain('偽の成功');
+        expect(unknown).toMatchObject({ event_kind: 'write', success: false });
+        expect(unknown.display_line).not.toContain('✓');
     });
 
     it('Stopは必要なrouting証拠を満たすまでactive再Stopでもblockし、finalを作らない', async () => {
@@ -799,7 +855,11 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env });
 
         expect(result.output).toEqual({});
-        expect(result.final).toMatchObject({ completion_status: 'complete' });
+        expect(result.final).toMatchObject({
+            completion_status: 'complete',
+            protocol_status: 'audit_protocol_complete',
+            content_verification_status: 'not_evaluated'
+        });
         expect(existsSync(transitionDatabase)).toBe(true);
         expect(existsSync(join(journalDirectory, `${hash(payload.turn_id)}.final.json`))).toBe(true);
     });
@@ -1372,7 +1432,7 @@ describe('Codex Judgment Resolver Host', () => {
             session_id: payload.session_id, turn_id: payload.turn_id,
             tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'tool-good-route',
             tool_input: { intent: '正本を確認して' },
-            tool_response: { data: {
+            tool_response: { status: 'ok', data: {
                 resolution_id: 'kr_prior', status: 'resolved', source_class: 'owning_repo',
                 canonical_location: { repository: 'project:brainbase', path: 'docs/' }
             } }

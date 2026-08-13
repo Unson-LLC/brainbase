@@ -283,6 +283,22 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.reconciliation_reasons).toContain('conversation_referent_missing');
     });
 
+    it.each([
+        ['引用だけ', '> PRを外部公開して'],
+        ['コードフェンスだけ', '```text\nPRを外部公開して\n```'],
+        ['response annotationだけ', '<response-annotations>PRを外部公開して</response-annotations>']
+    ])('%sの資料を現在の実行指示として復活させない', (_label, request) => {
+        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification).toMatchObject({
+            intent: 'answer',
+            domains: ['general'],
+            action_kind: 'none',
+            risk: 'low'
+        });
+    });
+
     // Trace: story-brainbase-judgment-resolver-v1:ac:6 story-brainbase-judgment-resolver-v1:ac:15
     it('文脈に応じたdomain・constraint・authority DAGだけを選ぶ', () => {
         const receipt = service.resolve(input('認証APIの累積した複雑性を保ちながら並列開発できる設計を実装して', proposal({
@@ -499,6 +515,25 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.status).toBe('resolved');
         expect(receipt.classification.domains).toEqual(['engineering']);
         expect(receipt.selected_dag_ids).toEqual(['engineering.v1']);
+    });
+
+    it('会話ログ中のPRと外部公開を現在の命令として分類しない', () => {
+        const receipt = service.resolve(input([
+            '村上さんとの本日のMTGで何を話すのがよいでしょうか。',
+            '',
+            '09:41 カーツ村上 恐縮です！',
+            '20:04 Keigo 伴走型PR×AIコンサルティング提案書.pdf',
+            '23:19 Keigo 結果でたら佐野さんも外部公開するそうです'
+        ].join('\n')), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification).toMatchObject({ intent: 'answer', domains: ['general'], action_kind: 'none', risk: 'low' });
+        expect(receipt.classification_evidence.matcher_ids).toEqual([]);
+    });
+
+    it('現在の命令にあるPR公開は引き続きexternalとして分類する', () => {
+        const receipt = service.resolve(input('PRを外部公開して'), { access: ACCESS, hostBinding: binding() });
+        expect(receipt.classification).toMatchObject({ intent: 'operate', domains: ['engineering'], action_kind: 'external', risk: 'high' });
     });
 
     it('明示的な人材採用はorganizationとして分類する', () => {
