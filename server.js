@@ -24,7 +24,10 @@ import { resolveRuntimePaths } from './lib/runtime-paths.js';
 // Import services
 import { createCoreServices } from './server/bootstrap/core-services.js';
 import { registerGracefulShutdown } from './server/bootstrap/graceful-shutdown.js';
-import { registerApiRoutes } from './server/bootstrap/register-api-routes.js';
+import {
+    registerApiRoutes,
+    registerPersonalKnowledgePreAuth
+} from './server/bootstrap/register-api-routes.js';
 import { registerStaticRoutes } from './server/bootstrap/static-routes.js';
 import { assertAllowedServerEntrypoint } from './server/bootstrap/direct-launch-guard.js';
 import { BRAINBASE_CORS_OPTIONS } from './server/bootstrap/cors-options.js';
@@ -368,6 +371,7 @@ app.use((req, res, next) => {
 
 // CSRF Protection Middleware
 app.use('/api/admin', adminNoCacheMiddleware);
+registerPersonalKnowledgePreAuth(app, { authService });
 app.use(csrfMiddleware());
 
 // CSRF Token Endpoint
