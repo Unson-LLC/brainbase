@@ -17,6 +17,56 @@ afterEach(() => {
 });
 
 describe('Routine Runner cycle execution', () => {
+    it('標準CLIは正規runtime envを読み、ローカルAPIとReceiptを内部APIキーで認証する', async () => {
+        const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-routine-local-auth-'));
+        temporaryDirectories.push(repoDir);
+        const calls = [];
+        const fetchImpl = vi.fn(async (url, options) => {
+            calls.push({ url, options, body: JSON.parse(options.body) });
+            if (url === 'http://127.0.0.1:31013/api/routines/ohayo/execute') {
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ({
+                        status: 'completed',
+                        routine_summary: { routine: 'ohayo', status: 'completed', anomaly_count: 0 },
+                        evidence_refs: []
+                    })
+                };
+            }
+            return { ok: true, status: 201 };
+        });
+
+        const result = await runRoutine({
+            routine: 'ohayo',
+            repoDir,
+            env: {
+                CODEX_THREAD_ID: 'thread-local-auth',
+                INTERNAL_API_SECRET: 'local-internal-key',
+                BRAINBASE_VAR_DIR: path.join(repoDir, 'canonical-var')
+            },
+            fetchImpl,
+            now: () => new Date('2026-08-13T00:01:00.000Z')
+        });
+
+        expect(calls).toHaveLength(2);
+        expect(calls.map((call) => call.url)).toEqual([
+            'http://127.0.0.1:31013/api/routines/ohayo/execute',
+            'http://127.0.0.1:31013/api/run-receipts/ingest'
+        ]);
+        for (const call of calls) {
+            expect(call.options.headers).toMatchObject({
+                'x-internal-api-key': 'local-internal-key'
+            });
+            expect(call.options.headers).not.toHaveProperty('Authorization');
+        }
+        expect(result).toMatchObject({ status: 'completed', delivery: { delivered: 1 } });
+
+        const runnerSource = fs.readFileSync(path.join(process.cwd(), 'scripts/routines/run.mjs'), 'utf8');
+        expect(runnerSource).toContain('loadRuntimeEnv');
+        expect(runnerSource).toMatch(/loadRuntimeEnv\(\{[\s\S]*cwd:\s*DEFAULT_REPO_DIR/);
+    });
+
     it('CLI終了コードはcompletedだけ0、partialは2、failedとblockedは非zeroにする', () => {
         expect(typeof routineRunner.exitCodeForRoutineStatus).toBe('function');
         if (typeof routineRunner.exitCodeForRoutineStatus !== 'function') return;

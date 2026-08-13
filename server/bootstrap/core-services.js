@@ -235,6 +235,17 @@ export function createCoreServices({
         'knowledge-event-dead-letter',
         'codex-judgment'
     );
+    const judgmentKnowledgeEventServiceToken = process.env.BRAINBASE_KNOWLEDGE_EVENT_SERVICE_TOKEN
+        || (authService.serviceTokenSecret
+            ? authService.issueServiceToken({
+                name: 'brainbase judgment knowledge event delivery',
+                serviceId: 'svc_brainbase_judgment_knowledge_event',
+                role: 'member',
+                projectCodes: ['brainbase'],
+                clearance: ['internal', 'restricted'],
+                ttlSeconds: 60 * 60 * 24
+            }).token
+            : null);
     const listJudgmentOutboxExceptions = () => listJudgmentKnowledgeEventOutboxExceptions({
         directory: judgmentKnowledgeEventOutboxDir
     });
@@ -272,7 +283,7 @@ export function createCoreServices({
             deadLetterDir: judgmentKnowledgeEventDeadLetterDir,
             endpoint: process.env.BRAINBASE_KNOWLEDGE_EVENT_INGEST_URL
                 || `http://127.0.0.1:${port}/api/knowledge/events`,
-            serviceToken: process.env.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN
+            serviceToken: judgmentKnowledgeEventServiceToken
         })
     };
     const routineCycleExecutor = new RoutineCycleExecutor({

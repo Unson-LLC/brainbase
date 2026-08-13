@@ -73,16 +73,20 @@ export function normalizeEvidenceRefs(value) {
 export async function postReceipt(receipt, {
     endpoint,
     serviceToken,
+    internalApiKey,
     fetchImpl = globalThis.fetch,
     timeoutMs = 10_000
 }) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
+        const authHeaders = serviceToken
+            ? { authorization: `Bearer ${serviceToken}` }
+            : { 'x-internal-api-key': internalApiKey };
         return await fetchImpl(endpoint, {
             method: 'POST',
             headers: {
-                authorization: `Bearer ${serviceToken}`,
+                ...authHeaders,
                 'content-type': 'application/json'
             },
             body: JSON.stringify(receipt),

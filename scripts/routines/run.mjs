@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { loadRuntimeEnv } from '../../lib/load-runtime-env.js';
 import expectationManifest from '../../server/config/routine-expectations.json' with { type: 'json' };
 import { parseRoutineExpectations } from '../../server/services/routine-runtime/expectation-parser.js';
 
@@ -20,6 +21,40 @@ const EXPECTATION_BY_ROUTINE = new Map(routineExpectations.map((expectation) => 
     expectation
 ]));
 const DEFAULT_REPO_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const DEFAULT_LOCAL_API_URL = 'http://127.0.0.1:31013';
+
+function isLoopbackUrl(value) {
+    try {
+        const hostname = new URL(value).hostname;
+        return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
+    } catch {
+        return false;
+    }
+}
+
+function resolveRoutineApiUrl(env) {
+    if (env.BRAINBASE_API_URL) return String(env.BRAINBASE_API_URL).replace(/\/$/, '');
+    return env.INTERNAL_API_SECRET ? DEFAULT_LOCAL_API_URL : '';
+}
+
+function resolveRoutineAuth({ env, endpoint }) {
+    if (env.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN) {
+        return { serviceToken: env.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN, internalApiKey: null };
+    }
+    if (env.INTERNAL_API_SECRET && isLoopbackUrl(endpoint)) {
+        return { serviceToken: null, internalApiKey: env.INTERNAL_API_SECRET };
+    }
+    if (env.BRAINBASE_SERVICE_TOKEN) {
+        return { serviceToken: env.BRAINBASE_SERVICE_TOKEN, internalApiKey: null };
+    }
+    return { serviceToken: null, internalApiKey: null };
+}
+
+function routineAuthHeaders(auth) {
+    if (auth.serviceToken) return { Authorization: `Bearer ${auth.serviceToken}` };
+    if (auth.internalApiKey) return { 'x-internal-api-key': auth.internalApiKey };
+    return {};
+}
 
 export function exitCodeForRoutineStatus(status) {
     if (status === 'completed') return 0;
@@ -178,11 +213,16 @@ export async function runRoutine({
 
     const { outboxDir, deadLetterDir } = resolveRoutineReceiptPaths({ repoDir, env });
     const queued = enqueueCodexAutomationReceipt(receipt, { outboxDir });
+    const baseUrl = resolveRoutineApiUrl(env);
+    const receiptEndpoint = env.BRAINBASE_RUN_RECEIPT_INGEST_URL
+        || (baseUrl ? `${baseUrl}/api/run-receipts/ingest` : undefined);
+    const receiptAuth = resolveRoutineAuth({ env, endpoint: receiptEndpoint });
     const delivery = await deliverCodexAutomationOutbox({
         outboxDir,
         deadLetterDir,
-        endpoint: env.BRAINBASE_RUN_RECEIPT_INGEST_URL,
-        serviceToken: env.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN,
+        endpoint: receiptEndpoint,
+        serviceToken: receiptAuth.serviceToken,
+        internalApiKey: receiptAuth.internalApiKey,
         fetchImpl,
         maxAttempts,
         now
@@ -197,13 +237,11 @@ export async function runRoutine({
 }
 
 export async function executeRoutineOverHttp({ routine, input = {}, env = process.env, fetchImpl = globalThis.fetch }) {
-    const baseUrl = String(env.BRAINBASE_API_URL || '').replace(/\/$/, '');
+    const baseUrl = resolveRoutineApiUrl(env);
     if (!baseUrl) throw new Error('BRAINBASE_API_URL is required');
     if (typeof fetchImpl !== 'function') throw new Error('fetch is unavailable');
-    const headers = { 'Content-Type': 'application/json' };
-    if (env.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN) {
-        headers.Authorization = `Bearer ${env.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN}`;
-    }
+    const auth = resolveRoutineAuth({ env, endpoint: baseUrl });
+    const headers = { 'Content-Type': 'application/json', ...routineAuthHeaders(auth) };
     const response = await fetchImpl(`${baseUrl}/api/routines/${routine}/execute`, {
         method: 'POST',
         headers,
@@ -217,6 +255,7 @@ export async function executeRoutineOverHttp({ routine, input = {}, env = proces
 }
 
 async function main() {
+    loadRuntimeEnv({ cwd: DEFAULT_REPO_DIR });
     const routine = process.argv[2];
     const input = await readStdin();
     const result = await runRoutine({ routine, input });
