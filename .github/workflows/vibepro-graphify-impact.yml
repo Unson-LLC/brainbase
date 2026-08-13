@@ -19,20 +19,22 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
+          package-manager-cache: false
 
       - name: Install dependencies
         run: npm ci
 
       - name: Run Graphify impact gate unit tests
-        run: npm run test:run -- tests/unit/vibepro-graphify-impact-gate.test.js
+        run: npm run test:run -- tests/unit/vibepro-graphify-impact-gate.test.js tests/unit/vibepro-graph-actions-workflow-contract.test.js
 
       - name: Require Graphify evidence for graph-sensitive changes
         env:

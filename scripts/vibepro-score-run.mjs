@@ -35,7 +35,7 @@ const VIBEPRO_SCOPE_FILES = new Set([
   '.claude/scripts/hooks/enforce-nocodb-lookup.ts',
   '.github/workflows/vibepro-graph-ssot.yml',
   '.github/workflows/vibepro-score-run.yml',
-  '_codex/common/ops/scheduled-jobs.md',
+  'docs/guides/github-actions-cicd-operating-guide.md',
   'docs/architecture/vibepro-brainbase-dogfood-architecture.md',
   'docs/specs/vibepro-brainbase-self-evaluation-spec.md',
   'docs/stories/vibepro-brainbase-dogfood-story.md',

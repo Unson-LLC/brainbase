@@ -11,6 +11,16 @@ function loadWorkflow(name) {
   return yaml.load(fs.readFileSync(path.join(repoRoot, '.github/workflows', name), 'utf8'));
 }
 
+function expectNodeActionsWithoutPackageCache(job) {
+  const checkout = job.steps.find((step) => step.uses === 'actions/checkout@v5');
+  expect(checkout).toBeDefined();
+  expect(checkout.with['persist-credentials']).toBe(false);
+  const setupNode = job.steps.find((step) => step.uses === 'actions/setup-node@v5');
+  expect(setupNode).toBeDefined();
+  expect(setupNode.with.cache).toBeUndefined();
+  expect(setupNode.with['package-manager-cache']).toBe(false);
+}
+
 describe('VibePro Graph Actions workflow contract', () => {
   it('Graphify ImpactをGitHub-hosted runnerでPRごとに排他実行する', () => {
     const workflow = loadWorkflow('vibepro-graphify-impact.yml');
@@ -25,7 +35,9 @@ describe('VibePro Graph Actions workflow contract', () => {
     expect(workflow.on.push).toBeUndefined();
     expect(job['runs-on']).toBe('ubuntu-latest');
     expect(job['timeout-minutes']).toBe(10);
-    expect(job.steps.find((step) => step.uses === 'actions/setup-node@v4').with.cache).toBeUndefined();
+    expectNodeActionsWithoutPackageCache(job);
+    expect(job.steps.map((step) => step.run).filter(Boolean).join('\n'))
+      .toContain('vibepro-graph-actions-workflow-contract.test.js');
   });
 
   it('Graph SSOTのPR・push・定期実行を別責務に分け、同一pushの履歴検証を中断しない', () => {
@@ -45,7 +57,7 @@ describe('VibePro Graph Actions workflow contract', () => {
     for (const job of [prJob, pushJob, driftJob]) {
       expect(job['runs-on']).toBe('ubuntu-latest');
       expect(job['timeout-minutes']).toBe(10);
-      expect(job.steps.find((step) => step.uses === 'actions/setup-node@v4').with.cache).toBeUndefined();
+      expectNodeActionsWithoutPackageCache(job);
     }
 
     expect(prJob.if).toBe("github.event_name == 'pull_request'");

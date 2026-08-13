@@ -70,7 +70,14 @@ Graphにはリポジトリ、Workflow、環境、責任主体、重要な出荷�
 | VibePro Graph SSOT（マージ前） | `develop`・`main`へのPull Request | チェッカーの単体テスト、Ontology履歴、外部Graph SSOTを検証する | `.github/workflows/vibepro-graph-ssot.yml` | `ubuntu-latest` |
 | VibePro Ontology（push後） | `develop`・`main`・`session/**`へのpush | マージ後を含む実際のpush履歴でOntology公開契約を再検証する | `.github/workflows/vibepro-graph-ssot.yml` | `ubuntu-latest` |
 | VibePro Graph SSOT（定期） | 毎日09:45（日本時間）・手動実行 | 外部Graph SSOTのドリフトを検出する | `.github/workflows/vibepro-graph-ssot.yml` | `ubuntu-latest` |
+| VibePro Score Evidence（マージ前） | `develop`・`main`へのPull Request | 変更されたscore証跡、開発DAG、Story・Architecture・Specの追跡関係を検証する | `.github/workflows/vibepro-score-run.yml` | `ubuntu-latest` |
+| VibePro Score Evidence（push後） | `develop`・`main`・`session/**`へのpush | `before..sha`の全変更を使い、直接pushとマージ後のscore証跡を再検証する | `.github/workflows/vibepro-score-run.yml` | `ubuntu-latest` |
+| VibePro Score Evidence（手動） | 手動実行 | 単体テストとワークフロー疎通を確認する。変更ファイル集合は空として扱うため、score成果物・DAG・文書追跡の検証証跡には使わない | `.github/workflows/vibepro-score-run.yml` | `ubuntu-latest` |
 
 Graph書き込み契約ジョブに秘密情報は不要。テスト用のローカルHTTPサーバーだけを使い、本番Graphへの書き込みは行わない。
 
-VibePro Graph SSOTは読み取り専用の`BRAINBASE_GRAPH_API_TOKEN`を外部Graph検証ステップだけに渡す。Pull Requestとpushは同じ検査を重複させず、マージ前のコード・Graph検証とpush後の履歴検証に責務を分ける。各ワークフローは同一Pull Requestや定期実行の古い実行を中止する一方、pushはSHAごとに別の排他グループとして履歴検証を欠落させない。旧npmキャッシュの大容量復元を避けるため、対象ジョブでは`setup-node`のnpmキャッシュを使わない。各ジョブは10分で打ち切る。
+VibePro Graph SSOTは読み取り専用の`BRAINBASE_GRAPH_API_TOKEN`を外部Graph検証ステップだけに渡す。Pull Requestとpushは同じ検査を重複させず、マージ前のコード・Graph検証とpush後の履歴検証に責務を分ける。Score Evidenceはマージ前の予防と、直接push・マージ後の検知を別の実行として維持する。
+
+各ワークフローは`permissions: contents: read`を上限とし、checkout後は`persist-credentials: false`で認証情報を残さない。同一Pull Requestや手動・定期実行の古い実行は中止する一方、pushはSHAごとに別の排他グループとして`before..sha`の履歴検証を欠落させない。外部ActionはNode.js 24ランタイムの`actions/checkout@v5`と`actions/setup-node@v5`へ統一し、利用者ステップはNode.js 20で実行する。旧npmキャッシュの大容量復元と将来の自動キャッシュを避けるため、`setup-node`には`package-manager-cache: false`を明示する。各ジョブは10分で打ち切る。
+
+マージ後はマージSHAに紐づくScore EvidenceとOntologyのpush実行を確認する。Score Evidenceのpushでは`${{ github.event.before }}`を`GITHUB_EVENT_BEFORE`へ渡し、複数コミットpushの先頭側を検査範囲から落とさない。
