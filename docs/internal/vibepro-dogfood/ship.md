@@ -33,7 +33,7 @@ observe -> generate-diagnosis -> generate-outcome -> generate-labels -> score
 - Graph SSOT check CI: `.github/workflows/vibepro-graph-ssot.yml`
 - Graph SSOT check script: `scripts/vibepro-graph-ssot-check.mjs`
 - VibePro score runner: `scripts/vibepro-score-run.mjs`
-- Scheduled jobs register: `_codex/common/ops/scheduled-jobs.md`
+- GitHub Actions運用正本: `docs/guides/github-actions-cicd-operating-guide.md`
 - Active indicator tmux spinner fallback run: `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-111000-active-indicator-tmux-spinner/development-run.md`
 - Active indicator stale spinner guard run: `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-202900-active-indicator-stale-spinner-guard/development-run.md`
 - Session status sort contract run: `docs/internal/vibepro-dogfood/runs/vibepro-brainbase-20260506-204100-session-status-sort-contract/development-run.md`

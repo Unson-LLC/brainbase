@@ -5,7 +5,7 @@ on:
     branches: [main, develop]
     paths:
       - '.github/workflows/vibepro-score-run.yml'
-      - '_codex/common/ops/scheduled-jobs.md'
+      - 'docs/guides/github-actions-cicd-operating-guide.md'
       - 'docs/internal/vibepro-dogfood/runs/**'
       - 'docs/stories/vibepro-brainbase-dogfood-story.md'
       - 'docs/architecture/vibepro-brainbase-dogfood-architecture.md'
@@ -19,7 +19,7 @@ on:
     branches: [main, develop, 'session/**']
     paths:
       - '.github/workflows/vibepro-score-run.yml'
-      - '_codex/common/ops/scheduled-jobs.md'
+      - 'docs/guides/github-actions-cicd-operating-guide.md'
       - 'docs/internal/vibepro-dogfood/runs/**'
       - 'docs/stories/vibepro-brainbase-dogfood-story.md'
       - 'docs/architecture/vibepro-brainbase-dogfood-architecture.md'
@@ -31,28 +31,40 @@ on:
       - 'vitest.config.js'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'push' && github.sha || 'latest' }}
+  cancel-in-progress: true
+
 jobs:
   score-evidence:
     name: Verify committed VibePro score evidence
-    runs-on: [self-hosted, Linux, X64, wsl-linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      GITHUB_EVENT_BEFORE: ${{ github.event.before }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
-          cache: npm
+          package-manager-cache: false
 
       - name: Install dependencies
         run: npm ci
 
       - name: Run VibePro scorer unit tests
-        run: npm run test:run -- tests/unit/vibepro-score-run.test.js tests/unit/vibepro-development-dag-check.test.js tests/unit/vibepro-doc-trace-check.test.js
+        run: npm run test:run -- tests/unit/vibepro-score-run.test.js tests/unit/vibepro-development-dag-check.test.js tests/unit/vibepro-doc-trace-check.test.js tests/unit/vibepro-score-actions-workflow-contract.test.js tests/unit/vibepro-graph-actions-workflow-contract.test.js
 
       - name: Verify committed score artifacts
         run: npm run vibepro:score-verify

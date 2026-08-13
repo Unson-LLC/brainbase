@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -10,6 +11,7 @@ import {
   calculateScore,
   collectCoverageHealth,
   collectDogfoodRunHealth,
+  collectChangedFilesForScoreVerify,
   collectObservedFacts,
   collectStoryToShipHealth,
   collectWorkflowHealth,
@@ -143,11 +145,37 @@ describe('vibepro-score-run', () => {
     ])).toEqual(['run-1', 'run-2']);
   });
 
+  it('pushのbefore SHAから複数コミット分の変更を収集する', async () => {
+    const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'vibepro-score-push-'));
+    const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
+    git('init', '-b', 'main');
+    git('config', 'user.name', 'VibePro Test');
+    git('config', 'user.email', 'vibepro-test@example.com');
+
+    await fs.writeFile(path.join(repo, 'base.txt'), 'base\n');
+    git('add', 'base.txt');
+    git('commit', '-m', 'base');
+    const before = git('rev-parse', 'HEAD');
+
+    await fs.writeFile(path.join(repo, 'first.txt'), 'first\n');
+    git('add', 'first.txt');
+    git('commit', '-m', 'first');
+    await fs.writeFile(path.join(repo, 'second.txt'), 'second\n');
+    git('add', 'second.txt');
+    git('commit', '-m', 'second');
+
+    expect(collectChangedFilesForScoreVerify({
+      cwd: repo,
+      env: { GITHUB_EVENT_BEFORE: before },
+    })).toEqual(['first.txt', 'second.txt']);
+  });
+
   it('VibePro関連ファイルはdogfood scopeとしてdirty factから除外し_security configは別factにする', () => {
     const facts = collectObservedFacts({
       branch: 'develop',
       changed_files: [
         parseGitStatusLine('M docs/stories/vibepro-brainbase-dogfood-story.md'),
+        parseGitStatusLine('M docs/guides/github-actions-cicd-operating-guide.md'),
         parseGitStatusLine('M .github/workflows/vibepro-score-run.yml'),
         parseGitStatusLine('M .mcp.json'),
         parseGitStatusLine('M server/unrelated.js'),
