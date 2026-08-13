@@ -702,13 +702,14 @@ export class LearningService {
         return { id, ...episode, deduped: false };
     }
 
-    async createMemoryCandidate(payload = {}) {
+    async createMemoryCandidate(payload = {}, context = {}) {
         const candidate = normalizeMemoryCandidateInput(payload);
         if (!this.candidateRepository) throw new Error('LearningService requires candidateRepository');
-        const stored = await this.candidateRepository.create({
+        const stored = await this._withCandidateAccess(context, (repository) => repository.create({
             id: candidate.id,
             cognitive_type: normalizeOptionalString(payload.cognitive_type || payload.cognitiveType) || 'observation',
             owner_person_id: candidate.owner_person_id,
+            organization_id: normalizeOptionalString(payload.organization_id || payload.organizationId),
             actor_person_id: candidate.actor_person_id || candidate.owner_person_id,
             source_system: candidate.source_system,
             source_event_ids: candidate.source_event_ids,
@@ -739,7 +740,7 @@ export class LearningService {
             processing_stage: normalizeOptionalString(payload.processing_stage || payload.processingStage) || 'received',
             semantic_state: normalizeOptionalString(payload.semantic_state || payload.semanticState) || 'active',
             target_tier: normalizeOptionalString(payload.target_tier || payload.targetTier) || 'ledger'
-        });
+        }));
 
         return this._mapMemoryCandidateRow(stored);
     }
@@ -758,7 +759,7 @@ export class LearningService {
         subjectType,
         include_promoted = false,
         includePromoted = false
-    } = {}) {
+    } = {}, context = {}) {
         if (!this.candidateRepository) throw new Error('LearningService requires candidateRepository');
         const owner = normalizeOptionalString(owner_person_id || ownerPersonId);
         const candidateVisibility = normalizeOptionalString(visibility || scope);
@@ -767,7 +768,7 @@ export class LearningService {
         const candidateStatus = normalizeOptionalString(promotion_status || status);
         const subject = normalizeOptionalString(subject_type || subjectType);
         const shouldIncludePromoted = include_promoted === true || includePromoted === true;
-        const rows = await this.candidateRepository.list({
+        const rows = await this._withCandidateAccess(context, (repository) => repository.list({
             ...(owner ? { owner_person_id: owner } : {}),
             ...(candidateVisibility ? { visibility: candidateVisibility === 'private' ? 'owner' : candidateVisibility } : {}),
             ...(candidateSensitivity ? { sensitivity: candidateSensitivity } : {}),
@@ -776,7 +777,7 @@ export class LearningService {
             ...(subject ? { recommended_subject_type: subject } : {}),
             order_by: 'created_at',
             order_direction: 'asc'
-        });
+        }));
         return rows
             .filter((row) => shouldIncludePromoted || row.promotion_status !== 'promoted_to_graph')
             .map((row) => this._mapMemoryCandidateRow(row));
@@ -793,7 +794,7 @@ export class LearningService {
         ownerPersonId = 'sato_keigo',
         cognitiveTypes = null,
         limit = 10
-    } = {}) {
+    } = {}, context = {}) {
         const q = normalizeOptionalString(query);
         if (!q) throw new Error('query is required');
         if (!this.candidateRepository?.searchPersonalKg) {
@@ -805,13 +806,13 @@ export class LearningService {
         const types = Array.isArray(cognitiveTypes)
             ? cognitiveTypes.map((t) => normalizeOptionalString(t)).filter(Boolean)
             : [];
-        const rows = await this.candidateRepository.searchPersonalKg({
+        const rows = await this._withCandidateAccess(context, (repository) => repository.searchPersonalKg({
             owner_person_id: owner,
             query: q,
             tokens,
             cognitive_types: types,
             limit: safeLimit
-        });
+        }));
         return rows.map((row) => ({
             id: row.id,
             cognitive_type: row.cognitive_type,
@@ -822,16 +823,16 @@ export class LearningService {
         }));
     }
 
-    async getMemoryCandidate(id) {
+    async getMemoryCandidate(id, context = {}) {
         const candidateId = normalizeOptionalString(id);
         if (!candidateId) throw new Error('candidate id is required');
         if (!this.candidateRepository) throw new Error('LearningService requires candidateRepository');
-        const candidate = await this.candidateRepository.findById(candidateId);
+        const candidate = await this._withCandidateAccess(context, (repository) => repository.findById(candidateId));
         return candidate ? this._mapMemoryCandidateRow(candidate) : null;
     }
 
     async classifyMemoryCandidate(id, options = {}) {
-        const candidate = await this.getMemoryCandidate(id);
+        const candidate = await this.getMemoryCandidate(id, { access: options.access });
         if (!candidate) return { success: false, notFound: true };
         if (candidate.promotion_status !== 'candidate') {
             throw new Error(`invalid memory candidate transition: ${candidate.promotion_status} -> gate_classified`);
@@ -844,11 +845,11 @@ export class LearningService {
             decision_owner_person_id: options.decision_owner_person_id || options.decisionOwnerPersonId || candidate.recommended_owner_person_id || candidate.owner_person_id,
             decision_reason: options.reason || options.decision_reason || 'promotion_gate_classified',
             requires_approval: nextStatus !== 'auto_promoted'
-        });
+        }, null, options.access);
     }
 
     async approveMemoryCandidate(id, options = {}) {
-        const candidate = await this.getMemoryCandidate(id);
+        const candidate = await this.getMemoryCandidate(id, { access: options.access });
         if (!candidate) return { success: false, notFound: true };
 
         const decisionOwner = normalizeOptionalString(options.decision_owner_person_id || options.decisionOwnerPersonId);
@@ -863,11 +864,11 @@ export class LearningService {
             actor_person_id: options.actor_person_id || options.actorPersonId,
             decision_owner_person_id: decisionOwner,
             decision_reason: options.reason || options.decision_reason || 'approved'
-        });
+        }, null, options.access);
     }
 
     async rejectMemoryCandidate(id, options = {}) {
-        const candidate = await this.getMemoryCandidate(id);
+        const candidate = await this.getMemoryCandidate(id, { access: options.access });
         if (!candidate) return { success: false, notFound: true };
         return this._transitionMemoryCandidate(candidate, {
             expectedStatuses: ['candidate', 'gate_classified', 'pending_approval', 'auto_promoted', 'approved'],
@@ -875,11 +876,11 @@ export class LearningService {
             actor_person_id: options.actor_person_id || options.actorPersonId,
             decision_owner_person_id: options.decision_owner_person_id || options.decisionOwnerPersonId || candidate.recommended_owner_person_id || candidate.owner_person_id,
             decision_reason: options.reason || options.decision_reason || 'rejected'
-        });
+        }, null, options.access);
     }
 
     async expireMemoryCandidate(id, options = {}) {
-        const candidate = await this.getMemoryCandidate(id);
+        const candidate = await this.getMemoryCandidate(id, { access: options.access });
         if (!candidate) return { success: false, notFound: true };
         return this._transitionMemoryCandidate(candidate, {
             expectedStatuses: ['candidate', 'gate_classified', 'pending_approval', 'auto_promoted', 'approved'],
@@ -887,7 +888,7 @@ export class LearningService {
             actor_person_id: options.actor_person_id || options.actorPersonId,
             decision_owner_person_id: options.decision_owner_person_id || options.decisionOwnerPersonId || candidate.recommended_owner_person_id || candidate.owner_person_id,
             decision_reason: options.reason || options.decision_reason || 'expired'
-        });
+        }, null, options.access);
     }
 
     async markMemoryCandidatePromotedToGraph(id, options = {}) {
@@ -1448,7 +1449,7 @@ export class LearningService {
         decision_reason = '',
         requires_approval = undefined,
         promoted_graph_entity_id = null
-    }, transactionClient = null) {
+    }, transactionClient = null, access = null) {
         if (!MEMORY_PROMOTION_STATUSES.has(nextStatus)) {
             throw new Error('next promotion status is invalid');
         }
@@ -1462,7 +1463,7 @@ export class LearningService {
         if (!this.candidateRepository?.transitionWithAudit) {
             throw new Error('LearningService requires candidateRepository.transitionWithAudit');
         }
-        const result = await this.candidateRepository.transitionWithAudit(candidate.id, nextStatus, {
+        const execute = (repository) => repository.transitionWithAudit(candidate.id, nextStatus, {
             actor_person_id: normalizeOptionalString(actor_person_id) || candidate.actor_person_id || candidate.owner_person_id,
             decision_owner_person_id: normalizeOptionalString(decision_owner_person_id),
             decision_reason: normalizeOptionalString(decision_reason) || '',
@@ -1472,6 +1473,9 @@ export class LearningService {
             requires_approval: nextRequiresApproval,
             promoted_graph_entity_id
         });
+        const result = transactionClient
+            ? await execute(this.candidateRepository)
+            : await this._withCandidateAccess({ access }, execute);
         const transitionedCandidate = this._mapMemoryCandidateRow(result.candidate);
 
         return {
@@ -1482,6 +1486,13 @@ export class LearningService {
             },
             audit: result.audit
         };
+    }
+
+    async _withCandidateAccess(context, work) {
+        if (context?.access && typeof this.candidateRepository?.transaction === 'function') {
+            return this.candidateRepository.transaction(work, { access: context.access });
+        }
+        return work(this.candidateRepository);
     }
 
     async _loadEpisodesByIds(ids = []) {

@@ -35,6 +35,14 @@ describe('learning routes', () => {
 
         app = express();
         app.use(express.json());
+        app.use((req, _res, next) => {
+            req.access = {
+                personId: 'person_authenticated',
+                organizationId: 'org_unson'
+            };
+            req.personalKnowledgeAccess = req.access;
+            next();
+        });
         app.use('/api/learning', createLearningRouter(service, healthService));
     });
 
@@ -98,10 +106,11 @@ describe('learning routes', () => {
         });
         expect(service.searchPersonalKgCandidates).toHaveBeenCalledWith({
             query: 'AI駆動経営 判断 Ship',
-            ownerPersonId: undefined,
+            ownerPersonId: 'person_authenticated',
+            organizationId: 'org_unson',
             cognitiveTypes: ['claim', 'insight'],
             limit: '5'
-        });
+        }, { access: expect.objectContaining({ personId: 'person_authenticated' }) });
     });
 
     it('POST /memory-candidates/:id/promote-to-graph is fail-closed without an auth guard', async () => {

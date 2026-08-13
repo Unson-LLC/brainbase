@@ -44,7 +44,15 @@ export class LearningController {
 
     createMemoryCandidate = async (req, res) => {
         try {
-            const result = await this.learningService.createMemoryCandidate(req.body || {});
+            const access = req.personalKnowledgeAccess || req.access;
+            const { owner_person_id: _ignoredOwner, ownerPersonId: _ignoredOwnerCamel,
+                organization_id: _ignoredOrganization, organizationId: _ignoredOrganizationCamel,
+                ...body } = req.body || {};
+            const result = await this.learningService.createMemoryCandidate({
+                ...body,
+                owner_person_id: access.personId,
+                organization_id: access.organizationId
+            }, { access });
             res.status(201).json(result);
         } catch (error) {
             logger.error('Failed to create memory candidate', { error });
@@ -54,10 +62,11 @@ export class LearningController {
 
     listMemoryCandidates = async (req, res) => {
         try {
+            const access = req.personalKnowledgeAccess || req.access;
             const includePromoted = req.query.include_promoted === 'true' || req.query.includePromoted === 'true';
             const result = await this.learningService.listMemoryCandidates({
-                owner_person_id: req.query.owner_person_id,
-                ownerPersonId: req.query.ownerPersonId,
+                owner_person_id: access.personId,
+                organization_id: access.organizationId,
                 visibility: req.query.visibility,
                 scope: req.query.scope,
                 sensitivity: req.query.sensitivity,
@@ -68,7 +77,7 @@ export class LearningController {
                 subject_type: req.query.subject_type,
                 subjectType: req.query.subjectType,
                 include_promoted: includePromoted
-            });
+            }, { access });
             res.json({ candidates: result });
         } catch (error) {
             logger.error('Failed to list memory candidates', { error });
@@ -78,13 +87,15 @@ export class LearningController {
 
     searchPersonalKg = async (req, res) => {
         try {
+            const access = req.personalKnowledgeAccess || req.access;
             const cognitiveTypeParam = req.query.cognitive_type || req.query.cognitiveType;
             const result = await this.learningService.searchPersonalKgCandidates({
                 query: req.query.q || req.query.query,
-                ownerPersonId: req.query.owner_person_id || req.query.ownerPersonId,
+                ownerPersonId: access.personId,
+                organizationId: access.organizationId,
                 cognitiveTypes: cognitiveTypeParam ? String(cognitiveTypeParam).split(',') : null,
                 limit: req.query.limit
-            });
+            }, { access });
             res.json({ candidates: result });
         } catch (error) {
             logger.error('Failed to search personal KG candidates', { error });
@@ -94,7 +105,10 @@ export class LearningController {
 
     classifyMemoryCandidate = async (req, res) => {
         try {
-            const result = await this.learningService.classifyMemoryCandidate(req.params.id, req.body || {});
+            const result = await this.learningService.classifyMemoryCandidate(req.params.id, {
+                ...(req.body || {}),
+                access: req.personalKnowledgeAccess || req.access
+            });
             if (result.notFound || !result.success) {
                 return res.status(404).json({ error: 'Memory candidate not found' });
             }
@@ -107,7 +121,10 @@ export class LearningController {
 
     approveMemoryCandidate = async (req, res) => {
         try {
-            const result = await this.learningService.approveMemoryCandidate(req.params.id, req.body || {});
+            const result = await this.learningService.approveMemoryCandidate(req.params.id, {
+                ...(req.body || {}),
+                access: req.personalKnowledgeAccess || req.access
+            });
             if (result.notFound || !result.success) {
                 return res.status(404).json({ error: 'Memory candidate not found' });
             }
@@ -120,7 +137,10 @@ export class LearningController {
 
     rejectMemoryCandidate = async (req, res) => {
         try {
-            const result = await this.learningService.rejectMemoryCandidate(req.params.id, req.body || {});
+            const result = await this.learningService.rejectMemoryCandidate(req.params.id, {
+                ...(req.body || {}),
+                access: req.personalKnowledgeAccess || req.access
+            });
             if (result.notFound || !result.success) {
                 return res.status(404).json({ error: 'Memory candidate not found' });
             }
@@ -133,7 +153,10 @@ export class LearningController {
 
     expireMemoryCandidate = async (req, res) => {
         try {
-            const result = await this.learningService.expireMemoryCandidate(req.params.id, req.body || {});
+            const result = await this.learningService.expireMemoryCandidate(req.params.id, {
+                ...(req.body || {}),
+                access: req.personalKnowledgeAccess || req.access
+            });
             if (result.notFound || !result.success) {
                 return res.status(404).json({ error: 'Memory candidate not found' });
             }

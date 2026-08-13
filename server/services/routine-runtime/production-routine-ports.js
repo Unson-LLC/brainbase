@@ -45,7 +45,7 @@ async function readSource(source, reader) {
 }
 
 function sourceEventId(item) {
-    const isFormalKnowledgeEventId = (id) => typeof id === 'string' && /^kev(?:_|$)/u.test(id);
+    const isFormalKnowledgeEventId = (id) => typeof id === 'string' && /^(?:kev|pke)(?:_|$)/u.test(id);
     if (isFormalKnowledgeEventId(item?.payload?.derived_from_event_id)) {
         return item.payload.derived_from_event_id;
     }
@@ -75,6 +75,7 @@ export class ProductionRoutinePorts {
     constructor({
         knowledgeEventRepository,
         candidateRepository,
+        personalKnowledgeService,
         infoSSOTService,
         runReceiptQueryService,
         listJudgmentOutboxExceptions,
@@ -82,27 +83,45 @@ export class ProductionRoutinePorts {
         countRunReceiptOutbox = null,
         personalKgOwnerPersonId = process.env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID
             || DEFAULT_PERSONAL_KG_OWNER_PERSON_ID,
+        personalVaultReadEnabled = process.env.BRAINBASE_PERSONAL_VAULT_READ_ENABLED !== '0',
         now = () => new Date()
     } = {}) {
         this.knowledgeEventRepository = knowledgeEventRepository;
         this.candidateRepository = candidateRepository;
+        this.personalKnowledgeService = personalKnowledgeService;
         this.infoSSOTService = infoSSOTService;
         this.runReceiptQueryService = runReceiptQueryService;
         this.listJudgmentOutboxExceptions = listJudgmentOutboxExceptions;
         this.knowledgeFeedbackService = knowledgeFeedbackService;
         this.countRunReceiptOutbox = countRunReceiptOutbox;
         this.personalKgOwnerPersonId = personalKgOwnerPersonId;
+        this.personalVaultReadEnabled = personalVaultReadEnabled;
         this.now = now;
     }
 
     async reconcile(input, context) {
         const project = projectInput(input);
-        const [knowledge, receipts, judgmentOutbox, receiptOutbox] = await Promise.all([
+        const [knowledge, personal, receipts, judgmentOutbox, receiptOutbox] = await Promise.all([
             readSource('knowledge_events', () => requireDependency(
                 this.knowledgeEventRepository,
                 'knowledgeEventRepository',
                 'summarizeRoutineState'
             ).summarizeRoutineState(project, context)),
+            this.personalVaultReadEnabled
+                ? readSource('personal_knowledge_events', () => requireDependency(
+                    this.personalKnowledgeService,
+                    'personalKnowledgeService',
+                    'summarizeRoutineState'
+                ).summarizeRoutineState(project, { access: context?.access }))
+                : Promise.resolve({
+                    value: {
+                        unprocessed_count: 0,
+                        contradiction_count: 0,
+                        expired_count: 0,
+                        episode_ids: []
+                    },
+                    anomaly: null
+                }),
             readSource('run_receipts', () => requireDependency(
                 this.runReceiptQueryService,
                 'runReceiptQueryService',
@@ -116,43 +135,72 @@ export class ProductionRoutinePorts {
                 ? readSource('run_receipt_outbox', () => this.countRunReceiptOutbox(context))
                 : Promise.resolve({ value: null, anomaly: null })
         ]);
-        const anomalies = [knowledge.anomaly, receipts.anomaly, judgmentOutbox.anomaly, receiptOutbox.anomaly]
+        const anomalies = [knowledge.anomaly, personal.anomaly, receipts.anomaly, judgmentOutbox.anomaly, receiptOutbox.anomaly]
             .filter(Boolean);
         const runReceiptOutboxCount = receiptOutbox.value ?? receipts.value?.outbox_count;
+        const sum = (field) => knowledge.value?.[field] == null || personal.value?.[field] == null
+            ? null
+            : knowledge.value[field] + personal.value[field];
         return {
-            unprocessed_count: knowledge.value?.unprocessed_count ?? null,
-            contradiction_count: knowledge.value?.contradiction_count ?? null,
-            expired_count: knowledge.value?.expired_count ?? null,
+            unprocessed_count: sum('unprocessed_count'),
+            contradiction_count: sum('contradiction_count'),
+            expired_count: sum('expired_count'),
             outbox_count: runReceiptOutboxCount == null || !Array.isArray(judgmentOutbox.value)
                 ? null
                 : runReceiptOutboxCount + judgmentOutbox.value.length,
-            ...(Array.isArray(knowledge.value?.episode_ids) ? { episode_ids: knowledge.value.episode_ids } : {}),
+            organization_episode_ids: Array.isArray(knowledge.value?.episode_ids) ? knowledge.value.episode_ids : [],
+            personal_episode_ids: Array.isArray(personal.value?.episode_ids) ? personal.value.episode_ids : [],
             ...(anomalies.length > 0 ? { anomalies } : {})
         };
     }
 
     async compress({ reconciliation } = {}, context) {
-        if (typeof this.knowledgeEventRepository.compressRoutineEpisodes === 'function') {
-            return this.knowledgeEventRepository.compressRoutineEpisodes({
+        const organization = typeof this.knowledgeEventRepository?.compressRoutineEpisodes === 'function'
+            ? await this.knowledgeEventRepository.compressRoutineEpisodes({
                 project_id: ROUTINE_PROJECT_ID,
-                episode_ids: reconciliation?.episode_ids || []
-            }, context);
-        }
+                episode_ids: reconciliation?.organization_episode_ids || []
+            }, context)
+            : { confirmed: false, reason: 'organization_episode_compressor_unavailable' };
+        const personal = !this.personalVaultReadEnabled
+            ? { confirmed: true, episode_ids: [], mode: 'legacy_candidate_read' }
+            : typeof this.personalKnowledgeService?.compressRoutineEpisodes === 'function'
+            ? await this.personalKnowledgeService.compressRoutineEpisodes({
+                project_id: ROUTINE_PROJECT_ID,
+                episode_ids: reconciliation?.personal_episode_ids || []
+            }, { access: context?.access })
+            : { confirmed: false, reason: 'personal_episode_compressor_unavailable' };
         return {
-            episode_ids: Array.isArray(reconciliation?.episode_ids) ? reconciliation.episode_ids : [],
-            confirmed: false,
-            reason: 'episode_compressor_unavailable'
+            organization,
+            personal,
+            episode_ids: [
+                ...(organization.episode_ids || []),
+                ...(personal.episode_ids || [])
+            ],
+            confirmed: organization.confirmed === true && personal.confirmed === true
         };
     }
 
     async verify({ reconciliation, compression } = {}, context) {
-        if (typeof this.knowledgeEventRepository.verifyRoutineRetrievability === 'function') {
-            return this.knowledgeEventRepository.verifyRoutineRetrievability({
+        const organization = typeof this.knowledgeEventRepository?.verifyRoutineRetrievability === 'function'
+            ? await this.knowledgeEventRepository.verifyRoutineRetrievability({
                 project_id: ROUTINE_PROJECT_ID,
-                episode_ids: compression?.episode_ids || reconciliation?.episode_ids || []
-            }, context);
-        }
-        return { retrievable: undefined, reason: 'retrievability_verifier_unavailable' };
+                episode_ids: reconciliation?.organization_episode_ids || []
+            }, context)
+            : { retrievable: undefined, reason: 'organization_retrievability_verifier_unavailable' };
+        const personal = !this.personalVaultReadEnabled
+            ? { retrievable: true, missing_ids: [], mode: 'legacy_candidate_read' }
+            : typeof this.personalKnowledgeService?.verifyRoutineRetrievability === 'function'
+            ? await this.personalKnowledgeService.verifyRoutineRetrievability({
+                project_id: ROUTINE_PROJECT_ID,
+                episode_ids: reconciliation?.personal_episode_ids || []
+            }, { access: context?.access })
+            : { retrievable: undefined, reason: 'personal_retrievability_verifier_unavailable' };
+        return {
+            organization,
+            personal,
+            retrievable: organization.retrievable === true && personal.retrievable === true,
+            missing_ids: [...(organization.missing_ids || []), ...(personal.missing_ids || [])]
+        };
     }
 
     async recallGraph(input, context) {
@@ -166,14 +214,33 @@ export class ProductionRoutinePorts {
 
     async recallPersonalKg(input, context) {
         const project = projectInput(input);
-        return requireDependency(this.candidateRepository, 'candidateRepository', 'listPersonalKg').listPersonalKg({
-            project_code: project.project_id,
-            owner_person_id: this.personalKgOwnerPersonId,
-            role: context?.access?.role,
-            clearance: context?.access?.clearance,
+        if (!this.personalVaultReadEnabled) {
+            return requireDependency(
+                this.candidateRepository,
+                'candidateRepository',
+                'listPersonalKg'
+            ).listPersonalKg({
+                project_code: project.project_id,
+                owner_person_id: context?.access?.personId,
+                role: context?.access?.role,
+                clearance: context?.access?.clearance,
+                query: input?.input?.query,
+                limit: 50
+            }, context);
+        }
+        const events = await requireDependency(
+            this.personalKnowledgeService,
+            'personalKnowledgeService',
+            'search'
+        ).search({
             query: input?.input?.query,
             limit: 50
-        }, context);
+        }, { access: context?.access });
+        return events.map((event) => ({
+            ...event,
+            id: event.event_id,
+            source_knowledge_event_id: event.event_id
+        }));
     }
 
     async generate({
@@ -204,6 +271,13 @@ export class ProductionRoutinePorts {
     }
 
     async recordUsage({ knowledge_id: knowledgeId }, context) {
+        if (/^pke(?:_|$)/u.test(knowledgeId)) {
+            return requireDependency(
+                this.personalKnowledgeService,
+                'personalKnowledgeService',
+                'recordUsage'
+            ).recordUsage(knowledgeId, { access: context?.access });
+        }
         return requireDependency(
             this.knowledgeFeedbackService,
             'knowledgeFeedbackService',

@@ -66,6 +66,8 @@ export class PromotionGateService {
         const scanResult = options.skipScan ? { block: false, review: false, findings: [] } : scan(draft.body);
         if (scanResult.block) {
             this.repository.recordScanBlock({
+                owner_person_id: draft.owner_person_id,
+                organization_id: draft.organization_id || draft.org_ids?.[0],
                 source_system: draft.source_system,
                 source_event_id: sourceEventId,
                 actor_person_id: draft.actor_person_id,

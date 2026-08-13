@@ -77,6 +77,17 @@ export function createCandidateStoreHmacMiddleware(options = {}) {
         }
 
         req.candidateStoreSource = source;
+        // HMAC identifies the calling service, not the Personal Vault owner.
+        // The following personal access guard therefore requires explicit
+        // proxy person/org headers and records the service as the actor.
+        req.authSource = 'internal';
+        req.access = {
+            ...(req.access || {}),
+            personId: `service:${source}`,
+            role: 'member',
+            projectCodes: [],
+            clearance: ['internal']
+        };
         next();
     };
 }

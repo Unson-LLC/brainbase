@@ -52,26 +52,49 @@ export class CandidateStoreController {
 
         const candidateIds = [];
         const createErrors = [];
+        const personalAccess = req.personalKnowledgeAccess;
 
-        for (const draft of drafts) {
-            try {
-                const created = await this.candidateRepository.create(draft);
-                candidateIds.push(created.id);
-            } catch (error) {
-                if (error instanceof DuplicateCandidateError) {
-                    logger.info('candidate-store ingestion: duplicate, ignoring', {
+        const scopedDrafts = drafts.map((draft) => ({
+            ...draft,
+            owner_person_id: personalAccess.personId,
+            organization_id: personalAccess.organizationId,
+            actor_person_id: personalAccess.actorPersonId,
+            org_ids: [personalAccess.organizationId]
+        }));
+
+        const persistDrafts = async (repository) => {
+            for (const draft of scopedDrafts) {
+                try {
+                    const created = await repository.create(draft);
+                    candidateIds.push(created.id);
+                } catch (error) {
+                    if (error instanceof DuplicateCandidateError) {
+                        logger.info('candidate-store ingestion: duplicate, ignoring', {
+                            source,
+                            raw_event_id: envelope.raw_event_id
+                        });
+                        continue;
+                    }
+                    logger.error('candidate-store ingestion: create failed', {
                         source,
-                        raw_event_id: envelope.raw_event_id
+                        raw_event_id: envelope.raw_event_id,
+                        error: error?.message
                     });
-                    continue;
+                    createErrors.push(error?.message || 'create failed');
                 }
-                logger.error('candidate-store ingestion: create failed', {
-                    source,
-                    raw_event_id: envelope.raw_event_id,
-                    error: error?.message
-                });
-                createErrors.push(error?.message || 'create failed');
             }
+        };
+
+        const transactionAccess = {
+            ...personalAccess,
+            projectCodes: [...new Set(scopedDrafts
+                .map((draft) => draft.project_code)
+                .filter(Boolean))]
+        };
+        if (typeof this.candidateRepository.transaction === 'function') {
+            await this.candidateRepository.transaction(persistDrafts, { access: transactionAccess });
+        } else {
+            await persistDrafts(this.candidateRepository);
         }
 
         if (createErrors.length > 0 && candidateIds.length === 0) {

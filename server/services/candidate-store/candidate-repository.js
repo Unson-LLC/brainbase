@@ -121,6 +121,30 @@ function normalizeAudit(row) {
     };
 }
 
+function requireCandidateAccess(access) {
+    const personId = access?.personId || access?.person_id;
+    const organizationId = access?.organizationId || access?.organization_id || access?.tenantId;
+    if (!personId || !organizationId) {
+        const error = new Error('candidate repository requires person and organization access context');
+        error.code = 'candidate_access_context_required';
+        throw error;
+    }
+    return { personId, organizationId };
+}
+
+function scopedCandidateRepository(repository, client) {
+    return {
+        create: (input) => repository.create(input, { client }),
+        findById: (id) => repository.findById(id, { client }),
+        findByEventId: (id, options = {}) => repository.findByEventId(id, { ...options, client }),
+        list: (filter = {}) => repository.list(filter, { client }),
+        searchPersonalKg: (filter = {}) => repository.searchPersonalKg(filter, { client }),
+        transitionWithAudit: (id, nextStatus, audit, options = {}) => repository.transitionWithAudit(
+            id, nextStatus, audit, { ...options, client }
+        )
+    };
+}
+
 function clampLimit(value, fallback = 50, max = 500) {
     if (value === undefined || value === null || value === '') return fallback;
     const parsed = Number(value);
@@ -222,6 +246,7 @@ export class InMemoryCandidateRepository {
             id,
             cognitive_type: input.cognitive_type,
             owner_person_id: input.owner_person_id,
+            organization_id: input.organization_id || input.org_ids?.[0] || null,
             actor_person_id: input.actor_person_id,
             source_system: input.source_system,
             source_event_ids: input.source_event_ids,
@@ -456,7 +481,7 @@ export class PgCandidateRepository {
             }
             const { rows } = await queryable.query(
                 `INSERT INTO memory_candidates (
-                    id, cognitive_type, owner_person_id, actor_person_id, source_system, source_event_ids,
+                    id, cognitive_type, owner_person_id, organization_id, actor_person_id, source_system, source_event_ids,
                     workspace, channel_id, thread_ts, project_code, org_ids, project_ids, team_id,
                     visibility, sensitivity, role_min, agency_level, recommended_subject_type,
                     recommended_owner_person_id, promotion_status, promoted_graph_entity_id,
@@ -464,18 +489,19 @@ export class PgCandidateRepository {
                     confidence, expires_at, recommended_subject_id, processing_stage, semantic_state,
                     target_tier
                 ) VALUES (
-                    $1, $2, $3, $4, $5, $6::jsonb,
-                    $7, $8, $9, $10, $11, $12, $13,
-                    $14, $15, $16, $17, $18,
-                    $19, $20, $21,
-                    $22, $23::jsonb, $24::jsonb, $25, $26,
-                    $27, $28, $29, $30, $31, $32
+                    $1, $2, $3, $4, $5, $6, $7::jsonb,
+                    $8, $9, $10, $11, $12, $13, $14,
+                    $15, $16, $17, $18, $19,
+                    $20, $21, $22,
+                    $23, $24::jsonb, $25::jsonb, $26, $27,
+                    $28, $29, $30, $31, $32, $33
                 )
                 RETURNING *`,
                 [
                     id,
                     input.cognitive_type,
                     input.owner_person_id,
+                    input.organization_id || input.org_ids?.[0] || '__quarantine__',
                     input.actor_person_id,
                     input.source_system,
                     JSON.stringify(input.source_event_ids),
@@ -516,8 +542,8 @@ export class PgCandidateRepository {
         }
     }
 
-    async findById(id) {
-        const { rows } = await this.pool.query('SELECT * FROM memory_candidates WHERE id = $1', [id]);
+    async findById(id, { client } = {}) {
+        const { rows } = await (client || this.pool).query('SELECT * FROM memory_candidates WHERE id = $1', [id]);
         return normalizeCandidate(rows[0]);
     }
 
@@ -535,7 +561,7 @@ export class PgCandidateRepository {
         return normalizeCandidate(rows[0]);
     }
 
-    async list(filter = {}) {
+    async list(filter = {}, { client } = {}) {
         const clauses = [];
         const params = [];
         const add = (sql, value) => {
@@ -563,7 +589,7 @@ export class PgCandidateRepository {
             params.push(clampLimit(filter.limit));
             sql += ` LIMIT $${params.length}`;
         }
-        const { rows } = await this.pool.query(sql, params);
+        const { rows } = await (client || this.pool).query(sql, params);
         return rows.map(normalizeCandidate);
     }
 
@@ -736,7 +762,7 @@ export class PgCandidateRepository {
         }
     }
 
-    async searchPersonalKg({ owner_person_id, query, tokens = [], cognitive_types = [], limit = 10 }) {
+    async searchPersonalKg({ owner_person_id, query, tokens = [], cognitive_types = [], limit = 10 }, { client } = {}) {
         const phrasePattern = `%${escapeLikePattern(query)}%`;
         const tokenPatterns = tokens.length > 1
             ? tokens.map((token) => `%${escapeLikePattern(token)}%`)
@@ -768,8 +794,29 @@ export class PgCandidateRepository {
                          confidence DESC NULLS LAST,
                          created_at DESC
                  LIMIT $${values.length}`;
-        const { rows } = await this.pool.query(sql, values);
+        const { rows } = await (client || this.pool).query(sql, values);
         return rows.map(normalizeCandidate);
+    }
+
+    async transaction(work, { access } = {}) {
+        const { personId, organizationId } = requireCandidateAccess(access);
+        const client = typeof this.pool.connect === 'function' ? await this.pool.connect() : this.pool;
+        await client.query('BEGIN');
+        try {
+            await client.query('SELECT set_config($1, $2, true)', ['app.person_id', personId]);
+            await client.query('SELECT set_config($1, $2, true)', ['app.organization_id', organizationId]);
+            await client.query('SELECT set_config($1, $2, true)', ['app.project_codes', (access.projectCodes || []).join(',')]);
+            await client.query('SELECT set_config($1, $2, true)', ['app.role', access.role || 'member']);
+            await client.query('SELECT set_config($1, $2, true)', ['app.clearance', (access.clearance || ['internal']).join(',')]);
+            const result = await work(scopedCandidateRepository(this, client));
+            await client.query('COMMIT');
+            return result;
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            if (typeof client.release === 'function') client.release();
+        }
     }
 
     async setPromotedGraphEntity(id, graphEntityId) {
@@ -829,10 +876,18 @@ export class PgCandidateRepository {
 
     async recordScanBlock(record) {
         const { rows } = await this.pool.query(
-            `INSERT INTO candidate_scan_blocks (source_system, source_event_id, actor_person_id, findings)
-             VALUES ($1, $2, $3, $4::jsonb)
+            `INSERT INTO candidate_scan_blocks (
+                owner_person_id, organization_id, source_system, source_event_id, actor_person_id, findings
+             ) VALUES ($1, $2, $3, $4, $5, $6::jsonb)
              RETURNING *`,
-            [record.source_system, record.source_event_id, record.actor_person_id, JSON.stringify(record.findings || [])]
+            [
+                record.owner_person_id,
+                record.organization_id,
+                record.source_system,
+                record.source_event_id,
+                record.actor_person_id,
+                JSON.stringify(record.findings || [])
+            ]
         );
         return normalizeScanBlock(rows[0]);
     }
