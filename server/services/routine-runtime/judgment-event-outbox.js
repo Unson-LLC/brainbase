@@ -32,6 +32,29 @@ export function resolveJudgmentKnowledgeEventOutboxPath({
     return join(canonicalVarDir, 'knowledge-event-outbox', 'codex-judgment');
 }
 
+export function resolveJudgmentKnowledgeEventDeliveryAuth({
+    endpoint,
+    env = process.env
+} = {}) {
+    let isLoopback = false;
+    try {
+        const hostname = new URL(endpoint).hostname;
+        isLoopback = hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
+    } catch {
+        // An invalid endpoint is handled by delivery as an unavailable/failing dependency.
+    }
+    if (isLoopback) {
+        return {
+            internalApiKey: env.INTERNAL_API_SECRET || null,
+            serviceToken: null
+        };
+    }
+    return {
+        internalApiKey: null,
+        serviceToken: env.BRAINBASE_KNOWLEDGE_EVENT_SERVICE_TOKEN || null
+    };
+}
+
 function jsonFiles(directory) {
     try {
         return readdirSync(directory).filter((name) => name.endsWith('.json')).sort();
@@ -75,6 +98,7 @@ export async function deliverJudgmentKnowledgeEventOutbox({
     outboxDir,
     deadLetterDir,
     endpoint,
+    internalApiKey,
     serviceToken,
     fetchImpl = globalThis.fetch,
     maxAttempts = 5,
@@ -123,7 +147,8 @@ export async function deliverJudgmentKnowledgeEventOutbox({
         }
         try {
             const headers = { 'Content-Type': 'application/json' };
-            if (serviceToken) headers.Authorization = `Bearer ${serviceToken}`;
+            if (internalApiKey) headers['x-internal-api-key'] = internalApiKey;
+            else if (serviceToken) headers.Authorization = `Bearer ${serviceToken}`;
             const response = await fetchImpl(endpoint, {
                 method: 'POST',
                 headers,

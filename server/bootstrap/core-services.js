@@ -46,6 +46,7 @@ import {
     deliverJudgmentKnowledgeEventOutbox,
     listKnowledgeEventDeadLetters,
     listJudgmentKnowledgeEventOutboxExceptions,
+    resolveJudgmentKnowledgeEventDeliveryAuth,
     resolveJudgmentKnowledgeEventOutboxPath
 } from '../services/routine-runtime/judgment-event-outbox.js';
 import { createMeetingSourceMcpAdaptersFromEnv } from '../services/meeting-source/meeting-source-mcp-adapters.js';
@@ -235,17 +236,12 @@ export function createCoreServices({
         'knowledge-event-dead-letter',
         'codex-judgment'
     );
-    const judgmentKnowledgeEventServiceToken = process.env.BRAINBASE_KNOWLEDGE_EVENT_SERVICE_TOKEN
-        || (authService.serviceTokenSecret
-            ? authService.issueServiceToken({
-                name: 'brainbase judgment knowledge event delivery',
-                serviceId: 'svc_brainbase_judgment_knowledge_event',
-                role: 'member',
-                projectCodes: ['brainbase'],
-                clearance: ['internal', 'restricted'],
-                ttlSeconds: 60 * 60 * 24
-            }).token
-            : null);
+    const judgmentKnowledgeEventEndpoint = process.env.BRAINBASE_KNOWLEDGE_EVENT_INGEST_URL
+        || `http://127.0.0.1:${port}/api/knowledge/events`;
+    const judgmentKnowledgeEventDeliveryAuth = resolveJudgmentKnowledgeEventDeliveryAuth({
+        endpoint: judgmentKnowledgeEventEndpoint,
+        env: process.env
+    });
     const listJudgmentOutboxExceptions = () => listJudgmentKnowledgeEventOutboxExceptions({
         directory: judgmentKnowledgeEventOutboxDir
     });
@@ -281,9 +277,8 @@ export function createCoreServices({
         deliverPending: () => deliverJudgmentKnowledgeEventOutbox({
             outboxDir: judgmentKnowledgeEventOutboxDir,
             deadLetterDir: judgmentKnowledgeEventDeadLetterDir,
-            endpoint: process.env.BRAINBASE_KNOWLEDGE_EVENT_INGEST_URL
-                || `http://127.0.0.1:${port}/api/knowledge/events`,
-            serviceToken: judgmentKnowledgeEventServiceToken
+            endpoint: judgmentKnowledgeEventEndpoint,
+            ...judgmentKnowledgeEventDeliveryAuth
         })
     };
     const routineCycleExecutor = new RoutineCycleExecutor({
