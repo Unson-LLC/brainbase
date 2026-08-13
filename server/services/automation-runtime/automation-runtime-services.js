@@ -31,6 +31,7 @@ export function createAutomationRuntimeServices({
     googleCalendarService = null,
     infoSSOTService = null,
     canonicalTaskService = null,
+    meetingKnowledgeEventBridge = null,
     meetingTaskOwnerResolver = null,
     projectAccessPolicy = null
 }) {
@@ -54,6 +55,7 @@ export function createAutomationRuntimeServices({
         infoSSOTService,
         projectAccessPolicy: accessPolicy,
         createLoopIntent: (input, actor) => loopIntentService.create(input, actor),
+        meetingKnowledgeEventBridge,
         meetingTaskOwnerResolver: ownerResolver
     });
     const automationRuntimeDefaultsService = new AutomationRuntimeDefaultsService({

@@ -105,6 +105,7 @@ export class MeetingAutomationService {
         assertOrgReferenceAllowed,
         assertProjectAccess,
         createLoopIntent,
+        meetingKnowledgeEventBridge = null,
         meetingTaskOwnerResolver = null,
         resolveReviewTaskOwners = null
     }) {
@@ -123,6 +124,7 @@ export class MeetingAutomationService {
             ? projectAccessPolicy.assertProjectAccess.bind(projectAccessPolicy)
             : assertProjectAccess;
         this.createLoopIntent = createLoopIntent;
+        this.meetingKnowledgeEventBridge = meetingKnowledgeEventBridge;
         this.resolveReviewTaskOwners = meetingTaskOwnerResolver?.resolveReviewTaskOwners
             ? meetingTaskOwnerResolver.resolveReviewTaskOwners.bind(meetingTaskOwnerResolver)
             : resolveReviewTaskOwners;
@@ -539,6 +541,22 @@ export class MeetingAutomationService {
             runId,
             sourceTextHash
         });
+        const bridgeInput = {
+            packageId,
+            runId,
+            projectCode: projectId,
+            sourceEvent: candidateContext.run.metadata?.source_event,
+            reviewPackage: {
+                package_id: packageId,
+                decision_candidates: input.decision_candidates,
+                task_candidates: input.task_candidates,
+                follow_up_draft: input.follow_up_draft
+            },
+            runnerResult: runner,
+            access: actor
+        };
+        const preflightResult = this.meetingKnowledgeEventBridge?.preflight?.(bridgeInput);
+        if (preflightResult) return preflightResult;
         assertMeetingCandidatesInput(input);
         const taskOutput = candidateContext.outputs
             .find((output) => output.metadata?.output_key === 'task_candidates');
@@ -558,7 +576,7 @@ export class MeetingAutomationService {
             })
             : { task_candidates: normalizedTaskCandidates };
 
-        return this.reviewLedgerService.recordCandidates({
+        const ledgerResult = await this.reviewLedgerService.recordCandidates({
             ...candidateContext,
             packageId,
             sourceTextHash,
@@ -568,6 +586,15 @@ export class MeetingAutomationService {
             decisionCandidates: input.decision_candidates,
             followUpDraft: input.follow_up_draft
         });
+        if (!this.meetingKnowledgeEventBridge) return ledgerResult;
+
+        const bridgeResult = await this.meetingKnowledgeEventBridge.ingest(bridgeInput);
+        return {
+            ...ledgerResult,
+            status: bridgeResult.status === 'completed' ? 'completed' : 'partial',
+            ...(bridgeResult.status === 'completed' ? {} : { failure_reason: bridgeResult.failure_reason }),
+            knowledge_event_ingest: bridgeResult
+        };
     }
 
     verifyReviewPackage({ reviewPackage, orgId, projectId }) {

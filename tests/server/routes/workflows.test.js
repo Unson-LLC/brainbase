@@ -180,6 +180,10 @@ describe('workflow routes', () => {
             async recordNoteGeneration(input, actor) {
                 calls.push(['note-generation', input, actor]);
                 return { meeting_note_generation: { output_id: 'direct-note-generation' } };
+            },
+            async recordCandidates(input, actor) {
+                calls.push(['candidates', input, actor]);
+                return { meeting_candidate_ingest: { package_id: 'direct-candidates' } };
             }
         };
         const app = express();
@@ -214,13 +218,18 @@ describe('workflow routes', () => {
             .post('/api/workflows/control/meeting-pack/note-generation')
             .send({ run_id: 'direct-note-generation' })
             .expect(201);
+        await request(app)
+            .post('/api/workflows/control/meeting-pack/candidates')
+            .send({ package_id: 'direct-candidates', runner_result: { status: 'completed' } })
+            .expect(201);
 
         expect(calls.map(([operation]) => operation)).toEqual([
             'bootstrap',
             'review',
             'calendar',
             'review-ingest',
-            'note-generation'
+            'note-generation',
+            'candidates'
         ]);
         expect(calls.every(([, , actor]) => actor.person_id === 'route-test')).toBe(true);
     });

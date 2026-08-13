@@ -12,6 +12,7 @@ import { createLearningRouter } from '../routes/learning.js';
 import { createCandidateStoreRouter } from '../routes/candidate-store.js';
 import { createOnboardingRouter } from '../routes/onboarding.js';
 import { createKnowledgeResolutionRouter } from '../routes/knowledge-resolution.js';
+import { createKnowledgeEventRouter } from '../routes/knowledge-events.js';
 import { createJudgmentResolutionRouter } from '../routes/judgment-resolution.js';
 import { createCompanionRouter } from '../routes/companion.js';
 import { createExternalRunnerRouter } from '../routes/external-runner.js';
@@ -116,6 +117,19 @@ export function registerKnowledgeResolutionApiRoute(app, { authService, service 
     );
 }
 
+export function registerKnowledgeEventApiRoutes(app, {
+    authService,
+    eventService,
+    feedbackService,
+    cycleQueryService
+}) {
+    app.use(
+        '/api/knowledge',
+        requireAuth(authService, { allowInsecureHeaders: false }),
+        createKnowledgeEventRouter({ eventService, feedbackService, cycleQueryService })
+    );
+}
+
 export function registerJudgmentResolutionApiRoute(app, {
     authService,
     service = new JudgmentResolutionService(),
@@ -145,6 +159,9 @@ export function registerApiRoutes(app, {
     learningService,
     learningHealthService,
     candidateRepository,
+    knowledgeEventService,
+    knowledgeFeedbackService,
+    knowledgeCycleQueryService,
     onboardingRuntimeService,
     wikiService,
     tokenUsageService,
@@ -225,6 +242,14 @@ export function registerApiRoutes(app, {
     })));
     registerOnboardingApiRoute(app, { authService, onboardingRuntimeService });
     registerKnowledgeResolutionApiRoute(app, { authService });
+    if (knowledgeEventService && knowledgeFeedbackService && knowledgeCycleQueryService) {
+        registerKnowledgeEventApiRoutes(app, {
+            authService,
+            eventService: knowledgeEventService,
+            feedbackService: knowledgeFeedbackService,
+            cycleQueryService: knowledgeCycleQueryService
+        });
+    }
     registerJudgmentResolutionApiRoute(app, { authService });
     if (candidateRepository) {
         // cross-repo source (mana / salestailor / zeims / SNS) からの

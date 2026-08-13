@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { MeetingAutomationService } from '../../../server/services/meeting-automation/meeting-automation-service.js';
+import { MeetingKnowledgeEventBridge } from '../../../server/services/meeting-automation/meeting-knowledge-event-bridge.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 
 function makeMeetingService({
     repository = new InMemoryWorkflowRepository(),
     googleCalendarService = null,
     infoSSOTService = null,
+    meetingKnowledgeEventBridge = null,
     resolveReviewTaskOwners = vi.fn(async (reviewPackage) => reviewPackage),
     createLoopIntent = vi.fn(async (input) => ({ loop_intent: input }))
 } = {}) {
@@ -18,6 +20,7 @@ function makeMeetingService({
         repository,
         googleCalendarService,
         infoSSOTService,
+        meetingKnowledgeEventBridge,
         resolveReviewTaskOwners,
         prepareProjectAccess,
         assertProjectSelectable,
@@ -499,5 +502,105 @@ describe('MeetingAutomationService', () => {
             runtime_type: 'cloudflare_computer',
             loop_intent_id: 'loop-note-1'
         });
+    });
+
+    it('recordCandidatesはledger記録後にMeetingKnowledgeEventBridgeへ同じreview/runner候補を渡す', async () => {
+        const bridgeResult = { status: 'completed', decision_count: 1 };
+        const meetingKnowledgeEventBridge = { ingest: vi.fn(async () => bridgeResult) };
+        const { service } = makeMeetingService({ meetingKnowledgeEventBridge });
+        const input = {
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            package_id: 'package-knowledge-1',
+            run_id: 'run-knowledge-1',
+            source_text_hash: 'sha256-meeting-note-1',
+            task_candidates: [{ id: 'task_1', title: '料金ページを更新する' }],
+            decision_candidates: [{ id: 'decision_1', title: '最低価格を決定する' }],
+            follow_up_draft: { id: 'followup_1', body: '決定事項を共有します' },
+            runner: {
+                status: 'completed',
+                decision_candidates: ['decision_1'],
+                task_candidates: ['task_1'],
+                follow_up_draft: ['followup_1']
+            }
+        };
+        const sourceEvent = {
+            event_id: 'meeting_source_1',
+            occurred_at: '2026-08-13T01:00:00.000Z',
+            source_pointer: { type: 'meeting_minutes', uri: 'drive://meeting_1' }
+        };
+        vi.spyOn(service.reviewLedgerService, 'resolveCandidateContext').mockReturnValue({
+            run: { id: 'run-knowledge-1', metadata: { graph_context: null, source_event: sourceEvent } },
+            outputs: []
+        });
+        vi.spyOn(service.reviewLedgerService, 'recordCandidates').mockReturnValue({
+            meeting_candidate_ingest: { status: 'recorded' }
+        });
+
+        const result = await service.recordCandidates(input, actor);
+
+        expect(result.status).toBe('completed');
+
+        expect(meetingKnowledgeEventBridge.ingest).toHaveBeenCalledWith(expect.objectContaining({
+            packageId: 'package-knowledge-1',
+            runId: 'run-knowledge-1',
+            projectCode: 'salestailor',
+            sourceEvent,
+            reviewPackage: expect.objectContaining({
+                decision_candidates: input.decision_candidates,
+                task_candidates: input.task_candidates,
+                follow_up_draft: input.follow_up_draft
+            }),
+            runnerResult: input.runner,
+            access: actor
+        }));
+    });
+
+    it('candidate集合不一致は全候補preflightでpartialにしledger/Graph/candidateへ一件も書かない', async () => {
+        const knowledgeEventService = { ingest: vi.fn() };
+        const candidateRepository = { create: vi.fn(), findByEventId: vi.fn() };
+        const meetingKnowledgeEventBridge = new MeetingKnowledgeEventBridge({
+            knowledgeEventService,
+            candidateRepository
+        });
+        const { service } = makeMeetingService({ meetingKnowledgeEventBridge });
+        const sourceEvent = {
+            event_id: 'meeting_source_preflight_1',
+            occurred_at: '2026-08-13T01:00:00.000Z',
+            source_pointer: { type: 'meeting_minutes', uri: 'drive://meeting_preflight_1' }
+        };
+        vi.spyOn(service.reviewLedgerService, 'resolveCandidateContext').mockReturnValue({
+            run: { id: 'run-preflight-1', metadata: { graph_context: null, source_event: sourceEvent } },
+            outputs: []
+        });
+        const ledgerWrite = vi.spyOn(service.reviewLedgerService, 'recordCandidates').mockReturnValue({
+            meeting_candidate_ingest: { status: 'recorded' }
+        });
+
+        const result = await service.recordCandidates({
+            org_id: 'salestailor',
+            project_id: 'salestailor',
+            package_id: 'package-preflight-1',
+            run_id: 'run-preflight-1',
+            source_text_hash: 'sha256-meeting-preflight-1',
+            decision_candidates: [{
+                id: 'decision_1',
+                title: '最低価格を決定する',
+                statement: '価格を決定する'
+            }],
+            task_candidates: [{ id: 'task_1', title: '料金ページを更新する' }],
+            follow_up_draft: { id: 'followup_1', body: '決定事項を共有します' },
+            runner: {
+                status: 'completed',
+                decision_candidates: ['decision_other'],
+                task_candidates: ['task_1'],
+                follow_up_draft: ['followup_1']
+            }
+        }, actor);
+
+        expect(result).toMatchObject({ status: 'partial', failure_reason: 'candidate_id_set_mismatch' });
+        expect(ledgerWrite).not.toHaveBeenCalled();
+        expect(knowledgeEventService.ingest).not.toHaveBeenCalled();
+        expect(candidateRepository.create).not.toHaveBeenCalled();
     });
 });

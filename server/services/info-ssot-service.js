@@ -114,7 +114,7 @@ export class InfoSSOTService {
         return this.ontologyRegistry.interpretHistory(snapshot, { version, asOf });
     }
 
-    async commitOntologyGraph(access, input = {}) {
+    async commitOntologyGraph(access, input = {}, { client: externalClient, access_context_applied: accessContextApplied = false } = {}) {
         const { kernel } = this.ontologyRegistry.resolve();
         const entity = input.entity;
         const edges = Array.isArray(input.edges) ? input.edges : [];
@@ -126,7 +126,7 @@ export class InfoSSOTService {
         const sensitivity = this.normalizeSensitivity(input.sensitivity);
         this.assertWriteAccess(access, { projectCode: input.projectCode, roleMin, sensitivity });
 
-        return this.withAccessContext(access, async (client) => {
+        const commit = async (client) => {
             const contextIds = [...new Set(contextEntities
                 .map((item) => item?.id)
                 .filter((id) => id && id !== entity.id))];
@@ -204,7 +204,10 @@ export class InfoSSOTService {
                 guard_status: 'active_current',
                 ontology_version: kernel.version
             };
-        });
+        };
+        if (externalClient && accessContextApplied) return commit(externalClient);
+        if (externalClient) return this.withAccessContext(access, commit, { client: externalClient });
+        return this.withAccessContext(access, commit);
     }
 
     async auditOntology(access, { limit = 500, cursor = null } = {}) {
@@ -960,22 +963,23 @@ export class InfoSSOTService {
         }
     }
 
-    async withAccessContext(access, handler) {
+    async withAccessContext(access, handler, { client: externalClient } = {}) {
         this.assertReady();
-        const client = await this.pool.connect();
+        const client = externalClient || await this.pool.connect();
+        const ownsTransaction = !externalClient;
         try {
-            await client.query('BEGIN');
+            if (ownsTransaction) await client.query('BEGIN');
             await client.query('SELECT set_config($1, $2, true)', ['app.role', access.role]);
             await client.query('SELECT set_config($1, $2, true)', ['app.project_codes', access.projectCodes.join(',')]);
             await client.query('SELECT set_config($1, $2, true)', ['app.clearance', access.clearance.join(',')]);
             const result = await handler(client);
-            await client.query('COMMIT');
+            if (ownsTransaction) await client.query('COMMIT');
             return result;
         } catch (error) {
-            await client.query('ROLLBACK');
+            if (ownsTransaction) await client.query('ROLLBACK');
             throw error;
         } finally {
-            client.release();
+            if (ownsTransaction) client.release();
         }
     }
 
@@ -1004,7 +1008,8 @@ export class InfoSSOTService {
                     ) AS member_of_project_ids
              FROM graph_entities ge
              LEFT JOIN projects p ON p.id = ge.project_id
-             WHERE (
+             WHERE COALESCE(ge.payload->>'searchable', 'true') <> 'false'
+               AND (
                $1::text IS NULL
                OR p.code = $1
                OR (
@@ -1106,6 +1111,7 @@ export class InfoSSOTService {
              FROM graph_entities ge
              LEFT JOIN projects p ON p.id = ge.project_id
              WHERE ge.id = ANY($1)
+               AND COALESCE(ge.payload->>'searchable', 'true') <> 'false'
                AND (
                  $2::text IS NULL
                  OR p.code = $2

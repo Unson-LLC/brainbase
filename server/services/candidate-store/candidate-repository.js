@@ -166,6 +166,7 @@ function buildPersonalKgWhere(filter = {}) {
     const owner = filter.owner_person_id || filter.ownerPersonId;
     if (!owner) throw new Error('owner_person_id is required');
     add('owner_person_id = ?', owner);
+    clauses.push(`semantic_state = 'active'`);
     clauses.push(`visibility IN ('owner', 'private')`);
     add('cognitive_type = ANY(?::text[])', Array.isArray(filter.cognitive_types) && filter.cognitive_types.length ? filter.cognitive_types : PERSONAL_KG_TYPES);
     if (!filter.bypass_acl && !filter.owner_read) {
@@ -261,6 +262,12 @@ export class InMemoryCandidateRepository {
     findById(id) {
         const r = this.candidates.get(id);
         return r ? { ...r } : null;
+    }
+
+    findByEventId(eventId) {
+        const candidate = Array.from(this.candidates.values())
+            .find((row) => row.source_event_ids.includes(eventId));
+        return candidate ? { ...candidate } : null;
     }
 
     list(filter = {}) {
@@ -385,6 +392,7 @@ export class InMemoryCandidateRepository {
                 const matchesText = normalizedBody.includes(phrase)
                     || (normalizedTokens.length > 1 && normalizedTokens.every((token) => normalizedBody.includes(token)));
                 return candidate.owner_person_id === owner_person_id
+                    && candidate.semantic_state === 'active'
                     && ['owner', 'private'].includes(candidate.visibility)
                     && candidate.redaction_status === 'none'
                     && candidate.promotion_status !== 'rejected'
@@ -427,12 +435,13 @@ export class PgCandidateRepository {
         this.pool = pool;
     }
 
-    async create(input) {
+    async create(input, { client } = {}) {
         validate(input);
+        const queryable = client || this.pool;
         try {
             const key = duplicateKey(input);
             const id = input.id || nextId();
-            const duplicate = await this.pool.query(
+            const duplicate = await queryable.query(
                 `SELECT id
                  FROM memory_candidates
                  WHERE id = $1
@@ -445,7 +454,7 @@ export class PgCandidateRepository {
             if (duplicate.rows.length > 0) {
                 throw new DuplicateCandidateError(key);
             }
-            const { rows } = await this.pool.query(
+            const { rows } = await queryable.query(
                 `INSERT INTO memory_candidates (
                     id, cognitive_type, owner_person_id, actor_person_id, source_system, source_event_ids,
                     workspace, channel_id, thread_ts, project_code, org_ids, project_ids, team_id,
@@ -512,6 +521,20 @@ export class PgCandidateRepository {
         return normalizeCandidate(rows[0]);
     }
 
+    async findByEventId(eventId, { client, projectCode } = {}) {
+        const params = [JSON.stringify([eventId])];
+        const projectClause = projectCode ? ` AND project_code = $${params.push(projectCode)}` : '';
+        const { rows } = await (client || this.pool).query(
+            `SELECT * FROM memory_candidates
+             WHERE source_event_ids @> $1::jsonb
+             ${projectClause}
+             ORDER BY created_at ASC, id ASC
+             LIMIT 1`,
+            params
+        );
+        return normalizeCandidate(rows[0]);
+    }
+
     async list(filter = {}) {
         const clauses = [];
         const params = [];
@@ -544,10 +567,11 @@ export class PgCandidateRepository {
         return rows.map(normalizeCandidate);
     }
 
-    async transitionProcessingStage(id, nextStage) {
+    async transitionProcessingStage(id, nextStage, { client: externalClient } = {}) {
         assertProcessingStage(nextStage);
-        const client = typeof this.pool.connect === 'function' ? await this.pool.connect() : this.pool;
-        await client.query('BEGIN');
+        const client = externalClient
+            || (typeof this.pool.connect === 'function' ? await this.pool.connect() : this.pool);
+        if (!externalClient) await client.query('BEGIN');
         try {
             const { rows } = await client.query('SELECT * FROM memory_candidates WHERE id = $1 FOR UPDATE', [id]);
             const current = rows[0];
@@ -556,26 +580,26 @@ export class PgCandidateRepository {
                 throw new InvalidTransitionError(current.processing_stage, nextStage);
             }
             if (nextStage === current.processing_stage) {
-                await client.query('COMMIT');
+                if (!externalClient) await client.query('COMMIT');
                 return normalizeCandidate(current);
             }
             const updated = await client.query(
                 'UPDATE memory_candidates SET processing_stage = $2, updated_at = NOW() WHERE id = $1 RETURNING *',
                 [id, nextStage]
             );
-            await client.query('COMMIT');
+            if (!externalClient) await client.query('COMMIT');
             return normalizeCandidate(updated.rows[0]);
         } catch (error) {
-            await client.query('ROLLBACK');
+            if (!externalClient) await client.query('ROLLBACK');
             throw error;
         } finally {
-            if (typeof client.release === 'function') client.release();
+            if (!externalClient && typeof client.release === 'function') client.release();
         }
     }
 
-    async updateSemanticState(id, nextState) {
+    async updateSemanticState(id, nextState, { client } = {}) {
         assertSemanticState(nextState);
-        const { rows } = await this.pool.query(
+        const { rows } = await (client || this.pool).query(
             'UPDATE memory_candidates SET semantic_state = $2, updated_at = NOW() WHERE id = $1 RETURNING *',
             [id, nextState]
         );
@@ -721,6 +745,7 @@ export class PgCandidateRepository {
         let sql = `SELECT id, cognitive_type, body, confidence, source_system, created_at
                    FROM memory_candidates
                    WHERE owner_person_id = $1
+                     AND semantic_state = 'active'
                      AND visibility IN ('owner', 'private')
                      AND redaction_status = 'none'
                      AND promotion_status <> 'rejected'
