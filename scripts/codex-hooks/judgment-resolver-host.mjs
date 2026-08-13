@@ -692,29 +692,46 @@ function toolCallScope(toolName, input) {
     return query === '対象未指定' ? '入力なし' : query;
 }
 
-function nestedRecords(value, depth = 0) {
+function nestedRecords(value, depth = 0, { parseContent = true } = {}) {
     if (depth > 5) return [];
     const item = record(value);
     if (!item) return [];
     const direct = [item];
-    for (const key of ['data', 'structuredContent', 'result', 'receipt']) {
-        if (record(item[key])) direct.push(...nestedRecords(item[key], depth + 1));
+    for (const key of ['Ok', 'Err', 'data', 'structuredContent', 'result', 'receipt']) {
+        if (record(item[key])) direct.push(...nestedRecords(item[key], depth + 1, { parseContent }));
     }
-    if (Array.isArray(item.content)) {
+    if (parseContent && Array.isArray(item.content)) {
         for (const block of item.content) {
             const text = record(block)?.text;
             if (typeof text !== 'string' || !text.trim().startsWith('{')) continue;
-            try { direct.push(...nestedRecords(JSON.parse(text), depth + 1)); } catch {}
+            try { direct.push(...nestedRecords(JSON.parse(text), depth + 1, { parseContent })); } catch {}
         }
     }
     return direct;
 }
 
-function responseSucceeded(response) {
+function validCallToolResultEnvelope(value) {
+    const item = record(value);
+    if (!item || !Array.isArray(item.content) || item.content.length === 0) return false;
+    return item.content.every((block) => {
+        const entry = record(block);
+        if (!entry || typeof entry.type !== 'string') return false;
+        if (entry.type === 'text') return typeof entry.text === 'string';
+        if (entry.type === 'image' || entry.type === 'audio') return typeof entry.data === 'string' && typeof entry.mimeType === 'string';
+        if (entry.type === 'resource') {
+            const resource = record(entry.resource);
+            return Boolean(resource && typeof resource.uri === 'string' && resource.uri.trim() && (typeof resource.text === 'string' || typeof resource.blob === 'string'));
+        }
+        if (entry.type === 'resource_link') return typeof entry.name === 'string' && entry.name.trim() && typeof entry.uri === 'string' && entry.uri.trim();
+        return false;
+    });
+}
+
+function responseSucceeded(response, { allowTransportSuccess = false, allowExplicitSuccess = true, semanticSuccess = false } = {}) {
     const items = nestedRecords(response);
     if (items.length === 0) return false;
     const failed = items.some((item) => (
-        item.isError === true
+        Object.hasOwn(item, 'Err') || item.isError === true
         || item.is_error === true
         || item.ok === false
         || item.success === false
@@ -722,12 +739,11 @@ function responseSucceeded(response) {
         || (item.error !== undefined && item.error !== null && item.error !== false && item.status !== 'ok')
     ));
     if (failed) return false;
-    return items.some((item) => (
-        item.isError === false
-        || item.is_error === false
-        || item.ok === true
-        || item.success === true
-        || ['ok', 'success', 'completed'].includes(String(item.status).toLowerCase())
+    const trustedEnvelopeItems = nestedRecords(response, 0, { parseContent: false });
+    return semanticSuccess || trustedEnvelopeItems.some((item) => (
+        (allowTransportSuccess && validCallToolResultEnvelope(item.Ok))
+        || (allowTransportSuccess && validCallToolResultEnvelope(item))
+        || (allowExplicitSuccess && (item.isError === false || item.is_error === false || item.ok === true || item.success === true || ['ok', 'success', 'completed'].includes(String(item.status).toLowerCase())))
     ));
 }
 
@@ -742,6 +758,10 @@ function knowledgeResolutionData(response) {
         typeof item.resolution_id === 'string'
         && ['resolved', 'unconfirmed'].includes(String(item.status))
     )) ?? null;
+}
+
+function taskResultData(response) {
+    return nestedRecords(response).find((item) => item.status === 'ok' && record(item.task) && typeof item.task.id === 'string' && item.task.id.trim()) ?? null;
 }
 
 function eventKind(toolName) {
@@ -822,11 +842,16 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     const inputDigest = sha256(canonicalJson(inputValue));
     const responseDigest = sha256(canonicalJson(responseValue));
     const fingerprint = sha256(canonicalJson({ tool_name: toolName, tool_use_id: toolUseId, input_digest: inputDigest, response_digest: responseDigest }));
-    const success = responseSucceeded(responseValue);
     const callScope = toolCallScope(toolName, inputValue);
     const resultCount = responseCount(responseValue);
     const kind = eventKind(toolName);
     const resolution = kind === 'route' ? knowledgeResolutionData(responseValue) : null;
+    const taskResult = kind === 'write' ? taskResultData(responseValue) : null;
+    const success = responseSucceeded(responseValue, {
+        allowTransportSuccess: ['search', 'retrieve'].includes(kind),
+        allowExplicitSuccess: !['write', 'route'].includes(kind),
+        semanticSuccess: Boolean(resolution || taskResult)
+    });
     const qualifies = kind === 'route' && success && Boolean(resolution);
     const safeMetadata = resolution ? {
         resolution_id: resolution.resolution_id,

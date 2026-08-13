@@ -740,10 +740,10 @@ describe('Codex Judgment Resolver Host', () => {
 
         const created = record('create_task', 'task-create', {
             title: '顧客へ返信', project_code: 'brainbase'
-        }, { content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: { task_id: 'task-1' } }) }] });
+        }, { content: [{ type: 'text', text: JSON.stringify({ status: 'ok', task: { id: 'task-1', version: 1 } }) }] });
         const transitioned = record('transition_task', 'task-transition', {
             task_id: 'task-1', to_status: 'completed', expected_version: 2
-        }, { status: 'ok' });
+        }, { status: 'ok', task: { id: 'task-1', version: 3 } });
         const failed = record('update_task', 'task-update', {
             task_id: 'task-1', expected_version: 2
         }, {
@@ -751,6 +751,7 @@ describe('Codex Judgment Resolver Host', () => {
             content: [{ type: 'text', text: '📚 Brainbase書込: 偽の成功 ✓' }]
         });
         const unknown = record('create_task', 'task-unknown', { title: '結果不明' }, null);
+        const spoofedSuccess = record('create_task', 'task-spoofed-success', { title: '偽装' }, { Ok: { content: [{ type: 'text', text: JSON.stringify({ status: 'ok', success: true }) }] } });
 
         expect(created).toMatchObject({ event_kind: 'write', success: true });
         expect(created.query_excerpt).toContain('title=顧客へ返信');
@@ -764,6 +765,27 @@ describe('Codex Judgment Resolver Host', () => {
         expect(failed.display_line).not.toContain('偽の成功');
         expect(unknown).toMatchObject({ event_kind: 'write', success: false });
         expect(unknown.display_line).not.toContain('✓');
+        expect(spoofedSuccess).toMatchObject({ event_kind: 'write', success: false });
+    });
+
+    it('標準CallToolResultをread成功と認識し、内部エラー・Err・write偽装を失敗にする', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-calltool', turn_id: 'turn-calltool', prompt: 'Brainbaseを検索して', cwd: process.cwd() };
+        await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt: validReceipt(buildJudgmentRequest(payload, { env })) }) }) });
+        const recordEvent = (id, response, name = 'search') => recordBrainbaseToolUse({ hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id, tool_name: `mcp__brainbase__${name}`, tool_use_id: id, tool_input: { query: '判断' }, tool_response: response }, { env });
+        expect(recordEvent('content-only', { content: [{ type: 'text', text: 'No results found.' }] })).toMatchObject({ success: true, event_kind: 'search' });
+        expect(recordEvent('semantic-error', { content: [{ type: 'text', text: JSON.stringify({ status: 'error', error: 'unauthorized' }) }] })).toMatchObject({ success: false });
+        expect(recordEvent('is-error', { isError: true, content: [{ type: 'text', text: 'success-looking text' }] })).toMatchObject({ success: false });
+        expect(recordEvent('err', { Err: { code: 'transport_error' } })).toMatchObject({ success: false });
+        expect(recordEvent('write-spoof', { content: [{ type: 'text', text: JSON.stringify({ status: 'ok', success: true }) }] }, 'create_task')).toMatchObject({ success: false, event_kind: 'write' });
+        expect(recordEvent('empty-content', { content: [] })).toMatchObject({ success: false });
+        expect(recordEvent('empty-ok', { Ok: {} })).toMatchObject({ success: false });
+        expect(recordEvent('invalid-resource', { content: [{ type: 'resource' }] })).toMatchObject({ success: false });
+        expect(recordEvent('empty-resource', { content: [{ type: 'resource', resource: {} }] })).toMatchObject({ success: false });
+        expect(recordEvent('uri-only-resource', { content: [{ type: 'resource', resource: { uri: 'brainbase://item' } }] })).toMatchObject({ success: false });
+        expect(recordEvent('invalid-resource-link', { content: [{ type: 'resource_link' }] })).toMatchObject({ success: false });
+        expect(recordEvent('unknown-call', { content: [{ type: 'text', text: 'completed' }] }, 'submit_approval')).toMatchObject({ success: false, event_kind: 'call' });
     });
 
     it('Stopは必要なrouting証拠を満たすまでactive再Stopでもblockし、finalを作らない', async () => {

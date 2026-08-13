@@ -1,0 +1,3 @@
+# Architecture: Codex CallToolResult成功境界
+
+PostToolUseのtransport正常と業務成功を分離する。search/retrieveは妥当なMCP content block envelopeをtransport正常とみなす。未分類callはfail-closedにする。writeはTaskToolResultのtask、routeはKnowledge Resolutionデータを要求する。nested contentの明示エラーは常に優先する。
