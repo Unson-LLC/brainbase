@@ -15,7 +15,7 @@ created_at: 2026-08-11
 3. optional zero-call表示と行末空白の表示同値をHost unit/process integration testで固定する。
 4. live E2Eをeffective trustとfresh task evidenceへ束縛する。
 5. Skill、Capability、Runbook、Architecture、Spec、Story、AGENTS/CLAUDEを同じ状態モデルへ同期する。
-6. exact npm `vibepro@0.2.0-beta.5`でverify、review、PR preparationを実行する。
+6. exact npm `vibepro@0.2.0-beta.8`でverify、review、PR preparationを実行する。
 
 ## 完了条件
 

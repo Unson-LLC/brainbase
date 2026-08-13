@@ -2,7 +2,7 @@
 spec_id: SPEC-story-brainbase-vibepro-runtime-integrity-hook
 title: Brainbase VibePro Runtime Integrity Hook Specification
 status: final
-date: 2026-08-11
+date: 2026-08-13
 story_id: story-brainbase-vibepro-runtime-integrity-hook
 implementation_files:
   - .claude/scripts/hooks/lib/vibepro-runtime-contract.mjs
@@ -36,7 +36,7 @@ test_files:
 
 ## Scenarios
 
-- **S-1**: The published `vibepro@0.2.0-beta.5` identity passes and both hooks report the same digest.
+- **S-1**: The published `vibepro@0.2.0-beta.8` identity passes and both hooks report the same digest.
 - **S-2**: A behind+dirty Git checkout fails because its source kind and integrity contract are not trusted.
 - **S-3**: A successful command with a different preparation digest fails closed.
 - **S-4**: A missing launcher or malformed JSON fails closed.

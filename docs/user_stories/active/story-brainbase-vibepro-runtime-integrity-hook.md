@@ -9,7 +9,7 @@ related_tasks:
     task_ids: [TASK-vibepro-runtime-integrity-hook]
 status: active
 created_at: 2026-08-11
-updated_at: 2026-08-11
+updated_at: 2026-08-13
 ---
 
 # Brainbase push判断をcanonical VibePro runtimeへ固定する
@@ -33,8 +33,8 @@ fail-openしていた。
 
 - [ ] 両hookから古いVibePro source checkoutの絶対パス参照がなくなる。
 - [ ] 両hookが同じ `.claude/scripts/hooks/lib/vibepro-runtime-contract.mjs` validatorとcanonical launcherを使う。
-- [ ] 公開済み `vibepro@0.2.0-beta.5`、source commit
-  `5e19da4a890a6ae607241d40bbbb438dae6f5124` 以外を拒否する。
+- [ ] 公開済み `vibepro@0.2.0-beta.8`、source commit
+  `b9e0a3493577b1fd86d6dc20694dcfcd85dfe1b1` 以外を拒否する。
 - [ ] dirty Git runtime、missing/invalid identity、`pr prepare` identity mismatchをfail-closedで拒否する。
 - [ ] 通常hook実行時に `exact_version`、`source_git.commit`、`identity_digest` を報告できる。
 - [ ] validatorのunit testと、公開npm runtimeを使ったverify/PR smokeを残す。

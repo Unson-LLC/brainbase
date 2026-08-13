@@ -27,8 +27,25 @@ function trustedIdentity(overrides = {}) {
 }
 
 describe("VibePro canonical runtime hook contract", () => {
+  it("pins the currently published canonical runtime identity", () => {
+    expect(EXPECTED_VIBEPRO_VERSION).toBe("0.2.0-beta.8");
+    expect(EXPECTED_VIBEPRO_SOURCE_COMMIT)
+      .toBe("b9e0a3493577b1fd86d6dc20694dcfcd85dfe1b1");
+  });
+
   it("accepts only the pinned immutable npm identity", () => {
     expect(validateRuntimeIdentity(trustedIdentity()).identity_digest).toBe("a".repeat(64));
+  });
+
+  it("rejects the superseded beta.5 runtime identity", () => {
+    expect(() => validateRuntimeIdentity(trustedIdentity({
+      package: { exact_version: "0.2.0-beta.5" },
+      source_git: {
+        commit: "5e19da4a890a6ae607241d40bbbb438dae6f5124",
+        dirty: false,
+        origin_main_relation: "published",
+      },
+    }))).toThrow(/runtime_mismatch/);
   });
 
   it("rejects a behind and dirty Git development checkout", () => {

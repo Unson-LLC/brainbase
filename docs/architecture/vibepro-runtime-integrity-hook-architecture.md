@@ -16,10 +16,10 @@ validatorとする。shell pre-pushとClaude Code hookはvalidatorをNodeで起�
 
 通常利用runtimeは次の全条件を満たす必要がある。
 
-1. package exact versionが `0.2.0-beta.5`。
+1. package exact versionが `0.2.0-beta.8`。
 2. source kindが `npm_package`。
 3. release manifestがvalidで、source commitが
-   `5e19da4a890a6ae607241d40bbbb438dae6f5124`。
+   `b9e0a3493577b1fd86d6dc20694dcfcd85dfe1b1`。
 4. sourceはdirtyでなく、origin relationが`published`。
 5. VibeProのintegrity verdictが`trusted`で、identity digestが存在する。
 
