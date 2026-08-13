@@ -133,8 +133,35 @@ describe('ProductionRoutinePorts', () => {
             expect.objectContaining({ projectCode: 'brainbase', query: 'today' })
         );
         expect(dependencies.candidateRepository.listPersonalKg).toHaveBeenCalledWith(
-            expect.objectContaining({ project_code: 'brainbase' }),
+            expect.objectContaining({
+                project_code: 'brainbase',
+                owner_person_id: 'sato_keigo',
+                role: 'member'
+            }),
             context
+        );
+    });
+
+    it('ohayoは設定された正規Personal KG ownerと呼出者clearanceをCandidate Repositoryへ渡す', async () => {
+        const { dependencies } = createPorts();
+        const ports = new ProductionRoutinePorts({
+            ...dependencies,
+            personalKgOwnerPersonId: 'per_canonical_sato'
+        });
+        const restrictedContext = {
+            ...context,
+            access: { ...context.access, role: 'gm', clearance: ['internal', 'restricted'] }
+        };
+
+        await ports.recallPersonalKg({ input: { project_id: 'brainbase' } }, restrictedContext);
+
+        expect(dependencies.candidateRepository.listPersonalKg).toHaveBeenCalledWith(
+            expect.objectContaining({
+                owner_person_id: 'per_canonical_sato',
+                role: 'gm',
+                clearance: ['internal', 'restricted']
+            }),
+            restrictedContext
         );
     });
 

@@ -1,4 +1,5 @@
 const ROUTINE_PROJECT_ID = 'brainbase';
+const DEFAULT_PERSONAL_KG_OWNER_PERSON_ID = 'sato_keigo';
 const ROUTINE_AUTOMATION_IDS = Object.freeze([
     'brainbase-ohayo',
     'brainbase-oyasumi',
@@ -79,6 +80,8 @@ export class ProductionRoutinePorts {
         listJudgmentOutboxExceptions,
         knowledgeFeedbackService,
         countRunReceiptOutbox = null,
+        personalKgOwnerPersonId = process.env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID
+            || DEFAULT_PERSONAL_KG_OWNER_PERSON_ID,
         now = () => new Date()
     } = {}) {
         this.knowledgeEventRepository = knowledgeEventRepository;
@@ -88,6 +91,7 @@ export class ProductionRoutinePorts {
         this.listJudgmentOutboxExceptions = listJudgmentOutboxExceptions;
         this.knowledgeFeedbackService = knowledgeFeedbackService;
         this.countRunReceiptOutbox = countRunReceiptOutbox;
+        this.personalKgOwnerPersonId = personalKgOwnerPersonId;
         this.now = now;
     }
 
@@ -164,6 +168,9 @@ export class ProductionRoutinePorts {
         const project = projectInput(input);
         return requireDependency(this.candidateRepository, 'candidateRepository', 'listPersonalKg').listPersonalKg({
             project_code: project.project_id,
+            owner_person_id: this.personalKgOwnerPersonId,
+            role: context?.access?.role,
+            clearance: context?.access?.clearance,
             query: input?.input?.query,
             limit: 50
         }, context);
