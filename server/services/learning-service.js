@@ -136,10 +136,6 @@ function uniqueStrings(values = []) {
     return Array.from(new Set(toArray(values)));
 }
 
-function escapeLikePattern(value = '') {
-    return String(value).replace(/[\\%_]/g, (match) => `\\${match}`);
-}
-
 function personalKgSearchTokens(value = '') {
     const normalized = String(value || '')
         .normalize('NFKC')
@@ -216,7 +212,7 @@ function chooseMoreConservativeApplyMode(left = 'manual', right = 'manual') {
 }
 
 function deriveCandidateSemanticText(episode, pillar) {
-    if (pillar === 'wiki') {
+    if (pillar === 'document' || pillar === 'wiki') {
         return episode.evidence?.proposed_rule || episode.summary || '';
     }
     return episode.evidence?.proposed_steps || episode.summary || '';
@@ -233,8 +229,8 @@ function deriveExistingCandidateSemanticText(candidate) {
 }
 
 function deriveSemanticScope({ pillar, docType = '', projectId = '' }) {
-    if (pillar === 'wiki') {
-        return `${pillar}:${docType || 'architecture'}:${projectId || 'global'}`;
+    if (pillar === 'document' || pillar === 'wiki') {
+        return `document:${docType || 'architecture'}:${projectId || 'global'}`;
     }
     return `${pillar}:${projectId || 'brainbase'}`;
 }
@@ -437,7 +433,7 @@ function isLowRiskPrivateMemoryCandidate(candidate) {
 }
 
 function mapMemoryCandidateGraphType(candidate) {
-    const subjectType = normalizeOptionalString(candidate.subject_type);
+    const subjectType = normalizeOptionalString(candidate.recommended_subject_type || candidate.subject_type);
     if (subjectType === 'role') return 'raci_assignment';
     if (MEMORY_GRAPH_ENTITY_TYPES.has(subjectType)) return subjectType;
     throw new Error(`memory candidate subject_type cannot be promoted to graph: ${subjectType || 'unknown'}`);
@@ -596,11 +592,12 @@ export function buildSkillCandidateContent(episode, wikiTargetRef, targetRef = d
 }
 
 export class LearningService {
-    constructor({ pool, wikiService = null, repoRoot = process.cwd(), ontologyRegistry = null }) {
+    constructor({ pool, wikiService = null, repoRoot = process.cwd(), ontologyRegistry = null, candidateRepository = null }) {
         this.pool = pool;
         this.wikiService = wikiService;
         this.repoRoot = repoRoot;
         this.ontologyRegistry = ontologyRegistry || new OntologyRegistry();
+        this.candidateRepository = candidateRepository;
         this._schemaReady = false;
     }
 
@@ -706,46 +703,45 @@ export class LearningService {
     }
 
     async createMemoryCandidate(payload = {}) {
-        this.assertReady();
-        await this.ensureSchema();
-
         const candidate = normalizeMemoryCandidateInput(payload);
-        await this.pool.query(
-            `INSERT INTO memory_candidates (
-                id, owner_person_id, actor_person_id, source_system, source_event_ids,
-                workspace, channel_id, thread_ts, project_code, subject_type, subject_id,
-                visibility, role_min, sensitivity, promotion_status, requires_approval,
-                recommended_owner_person_id, permission_snapshot, evidence_ids, expires_at,
-                redaction_status, confidence, memory, created_at, updated_at
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,NOW(),NOW())`,
-            [
-                candidate.id,
-                candidate.owner_person_id,
-                candidate.actor_person_id,
-                candidate.source_system,
-                JSON.stringify(candidate.source_event_ids),
-                candidate.workspace,
-                candidate.channel_id,
-                candidate.thread_ts,
-                candidate.project_code,
-                candidate.subject_type,
-                candidate.subject_id,
-                candidate.visibility,
-                candidate.role_min,
-                candidate.sensitivity,
-                candidate.promotion_status,
-                candidate.requires_approval,
-                candidate.recommended_owner_person_id,
-                JSON.stringify(candidate.permission_snapshot),
-                JSON.stringify(candidate.evidence_ids),
-                candidate.expires_at,
-                candidate.redaction_status,
-                candidate.confidence,
-                JSON.stringify(candidate.memory)
-            ]
-        );
+        if (!this.candidateRepository) throw new Error('LearningService requires candidateRepository');
+        const stored = await this.candidateRepository.create({
+            id: candidate.id,
+            cognitive_type: normalizeOptionalString(payload.cognitive_type || payload.cognitiveType) || 'observation',
+            owner_person_id: candidate.owner_person_id,
+            actor_person_id: candidate.actor_person_id || candidate.owner_person_id,
+            source_system: candidate.source_system,
+            source_event_ids: candidate.source_event_ids,
+            workspace: candidate.workspace,
+            channel_id: candidate.channel_id,
+            thread_ts: candidate.thread_ts,
+            project_code: candidate.project_code,
+            org_ids: toArray(payload.org_ids || payload.orgIds),
+            project_ids: toArray(payload.project_ids || payload.projectIds),
+            team_id: normalizeOptionalString(payload.team_id || payload.teamId),
+            visibility: candidate.visibility === 'private'
+                ? 'owner'
+                : (['role', 'project'].includes(candidate.visibility) ? 'team' : candidate.visibility),
+            sensitivity: ['hr', 'finance', 'contract'].includes(candidate.sensitivity) ? 'restricted' : candidate.sensitivity,
+            role_min: candidate.role_min,
+            agency_level: normalizeOptionalString(payload.agency_level || payload.agencyLevel) || 'synthesize',
+            recommended_subject_type: candidate.subject_type,
+            recommended_subject_id: candidate.subject_id,
+            recommended_owner_person_id: candidate.recommended_owner_person_id,
+            promotion_status: candidate.promotion_status,
+            requires_approval: candidate.requires_approval,
+            permission_snapshot: candidate.permission_snapshot,
+            evidence_ids: candidate.evidence_ids,
+            body: normalizeOptionalString(candidate.memory.body || candidate.memory.text) || JSON.stringify(candidate.memory),
+            redaction_status: candidate.redaction_status,
+            confidence: candidate.confidence,
+            expires_at: candidate.expires_at,
+            processing_stage: normalizeOptionalString(payload.processing_stage || payload.processingStage) || 'received',
+            semantic_state: normalizeOptionalString(payload.semantic_state || payload.semanticState) || 'active',
+            target_tier: normalizeOptionalString(payload.target_tier || payload.targetTier) || 'ledger'
+        });
 
-        return candidate;
+        return this._mapMemoryCandidateRow(stored);
     }
 
     async listMemoryCandidates({
@@ -763,11 +759,7 @@ export class LearningService {
         include_promoted = false,
         includePromoted = false
     } = {}) {
-        this.assertReady();
-        await this.ensureSchema();
-
-        const values = [];
-        const whereClauses = [];
+        if (!this.candidateRepository) throw new Error('LearningService requires candidateRepository');
         const owner = normalizeOptionalString(owner_person_id || ownerPersonId);
         const candidateVisibility = normalizeOptionalString(visibility || scope);
         const candidateSensitivity = normalizeOptionalString(sensitivity);
@@ -775,49 +767,19 @@ export class LearningService {
         const candidateStatus = normalizeOptionalString(promotion_status || status);
         const subject = normalizeOptionalString(subject_type || subjectType);
         const shouldIncludePromoted = include_promoted === true || includePromoted === true;
-
-        if (owner) {
-            values.push(owner);
-            whereClauses.push(`owner_person_id = $${values.length}`);
-        }
-        if (candidateVisibility) {
-            values.push(candidateVisibility);
-            whereClauses.push(`visibility = $${values.length}`);
-        }
-        if (candidateSensitivity) {
-            values.push(candidateSensitivity);
-            whereClauses.push(`sensitivity = $${values.length}`);
-        }
-        if (project) {
-            values.push(project);
-            whereClauses.push(`project_code = $${values.length}`);
-        }
-        if (candidateStatus) {
-            values.push(candidateStatus);
-            whereClauses.push(`promotion_status = $${values.length}`);
-        } else if (!shouldIncludePromoted) {
-            values.push(MEMORY_DRAFT_STATUSES);
-            whereClauses.push(`promotion_status = ANY($${values.length}::text[])`);
-        }
-        if (subject) {
-            values.push(subject);
-            whereClauses.push(`subject_type = $${values.length}`);
-        }
-
-        const where = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
-        const { rows } = await this.pool.query(
-            `SELECT id, owner_person_id, actor_person_id, source_system, source_event_ids,
-                    workspace, channel_id, thread_ts, project_code, subject_type, subject_id,
-                    visibility, role_min, sensitivity, promotion_status, requires_approval,
-                    recommended_owner_person_id, permission_snapshot, evidence_ids, expires_at,
-                    redaction_status, confidence, memory, created_at, updated_at
-             FROM memory_candidates
-             ${where}
-             ORDER BY created_at ASC`,
-            values
-        );
-
-        return rows.map((row) => this._mapMemoryCandidateRow(row));
+        const rows = await this.candidateRepository.list({
+            ...(owner ? { owner_person_id: owner } : {}),
+            ...(candidateVisibility ? { visibility: candidateVisibility === 'private' ? 'owner' : candidateVisibility } : {}),
+            ...(candidateSensitivity ? { sensitivity: candidateSensitivity } : {}),
+            ...(project ? { project_code: project } : {}),
+            ...(candidateStatus ? { promotion_status: candidateStatus } : {}),
+            ...(subject ? { recommended_subject_type: subject } : {}),
+            order_by: 'created_at',
+            order_direction: 'asc'
+        });
+        return rows
+            .filter((row) => shouldIncludePromoted || row.promotion_status !== 'promoted_to_graph')
+            .map((row) => this._mapMemoryCandidateRow(row));
     }
 
     /**
@@ -832,51 +794,24 @@ export class LearningService {
         cognitiveTypes = null,
         limit = 10
     } = {}) {
-        this.assertReady();
-        await this.ensureSchema();
-
         const q = normalizeOptionalString(query);
         if (!q) throw new Error('query is required');
+        if (!this.candidateRepository?.searchPersonalKg) {
+            throw new Error('LearningService requires candidateRepository.searchPersonalKg');
+        }
         const owner = normalizeOptionalString(ownerPersonId) || 'sato_keigo';
         const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 10, 1), 50);
-
-        const phrasePattern = `%${escapeLikePattern(q)}%`;
         const tokens = personalKgSearchTokens(q);
-        const tokenPatterns = tokens.length > 1
-            ? tokens.map((token) => `%${escapeLikePattern(token)}%`)
-            : [];
-        const values = [owner, phrasePattern];
-        let sql = `SELECT id, cognitive_type, body, confidence, source_system, created_at
-                   FROM memory_candidates
-                   WHERE owner_person_id = $1
-                     AND visibility = 'owner'
-                     AND redaction_status = 'none'
-                     AND promotion_status <> 'rejected'
-                     AND body IS NOT NULL AND length(body) > 0
-                     AND (body ILIKE $2 ESCAPE '\\'`;
-        if (tokenPatterns.length > 0) {
-            const tokenClauses = [];
-            for (const pattern of tokenPatterns) {
-                values.push(pattern);
-                tokenClauses.push(`body ILIKE $${values.length} ESCAPE '\\'`);
-            }
-            sql += ` OR (${tokenClauses.join(' AND ')})`;
-        }
-        sql += ')';
         const types = Array.isArray(cognitiveTypes)
             ? cognitiveTypes.map((t) => normalizeOptionalString(t)).filter(Boolean)
             : [];
-        if (types.length > 0) {
-            values.push(types);
-            sql += ` AND cognitive_type = ANY($${values.length}::text[])`;
-        }
-        values.push(safeLimit);
-        sql += ` ORDER BY CASE WHEN body ILIKE $2 ESCAPE '\\' THEN 0 ELSE 1 END,
-                         confidence DESC NULLS LAST,
-                         created_at DESC
-                 LIMIT $${values.length}`;
-
-        const { rows } = await this.pool.query(sql, values);
+        const rows = await this.candidateRepository.searchPersonalKg({
+            owner_person_id: owner,
+            query: q,
+            tokens,
+            cognitive_types: types,
+            limit: safeLimit
+        });
         return rows.map((row) => ({
             id: row.id,
             cognitive_type: row.cognitive_type,
@@ -888,25 +823,11 @@ export class LearningService {
     }
 
     async getMemoryCandidate(id) {
-        this.assertReady();
-        await this.ensureSchema();
-
         const candidateId = normalizeOptionalString(id);
         if (!candidateId) throw new Error('candidate id is required');
-
-        const { rows } = await this.pool.query(
-            `SELECT id, owner_person_id, actor_person_id, source_system, source_event_ids,
-                    workspace, channel_id, thread_ts, project_code, subject_type, subject_id,
-                    visibility, role_min, sensitivity, promotion_status, requires_approval,
-                    recommended_owner_person_id, permission_snapshot, evidence_ids, expires_at,
-                    redaction_status, confidence, memory, created_at, updated_at
-             FROM memory_candidates
-             WHERE id = $1
-             LIMIT 1`,
-            [candidateId]
-        );
-
-        return rows[0] ? this._mapMemoryCandidateRow(rows[0]) : null;
+        if (!this.candidateRepository) throw new Error('LearningService requires candidateRepository');
+        const candidate = await this.candidateRepository.findById(candidateId);
+        return candidate ? this._mapMemoryCandidateRow(candidate) : null;
     }
 
     async classifyMemoryCandidate(id, options = {}) {
@@ -1024,7 +945,10 @@ export class LearningService {
         const vocabularyRelease = currentRelease || this.ontologyRegistry.resolve({ version: '1.0.0' });
         vocabularyRelease.kernel.getType(entityType);
 
-        const graphEntityId = `mem_${candidate.id}`;
+        const graphEntityId = normalizeOptionalString(candidate.recommended_subject_id);
+        if (!graphEntityId) {
+            throw new Error('recommended_subject_id is required for Graph promotion');
+        }
         const semanticMemory = candidate.memory
             && typeof candidate.memory === 'object'
             && !Array.isArray(candidate.memory)
@@ -1033,8 +957,9 @@ export class LearningService {
         const payload = {
             ...semanticMemory,
             memory_candidate_id: candidate.id,
-            subject_type: candidate.subject_type,
-            subject_id: candidate.subject_id,
+            derived_from_candidate_id: candidate.id,
+            subject_type: candidate.recommended_subject_type || candidate.subject_type,
+            subject_id: graphEntityId,
             owner_person_id: candidate.owner_person_id,
             actor_person_id: candidate.actor_person_id,
             visibility: candidate.visibility,
@@ -1110,7 +1035,8 @@ export class LearningService {
                 nextStatus: 'promoted_to_graph',
                 actor_person_id: actorPersonId,
                 decision_owner_person_id: authorizedOwner,
-                decision_reason: options.reason || options.decision_reason || 'promoted_to_graph'
+                decision_reason: options.reason || options.decision_reason || 'promoted_to_graph',
+                promoted_graph_entity_id: graphEntityId
             }, client);
             await client.query('COMMIT');
 
@@ -1293,7 +1219,7 @@ export class LearningService {
             throw new Error(`Source episode not found for candidate ${candidateId}`);
         }
 
-        if (candidate.pillar === 'wiki') {
+        if (candidate.pillar === 'document') {
             const preserved = await this._applyWikiCandidate(candidate);
             return { success: false, retired: true, candidate: preserved };
         }
@@ -1487,6 +1413,7 @@ export class LearningService {
     _mapCandidateRow(row) {
         return {
             ...row,
+            pillar: row.pillar === 'wiki' ? 'document' : row.pillar,
             source_episode_ids: toArray(row.source_episode_ids),
             linked_candidate_ids: toArray(row.linked_candidate_ids),
             evaluation_summary: row.evaluation_summary || {},
@@ -1496,14 +1423,19 @@ export class LearningService {
 
     _mapMemoryCandidateRow(row) {
         const confidence = Number(row.confidence);
+        const memory = row.memory && typeof row.memory === 'object' && !Array.isArray(row.memory)
+            ? row.memory
+            : { body: row.body };
         return {
             ...row,
             candidate_id: row.id,
+            subject_type: row.recommended_subject_type || row.subject_type,
+            subject_id: row.recommended_subject_id || row.subject_id,
             source_event_ids: toArray(row.source_event_ids),
             permission_snapshot: row.permission_snapshot || {},
             evidence_ids: toArray(row.evidence_ids),
             confidence: Number.isFinite(confidence) ? confidence : null,
-            memory: row.memory || {},
+            memory,
             graph_truth: row.promotion_status === 'promoted_to_graph'
         };
     }
@@ -1514,8 +1446,9 @@ export class LearningService {
         actor_person_id = null,
         decision_owner_person_id = null,
         decision_reason = '',
-        requires_approval = undefined
-    }, queryable = this.pool) {
+        requires_approval = undefined,
+        promoted_graph_entity_id = null
+    }, transactionClient = null) {
         if (!MEMORY_PROMOTION_STATUSES.has(nextStatus)) {
             throw new Error('next promotion status is invalid');
         }
@@ -1523,55 +1456,31 @@ export class LearningService {
             throw new Error(`invalid memory candidate transition: ${candidate.promotion_status} -> ${nextStatus}`);
         }
 
-        const previousStatus = candidate.promotion_status;
-        const auditId = `mca_${ulid()}`;
         const nextRequiresApproval = typeof requires_approval === 'boolean'
             ? requires_approval
             : candidate.requires_approval;
-
-        const updateResult = await queryable.query(
-            `UPDATE memory_candidates
-             SET promotion_status = $2,
-                 requires_approval = $3,
-                 updated_at = NOW()
-             WHERE id = $1
-               AND promotion_status = $4`,
-            [candidate.id, nextStatus, nextRequiresApproval, previousStatus]
-        );
-        if (updateResult.rowCount !== 1) {
-            throw new Error('memory candidate changed during transition');
+        if (!this.candidateRepository?.transitionWithAudit) {
+            throw new Error('LearningService requires candidateRepository.transitionWithAudit');
         }
-        await queryable.query(
-            `INSERT INTO memory_candidate_audit_logs (
-                id, candidate_id, actor_person_id, decision_owner_person_id,
-                decision_reason, previous_status, next_status, evidence_ids, created_at
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())`,
-            [
-                auditId,
-                candidate.id,
-                normalizeOptionalString(actor_person_id),
-                normalizeOptionalString(decision_owner_person_id),
-                normalizeOptionalString(decision_reason) || '',
-                previousStatus,
-                nextStatus,
-                JSON.stringify(candidate.evidence_ids || [])
-            ]
-        );
+        const result = await this.candidateRepository.transitionWithAudit(candidate.id, nextStatus, {
+            actor_person_id: normalizeOptionalString(actor_person_id) || candidate.actor_person_id || candidate.owner_person_id,
+            decision_owner_person_id: normalizeOptionalString(decision_owner_person_id),
+            decision_reason: normalizeOptionalString(decision_reason) || '',
+            evidence_ids: candidate.evidence_ids || []
+        }, {
+            client: transactionClient,
+            requires_approval: nextRequiresApproval,
+            promoted_graph_entity_id
+        });
+        const transitionedCandidate = this._mapMemoryCandidateRow(result.candidate);
 
         return {
             success: true,
             candidate: {
-                ...candidate,
-                promotion_status: nextStatus,
-                requires_approval: nextRequiresApproval,
+                ...transitionedCandidate,
                 graph_truth: nextStatus === 'promoted_to_graph'
             },
-            audit: {
-                id: auditId,
-                candidate_id: candidate.id,
-                previous_status: previousStatus,
-                next_status: nextStatus
-            }
+            audit: result.audit
         };
     }
 
@@ -1620,7 +1529,7 @@ export class LearningService {
 
     _buildEvaluationSummary({ episode, pillar, linkedWikiCandidateId = null, docType = null }) {
         return {
-            wiki_first_passed: pillar === 'wiki' || Boolean(linkedWikiCandidateId) || toArray(episode.wiki_refs).length > 0,
+            wiki_first_passed: pillar === 'document' || pillar === 'wiki' || Boolean(linkedWikiCandidateId) || toArray(episode.wiki_refs).length > 0,
             contradiction_passed: !hasExplicitConflict(episode.evidence),
             explicit_conflict: hasExplicitConflict(episode.evidence),
             source_type: episode.source_type,
@@ -1630,7 +1539,7 @@ export class LearningService {
 
     _buildRiskLevel(episode, pillar) {
         if (pillar === 'skill' && episode.outcome === 'failure') return 'high';
-        if (pillar === 'wiki' && episode.outcome === 'failure') return 'medium';
+        if ((pillar === 'document' || pillar === 'wiki') && episode.outcome === 'failure') return 'medium';
         return 'low';
     }
 
@@ -1650,6 +1559,9 @@ export class LearningService {
     }
 
     async _insertCandidate(candidate) {
+        if (!['document', 'skill'].includes(candidate.pillar)) {
+            throw new Error(`promotion candidate pillar is invalid: ${candidate.pillar || 'missing'}`);
+        }
         await this.pool.query(
             `INSERT INTO promotion_candidates (
                 id, pillar, target_ref, status, canonical_summary, semantic_scope, merged_episode_count,
@@ -1716,13 +1628,13 @@ export class LearningService {
     async _createWikiCandidate(episode, requestedApplyMode = 'manual') {
         const docType = classifyWikiDocumentType(episode);
         const targetRef = deriveCanonicalWikiTargetRef(episode, docType);
-        const existing = await this._findCandidateByTarget('wiki', targetRef);
+        const existing = await this._findCandidateByTarget('document', targetRef);
         if (existing) {
             return existing;
         }
-        const semanticMeta = this._buildSemanticMetadata({ episode, pillar: 'wiki', docType });
+        const semanticMeta = this._buildSemanticMetadata({ episode, pillar: 'document', docType });
         const semanticDuplicate = await this._findSemanticDuplicateCandidate({
-            pillar: 'wiki',
+            pillar: 'document',
             docType,
             projectId: episode.project_id,
             canonicalSummary: semanticMeta.canonical_summary
@@ -1737,7 +1649,7 @@ export class LearningService {
 
         const candidate = {
             id: `prm_${ulid()}`,
-            pillar: 'wiki',
+            pillar: 'document',
             target_ref: targetRef,
             status: 'evaluated',
             canonical_summary: semanticMeta.canonical_summary,
@@ -1747,13 +1659,13 @@ export class LearningService {
             linked_wiki_candidate_id: null,
             linked_candidate_ids: [],
             proposed_content: buildWikiCandidateContent(episode, targetRef, docType),
-            evaluation_summary: this._buildEvaluationSummary({ episode, pillar: 'wiki', docType }),
-            risk_level: this._buildRiskLevel(episode, 'wiki'),
+            evaluation_summary: this._buildEvaluationSummary({ episode, pillar: 'document', docType }),
+            risk_level: this._buildRiskLevel(episode, 'document'),
             doc_type: docType,
             target_project_id: episode.project_id,
             apply_mode: this._resolveCandidateApplyMode({
                 requestedApplyMode,
-                pillar: 'wiki',
+                pillar: 'document',
                 episode
             }),
             apply_error: null,

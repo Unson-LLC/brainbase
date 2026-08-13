@@ -14,6 +14,7 @@ import {
     shouldCreateWikiCandidate
 } from '../../../server/services/learning-service.js';
 import { OntologyRegistry } from '../../../server/services/ontology-registry.js';
+import { PgCandidateRepository } from '../../../server/services/candidate-store/candidate-repository.js';
 import {
     createProposedOntologyFixture,
     createSignedActiveOntologyFixture
@@ -184,7 +185,12 @@ describe('LearningService', () => {
             })
         };
         pool.connect = vi.fn(async () => ({ query: pool.query, release: vi.fn() }));
-        service = new LearningService({ pool, wikiService, repoRoot });
+        service = new LearningService({
+            pool,
+            wikiService,
+            repoRoot,
+            candidateRepository: new PgCandidateRepository({ pool })
+        });
     });
 
     afterEach(() => {
@@ -311,13 +317,13 @@ describe('LearningService', () => {
         expect(result).toHaveLength(2);
         expect(result.every((candidate) => candidate.status === 'evaluated')).toBe(true);
         expect(result.every((candidate) => candidate.apply_mode === 'manual')).toBe(true);
-        expect(result.some((candidate) => candidate.pillar === 'wiki' && candidate.doc_type === 'architecture')).toBe(true);
+        expect(result.some((candidate) => candidate.pillar === 'document' && candidate.doc_type === 'architecture')).toBe(true);
         expect(result.some((candidate) => candidate.pillar === 'skill')).toBe(true);
         expect(wikiService.savePage).not.toHaveBeenCalled();
         expect(fs.existsSync(path.join(repoRoot, '.claude/skills/recovery/SKILL.md'))).toBe(false);
     });
 
-    it('keeps Wiki candidates manual while auto-applying eligible skill candidates', async () => {
+    it('keeps document candidates manual while auto-applying eligible skill candidates', async () => {
         selectQueue.push([
             {
                 id: 'lep_auto',
@@ -343,7 +349,7 @@ describe('LearningService', () => {
 
         expect(result).toHaveLength(2);
         expect(result.find((candidate) => candidate.pillar === 'skill')?.status).toBe('applied');
-        expect(result.find((candidate) => candidate.pillar === 'wiki')).toMatchObject({
+        expect(result.find((candidate) => candidate.pillar === 'document')).toMatchObject({
             status: 'evaluated',
             apply_mode: 'manual'
         });
@@ -721,6 +727,7 @@ describe('LearningService', () => {
             getMemoryCandidate.mockResolvedValueOnce({
                 id: `candidate_${subjectType}`,
                 subject_type: subjectType,
+                recommended_subject_id: `${subjectType}_stable_1`,
                 promotion_status: 'approved',
                 redaction_status: 'none',
                 role_min: 'member',
@@ -739,12 +746,16 @@ describe('LearningService', () => {
                 success: true,
                 guard_status: 'inactive_no_current',
                 ontology_version: null,
-                graph_entity: { entity_type: subjectType }
+                graph_entity: {
+                    id: `${subjectType}_stable_1`,
+                    entity_type: subjectType
+                }
             });
         }
         getMemoryCandidate.mockResolvedValueOnce({
             id: 'candidate_unknown',
             subject_type: 'unregistered_type',
+            recommended_subject_id: 'unknown_stable_1',
             promotion_status: 'approved',
             redaction_status: 'none',
             owner_person_id: 'person_owner'
@@ -767,6 +778,7 @@ describe('LearningService', () => {
         vi.spyOn(service, 'getMemoryCandidate').mockResolvedValue({
             id: 'candidate_active_decision_without_authority',
             subject_type: 'decision',
+            recommended_subject_id: 'decision_without_authority_stable_1',
             promotion_status: 'approved',
             redaction_status: 'none',
             role_min: 'member',
@@ -812,6 +824,7 @@ describe('LearningService', () => {
         vi.spyOn(service, 'getMemoryCandidate').mockResolvedValue({
             id: 'candidate_valid_person',
             subject_type: 'person',
+            recommended_subject_id: 'person_valid_stable_1',
             promotion_status: 'approved',
             redaction_status: 'none',
             role_min: 'member',
@@ -833,6 +846,7 @@ describe('LearningService', () => {
                 guard_status: 'active_current',
                 ontology_version: '1.0.0',
                 graph_entity: {
+                    id: 'person_valid_stable_1',
                     entity_type: 'person',
                     payload: { name: 'Ontology適合人物' }
                 }
@@ -873,6 +887,7 @@ describe('LearningService', () => {
         vi.spyOn(service, 'getMemoryCandidate').mockResolvedValue({
             id: 'candidate_atomic',
             subject_type: 'person',
+            recommended_subject_id: 'person_atomic_stable_1',
             promotion_status: 'approved',
             redaction_status: 'none',
             project_code: 'brainbase',
@@ -886,7 +901,31 @@ describe('LearningService', () => {
             memory: { name: 'Atomic' }
         });
         const query = vi.fn(async (sql, params) => {
-            if (sql.includes('INSERT INTO memory_candidate_audit_logs')) throw new Error('audit unavailable');
+            if (sql.includes('INSERT INTO promotion_audit_events')) throw new Error('audit unavailable');
+            if (sql.includes('SELECT * FROM memory_candidates')) {
+                return {
+                    rows: [{
+                        id: 'candidate_atomic',
+                        promotion_status: 'approved',
+                        owner_person_id: 'person_owner',
+                        actor_person_id: 'person_owner',
+                        evidence_ids: []
+                    }],
+                    rowCount: 1
+                };
+            }
+            if (sql.includes('UPDATE memory_candidates')) {
+                return {
+                    rows: [{
+                        id: 'candidate_atomic',
+                        promotion_status: 'promoted_to_graph',
+                        owner_person_id: 'person_owner',
+                        actor_person_id: 'person_owner',
+                        evidence_ids: []
+                    }],
+                    rowCount: 1
+                };
+            }
             return { rows: [], rowCount: 1, params };
         });
         const release = vi.fn();
@@ -897,11 +936,13 @@ describe('LearningService', () => {
             access: { role: 'gm', projectCodes: ['brainbase'] },
             decision_owner_person_id: 'spoofed_owner'
         })).rejects.toThrow('audit unavailable');
-        expect(query.mock.calls.some(([sql]) => sql.includes('INSERT INTO graph_entities'))).toBe(true);
+        const graphInsert = query.mock.calls.find(([sql]) => sql.includes('INSERT INTO graph_entities'));
+        expect(graphInsert).toBeTruthy();
+        expect(graphInsert[1][0]).toBe('person_atomic_stable_1');
         expect(query).toHaveBeenCalledWith('ROLLBACK');
         expect(query.mock.calls.some(([sql]) => sql === 'COMMIT')).toBe(false);
-        const auditCall = query.mock.calls.find(([sql]) => sql.includes('INSERT INTO memory_candidate_audit_logs'));
-        expect(auditCall[1][3]).toBe('person_decider');
+        const auditCall = query.mock.calls.find(([sql]) => sql.includes('INSERT INTO promotion_audit_events'));
+        expect(auditCall[1][2]).toBe('person_decider');
         expect(release).toHaveBeenCalledOnce();
     });
 });

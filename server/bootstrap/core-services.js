@@ -123,10 +123,16 @@ export function createCoreServices({
     });
     const authService = new AuthService();
     const wikiService = new WikiService({ pool: infoSSOTService.pool });
+    // Memory Promotion Kernel is the sole memory_candidates access boundary.
+    // Construct it before LearningService so the compatibility API delegates to it.
+    const candidateRepository = infoSSOTService.pool
+        ? new PgCandidateRepository({ pool: infoSSOTService.pool })
+        : null;
     const learningService = new LearningService({
         pool: infoSSOTService.pool,
         wikiService,
-        repoRoot: serverDir
+        repoRoot: serverDir,
+        candidateRepository
     });
     const learningHealthService = new LearningHealthService({
         stateDir: path.join(varDir, 'learning')
@@ -162,12 +168,6 @@ export function createCoreServices({
         }
     });
 
-    // candidate-store: cross-repo source からの Raw Ledger envelope 受信用。
-    // INFO_SSOT_DATABASE_URL 経由の pool があれば PgCandidateRepository、
-    // 無ければ null (= 受け口 endpoint を露出しない、 既存挙動と完全互換)。
-    const candidateRepository = infoSSOTService.pool
-        ? new PgCandidateRepository({ pool: infoSSOTService.pool })
-        : null;
     const onboardingRuntimeService = candidateRepository
         ? new OnboardingRuntimeService({
             repository: new JsonFileOnboardingRunRepository({

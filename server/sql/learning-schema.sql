@@ -103,9 +103,13 @@ UPDATE promotion_candidates SET status = 'rejected', apply_error = 'legacy_unkno
 ALTER TABLE promotion_candidates
     DROP CONSTRAINT IF EXISTS promotion_candidates_pillar_check;
 
+UPDATE promotion_candidates
+SET pillar = 'document'
+WHERE pillar = 'wiki';
+
 ALTER TABLE promotion_candidates
     ADD CONSTRAINT promotion_candidates_pillar_check
-    CHECK (pillar IN ('wiki', 'skill'));
+    CHECK (pillar IN ('document', 'skill'));
 
 ALTER TABLE promotion_candidates
     DROP CONSTRAINT IF EXISTS promotion_candidates_status_check;
@@ -153,147 +157,6 @@ CREATE INDEX IF NOT EXISTS idx_promotion_candidates_target_ref
     ON promotion_candidates (pillar, target_ref);
 CREATE INDEX IF NOT EXISTS idx_promotion_candidates_semantic_scope
     ON promotion_candidates (pillar, semantic_scope, status);
-
-CREATE TABLE IF NOT EXISTS memory_candidates (
-    id text PRIMARY KEY,
-    owner_person_id text NOT NULL,
-    actor_person_id text,
-    source_system text NOT NULL,
-    source_event_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
-    workspace text,
-    channel_id text,
-    thread_ts text,
-    project_code text,
-    subject_type text NOT NULL,
-    subject_id text,
-    visibility text NOT NULL,
-    role_min text NOT NULL DEFAULT 'member',
-    sensitivity text NOT NULL,
-    promotion_status text NOT NULL DEFAULT 'candidate',
-    requires_approval boolean NOT NULL DEFAULT true,
-    recommended_owner_person_id text,
-    permission_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
-    evidence_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
-    expires_at timestamptz,
-    redaction_status text NOT NULL DEFAULT 'none',
-    confidence numeric,
-    memory jsonb NOT NULL DEFAULT '{}'::jsonb,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
-    updated_at timestamptz NOT NULL DEFAULT NOW()
-);
-
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS owner_person_id text;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS actor_person_id text;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS source_system text;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS source_event_ids jsonb NOT NULL DEFAULT '[]'::jsonb;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS workspace text;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS channel_id text;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS thread_ts text;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS project_code text;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS subject_type text;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS subject_id text;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS visibility text;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS role_min text NOT NULL DEFAULT 'member';
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS sensitivity text;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS promotion_status text NOT NULL DEFAULT 'candidate';
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS requires_approval boolean NOT NULL DEFAULT true;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS recommended_owner_person_id text;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS permission_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS evidence_ids jsonb NOT NULL DEFAULT '[]'::jsonb;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS expires_at timestamptz;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS redaction_status text NOT NULL DEFAULT 'none';
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS confidence numeric;
-ALTER TABLE memory_candidates
-    ADD COLUMN IF NOT EXISTS memory jsonb NOT NULL DEFAULT '{}'::jsonb;
-
-UPDATE memory_candidates
-SET promotion_status = 'candidate'
-WHERE promotion_status IN ('raw', 'draft') OR promotion_status IS NULL;
-
-ALTER TABLE memory_candidates
-    DROP CONSTRAINT IF EXISTS memory_candidates_subject_type_check;
-
-ALTER TABLE memory_candidates
-    ADD CONSTRAINT memory_candidates_subject_type_check
-    CHECK (subject_type IN ('person', 'role', 'project', 'org', 'customer', 'decision', 'raci_assignment', 'philosophy', 'glossary_term'));
-
-ALTER TABLE memory_candidates
-    DROP CONSTRAINT IF EXISTS memory_candidates_visibility_check;
-
-ALTER TABLE memory_candidates
-    ADD CONSTRAINT memory_candidates_visibility_check
-    CHECK (visibility IN ('private', 'role', 'project', 'owner', 'team', 'org', 'public'));
-
-ALTER TABLE memory_candidates
-    DROP CONSTRAINT IF EXISTS memory_candidates_role_min_check;
-
-ALTER TABLE memory_candidates
-    ADD CONSTRAINT memory_candidates_role_min_check
-    CHECK (role_min IN ('member', 'gm', 'ceo'));
-
-ALTER TABLE memory_candidates
-    DROP CONSTRAINT IF EXISTS memory_candidates_sensitivity_check;
-
-ALTER TABLE memory_candidates
-    ADD CONSTRAINT memory_candidates_sensitivity_check
-    CHECK (sensitivity IN ('internal', 'restricted', 'confidential', 'top-secret', 'hr', 'finance', 'contract'));
-
-ALTER TABLE memory_candidates
-    DROP CONSTRAINT IF EXISTS memory_candidates_promotion_status_check;
-
-ALTER TABLE memory_candidates
-    ADD CONSTRAINT memory_candidates_promotion_status_check
-    CHECK (promotion_status IN ('candidate', 'gate_classified', 'pending_approval', 'auto_promoted', 'approved', 'rejected', 'expired', 'promoted_to_graph'));
-
-ALTER TABLE memory_candidates
-    DROP CONSTRAINT IF EXISTS memory_candidates_redaction_status_check;
-
-ALTER TABLE memory_candidates
-    ADD CONSTRAINT memory_candidates_redaction_status_check
-    CHECK (redaction_status IN ('none', 'redacted', 'needs_redaction'));
-
-CREATE INDEX IF NOT EXISTS idx_memory_candidates_owner_status
-    ON memory_candidates (owner_person_id, promotion_status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_memory_candidates_scope_sensitivity
-    ON memory_candidates (visibility, sensitivity, project_code, promotion_status);
-CREATE INDEX IF NOT EXISTS idx_memory_candidates_subject
-    ON memory_candidates (subject_type, subject_id);
-
-CREATE TABLE IF NOT EXISTS memory_candidate_audit_logs (
-    id text PRIMARY KEY,
-    candidate_id text NOT NULL REFERENCES memory_candidates(id) ON DELETE CASCADE,
-    actor_person_id text,
-    decision_owner_person_id text,
-    decision_reason text,
-    previous_status text NOT NULL,
-    next_status text NOT NULL,
-    evidence_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
-    created_at timestamptz NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_memory_candidate_audit_logs_candidate
-    ON memory_candidate_audit_logs (candidate_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS skill_usage_logs (
     id text PRIMARY KEY,
