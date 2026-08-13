@@ -598,12 +598,35 @@ export async function startEpisode(payload, { env = process.env, fetchImpl = glo
 
 const TOOL_EXCERPT_LIMIT = 40;
 const TOOL_SCOPE_LIMIT = 320;
+const JUDGMENT_REASON_LABELS = Object.freeze({
+    conversation_referent_missing: '会話上の継続対象を確認できない',
+    knowledge_project_code_missing: '参照対象のprojectを確認できない',
+    classification_inherited_from_prior_turn: '前の会話から判断分類を引き継いだ'
+});
+const KNOWLEDGE_SELECTION_REASON_LABELS = Object.freeze({
+    team_document: 'チーム文書の正本',
+    canonical_fact: '正規の事実・判断の正本',
+    source_document: '原本・大容量アセットの保存先',
+    personal_knowledge: '個人知識の正本',
+    operational_state: '実行時状態の確認先'
+});
+const KNOWLEDGE_EXCLUSION_REASON_LABELS = Object.freeze({
+    'Wiki is a migration compatibility surface, not a canonical destination.': '移行互換用で正本ではない',
+    'Graph stores canonical entities, terms, and decisions rather than document bodies.': '文書本文の正本ではない',
+    'Repository stores reviewed team documents, not raw source assets.': '生の素材アセットの正本ではない',
+    'Drive stores source files and large assets, not reviewed team knowledge.': 'レビュー済みチーム文書の正本ではない',
+    'Personal KG is only selected for personal cognitive knowledge.': '個人の認知知識以外の参照元にできない',
+    'Personal KG is owner-only and cannot be the source of team knowledge.': 'チーム知識の参照元にできない',
+    'Workspace home is for runtime state, not durable knowledge.': '永続知識の正本ではない'
+});
 
 function sanitizeToolExcerpt(value, limit = TOOL_EXCERPT_LIMIT) {
     const redacted = String(value ?? '')
         .replace(/\b(?:token|api[_-]?key|secret|password)\s*=\s*[^\s]+/giu, '[秘密情報]')
         .replace(/\b(?:sk-[a-z0-9_-]{8,}|ghp_[a-z0-9_]{8,}|github_pat_[a-z0-9_]{8,}|xox[a-z]-[a-z0-9-]{8,}|AIza[a-z0-9_-]{8,})\b/giu, '[秘密情報]')
         .replace(/[「」\u0000-\u001f\u007f]+/gu, ' ')
+        .replaceAll('<', '＜')
+        .replaceAll('>', '＞')
         .replace(/\s+/gu, ' ')
         .trim();
     const points = Array.from(redacted || '対象未指定');
@@ -734,14 +757,60 @@ function eventKind(toolName) {
     return 'call';
 }
 
+function knowledgeCanonicalLocation(value) {
+    const location = record(value);
+    if (!location) return '所在未指定';
+    const repository = typeof location.repository === 'string' && location.repository.trim()
+        ? sanitizeToolExcerpt(location.repository, TOOL_SCOPE_LIMIT)
+        : '';
+    const path = typeof location.path === 'string' && location.path.trim()
+        ? sanitizeToolExcerpt(location.path, TOOL_SCOPE_LIMIT)
+        : '';
+    if (repository || path) {
+        if (!repository) return path;
+        if (!path) return repository;
+        return `${repository.replace(/\/+$/u, '')}/${path.replace(/^\/+/u, '')}`;
+    }
+    const fallbackKeys = ['scope', 'drive_scope', 'owner_scope', 'workspace_scope'];
+    for (const key of fallbackKeys) {
+        const entry = location[key];
+        if (typeof entry === 'string' && entry.trim()) {
+            return `${key}=${sanitizeToolExcerpt(entry, TOOL_SCOPE_LIMIT)}`;
+        }
+    }
+    return '所在未指定';
+}
+
+function knowledgeExclusionDisplay(data) {
+    if (!Array.isArray(data?.excluded_sources)) return '';
+    return data.excluded_sources.flatMap((entry) => {
+        const exclusion = record(entry);
+        if (!exclusion || typeof exclusion.source_class !== 'string' || !exclusion.source_class.trim()) return [];
+        const source = sanitizeToolExcerpt(exclusion.source_class);
+        const rawReason = typeof exclusion.reason === 'string' && exclusion.reason.trim()
+            ? exclusion.reason
+            : '理由未指定';
+        const reason = Object.hasOwn(KNOWLEDGE_EXCLUSION_REASON_LABELS, rawReason)
+            ? KNOWLEDGE_EXCLUSION_REASON_LABELS[rawReason]
+            : sanitizeToolExcerpt(rawReason, TOOL_SCOPE_LIMIT);
+        return [`${source}（${reason}）`];
+    }).join('、');
+}
+
 function routeDisplayLine(input, data, success) {
     const query = toolQuery(input);
     if (!success || !data) return `⚠️ Brainbase参照先: 「${query}」→ 選択に失敗`;
-    if (data.status === 'unconfirmed') return `⚠️ Brainbase参照先: 「${query}」→ 参照先を確定できず`;
+    const exclusions = knowledgeExclusionDisplay(data);
+    if (data.status === 'unconfirmed') {
+        return `⚠️ Brainbase参照先: 「${query}」→ 参照先を確定できず${exclusions ? `／除外: ${exclusions}` : ''}`;
+    }
     const source = sanitizeToolExcerpt(data.source_class ?? '参照先');
-    const location = record(data.canonical_location);
-    const path = typeof location?.path === 'string' ? sanitizeToolExcerpt(location.path) : '';
-    return `📚 Brainbase参照先: 「${query}」→ ${source}${path ? `の${path}` : ''}を選択 ✓`;
+    const location = knowledgeCanonicalLocation(data.canonical_location);
+    const contentType = record(input)?.content_type;
+    const reason = Object.hasOwn(KNOWLEDGE_SELECTION_REASON_LABELS, contentType)
+        ? KNOWLEDGE_SELECTION_REASON_LABELS[contentType]
+        : '参照先の選定結果';
+    return `📚 Brainbase参照先: 「${query}」→ 採用: ${source}（${location}・${reason}）${exclusions ? `／除外: ${exclusions}` : ''} ✓`;
 }
 
 export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
@@ -1167,7 +1236,20 @@ export function buildOwnerAudit(args, receipt, { historicalExact = true } = {}) 
 
     if (receipt?.status === 'needs_classification' || dagIds.includes('clarification.v1')) {
         decision = '確認質問';
-        displayLine = `⚠️ 判断参照: 「${excerpt || '現在の依頼'}」の対象を特定できず → ${decision}`;
+        const reasons = Array.isArray(receipt?.reconciliation_reasons)
+            ? receipt.reconciliation_reasons.flatMap((reason) => {
+                if (typeof reason !== 'string' || !reason.trim()) return [];
+                return [Object.hasOwn(JUDGMENT_REASON_LABELS, reason)
+                    ? JUDGMENT_REASON_LABELS[reason]
+                    : sanitizeToolExcerpt(reason, TOOL_SCOPE_LIMIT)];
+            })
+            : [];
+        const project = typeof receipt?.project_code === 'string' && receipt.project_code.trim()
+            ? sanitizeToolExcerpt(receipt.project_code, TOOL_SCOPE_LIMIT)
+            : null;
+        const reasonDetails = reasons.length > 0 ? reasons.join('、') : '';
+        const details = `${reasonDetails}${project ? `${reasonDetails ? '・' : ''}project=${project}` : ''}`;
+        displayLine = `⚠️ 判断参照: 「${excerpt || '現在の依頼'}」の対象を特定できず${details ? `（理由: ${details}）` : ' '}→ ${decision}`;
     } else if (receipt?.status === 'needs_policy_resolution') {
         decision = '方針衝突を要確認';
         displayLine = `⚠️ 判断参照: 「${excerpt || '現在の依頼'}」を参照 → ${decision}`;
@@ -1184,7 +1266,7 @@ export function buildOwnerAudit(args, receipt, { historicalExact = true } = {}) 
 
     return {
         schema_version: 'brainbase-owner-audit-v1',
-        renderer_version: '2',
+        renderer_version: '3',
         locale: 'ja-JP',
         historical_exact: historicalExact,
         source_receipt_digest: sha256(canonicalJson(receipt)),

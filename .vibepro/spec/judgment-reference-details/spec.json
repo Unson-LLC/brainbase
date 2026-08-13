@@ -1,0 +1,266 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "judgment-reference-details",
+  "generated_by": {
+    "caller": "unknown",
+    "stage": "ai_synthesis"
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "needs_classificationのowner監査行は、receiptのreconciliation_reasonsを日本語の理由として表示し、project_codeがある場合はproject識別子も表示する。",
+      "rationale": "停止理由と対象projectがreceiptに存在するのにowner向け表示で失われているため。",
+      "origin": {
+        "story_refs": [
+        {
+          "kind": "acceptance_criteria",
+          "index": 0,
+          "ac_id": "AC-1",
+          "text_snippet": "reconciliation_reasonsを日本語の理由として表示"
+        },
+        {
+          "kind": "acceptance_criteria",
+          "index": 1,
+          "ac_id": "AC-2",
+          "text_snippet": "会話上の継続対象を確認できないとproject=baao-projectを表示"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/judgment-reference-details.md",
+            "section": "Judgment receipt",
+            "text_snippet": "既知のreconciliation_reasonsを日本語の短い説明へ写像"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "export function buildOwnerAudit"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "clarification receiptは停止理由とproject識別子を表示する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "clarification receiptは停止理由とproject識別子を表示する"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-12T12:44:55.469Z",
+      "last_revised_at": "2026-08-12T12:45:29.029Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "解決済みKnowledge Resolver監査行は、採用した参照先、projectを含む正規位置、content_typeに基づく選択理由を表示する。",
+      "rationale": "どのprojectの何を正本として採用したかを最終回答先頭だけで監査できるようにするため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "ac_id": "AC-3",
+            "text_snippet": "採用した参照先・projectを含む正規位置・選択理由"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/judgment-reference-details.md",
+            "section": "Knowledge Resolver receipt",
+            "text_snippet": "採用したsource_class"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "function routeDisplayLine"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "knowledge routeは採用・除外した参照先と理由を表示する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "knowledge routeは採用・除外した参照先と理由を表示する"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-12T12:44:55.469Z",
+      "last_revised_at": "2026-08-12T12:45:29.029Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "Knowledge Resolver receiptのexcluded_sourcesは、除外した全source_classと各reasonを同じ監査行に表示する。",
+      "rationale": "BAAOの参照先選定で弾いた候補と理由が現行表示から欠落しているため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "ac_id": "AC-4",
+            "text_snippet": "除外した全参照先と各理由"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/judgment-reference-details.md",
+            "section": "Knowledge Resolver receipt",
+            "text_snippet": "excluded_sourcesの全要素"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/knowledge-resolution-service.js",
+            "anchor": "function excludedSources"
+          },
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "function routeDisplayLine"
+          }
+        ],
+        "test_refs": [
+        {
+          "file": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+          "case": "symlink経由でepisode開始・複数Brainbase参照・Stop確定を1つのturnへ束縛し、Knowledge Resolverの採用・除外理由をsystemMessageへ返す"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+            "must_cover": "Knowledge Resolverの採用・除外理由をsystemMessageへ返す"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-12T12:44:55.469Z",
+      "last_revised_at": "2026-08-12T12:45:29.029Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "可変値は秘密情報を伏せて1行に正規化し、未知の理由も安全な短縮識別子として表示する。",
+      "rationale": "監査詳細を増やしても秘密情報や改行注入をjournalと最終回答へ持ち込まないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4,
+            "ac_id": "AC-5",
+            "text_snippet": "秘密らしい値・制御文字・山括弧をそのまま表示しない"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/judgment-reference-details.md",
+            "section": "安全性と不変条件",
+            "text_snippet": "すべての可変値を1行化"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "function sanitizeToolExcerpt"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "参照理由の可変値を1行化して秘密情報を表示しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "参照理由の可変値を1行化して秘密情報を表示しない"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-12T12:44:55.469Z",
+      "last_revised_at": "2026-08-12T12:45:29.029Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "knowledge.resolveの達成判定、event順序、Stopのfail-closed契約は表示詳細の追加後も変わらない。",
+      "rationale": "Judgment ResolverとKnowledge ResolverのreceiptをCodex HookがOwner向け監査表示へ投影する変更に限定し、episode lifecycleを変えないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 5,
+            "ac_id": "AC-6",
+            "text_snippet": "達成判定、event順序、Stopのfail-closed契約は変更しない"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/judgment-reference-details.md",
+            "section": "安全性と不変条件",
+            "text_snippet": "capability達成判定には使わない"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "export function recordBrainbaseToolUse"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "knowledge routeは採用・除外した参照先と理由を表示する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "knowledge routeは採用・除外した参照先と理由を表示する"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-08-12T12:44:55.469Z",
+      "last_revised_at": "2026-08-12T12:45:29.029Z"
+    }
+  ],
+  "diagrams": [
+    {
+      "kind": "sequence",
+      "mermaid": "sequenceDiagram\n  participant JR as Judgment Resolver\n  participant KR as Knowledge Resolver\n  participant Hook as Codex Hook\n  participant Owner\n  JR-->>Hook: project_code + reconciliation_reasons\n  KR-->>Hook: selected source + excluded_sources\n  Hook->>Hook: 決定論的な日本語化と安全な1行化\n  Hook-->>Owner: 判断理由と採用・除外理由を含む監査行",
+      "entities": [
+        "Judgment Resolver",
+        "Knowledge Resolver",
+        "Codex Hook",
+        "Owner"
+      ],
+      "rationale": "Graphifyで確認したreceiptからowner監査表示までの投影境界を固定する。"
+    }
+  ],
+  "open_questions": [],
+  "generated_at": "2026-08-12T12:45:29.027Z",
+  "previous_spec_id": "2026-08-12T12:44:55.467Z"
+}
