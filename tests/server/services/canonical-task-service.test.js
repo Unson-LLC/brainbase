@@ -172,6 +172,70 @@ describe('CanonicalTaskService', () => {
         expect(projectResult(task({ title: '保存しない本文' }))).toEqual({ task_id: 'task_1', task_version: 1 });
     });
 
+    it('story-canonical-task-create-recovery:ac:1 recovers a persisted create result without creating a duplicate', async () => {
+        const input = { title: '回収する', assignee_person_id: OWNER };
+        const context = { ...ownerContext(), idempotencyKey: 'recover-create' };
+        const first = await fixture.service.createTask(input, context);
+        const persisted = task(fixture.repository.create.mock.calls[0][0]);
+
+        fixture.repository.findByIdempotencyKey.mockResolvedValueOnce(persisted);
+        fixture.operations.execute.mockImplementationOnce(async ({ recover, run }) => {
+            const recovered = await recover();
+            return recovered.recovered ? recovered.result : run();
+        });
+
+        await expect(fixture.service.createTask(input, context)).resolves.toMatchObject({
+            id: first.id,
+            version: 1,
+            title: '回収する'
+        });
+        expect(fixture.repository.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('story-canonical-task-create-recovery:ac:2 rejects a recovered create with a different payload fingerprint', async () => {
+        fixture.repository.findByIdempotencyKey.mockResolvedValueOnce(task({
+            _payload_fingerprint: 'different-payload'
+        }));
+        fixture.operations.execute.mockImplementationOnce(async ({ recover }) => {
+            const recovered = await recover();
+            return recovered.result;
+        });
+
+        await expect(fixture.service.createTask(
+            { title: '回収しない', assignee_person_id: OWNER },
+            { ...ownerContext(), idempotencyKey: 'recover-conflict' }
+        )).rejects.toMatchObject({ code: 'idempotency_conflict', status: 409 });
+        expect(fixture.repository.create).not.toHaveBeenCalled();
+    });
+
+    it('story-canonical-task-create-recovery:ac:3 creates normally when recovery finds no persisted task', async () => {
+        fixture.repository.findByIdempotencyKey.mockResolvedValueOnce(null);
+        fixture.operations.execute.mockImplementationOnce(async ({ recover, run }) => {
+            const recovered = await recover();
+            return recovered.recovered ? recovered.result : run();
+        });
+
+        await expect(fixture.service.createTask(
+            { title: '新規作成', assignee_person_id: OWNER },
+            { ...ownerContext(), idempotencyKey: 'recover-missing' }
+        )).resolves.toMatchObject({ version: 1, title: '新規作成' });
+        expect(fixture.repository.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('story-canonical-task-create-recovery:ac:4 reapplies the owner boundary to a recovered create', async () => {
+        fixture.repository.findByIdempotencyKey.mockResolvedValueOnce(task({ assignee_person_id: 'person_other' }));
+        fixture.operations.execute.mockImplementationOnce(async ({ recover }) => {
+            const recovered = await recover();
+            return recovered.result;
+        });
+
+        await expect(fixture.service.createTask(
+            { title: '越境しない', assignee_person_id: OWNER },
+            { ...ownerContext(), idempotencyKey: 'recover-owner' }
+        )).rejects.toMatchObject({ code: 'task_not_found', status: 404 });
+        expect(fixture.repository.create).not.toHaveBeenCalled();
+    });
+
     it.each([
         ['an unassigned Task', null],
         ['another person Task', 'person_other']
@@ -373,6 +437,26 @@ describe('CanonicalTaskService', () => {
                 content: '顧客オンボーディングの詰まりを整理する'
             }]
         }));
+    });
+
+    it('story-canonical-task-create-recovery:ac:1 recovers a persisted Mana capture result', async () => {
+        await fixture.service.createManaCapture({
+            capture_id: 'capture-recovery',
+            title: '回収するcapture',
+            content: '保存後に応答だけ失敗したcaptureを回収する',
+            type: 'task',
+            project: 'brainbase'
+        }, { ...ownerContext(), authSource: 'session' });
+
+        const [{ recover }] = fixture.operations.execute.mock.calls[0];
+        const persisted = task(fixture.repository.create.mock.calls[0][0]);
+        fixture.repository.findByIdempotencyKey.mockResolvedValueOnce(persisted);
+
+        await expect(recover()).resolves.toMatchObject({
+            recovered: true,
+            result: expect.objectContaining({ id: persisted.id, version: 1 })
+        });
+        expect(fixture.repository.create).toHaveBeenCalledTimes(1);
     });
 
     it('rejects a Mana capture without a stable capture id before writing', async () => {
@@ -649,6 +733,27 @@ describe('CanonicalTaskService', () => {
                 ])
             })
         ]));
+    });
+
+    it('story-canonical-task-create-recovery:ac:1 recovers a persisted workflow Task result', async () => {
+        await fixture.service.materializeWorkflowApproval({
+            step: { id: 'human_recovery', workflow_run_id: 'run_recovery', project_id: 'brainbase' },
+            output: {
+                id: 'out_recovery',
+                payload: [{ id: 'candidate-recovery', title: '回収するworkflow Task', selected_owner_id: OWNER }]
+            },
+            actor: { person_id: OWNER, projectCodes: ['brainbase'], role: 'admin', authSource: 'test' }
+        });
+
+        const [{ recover }] = fixture.operations.execute.mock.calls[0];
+        const persisted = task(fixture.repository.create.mock.calls[0][0]);
+        fixture.repository.findByIdempotencyKey.mockResolvedValueOnce(persisted);
+
+        await expect(recover()).resolves.toMatchObject({
+            recovered: true,
+            result: expect.objectContaining({ id: persisted.id, version: 1 })
+        });
+        expect(fixture.repository.create).toHaveBeenCalledTimes(1);
     });
 
     it('rejects unresolved assignees before writing any workflow Task', async () => {

@@ -242,6 +242,22 @@ export class CanonicalTaskService {
         return normalized;
     }
 
+    async recoverCreatedTask({ operationKey, payloadFingerprint, context, conflictMessage }) {
+        const existing = await this.read(() => this.repository.findByIdempotencyKey(operationKey));
+        if (!existing) return { recovered: false };
+        if (existing._payload_fingerprint && existing._payload_fingerprint !== payloadFingerprint) {
+            throw new CanonicalTaskError(
+                'idempotency_conflict',
+                conflictMessage,
+                409
+            );
+        }
+        return {
+            recovered: true,
+            result: this.assertOwnerTask(existing, context)
+        };
+    }
+
     async read(operation) {
         try {
             return await operation();
