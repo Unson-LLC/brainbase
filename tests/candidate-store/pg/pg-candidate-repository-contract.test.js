@@ -144,6 +144,7 @@ describe('PgCandidateRepository contract', () => {
 
         expect(rows[0]).toMatchObject({ id: 'cand_pg_1', memory_layer: 'personal_kg_core', sns_ready: true });
         expect(pg.calls[0].sql).toContain('FROM memory_candidates');
+        expect(pg.calls[0].sql).toContain("semantic_state = 'active'");
         expect(pg.calls[0].sql).toContain('owner_person_id = $1');
         expect(pg.calls[0].sql).toContain("visibility IN ('owner', 'private')");
         expect(pg.calls[0].sql).toContain('role_min IS NULL OR role_min = ANY');
@@ -206,10 +207,20 @@ describe('PgCandidateRepository contract', () => {
         });
         expect(summary.latest_seen_at).toBe('2026-06-13T18:03:15.814Z');
         expect(pg.calls[0].sql).toContain('WITH filtered AS');
+        expect(pg.calls[0].sql).toContain("semantic_state = 'active'");
         expect(pg.calls[0].sql).toContain('jsonb_object_agg');
         expect(pg.calls[0].sql).toContain("permission_snapshot->'seed'->>'projection_allowed'");
         expect(pg.calls[0].sql).toContain("permission_snapshot->>'projection_allowed'");
         expect(pg.calls[0].params).toEqual(['sato_keigo', ['observation', 'insight', 'claim', 'preference', 'hypothesis', 'experiment', 'result'], ['member'], ['internal']]);
+    });
+
+    it('searches only active Personal KG rows', async () => {
+        const pg = new ScriptedPg([{ rows: [dbRow()] }]);
+        const repo = new PgCandidateRepository({ pool: pg });
+
+        await repo.searchPersonalKg({ owner_person_id: 'sato_keigo', query: '価格', limit: 5 });
+
+        expect(pg.calls[0].sql).toContain("semantic_state = 'active'");
     });
 
     it('maps unique source constraint violations to DuplicateCandidateError', async () => {

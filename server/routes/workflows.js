@@ -156,6 +156,10 @@ export function createWorkflowRouter({
         }
     }));
 
+    router.post('/control/meeting-pack/candidates', asyncHandler(async (req, res) => {
+        res.status(201).json(await meetingAutomationService.recordCandidates(req.body || {}, actorFromRequest(req)));
+    }));
+
     router.get('/role-agents', asyncHandler(async (req, res) => {
         res.json(await agentControlCatalogService.listRoleAgentInstances(roleAgentQuery(req), actorFromRequest(req)));
     }));

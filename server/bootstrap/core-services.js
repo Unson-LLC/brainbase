@@ -22,6 +22,12 @@ import { GoogleCalendarService } from '../services/google-calendar-service.js';
 import { LearningService } from '../services/learning-service.js';
 import { LearningHealthService } from '../services/learning-health-service.js';
 import { PgCandidateRepository } from '../services/candidate-store/candidate-repository.js';
+import { PgKnowledgeEventRepository } from '../services/knowledge-event/pg-knowledge-event-repository.js';
+import { InfoSSOTKnowledgeGraphRepository } from '../services/knowledge-event/info-ssot-knowledge-graph-repository.js';
+import { KnowledgeEventService } from '../services/knowledge-event-service.js';
+import { KnowledgeFeedbackService } from '../services/knowledge-feedback-service.js';
+import { KnowledgeCycleQueryService } from '../services/knowledge-cycle-query-service.js';
+import { MeetingKnowledgeEventBridge } from '../services/meeting-automation/meeting-knowledge-event-bridge.js';
 import {
     JsonFileOnboardingRunRepository,
     OnboardingRuntimeService
@@ -128,6 +134,34 @@ export function createCoreServices({
     const candidateRepository = infoSSOTService.pool
         ? new PgCandidateRepository({ pool: infoSSOTService.pool })
         : null;
+    const knowledgeEventRepository = infoSSOTService.pool
+        ? new PgKnowledgeEventRepository({ pool: infoSSOTService.pool })
+        : null;
+    const knowledgeGraphRepository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+    const knowledgeEventService = knowledgeEventRepository && candidateRepository
+        ? new KnowledgeEventService({
+            eventRepository: knowledgeEventRepository,
+            candidateRepository,
+            graphRepository: knowledgeGraphRepository
+        })
+        : null;
+    const knowledgeFeedbackService = knowledgeEventRepository
+        ? new KnowledgeFeedbackService({
+            repository: knowledgeEventRepository,
+            knowledgeEventService,
+            candidateRepository,
+            graphRepository: knowledgeGraphRepository
+        })
+        : null;
+    const knowledgeCycleQueryService = knowledgeEventRepository && candidateRepository
+        ? new KnowledgeCycleQueryService({
+            eventRepository: knowledgeEventRepository,
+            candidateRepository
+        })
+        : null;
+    const meetingKnowledgeEventBridge = knowledgeEventService && candidateRepository
+        ? new MeetingKnowledgeEventBridge({ knowledgeEventService, candidateRepository })
+        : null;
     const learningService = new LearningService({
         pool: infoSSOTService.pool,
         wikiService,
@@ -149,6 +183,7 @@ export function createCoreServices({
         configParser,
         googleCalendarService,
         infoSSOTService,
+        meetingKnowledgeEventBridge,
         meetingTaskOwnerResolver,
         projectAccessPolicy,
         canonicalTaskService
@@ -220,6 +255,11 @@ export function createCoreServices({
         learningService,
         learningHealthService,
         candidateRepository,
+        knowledgeEventRepository,
+        knowledgeEventService,
+        knowledgeFeedbackService,
+        knowledgeCycleQueryService,
+        meetingKnowledgeEventBridge,
         onboardingRuntimeService,
         tokenUsageService,
         ...automationRuntime,
