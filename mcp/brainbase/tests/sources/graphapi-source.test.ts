@@ -256,24 +256,27 @@ describe('GraphAPISource', () => {
               {
                 entity_id: 'prj_001',
                 entity_type: 'project',
+                project_code: 'brainbase',
                 payload: {
-                  code: 'brainbase',
+                  code: 'brainbase-customer-delivery',
                   name: 'brainbase Project',
                 },
               },
               {
                 entity_id: 'prj_002',
                 entity_type: 'project',
+                project_code: 'zeims',
                 payload: {
-                  code: 'zeims',
+                  code: 'zeims-beta-release',
                   name: 'zeims Project',
                 },
               },
               {
                 entity_id: 'prj_003',
                 entity_type: 'project',
+                project_code: 'other',
                 payload: {
-                  code: 'other',
+                  code: 'other-customer-delivery',
                   name: 'Other Project',
                 },
               },
@@ -291,8 +294,8 @@ describe('GraphAPISource', () => {
 
       // Should filter out 'other' project
       assert.strictEqual(projects.length, 2);
-      assert.strictEqual(projects[0].id, 'brainbase');
-      assert.strictEqual(projects[1].id, 'zeims');
+      assert.strictEqual(projects[0].id, 'brainbase-customer-delivery');
+      assert.strictEqual(projects[1].id, 'zeims-beta-release');
     });
   });
 

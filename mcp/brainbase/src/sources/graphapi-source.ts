@@ -188,7 +188,7 @@ export class GraphAPISource implements EntitySource {
 
     return entities.filter(entity => {
       if (entity.entity_type === 'project') {
-        const projectCode = (entity.payload.code as string) || '';
+        const projectCode = entity.project_code || '';
         return this.projectCodes!.includes(projectCode);
       }
       return true;

@@ -701,7 +701,7 @@ const tools: Tool[] = [
  * Handle tool calls
  */
 async function handleToolCall(name: string, args: Record<string, unknown>): Promise<string> {
-  if (name === 'search' || name === 'resolve_entity' || (name === 'list_extension_entities' && args.query)) {
+  if (name === 'search' || name === 'resolve_entity' || name === 'list_entities' || name === 'list_extension_entities') {
     await refreshEntityIndex();
   }
   if (name === 'resolve_entity' || name === 'list_extension_entities') {
