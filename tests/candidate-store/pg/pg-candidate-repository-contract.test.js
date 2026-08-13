@@ -41,6 +41,10 @@ const dbRow = (overrides = {}) => ({
     role_min: 'member',
     agency_level: 'synthesize',
     recommended_subject_type: null,
+    recommended_subject_id: null,
+    processing_stage: 'received',
+    semantic_state: 'active',
+    target_tier: 'ledger',
     recommended_owner_person_id: null,
     promotion_status: 'candidate',
     promoted_graph_entity_id: null,
@@ -68,7 +72,16 @@ describe('PgCandidateRepository contract', () => {
 
         expect(created.created_at).toBe('2026-05-11T00:00:00.000Z');
         expect(created.source_event_ids).toEqual(['session:pg:1']);
+        expect(created).toMatchObject({
+            processing_stage: 'received',
+            semantic_state: 'active',
+            target_tier: 'ledger'
+        });
         expect(pg.calls[1].sql).toContain('INSERT INTO memory_candidates');
+        expect(pg.calls[1].sql).toContain('processing_stage');
+        expect(pg.calls[1].sql).toContain('semantic_state');
+        expect(pg.calls[1].sql).toContain('target_tier');
+        expect(pg.calls[1].params).toEqual(expect.arrayContaining(['received', 'active', 'ledger']));
         expect(pg.calls[1].params).toContain('cand_pg_1');
         expect(pg.calls[1].params).toContain(JSON.stringify(['session:pg:1']));
     });
@@ -250,5 +263,48 @@ describe('PgCandidateRepository contract', () => {
             .rejects.toBeInstanceOf(InvalidTransitionError);
         expect(pg.calls.some((c) => c.sql.startsWith('UPDATE memory_candidates'))).toBe(false);
         expect(pg.calls.map((c) => c.sql)).toContain('ROLLBACK');
+    });
+
+    it('processingを単調に進め、semantic列には触れない', async () => {
+        const pg = new ScriptedPg([
+            {},
+            { rows: [dbRow({ processing_stage: 'received', semantic_state: 'quarantined' })] },
+            { rows: [dbRow({ processing_stage: 'queued', semantic_state: 'quarantined' })] },
+            {}
+        ]);
+        const repo = new PgCandidateRepository({ pool: pg });
+
+        const updated = await repo.transitionProcessingStage('cand_pg_1', 'queued');
+
+        expect(updated).toMatchObject({ processing_stage: 'queued', semantic_state: 'quarantined' });
+        const update = pg.calls.find((call) => call.sql.startsWith('UPDATE memory_candidates'));
+        expect(update.sql).toContain('processing_stage');
+        expect(update.sql).not.toContain('semantic_state');
+    });
+
+    it('processingの逆行を拒否して永続状態を更新しない', async () => {
+        const pg = new ScriptedPg([
+            {},
+            { rows: [dbRow({ processing_stage: 'extracted' })] },
+            {}
+        ]);
+        const repo = new PgCandidateRepository({ pool: pg });
+
+        await expect(repo.transitionProcessingStage('cand_pg_1', 'queued'))
+            .rejects.toBeInstanceOf(InvalidTransitionError);
+        expect(pg.calls.some((call) => call.sql.startsWith('UPDATE memory_candidates'))).toBe(false);
+    });
+
+    it('semanticを独立更新しprocessing列には触れない', async () => {
+        const pg = new ScriptedPg([{
+            rows: [dbRow({ processing_stage: 'indexed', semantic_state: 'contradicted' })]
+        }]);
+        const repo = new PgCandidateRepository({ pool: pg });
+
+        const updated = await repo.updateSemanticState('cand_pg_1', 'contradicted');
+
+        expect(updated).toMatchObject({ processing_stage: 'indexed', semantic_state: 'contradicted' });
+        expect(pg.calls[0].sql).toContain('semantic_state');
+        expect(pg.calls[0].sql).not.toContain('processing_stage');
     });
 });

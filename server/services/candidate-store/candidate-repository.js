@@ -10,13 +10,19 @@ const VISIBILITY = new Set(['owner', 'team', 'org', 'public']);
 const SENSITIVITY = new Set(['internal', 'restricted', 'confidential', 'top-secret']);
 const ROLE_MIN = new Set(['member', 'gm', 'ceo']);
 const AGENCY = new Set(['none', 'read-only', 'synthesize', 'write-back']);
-const STATUS = new Set(['candidate', 'pending_approval', 'approved', 'rejected', 'expired', 'promoted_to_graph']);
+const STATUS = new Set(['candidate', 'gate_classified', 'pending_approval', 'auto_promoted', 'approved', 'rejected', 'expired', 'promoted_to_graph']);
 const PERSONAL_KG_TYPES = ['observation', 'insight', 'claim', 'preference', 'hypothesis', 'experiment', 'result'];
+const PROCESSING_STAGES = ['received', 'queued', 'extracted', 'resolved', 'indexed', 'retrievable'];
+const PROCESSING_STAGE_INDEX = new Map(PROCESSING_STAGES.map((stage, index) => [stage, index]));
+const SEMANTIC_STATES = new Set(['active', 'superseded', 'contradicted', 'quarantined', 'retracted', 'expired']);
+const TARGET_TIERS = new Set(['ledger', 'episode', 'personal_kg', 'graph', 'skill_candidate']);
 
 const ALLOWED_TRANSITIONS = {
-    candidate: new Set(['pending_approval', 'rejected', 'expired']),
+    candidate: new Set(['gate_classified', 'pending_approval', 'auto_promoted', 'rejected', 'expired']),
+    gate_classified: new Set(['pending_approval', 'auto_promoted', 'rejected', 'expired']),
     pending_approval: new Set(['approved', 'rejected', 'expired']),
-    approved: new Set(['promoted_to_graph']),
+    auto_promoted: new Set(['promoted_to_graph', 'rejected', 'expired']),
+    approved: new Set(['promoted_to_graph', 'rejected', 'expired']),
     rejected: new Set(),
     expired: new Set(),
     promoted_to_graph: new Set()
@@ -62,6 +68,27 @@ function validate(input) {
     if (!Array.isArray(input.source_event_ids) || input.source_event_ids.length === 0) {
         throw new ACLFieldMissingError('source_event_ids');
     }
+    const processingStage = input.processing_stage || 'received';
+    if (!PROCESSING_STAGE_INDEX.has(processingStage)) throw new Error('processing_stage is invalid');
+    const semanticState = input.semantic_state || 'active';
+    if (!SEMANTIC_STATES.has(semanticState)) throw new Error('semantic_state is invalid');
+    const targetTier = input.target_tier || 'ledger';
+    if (!TARGET_TIERS.has(targetTier)) throw new Error('target_tier is invalid');
+    if (targetTier === 'graph' && !(typeof input.recommended_subject_id === 'string' && input.recommended_subject_id.trim())) {
+        throw new Error('recommended_subject_id is required for graph target_tier');
+    }
+}
+
+function assertProcessingStage(stage) {
+    if (!PROCESSING_STAGE_INDEX.has(stage)) throw new Error('processing_stage is invalid');
+}
+
+function assertSemanticState(state) {
+    if (!SEMANTIC_STATES.has(state)) throw new Error('semantic_state is invalid');
+}
+
+function escapeLikePattern(value) {
+    return String(value).replace(/[\\%_]/g, '\\$&');
 }
 
 function toIso(value) {
@@ -209,6 +236,10 @@ export class InMemoryCandidateRepository {
             role_min: input.role_min || 'member',
             agency_level: input.agency_level || 'synthesize',
             recommended_subject_type: input.recommended_subject_type || null,
+            recommended_subject_id: input.recommended_subject_id || null,
+            processing_stage: input.processing_stage || 'received',
+            semantic_state: input.semantic_state || 'active',
+            target_tier: input.target_tier || 'ledger',
             recommended_owner_person_id: input.recommended_owner_person_id || null,
             promotion_status: input.promotion_status || 'candidate',
             promoted_graph_entity_id: null,
@@ -239,8 +270,12 @@ export class InMemoryCandidateRepository {
             if (filter.owner_person_id && r.owner_person_id !== filter.owner_person_id) return false;
             if (filter.source_system && r.source_system !== filter.source_system) return false;
             if (filter.source_event_prefix && !r.source_event_ids.some((eventId) => eventId.startsWith(filter.source_event_prefix))) return false;
+            if (filter.visibility && r.visibility !== filter.visibility) return false;
+            if (filter.sensitivity && r.sensitivity !== filter.sensitivity) return false;
+            if (filter.project_code && r.project_code !== filter.project_code) return false;
             if (filter.promotion_status && r.promotion_status !== filter.promotion_status) return false;
             if (filter.cognitive_type && r.cognitive_type !== filter.cognitive_type) return false;
+            if (filter.recommended_subject_type && r.recommended_subject_type !== filter.recommended_subject_type) return false;
             return true;
         });
         if (filter.order_by === 'created_at') {
@@ -251,7 +286,32 @@ export class InMemoryCandidateRepository {
         return rows.map((r) => ({ ...r }));
     }
 
+    transitionProcessingStage(id, nextStage) {
+        assertProcessingStage(nextStage);
+        const candidate = this.candidates.get(id);
+        if (!candidate) throw new Error(`candidate not found: ${id}`);
+        if (PROCESSING_STAGE_INDEX.get(nextStage) < PROCESSING_STAGE_INDEX.get(candidate.processing_stage)) {
+            throw new InvalidTransitionError(candidate.processing_stage, nextStage);
+        }
+        candidate.processing_stage = nextStage;
+        candidate.updated_at = new Date().toISOString();
+        return { ...candidate };
+    }
+
+    updateSemanticState(id, nextState) {
+        assertSemanticState(nextState);
+        const candidate = this.candidates.get(id);
+        if (!candidate) throw new Error(`candidate not found: ${id}`);
+        candidate.semantic_state = nextState;
+        candidate.updated_at = new Date().toISOString();
+        return { ...candidate };
+    }
+
     transition(id, nextStatus, audit) {
+        return this.transitionWithAudit(id, nextStatus, audit).candidate;
+    }
+
+    transitionWithAudit(id, nextStatus, audit, options = {}) {
         const r = this.candidates.get(id);
         if (!r) throw new Error(`candidate not found: ${id}`);
         const allowed = ALLOWED_TRANSITIONS[r.promotion_status];
@@ -260,8 +320,14 @@ export class InMemoryCandidateRepository {
         }
         const prev = r.promotion_status;
         r.promotion_status = nextStatus;
+        if (typeof options.requires_approval === 'boolean') {
+            r.requires_approval = options.requires_approval;
+        }
+        if (options.promoted_graph_entity_id) {
+            r.promoted_graph_entity_id = options.promoted_graph_entity_id;
+        }
         r.updated_at = new Date().toISOString();
-        this.auditEvents.push({
+        const auditEvent = {
             id: this.auditEvents.length + 1,
             candidate_id: id,
             actor_person_id: audit.actor_person_id,
@@ -271,8 +337,9 @@ export class InMemoryCandidateRepository {
             previous_status: prev,
             next_status: nextStatus,
             evidence_ids: audit.evidence_ids || null
-        });
-        return { ...r };
+        };
+        this.auditEvents.push(auditEvent);
+        return { candidate: { ...r }, audit: { ...auditEvent } };
     }
 
     recordAudit(record) {
@@ -306,6 +373,35 @@ export class InMemoryCandidateRepository {
         if (typeof newBody === 'string') r.body = newBody;
         r.updated_at = new Date().toISOString();
         return { ...r };
+    }
+
+    searchPersonalKg({ owner_person_id, query, tokens = [], cognitive_types = [], limit = 10 }) {
+        const phrase = String(query).toLocaleLowerCase();
+        const normalizedTokens = tokens.map((token) => String(token).toLocaleLowerCase());
+        return Array.from(this.candidates.values())
+            .filter((candidate) => {
+                const body = typeof candidate.body === 'string' ? candidate.body : '';
+                const normalizedBody = body.toLocaleLowerCase();
+                const matchesText = normalizedBody.includes(phrase)
+                    || (normalizedTokens.length > 1 && normalizedTokens.every((token) => normalizedBody.includes(token)));
+                return candidate.owner_person_id === owner_person_id
+                    && ['owner', 'private'].includes(candidate.visibility)
+                    && candidate.redaction_status === 'none'
+                    && candidate.promotion_status !== 'rejected'
+                    && body.length > 0
+                    && matchesText
+                    && (cognitive_types.length === 0 || cognitive_types.includes(candidate.cognitive_type));
+            })
+            .sort((left, right) => {
+                const leftExact = left.body.toLocaleLowerCase().includes(phrase) ? 0 : 1;
+                const rightExact = right.body.toLocaleLowerCase().includes(phrase) ? 0 : 1;
+                if (leftExact !== rightExact) return leftExact - rightExact;
+                const confidence = (right.confidence ?? -Infinity) - (left.confidence ?? -Infinity);
+                if (confidence !== 0) return confidence;
+                return String(right.created_at).localeCompare(String(left.created_at));
+            })
+            .slice(0, clampLimit(limit, 10, 50))
+            .map((candidate) => normalizeCandidate(candidate));
     }
 
     listAudit(candidateId) {
@@ -356,14 +452,15 @@ export class PgCandidateRepository {
                     visibility, sensitivity, role_min, agency_level, recommended_subject_type,
                     recommended_owner_person_id, promotion_status, promoted_graph_entity_id,
                     requires_approval, permission_snapshot, evidence_ids, body, redaction_status,
-                    confidence, expires_at
+                    confidence, expires_at, recommended_subject_id, processing_stage, semantic_state,
+                    target_tier
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6::jsonb,
                     $7, $8, $9, $10, $11, $12, $13,
                     $14, $15, $16, $17, $18,
                     $19, $20, $21,
                     $22, $23::jsonb, $24::jsonb, $25, $26,
-                    $27, $28
+                    $27, $28, $29, $30, $31, $32
                 )
                 RETURNING *`,
                 [
@@ -394,7 +491,11 @@ export class PgCandidateRepository {
                     input.body,
                     input.redaction_status || 'none',
                     input.confidence ?? null,
-                    input.expires_at || null
+                    input.expires_at || null,
+                    input.recommended_subject_id || null,
+                    input.processing_stage || 'received',
+                    input.semantic_state || 'active',
+                    input.target_tier || 'ledger'
                 ]
             );
             return normalizeCandidate(rows[0]);
@@ -425,8 +526,12 @@ export class PgCandidateRepository {
             'EXISTS (SELECT 1 FROM jsonb_array_elements_text(source_event_ids) AS source_event(event_id) WHERE starts_with(event_id, ?))',
             filter.source_event_prefix
         );
+        if (filter.visibility) add('visibility = ?', filter.visibility);
+        if (filter.sensitivity) add('sensitivity = ?', filter.sensitivity);
+        if (filter.project_code) add('project_code = ?', filter.project_code);
         if (filter.promotion_status) add('promotion_status = ?', filter.promotion_status);
         if (filter.cognitive_type) add('cognitive_type = ?', filter.cognitive_type);
+        if (filter.recommended_subject_type) add('recommended_subject_type = ?', filter.recommended_subject_type);
         const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
         const orderDirection = filter.order_direction === 'desc' ? 'DESC' : 'ASC';
         const orderBy = filter.order_by === 'created_at' ? `created_at ${orderDirection}, id ${orderDirection}` : 'created_at ASC, id ASC';
@@ -437,6 +542,45 @@ export class PgCandidateRepository {
         }
         const { rows } = await this.pool.query(sql, params);
         return rows.map(normalizeCandidate);
+    }
+
+    async transitionProcessingStage(id, nextStage) {
+        assertProcessingStage(nextStage);
+        const client = typeof this.pool.connect === 'function' ? await this.pool.connect() : this.pool;
+        await client.query('BEGIN');
+        try {
+            const { rows } = await client.query('SELECT * FROM memory_candidates WHERE id = $1 FOR UPDATE', [id]);
+            const current = rows[0];
+            if (!current) throw new Error(`candidate not found: ${id}`);
+            if (PROCESSING_STAGE_INDEX.get(nextStage) < PROCESSING_STAGE_INDEX.get(current.processing_stage)) {
+                throw new InvalidTransitionError(current.processing_stage, nextStage);
+            }
+            if (nextStage === current.processing_stage) {
+                await client.query('COMMIT');
+                return normalizeCandidate(current);
+            }
+            const updated = await client.query(
+                'UPDATE memory_candidates SET processing_stage = $2, updated_at = NOW() WHERE id = $1 RETURNING *',
+                [id, nextStage]
+            );
+            await client.query('COMMIT');
+            return normalizeCandidate(updated.rows[0]);
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            if (typeof client.release === 'function') client.release();
+        }
+    }
+
+    async updateSemanticState(id, nextState) {
+        assertSemanticState(nextState);
+        const { rows } = await this.pool.query(
+            'UPDATE memory_candidates SET semantic_state = $2, updated_at = NOW() WHERE id = $1 RETURNING *',
+            [id, nextState]
+        );
+        if (!rows[0]) throw new Error(`candidate not found: ${id}`);
+        return normalizeCandidate(rows[0]);
     }
 
     async listPersonalKg(filter = {}) {
@@ -519,9 +663,15 @@ export class PgCandidateRepository {
     }
 
     async transition(id, nextStatus, audit) {
-        const client = typeof this.pool.connect === 'function' ? await this.pool.connect() : this.pool;
-        await client.query('BEGIN');
+        const result = await this.transitionWithAudit(id, nextStatus, audit);
+        return result.candidate;
+    }
+
+    async transitionWithAudit(id, nextStatus, audit, options = {}) {
+        const ownsTransaction = !options.client;
+        const client = options.client || (typeof this.pool.connect === 'function' ? await this.pool.connect() : this.pool);
         try {
+            if (ownsTransaction) await client.query('BEGIN');
             const { rows } = await client.query('SELECT * FROM memory_candidates WHERE id = $1 FOR UPDATE', [id]);
             const current = rows[0];
             if (!current) throw new Error(`candidate not found: ${id}`);
@@ -531,10 +681,16 @@ export class PgCandidateRepository {
             }
             const prev = current.promotion_status;
             const updated = await client.query(
-                'UPDATE memory_candidates SET promotion_status = $2, updated_at = NOW() WHERE id = $1 RETURNING *',
-                [id, nextStatus]
+                `UPDATE memory_candidates
+                 SET promotion_status = $2,
+                     requires_approval = COALESCE($3::boolean, requires_approval),
+                     promoted_graph_entity_id = COALESCE($4::text, promoted_graph_entity_id),
+                     updated_at = NOW()
+                 WHERE id = $1
+                 RETURNING *`,
+                [id, nextStatus, options.requires_approval ?? null, options.promoted_graph_entity_id || null]
             );
-            await this._recordAuditWith(client, {
+            const auditEvent = await this._recordAuditWith(client, {
                 candidate_id: id,
                 actor_person_id: audit.actor_person_id,
                 decision_owner_person_id: audit.decision_owner_person_id || null,
@@ -543,14 +699,52 @@ export class PgCandidateRepository {
                 next_status: nextStatus,
                 evidence_ids: audit.evidence_ids || null
             });
-            await client.query('COMMIT');
-            return normalizeCandidate(updated.rows[0]);
+            if (ownsTransaction) await client.query('COMMIT');
+            return {
+                candidate: normalizeCandidate(updated.rows[0]),
+                audit: auditEvent
+            };
         } catch (error) {
-            await client.query('ROLLBACK');
+            if (ownsTransaction) await client.query('ROLLBACK');
             throw error;
         } finally {
-            if (typeof client.release === 'function') client.release();
+            if (ownsTransaction && typeof client.release === 'function') client.release();
         }
+    }
+
+    async searchPersonalKg({ owner_person_id, query, tokens = [], cognitive_types = [], limit = 10 }) {
+        const phrasePattern = `%${escapeLikePattern(query)}%`;
+        const tokenPatterns = tokens.length > 1
+            ? tokens.map((token) => `%${escapeLikePattern(token)}%`)
+            : [];
+        const values = [owner_person_id, phrasePattern];
+        let sql = `SELECT id, cognitive_type, body, confidence, source_system, created_at
+                   FROM memory_candidates
+                   WHERE owner_person_id = $1
+                     AND visibility IN ('owner', 'private')
+                     AND redaction_status = 'none'
+                     AND promotion_status <> 'rejected'
+                     AND body IS NOT NULL AND length(body) > 0
+                     AND (body ILIKE $2 ESCAPE '\\'`;
+        if (tokenPatterns.length > 0) {
+            const tokenClauses = tokenPatterns.map((pattern) => {
+                values.push(pattern);
+                return `body ILIKE $${values.length} ESCAPE '\\'`;
+            });
+            sql += ` OR (${tokenClauses.join(' AND ')})`;
+        }
+        sql += ')';
+        if (cognitive_types.length > 0) {
+            values.push(cognitive_types);
+            sql += ` AND cognitive_type = ANY($${values.length}::text[])`;
+        }
+        values.push(clampLimit(limit, 10, 50));
+        sql += ` ORDER BY CASE WHEN body ILIKE $2 ESCAPE '\\' THEN 0 ELSE 1 END,
+                         confidence DESC NULLS LAST,
+                         created_at DESC
+                 LIMIT $${values.length}`;
+        const { rows } = await this.pool.query(sql, values);
+        return rows.map(normalizeCandidate);
     }
 
     async setPromotedGraphEntity(id, graphEntityId) {

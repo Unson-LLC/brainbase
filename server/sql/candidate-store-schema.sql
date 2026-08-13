@@ -26,10 +26,18 @@ CREATE TABLE IF NOT EXISTS memory_candidates (
   agency_level TEXT NOT NULL DEFAULT 'synthesize' CHECK (agency_level IN ('none', 'read-only', 'synthesize', 'write-back')),
 
   recommended_subject_type TEXT,
+  recommended_subject_id TEXT,
   recommended_owner_person_id TEXT,
 
+  processing_stage TEXT NOT NULL DEFAULT 'received' CHECK (processing_stage IN
+    ('received', 'queued', 'extracted', 'resolved', 'indexed', 'retrievable')),
+  semantic_state TEXT NOT NULL DEFAULT 'active' CHECK (semantic_state IN
+    ('active', 'superseded', 'contradicted', 'quarantined', 'retracted', 'expired')),
+  target_tier TEXT NOT NULL DEFAULT 'ledger' CHECK (target_tier IN
+    ('ledger', 'episode', 'personal_kg', 'graph', 'skill_candidate')),
+
   promotion_status TEXT NOT NULL DEFAULT 'candidate' CHECK (promotion_status IN
-    ('candidate', 'pending_approval', 'approved', 'rejected', 'expired', 'promoted_to_graph')),
+    ('candidate', 'gate_classified', 'pending_approval', 'auto_promoted', 'approved', 'rejected', 'expired', 'promoted_to_graph')),
   promoted_graph_entity_id TEXT,
 
   requires_approval BOOLEAN NOT NULL DEFAULT TRUE,
@@ -55,6 +63,10 @@ ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS project_ids TEXT[] NOT NU
 ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS team_id TEXT;
 ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS agency_level TEXT NOT NULL DEFAULT 'synthesize';
 ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS recommended_subject_type TEXT;
+ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS recommended_subject_id TEXT;
+ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS processing_stage TEXT NOT NULL DEFAULT 'received';
+ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS semantic_state TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS target_tier TEXT NOT NULL DEFAULT 'ledger';
 ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS promoted_graph_entity_id TEXT;
 ALTER TABLE memory_candidates ADD COLUMN IF NOT EXISTS body TEXT;
 
@@ -103,6 +115,32 @@ END $$;
 ALTER TABLE memory_candidates ALTER COLUMN cognitive_type SET NOT NULL;
 ALTER TABLE memory_candidates ALTER COLUMN body SET NOT NULL;
 
+ALTER TABLE memory_candidates DROP CONSTRAINT IF EXISTS memory_candidates_processing_stage_check;
+ALTER TABLE memory_candidates ADD CONSTRAINT memory_candidates_processing_stage_check CHECK (processing_stage IN
+  ('received', 'queued', 'extracted', 'resolved', 'indexed', 'retrievable'));
+
+ALTER TABLE memory_candidates DROP CONSTRAINT IF EXISTS memory_candidates_semantic_state_check;
+ALTER TABLE memory_candidates ADD CONSTRAINT memory_candidates_semantic_state_check CHECK (semantic_state IN
+  ('active', 'superseded', 'contradicted', 'quarantined', 'retracted', 'expired'));
+
+ALTER TABLE memory_candidates DROP CONSTRAINT IF EXISTS memory_candidates_target_tier_check;
+ALTER TABLE memory_candidates ADD CONSTRAINT memory_candidates_target_tier_check CHECK (target_tier IN
+  ('ledger', 'episode', 'personal_kg', 'graph', 'skill_candidate'));
+
+ALTER TABLE memory_candidates DROP CONSTRAINT IF EXISTS memory_candidates_graph_subject_check;
+ALTER TABLE memory_candidates ADD CONSTRAINT memory_candidates_graph_subject_check CHECK (
+  target_tier <> 'graph'
+  OR (recommended_subject_id IS NOT NULL AND btrim(recommended_subject_id) <> '')
+);
+
+UPDATE memory_candidates
+SET promotion_status = 'candidate'
+WHERE promotion_status IN ('raw', 'draft') OR promotion_status IS NULL;
+
+ALTER TABLE memory_candidates DROP CONSTRAINT IF EXISTS memory_candidates_promotion_status_check;
+ALTER TABLE memory_candidates ADD CONSTRAINT memory_candidates_promotion_status_check CHECK (promotion_status IN
+  ('candidate', 'gate_classified', 'pending_approval', 'auto_promoted', 'approved', 'rejected', 'expired', 'promoted_to_graph'));
+
 DO $$
 BEGIN
   IF EXISTS (
@@ -112,6 +150,15 @@ BEGIN
       AND is_nullable = 'NO'
   ) THEN
     ALTER TABLE memory_candidates ALTER COLUMN subject_type DROP NOT NULL;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'memory_candidates'
+      AND column_name = 'memory'
+      AND is_nullable = 'NO'
+  ) THEN
+    ALTER TABLE memory_candidates ALTER COLUMN memory DROP NOT NULL;
   END IF;
 END $$;
 
@@ -159,11 +206,13 @@ BEGIN
   IF NEW.promotion_status = OLD.promotion_status THEN
     RETURN NEW;
   END IF;
-  IF OLD.promotion_status = 'candidate' AND NEW.promotion_status IN ('pending_approval', 'rejected', 'expired') THEN
+  IF OLD.promotion_status = 'candidate' AND NEW.promotion_status IN ('gate_classified', 'pending_approval', 'auto_promoted', 'rejected', 'expired') THEN
+    RETURN NEW;
+  ELSIF OLD.promotion_status = 'gate_classified' AND NEW.promotion_status IN ('pending_approval', 'auto_promoted', 'rejected', 'expired') THEN
     RETURN NEW;
   ELSIF OLD.promotion_status = 'pending_approval' AND NEW.promotion_status IN ('approved', 'rejected', 'expired') THEN
     RETURN NEW;
-  ELSIF OLD.promotion_status = 'approved' AND NEW.promotion_status = 'promoted_to_graph' THEN
+  ELSIF OLD.promotion_status IN ('approved', 'auto_promoted') AND NEW.promotion_status = 'promoted_to_graph' THEN
     RETURN NEW;
   END IF;
   RAISE EXCEPTION 'Invalid candidate promotion_status transition: % -> %', OLD.promotion_status, NEW.promotion_status;
