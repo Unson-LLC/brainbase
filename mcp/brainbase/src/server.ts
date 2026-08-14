@@ -5,6 +5,7 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { timingSafeEqual } from 'node:crypto';
 import {
   CallToolRequestSchema,
   ListResourcesRequestSchema,
@@ -161,6 +162,13 @@ async function hydrateExtensionQuery(name: string, args: Record<string, unknown>
 
 const WIKI_RESOURCE_URI_PREFIX = 'brainbase://wiki/page/';
 const WIKI_RESOURCE_TEMPLATE = 'brainbase://wiki/page/{path}';
+
+export function isAuthorizedMcpHttpRequest(authorization: string | undefined, expectedToken: string): boolean {
+  if (!authorization?.startsWith('Bearer ') || expectedToken.length === 0) return false;
+  const actual = Buffer.from(authorization.slice('Bearer '.length));
+  const expected = Buffer.from(expectedToken);
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
 
 async function prependPhilosophyContext(
   body: string,
@@ -1128,6 +1136,8 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   // Bound to 127.0.0.1 only. Enabled when MCP_HTTP_PORT is set.
   const httpPort = process.env.MCP_HTTP_PORT ? Number(process.env.MCP_HTTP_PORT) : null;
   if (httpPort && Number.isFinite(httpPort)) {
+    const bearerToken = process.env.MCP_HTTP_BEARER_TOKEN || '';
+    if (!bearerToken) throw new Error('MCP_HTTP_BEARER_TOKEN is required when MCP_HTTP_PORT is set');
     const http = await import('node:http');
     const { StreamableHTTPServerTransport } = await import('@modelcontextprotocol/sdk/server/streamableHttp.js');
     const host = process.env.MCP_HTTP_HOST || '127.0.0.1';
@@ -1170,6 +1180,11 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
       if (!req.url || !req.url.startsWith('/mcp')) {
         res.writeHead(404);
         res.end();
+        return;
+      }
+      if (!isAuthorizedMcpHttpRequest(req.headers.authorization, bearerToken)) {
+        res.writeHead(401, { 'Content-Type': 'application/json', 'WWW-Authenticate': 'Bearer' });
+        res.end(JSON.stringify({ error: 'unauthorized' }));
         return;
       }
 
