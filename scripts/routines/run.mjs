@@ -65,6 +65,7 @@ export function exitCodeForRoutineStatus(status) {
 export function serializeRoutineCliResult(result) {
     const output = { status: result?.status };
     if (result?.cycle_status) output.cycle_status = result.cycle_status;
+    if (result?.coverage) output.coverage = result.coverage;
     if (result?.morning_output) {
         output.morning_output = {
             exceptions: (Array.isArray(result.morning_output.exceptions) ? result.morning_output.exceptions : [])
@@ -78,6 +79,32 @@ export function serializeRoutineCliResult(result) {
                 .map((item) => ({ summary: String(item?.summary || '').slice(0, 2000) }))
                 .filter((item) => item.summary)
         };
+    }
+    if (result?.routine_output && typeof result.routine_output === 'object') {
+        const safeRoutineOutput = {};
+        if (typeof result.routine_output.headline === 'string') {
+            safeRoutineOutput.headline = result.routine_output.headline.slice(0, 2000);
+        }
+        const reviewKeys = new Set([
+            'personal_kg_registration_candidates',
+            'personal_kg_registration_reviews',
+            'graph_promotion_reviews'
+        ]);
+        for (const key of [
+            'today_focus', 'immediate_decisions', 'warnings', 'carryovers', 'references',
+            'tomorrow_focus', 'closed', 'personal_kg_registration_candidates',
+            'system_changes', 'repeated_patterns', 'personal_kg_registration_reviews', 'graph_promotion_reviews'
+        ]) {
+            if (!Array.isArray(result.routine_output[key])) continue;
+            safeRoutineOutput[key] = result.routine_output[key].slice(0, 10).map((item) => ({
+                ...(reviewKeys.has(key) && typeof item?.id === 'string' ? { id: item.id.slice(0, 200) } : {}),
+                ...(reviewKeys.has(key) && typeof item?.status === 'string' ? { status: item.status.slice(0, 100) } : {}),
+                ...(key === 'references' && typeof item?.source === 'string' ? { source: item.source.slice(0, 100) } : {}),
+                ...(typeof item?.summary === 'string' ? { summary: item.summary.slice(0, 2000) } : {}),
+                ...(item?.applies_changes === false ? { applies_changes: false } : {})
+            })).filter((item) => item.summary);
+        }
+        output.routine_output = safeRoutineOutput;
     }
     return JSON.stringify(output);
 }
@@ -105,7 +132,7 @@ function persistRoutineSummary({ routine, routineSummary, varDir }) {
     if (!fs.existsSync(target)) {
         const temporary = `${target}.${process.pid}.${Date.now()}.tmp`;
         fs.writeFileSync(temporary, `${JSON.stringify({
-            schema_version: 'routine_summary.v1',
+            schema_version: 'routine_summary.v2',
             content_sha256: contentSha256,
             routine_summary: routineSummary
         }, null, 2)}\n`, { mode: 0o600 });

@@ -71,6 +71,20 @@ function safeMemory(item) {
         : null;
 }
 
+function reviewItem(item) {
+    const summary = safeMemory(item)?.summary;
+    if (!summary) return null;
+    return {
+        ...(typeof item?.id === 'string' ? { id: item.id } : {}),
+        ...(typeof item?.promotion_status === 'string' ? { status: item.promotion_status } : {}),
+        summary
+    };
+}
+
+function uniqueReviews(items) {
+    return [...new Map(items.filter(Boolean).map((item) => [item.id || item.summary, item])).values()];
+}
+
 export class ProductionRoutinePorts {
     constructor({
         knowledgeEventRepository,
@@ -180,6 +194,52 @@ export class ProductionRoutinePorts {
         };
     }
 
+    async buildNightOutput({ input = {}, reconciliation = {} } = {}, context) {
+        const carryovers = [
+            ['未処理', reconciliation.unprocessed_count],
+            ['矛盾', reconciliation.contradiction_count],
+            ['期限切れ', reconciliation.expired_count],
+            ['未配信', reconciliation.outbox_count]
+        ].filter(([, count]) => Number(count) > 0)
+            .map(([label, count]) => ({ summary: `${label}が${count}件あります` }));
+        const confirmedClosed = carryovers.length === 0;
+        const candidateRepository = requireDependency(this.candidateRepository, 'candidateRepository', 'list');
+        const projectCode = projectInput({ input }).project_id;
+        const [personalCandidates, graphCandidates] = await Promise.all([
+            candidateRepository.list({
+                project_code: projectCode,
+                owner_person_id: context?.access?.personId,
+                promotion_status: 'candidate',
+                order_by: 'created_at',
+                order_direction: 'asc',
+                limit: 10
+            }, context),
+            candidateRepository.list({
+                project_code: projectCode,
+                promotion_status: 'pending_approval',
+                order_by: 'created_at',
+                order_direction: 'asc',
+                limit: 10
+            }, context)
+        ]);
+        return {
+            headline: confirmedClosed ? '今日は閉じてよい' : '残件を確認してから今日を閉じる',
+            tomorrow_focus: Array.isArray(input.tomorrow_focus) ? input.tomorrow_focus : [],
+            closed: Array.isArray(input.closed) ? input.closed : [],
+            carryovers,
+            personal_kg_registration_candidates: uniqueReviews([
+                ...(Array.isArray(input.personal_kg_registration_candidates)
+                    ? input.personal_kg_registration_candidates.map(reviewItem) : []),
+                ...personalCandidates.map(reviewItem)
+            ]),
+            graph_promotion_reviews: uniqueReviews([
+                ...(Array.isArray(input.graph_promotion_reviews)
+                    ? input.graph_promotion_reviews.map(reviewItem) : []),
+                ...graphCandidates.map(reviewItem)
+            ])
+        };
+    }
+
     async verify({ reconciliation, compression } = {}, context) {
         const organization = typeof this.knowledgeEventRepository?.verifyRoutineRetrievability === 'function'
             ? await this.knowledgeEventRepository.verifyRoutineRetrievability({
@@ -259,6 +319,15 @@ export class ProductionRoutinePorts {
             .map((item) => item.id))];
         const displayedMemories = displayedIds.map((id) => safeMemory(recalledById.get(id))).filter(Boolean);
         const visibleExceptions = (Array.isArray(exceptions) ? exceptions : []).slice(0, 3).map(safeException);
+        const references = displayedIds.map((id) => {
+            const item = recalledById.get(id);
+            const memory = safeMemory(item);
+            return memory ? {
+                source: graph.includes(item) ? 'graph_ssot' : 'personal_kg',
+                summary: memory.summary
+            } : null;
+        }).filter(Boolean);
+        const focus = displayedMemories.slice(0, 1);
         return {
             exceptions: visibleExceptions,
             graph_memories: graph,
@@ -266,7 +335,20 @@ export class ProductionRoutinePorts {
             recalled_memory_ids: recalledIds,
             displayed_memory_ids: displayedIds,
             used_knowledge_ids: [...new Set(displayedIds.map((id) => sourceEventId(recalledById.get(id))).filter(Boolean))],
-            morning_output: { exceptions: visibleExceptions, memories: displayedMemories }
+            morning_output: {
+                exceptions: visibleExceptions,
+                memories: displayedMemories,
+                routine_output: {
+                    headline: focus[0]
+                        ? `今日は「${focus[0].summary}」を判断軸に進める`
+                        : '今日進めることは未確定です',
+                    today_focus: focus,
+                    immediate_decisions: displayedMemories.slice(1),
+                    warnings: visibleExceptions,
+                    carryovers: [],
+                    references
+                }
+            }
         };
     }
 
@@ -333,5 +415,39 @@ export class ProductionRoutinePorts {
                 applies_changes: false
             }));
         return candidates.slice(0, limit);
+    }
+
+    async listKnowledgeReviews({ input = {}, limit = 10 } = {}, context) {
+        const candidateRepository = requireDependency(
+            this.candidateRepository,
+            'candidateRepository',
+            'list'
+        );
+        const projectCode = projectInput({ input }).project_id;
+        const [personalCandidates, graphCandidates] = await Promise.all([
+            candidateRepository.list({
+                project_code: projectCode,
+                owner_person_id: context?.access?.personId,
+                promotion_status: 'candidate',
+                order_by: 'created_at',
+                order_direction: 'asc',
+                limit
+            }, context),
+            candidateRepository.list({
+                project_code: projectCode,
+                promotion_status: 'pending_approval',
+                order_by: 'created_at',
+                order_direction: 'asc',
+                limit
+            }, context)
+        ]);
+        return {
+            personal_kg_registration_reviews: uniqueReviews([
+                ...(Array.isArray(input.personal_kg_registration_reviews)
+                    ? input.personal_kg_registration_reviews.map(reviewItem) : []),
+                ...personalCandidates.map(reviewItem)
+            ]),
+            graph_promotion_reviews: uniqueReviews(graphCandidates.map(reviewItem))
+        };
     }
 }

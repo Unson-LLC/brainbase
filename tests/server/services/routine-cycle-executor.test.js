@@ -25,7 +25,7 @@ describe('RoutineCycleExecutor', () => {
 
         expect(result).toMatchObject({
             status,
-            coverage: status,
+            coverage: 'partial',
             summary: {
                 routine: 'oyasumi',
                 status,
@@ -699,5 +699,101 @@ describe('RoutineCycleExecutor', () => {
         expect(retroService.applyPolicy).not.toHaveBeenCalled();
         expect(retroService.updateSkill).not.toHaveBeenCalled();
         expect(retroService.writeGraph).not.toHaveBeenCalled();
+    });
+
+    it('ohayoは今日の焦点を先頭にした密度差のあるroutine_outputを成果物へ残す', async () => {
+        const executor = new RoutineCycleExecutor({
+            livenessService: { listExceptions: vi.fn(async () => [{ code: 'carryover', summary: '昨日の持越し' }]) },
+            recallService: {
+                recallGraph: vi.fn(async () => [{ id: 'graph-1', source_event_id: 'kev_graph_1', name: '顧客Aの合意' }]),
+                recallPersonalKg: vi.fn(async () => [{ id: 'personal-1', source_event_id: 'pke_personal_1', body: '午前は設計を優先する' }])
+            },
+            feedbackService: { recordUsage: vi.fn(async () => {}) },
+            ohayoGenerator: {
+                generate: vi.fn(async () => ({
+                    used_knowledge_ids: ['kev_graph_1', 'pke_personal_1'],
+                    morning_output: {
+                        exceptions: [{ code: 'carryover', summary: '昨日の持越し' }],
+                        memories: [{ summary: '顧客Aの合意' }],
+                        routine_output: {
+                            headline: '今日は顧客Aの設計判断を進める',
+                            today_focus: [{ summary: '設計判断を確定する' }],
+                            immediate_decisions: [{ summary: '午前中に論点を絞る' }],
+                            warnings: [{ summary: '昨日の持越し' }],
+                            carryovers: [],
+                            references: [{ source: 'graph_ssot', summary: '顧客Aの合意' }]
+                        }
+                    }
+                }))
+            }
+        });
+
+        const result = await executor.execute({ routine: 'ohayo' });
+
+        expect(result.routine_output).toMatchObject({
+            headline: '今日は顧客Aの設計判断を進める',
+            today_focus: [{ summary: '設計判断を確定する' }],
+            warnings: [{ summary: '昨日の持越し' }]
+        });
+        expect(result.routine_summary.routine_output).toEqual(result.routine_output);
+    });
+
+    it('oyasumiはPersonal KG登録候補とGraph昇格レビュー待ちを混ぜない', async () => {
+        const routineOutput = {
+            headline: '今日は閉じてよい',
+            tomorrow_focus: [{ summary: '朝一で提案を確定する' }],
+            closed: [{ summary: '設計方針を決定した' }],
+            carryovers: [],
+            personal_kg_registration_candidates: [{ id: 'personal-draft-1', summary: '午前は設計を優先する' }],
+            graph_promotion_reviews: [{ id: 'candidate-1', summary: '顧客Aの正式方針' }]
+        };
+        const executor = new RoutineCycleExecutor({
+            oyasumiReconciler: {
+                reconcile: vi.fn(async () => ({ unprocessed_count: 0, contradiction_count: 0, expired_count: 0, outbox_count: 0 })),
+                buildNightOutput: vi.fn(async () => routineOutput)
+            },
+            episodeCompressor: { compress: vi.fn(async () => ({ confirmed: true, episode_ids: [] })) },
+            retrievabilityVerifier: { verify: vi.fn(async () => ({ retrievable: true })) }
+        });
+
+        const result = await executor.execute({ routine: 'oyasumi' });
+
+        expect(result.routine_output.personal_kg_registration_candidates).toEqual([
+            { id: 'personal-draft-1', summary: '午前は設計を優先する' }
+        ]);
+        expect(result.routine_output.graph_promotion_reviews).toEqual([
+            { id: 'candidate-1', summary: '顧客Aの正式方針' }
+        ]);
+    });
+
+    it('retroは登録レビューとGraph昇格レビューを表示するだけで状態を変更しない', async () => {
+        const metrics = {
+            misregistration_rate: 0,
+            correction_rate: 0,
+            open_contradictions: 0,
+            processing_time_ms: 0,
+            stoppage_count: 0
+        };
+        const retroService = {
+            evaluateMetrics: vi.fn(async () => metrics),
+            createImprovementCandidates: vi.fn(async () => [{ kind: 'story_pr_candidate', metric: 'stoppage_count', applies_changes: false }]),
+            listKnowledgeReviews: vi.fn(async () => ({
+                personal_kg_registration_reviews: [{ id: 'personal-draft-1', summary: '個人の判断基準' }],
+                graph_promotion_reviews: [{ id: 'candidate-1', summary: '組織の正式方針', status: 'pending_approval' }]
+            })),
+            approveCandidate: vi.fn(),
+            promoteToGraph: vi.fn()
+        };
+        const executor = new RoutineCycleExecutor({ retroService });
+
+        const result = await executor.execute({ routine: 'retro' });
+
+        expect(result.routine_output).toMatchObject({
+            personal_kg_registration_reviews: [{ id: 'personal-draft-1', summary: '個人の判断基準' }],
+            graph_promotion_reviews: [{ id: 'candidate-1', summary: '組織の正式方針', status: 'pending_approval' }]
+        });
+        expect(result.routine_output.system_changes[0]).toMatchObject({ applies_changes: false });
+        expect(retroService.approveCandidate).not.toHaveBeenCalled();
+        expect(retroService.promoteToGraph).not.toHaveBeenCalled();
     });
 });

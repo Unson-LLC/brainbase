@@ -292,6 +292,30 @@ describe('Routine Runner cycle execution', () => {
         expect(runnerSource).toMatch(/process\.stdout\.write\([^\n]*serializeRoutineCliResult\(result\)/);
     });
 
+    it('CLI stdoutは夜と週次を含む安全化済みroutine_outputを保持する', () => {
+        const output = JSON.parse(routineRunner.serializeRoutineCliResult({
+            status: 'completed',
+            coverage: 'confirmed',
+            routine_output: {
+                headline: '今日は閉じてよい',
+                tomorrow_focus: [{ id: 'internal-id', summary: '朝一で提案を確定する', secret: 'hidden' }],
+                graph_promotion_reviews: [{ id: 'candidate-1', summary: '顧客Aの正式方針', status: 'pending_approval' }]
+            }
+        }));
+
+        expect(output).toEqual({
+            status: 'completed',
+            coverage: 'confirmed',
+            routine_output: {
+                headline: '今日は閉じてよい',
+                tomorrow_focus: [{ summary: '朝一で提案を確定する' }],
+                graph_promotion_reviews: [{ id: 'candidate-1', summary: '顧客Aの正式方針', status: 'pending_approval' }]
+            }
+        });
+        expect(JSON.stringify(output)).not.toContain('hidden');
+        expect(JSON.stringify(output)).not.toContain('internal-id');
+    });
+
     it('executorがthrowしてもfailed Receiptを正規Outboxへ永続化する', async () => {
         const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-routine-throw-'));
         temporaryDirectories.push(repoDir);
