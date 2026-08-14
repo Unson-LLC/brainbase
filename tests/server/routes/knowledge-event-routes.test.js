@@ -23,7 +23,7 @@ function eventBody() {
     };
 }
 
-function createApp({ projectCodes = ['brainbase'], eventService, feedbackService, cycleQueryService } = {}) {
+function createApp({ projectCodes = ['brainbase'], organizationId = 'org_a', authSource = 'bearer', eventService, feedbackService, cycleQueryService } = {}) {
     const services = {
         eventService: eventService || { ingest: vi.fn(async () => ({ event_id: 'kev_route_1', processing_stage: 'retrievable' })) },
         feedbackService: feedbackService || { recordFeedback: vi.fn(async () => ({ action: 'reject', semantic_state: 'retracted' })) },
@@ -32,7 +32,8 @@ function createApp({ projectCodes = ['brainbase'], eventService, feedbackService
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-        req.access = { role: 'member', projectCodes };
+        req.access = { role: 'member', projectCodes, organizationId };
+        req.authSource = authSource;
         next();
     });
     app.use('/api/knowledge', createKnowledgeEventRouter(services));
@@ -60,7 +61,28 @@ describe('knowledge event routes', () => {
 
         expect(response.body).toMatchObject({ event_id: 'kev_route_1', processing_stage: 'retrievable' });
         expect(eventService.ingest).toHaveBeenCalledWith(eventBody(), expect.objectContaining({
-            access: expect.objectContaining({ projectCodes: ['brainbase'] })
+            access: expect.objectContaining({ projectCodes: ['brainbase'], organizationId: 'org_a' })
+        }));
+    });
+
+    it('内部認証は明示organizationをaccessへ固定し、欠落と偽装を拒否する', async () => {
+        const { app, eventService } = createApp({ organizationId: null, authSource: 'internal' });
+
+        await request(app).post('/api/knowledge/events').send(eventBody()).expect(403);
+        await request(app)
+            .post('/api/knowledge/events')
+            .set('x-brainbase-organization-id', 'org_a')
+            .send({ ...eventBody(), organization_id: 'org_b' })
+            .expect(403);
+        await request(app)
+            .post('/api/knowledge/events')
+            .set('x-brainbase-organization-id', 'org_a')
+            .send(eventBody())
+            .expect(202);
+
+        expect(eventService.ingest).toHaveBeenCalledTimes(1);
+        expect(eventService.ingest).toHaveBeenCalledWith(eventBody(), expect.objectContaining({
+            access: expect.objectContaining({ organizationId: 'org_a' })
         }));
     });
 

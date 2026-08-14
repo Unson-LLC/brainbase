@@ -321,7 +321,12 @@ export function registerApiRoutes(app, {
         routineLivenessService
     }));
     if (routineCycleExecutor) {
-        app.use('/api/routines', workflowAuthGuard, createRoutineRouter({ routineCycleExecutor }));
+        app.use(
+            '/api/routines',
+            workflowAuthGuard,
+            personalKnowledgeAccessGuard,
+            createRoutineRouter({ routineCycleExecutor })
+        );
     }
     if (meetingSourceMcpSyncService) {
         app.use('/api/settings/meeting-sources', workflowAuthGuard, createMeetingSourceSettingsRouter(meetingSourceMcpSyncService));

@@ -241,7 +241,17 @@ export async function executeRoutineOverHttp({ routine, input = {}, env = proces
     if (!baseUrl) throw new Error('BRAINBASE_API_URL is required');
     if (typeof fetchImpl !== 'function') throw new Error('fetch is unavailable');
     const auth = resolveRoutineAuth({ env, endpoint: baseUrl });
-    const headers = { 'Content-Type': 'application/json', ...routineAuthHeaders(auth) };
+    const personId = env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID;
+    const organizationId = env.BRAINBASE_ORGANIZATION_ID;
+    if (!personId || !organizationId) {
+        throw new Error('BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID and BRAINBASE_ORGANIZATION_ID are required');
+    }
+    const headers = {
+        'Content-Type': 'application/json',
+        ...routineAuthHeaders(auth),
+        'x-brainbase-proxy-person-id': personId,
+        'x-brainbase-organization-id': organizationId
+    };
     const response = await fetchImpl(`${baseUrl}/api/routines/${routine}/execute`, {
         method: 'POST',
         headers,
