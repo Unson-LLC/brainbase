@@ -287,6 +287,67 @@ describe('AdminVisualizationService', () => {
         expect(result.records.map((record) => record.id)).toEqual(['legacy-owner-row']);
     });
 
+    it('INV-5 Contract-7: Personal KG uses an owner and organization scoped repository transaction', async () => {
+        const calls = [];
+        const scopedRepository = {
+            async summarizePersonalKg(filter) {
+                calls.push(['summarizePersonalKg', filter]);
+                return { total: 1, active_count: 1, core_count: 1 };
+            },
+            async listPersonalKg(filter) {
+                calls.push(['listPersonalKg', filter]);
+                return [{
+                    id: 'scoped-row',
+                    owner_person_id: 'sato_keigo',
+                    cognitive_type: 'insight',
+                    visibility: 'owner',
+                    sensitivity: 'internal',
+                    role_min: 'member',
+                    promotion_status: 'approved',
+                    redaction_status: 'none',
+                    body: 'scoped memory',
+                    created_at: '2026-06-13T18:03:15.814Z'
+                }];
+            }
+        };
+        const repository = {
+            async list() {
+                throw new Error('unscoped list must not be called');
+            },
+            async summarizePersonalKg() {
+                throw new Error('unscoped summary must not be called');
+            },
+            async listPersonalKg() {
+                throw new Error('unscoped Personal KG list must not be called');
+            },
+            async transaction(work, options) {
+                calls.push(['transaction', options.access]);
+                return work(scopedRepository);
+            }
+        };
+
+        const result = await new AdminVisualizationService({
+            candidateRepository: repository,
+            env: {
+                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
+                BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS: 'per_current'
+            }
+        }).listPersonalKg({
+            role: 'ceo',
+            projectCodes: ['brainbase'],
+            clearance: ['internal'],
+            personId: 'per_current',
+            organizationId: 'unson'
+        }, { limit: 1 });
+
+        expect(calls[0]).toEqual(['transaction', expect.objectContaining({
+            personId: 'sato_keigo',
+            organizationId: 'unson'
+        })]);
+        expect(calls.map(([method]) => method)).toEqual(['transaction', 'summarizePersonalKg', 'listPersonalKg']);
+        expect(result.records.map((record) => record.id)).toEqual(['scoped-row']);
+    });
+
     it('INV-5 Contract-7: Personal KG summary fallback still applies owner visibility and filters', async () => {
         const repository = {
             async summarizePersonalKg() {
@@ -465,6 +526,55 @@ describe('AdminVisualizationService', () => {
         expect(health.sources.find((source) => source.source_class === 'runtime_config').status).toBe('unavailable');
         expect(JSON.stringify(health)).not.toContain('missing relation');
         expect(JSON.stringify(health)).not.toContain('postgres://user:secret@example.com/db');
+    });
+
+    it('INV-8 Contract-6: health checks Personal KG inside the owner and organization scoped transaction', async () => {
+        const calls = [];
+        const service = new AdminVisualizationService({
+            candidateRepository: {
+                async list() {
+                    throw new Error('unscoped list must not be called');
+                },
+                async summarizePersonalKg() {
+                    throw new Error('unscoped summary must not be called');
+                },
+                async listPersonalKg() {
+                    throw new Error('unscoped Personal KG list must not be called');
+                },
+                async transaction(work, options) {
+                    calls.push(['transaction', options.access]);
+                    return work({
+                        async summarizePersonalKg(filter) {
+                            calls.push(['summarizePersonalKg', filter]);
+                            return { total: 1, active_count: 1 };
+                        },
+                        async listPersonalKg(filter) {
+                            calls.push(['listPersonalKg', filter]);
+                            return [];
+                        }
+                    });
+                }
+            },
+            env: {
+                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
+                BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS: 'per_current'
+            }
+        });
+
+        const readiness = await service.getPersonalKgReadiness({
+            role: 'ceo',
+            projectCodes: ['brainbase'],
+            clearance: ['internal'],
+            personId: 'per_current',
+            organizationId: 'unson'
+        });
+
+        expect(calls[0]).toEqual(['transaction', expect.objectContaining({
+            personId: 'sato_keigo',
+            organizationId: 'unson'
+        })]);
+        expect(calls.map(([method]) => method)).toEqual(['transaction', 'summarizePersonalKg', 'listPersonalKg']);
+        expect(readiness.status).toBe('available');
     });
 
     it('INV-8 AP-3: unavailable source reasons do not expose upstream exception text', async () => {

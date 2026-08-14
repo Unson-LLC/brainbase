@@ -214,6 +214,52 @@ describe('PgCandidateRepository contract', () => {
         expect(pg.calls[0].params).toEqual(['sato_keigo', ['observation', 'insight', 'claim', 'preference', 'hypothesis', 'experiment', 'result'], ['member'], ['internal']]);
     });
 
+    it('exposes Personal KG list and summary through the RLS-scoped transaction client', async () => {
+        const calls = [];
+        const client = {
+            async query(sql, params = []) {
+                const normalized = sql.replace(/\s+/g, ' ').trim();
+                calls.push({ sql: normalized, params });
+                if (normalized.startsWith('SELECT *,') && normalized.includes('FROM memory_candidates')) {
+                    return { rows: [dbRow({ memory_layer: 'personal_kg_core' })] };
+                }
+                if (normalized.startsWith('WITH filtered AS')) {
+                    return { rows: [{ total: 1, active_count: 1, core_count: 1 }] };
+                }
+                return { rows: [] };
+            },
+            release() {}
+        };
+        const pool = {
+            async query() {
+                throw new Error('unscoped pool query must not be called');
+            },
+            async connect() {
+                return client;
+            }
+        };
+        const repo = new PgCandidateRepository({ pool });
+
+        const result = await repo.transaction(async (scoped) => ({
+            rows: await scoped.listPersonalKg({ owner_person_id: 'sato_keigo', owner_read: true, limit: 1 }),
+            summary: await scoped.summarizePersonalKg({ owner_person_id: 'sato_keigo', owner_read: true })
+        }), {
+            access: {
+                personId: 'sato_keigo',
+                organizationId: 'unson',
+                projectCodes: ['brainbase'],
+                role: 'ceo',
+                clearance: ['internal']
+            }
+        });
+
+        expect(result.rows.map((row) => row.id)).toEqual(['cand_pg_1']);
+        expect(result.summary).toMatchObject({ total: 1, active_count: 1, core_count: 1 });
+        expect(calls.some(({ params }) => params[0] === 'app.person_id' && params[1] === 'sato_keigo')).toBe(true);
+        expect(calls.some(({ params }) => params[0] === 'app.organization_id' && params[1] === 'unson')).toBe(true);
+        expect(calls.filter(({ sql }) => sql.includes('FROM memory_candidates'))).toHaveLength(2);
+    });
+
     it('searches only active Personal KG rows', async () => {
         const pg = new ScriptedPg([{ rows: [dbRow()] }]);
         const repo = new PgCandidateRepository({ pool: pg });

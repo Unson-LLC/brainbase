@@ -138,6 +138,8 @@ function scopedCandidateRepository(repository, client) {
         findById: (id) => repository.findById(id, { client }),
         findByEventId: (id, options = {}) => repository.findByEventId(id, { ...options, client }),
         list: (filter = {}) => repository.list(filter, { client }),
+        listPersonalKg: (filter = {}) => repository.listPersonalKg(filter, { client }),
+        summarizePersonalKg: (filter = {}) => repository.summarizePersonalKg(filter, { client }),
         searchPersonalKg: (filter = {}) => repository.searchPersonalKg(filter, { client }),
         transitionWithAudit: (id, nextStatus, audit, options = {}) => repository.transitionWithAudit(
             id, nextStatus, audit, { ...options, client }
@@ -633,12 +635,12 @@ export class PgCandidateRepository {
         return normalizeCandidate(rows[0]);
     }
 
-    async listPersonalKg(filter = {}) {
+    async listPersonalKg(filter = {}, { client } = {}) {
         const { where, params } = buildPersonalKgWhere(filter);
         params.push(clampLimit(filter.limit, 50, 500));
         const layerSql = personalKgMemoryLayerSql();
         const snsReadySql = personalKgSnsReadySql();
-        const { rows } = await this.pool.query(
+        const { rows } = await (client || this.pool).query(
             `SELECT *, ${layerSql} AS memory_layer, ${snsReadySql} AS sns_ready
              FROM memory_candidates
              ${where}
@@ -649,11 +651,11 @@ export class PgCandidateRepository {
         return rows.map(normalizeCandidate);
     }
 
-    async summarizePersonalKg(filter = {}) {
+    async summarizePersonalKg(filter = {}, { client } = {}) {
         const { where, params } = buildPersonalKgWhere(filter);
         const layerSql = personalKgMemoryLayerSql();
         const snsReadySql = personalKgSnsReadySql();
-        const { rows } = await this.pool.query(
+        const { rows } = await (client || this.pool).query(
             `WITH filtered AS (
                 SELECT *, ${layerSql} AS memory_layer, ${snsReadySql} AS sns_ready
                 FROM memory_candidates

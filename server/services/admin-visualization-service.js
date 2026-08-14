@@ -63,7 +63,8 @@ function accessSafe(access = {}) {
         teamIds: Array.isArray(access.teamIds) ? access.teamIds : Array.isArray(access.team_ids) ? access.team_ids : [],
         orgIds: Array.isArray(access.orgIds) ? access.orgIds : Array.isArray(access.org_ids) ? access.org_ids : [],
         clearance: Array.isArray(access.clearance) && access.clearance.length ? access.clearance : ['internal'],
-        personId: access.personId || null
+        personId: access.personId || access.person_id || null,
+        organizationId: access.organizationId || access.organization_id || access.tenantId || null
     };
 }
 
@@ -342,6 +343,15 @@ export class AdminVisualizationService {
         this.clock = clock;
     }
 
+    async withPersonalKgRepository(access, ownerPersonId, work) {
+        if (!hasMethod(this.candidateRepository, 'transaction')) {
+            return work(this.candidateRepository);
+        }
+        return this.candidateRepository.transaction(work, {
+            access: { ...access, personId: ownerPersonId }
+        });
+    }
+
     async getOverview(access = {}) {
         const [graph, candidates, personalKg, health] = await Promise.all([
             this.listGraphEntities(access, { limit: 500 }),
@@ -450,31 +460,51 @@ export class AdminVisualizationService {
         }
         try {
             const repoFilter = personalKgRepositoryFilter(safeAccess, ownerPersonId, filters, safeLimit, this.env);
-            if (hasMethod(this.candidateRepository, 'summarizePersonalKg')) {
-                const summary = normalizeSummaryObject(await this.candidateRepository.summarizePersonalKg(repoFilter), {
-                    returnedCount: 0,
-                    summaryLimit: filters.records === false ? 0 : safeLimit,
-                    truncated: false
-                });
-                if (filters.records === false) {
+            return await this.withPersonalKgRepository(safeAccess, ownerPersonId, async (repository) => {
+                if (hasMethod(repository, 'summarizePersonalKg')) {
+                    const summary = normalizeSummaryObject(await repository.summarizePersonalKg(repoFilter), {
+                        returnedCount: 0,
+                        summaryLimit: filters.records === false ? 0 : safeLimit,
+                        truncated: false
+                    });
+                    if (filters.records === false) {
+                        return {
+                            source_class: SOURCE_CLASSES.PERSONAL_KG,
+                            status: 'available',
+                            owner_person_id: ownerPersonId,
+                            summary: { ...summary, returned_count: 0, limit: 0, truncated: false },
+                            records: [],
+                            warnings: []
+                        };
+                    }
+                    const rows = hasMethod(repository, 'listPersonalKg')
+                        ? await repository.listPersonalKg(repoFilter)
+                        : await repository.list({ owner_person_id: ownerPersonId, order_by: 'created_at', order_direction: 'desc', limit: 500 });
+                    const records = applyPersonalKgFilters(rows, ownerPersonId, safeAccess, filters, this.env)
+                        .slice(0, safeLimit)
+                        .map((record) => this.normalizePersonalKgRecord(record));
+                    summary.returned_count = records.length;
+                    summary.limit = safeLimit;
+                    summary.truncated = summary.total > records.length;
                     return {
                         source_class: SOURCE_CLASSES.PERSONAL_KG,
                         status: 'available',
                         owner_person_id: ownerPersonId,
-                        summary: { ...summary, returned_count: 0, limit: 0, truncated: false },
-                        records: [],
+                        summary,
+                        records,
                         warnings: []
                     };
                 }
-                const rows = hasMethod(this.candidateRepository, 'listPersonalKg')
-                    ? await this.candidateRepository.listPersonalKg(repoFilter)
-                    : await this.candidateRepository.list({ owner_person_id: ownerPersonId, order_by: 'created_at', order_direction: 'desc', limit: 500 });
-                const records = applyPersonalKgFilters(rows, ownerPersonId, safeAccess, filters, this.env)
-                    .slice(0, safeLimit)
+
+                const rows = await repository.list({ owner_person_id: ownerPersonId, order_by: 'created_at', order_direction: 'desc', limit: 500 });
+                const allRecords = applyPersonalKgFilters(rows, ownerPersonId, safeAccess, filters, this.env)
+                    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
                     .map((record) => this.normalizePersonalKgRecord(record));
+                const records = filters.records === false ? [] : allRecords.slice(0, safeLimit);
+                const summary = personalKgSummary(allRecords);
                 summary.returned_count = records.length;
-                summary.limit = safeLimit;
-                summary.truncated = summary.total > records.length;
+                summary.limit = filters.records === false ? 0 : safeLimit;
+                summary.truncated = filters.records === false ? false : allRecords.length > records.length;
                 return {
                     source_class: SOURCE_CLASSES.PERSONAL_KG,
                     status: 'available',
@@ -483,25 +513,7 @@ export class AdminVisualizationService {
                     records,
                     warnings: []
                 };
-            }
-
-            const rows = await this.candidateRepository.list({ owner_person_id: ownerPersonId, order_by: 'created_at', order_direction: 'desc', limit: 500 });
-            const allRecords = applyPersonalKgFilters(rows, ownerPersonId, safeAccess, filters, this.env)
-                .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
-                .map((record) => this.normalizePersonalKgRecord(record));
-            const records = filters.records === false ? [] : allRecords.slice(0, safeLimit);
-            const summary = personalKgSummary(allRecords);
-            summary.returned_count = records.length;
-            summary.limit = filters.records === false ? 0 : safeLimit;
-            summary.truncated = filters.records === false ? false : allRecords.length > records.length;
-            return {
-                source_class: SOURCE_CLASSES.PERSONAL_KG,
-                status: 'available',
-                owner_person_id: ownerPersonId,
-                summary,
-                records,
-                warnings: []
-            };
+            });
         } catch {
             return { source_class: SOURCE_CLASSES.PERSONAL_KG, status: 'unavailable', reason: '個人KGを取得できません。接続またはクエリをサーバーログで確認してください', owner_person_id: ownerPersonId, summary: emptyPersonalKgSummary({ limit: safeLimit }), records: [], warnings: [] };
         }
@@ -684,18 +696,20 @@ export class AdminVisualizationService {
 
         const repoFilter = personalKgRepositoryFilter(safeAccess, ownerPersonId, {}, 1, this.env);
         try {
-            if (hasMethod(this.candidateRepository, 'summarizePersonalKg')) {
-                await withHealthTimeout(this.candidateRepository.summarizePersonalKg(repoFilter), '個人KG read path確認がタイムアウトしました');
-                if (hasMethod(this.candidateRepository, 'listPersonalKg')) {
-                    await withHealthTimeout(this.candidateRepository.listPersonalKg(repoFilter), '個人KG read path確認がタイムアウトしました');
+            await withHealthTimeout(this.withPersonalKgRepository(safeAccess, ownerPersonId, async (repository) => {
+                if (hasMethod(repository, 'summarizePersonalKg')) {
+                    await repository.summarizePersonalKg(repoFilter);
+                    if (hasMethod(repository, 'listPersonalKg')) {
+                        await repository.listPersonalKg(repoFilter);
+                    } else {
+                        await repository.list({ owner_person_id: ownerPersonId, order_by: 'created_at', order_direction: 'desc', limit: 1 });
+                    }
+                } else if (hasMethod(repository, 'listPersonalKg')) {
+                    await repository.listPersonalKg(repoFilter);
                 } else {
-                    await withHealthTimeout(this.candidateRepository.list({ owner_person_id: ownerPersonId, order_by: 'created_at', order_direction: 'desc', limit: 1 }), '個人KG read path確認がタイムアウトしました');
+                    await repository.list({ owner_person_id: ownerPersonId, order_by: 'created_at', order_direction: 'desc', limit: 1 });
                 }
-            } else if (hasMethod(this.candidateRepository, 'listPersonalKg')) {
-                await withHealthTimeout(this.candidateRepository.listPersonalKg(repoFilter), '個人KG read path確認がタイムアウトしました');
-            } else {
-                await withHealthTimeout(this.candidateRepository.list({ owner_person_id: ownerPersonId, order_by: 'created_at', order_direction: 'desc', limit: 1 }), '個人KG read path確認がタイムアウトしました');
-            }
+            }), '個人KG read path確認がタイムアウトしました');
             return { source_class: SOURCE_CLASSES.PERSONAL_KG, label: '個人KG read path', status: 'available' };
         } catch {
             return { source_class: SOURCE_CLASSES.PERSONAL_KG, label: '個人KG read path', status: 'unavailable', reason: '個人KG read path確認に失敗しました。migrationまたは権限をサーバーログで確認してください' };
