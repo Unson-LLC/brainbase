@@ -171,7 +171,7 @@ export function buildRoutineRunReceipt({
     return buildCodexAutomationReceipt({
         automation_id: automationId,
         project_id: 'brainbase',
-        run_id: threadId,
+        run_id: threadId ? `${threadId}:${finishedAt}` : undefined,
         observation_id: threadId ? undefined : `routine:${normalizedRoutine}:${finishedAt}`,
         status: input.status,
         ...(input.blocker_reason ? { blocker_reason: input.blocker_reason } : {}),
