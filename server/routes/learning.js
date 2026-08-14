@@ -3,7 +3,7 @@ import { LearningController } from '../controllers/learning-controller.js';
 
 export function createLearningRouter(learningService, learningHealthService = null, options = {}) {
     const router = express.Router();
-    const controller = new LearningController(learningService, learningHealthService);
+    const controller = new LearningController(learningService, learningHealthService, options);
     const promoteToGraphAuthGuard = typeof options.promoteToGraphAuthGuard === 'function'
         ? options.promoteToGraphAuthGuard
         : (_req, res) => res.status(503).json({ error: 'Learning Graph promotion auth guard not configured' });
