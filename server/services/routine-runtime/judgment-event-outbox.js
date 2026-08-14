@@ -177,7 +177,9 @@ export async function deliverJudgmentKnowledgeEventOutbox({
             if (!response?.ok) {
                 lastStatus = Number.isInteger(response?.status) ? response.status : null;
                 const error = new Error('knowledge event delivery failed');
-                error.code = 'knowledge_event_delivery_http_error';
+                error.code = lastStatus === 409
+                    ? 'knowledge_event_conflict'
+                    : 'knowledge_event_delivery_http_error';
                 throw error;
             }
             unlinkSync(target);
@@ -197,7 +199,7 @@ export async function deliverJudgmentKnowledgeEventOutbox({
                     last_error_code: lastErrorCode
                 }
             };
-            if (next.delivery.attempt > maxAttempts) {
+            if (lastStatus === 409 || next.delivery.attempt > maxAttempts) {
                 atomicWrite(target, next);
                 moveToDeadLetter(target, file);
             } else {

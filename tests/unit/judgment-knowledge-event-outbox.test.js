@@ -333,6 +333,45 @@ describe('Judgment Host knowledge event outbox', () => {
         expect(fetchImpl).toHaveBeenCalledOnce();
     });
 
+    it('409の恒久衝突は再試行せず診断付きでdead-letterへ隔離する', async () => {
+        const outboxModuleUrl = pathToFileURL(join(
+            process.cwd(),
+            'server/services/routine-runtime/judgment-event-outbox.js'
+        )).href;
+        const { deliverJudgmentKnowledgeEventOutbox, enqueueJudgmentKnowledgeEvent } = await import(
+            /* @vite-ignore */ outboxModuleUrl
+        );
+        const root = temporaryDirectory();
+        const outboxDir = join(root, 'outbox');
+        const deadLetterDir = join(root, 'dead-letter');
+        enqueueJudgmentKnowledgeEvent({
+            event_id: 'kev_conflict',
+            contract_version: 'knowledge_event.v1',
+            organization_id: 'org_unson'
+        }, { directory: outboxDir });
+
+        await expect(deliverJudgmentKnowledgeEventOutbox({
+            outboxDir,
+            deadLetterDir,
+            endpoint: 'http://127.0.0.1:31013/api/knowledge/events',
+            internalApiKey: 'internal-secret',
+            fetchImpl: vi.fn(async () => ({ ok: false, status: 409 })),
+            maxAttempts: 5
+        })).resolves.toMatchObject({
+            delivered: 0,
+            failed: 1,
+            retryable: 0,
+            dead_lettered: 1,
+            pending: 0
+        });
+        const deadLetter = JSON.parse(readFileSync(join(deadLetterDir, 'kev_conflict.json'), 'utf8'));
+        expect(deadLetter.delivery).toMatchObject({
+            attempt: 2,
+            last_status: 409,
+            last_error_code: 'knowledge_event_conflict'
+        });
+    });
+
     it('個別Outbox設定がなくてもcanonical var配下へcompleted eventを永続化する', async () => {
         const root = temporaryDirectory();
         const canonicalVarDir = join(root, 'canonical-var');
