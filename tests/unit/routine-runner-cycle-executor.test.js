@@ -42,6 +42,8 @@ describe('Routine Runner cycle execution', () => {
             repoDir,
             env: {
                 CODEX_THREAD_ID: 'thread-local-auth',
+                BRAINBASE_API_URL: 'https://bb.unson.jp',
+                BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'receipt-must-not-be-used-locally',
                 INTERNAL_API_SECRET: 'local-internal-key',
                 BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
                 BRAINBASE_ORGANIZATION_ID: 'unson',
@@ -84,6 +86,22 @@ describe('Routine Runner cycle execution', () => {
 
         const runnerSource = fs.readFileSync(path.join(process.cwd(), 'scripts/routines/run.mjs'), 'utf8');
         expect(runnerSource).toMatch(/process\.exitCode\s*=\s*exitCodeForRoutineStatus\(/);
+    });
+
+    it('外部routine endpointは専用tokenがなければ送信せずfail closedにする', async () => {
+        const fetchImpl = vi.fn();
+
+        await expect(routineRunner.executeRoutineOverHttp({
+            routine: 'ohayo',
+            env: {
+                BRAINBASE_ROUTINE_API_URL: 'https://routine.example',
+                BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'receipt-token',
+                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
+                BRAINBASE_ORGANIZATION_ID: 'unson'
+            },
+            fetchImpl
+        })).rejects.toThrow('routine authentication is required');
+        expect(fetchImpl).not.toHaveBeenCalled();
     });
 
     it('completedでもroutine_summary欠落ならrequired_artifact_missingのfailed Receiptを残す', async () => {
@@ -147,7 +165,8 @@ describe('Routine Runner cycle execution', () => {
             repoDir,
             env: {
                 CODEX_THREAD_ID: 'thread-http-1',
-                BRAINBASE_API_URL: 'https://brainbase.example',
+                BRAINBASE_ROUTINE_API_URL: 'https://brainbase.example',
+                BRAINBASE_ROUTINE_SERVICE_TOKEN: 'routine-token',
                 BRAINBASE_RUN_RECEIPT_INGEST_URL: 'https://brainbase.example/api/run-receipts/ingest',
                 BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'service-token',
                 BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
@@ -163,7 +182,7 @@ describe('Routine Runner cycle execution', () => {
             options: {
                 method: 'POST',
                 headers: expect.objectContaining({
-                    Authorization: 'Bearer service-token',
+                    Authorization: 'Bearer routine-token',
                     'Content-Type': 'application/json',
                     'x-brainbase-proxy-person-id': 'sato_keigo',
                     'x-brainbase-organization-id': 'unson'

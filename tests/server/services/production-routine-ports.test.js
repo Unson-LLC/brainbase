@@ -38,6 +38,7 @@ function createPorts(overrides = {}) {
             promotion_status: 'pending_approval'
         }])
     };
+    candidateRepository.transaction = vi.fn(async (work) => work(candidateRepository));
     const personalKnowledgeService = {
         summarizeRoutineState: vi.fn(async () => ({
             unprocessed_count: 0,
@@ -161,7 +162,7 @@ describe('ProductionRoutinePorts', () => {
     });
 
     it('oyasumiは残件と登録先を分けた夜の結論を作る', async () => {
-        const { ports } = createPorts();
+        const { dependencies, ports } = createPorts();
 
         await expect(ports.buildNightOutput({
             input: {
@@ -182,6 +183,10 @@ describe('ProductionRoutinePorts', () => {
                 { id: 'candidate-graph-1', status: 'pending_approval', summary: '顧客Aの正式方針' }
             ]
         });
+        expect(dependencies.candidateRepository.transaction).toHaveBeenCalledWith(
+            expect.any(Function),
+            { access: context.access }
+        );
     });
 
     it('ohayoはInfoSSOT Graphと認証本人のPersonal Vaultだけを想起する', async () => {
@@ -443,10 +448,14 @@ describe('ProductionRoutinePorts', () => {
             ],
             graph_promotion_reviews: [{ id: 'candidate-graph-1', status: 'pending_approval', summary: '顧客Aの正式方針' }]
         });
+        expect(dependencies.candidateRepository.transaction).toHaveBeenCalledWith(
+            expect.any(Function),
+            { access: context.access }
+        );
         expect(dependencies.candidateRepository.list).toHaveBeenCalledWith(expect.objectContaining({
             project_code: 'brainbase',
             promotion_status: 'pending_approval'
-        }), context);
+        }));
     });
 
     it('retroの集計期間と3ルーティンIDをknowledgeとReceiptの両方へ伝播する', async () => {

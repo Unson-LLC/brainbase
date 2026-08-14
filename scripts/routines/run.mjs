@@ -33,19 +33,29 @@ function isLoopbackUrl(value) {
 }
 
 function resolveRoutineApiUrl(env) {
-    if (env.BRAINBASE_API_URL) return String(env.BRAINBASE_API_URL).replace(/\/$/, '');
-    return env.INTERNAL_API_SECRET ? DEFAULT_LOCAL_API_URL : '';
+    if (env.BRAINBASE_ROUTINE_API_URL) {
+        return String(env.BRAINBASE_ROUTINE_API_URL).replace(/\/$/, '');
+    }
+    if (env.INTERNAL_API_SECRET) return DEFAULT_LOCAL_API_URL;
+    return env.BRAINBASE_API_URL ? String(env.BRAINBASE_API_URL).replace(/\/$/, '') : '';
 }
 
-function resolveRoutineAuth({ env, endpoint }) {
-    if (env.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN) {
-        return { serviceToken: env.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN, internalApiKey: null };
-    }
+function resolveRoutineExecutionAuth({ env, endpoint }) {
     if (env.INTERNAL_API_SECRET && isLoopbackUrl(endpoint)) {
         return { serviceToken: null, internalApiKey: env.INTERNAL_API_SECRET };
     }
-    if (env.BRAINBASE_SERVICE_TOKEN) {
-        return { serviceToken: env.BRAINBASE_SERVICE_TOKEN, internalApiKey: null };
+    if (env.BRAINBASE_ROUTINE_SERVICE_TOKEN) {
+        return { serviceToken: env.BRAINBASE_ROUTINE_SERVICE_TOKEN, internalApiKey: null };
+    }
+    return { serviceToken: null, internalApiKey: null };
+}
+
+function resolveReceiptAuth({ env, endpoint }) {
+    if (env.INTERNAL_API_SECRET && isLoopbackUrl(endpoint)) {
+        return { serviceToken: null, internalApiKey: env.INTERNAL_API_SECRET };
+    }
+    if (env.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN) {
+        return { serviceToken: env.BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN, internalApiKey: null };
     }
     return { serviceToken: null, internalApiKey: null };
 }
@@ -243,7 +253,7 @@ export async function runRoutine({
     const baseUrl = resolveRoutineApiUrl(env);
     const receiptEndpoint = env.BRAINBASE_RUN_RECEIPT_INGEST_URL
         || (baseUrl ? `${baseUrl}/api/run-receipts/ingest` : undefined);
-    const receiptAuth = resolveRoutineAuth({ env, endpoint: receiptEndpoint });
+    const receiptAuth = resolveReceiptAuth({ env, endpoint: receiptEndpoint });
     const delivery = await deliverCodexAutomationOutbox({
         outboxDir,
         deadLetterDir,
@@ -265,9 +275,12 @@ export async function runRoutine({
 
 export async function executeRoutineOverHttp({ routine, input = {}, env = process.env, fetchImpl = globalThis.fetch }) {
     const baseUrl = resolveRoutineApiUrl(env);
-    if (!baseUrl) throw new Error('BRAINBASE_API_URL is required');
+    if (!baseUrl) throw new Error('BRAINBASE_ROUTINE_API_URL or local control plane is required');
     if (typeof fetchImpl !== 'function') throw new Error('fetch is unavailable');
-    const auth = resolveRoutineAuth({ env, endpoint: baseUrl });
+    const auth = resolveRoutineExecutionAuth({ env, endpoint: baseUrl });
+    if (!auth.serviceToken && !auth.internalApiKey) {
+        throw new Error('routine authentication is required');
+    }
     const personId = env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID;
     const organizationId = env.BRAINBASE_ORGANIZATION_ID;
     if (!personId || !organizationId) {
