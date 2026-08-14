@@ -76,6 +76,8 @@ describe('Routine execution API production wiring', () => {
         const response = await request(app)
             .post('/api/routines/ohayo/execute')
             .set('Authorization', 'Bearer bbsvc_routine-test')
+            .set('x-brainbase-proxy-person-id', 'sato_keigo')
+            .set('x-brainbase-organization-id', 'unson')
             .send({ thread_id: 'thread-route-1', input })
             .expect(200);
 
@@ -84,13 +86,14 @@ describe('Routine execution API production wiring', () => {
             { routine: 'ohayo', input },
             {
                 actor: expect.objectContaining({
-                    person_id: 'routine-worker',
+                    person_id: 'sato_keigo',
                     projectCodes: ['brainbase'],
                     role: 'member',
                     authSource: 'service-token'
                 }),
                 access: expect.objectContaining({
-                    personId: 'routine-worker',
+                    personId: 'sato_keigo',
+                    organizationId: 'unson',
                     projectCodes: ['brainbase'],
                     role: 'member'
                 }),
@@ -101,6 +104,20 @@ describe('Routine execution API production wiring', () => {
             status: 'completed',
             routine_summary: { routine: 'ohayo', status: 'completed' }
         });
+    });
+
+    it('内部・service認証のroutineは代理personとorganizationの明示を必須にする', async () => {
+        const routineCycleExecutor = { execute: vi.fn(async () => ({ status: 'completed' })) };
+        const { app } = createBootstrapApp({ routineCycleExecutor });
+
+        const response = await request(app)
+            .post('/api/routines/ohayo/execute')
+            .set('Authorization', 'Bearer bbsvc_routine-test')
+            .send({ input: { project_id: 'brainbase' } })
+            .expect(403);
+
+        expect(response.body).toEqual({ error: 'personal_knowledge_proxy_required' });
+        expect(routineCycleExecutor.execute).not.toHaveBeenCalled();
     });
 
     it('createCoreServicesからserver.jsとregisterApiRoutesを経て実依存のRoutineCycleExecutorを配線する', () => {
@@ -134,7 +151,8 @@ describe('Routine execution API production wiring', () => {
         expect(coreSource).toContain('routineCycleExecutor');
 
         expect(registrationSource).toContain("import { createRoutineRouter } from '../routes/routines.js'");
-        expect(registrationSource).toContain("app.use('/api/routines'");
+        expect(registrationSource).toMatch(/app\.use\(\s*['"]\/api\/routines['"]/);
+        expect(registrationSource).toContain('personalKnowledgeAccessGuard');
         expect(registrationSource).toContain('routineCycleExecutor');
         expect(serviceBinding).toContain('routineCycleExecutor');
         expect(serverRegistration).toContain('routineCycleExecutor');
@@ -225,6 +243,8 @@ describe('Routine execution API production wiring', () => {
         const response = await request(app)
             .post('/api/routines/ohayo/execute')
             .set('Authorization', 'Bearer bbsvc_routine-test')
+            .set('x-brainbase-proxy-person-id', 'sato_keigo')
+            .set('x-brainbase-organization-id', 'unson')
             .send({ thread_id: 'thread-unavailable', input: { project_id: 'brainbase' } })
             .expect(200);
 
@@ -245,6 +265,8 @@ describe('Routine execution API production wiring', () => {
         const response = await request(app)
             .post('/api/routines/ohayo/execute')
             .set('Authorization', 'Bearer bbsvc_routine-test')
+            .set('x-brainbase-proxy-person-id', 'sato_keigo')
+            .set('x-brainbase-organization-id', 'unson')
             .send({ input: { project_id: 'customer-project' } })
             .expect(403);
 

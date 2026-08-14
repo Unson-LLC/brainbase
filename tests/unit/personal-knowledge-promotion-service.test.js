@@ -62,6 +62,10 @@ describe('PersonalKnowledgePromotionService', () => {
         const repository = {
             transaction: vi.fn(async (handler) => handler({ client: {} })),
             findPromotionRequest: vi.fn(async () => request),
+            findById: vi.fn(async () => ({
+                event_id: 'pke_1',
+                parent_episode_id: 'personal_episode_1'
+            })),
             decidePromotionRequest: vi.fn(async (_id, decision) => ({ ...request, status: decision.status })),
             appendTransition: vi.fn(),
             createLineage: vi.fn(async (lineage) => lineage)
@@ -77,8 +81,33 @@ describe('PersonalKnowledgePromotionService', () => {
         expect(knowledgeEventService.ingest).toHaveBeenCalledWith(expect.objectContaining({
             event_id: first.organization_event_id,
             body: '採用する判断',
+            parent_episode_id: 'personal_episode_1',
             applicability_scope: expect.objectContaining({ project_code: 'brainbase', scope: 'organization' })
         }), expect.objectContaining({ access, client: expect.any(Object) }));
         expect(repository.createLineage).toHaveBeenCalled();
+    });
+
+    it('個人eventにEpisodeがない場合も決定的な昇格Episode IDを発行する', async () => {
+        const request = {
+            request_id: 'kpr_without_episode', personal_event_id: 'pke_without_episode',
+            owner_person_id: 'person_a', organization_id: 'org_a', project_code: 'brainbase',
+            status: 'pending_owner_approval', sanitized_preview: '共有する観察',
+            subject: { type: 'note', id: 'note_shared' }, body_hash: 'sha256:safe'
+        };
+        const repository = {
+            transaction: vi.fn(async (handler) => handler({ client: {} })),
+            findPromotionRequest: vi.fn(async () => request),
+            findById: vi.fn(async () => ({ event_id: 'pke_without_episode', parent_episode_id: null })),
+            decidePromotionRequest: vi.fn(async () => ({ ...request, status: 'approved' })),
+            createLineage: vi.fn(async (lineage) => lineage)
+        };
+        const knowledgeEventService = { ingest: vi.fn(async (event) => ({ event_id: event.event_id })) };
+        const service = new PersonalKnowledgePromotionService({ repository, knowledgeEventService });
+
+        await service.decidePromotion('kpr_without_episode', { decision: 'approve' }, { access });
+
+        expect(knowledgeEventService.ingest).toHaveBeenCalledWith(expect.objectContaining({
+            parent_episode_id: expect.stringMatching(/^episode_personal_promotion_[a-f0-9]{24}$/)
+        }), expect.any(Object));
     });
 });

@@ -76,6 +76,29 @@ function createHarness({ existing = null, authorityVerified = true, existingGrap
 }
 
 describe('KnowledgeEventService knowledge_event.v1 contract', () => {
+    it('eventから確定したorganizationを同一transactionのDB access contextへ渡す', async () => {
+        const eventRepository = {
+            withTransaction: vi.fn(async () => ({ event_id: 'kev_decision_1' }))
+        };
+        const service = new KnowledgeEventService({
+            eventRepository,
+            candidateRepository: {},
+            graphRepository: {},
+            externalActions: {}
+        });
+
+        await service.ingest(decisionEvent({ organization_id: 'org_a' }), {
+            access: { personId: 'person_a', projectCodes: ['brainbase'] }
+        });
+
+        expect(eventRepository.withTransaction).toHaveBeenCalledWith(expect.any(Function), {
+            access: expect.objectContaining({
+                personId: 'person_a',
+                organizationId: 'org_a'
+            })
+        });
+    });
+
     it.each(REQUIRED_FIELDS)('必須項目 %s の欠落を拒否する', async (field) => {
         const { service } = createHarness();
         const event = decisionEvent();

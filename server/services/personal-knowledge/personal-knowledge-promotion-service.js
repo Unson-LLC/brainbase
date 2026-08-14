@@ -78,6 +78,10 @@ export class PersonalKnowledgePromotionService {
             if (input.decision === 'reject') {
                 return this.repository.decidePromotionRequest(requestId, { status: 'rejected', decided_at: this.now().toISOString() }, options);
             }
+            const personalEvent = await this.repository.findById(request.personal_event_id, options);
+            if (!personalEvent) throw new Error('personal_knowledge_event_not_found');
+            const parentEpisodeId = personalEvent.parent_episode_id
+                || `episode_personal_promotion_${hash(request.personal_event_id).slice(0, 24)}`;
             const event = {
                 schema_version: 'knowledge_event.v1',
                 event_id: organizationEventId,
@@ -90,7 +94,7 @@ export class PersonalKnowledgePromotionService {
                 source_pointer: { uri: `brainbase://personal-knowledge/promotions/${requestId}` },
                 body_hash: request.body_hash,
                 body: request.sanitized_preview,
-                parent_episode_id: null,
+                parent_episode_id: parentEpisodeId,
                 organization_id: access.organizationId,
                 project_code: request.project_code,
                 sensitivity: 'internal', role_min: 'member', venue: 'personal_promotion'

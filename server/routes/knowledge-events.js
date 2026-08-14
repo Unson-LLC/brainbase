@@ -28,6 +28,37 @@ function requireProjectAccess(req, res) {
     return true;
 }
 
+function firstHeader(req, name) {
+    const value = req.headers?.[name];
+    return Array.isArray(value) ? value[0] : value || null;
+}
+
+function claimedOrganizationId(req) {
+    return req.body?.organization_id
+        || req.body?.applicability_scope?.organization_id
+        || req.body?.correction_event?.organization_id
+        || req.body?.correction_event?.applicability_scope?.organization_id
+        || null;
+}
+
+function requireOrganizationAccess(req, res) {
+    const isService = ['service-token', 'internal'].includes(req.authSource);
+    const proxyOrganizationId = firstHeader(req, 'x-brainbase-organization-id');
+    const authenticatedOrganizationId = req.access?.organizationId || req.access?.tenantId || null;
+    const organizationId = isService ? proxyOrganizationId : authenticatedOrganizationId;
+    if (!organizationId) {
+        res.status(403).json({ error: 'knowledge_organization_context_required' });
+        return false;
+    }
+    const claimedOrganization = claimedOrganizationId(req);
+    if (claimedOrganization && claimedOrganization !== organizationId) {
+        res.status(403).json({ error: 'knowledge_organization_scope_spoofing_rejected' });
+        return false;
+    }
+    req.access = { ...(req.access || {}), organizationId };
+    return true;
+}
+
 function route(handler) {
     return async (req, res) => {
         try {
@@ -45,11 +76,13 @@ function route(handler) {
 export function createKnowledgeEventRouter({ eventService, feedbackService, cycleQueryService }) {
     const router = Router();
     router.post('/events', route(async (req, res) => {
+        if (!requireOrganizationAccess(req, res)) return;
         if (!requireProjectAccess(req, res)) return;
         const result = await eventService.ingest(req.body, { access: req.access, auth: req.auth });
         res.status(202).json(result);
     }));
     router.post('/feedback', route(async (req, res) => {
+        if (!requireOrganizationAccess(req, res)) return;
         if (!requireProjectAccess(req, res)) return;
         const result = await feedbackService.recordFeedback(req.body, { access: req.access, auth: req.auth });
         res.json(result);
@@ -59,6 +92,7 @@ export function createKnowledgeEventRouter({ eventService, feedbackService, cycl
             res.status(400).json({ error: 'knowledge_project_code_required' });
             return;
         }
+        if (!requireOrganizationAccess(req, res)) return;
         if (!requireProjectAccess(req, res)) return;
         const result = await cycleQueryService.getCycle(req.params.eventId, {
             access: req.access,

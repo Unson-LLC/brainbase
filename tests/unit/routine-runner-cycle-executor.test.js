@@ -43,6 +43,8 @@ describe('Routine Runner cycle execution', () => {
             env: {
                 CODEX_THREAD_ID: 'thread-local-auth',
                 INTERNAL_API_SECRET: 'local-internal-key',
+                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
+                BRAINBASE_ORGANIZATION_ID: 'unson',
                 BRAINBASE_VAR_DIR: path.join(repoDir, 'canonical-var')
             },
             fetchImpl,
@@ -60,6 +62,10 @@ describe('Routine Runner cycle execution', () => {
             });
             expect(call.options.headers).not.toHaveProperty('Authorization');
         }
+        expect(calls[0].options.headers).toMatchObject({
+            'x-brainbase-proxy-person-id': 'sato_keigo',
+            'x-brainbase-organization-id': 'unson'
+        });
         expect(result).toMatchObject({ status: 'completed', delivery: { delivered: 1 } });
 
         const runnerSource = fs.readFileSync(path.join(process.cwd(), 'scripts/routines/run.mjs'), 'utf8');
@@ -143,7 +149,9 @@ describe('Routine Runner cycle execution', () => {
                 CODEX_THREAD_ID: 'thread-http-1',
                 BRAINBASE_API_URL: 'https://brainbase.example',
                 BRAINBASE_RUN_RECEIPT_INGEST_URL: 'https://brainbase.example/api/run-receipts/ingest',
-                BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'service-token'
+                BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'service-token',
+                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
+                BRAINBASE_ORGANIZATION_ID: 'unson'
             },
             input: { requested_at: '2026-08-13T00:00:00.000Z' },
             fetchImpl,
@@ -156,7 +164,9 @@ describe('Routine Runner cycle execution', () => {
                 method: 'POST',
                 headers: expect.objectContaining({
                     Authorization: 'Bearer service-token',
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'x-brainbase-proxy-person-id': 'sato_keigo',
+                    'x-brainbase-organization-id': 'unson'
                 })
             },
             body: {

@@ -385,6 +385,12 @@ export class KnowledgeEventService {
                 }
             } : {})
         };
+        const scopedContext = organizationId
+            ? {
+                ...context,
+                access: { ...(context.access || {}), organizationId }
+            }
+            : context;
         requireKnowledgeEvent(scopedEvent);
         const active = this.inFlight.get(scopedEvent.event_id);
         if (active) {
@@ -392,7 +398,7 @@ export class KnowledgeEventService {
             const result = await active.promise;
             return { ...result, idempotent: true };
         }
-        const operation = this._ingestWithContext(scopedEvent, context);
+        const operation = this._ingestWithContext(scopedEvent, scopedContext);
         this.inFlight.set(scopedEvent.event_id, { event: structuredClone(scopedEvent), promise: operation });
         try {
             return await operation;
