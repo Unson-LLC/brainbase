@@ -163,12 +163,15 @@ function decisionQuarantineReason(event) {
     return null;
 }
 
-function candidateInput(event, quarantineReason) {
+function candidateInput(event, quarantineReason, authenticatedOwnerPersonId = null) {
     const isDecision = event.subject?.type === 'decision';
     const autoPromote = isDecision && !quarantineReason;
     return {
         cognitive_type: isDecision ? 'claim' : 'observation',
-        owner_person_id: event.decision_authority?.decider_id || event.subject?.id || 'brainbase',
+        owner_person_id: authenticatedOwnerPersonId
+            || event.decision_authority?.decider_id
+            || event.subject?.id
+            || 'brainbase',
         actor_person_id: event.decision_authority?.decider_id || event.subject?.id || 'brainbase',
         source_system: event.source?.type || 'knowledge_event',
         source_event_ids: [event.event_id],
@@ -284,8 +287,8 @@ export class KnowledgeEventService {
             await eventRepository.appendStage(event.event_id, { stage: 'received', occurred_at: this.now() });
         }
         const candidate = client
-            ? await this.candidateRepository.create(candidateInput(event, quarantineReason), { client })
-            : await this.candidateRepository.create(candidateInput(event, quarantineReason));
+            ? await this.candidateRepository.create(candidateInput(event, quarantineReason, access?.personId), { client })
+            : await this.candidateRepository.create(candidateInput(event, quarantineReason, access?.personId));
         await this._appendStage(eventRepository, event.event_id, candidate.id, 'queued', client);
         await this._appendStage(eventRepository, event.event_id, candidate.id, 'extracted', client);
         await this._appendStage(eventRepository, event.event_id, candidate.id, 'resolved', client);

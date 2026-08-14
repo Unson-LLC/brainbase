@@ -99,6 +99,29 @@ describe('KnowledgeEventService knowledge_event.v1 contract', () => {
         });
     });
 
+    it('組織eventのcandidate ownerはevent本文ではなく認証主体から確定する', async () => {
+        const { service, candidateRepository } = createHarness();
+        const event = decisionEvent({
+            organization_id: 'org_a',
+            subject: { type: 'judgment_episode', id: 'spoofed_subject_owner' },
+            decision: undefined,
+            decision_authority: { authorized: false }
+        });
+
+        await service.ingest(event, {
+            access: {
+                personId: 'internal_api',
+                organizationId: 'org_a',
+                projectCodes: ['brainbase']
+            }
+        });
+
+        expect(candidateRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+            owner_person_id: 'internal_api',
+            organization_id: 'org_a'
+        }));
+    });
+
     it.each(REQUIRED_FIELDS)('必須項目 %s の欠落を拒否する', async (field) => {
         const { service } = createHarness();
         const event = decisionEvent();
