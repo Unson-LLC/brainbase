@@ -47,7 +47,62 @@ function safeMorningOutput(output) {
         })),
         memories: (Array.isArray(output?.memories) ? output.memories : []).slice(0, 3).map((item) => ({
             summary: String(item?.summary || '').slice(0, 2000)
-        })).filter((item) => item.summary)
+        })).filter((item) => item.summary),
+        ...(output?.routine_output ? { routine_output: safeRoutineOutput('ohayo', output.routine_output) } : {})
+    };
+}
+
+function safeText(value) {
+    return typeof value === 'string' && value.trim() ? value.trim().slice(0, 2000) : null;
+}
+
+function safeOutputItems(items, { review = false, reference = false } = {}) {
+    return (Array.isArray(items) ? items : []).slice(0, 10).map((item) => {
+        const summary = safeText(typeof item === 'string' ? item : item?.summary);
+        if (!summary) return null;
+        return {
+            ...(review && typeof item?.id === 'string' ? { id: item.id.slice(0, 200) } : {}),
+            ...(review && typeof item?.status === 'string' ? { status: item.status.slice(0, 100) } : {}),
+            ...(reference && typeof item?.source === 'string' ? { source: item.source.slice(0, 100) } : {}),
+            summary,
+            ...(item?.applies_changes === false ? { applies_changes: false } : {})
+        };
+    }).filter(Boolean);
+}
+
+function safeRoutineOutput(routine, output = {}) {
+    output = output || {};
+    const headline = safeText(output?.headline) || ({
+        ohayo: '今日進めることは未確定です',
+        oyasumi: '今日を閉じてよいか確認できていません',
+        retro: '来週から変える仕組みは未確定です'
+    }[routine] || 'ルーティン結果を確認できていません');
+    if (routine === 'ohayo') {
+        return {
+            headline,
+            today_focus: safeOutputItems(output.today_focus),
+            immediate_decisions: safeOutputItems(output.immediate_decisions),
+            warnings: safeOutputItems(output.warnings),
+            carryovers: safeOutputItems(output.carryovers),
+            references: safeOutputItems(output.references, { reference: true })
+        };
+    }
+    if (routine === 'oyasumi') {
+        return {
+            headline,
+            tomorrow_focus: safeOutputItems(output.tomorrow_focus),
+            closed: safeOutputItems(output.closed),
+            carryovers: safeOutputItems(output.carryovers),
+            personal_kg_registration_candidates: safeOutputItems(output.personal_kg_registration_candidates, { review: true }),
+            graph_promotion_reviews: safeOutputItems(output.graph_promotion_reviews, { review: true })
+        };
+    }
+    return {
+        headline,
+        system_changes: safeOutputItems(output.system_changes),
+        repeated_patterns: safeOutputItems(output.repeated_patterns),
+        personal_kg_registration_reviews: safeOutputItems(output.personal_kg_registration_reviews, { review: true }),
+        graph_promotion_reviews: safeOutputItems(output.graph_promotion_reviews, { review: true })
     };
 }
 
@@ -95,19 +150,28 @@ export class RoutineCycleExecutor {
 
     withSummary(routine, result) {
         const status = result?.status || 'failed';
+        const anomalies = Array.isArray(result?.anomalies) ? result.anomalies : [];
+        const coverage = result?.coverage || (status === 'failed'
+            ? 'unavailable'
+            : anomalies.length > 0 || status === 'partial' ? 'partial' : 'confirmed');
+        const routineOutput = safeRoutineOutput(routine, result?.routine_output);
         const summary = {
             routine,
             status,
-            anomaly_count: Array.isArray(result?.anomalies) ? result.anomalies.length : 0
+            coverage,
+            anomaly_count: anomalies.length,
+            headline: routineOutput.headline,
+            routine_output: routineOutput
         };
         return {
             ...result,
             summary,
             routine_summary: summary,
-            coverage: status,
+            routine_output: routineOutput,
+            coverage,
             artifacts: {
                 routine_summary: summary,
-                anomalies: Array.isArray(result?.anomalies) ? result.anomalies : []
+                anomalies
             },
             evidence_refs: [{ kind: 'artifact_ref', ref: `routine_summary:${routine}`, label: 'routine_summary' }]
         };
@@ -166,7 +230,23 @@ export class RoutineCycleExecutor {
                 anomalies: [{ code: 'knowledge_retrievability_unconfirmed' }]
             };
         }
-        return { status: 'completed', reconciliation, compression, verification, anomalies: [] };
+        const buildNightOutput = typeof this.oyasumiReconciler?.buildNightOutput === 'function'
+            ? this.oyasumiReconciler.buildNightOutput.bind(this.oyasumiReconciler)
+            : null;
+        const routineOutput = buildNightOutput
+            ? context === undefined
+                ? await buildNightOutput({ input: input.input || {}, reconciliation, compression, verification })
+                : await buildNightOutput({ input: input.input || {}, reconciliation, compression, verification }, context)
+            : null;
+        return {
+            status: 'completed',
+            coverage: buildNightOutput ? 'confirmed' : 'partial',
+            reconciliation,
+            compression,
+            verification,
+            routine_output: routineOutput,
+            anomalies: []
+        };
     }
 
     async executeOhayo(input, context) {
@@ -233,11 +313,22 @@ export class RoutineCycleExecutor {
             }
         }
         const morningOutput = safeMorningOutput(generated?.morning_output);
+        const routineOutput = morningOutput.routine_output || {
+            headline: morningOutput.memories[0]?.summary
+                ? `今日は「${morningOutput.memories[0].summary}」を判断軸に進める`
+                : '今日進めることは未確定です',
+            today_focus: morningOutput.memories.slice(0, 1),
+            immediate_decisions: morningOutput.memories.slice(1),
+            warnings: morningOutput.exceptions,
+            carryovers: [],
+            references: []
+        };
         return {
             status: anomalies.length > 0 ? 'partial' : 'completed',
             exceptions: morningOutput.exceptions,
             used_knowledge_ids: usedKnowledgeIds,
             ...(generated?.morning_output ? { morning_output: morningOutput } : {}),
+            routine_output: routineOutput,
             ...(judgmentOutboxDelivery ? { judgment_outbox_delivery: judgmentOutboxDelivery } : {}),
             anomalies
         };
@@ -270,10 +361,33 @@ export class RoutineCycleExecutor {
         const candidates = context === undefined
             ? await createCandidates(candidateInput)
             : await createCandidates(candidateInput, context);
+        let reviews = null;
+        const listKnowledgeReviews = typeof this.retroService?.listKnowledgeReviews === 'function'
+            ? this.retroService.listKnowledgeReviews.bind(this.retroService)
+            : null;
+        if (listKnowledgeReviews) {
+            reviews = context === undefined
+                ? await listKnowledgeReviews({ input: input.input || {}, limit: 10 })
+                : await listKnowledgeReviews({ input: input.input || {}, limit: 10 }, context);
+        }
+        const improvementCandidates = (Array.isArray(candidates) ? candidates : []).slice(0, 3);
         return {
             status: 'completed',
+            coverage: listKnowledgeReviews ? 'confirmed' : 'partial',
             metrics,
-            improvement_candidates: (Array.isArray(candidates) ? candidates : []).slice(0, 3),
+            improvement_candidates: improvementCandidates,
+            routine_output: {
+                headline: improvementCandidates.length > 0
+                    ? '来週から、繰り返し起きた詰まりを仕組みで減らす'
+                    : '来週から変える仕組みはありません',
+                system_changes: improvementCandidates.map((candidate) => ({
+                    summary: typeof candidate === 'string' ? candidate : candidate?.summary || candidate?.metric,
+                    applies_changes: false
+                })),
+                repeated_patterns: [],
+                personal_kg_registration_reviews: reviews?.personal_kg_registration_reviews || [],
+                graph_promotion_reviews: reviews?.graph_promotion_reviews || []
+            },
             anomalies: []
         };
     }

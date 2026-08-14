@@ -6,68 +6,40 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-function readCommand(name) {
-    return fs.readFileSync(path.join(repoRoot, `.claude/commands/${name}.md`), 'utf8');
+function read(relativePath) {
+    return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
 }
 
-describe('Brainbase daily routine command contracts', () => {
-    it('three routines preserve uncertainty and separate execution from coverage', () => {
+describe('Brainbase routine outcome contract', () => {
+    const spec = read('docs/specs/brainbase-memory-routine-cycle-spec.md');
+    const story = read('docs/stories/brainbase-memory-routine-cycle-story.md');
+
+    it('three commands remain thin runner entrypoints', () => {
         for (const name of ['oyasumi', 'ohayo', 'retro']) {
-            const command = readCommand(name);
-
-            for (const status of ['`成功`', '`部分成功`', '`未確認`', '`失敗`']) {
-                expect(command, `${name} must define ${status}`).toContain(status);
-            }
-
-            expect(command).toContain('timeout');
-            expect(command).toMatch(/0件|0件へ|0件と/);
-            expect(command).not.toContain('http://localhost:31013/api/wiki/page');
-            expect(command).not.toContain('scripts/archive-blocked-report.mjs');
-            expect(command).not.toMatch(/scripts\/bin\/bb-report-submit\.mjs/);
-            expect(command).not.toMatch(/npm run (sns:|oyasumi:)/);
-            expect(command).not.toMatch(/node cli\/index\.js learn/);
-            expect(command).not.toMatch(/gog (calendar|gmail|auth)/);
-            expect(command).toContain('実行状態');
-            expect(command).toContain('確認範囲');
-            expect(command).toContain('確認済み');
-            expect(command).toContain('部分的');
+            const command = read(`.claude/commands/${name}.md`);
+            expect(command).toContain(`node scripts/routines/run.mjs ${name}`);
+            expect(command.split('\n').filter((line) => line.trim())).toHaveLength(3);
         }
     });
 
-    it('oyasumi closes the day with only outcomes, carryover, and reflection candidates', () => {
-        const command = readCommand('oyasumi');
-
-        expect(command).toContain('今日を閉じ、未解決だけを翌日に渡す');
-        expect(command).toContain('## 今日閉じたこと');
-        expect(command).toContain('## 明日へ持ち越すこと');
-        expect(command).toContain('## 振り返り候補');
-        expect(command).toContain('`昇格レビュー待ち`');
-        expect(command).toContain('Graphの確認と昇格判断は`/retro`へ任せ');
+    it('status and coverage remain separate and unavailable sources are not empty results', () => {
+        expect(spec).toContain('`status`は処理成否');
+        expect(spec).toContain('`coverage`は`confirmed|partial|unavailable`');
+        expect(story).toContain('取得不能を確認済み0件へ変換しない');
     });
 
-    it('ohayo shows only decisions, anomalies, and carryover', () => {
-        const command = readCommand('ohayo');
-
-        expect(command).toContain('今日、人間が決めることを明らかにする');
-        expect(command).toContain('## 要判断');
-        expect(command).toContain('## 異常');
-        expect(command).toContain('## 持ち越し');
-        expect(command).toContain('情報だけの項目は表示しない');
-        expect(command).toContain('実行予定・猶予時間');
-        expect(command).toContain('無効化・廃止済み');
+    it('ohayo and oyasumi define hierarchical user outcomes', () => {
+        expect(spec).toContain('`today_focus`');
+        expect(spec).toContain('`immediate_decisions`');
+        expect(spec).toContain('`tomorrow_focus`');
+        expect(spec).toContain('`personal_kg_registration_candidates`');
+        expect(spec).toContain('`graph_promotion_reviews`');
     });
 
-    it('retro converts repeated problems into at most three system changes', () => {
-        const command = readCommand('retro');
-
-        expect(command).toContain('繰り返す問題を、来週の仕組み変更へ変える');
-        expect(command).toContain('## 繰り返した問題');
-        expect(command).toContain('## 学びの判断');
-        expect(command).toContain('## 来週変える仕組み');
-        expect(command).toContain('最大3件');
-        expect(command).toContain('`変更なし`を正常な結果');
-        expect(command).toContain('Graph昇格の判断はこのルーティンだけが担う');
-        expect(command).not.toContain('Codex Automationのタスク本文');
-        expect(command).not.toContain('automation memoryへ');
+    it('retro separates registration from Graph promotion and never applies scheduled changes', () => {
+        expect(spec).toContain('`personal_kg_registration_reviews`');
+        expect(spec).toContain('`pending_approval`のGraph昇格候補');
+        expect(spec).toContain('定期実行は`applies_changes=false`');
+        expect(story).toContain('Graph昇格を自動承認・自動実行しない');
     });
 });

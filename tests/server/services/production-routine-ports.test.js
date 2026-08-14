@@ -27,7 +27,16 @@ function createPorts(overrides = {}) {
         }))
     };
     const candidateRepository = {
-        listPersonalKg: vi.fn(async () => [{ id: 'event-personal-1', body: 'personal memory' }])
+        listPersonalKg: vi.fn(async () => [{ id: 'event-personal-1', body: 'personal memory' }]),
+        list: vi.fn(async (filter) => filter.promotion_status === 'candidate' ? [{
+            id: 'candidate-personal-1',
+            body: '午前は設計を優先する',
+            promotion_status: 'candidate'
+        }] : [{
+            id: 'candidate-graph-1',
+            body: '顧客Aの正式方針',
+            promotion_status: 'pending_approval'
+        }])
     };
     const personalKnowledgeService = {
         summarizeRoutineState: vi.fn(async () => ({
@@ -148,6 +157,30 @@ describe('ProductionRoutinePorts', () => {
             contradiction_count: 0,
             expired_count: 0,
             outbox_count: 0
+        });
+    });
+
+    it('oyasumiは残件と登録先を分けた夜の結論を作る', async () => {
+        const { ports } = createPorts();
+
+        await expect(ports.buildNightOutput({
+            input: {
+                tomorrow_focus: [{ summary: '朝一で提案を確定する' }],
+                personal_kg_registration_candidates: [{ id: 'personal-1', summary: '午前は設計を優先する' }],
+                graph_promotion_reviews: [{ id: 'graph-1', summary: '顧客Aの正式方針' }]
+            },
+            reconciliation: { unprocessed_count: 1, contradiction_count: 0, expired_count: 0, outbox_count: 0 }
+        }, context)).resolves.toMatchObject({
+            headline: '残件を確認してから今日を閉じる',
+            carryovers: [{ summary: '未処理が1件あります' }],
+            personal_kg_registration_candidates: [
+                { id: 'personal-1', summary: '午前は設計を優先する' },
+                { id: 'candidate-personal-1', status: 'candidate', summary: '午前は設計を優先する' }
+            ],
+            graph_promotion_reviews: [
+                { id: 'graph-1', summary: '顧客Aの正式方針' },
+                { id: 'candidate-graph-1', status: 'pending_approval', summary: '顧客Aの正式方針' }
+            ]
         });
     });
 
@@ -298,13 +331,18 @@ describe('ProductionRoutinePorts', () => {
             personal_memories: []
         }, context);
 
-        expect(result.morning_output).toEqual({
+        expect(result.morning_output).toMatchObject({
             exceptions: [
                 { code: 'one', summary: '例外1' },
                 { code: 'two', summary: '例外2' },
                 { code: 'three', summary: '例外3' }
             ],
             memories: [{ summary: '判断1' }, { summary: '判断2' }, { summary: '判断3' }]
+        });
+        expect(result.morning_output.routine_output).toMatchObject({
+            headline: '今日は「判断1」を判断軸に進める',
+            today_focus: [{ summary: '判断1' }],
+            immediate_decisions: [{ summary: '判断2' }, { summary: '判断3' }]
         });
         expect(JSON.stringify(result.morning_output)).not.toContain('raw-graph');
         expect(JSON.stringify(result.morning_output)).not.toContain('/secret/one.json');
@@ -387,6 +425,28 @@ describe('ProductionRoutinePorts', () => {
         });
         expect(dependencies.knowledgeEventRepository.summarizeRoutineState).toHaveBeenCalled();
         expect(dependencies.runReceiptQueryService.summarizeRoutineState).toHaveBeenCalled();
+    });
+
+    it('retroはpending_approvalのGraph昇格候補を読むだけで状態を変更しない', async () => {
+        const { dependencies, ports } = createPorts();
+
+        await expect(ports.listKnowledgeReviews({
+            input: {
+                project_id: 'brainbase',
+                personal_kg_registration_reviews: [{ id: 'personal-1', body: '個人の判断基準' }]
+            },
+            limit: 10
+        }, context)).resolves.toEqual({
+            personal_kg_registration_reviews: [
+                { id: 'personal-1', summary: '個人の判断基準' },
+                { id: 'candidate-personal-1', status: 'candidate', summary: '午前は設計を優先する' }
+            ],
+            graph_promotion_reviews: [{ id: 'candidate-graph-1', status: 'pending_approval', summary: '顧客Aの正式方針' }]
+        });
+        expect(dependencies.candidateRepository.list).toHaveBeenCalledWith(expect.objectContaining({
+            project_code: 'brainbase',
+            promotion_status: 'pending_approval'
+        }), context);
     });
 
     it('retroの集計期間と3ルーティンIDをknowledgeとReceiptの両方へ伝播する', async () => {
