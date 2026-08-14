@@ -348,6 +348,42 @@ export class InfoSSOTController {
         }
     };
 
+    getPersonBySlack = async (req, res) => {
+        try {
+            const access = buildAccessContext(req);
+            assertAccessContext(access);
+
+            if (!['service-token', 'internal'].includes(String(req.authSource || ''))) {
+                return res.status(403).json({ error: 'Service authentication required' });
+            }
+
+            const workspaceId = String(req.query.workspaceId || '').trim();
+            const slackUserId = String(req.query.slackUserId || '').trim();
+            const projectCode = String(req.query.project || '').trim();
+            if (!workspaceId || !slackUserId || !projectCode) {
+                return res.status(400).json({ error: 'workspaceId, slackUserId and project are required' });
+            }
+            if (!access.projectCodes.includes(projectCode)) {
+                return res.status(403).json({ error: 'Access denied for project' });
+            }
+
+            const person = await this.infoSSOTService.getPersonBySlackId(slackUserId, workspaceId);
+            if (!person) {
+                return res.status(404).json({ error: 'Person not found' });
+            }
+
+            return res.json({
+                person: {
+                    id: person.id,
+                    name: person.name || null
+                }
+            });
+        } catch (error) {
+            logger.error('Failed to resolve Slack person', { error });
+            return res.status(resolveErrorStatus(error)).json({ error: getErrorMessage(error) || 'Failed to resolve Slack person' });
+        }
+    };
+
     expandGraph = async (req, res) => {
         try {
             const access = buildAccessContext(req);

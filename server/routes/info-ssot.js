@@ -27,6 +27,7 @@ export function createInfoSSOTRouter(infoSSOTService) {
     router.get('/graph/edges', controller.listGraphEdges);
     router.get('/graph/expand', controller.expandGraph);
     router.get('/context', controller.getContext);
+    router.get('/person/by-slack', controller.getPersonBySlack);
 
     // Write
     router.post('/graph/entities', controller.upsertGraphEntity);
