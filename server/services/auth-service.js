@@ -381,12 +381,14 @@ export class AuthService {
             // Always check auth_grants for role, project_codes, clearance
             const requireExactWorkspace = typeof slackWorkspaceId === 'string' && slackWorkspaceId.length > 0;
             const { rows: grantRows } = await client.query(
-                `SELECT person_id, person_name as name, slack_user_id, slack_workspace_id as workspace_id,
-                        role, project_codes, clearance, active as status
-                 FROM auth_grants
-                 WHERE slack_user_id = $1
-                   ${requireExactWorkspace ? 'AND slack_workspace_id = $2' : ''}
-                   AND active = true
+                `SELECT ag.person_id, ag.person_name as name, ag.slack_user_id,
+                        ag.slack_workspace_id, o.id as organization_id,
+                        ag.role, ag.project_codes, ag.clearance, ag.active as status
+                 FROM auth_grants ag
+                 LEFT JOIN organizations o ON o.workspace_id = ag.slack_workspace_id
+                 WHERE ag.slack_user_id = $1
+                   ${requireExactWorkspace ? 'AND ag.slack_workspace_id = $2' : ''}
+                   AND ag.active = true
                  LIMIT 1`,
                 requireExactWorkspace ? [slackUserId, slackWorkspaceId] : [slackUserId]
             );
@@ -416,6 +418,7 @@ export class AuthService {
                 const ROLE_TO_LEVEL = { ceo: 100, gm: 50, member: 10 };
                 return {
                     ...grant,
+                    workspace_id: grant.organization_id || null,
                     status: 'active',
                     access_level: ROLE_TO_LEVEL[grant.role] || 10,
                     employment_type: 'employee'
@@ -423,6 +426,37 @@ export class AuthService {
             }
 
             return null;
+        } finally {
+            client.release();
+        }
+    }
+
+    async resolveOrganizationIdForAccess(access = {}) {
+        const organizationId = access.organizationId || access.tenantId || null;
+        if (organizationId) {
+            return organizationId;
+        }
+        const personId = access.personId || null;
+        const slackUserId = access.slackUserId || null;
+        const slackWorkspaceId = access.slackWorkspaceId || null;
+        if (!this.pool || !personId || !slackUserId || !slackWorkspaceId) {
+            return null;
+        }
+
+        const client = await this.pool.connect();
+        try {
+            const { rows } = await client.query(
+                `SELECT u.workspace_id AS organization_id
+                 FROM users u
+                 JOIN organizations o ON o.id = u.workspace_id
+                 WHERE u.person_id = $1
+                   AND u.slack_user_id = $2
+                   AND o.workspace_id = $3
+                   AND u.status = 'active'
+                 LIMIT 1`,
+                [personId, slackUserId, slackWorkspaceId]
+            );
+            return rows[0]?.organization_id || null;
         } finally {
             client.release();
         }
@@ -515,6 +549,12 @@ export class AuthService {
         if (!name) {
             throw new Error('service token name is required');
         }
+        const organizationId = typeof input.organizationId === 'string'
+            ? input.organizationId.trim()
+            : '';
+        if (!organizationId) {
+            throw new Error('service token organizationId is required');
+        }
 
         const now = Math.floor(Date.now() / 1000);
         const ttlSeconds = Number.isFinite(Number(input.ttlSeconds)) && Number(input.ttlSeconds) > 0
@@ -534,6 +574,7 @@ export class AuthService {
             clearance: normalizeList(input.clearance),
             level: this.getRoleRank(input.role),
             employmentType: 'internal_service',
+            organizationId,
             createdBy: typeof input.createdBy === 'string' ? input.createdBy : null,
             jti: this.generateId('svc_tok'),
             iat: now,
@@ -549,7 +590,8 @@ export class AuthService {
                 projectCodes: payload.projectCodes,
                 clearance: payload.clearance,
                 personId: payload.personId,
-                employmentType: payload.employmentType
+                employmentType: payload.employmentType,
+                organizationId: payload.organizationId
             }
         };
     }
@@ -621,13 +663,15 @@ export class AuthService {
             personName: user?.name || grant.person_name
         });
         const access = this.buildAccessFromGrant({ ...grant, person_id: personId });
+        const organizationId = user?.workspace_id || null;
         const token = this.issueToken({
             role: access.role,
             projectCodes: access.projectCodes,
             clearance: access.clearance,
             personId,
             slackUserId,
-            slackWorkspaceId
+            slackWorkspaceId,
+            organizationId
         });
         const nextRefreshToken = this.issueRefreshToken({
             slackUserId,
@@ -647,7 +691,8 @@ export class AuthService {
                 role: access.role,
                 projectCodes: access.projectCodes,
                 clearance: access.clearance,
-                personId
+                personId,
+                organizationId
             }
         };
     }
@@ -928,7 +973,7 @@ export class AuthService {
                 role: user.role || 'member',
                 projectCodes: user.project_codes || [],
                 clearance: user.clearance || [],
-                tenantId: null,
+                organizationId: user.workspace_id,
                 slackWorkspaceId
             });
             const refreshToken = this.issueRefreshToken({

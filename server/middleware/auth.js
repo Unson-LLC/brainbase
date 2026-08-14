@@ -5,7 +5,7 @@ import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
 /** @typedef {import('../lib/auth-cookies.js').RequestLike & { method?: string, headers?: Record<string, string | undefined>, auth?: unknown, access?: unknown, authSource?: string | null }} RequestLike */
 /** @typedef {{ status: (code: number) => { json: (body: unknown) => unknown } }} ResponseLike */
 /** @typedef {(error?: unknown) => unknown} NextLike */
-/** @typedef {{ verifyToken: (token: string) => Record<string, unknown>, verifyServiceToken?: (token: string) => Record<string, unknown> }} AuthServiceLike */
+/** @typedef {{ verifyToken: (token: string) => Record<string, unknown>, verifyServiceToken?: (token: string) => Record<string, unknown>, resolveOrganizationIdForAccess?: (access: Record<string, unknown>) => Promise<string|null> }} AuthServiceLike */
 
 /**
  * @param {RequestLike} req
@@ -139,7 +139,7 @@ export function resolveAuthContext(req, authService, options = {}) {
  * @returns {(req: RequestLike, res: ResponseLike, next: NextLike) => unknown}
  */
 export function requireAuth(authService, options = {}) {
-    return (req, res, next) => {
+    return async (req, res, next) => {
         const result = resolveAuthContext(req, authService, options);
         if (result?.bypass) {
             return next();
@@ -149,8 +149,22 @@ export function requireAuth(authService, options = {}) {
             return res.status(result?.status || 401).json({ error: result?.error || 'Unauthorized' });
         }
 
+        const access = result.access || null;
+        if (access && !access.organizationId && authService.resolveOrganizationIdForAccess) {
+            try {
+                const organizationId = await authService.resolveOrganizationIdForAccess(access);
+                if (organizationId) {
+                    access.organizationId = organizationId;
+                    access.tenantId = organizationId;
+                }
+            } catch {
+                // Generic authenticated routes remain available. Personal knowledge
+                // routes separately require an organization and therefore fail closed.
+            }
+        }
+
         req.auth = result.auth || null;
-        req.access = result.access || null;
+        req.access = access;
         req.authSource = result.authSource || null;
         return next();
     };

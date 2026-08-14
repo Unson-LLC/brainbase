@@ -280,7 +280,7 @@ export class AuthController {
                 role: user.role || 'member',
                 projectCodes: user.project_codes || [],
                 clearance: user.clearance || [],
-                tenantId: null, // Phase 1はsingle-tenant
+                organizationId: user.workspace_id,
                 slackWorkspaceId
             });
             const refreshToken = this.authService.issueRefreshToken({
@@ -309,6 +309,7 @@ export class AuthController {
                     personId: user.person_id,
                     slackUserId: user.slack_user_id,
                     workspaceId: slackWorkspaceId,
+                    organizationId: user.workspace_id,
                     name: user.name,
                     role: user.role,
                     projectCodes: user.project_codes || []
@@ -407,6 +408,9 @@ export class AuthController {
             if (roleRank(issuerRole) < ROLE_RANK.gm) {
                 return res.status(403).json({ error: 'GM or CEO role is required' });
             }
+            if (!issuer.organizationId) {
+                return res.status(403).json({ error: 'Organization context is required' });
+            }
 
             const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
             if (!name || name.length > 80) {
@@ -438,7 +442,8 @@ export class AuthController {
                 projectCodes,
                 clearance,
                 ttlSeconds: req.body?.ttlSeconds,
-                createdBy: issuer.personId || null
+                createdBy: issuer.personId || null,
+                organizationId: issuer.organizationId
             });
 
             await this.authService.createAuditLog({
@@ -518,7 +523,7 @@ export class AuthController {
                 role: user.role || 'member',
                 projectCodes: user.project_codes || [],
                 clearance: user.clearance || [],
-                tenantId: null,
+                organizationId: user.workspace_id,
                 slackWorkspaceId
             });
             const refreshToken = this.authService.issueRefreshToken({

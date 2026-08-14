@@ -19,7 +19,8 @@ describe('auth service token route', () => {
                 role: 'gm',
                 projectCodes: ['unson'],
                 clearance: ['internal', 'restricted'],
-                personId: 'per_admin'
+                personId: 'per_admin',
+                organizationId: 'unson'
             }),
             issueServiceToken: vi.fn(() => ({
                 token: 'bbsvc_issued',
@@ -54,7 +55,8 @@ describe('auth service token route', () => {
             role: 'gm',
             projectCodes: ['unson'],
             clearance: ['internal'],
-            createdBy: 'per_admin'
+            createdBy: 'per_admin',
+            organizationId: 'unson'
         }));
         expect(authService.createAuditLog).toHaveBeenCalledWith(expect.objectContaining({
             eventType: 'SERVICE_TOKEN_ISSUE'

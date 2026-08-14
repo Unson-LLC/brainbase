@@ -108,6 +108,35 @@ describe('auth middleware', () => {
         expect(res.body.access.projectCodes).toEqual(['brainbase']);
     });
 
+    it('旧JWTにorganization claimがない時_検証済み本人情報から組織を補完する', async () => {
+        const app = express();
+        const authService = {
+            verifyToken: () => ({
+                role: 'ceo',
+                projectCodes: ['brainbase'],
+                clearance: ['internal'],
+                sub: 'per_sato',
+                slackUserId: 'U_SATO',
+                slackWorkspaceId: 'T_UNSON'
+            }),
+            resolveOrganizationIdForAccess: async (access) => {
+                expect(access.personId).toBe('per_sato');
+                expect(access.slackUserId).toBe('U_SATO');
+                return 'unson';
+            }
+        };
+        app.use(requireAuth(authService, { allowInsecureHeaders: false }));
+        app.get('/secure', (req, res) => res.json({ access: req.access }));
+
+        const res = await request(app)
+            .get('/secure')
+            .set('Authorization', 'Bearer legacy-token')
+            .expect(200);
+
+        expect(res.body.access.organizationId).toBe('unson');
+        expect(res.body.access.tenantId).toBe('unson');
+    });
+
     it('bbsvc tokenがある時_service-token認証で通す', async () => {
         const app = express();
         const authService = {
