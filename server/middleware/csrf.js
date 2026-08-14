@@ -180,6 +180,19 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Routine execution is invoked by the repository-managed runner over
+        // Bearer-authenticated server-to-server HTTP. Keep the exemption exact;
+        // the mounted route still enforces authentication, brainbase project
+        // scope, and the personal proxy identity before executing a routine.
+        if (
+            req.method === 'POST'
+            && /^\/api\/routines\/(?:ohayo|oyasumi|retro)\/execute$/.test(req.path || '')
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
+            return next();
+        }
+
         // Admin context preview is read-only but uses POST for its structured query.
         // Agent/native clients authenticate with a bearer token and do not have a
         // browser CSRF session. Authentication and project scope are still enforced
