@@ -49,6 +49,11 @@ import {
   buildKnowledgeOwnerAudit,
   buildKnowledgeToolContent,
 } from './tools/knowledge-owner-audit.js';
+import {
+  handleRemoteJudgmentHookRequest,
+  REMOTE_JUDGMENT_HOOK_MAX_BODY_BYTES,
+  REMOTE_JUDGMENT_HOOK_PATH,
+} from './remote-judgment-hook-http.js';
 
 // Global index. Runtime lookups rebuild and atomically swap this snapshot.
 let entityIndex: EntityIndex;
@@ -168,6 +173,25 @@ export function isAuthorizedMcpHttpRequest(authorization: string | undefined, ex
   const actual = Buffer.from(authorization.slice('Bearer '.length));
   const expected = Buffer.from(expectedToken);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+async function dispatchRemoteJudgmentHook(
+  payload: Record<string, unknown>,
+  projectCode: string,
+): Promise<Record<string, unknown>> {
+  const hostModuleUrl = new URL('../../../scripts/codex-hooks/judgment-resolver-host.mjs', import.meta.url);
+  const hostModule = await import(hostModuleUrl.href) as {
+    processHookPayload: (
+      hookPayload: Record<string, unknown>,
+      dependencies?: { env?: NodeJS.ProcessEnv },
+    ) => Promise<Record<string, unknown>>;
+  };
+  return hostModule.processHookPayload(payload, {
+    env: {
+      ...process.env,
+      BRAINBASE_JUDGMENT_PROJECT_CODE: projectCode,
+    },
+  });
 }
 
 async function prependPhilosophyContext(
@@ -1146,6 +1170,44 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
       if (req.method === 'GET' && req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('ok');
+        return;
+      }
+      if (req.method === 'POST' && req.url === REMOTE_JUDGMENT_HOOK_PATH) {
+        if (!isAuthorizedMcpHttpRequest(req.headers.authorization, bearerToken)) {
+          res.writeHead(401, {
+            'Content-Type': 'application/json',
+            'WWW-Authenticate': 'Bearer',
+          });
+          res.end(JSON.stringify({ error: 'unauthorized' }));
+          return;
+        }
+        const chunks: Buffer[] = [];
+        let size = 0;
+        for await (const chunk of req) {
+          const buffer = chunk as Buffer;
+          size += buffer.length;
+          if (size > REMOTE_JUDGMENT_HOOK_MAX_BODY_BYTES) break;
+          chunks.push(buffer);
+        }
+        const result = await handleRemoteJudgmentHookRequest({
+          method: req.method,
+          url: req.url,
+          authorization: req.headers.authorization,
+          body: size > REMOTE_JUDGMENT_HOOK_MAX_BODY_BYTES
+            ? Buffer.alloc(REMOTE_JUDGMENT_HOOK_MAX_BODY_BYTES + 1)
+            : Buffer.concat(chunks),
+          bearerToken,
+          projectCode: Array.isArray(req.headers['x-brainbase-project-code'])
+            ? req.headers['x-brainbase-project-code'][0]
+            : req.headers['x-brainbase-project-code'],
+          isAuthorized: isAuthorizedMcpHttpRequest,
+          dispatch: dispatchRemoteJudgmentHook,
+        });
+        res.writeHead(result?.status ?? 404, {
+          'Content-Type': 'application/json',
+          ...(result?.headers ?? {}),
+        });
+        res.end(JSON.stringify(result?.body ?? { error: 'not_found' }));
         return;
       }
       if (req.method === 'POST' && req.url === '/host/judgment/resolve') {

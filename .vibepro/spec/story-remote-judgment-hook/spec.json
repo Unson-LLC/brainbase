@@ -1,0 +1,230 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-remote-judgment-hook",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "clauses": [
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "認証済みでproject codeが明示された外部Host Hook入口は既存processHookPayloadだけを実行し、event/session/turnへ束縛したversioned envelopeを返す",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-1"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-2"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-remote-judgment-hook.md",
+            "section": "決定"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/server.ts"
+          },
+          {
+            "file": "mcp/brainbase/src/remote-judgment-hook-http.ts"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "case": "story-remote-judgment-hook:ac:1 story-remote-judgment-hook:ac:2 routes an authenticated payload through the canonical dispatcher"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "must_cover": "story-remote-judgment-hook:ac:1 story-remote-judgment-hook:ac:2 routes an authenticated payload through the canonical dispatcher"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-14T09:54:36.459Z",
+      "last_revised_at": "2026-08-14T10:00:15.953Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "Bearer不一致、過大body、不正JSONではcanonical Hookを呼ばずfail closedにする",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-3"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-4"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-remote-judgment-hook.md",
+            "section": "信頼境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/server.ts"
+          },
+          {
+            "file": "mcp/brainbase/src/remote-judgment-hook-http.ts"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "case": "story-remote-judgment-hook:ac:3 rejects unauthenticated, malformed, and oversized requests before dispatch"
+          },
+          {
+            "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "case": "story-remote-judgment-hook:ac:4 fails closed when the canonical dispatcher is unavailable"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "must_cover": "story-remote-judgment-hook:ac:3 rejects unauthenticated, malformed, and oversized requests before dispatch"
+          },
+          {
+            "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "must_cover": "story-remote-judgment-hook:ac:4 fails closed when the canonical dispatcher is unavailable"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-14T09:41:19.225Z",
+      "last_revised_at": "2026-08-14T10:00:15.953Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "UserPromptSubmit、PostToolUse、Stopが同じepisodeで処理され、知識参照または監査が不足すればStopをblockする",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-5"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-remote-judgment-hook.md",
+            "section": "データフロー"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "case": "story-remote-judgment-hook:ac:5 fails closed when the canonical Stop dispatcher rejects an orphan episode"
+          },
+          {
+            "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "case": "story-remote-judgment-hook:ac:5 fails closed when PostToolUse was not recorded by the canonical dispatcher"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "must_cover": "story-remote-judgment-hook:ac:5 fails closed when the canonical Stop dispatcher rejects an orphan episode"
+          },
+          {
+            "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
+            "must_cover": "story-remote-judgment-hook:ac:5 fails closed when PostToolUse was not recorded by the canonical dispatcher"
+          }
+        ]
+      },
+      "confidence": 0.98,
+      "first_seen_at": "2026-08-14T09:41:19.225Z",
+      "last_revised_at": "2026-08-14T10:00:15.953Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "既存loopback resolve入口とCodex Hook契約を変更しない",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-6"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-remote-judgment-hook.md",
+            "section": "信頼境界"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/server.ts"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "story-remote-judgment-hook:ac:6 Stopは必要なrouting証拠を満たすまでactive再Stopでもblockし、finalを作らない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "story-remote-judgment-hook:ac:6 Stopは必要なrouting証拠を満たすまでactive再Stopでもblockし、finalを作らない"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-14T09:41:19.225Z",
+      "last_revised_at": "2026-08-14T10:00:15.953Z"
+    }
+  ],
+  "planned_test_suites": [
+    {
+      "layer": "HTTP unit",
+      "covers": [
+        "Bearer",
+        "body上限",
+        "JSON",
+        "event",
+        "project binding",
+        "response envelope",
+        "dispatch"
+      ]
+    },
+    {
+      "layer": "lifecycle integration",
+      "covers": [
+        "UserPromptSubmit",
+        "PostToolUse",
+        "Stop",
+        "fail closed"
+      ]
+    }
+  ],
+  "open_questions": [],
+  "generated_at": "2026-08-14T10:00:15.952Z",
+  "previous_spec_id": "2026-08-14T09:54:36.458Z"
+}

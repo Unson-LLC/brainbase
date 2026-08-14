@@ -788,7 +788,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(recordEvent('unknown-call', { content: [{ type: 'text', text: 'completed' }] }, 'submit_approval')).toMatchObject({ success: false, event_kind: 'call' });
     });
 
-    it('Stopは必要なrouting証拠を満たすまでactive再Stopでもblockし、finalを作らない', async () => {
+    it('story-remote-judgment-hook:ac:6 Stopは必要なrouting証拠を満たすまでactive再Stopでもblockし、finalを作らない', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = {
