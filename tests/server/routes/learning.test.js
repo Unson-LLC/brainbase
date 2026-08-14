@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { createLearningRouter } from '../../../server/routes/learning.js';
+import { LearningService } from '../../../server/services/learning-service.js';
 
 describe('learning routes', () => {
     let app;
@@ -111,6 +112,90 @@ describe('learning routes', () => {
             cognitiveTypes: ['claim', 'insight'],
             limit: '5'
         }, { access: expect.objectContaining({ personId: 'person_authenticated' }) });
+    });
+
+    it('GET /memory-candidates/search canonicalizes a configured owner alias for the query and RLS access', async () => {
+        const aliasApp = express();
+        aliasApp.use((req, _res, next) => {
+            req.access = {
+                personId: 'per_active_graph_id',
+                organizationId: 'org_unson'
+            };
+            req.personalKnowledgeAccess = {
+                ...req.access,
+                actorPersonId: 'per_active_graph_id'
+            };
+            next();
+        });
+        aliasApp.use('/api/learning', createLearningRouter(service, healthService, {
+            env: {
+                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
+                BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS: 'per_active_graph_id'
+            }
+        }));
+
+        const res = await request(aliasApp)
+            .get('/api/learning/memory-candidates/search')
+            .query({ q: '判断' });
+
+        expect(res.status).toBe(200);
+        expect(service.searchPersonalKgCandidates).toHaveBeenCalledWith({
+            query: '判断',
+            ownerPersonId: 'sato_keigo',
+            organizationId: 'org_unson',
+            cognitiveTypes: null,
+            limit: undefined
+        }, {
+            access: expect.objectContaining({
+                personId: 'sato_keigo',
+                organizationId: 'org_unson',
+                actorPersonId: 'per_active_graph_id'
+            })
+        });
+    });
+
+    it('GET /memory-candidates/search keeps the canonical owner identical through LearningService and repository access', async () => {
+        const repository = {
+            transaction: vi.fn(async (work, { access }) => {
+                expect(access).toMatchObject({
+                    personId: 'sato_keigo',
+                    organizationId: 'org_unson',
+                    actorPersonId: 'per_active_graph_id'
+                });
+                return work(repository);
+            }),
+            searchPersonalKg: vi.fn(async () => [])
+        };
+        const actualService = new LearningService({ candidateRepository: repository });
+        const aliasApp = express();
+        aliasApp.use((req, _res, next) => {
+            req.access = {
+                personId: 'per_active_graph_id',
+                organizationId: 'org_unson'
+            };
+            req.personalKnowledgeAccess = {
+                ...req.access,
+                actorPersonId: 'per_active_graph_id'
+            };
+            next();
+        });
+        aliasApp.use('/api/learning', createLearningRouter(actualService, healthService, {
+            env: {
+                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
+                BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS: 'per_active_graph_id'
+            }
+        }));
+
+        const res = await request(aliasApp)
+            .get('/api/learning/memory-candidates/search')
+            .query({ q: '判断' });
+
+        expect(res.status).toBe(200);
+        expect(repository.transaction).toHaveBeenCalledOnce();
+        expect(repository.searchPersonalKg).toHaveBeenCalledWith(expect.objectContaining({
+            owner_person_id: 'sato_keigo',
+            query: '判断'
+        }));
     });
 
     it('POST /memory-candidates/:id/promote-to-graph is fail-closed without an auth guard', async () => {

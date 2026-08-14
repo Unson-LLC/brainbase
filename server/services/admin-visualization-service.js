@@ -1,5 +1,11 @@
 // @ts-check
 
+import {
+    canonicalPersonalKgOwner,
+    isConfiguredPersonalKgOwner,
+    personalKgOwnerConfig
+} from './personal-kg-owner.js';
+
 const SOURCE_CLASSES = Object.freeze({
     GRAPH: 'graph_ssot',
     CANDIDATE: 'candidate_store',
@@ -9,7 +15,6 @@ const SOURCE_CLASSES = Object.freeze({
 });
 
 const RUNTIME_KEYS = ['BRAINBASE_ENV_PATH', 'INFO_SSOT_DATABASE_URL', 'INFO_SSOT_DB_URL', 'AUTH_SESSION_SECRET', 'CANDIDATE_STORE_ALLOWED_SOURCES', 'BRAINBASE_PORT', 'BRAINBASE_VAR_DIR'];
-const DEFAULT_PERSONAL_KG_OWNER_PERSON_ID = 'sato_keigo';
 const HEALTH_CHECK_TIMEOUT_MS = 1500;
 const CANDIDATE_SCAN_LIMIT = 500;
 const PERSONAL_KG_INCLUDED_TYPES = new Set(['observation', 'insight', 'claim', 'preference', 'hypothesis', 'experiment', 'result']);
@@ -76,28 +81,6 @@ function toList(value) {
     if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
     if (typeof value === 'string') return value.split(',').map((item) => item.trim()).filter(Boolean);
     return [];
-}
-
-function personalKgOwnerConfig(env = {}) {
-    const ownerPersonId = env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID || DEFAULT_PERSONAL_KG_OWNER_PERSON_ID;
-    return {
-        ownerPersonId,
-        aliasIds: new Set(toList(env.BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS))
-    };
-}
-
-function canonicalPersonalKgOwner(ownerPersonId, env = {}) {
-    if (!ownerPersonId) return ownerPersonId;
-    const config = personalKgOwnerConfig(env);
-    return ownerPersonId === config.ownerPersonId || config.aliasIds.has(ownerPersonId)
-        ? config.ownerPersonId
-        : ownerPersonId;
-}
-
-function isConfiguredPersonalKgOwner(ownerPersonId, env = {}) {
-    if (!ownerPersonId) return false;
-    const config = personalKgOwnerConfig(env);
-    return ownerPersonId === config.ownerPersonId || config.aliasIds.has(ownerPersonId);
 }
 
 function candidateProjectCodes(record) {

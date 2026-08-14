@@ -1,9 +1,11 @@
 import { logger } from '../utils/logger.js';
+import { canonicalPersonalKgAccess } from '../services/personal-kg-owner.js';
 
 export class LearningController {
-    constructor(learningService, learningHealthService = null) {
+    constructor(learningService, learningHealthService = null, options = {}) {
         this.learningService = learningService;
         this.learningHealthService = learningHealthService;
+        this.env = options.env || process.env;
     }
 
     recordEpisode = async (req, res) => {
@@ -87,7 +89,7 @@ export class LearningController {
 
     searchPersonalKg = async (req, res) => {
         try {
-            const access = req.personalKnowledgeAccess || req.access;
+            const access = canonicalPersonalKgAccess(req.personalKnowledgeAccess || req.access, this.env);
             const cognitiveTypeParam = req.query.cognitive_type || req.query.cognitiveType;
             const result = await this.learningService.searchPersonalKgCandidates({
                 query: req.query.q || req.query.query,
