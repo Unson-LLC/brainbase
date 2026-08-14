@@ -203,25 +203,28 @@ export class ProductionRoutinePorts {
         ].filter(([, count]) => Number(count) > 0)
             .map(([label, count]) => ({ summary: `${label}が${count}件あります` }));
         const confirmedClosed = carryovers.length === 0;
-        const candidateRepository = requireDependency(this.candidateRepository, 'candidateRepository', 'list');
+        const candidateRepository = requireDependency(this.candidateRepository, 'candidateRepository', 'transaction');
         const projectCode = projectInput({ input }).project_id;
-        const [personalCandidates, graphCandidates] = await Promise.all([
-            candidateRepository.list({
-                project_code: projectCode,
-                owner_person_id: context?.access?.personId,
-                promotion_status: 'candidate',
-                order_by: 'created_at',
-                order_direction: 'asc',
-                limit: 10
-            }, context),
-            candidateRepository.list({
-                project_code: projectCode,
-                promotion_status: 'pending_approval',
-                order_by: 'created_at',
-                order_direction: 'asc',
-                limit: 10
-            }, context)
-        ]);
+        const [personalCandidates, graphCandidates] = await candidateRepository.transaction(
+            async (scopedRepository) => Promise.all([
+                scopedRepository.list({
+                    project_code: projectCode,
+                    owner_person_id: context?.access?.personId,
+                    promotion_status: 'candidate',
+                    order_by: 'created_at',
+                    order_direction: 'asc',
+                    limit: 10
+                }),
+                scopedRepository.list({
+                    project_code: projectCode,
+                    promotion_status: 'pending_approval',
+                    order_by: 'created_at',
+                    order_direction: 'asc',
+                    limit: 10
+                })
+            ]),
+            { access: context?.access }
+        );
         return {
             headline: confirmedClosed ? '今日は閉じてよい' : '残件を確認してから今日を閉じる',
             tomorrow_focus: Array.isArray(input.tomorrow_focus) ? input.tomorrow_focus : [],
@@ -421,26 +424,29 @@ export class ProductionRoutinePorts {
         const candidateRepository = requireDependency(
             this.candidateRepository,
             'candidateRepository',
-            'list'
+            'transaction'
         );
         const projectCode = projectInput({ input }).project_id;
-        const [personalCandidates, graphCandidates] = await Promise.all([
-            candidateRepository.list({
-                project_code: projectCode,
-                owner_person_id: context?.access?.personId,
-                promotion_status: 'candidate',
-                order_by: 'created_at',
-                order_direction: 'asc',
-                limit
-            }, context),
-            candidateRepository.list({
-                project_code: projectCode,
-                promotion_status: 'pending_approval',
-                order_by: 'created_at',
-                order_direction: 'asc',
-                limit
-            }, context)
-        ]);
+        const [personalCandidates, graphCandidates] = await candidateRepository.transaction(
+            async (scopedRepository) => Promise.all([
+                scopedRepository.list({
+                    project_code: projectCode,
+                    owner_person_id: context?.access?.personId,
+                    promotion_status: 'candidate',
+                    order_by: 'created_at',
+                    order_direction: 'asc',
+                    limit
+                }),
+                scopedRepository.list({
+                    project_code: projectCode,
+                    promotion_status: 'pending_approval',
+                    order_by: 'created_at',
+                    order_direction: 'asc',
+                    limit
+                })
+            ]),
+            { access: context?.access }
+        );
         return {
             personal_kg_registration_reviews: uniqueReviews([
                 ...(Array.isArray(input.personal_kg_registration_reviews)

@@ -103,17 +103,19 @@ export async function deliverJudgmentKnowledgeEventOutbox({
     organizationId,
     fetchImpl = globalThis.fetch,
     maxAttempts = 5,
+    limit = Infinity,
     now = () => new Date()
 } = {}) {
-    const files = jsonFiles(outboxDir);
+    const allFiles = jsonFiles(outboxDir);
+    const files = allFiles.slice(0, Math.max(0, limit));
     if (!endpoint || typeof fetchImpl !== 'function') {
         return {
             status: 'unavailable',
             delivered: 0,
             failed: 0,
-            retryable: files.length,
+            retryable: allFiles.length,
             dead_lettered: 0,
-            pending: files.length
+            pending: allFiles.length
         };
     }
     let delivered = 0;
@@ -133,6 +135,8 @@ export async function deliverJudgmentKnowledgeEventOutbox({
     for (const file of files) {
         const target = join(outboxDir, file);
         let queued;
+        let lastStatus = null;
+        let lastErrorCode = 'knowledge_event_delivery_unknown_error';
         try {
             queued = JSON.parse(readFileSync(target, 'utf8'));
         } catch {
@@ -151,11 +155,15 @@ export async function deliverJudgmentKnowledgeEventOutbox({
                 || queued.event?.applicability_scope?.organization_id
                 || null;
             if (eventOrganizationId && organizationId && eventOrganizationId !== organizationId) {
-                throw new Error('knowledge_event_organization_context_conflict');
+                const error = new Error('knowledge_event_organization_context_conflict');
+                error.code = 'knowledge_event_organization_context_conflict';
+                throw error;
             }
             const deliveryOrganizationId = eventOrganizationId || organizationId || null;
             if (!deliveryOrganizationId) {
-                throw new Error('knowledge_event_organization_context_required');
+                const error = new Error('knowledge_event_organization_context_required');
+                error.code = 'knowledge_event_organization_context_required';
+                throw error;
             }
             const headers = { 'Content-Type': 'application/json' };
             if (internalApiKey) headers['x-internal-api-key'] = internalApiKey;
@@ -166,17 +174,27 @@ export async function deliverJudgmentKnowledgeEventOutbox({
                 headers,
                 body: JSON.stringify(queued.event)
             });
-            if (!response?.ok) throw new Error('knowledge event delivery failed');
+            if (!response?.ok) {
+                lastStatus = Number.isInteger(response?.status) ? response.status : null;
+                const error = new Error('knowledge event delivery failed');
+                error.code = 'knowledge_event_delivery_http_error';
+                throw error;
+            }
             unlinkSync(target);
             delivered += 1;
-        } catch {
+        } catch (error) {
             failed += 1;
+            if (typeof error?.code === 'string' && /^[A-Za-z0-9_.:-]{1,100}$/.test(error.code)) {
+                lastErrorCode = error.code;
+            }
             const next = {
                 ...queued,
                 delivery: {
                     ...queued.delivery,
                     attempt: attempt + 1,
-                    last_failed_at: now().toISOString()
+                    last_failed_at: now().toISOString(),
+                    last_status: lastStatus,
+                    last_error_code: lastErrorCode
                 }
             };
             if (next.delivery.attempt > maxAttempts) {

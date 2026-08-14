@@ -300,6 +300,37 @@ describe('Judgment Host knowledge event outbox', () => {
             retryable: 0,
             dead_lettered: 1
         });
+        const deadLetter = JSON.parse(readFileSync(join(deadLetterDir, 'kev_single_attempt.json'), 'utf8'));
+        expect(deadLetter.delivery).toMatchObject({
+            last_status: 503,
+            last_error_code: 'knowledge_event_delivery_http_error'
+        });
+    });
+
+    it('limitで1件だけ安全にprobeし、残りを保留する', async () => {
+        const outboxModuleUrl = pathToFileURL(join(
+            process.cwd(),
+            'server/services/routine-runtime/judgment-event-outbox.js'
+        )).href;
+        const { deliverJudgmentKnowledgeEventOutbox, enqueueJudgmentKnowledgeEvent } = await import(
+            /* @vite-ignore */ outboxModuleUrl
+        );
+        const outboxDir = join(temporaryDirectory(), 'outbox');
+        for (const event_id of ['kev_probe_1', 'kev_probe_2']) {
+            enqueueJudgmentKnowledgeEvent({ event_id, contract_version: 'knowledge_event.v1', organization_id: 'org_unson' }, {
+                directory: outboxDir
+            });
+        }
+        const fetchImpl = vi.fn(async () => ({ ok: true, status: 202 }));
+
+        await expect(deliverJudgmentKnowledgeEventOutbox({
+            outboxDir,
+            endpoint: 'http://127.0.0.1:31013/api/knowledge/events',
+            internalApiKey: 'internal-secret',
+            fetchImpl,
+            limit: 1
+        })).resolves.toMatchObject({ delivered: 1, pending: 1 });
+        expect(fetchImpl).toHaveBeenCalledOnce();
     });
 
     it('個別Outbox設定がなくてもcanonical var配下へcompleted eventを永続化する', async () => {
