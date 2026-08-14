@@ -100,6 +100,7 @@ export async function deliverJudgmentKnowledgeEventOutbox({
     endpoint,
     internalApiKey,
     serviceToken,
+    organizationId,
     fetchImpl = globalThis.fetch,
     maxAttempts = 5,
     now = () => new Date()
@@ -146,9 +147,20 @@ export async function deliverJudgmentKnowledgeEventOutbox({
             continue;
         }
         try {
+            const eventOrganizationId = queued.event?.organization_id
+                || queued.event?.applicability_scope?.organization_id
+                || null;
+            if (eventOrganizationId && organizationId && eventOrganizationId !== organizationId) {
+                throw new Error('knowledge_event_organization_context_conflict');
+            }
+            const deliveryOrganizationId = eventOrganizationId || organizationId || null;
+            if (!deliveryOrganizationId) {
+                throw new Error('knowledge_event_organization_context_required');
+            }
             const headers = { 'Content-Type': 'application/json' };
             if (internalApiKey) headers['x-internal-api-key'] = internalApiKey;
             else if (serviceToken) headers.Authorization = `Bearer ${serviceToken}`;
+            headers['x-brainbase-organization-id'] = deliveryOrganizationId;
             const response = await fetchImpl(endpoint, {
                 method: 'POST',
                 headers,

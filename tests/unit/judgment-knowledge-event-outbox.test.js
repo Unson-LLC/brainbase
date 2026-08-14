@@ -93,7 +93,11 @@ describe('Judgment Host knowledge event outbox', () => {
         );
         const root = temporaryDirectory();
         const outboxDir = join(root, 'outbox');
-        enqueueJudgmentKnowledgeEvent({ event_id: 'kev_internal_auth', contract_version: 'knowledge_event.v1' }, {
+        enqueueJudgmentKnowledgeEvent({
+            event_id: 'kev_internal_auth',
+            contract_version: 'knowledge_event.v1',
+            organization_id: 'org_unson'
+        }, {
             directory: outboxDir
         });
         const fetchImpl = vi.fn(async () => ({ ok: true, status: 201 }));
@@ -111,10 +115,75 @@ describe('Judgment Host knowledge event outbox', () => {
             expect.objectContaining({
                 headers: {
                     'Content-Type': 'application/json',
+                    'x-brainbase-organization-id': 'org_unson',
                     'x-internal-api-key': 'internal-secret'
                 }
             })
         );
+    });
+
+    it('旧eventはruntime organizationを補い、組織不明なら送信しない', async () => {
+        const outboxModuleUrl = pathToFileURL(join(
+            process.cwd(),
+            'server/services/routine-runtime/judgment-event-outbox.js'
+        )).href;
+        const { deliverJudgmentKnowledgeEventOutbox, enqueueJudgmentKnowledgeEvent } = await import(
+            /* @vite-ignore */ outboxModuleUrl
+        );
+        const root = temporaryDirectory();
+        const outboxDir = join(root, 'outbox');
+        enqueueJudgmentKnowledgeEvent({ event_id: 'kev_legacy_org', contract_version: 'knowledge_event.v1' }, {
+            directory: outboxDir
+        });
+        const fetchImpl = vi.fn(async () => ({ ok: true, status: 201 }));
+
+        await expect(deliverJudgmentKnowledgeEventOutbox({
+            outboxDir,
+            endpoint: 'http://127.0.0.1:31013/api/knowledge/events',
+            organizationId: 'org_unson',
+            internalApiKey: 'internal-secret',
+            fetchImpl
+        })).resolves.toMatchObject({ delivered: 1, pending: 0 });
+        expect(fetchImpl.mock.calls[0][1].headers['x-brainbase-organization-id']).toBe('org_unson');
+
+        enqueueJudgmentKnowledgeEvent({ event_id: 'kev_missing_org', contract_version: 'knowledge_event.v1' }, {
+            directory: outboxDir
+        });
+        fetchImpl.mockClear();
+        await expect(deliverJudgmentKnowledgeEventOutbox({
+            outboxDir,
+            endpoint: 'http://127.0.0.1:31013/api/knowledge/events',
+            internalApiKey: 'internal-secret',
+            fetchImpl
+        })).resolves.toMatchObject({ delivered: 0, failed: 1, retryable: 1, pending: 1 });
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('eventとruntimeのorganizationが矛盾する場合は送信しない', async () => {
+        const outboxModuleUrl = pathToFileURL(join(
+            process.cwd(),
+            'server/services/routine-runtime/judgment-event-outbox.js'
+        )).href;
+        const { deliverJudgmentKnowledgeEventOutbox, enqueueJudgmentKnowledgeEvent } = await import(
+            /* @vite-ignore */ outboxModuleUrl
+        );
+        const root = temporaryDirectory();
+        const outboxDir = join(root, 'outbox');
+        enqueueJudgmentKnowledgeEvent({
+            event_id: 'kev_org_conflict',
+            contract_version: 'knowledge_event.v1',
+            applicability_scope: { organization_id: 'org_a' }
+        }, { directory: outboxDir });
+        const fetchImpl = vi.fn(async () => ({ ok: true, status: 201 }));
+
+        await expect(deliverJudgmentKnowledgeEventOutbox({
+            outboxDir,
+            endpoint: 'http://127.0.0.1:31013/api/knowledge/events',
+            organizationId: 'org_b',
+            internalApiKey: 'internal-secret',
+            fetchImpl
+        })).resolves.toMatchObject({ delivered: 0, failed: 1, retryable: 1, pending: 1 });
+        expect(fetchImpl).not.toHaveBeenCalled();
     });
 
     it('env未設定・任意cwdでもHostとserverはrepo由来の同じcanonical varを解決する', () => {
@@ -164,7 +233,11 @@ describe('Judgment Host knowledge event outbox', () => {
         const root = temporaryDirectory();
         const outboxDir = join(root, 'outbox');
         const deadLetterDir = join(root, 'dead-letter');
-        enqueueJudgmentKnowledgeEvent({ event_id: 'kev_valid', contract_version: 'knowledge_event.v1' }, {
+        enqueueJudgmentKnowledgeEvent({
+            event_id: 'kev_valid',
+            contract_version: 'knowledge_event.v1',
+            organization_id: 'org_unson'
+        }, {
             directory: outboxDir,
             now: () => new Date('2026-08-13T00:00:00.000Z')
         });
@@ -203,7 +276,11 @@ describe('Judgment Host knowledge event outbox', () => {
         const root = temporaryDirectory();
         const outboxDir = join(root, 'outbox');
         const deadLetterDir = join(root, 'dead-letter');
-        enqueueJudgmentKnowledgeEvent({ event_id: 'kev_single_attempt', contract_version: 'knowledge_event.v1' }, {
+        enqueueJudgmentKnowledgeEvent({
+            event_id: 'kev_single_attempt',
+            contract_version: 'knowledge_event.v1',
+            organization_id: 'org_unson'
+        }, {
             directory: outboxDir
         });
         const fetchImpl = vi.fn(async () => ({ ok: false, status: 503 }));
@@ -231,7 +308,8 @@ describe('Judgment Host knowledge event outbox', () => {
         const outboxDir = join(canonicalVarDir, 'knowledge-event-outbox', 'codex-judgment');
         const env = {
             BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
-            BRAINBASE_VAR_DIR: canonicalVarDir
+            BRAINBASE_VAR_DIR: canonicalVarDir,
+            BRAINBASE_ORGANIZATION_ID: 'org_unson'
         };
         const payload = {
             session_id: 'session-default-outbox',
@@ -252,7 +330,11 @@ describe('Judgment Host knowledge event outbox', () => {
         const files = readdirSync(outboxDir).filter((name) => name.endsWith('.json'));
         expect(files).toHaveLength(1);
         expect(JSON.parse(readFileSync(join(outboxDir, files[0]), 'utf8')).event)
-            .toMatchObject({ contract_version: 'knowledge_event.v1' });
+            .toMatchObject({
+                contract_version: 'knowledge_event.v1',
+                organization_id: 'org_unson',
+                applicability_scope: expect.objectContaining({ organization_id: 'org_unson' })
+            });
     });
 
     it('complete確定後だけknowledge_event.v1を正規Outboxへ一度だけ登録する', async () => {
