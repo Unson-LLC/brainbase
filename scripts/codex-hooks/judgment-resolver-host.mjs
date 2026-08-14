@@ -1187,7 +1187,8 @@ function enqueueFinalKnowledgeEvent(payload, final, env) {
         ...final,
         episode_id: `je_${sha256(`${payload.session_id}:${payload.turn_id}`)}`,
         session_id: payload.session_id,
-        turn_id: payload.turn_id
+        turn_id: payload.turn_id,
+        organization_id: env.BRAINBASE_ORGANIZATION_ID
     });
     if (event) {
         enqueueJudgmentKnowledgeEvent(event, {

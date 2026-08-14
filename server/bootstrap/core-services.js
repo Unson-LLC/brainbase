@@ -305,6 +305,7 @@ export function createCoreServices({
             outboxDir: judgmentKnowledgeEventOutboxDir,
             deadLetterDir: judgmentKnowledgeEventDeadLetterDir,
             endpoint: judgmentKnowledgeEventEndpoint,
+            organizationId: process.env.BRAINBASE_ORGANIZATION_ID,
             ...judgmentKnowledgeEventDeliveryAuth
         })
     };

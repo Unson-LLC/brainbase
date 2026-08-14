@@ -99,7 +99,7 @@ describe('completed judgment episode knowledge event adapter', () => {
     });
 
     it('Phase 3正式schemaへ変換しKnowledgeEventService.ingest validatorを通過する', async () => {
-        const event = toKnowledgeEventFromJudgmentEpisode(completedEpisode());
+        const event = toKnowledgeEventFromJudgmentEpisode(completedEpisode({ organization_id: 'org_unson' }));
         const service = new KnowledgeEventService({
             eventRepository: new InMemoryKnowledgeEventRepository(),
             candidateRepository: new InMemoryCandidateRepository(),
@@ -108,8 +108,9 @@ describe('completed judgment episode knowledge event adapter', () => {
 
         expect(event).toMatchObject({
             schema_version: 'knowledge_event.v1',
+            organization_id: 'org_unson',
             decision_authority: expect.any(Object),
-            applicability_scope: expect.any(Object)
+            applicability_scope: expect.objectContaining({ organization_id: 'org_unson' })
         });
         await expect(service.ingest(event)).resolves.toMatchObject({ event_id: event.event_id });
     });

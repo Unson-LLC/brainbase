@@ -52,6 +52,9 @@ export function toKnowledgeEventFromJudgmentEpisode(episode) {
     const turnId = requiredString(episode.turn_id, 'turn_id');
     const completedAt = requiredString(episode.finalized_at, 'finalized_at');
     const bodyHash = requiredString(episode.answer_digest, 'answer_digest');
+    const organizationId = typeof episode.organization_id === 'string' && episode.organization_id.length > 0
+        ? episode.organization_id
+        : null;
 
     return {
         schema_version: 'knowledge_event.v1',
@@ -66,7 +69,12 @@ export function toKnowledgeEventFromJudgmentEpisode(episode) {
             authorized: false,
             graph_promotion_allowed: false
         },
-        applicability_scope: { scope: 'judgment_episode', project_code: 'brainbase' },
+        ...(organizationId ? { organization_id: organizationId } : {}),
+        applicability_scope: {
+            scope: 'judgment_episode',
+            project_code: 'brainbase',
+            ...(organizationId ? { organization_id: organizationId } : {})
+        },
         permission_snapshot: { knowledge_registration: true, external_action: false },
         source_pointer: { uri: `codex://threads/${sessionId}#turn=${turnId}` },
         body_hash: bodyHash,
