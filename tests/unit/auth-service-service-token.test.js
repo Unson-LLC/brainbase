@@ -17,6 +17,7 @@ describe('AuthService service tokens', () => {
             role: 'gm',
             projectCodes: ['unson'],
             clearance: ['internal', 'restricted'],
+            organizationId: 'unson',
             personId: 'per_admin',
             createdBy: 'per_admin'
         });
@@ -31,6 +32,8 @@ describe('AuthService service tokens', () => {
         expect(decoded.role).toBe('gm');
         expect(decoded.projectCodes).toEqual(['unson']);
         expect(decoded.clearance).toEqual(['internal', 'restricted']);
+        expect(decoded.organizationId).toBe('unson');
+        expect(result.access.organizationId).toBe('unson');
     });
 
     it('verifyServiceToken呼び出し時_bbsvc prefix以外は拒否する', () => {
@@ -47,6 +50,7 @@ describe('AuthService service tokens', () => {
             role: 'invalid',
             projectCodes: [' unson ', '', 123, 'brainbase'],
             clearance: ['internal', '', 'restricted', 456],
+            organizationId: 'unson',
             personId: 'per_1'
         });
 
@@ -54,6 +58,13 @@ describe('AuthService service tokens', () => {
         expect(decoded.role).toBe('member');
         expect(decoded.projectCodes).toEqual(['unson', 'brainbase']);
         expect(decoded.clearance).toEqual(['internal', 'restricted']);
+    });
+
+    it('issueServiceToken呼び出し時_organization IDがなければ拒否する', () => {
+        const authService = new AuthService();
+
+        expect(() => authService.issueServiceToken({ name: 'missing organization' }))
+            .toThrow('service token organizationId is required');
     });
 
     it('createAuditLog呼び出し時_person_id FK不整合ならperson_idなしで監査ログを残す', async () => {

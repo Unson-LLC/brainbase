@@ -266,6 +266,28 @@ describe('AuthService - Device Code Flow', () => {
                 error_description: 'Access is not granted'
             });
         });
+
+        it('should issue approved device tokens with the canonical organization ID', async () => {
+            const response = authService.createDeviceCodeRequest('test-code-verifier');
+            authService.approveDeviceCode(response.device_code, 'U12345', 'T12345');
+            authService.findUserBySlackId = async () => ({
+                person_id: 'per_1',
+                slack_user_id: 'U12345',
+                access_level: 3,
+                employment_type: 'employee',
+                role: 'ceo',
+                project_codes: ['brainbase'],
+                clearance: ['internal'],
+                workspace_id: 'unson'
+            });
+            authService.createAuditLog = async () => {};
+
+            const result = await authService.pollDeviceToken(response.device_code);
+            const decoded = authService.verifyToken(result.access_token);
+
+            expect(decoded.organizationId).toBe('unson');
+            expect(decoded.tenantId).toBeUndefined();
+        });
     });
 
     describe('cleanupExpiredDeviceCodes', () => {

@@ -21,7 +21,8 @@ describe('AuthService auth grant precedence', () => {
         });
         authService.findUserBySlackId = vi.fn().mockResolvedValue({
             person_id: 'per_graph',
-            name: 'Graph Person'
+            name: 'Graph Person',
+            workspace_id: 'unson'
         });
         authService.ensurePerson = vi.fn(async ({ personId }) => personId);
         authService.issueToken = vi.fn().mockReturnValue('access-token');
@@ -37,9 +38,35 @@ describe('AuthService auth grant precedence', () => {
         });
         expect(authService.issueToken).toHaveBeenCalledWith(expect.objectContaining({
             personId: 'per_graph',
-            projectCodes: ['brainbase']
+            projectCodes: ['brainbase'],
+            organizationId: 'unson'
         }));
         expect(result.access.personId).toBe('per_graph');
+        expect(result.access.organizationId).toBe('unson');
+    });
+
+    it('resolves the organization for a legacy user token from the exact active user identity', async () => {
+        const queries = [];
+        const client = {
+            query: async (sql, params) => {
+                queries.push({ sql, params });
+                return { rows: [{ organization_id: 'unson' }] };
+            },
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        const organizationId = await authService.resolveOrganizationIdForAccess({
+            personId: 'per_sato',
+            slackUserId: 'U_SATO',
+            slackWorkspaceId: 'T_UNSON'
+        });
+
+        expect(organizationId).toBe('unson');
+        expect(queries[0].sql).toContain("u.status = 'active'");
+        expect(queries[0].sql).toContain('o.workspace_id = $3');
+        expect(queries[0].params).toEqual(['per_sato', 'U_SATO', 'T_UNSON']);
     });
 
     it('uses auth_grants project_codes even when users.project_codes is an empty stale array', async () => {
@@ -119,7 +146,8 @@ describe('AuthService auth grant precedence', () => {
                     person_id: 'per_grant',
                     name: 'Granted User',
                     slack_user_id: 'U_MEMBER',
-                    workspace_id: 'T_EXACT',
+                    slack_workspace_id: 'T_EXACT',
+                    organization_id: 'unson',
                     role: 'gm',
                     project_codes: ['brainbase'],
                     clearance: ['internal', 'restricted'],
@@ -140,8 +168,9 @@ describe('AuthService auth grant precedence', () => {
         const user = await authService.findUserBySlackId('U_MEMBER', 'T_EXACT');
 
         expect(user.person_id).toBe('per_grant');
-        expect(user.workspace_id).toBe('T_EXACT');
+        expect(user.workspace_id).toBe('unson');
         expect(observedQueries[1].params).toEqual(['U_MEMBER', 'T_EXACT']);
-        expect(observedQueries[1].sql).toContain('slack_workspace_id = $2');
+        expect(observedQueries[1].sql).toContain('ag.slack_workspace_id = $2');
+        expect(observedQueries[1].sql).toContain('o.id as organization_id');
     });
 });

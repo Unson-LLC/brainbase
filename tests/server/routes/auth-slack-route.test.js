@@ -71,7 +71,11 @@ describe('Slack auth routes', () => {
             .expect(200);
 
         expect(authService.findUserBySlackId).toHaveBeenCalledWith('U123', 'T123');
+        expect(authService.issueToken).toHaveBeenCalledWith(expect.objectContaining({
+            organizationId: 'unson'
+        }));
         expect(res.body.access.workspaceId).toBe('T123');
+        expect(res.body.access.organizationId).toBe('unson');
     });
 
     it('GET /api/auth/slack/callback uses state redirect for same-window admin login fallback', async () => {
