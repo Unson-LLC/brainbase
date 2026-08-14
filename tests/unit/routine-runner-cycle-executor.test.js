@@ -194,7 +194,10 @@ describe('Routine Runner cycle execution', () => {
             }
         });
         expect(calls[1].url).toBe('https://brainbase.example/api/run-receipts/ingest');
-        expect(calls[1].body.run).toMatchObject({ status: 'success', external_run_id: 'brainbase-ohayo:thread-http-1' });
+        expect(calls[1].body.run).toMatchObject({
+            status: 'success',
+            external_run_id: 'brainbase-ohayo:thread-http-1:2026-08-13T00:01:00.000Z'
+        });
         expect(result).toMatchObject({ delivery: { delivered: 1 } });
     });
 
@@ -363,7 +366,7 @@ describe('Routine Runner cycle execution', () => {
         const receipt = JSON.parse(fs.readFileSync(path.join(outboxDir, files[0]), 'utf8'));
         expect(receipt.run).toMatchObject({
             status: 'failed',
-            external_run_id: 'brainbase-oyasumi:thread-throw-1',
+            external_run_id: 'brainbase-oyasumi:thread-throw-1:2026-08-13T00:02:00.000Z',
             blocker_reason: expect.stringContaining('failed')
         });
     });
