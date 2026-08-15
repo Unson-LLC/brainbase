@@ -39,7 +39,7 @@
         "code_refs": [{ "file": "mcp/brainbase/src/tools/meeting-minutes-context-tools.ts" }],
         "test_refs": [
           { "file": "mcp/brainbase/tests/meeting-minutes-context-tools.test.ts", "case": "wrong receipt identity fails closed" },
-          { "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts", "case": "fails closed when PostToolUse was not recorded by the canonical dispatcher" }
+          { "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts", "case": "story-remote-judgment-hook:ac:5 fails closed when PostToolUse was not recorded by the canonical dispatcher" }
         ]
       },
       "verifiable_by": { "test_pattern": [{ "file_glob": "mcp/brainbase/tests/meeting-minutes-context-tools.test.ts", "must_cover": "identity" }] },
@@ -53,7 +53,7 @@
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-6" }],
         "architecture_refs": [{ "file": "docs/architecture/story-meeting-minutes-context-receipt.md", "section": "信頼境界" }],
         "code_refs": [{ "file": "mcp/brainbase/src/server.ts" }, { "file": "server/bootstrap/register-api-routes.js" }],
-        "test_refs": [{ "file": "tests/server/routes/meeting-minutes-context-receipts.test.js", "case": "rejects a mismatched Receipt without affecting existing routes" }]
+        "test_refs": [{ "file": "tests/server/routes/meeting-minutes-context-receipts.test.js", "case": "rejects non-service callers before dispatch" }]
       },
       "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/routes/meeting-minutes-context-receipts.test.js", "must_cover": "identity" }] },
       "confidence": 0.99

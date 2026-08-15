@@ -1,10 +1,10 @@
 {
   "schema_version": "0.1.0",
   "story_id": "story-meeting-minutes-context-receipt",
-  "created_at": "2026-08-15T08:34:22.637Z",
+  "created_at": "2026-08-15T08:42:28.967Z",
   "status": "ready",
   "git": {
-    "head_sha": "d3cacc6cde77232459a3433b23db8580dc2928fa"
+    "head_sha": "a60065e6095a687a2174372db42ca59537fb9e9f"
   },
   "checks": [
     {
@@ -37,7 +37,7 @@
   },
   "engineering_judgment": null,
   "pr_prepare": {
-    "created_at": "2026-08-15T08:34:22.189Z",
+    "created_at": "2026-08-15T08:42:28.510Z",
     "artifact": ".vibepro/pr/story-meeting-minutes-context-receipt/pr-prepare.json"
   },
   "next_actions": []

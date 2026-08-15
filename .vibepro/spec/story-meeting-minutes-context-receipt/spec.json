@@ -2,7 +2,7 @@
   "schema_version": "0.1.0",
   "story_id": "story-meeting-minutes-context-receipt",
   "generated_by": {
-    "caller": "codex",
+    "caller": "unknown",
     "stage": "architecture"
   },
   "clauses": [
@@ -52,7 +52,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-15T08:20:57.650Z",
-      "last_revised_at": "2026-08-15T08:34:28.594Z"
+      "last_revised_at": "2026-08-15T08:42:38.095Z"
     },
     {
       "id": "INV-001",
@@ -93,7 +93,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-15T08:20:57.650Z",
-      "last_revised_at": "2026-08-15T08:34:28.594Z"
+      "last_revised_at": "2026-08-15T08:42:38.095Z"
     },
     {
       "id": "C-002",
@@ -128,7 +128,7 @@
           },
           {
             "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts",
-            "case": "fails closed when PostToolUse was not recorded by the canonical dispatcher"
+            "case": "story-remote-judgment-hook:ac:5 fails closed when PostToolUse was not recorded by the canonical dispatcher"
           }
         ]
       },
@@ -142,7 +142,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-15T08:20:57.650Z",
-      "last_revised_at": "2026-08-15T08:34:28.594Z"
+      "last_revised_at": "2026-08-15T08:42:38.095Z"
     },
     {
       "id": "INV-002",
@@ -172,7 +172,7 @@
         "test_refs": [
           {
             "file": "tests/server/routes/meeting-minutes-context-receipts.test.js",
-            "case": "rejects a mismatched Receipt without affecting existing routes"
+            "case": "rejects non-service callers before dispatch"
           }
         ]
       },
@@ -186,7 +186,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-15T08:20:57.650Z",
-      "last_revised_at": "2026-08-15T08:34:28.594Z"
+      "last_revised_at": "2026-08-15T08:42:38.095Z"
     }
   ],
   "planned_test_suites": [
@@ -208,6 +208,6 @@
     }
   ],
   "open_questions": [],
-  "generated_at": "2026-08-15T08:34:28.584Z",
-  "previous_spec_id": "2026-08-15T08:24:21.803Z"
+  "generated_at": "2026-08-15T08:42:38.089Z",
+  "previous_spec_id": "2026-08-15T08:34:28.584Z"
 }
