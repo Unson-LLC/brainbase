@@ -18,6 +18,7 @@ import { createJudgmentResolutionRouter } from '../routes/judgment-resolution.js
 import { createCompanionRouter } from '../routes/companion.js';
 import { createExternalRunnerRouter } from '../routes/external-runner.js';
 import { createRunReceiptRouter } from '../routes/run-receipts.js';
+import { createMeetingMinutesContextReceiptRouter } from '../routes/meeting-minutes-context-receipts.js';
 import { createRoutineRouter } from '../routes/routines.js';
 import { createMeetingSourceSettingsRouter } from '../routes/meeting-source-settings.js';
 import { adminNoCacheMiddleware, createAdminVisualizationRouter } from '../routes/admin-visualization.js';
@@ -54,6 +55,10 @@ import { ReplyDraftService } from '../services/companion/reply-draft-service.js'
 import { DecisionEventService } from '../services/companion/decision-event-service.js';
 import { KnowledgeResolutionService } from '../services/knowledge-resolution-service.js';
 import { JudgmentResolutionService } from '../services/judgment-resolution-service.js';
+import {
+    JsonFileMeetingMinutesContextReceiptRepository,
+    MeetingMinutesContextReceiptService
+} from '../services/meeting-minutes/context-receipt-service.js';
 
 export function resolveSnsPostingLedgerDatabaseUrl(env = process.env) {
     if (env.SNS_POSTING_LEDGER_DATABASE_URL) return env.SNS_POSTING_LEDGER_DATABASE_URL;
@@ -320,6 +325,19 @@ export function registerApiRoutes(app, {
         queryService: runReceiptQueryService,
         routineLivenessService
     }));
+    app.use(
+        '/api/meeting-minutes/context-receipts',
+        workflowAuthGuard,
+        createMeetingMinutesContextReceiptRouter({
+            service: new MeetingMinutesContextReceiptService({
+                infoSSOTService,
+                canonicalTaskService,
+                repository: new JsonFileMeetingMinutesContextReceiptRepository({
+                    filePath: path.join(runtimePaths.varDir, 'meeting-minutes-context-receipts.json')
+                })
+            })
+        })
+    );
     if (routineCycleExecutor) {
         app.use(
             '/api/routines',
