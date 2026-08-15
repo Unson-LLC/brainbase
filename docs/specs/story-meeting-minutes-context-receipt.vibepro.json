@@ -1,0 +1,64 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-minutes-context-receipt",
+  "generated_by": { "caller": "codex", "stage": "architecture" },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "認証済みmanaはproject、run、transcript hashへ束縛された上限付き文脈Receiptを作成できる",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC1" }, { "kind": "acceptance_criteria", "ac_id": "AC3" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-meeting-minutes-context-receipt.md", "section": "Receipt" }],
+        "code_refs": [{ "file": "server/services/meeting-minutes/context-receipt-service.js" }, { "file": "server/routes/meeting-minutes-context-receipts.js" }],
+        "test_refs": [{ "file": "tests/server/services/meeting-minutes-context-receipt-service.test.js", "case": "resolves bounded Graph and Canonical Task context into a persistent receipt" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/services/meeting-minutes-context-receipt-service.test.js", "must_cover": "bounded" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "取得状態はresolved、confirmed_empty、partial、unavailableを区別し、障害を空へ丸めない",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC2" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-meeting-minutes-context-receipt.md", "section": "Receipt" }],
+        "code_refs": [{ "file": "server/services/meeting-minutes/context-receipt-service.js" }],
+        "test_refs": [{ "file": "tests/server/services/meeting-minutes-context-receipt-service.test.js", "case": "does not turn a partial source failure into confirmed_empty" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/services/meeting-minutes-context-receipt-service.test.js", "must_cover": "partial" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "専用MCPツールはReceipt idに加えてrun、project、transcript hashを照合して同一Receiptだけを返す",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC4" }, { "kind": "acceptance_criteria", "ac_id": "AC5" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-meeting-minutes-context-receipt.md", "section": "信頼境界" }],
+        "code_refs": [{ "file": "mcp/brainbase/src/tools/meeting-minutes-context-tools.ts" }],
+        "test_refs": [
+          { "file": "mcp/brainbase/tests/meeting-minutes-context-tools.test.ts", "case": "wrong receipt identity fails closed" },
+          { "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts", "case": "fails closed when PostToolUse was not recorded by the canonical dispatcher" }
+        ]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "mcp/brainbase/tests/meeting-minutes-context-tools.test.ts", "must_cover": "identity" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "Receipt追加は既存Graph、Task、Judgment Hook、一般MCPツールの契約を変更しない",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC6" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-meeting-minutes-context-receipt.md", "section": "信頼境界" }],
+        "code_refs": [{ "file": "mcp/brainbase/src/server.ts" }, { "file": "server/bootstrap/register-api-routes.js" }],
+        "test_refs": [{ "file": "tests/server/routes/meeting-minutes-context-receipts.test.js", "case": "rejects a mismatched Receipt without affecting existing routes" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/routes/meeting-minutes-context-receipts.test.js", "must_cover": "identity" }] },
+      "confidence": 0.99
+    }
+  ],
+  "planned_test_suites": [{ "layer": "unit", "covers": ["Receipt bounds", "status semantics", "identity validation"] }, { "layer": "integration", "covers": ["authenticated API", "MCP registration", "existing contract regression"] }],
+  "open_questions": []
+}
