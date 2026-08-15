@@ -180,6 +180,19 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Meeting-minutes context receipts are created by the mana runtime over
+        // Bearer-authenticated server-to-server HTTP. Keep this exemption exact;
+        // the mounted route still requires a service/internal identity and checks
+        // project access before creating a receipt.
+        if (
+            req.method === 'POST'
+            && req.path === '/api/meeting-minutes/context-receipts'
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
+            return next();
+        }
+
         // Routine execution is invoked by the repository-managed runner over
         // Bearer-authenticated server-to-server HTTP. Keep the exemption exact;
         // the mounted route still enforces authentication, brainbase project
