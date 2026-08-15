@@ -40,6 +40,10 @@ import {
   handleControlPlaneToolCall,
 } from './tools/control-plane-tools.js';
 import { taskTools, handleTaskToolCall } from './tools/task-tools.js';
+import {
+  meetingMinutesContextTools,
+  handleMeetingMinutesContextToolCall,
+} from './tools/meeting-minutes-context-tools.js';
 import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-tools.js';
 import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './tools/knowledge-resolution-tools.js';
 import { judgmentResolutionTools, resolveJudgmentBeforeModel } from './tools/judgment-resolution-tools.js';
@@ -976,7 +980,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
 }
 
 export const __testing = {
-  tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...taskTools],
+  tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...meetingMinutesContextTools, ...taskTools],
   dispatchOnboardingToolCall,
   dispatchJudgmentResolutionBeforeModel,
   dispatchKnowledgeResolutionToolCall,
@@ -1106,7 +1110,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...taskTools, ...meshTools] };
+    return { tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...meetingMinutesContextTools, ...taskTools, ...meshTools] };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -1122,6 +1126,10 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         }),
         (toolName, extensionArgs) => dispatchOnboardingToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => dispatchKnowledgeResolutionToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => handleMeetingMinutesContextToolCall(toolName, extensionArgs, {
+          apiUrl: resolveBrainbaseApiUrl(),
+          getToken: () => globalTokenManager.getToken(),
+        }),
         (toolName, extensionArgs) => handleTaskToolCall(toolName, extensionArgs, {
           apiUrl: taskApiUrl,
           token: taskApiToken,
