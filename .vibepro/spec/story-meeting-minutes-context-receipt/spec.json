@@ -14,11 +14,11 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC1"
+            "ac_id": "AC-1"
           },
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC3"
+            "ac_id": "AC-3"
           }
         ],
         "architecture_refs": [
@@ -52,7 +52,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-15T08:20:57.650Z",
-      "last_revised_at": "2026-08-15T08:24:21.813Z"
+      "last_revised_at": "2026-08-15T08:34:28.594Z"
     },
     {
       "id": "INV-001",
@@ -62,7 +62,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC2"
+            "ac_id": "AC-2"
           }
         ],
         "architecture_refs": [
@@ -93,7 +93,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-15T08:20:57.650Z",
-      "last_revised_at": "2026-08-15T08:24:21.813Z"
+      "last_revised_at": "2026-08-15T08:34:28.594Z"
     },
     {
       "id": "C-002",
@@ -103,11 +103,11 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC4"
+            "ac_id": "AC-4"
           },
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC5"
+            "ac_id": "AC-5"
           }
         ],
         "architecture_refs": [
@@ -142,7 +142,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-15T08:20:57.650Z",
-      "last_revised_at": "2026-08-15T08:24:21.813Z"
+      "last_revised_at": "2026-08-15T08:34:28.594Z"
     },
     {
       "id": "INV-002",
@@ -152,7 +152,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC6"
+            "ac_id": "AC-6"
           }
         ],
         "architecture_refs": [
@@ -186,7 +186,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-15T08:20:57.650Z",
-      "last_revised_at": "2026-08-15T08:24:21.813Z"
+      "last_revised_at": "2026-08-15T08:34:28.594Z"
     }
   ],
   "planned_test_suites": [
@@ -208,6 +208,6 @@
     }
   ],
   "open_questions": [],
-  "generated_at": "2026-08-15T08:24:21.803Z",
-  "previous_spec_id": "2026-08-15T08:20:57.643Z"
+  "generated_at": "2026-08-15T08:34:28.584Z",
+  "previous_spec_id": "2026-08-15T08:24:21.803Z"
 }
