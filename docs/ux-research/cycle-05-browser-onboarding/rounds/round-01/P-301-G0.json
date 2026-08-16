@@ -1,0 +1,45 @@
+{
+  "persona_id": "P-301-G0",
+  "round": "round-01",
+  "persona": {
+    "type": "ontology_steward",
+    "experience": "new_domain",
+    "technical_literacy": "high",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "confirmation_preference": "confirmation_first",
+    "interaction": "voice+keyboard",
+    "assistive_technology_viewpoint": "none"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {"engine": "Playwright Chromium", "headless": false, "viewport": "1440x900", "status": 200, "title": "Brainbase"},
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "価値文、実用場面、プロジェクト整理、人の確認、判断根拠を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "導入5フェーズ、順序、共通の確認・未完了ルールを確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/project-context", "result": "新しい仕事領域で確認すべき自分・プロジェクト・関係者・用語・判断基準・決定事項を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/first-value", "result": "実依頼のdemo、回答例、説明し直さずに済んだこと、完了条件を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "MCPのdry-run、別出力、既存設定を消さない境界、新セッションでのtool確認を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "CodexのUserPromptSubmit/PostToolUse/Stop、監査行、実tool証跡、doctorによる成功検証と異常時動作を確認。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-301-G0.png"}
+  ],
+  "task_outcomes": {
+    "explain_value": {"status": "pass", "finding": "Brainbaseは、自分の仕事文脈をローカルSSOTとして育て、AIへ渡すMCPマニュアルであり、プロジェクト・人・判断の説明を繰り返さず、人が確認した内容だけを記録する価値を説明できる。"},
+    "prerequisites_first_prompt_start_command": {"status": "pass_with_friction", "finding": "Node.js 20以上、npm、MCP対応エージェント、local checkout、開始文と npm run onboard:start -- --target codex を確認できる。トップから準備ページへ移動する必要があるため、高圧力では一手多い。"},
+    "codex_mcp_judgment_host_order_success_checks": {"status": "pass_with_friction", "finding": "価値確認→MCP dry-run・反映・新セッション確認→Judgment Host登録の順序、get_context/search等の実tool、doctor ready、監査行の確認条件を把握できる。ただし複数ページを横断する。"},
+    "avoid_config_overwrite_recover": {"status": "pass", "finding": "dry-run、未作成の別出力、既存設定を消さない明示、build→doctor→絶対パス→再起動→新taskの復旧手順が確認できる。"}
+  },
+  "hard_gates": {"unfinished_as_success": "pass", "current_or_next_action": "pass", "overwrite_risk": "pass", "recovery_path": "pass", "human_confirmation_handoff": "pass", "keyboard_or_assistive_reachability": "not_applicable", "no_product_edits": true, "notes": "実ブラウザはvisible Playwright Chromium。音声入力そのもの、Codex接続、実MCP呼び出しはnot_collected。"},
+  "exact_evidence_findings": ["トップ見出し: 『自分の仕事文脈をAIに渡すためのMCPマニュアル』。", "準備ページ: Node.js 20以上、npm、MCP対応AIエージェント、local checkout、npm run onboard:start -- --target codex。", "仕事の前提: 新領域で自分、プロジェクト、関係者、関係性、用語、判断基準、決定事項、作業場所を確認。", "MCP: dry-run、別出力、新セッションでのserver/tool確認。既存設定へ自動マージせず、既存設定を消さない。", "Judgment Host: UserPromptSubmit、PostToolUse、Stopを登録し、doctor ready、監査行、実tool証跡を確認。", "トップロード時にFailed to load resource: server responded with status 404を1件記録。原因は未確認。"],
+  "findings": [
+    {"id": "P301-F1", "severity": "medium", "type": "friction", "finding": "新しいドメインの ontology steward が、価値→前提→実依頼→MCP→Judgment Hostの順序を複数ページから再構成する必要がある。高圧力では遅延要因。", "evidence": "/guide/onboarding-process、/guide/project-context、/guide/first-value、/guide/mcp-install、/guide/judgment-audit"},
+    {"id": "P301-F2", "severity": "low", "type": "clarity", "finding": "成功条件は ready や設定生成ではなく実回答・実tool・監査行であることが明確。voiceで依頼する場合の読み上げ用短縮プロンプトは未提供。", "evidence": "/guide/first-value、/guide/judgment-audit"},
+    {"id": "P301-F3", "severity": "low", "type": "evidence_gap", "finding": "ブラウザ表示とキーボード到達は確認したが、音声入力、実Codex task、実MCP/Hookイベントは未取得。", "evidence": "visible Playwright Chromiumでのページ遷移・テキスト確認のみ"}
+  ],
+  "recovery": {"status": "documented", "steps": ["dry-runと別出力へ戻す", "npm run build", "npm run doctor", "~/.brainbase/personal-os/の存在確認", "実行ファイルとデータの絶対パス確認", "設定反映後にエージェント再起動", "新taskでMCP tool・監査行・実tool証跡を確認"], "gap": "反映済み設定の自動ロールバック手順はnot_collected"},
+  "synthetic_browser_evaluation": {"status": "completed", "summary": "価値、開始条件、実依頼の完了条件、MCP→Judgment Hostの順序、安全境界、復旧は確認できた。高技術の新ドメイン利用者には内容は明確だが、ページ横断が圧力下の摩擦になる。"},
+  "real_device_evidence": "not_collected",
+  "requested_luna": true,
+  "model_requested": "gpt-5.6-luna",
+  "binding": "not_collected",
+  "model_binding": "not_collected"
+}

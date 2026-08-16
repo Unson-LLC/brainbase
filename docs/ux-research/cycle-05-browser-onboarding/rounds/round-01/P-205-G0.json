@@ -1,0 +1,111 @@
+{
+  "persona": {
+    "id": "P-205-G0",
+    "type": "new_domain_operator",
+    "domain": "technical_medium",
+    "technical_level": "medium",
+    "time_pressure": "high",
+    "interruptions": "frequent",
+    "focus": "task_switching",
+    "priority": "confirmation_first",
+    "input_mode": "voice_and_keyboard",
+    "accessibility_declared": false
+  },
+  "browser": {
+    "url": "http://127.0.0.1:4176/",
+    "engine": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1440x1000",
+    "observed_pages": [
+      "/",
+      "/guide/onboarding-process",
+      "/guide/getting-started",
+      "/guide/mcp-install",
+      "/guide/judgment-audit",
+      "/guide/operations",
+      "/reference/mcp-tools"
+    ]
+  },
+  "browser_actions": [
+    "Opened the home page and read the value statement and primary links.",
+    "Followed the five-phase onboarding overview and recorded the first prompt and phase gates.",
+    "Opened preparation and purpose and recorded prerequisites, start command, and first-value choice.",
+    "Opened MCP registration and recorded dry-run, separate output, restart, and tool-level checks.",
+    "Opened Judgment Host registration and recorded the three-hook order, doctor check, and new-task verification.",
+    "Opened operations and cross-checked completion criteria and non-destructive setup guidance.",
+    "Opened MCP reference to verify search, onboarding, approval, and unverified-state boundaries.",
+    "Captured the home page screenshot."
+  ],
+  "task_outcomes": {
+    "explain_value_in_one_sentence_from_home": {
+      "status": "pass",
+      "answer": "Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTに置き、CodexやClaude Codeが必要なときに参照できるようにして、AIへ説明し直す手間を減らす仕組みです。",
+      "evidence": "ホーム:『自分の仕事文脈をAIに渡すためのMCPマニュアル』および、文脈をローカルSSOTとして育てAIエージェントが参照する説明。"
+    },
+    "find_prerequisites_first_prompt_start_command": {
+      "status": "pass",
+      "answer": "Node.js 20以上、npm、MCP対応エージェント、ローカルcheckoutが必要。最初の入力は『Brainbaseのオンボーディングを始めたいです。』、Codexの開始コマンドは npm run onboard:start -- --target codex。",
+      "evidence": "/guide/getting-started の『必要なもの』『AIに開始を依頼する』。"
+    },
+    "find_codex_mcp_judgment_host_order_and_success_checks": {
+      "status": "pass_with_friction",
+      "answer": "最初の価値を確認し、MCPをdry-run・承認・反映・再起動・新セッションで確認してから、任意のJudgment Hostを登録する。HostはUserPromptSubmit→PostToolUse→Stopの3 Hook。MCPはserver起動、tool一覧、onboarding_status/get_context/searchの実結果、Hostはdoctorのreadyと3イベント、新しいtaskの監査行・実tool証跡で確認する。",
+      "evidence": "/guide/mcp-install と /guide/judgment-audit。順序と成功条件は別ページに分散し、導入トップの一枚チェックリストにはなっていない。"
+    },
+    "find_avoid_overwrite_and_recover": {
+      "status": "pass_with_friction",
+      "answer": "dry-run後、未作成の別出力先へ保存し、既存設定を消さずBrainbase項目だけを確認して手動統合する。MCP/Hostとも自動マージ・上書きはしない。失敗時はbuild→doctor→personal-os存在→絶対パス→再起動→新セッションの順で確認し、空・未確認・監査不足を成功扱いしない。",
+      "evidence": "/guide/mcp-install の dry-run、/tmp出力、手動追加、再起動の説明。/guide/judgment-audit の既存Hook保持、journal破損・空結果・未完了Stopの異常扱い。"
+    }
+  },
+  "hard_gates": [
+    { "id": "home_value_statement", "status": "passed" },
+    { "id": "prerequisites_and_start_command", "status": "passed" },
+    { "id": "mcp_then_judgment_host_order", "status": "passed", "note": "Documented, but split across MCP and Judgment Host pages; interruptions increase reconstruction cost." },
+    { "id": "non_destructive_config_recovery", "status": "passed", "note": "Explicit dry-run and separate output are present; manual merge remains a confirmation-heavy risk." }
+  ],
+  "findings": [
+    {
+      "id": "P205-F1",
+      "severity": "medium",
+      "type": "friction",
+      "finding": "A new-domain operator must reconstruct the MCP → Judgment Host order and separate success checks across pages; frequent interruptions make resuming difficult.",
+      "evidence": "The MCP page says Judgment Host is separate and links onward; the three-hook and doctor criteria appear only on /guide/judgment-audit."
+    },
+    {
+      "id": "P205-F2",
+      "severity": "medium",
+      "type": "risk",
+      "finding": "Confirmation-first behavior is supported by dry-run and separate output, but manual integration into existing settings is a high-attention step under time pressure.",
+      "evidence": "The docs require inspecting output, adding only Brainbase entries, retaining existing MCP/Hook settings, and restarting the agent."
+    },
+    {
+      "id": "P205-F3",
+      "severity": "low",
+      "type": "friction",
+      "finding": "The home page communicates the value clearly, but the first prompt and prerequisites are not visible until the user navigates away.",
+      "evidence": "Home has the value statement and 導入の流れを見る CTA; Node.js/npm prerequisites and the exact first prompt are on /guide/getting-started."
+    }
+  ],
+  "recovery": {
+    "status": "documented",
+    "steps": [
+      "Pause before applying settings; rerun onboard:install with --dry-run.",
+      "Use a new output path such as /tmp/brainbase-mcp.toml or /tmp/brainbase-judgment-hooks.json.",
+      "Run npm run build and npm run doctor; check ~/.brainbase/personal-os/ and absolute executable/data paths.",
+      "Verify the agent was restarted after applying only approved Brainbase entries.",
+      "Open a new task and verify actual MCP tools, audit lines, and non-empty/verified evidence.",
+      "If output is absent, check doctor --judgment-hooks, all three hooks, trust state, and new task; do not silently replace a broken episode or treat unknown as zero."
+    ]
+  },
+  "evidence_boundaries": {
+    "browser_observation": "Docs rendered in a local browser; no CLI execution, MCP connection, or live Codex Host event was performed.",
+    "not_collected": ["real_device", "screen_reader", "voice_input", "MCP_runtime_receipt", "Judgment_Host_runtime_receipt", "customer_or_production_outcome"],
+    "interpretation": "Statuses describe documented UX and navigation only; they do not prove runtime onboarding or production readiness."
+  },
+  "screenshot_path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-205-G0.png",
+  "evidence_kind": "synthetic_browser_evaluation",
+  "real_device_evidence": "not_collected",
+  "model_requested": "gpt-5.6-luna",
+  "model_binding": "not_collected"
+}

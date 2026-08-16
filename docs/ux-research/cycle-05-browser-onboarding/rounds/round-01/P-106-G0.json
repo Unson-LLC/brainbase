@@ -1,0 +1,56 @@
+{
+  "persona_id": "P-106-G0",
+  "persona": {
+    "role": "初回個人利用者",
+    "technical_level": "low",
+    "time_pressure": "low",
+    "mode": "focused",
+    "decision_style": "confirmation-first",
+    "input": "keyboard",
+    "accessibility_declared": false
+  },
+  "actions": [
+    {"step": 1, "task": "トップから価値を一文で説明する", "path": "/", "result": "Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照できるPersonal Onboarding Kitだと説明できた。トップには『AIに二度と説明したくない文脈』という短い価値表現もある。", "evidence": "synthetic_browser_evaluation: browser body text at http://127.0.0.1:4176/"},
+    {"step": 2, "task": "前提条件、最初の依頼文、実行コマンドを見つける", "path": "/guide/getting-started", "result": "Node.js 20以上、npm、Codex/Claude CodeまたはMCP対応エージェント、ローカルcheckout、git clone/npm install/npm run buildを確認できた。最初の依頼文は『Brainbaseのオンボーディングを始めたいです。』、Codexのコマンドは npm run onboard:start -- --target codex。", "evidence": "synthetic_browser_evaluation: /guide/getting-started rendered text"},
+    {"step": 3, "task": "CodexへMCPとJudgment Hostを登録する順序と成功確認を見つける", "path": "/guide/mcp-install and /guide/judgment-audit", "result": "MCPを先にdry-runで登録・新しいセッションでget_context/list_entities/search/onboarding_status等を確認し、その後に任意のJudgment Hostを登録する順序を確認できた。MCPは npm run onboard:install -- --target codex --dry-run。成功確認は新セッションでbrainbaseサーバーと各tool、正本の文脈、search結果を確認する。Judgment Hostは npm run build 後 node dist/cli.js judgment:install --target codex --dry-run、UserPromptSubmit/PostToolUse/Stopの3 Hook、doctorのstatus readyと3イベント、返答先頭の🧠と📚/⚠️を確認する。", "evidence": "synthetic_browser_evaluation: /guide/mcp-install and /guide/judgment-audit rendered text"},
+    {"step": 4, "task": "既存設定を上書きせず、問題時に戻れる案内を探す", "path": "/guide/mcp-install and /guide/judgment-audit", "result": "dry-runと別出力先/tmp/brainbase-mcp.tomlを案内し、onboard:installは既存設定へ自動マージせず、既存設定を消さずに承認後にBrainbase項目だけ追加することを確認できた。Judgment Hostも未作成の出力先へ保存し、他のHookを残す。異常時はbuild→doctor→~/.brainbase/personal-os存在→絶対パス→再起動→新セッションの順で切り分ける。", "evidence": "synthetic_browser_evaluation: /guide/mcp-install and /guide/judgment-audit rendered text"}
+  ],
+  "task_outcomes": {
+    "value_sentence": "success_with_friction",
+    "prerequisites_first_prompt_start_command": "success",
+    "codex_mcp_judgment_order_success_checks": "success_with_friction",
+    "avoid_overwrite_recover": "success"
+  },
+  "hard_gates": [
+    {"gate": "未完了を成功と表示する", "status": "pass", "evidence": "guide/operations states ready:true, generated Skills/routines, or MCP dry-run alone are not completion"},
+    {"gate": "現在地または次の操作が分からない", "status": "pass", "evidence": "onboarding-process gives five phases and each page has next pager"},
+    {"gate": "既存設定を破壊する可能性がある", "status": "pass", "evidence": "mcp-install explicitly says no automatic merge, do not delete existing config, use dry-run/output"},
+    {"gate": "失敗後の復旧手段がない", "status": "pass", "evidence": "mcp-install troubleshooting sequence and judgment-audit doctor/journal repair behavior"},
+    {"gate": "AIから人への確認・引き継ぎがない", "status": "pass", "evidence": "onboarding-process and project-context require confirmation before writes; mcp-install requires user approval"},
+    {"gate": "主要操作がキーボードまたは支援技術から到達不能", "status": "not_collected", "evidence": "keyboard navigation was not exhaustively exercised; no real assistive-technology device evidence"}
+  ],
+  "exact_evidence_findings": [
+    {"severity": "high", "finding": "トップの価値は理解できるが、初回利用者が最初に押す導入導線は『導入の流れを見る』までスクロールが必要で、初回依頼文・コマンドは別ページにある。", "impact": "low-technical user may know what Brainbase is but not immediately know how to start", "source": "synthetic_browser_evaluation screenshot and body text"},
+    {"severity": "medium", "finding": "MCP→新セッションで確認→Judgment Hostという安全な順序は明記されるが、Judgment Hostは任意設定であり、どの利用者がいつ必要かは本文を読み込む必要がある。", "impact": "confirmation-first user may pause before deciding whether to install it", "source": "synthetic_browser_evaluation /guide/mcp-install and /guide/judgment-audit"},
+    {"severity": "medium", "finding": "復旧は確認できるが、既存の~/.codex/hooks.jsonを編集する具体的なバックアップ／差分確認コマンドまでは示されない。", "impact": "recovery is conceptually safe but still requires cautious manual work", "source": "synthetic_browser_evaluation /guide/judgment-audit"}
+  ],
+  "recovery": {
+    "status": "documented_with_manual_gap",
+    "evidence": ["dry-run", "separate output path", "no automatic merge", "doctor sequence", "new session verification"],
+    "missing": "explicit backup/restore command for existing Codex config and hooks"
+  },
+  "synthetic_browser_evaluation": {
+    "status": "completed",
+    "browser": "Playwright Chromium visible, viewport 1440x1000",
+    "url": "http://127.0.0.1:4176/",
+    "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-106-G0.png"
+  },
+  "real_device": "not_collected",
+  "human_observation": "not_collected",
+  "requested_luna_binding": {
+    "decision": "human_decision",
+    "request": "MCP登録後にJudgment Hostを必須の導入段階として見せるか、任意設定のままにするかをLunaが判断。既存Codex設定・hooksのバックアップ/復元手順を公開マニュアルに追加するかも判断。",
+    "binding": "round-01/P-106-G0"
+  },
+  "overall": "初回の低技術者でも、価値、前提条件、開始文、コマンド、MCP→Judgment Hostの順序、上書き回避と復旧の考え方まで到達できる。ページ間を移動して確認する摩擦と、既存設定の明示的なバックアップ手順の欠落が残る。"
+}

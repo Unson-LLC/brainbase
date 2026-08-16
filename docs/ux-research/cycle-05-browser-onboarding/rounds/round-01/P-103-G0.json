@@ -1,0 +1,74 @@
+{
+  "persona_id": "P-103-G0",
+  "model_condition": "実ブラウザ評価。初回の個人利用者、新規、低い技術リテラシー、高い時間圧、集中、速度優先、音声+キーボード、申告されたアクセシビリティ要件なし。",
+  "url": "http://127.0.0.1:4176/",
+  "evidence_reviewed": [
+    "実ブラウザ表示のトップページ、/guide/onboarding-process、/guide/grand-design、/reference/mcp-tools",
+    "スクリーンショット: screenshots/round-01/P-103-G0.png"
+  ],
+  "actions": [
+    "トップページを開き、価値説明と導入導線を確認",
+    "導入の5フェーズ、全体像、MCPツールの各ページをブラウザで閲覧",
+    "トップページから導入の流れを見る、全体像を見る、MCPツールを見るを確認",
+    "ブラウザコンソールの404を記録（製品変更なし）"
+  ],
+  "tasks": {
+    "value_sentence": {
+      "outcome": "pass",
+      "reason": "トップに『自分の仕事文脈をAIに渡すためのMCPマニュアル』、本文に『AIに二度と説明したくない文脈』をローカルSSOTとして育て、CodexやClaude Codeへ渡すと明記され、価値を一文で説明できる。"
+    },
+    "prerequisites_first_prompt_start_command": {
+      "outcome": "success_with_friction",
+      "reason": "導入の5フェーズでは『Brainbaseをビルド』と対象プロジェクト・依頼を示すが、初回ページ上では実行コマンドが見えず、次ページへ進んで初めて npm run build / npm run onboard:start -- --target codex を確認する必要がある。最初のプロンプトは『Brainbaseのオンボーディングを始めたいです。』と明確。",
+      "evidence": ["/guide/onboarding-process:『Brainbaseのオンボーディングを始めたいです。』", "/guide/onboarding-process:フェーズ1『Brainbaseをビルドし…依頼をひとつ決める』", "/guide/getting-started: npm run build, npm run onboard:start -- --target codex"],
+      "friction": "トップから準備ページに直行するリンクがなく、初心者は『ビルド』の意味と最初のコマンドを探す必要がある。"
+    },
+    "codex_mcp_judgment_order_success_recovery": {
+      "outcome": "success_with_friction",
+      "reason": "MCPツールページは onboarding_status と connected-world onboarding の5ツール順序、receipt/candidates/review/first-value、未確認をready扱いしない成功境界を示す。登録順と成功確認は個別ガイドに分かれ、MCPを先に動作確認し、その後Judgment Hostを登録する契約は明示されるが、トップの初回導線からは見えない。既存設定を自動マージせず内容確認後にBrainbase項目だけ追加する安全策も運用ガイドにある。復旧導線は状態JSONを読む必要があり、時間圧の初心者には摩擦。",
+      "evidence": ["/reference/mcp-tools: connected-world onboarding の5 toolを順に使う", "/reference/mcp-tools: 取得不能・権限待ち・error・未確認を空/ready扱いしない", "/guide/mcp-install: MCP動作確認後にJudgment Hostへ進む", "/guide/operations: 既存設定へ自動マージせず内容確認後に追加"],
+      "friction": "MCPとJudgment Hostのページがサイドバーにあるだけで、初心者が最短順序・成功チェック・中断復帰を一画面で確認できない。"
+    }
+  },
+  "hard_gates": {
+    "no_product_edits": true,
+    "existing_config_not_overwritten": "documented_safe_boundary",
+    "unverified_or_waiting_not_success": "documented",
+    "real_device": "not_collected"
+  },
+  "findings": [
+    {
+      "severity": "high",
+      "title": "初心者向けの最短開始導線が分断されている",
+      "evidence": "トップには『導入の流れを見る』があるが、最初のコマンドは /guide/getting-started にあり、/guide/onboarding-process から追加遷移が必要。"
+    },
+    {
+      "severity": "medium",
+      "title": "MCP/Judgment Hostの順序と成功確認が分散",
+      "evidence": "MCPは /reference/mcp-tools、登録は /guide/mcp-install、Judgment Hostは /guide/judgment-audit と複数ページに分かれる。"
+    },
+    {
+      "severity": "medium",
+      "title": "中断復帰にJSON読解が必要",
+      "evidence": "MCPページは receipt、候補、review、first-value の状態を説明するが、初心者向けの『今ここ／次の一手』表示はブラウザ表示で確認できない。"
+    },
+    {
+      "severity": "low",
+      "title": "ページロード時に404コンソールエラー",
+      "evidence": "実ブラウザでトップページロード時に Failed to load resource: server responded with 404 (Not Found)。画面操作は継続できたが原因は未確認。"
+    }
+  ],
+  "recovery": {
+    "status": "partial",
+    "observed": "導入順序、未確認を成功扱いしない境界、既存設定を自動マージしない方針は文書化されている。",
+    "missing": "中断後にコマンド一つで状態・完了済み・次の操作を初心者向けに再表示する実ブラウザ経路は未確認。"
+  },
+  "synthetic_browser_evaluation": {
+    "status": "completed",
+    "summary": "価値説明と初回プロンプトは通る。コマンド、登録順、成功確認、既存設定保護は資料を複数ページ横断すれば通るが、速度優先の新規利用者には探索摩擦がある。"
+  },
+  "real_device_evidence": "not_collected",
+  "requested_luna": true,
+  "binding": "not_collected",
+  "confidence": "medium"
+}

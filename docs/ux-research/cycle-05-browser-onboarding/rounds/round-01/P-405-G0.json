@@ -1,0 +1,62 @@
+{
+  "persona_id": "P-405-G0",
+  "gate_id": "G0",
+  "round": "round-01",
+  "evaluation_type": "cycle-05-round-01-browser-onboarding",
+  "model_requested": "Codex GPT-5",
+  "model_binding": "assigned Codex agent; browser-run model binding not configurable",
+  "persona": {
+    "type": "recovery user",
+    "experience": "experienced",
+    "technical_level": "high",
+    "time_pressure": "high",
+    "mode": "frequently interrupted",
+    "confirmation_preference": "confirmation-first",
+    "input": "voice+keyboard",
+    "accessibility_need": "screen-reader viewpoint"
+  },
+  "environment": {
+    "url": "http://127.0.0.1:4176/",
+    "browser": "visible Playwright Chromium",
+    "viewport": "1440x1000",
+    "reduced_motion": "viewpoint only; no real-device evidence",
+    "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-405-G0.png"
+  },
+  "actions": [
+    {"step": 1, "action": "トップから価値と、途中で中断しても戻れる導入入口を確認", "outcome": "トップの見出し『自分の仕事文脈をAIに渡すためのMCPマニュアル』、導入の流れ、全体像、MCPツールへのリンクを確認した。5フェーズの導入案内へ移動でき、ローカルSSOT・人の確認・判断根拠という価値を一文で説明できた。"},
+    {"step": 2, "action": "初回導入の前提条件、最初の依頼文、実行コマンドを確認", "outcome": "Node.js 20以上、npm、対応エージェント、ローカルcheckout、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex を確認した。準備と目的の完了条件が現実の依頼と対象プロジェクトの決定であることも確認した。"},
+    {"step": 3, "action": "MCP登録からJudgment Host登録、各段階の成功確認までを確認", "outcome": "MCPのdry-run→別出力→承認→再起動→新しいセッション確認の順序と、onboarding_status/get_context/searchの確認項目を確認した。続いてJudgment HostのUserPromptSubmit、PostToolUse、Stopの3 Hook、監査行、実際のtool呼び出し確認を確認した。"},
+    {"step": 4, "action": "既存設定を壊さない復旧経路と中断後の再開手掛かりを確認", "outcome": "既存設定へ自動マージせず別出力を人が確認して統合すること、build・doctor・絶対パス・再起動・新セッションの復旧順を確認した。サイドバー見出し、Pagerの前後リンク、Skip to content、検索を確認したが、明示的な『前回の続きから再開』状態保存は見当たらなかった。"}
+  ],
+  "task_outcomes": {
+    "value_sentence": "pass",
+    "prerequisites_first_prompt_start_command": "pass",
+    "codex_mcp_judgment_host_order_and_success_checks": "pass",
+    "avoid_overwrite_and_recover": "pass_with_caveat"
+  },
+  "hard_gates": [
+    {"gate": "未完了を成功と表示する", "status": "pass", "evidence": "導入5フェーズと運用開始ページが、readyや設定生成だけでは導入完了にしないと明記している。"},
+    {"gate": "現在地または次の操作が分からない", "status": "pass_with_caveat", "evidence": "サイドバー、ページ内見出し、Pagerの前後リンクで現在地と次のページを追える。一方、頻繁な中断後に前回位置を自動復元する状態表示は確認できなかった。"},
+    {"gate": "既存設定を破壊する可能性がある", "status": "pass", "evidence": "dry-run、別出力、絶対パス、既存MCP設定へ自動マージしないこと、既存Hookを残すことが明記されている。"},
+    {"gate": "失敗後の復旧手段がない", "status": "pass", "evidence": "build、doctor、データディレクトリ、絶対パス、再起動、新しいセッションの確認順が案内されている。"},
+    {"gate": "AIから人への確認・引き継ぎがない", "status": "pass", "evidence": "設定断片を別出力し、ユーザーが内容を承認してから既存設定へ統合する手順がある。"},
+    {"gate": "主要操作がキーボードまたは支援技術から到達不能", "status": "pass_synthetic_only", "evidence": "Skip to content、見出し、サイドバー、テキストリンク、Pager、検索導線をDOMとキーボード利用の観点で確認した。VoiceOver・音声入力・実機支援技術は未確認。"}
+  ],
+  "exact_evidence_findings": [
+    {"source": "synthetic_browser_evaluation", "finding": "可視Playwright Chromiumでトップ、/guide/onboarding-process、/guide/getting-started、/guide/mcp-install、/guide/judgment-audit、/guide/operationsを表示し、見出し・本文・導線を確認した。"},
+    {"source": "synthetic_browser_evaluation", "finding": "トップの初回ロードでconsole error『Failed to load resource: the server responded with a status of 404 (Not Found)』を1件観測した。対象リソースと原因は未特定。"},
+    {"source": "synthetic_browser_evaluation", "finding": "中断復帰に使える明示的な保存済み進捗・再開表示は確認できず、Pagerとサイドバーによる手動復帰が現状の導線だった。"},
+    {"source": "synthetic_browser_evaluation", "finding": "MCPページはdry-run→別出力→新セッション確認、Judgment Hostページは3 Hook・監査行・tool eventを分けて確認する契約を明記している。"}
+  ],
+  "recovery": {
+    "status": "documented_with_resume_caveat",
+    "steps": ["npm run build", "npm run doctor", "~/.brainbase/personal-os/ の存在確認", "MCP設定とHookの絶対パス確認", "エージェント再起動", "新しいセッションで確認"],
+    "safety": "既存設定を残し、別出力と人の承認を経て統合する。未確認の404原因と実機支援技術は成功扱いしない。中断後はサイドバーまたはPagerから手動で戻る。"
+  },
+  "synthetic_browser_evaluation": {
+    "status": "complete",
+    "verdict": "adopt",
+    "summary": "復旧中で時間圧の高い経験者でも、価値、導入条件、MCP→Judgment Hostの順序、成功確認、上書き回避、復旧手順へ短い導線で到達できた。確認-firstの安全境界は明確。中断後の自動再開状態とトップの404リソースは要調査。"
+  },
+  "real_device_evidence": "not_collected"
+}

@@ -1,0 +1,81 @@
+{
+  "persona_id": "P-306-G0",
+  "model_condition": "実ブラウザ評価。Ontology steward（経験者）、技術理解は中程度、心理的圧力は低い、集中している、確認優先、キーボード中心、スクリーンリーダー観点。",
+  "url": "http://127.0.0.1:4176/",
+  "evidence_reviewed": [
+    "実ブラウザ表示のトップページ、/guide/onboarding-process、/guide/getting-started、/guide/mcp-install、/guide/judgment-audit、/guide/operations、/reference/mcp-tools、/guide/grand-design",
+    "トップページでSkip to content、見出し、主要リンク、キーボードTab順を確認",
+    "スクリーンショット: screenshots/round-01/P-306-G0.png",
+    "ブラウザコンソール: Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "actions": [
+    "トップページで価値説明と導入経路を確認し、TabキーでSkip link、検索、主要ナビゲーション、主要CTAの順序を確認",
+    "導入5フェーズ、準備と目的、全体像を確認し、プロジェクト中心・人の承認・正本とPersonal KGの境界を確認",
+    "MCPツール、MCP登録、Judgment Host、運用開始を順に閲覧し、Ontology/監査・実tool呼び出し・未確認境界・完了条件を確認",
+    "dry-run、別出力先、自動マージなし、既存設定保護、doctor、新しいセッション、異常時の失敗境界を確認。設定変更や送信は実行しない",
+    "製品コードは変更せず、ページロード時の404コンソールエラーを記録"
+  ],
+  "tasks": {
+    "value_sentence": {
+      "outcome": "pass",
+      "reason": "トップページの見出しと説明で、Brainbaseが自分・仕事・関係性の文脈をローカルSSOTとして育て、MCP経由でAIへ渡すPersonal Onboarding Kitだと一文で説明できる。Ontology stewardに必要な『何を正本とするか』も、人が確認してから記録する、AIの判断根拠を確認できるという近接説明で理解できる。",
+      "evidence": ["/:『自分の仕事文脈をAIに渡すためのMCPマニュアル』", "/:『人が確認してから記録する』『AIの判断根拠を毎回確認できる』", "/guide/grand-design:プロジェクト、SSOT、Personal KG、元データの役割"]
+    },
+    "start_info_and_first_command": {
+      "outcome": "success_with_friction",
+      "reason": "導入開始プロンプト、Node.js/npm/checkout/buildの必要条件、onboard:start、最初の依頼と対象プロジェクト、フェーズ完了条件が明記されている。確認優先の利用者には承認なしに正本を書かない境界が明確。ただしトップのCTAからは導入5フェーズを経て準備ページへ進む必要があり、最初のコマンドと完了条件を一画面で取得できない。",
+      "evidence": ["/guide/onboarding-process:『Brainbaseのオンボーディングを始めたいです。』と5フェーズの順序", "/guide/getting-started:Node.js 20以上、npm、ローカルcheckout、npm run build", "/guide/getting-started:npm run onboard:start -- --target codex", "/guide/getting-started:現実の依頼と対象プロジェクトが決まったら次へ"]
+    },
+    "mcp_to_judgment_host_and_checks": {
+      "outcome": "success_with_friction",
+      "reason": "MCPリファレンスはget_context、list_entities、search、search_personal_kg、onboarding_statusとConnected-world onboardingのstart→get→ingest→review→first_valueを示し、未確認を空/ready扱いしない。MCP登録は再起動後の新セッション検証、Judgment HostはUserPromptSubmit/PostToolUse/Stop、doctor、実tool呼び出しに対応する監査行を示す。Ontology steward向けのaudit_ontology、infer_decisions、ontology_impactも確認できる。一方、MCP、Judgment Host、運用のチェックが複数ページに分散している。",
+      "evidence": ["/reference/mcp-tools:Connected-world onboardingの5 tool順序、waiting_for_authorizationと未確認の境界", "/reference/mcp-tools:audit_ontologyは全件読めた場合のみcomplete、欠損時はunverified", "/guide/mcp-install:MCP確認後にJudgment Hostを登録し、新しいセッションで確認", "/guide/judgment-audit:3 Hook、doctor、実tool呼び出しと判断証跡の分離", "/guide/operations:生成だけでは完了でなく、実際の文脈取得と人の確認が必要"]
+    },
+    "no_overwrite_and_recovery": {
+      "outcome": "documented_not_browser_executed",
+      "reason": "dry-run、未作成の別出力先、既存設定へ自動マージしないこと、既存Hookを残すこと、doctor、新しいセッション、journal破損や不完全Stopを成功にしない境界が確認できた。Ontologyの候補を人がapprove/edit/rejectしてからcanonical SSOTへ昇格する承認モデルも明記されている。ただし実ファイル変更・設定反映・中断復帰はブラウザから実行していないため、状態再表示は未確認。",
+      "evidence": ["/guide/mcp-install:--dry-run、/tmpへの別出力、既存MCP設定を自動マージしない", "/guide/judgment-audit:既存ファイルを上書きせず3 Hookだけを統合、doctor、新しいtask", "/guide/judgment-audit:対応episodeのないStop、破損journal、不完全監査を成功にしない", "/reference/mcp-tools:inferred候補は直接approveせず、人がeditまたはreject", "/guide/operations:Skills/ルーティン/MCP設定の生成だけでは完了ではない"]
+    }
+  },
+  "hard_gates": {
+    "no_product_edits": true,
+    "existing_config_not_overwritten": "documented_safe_boundary_not_executed",
+    "unverified_or_waiting_not_success": "documented",
+    "real_device": "not_collected"
+  },
+  "findings": [
+    {
+      "severity": "high",
+      "title": "確認優先のOntology stewardでも、最短の開始・検証経路が複数ページに分散する",
+      "evidence": "導入5フェーズ、準備の最初のコマンド、MCPの実tool確認、Judgment Hostの3 Hook/doctor、運用完了条件が別ページにある。各ページ単体は明確だが、確認すべき順序と次のページを頭の中で統合する必要がある。"
+    },
+    {
+      "severity": "medium",
+      "title": "キーボード操作は主要導線へ到達できるが、先頭のTab数が多く確認作業を遅くする",
+      "evidence": "トップのTab順はSkip to content、ロゴ、検索、主要ナビゲーション、空のテーマ/補助ボタン、GitHub、3つのCTA、見出しPermalinkの順。Skip linkはあるが、検索・補助ボタン・外部GitHubを経てから導入CTAへ到達する。"
+    },
+    {
+      "severity": "medium",
+      "title": "スクリーンリーダーでの確認には空リンク・空ボタンの意味を追加で推測する箇所がある",
+      "evidence": "キーボード検査で空テキストのBUTTONと空テキストの見出しPermalinkリンクがフォーカス対象になった。ボタンにはaria-labelがなく、Permalinkにはaria-labelがあるため、操作目的が音声で一貫して把握できるかは未確認。"
+    },
+    {
+      "severity": "low",
+      "title": "ページロード時に404コンソールエラーが1件ある",
+      "evidence": "実ブラウザでトップおよび複数ページを閲覧した際、Failed to load resource: the server responded with a status of 404 (Not Found)を記録。画面操作は継続できたが、リソースと原因は未確認。"
+    }
+  ],
+  "recovery": {
+    "status": "partial",
+    "observed": "dry-run、別出力先、自動マージなし、既存Hook保持、doctor、新しいセッション、journal異常時の失敗境界、候補を人が確認してからSSOTへ昇格する境界は確認できた。",
+    "missing": "中断後にブラウザまたは一つのコマンドで、完了済みのOntology/設定検証、未確認項目、次の操作を再表示する利用者向け経路は未確認。"
+  },
+  "synthetic_browser_evaluation": {
+    "status": "completed",
+    "summary": "価値説明、SSOTとPersonal KGの境界、Ontology監査、承認前候補、MCP→Judgment Hostの順序は文書から確認できる。キーボードで主要リンクへ到達できSkip linkもあるが、空のフォーカス対象と複数ページ横断が確認優先・スクリーンリーダー観点の摩擦になる。"
+  },
+  "real_device_evidence": "not_collected",
+  "requested_luna": true,
+  "binding": "not_collected",
+  "confidence": "medium"
+}

@@ -1,0 +1,31 @@
+{
+  "persona_id":"P-407","gate_id":"G0","round":"round-01",
+  "model_requested":"Codex GPT-5","model_binding":"assigned Codex agent; browser-run model binding not configurable",
+  "persona":{"type":"first-time individual","experience":"intermediate","technical_level":"medium","time_pressure":"high","mode":"frequently-interrupted","confirmation_preference":"confirmation-first","input":"voice+keyboard","reduced_motion_viewpoint":true},
+  "environment":{"url":"http://127.0.0.1:4176/","browser":"visible Playwright Chromium","viewport":"1440x1000","reduced_motion":"viewpoint only; no real-device evidence","screenshot":"docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-407-G0.png"},
+  "actions":[
+    {"step":1,"action":"トップで価値と最初の導線を確認","outcome":"AIへ二度と説明したくない仕事文脈をローカルSSOTとして育て、Codex/Claude Codeが参照するPersonal Onboarding Kitという説明を確認。導入・全体像・MCPへのテキストリンクへ到達"},
+    {"step":2,"action":"中断を想定して導入の順序と再開位置を確認","outcome":"導入の5フェーズ、各フェーズの完了目安、次のフェーズへのリンクを確認。ページ遷移後もサイドバーとPagerで導入ページ群へ戻れるが、完了状態や中断位置を保存・復元するUIは確認できず"},
+    {"step":3,"action":"フェーズ1の開始文・コマンド・確認条件を確認","outcome":"『Brainbaseのオンボーディングを始めたいです。』、Node.js 20以上/npm/対応エージェント/checkout、npm run onboard:start -- --target codex、最初に試す依頼と対象プロジェクトの決定条件を確認"},
+    {"step":4,"action":"確認-firstのMCP/Judgment Host登録と失敗時復旧を確認","outcome":"MCPをdry-run・別出力・既存設定を残して確認し、動作確認後にJudgment HostのUserPromptSubmit→PostToolUse→Stopを登録する順序を確認。build、doctor、絶対パス、再起動、新セッションの復旧順と監査異常時の扱いを確認"},
+    {"step":5,"action":"キーボード到達性と読み上げ想定の入口を確認","outcome":"最初のTabでSkip to content、次にBrainbase Manualへ到達。主要導線はテキストリンクとしてDOMに存在。VoiceOver/実端末での音声入力・読み上げは未確認"}
+  ],
+  "task_outcomes":{"value_sentence":"pass","interruption_recovery_and_resume":"pass_with_caveat","prerequisites_first_prompt_start_command":"pass","confirmation_first_mcp_judgment_host_order_and_recovery":"pass","voice_keyboard_reduced_motion_accessibility":"pass_synthetic_only"},
+  "hard_gates":[
+    {"gate":"未完了を成功と表示する","status":"pass","evidence":"導入完了を設定生成やready: trueだけで扱わず、実依頼・対象プロジェクト・新セッション確認を完了目安として明記"},
+    {"gate":"現在地または次の操作が分からない","status":"pass_with_caveat","evidence":"5フェーズ表、完了目安、サイドバー、前後Pagerで次操作は分かる。一方、頻繁な中断後に現在フェーズを保存・復元する仕組みは確認できない"},
+    {"gate":"既存設定を破壊する可能性がある","status":"pass","evidence":"dry-run、別出力、既存MCP設定へ自動マージしない、既存Hookを残す、承認後に人が統合する手順を明記"},
+    {"gate":"失敗後の復旧手段がない","status":"pass","evidence":"build/doctor/personal-os/絶対パス/再起動/新セッションの順を明記。journal破損、対応episodeなしStop、監査不足時の修復・非0終了も説明"},
+    {"gate":"AIから人への確認・引き継ぎがない","status":"pass","evidence":"AIは確認用下書きを先に出し、承認なしに正本を書き換えず、設定断片を確認後に人が統合する契約を明記"},
+    {"gate":"主要操作がキーボードまたは支援技術から到達不能","status":"pass_synthetic_only","evidence":"Skip to contentとテキストリンクを実ブラウザで確認。音声入力、VoiceOver、実端末は未確認"}
+  ],
+  "exact_evidence_findings":[
+    {"source":"synthetic_browser_evaluation","finding":"トップから /guide/onboarding-process、/guide/getting-started、/guide/mcp-install、/guide/judgment-audit を実ブラウザで表示"},
+    {"source":"synthetic_browser_evaluation","finding":"導入の5フェーズに『次へ進む目安』があり、サイドバーとPagerから再訪できるが、中断位置の保存・復元は確認できなかった"},
+    {"source":"synthetic_browser_evaluation","finding":"ロード時に404リソースのconsole errorを1件観測。原因は未特定"},
+    {"source":"source_inspection","finding":"MCPのdry-run・別出力・既存設定非破壊、MCP動作確認後にJudgment Hostを登録する順序、3 Hookの成功確認と復旧手順が本文に明記"}
+  ],
+  "recovery":{"status":"documented","steps":["npm run build","npm run doctor","~/.brainbase/personal-os/確認","MCP/Hookの絶対パス確認","再起動","新しいセッションで確認"],"safety":"既存設定/Hookを残し、journal異常・対応episodeなしStop・参照必須turnの0回を成功扱いしない。中断位置の永続化は未確認"},
+  "synthetic_browser_evaluation":{"status":"complete","verdict":"adopt_with_caveat","summary":"高圧・中断多めの確認-first利用者でも、価値、開始条件、フェーズ順、MCP→Judgment Host順、非破壊設定、復旧手順へ到達できる。中断後の現在地保存・復元はなく、404リソースの原因も要確認"},
+  "real_device_evidence":"not_collected"
+}

@@ -1,0 +1,112 @@
+{
+  "persona": {
+    "id": "P-401-G0",
+    "type": "recovery_user",
+    "domain": "intermediate",
+    "technical_level": "medium",
+    "time_pressure": "high",
+    "focus": "frequently_interrupted",
+    "priority": "confirmation_first",
+    "input_mode": "voice_and_keyboard",
+    "reduced_motion": true
+  },
+  "browser": {
+    "url": "http://127.0.0.1:4176/",
+    "engine": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1440x1000",
+    "observed_pages": [
+      "/",
+      "/guide/onboarding-process",
+      "/guide/getting-started",
+      "/guide/mcp-install",
+      "/guide/judgment-audit",
+      "/guide/operations",
+      "/reference/mcp-tools"
+    ]
+  },
+  "browser_actions": [
+    "Opened the home page in visible Chromium with reduced-motion preference and read the value statement and primary links.",
+    "Followed the onboarding flow and checked the five phases, completion gates, confirmation-first rule, and recovery boundary.",
+    "Opened phase 1 and recorded prerequisites, the first prompt, the Codex start command, and the two completion inputs.",
+    "Opened MCP registration and recorded dry-run, separate output, manual approval/merge, restart, new-session checks, and troubleshooting order.",
+    "Opened Judgment Host registration and recorded MCP-before-Host order, three hooks, doctor checks, follow-up verification, and repair behavior.",
+    "Opened operations and MCP reference pages to cross-check real completion criteria, tool evidence, and unresolved-source handling.",
+    "Captured the home page screenshot after returning to the start page."
+  ],
+  "task_outcomes": {
+    "explain_value_in_one_sentence_from_home": {
+      "status": "pass",
+      "answer": "Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照できるようにするPersonal Onboarding Kitです。",
+      "evidence": "ホームの見出し『自分の仕事文脈をAIに渡すためのMCPマニュアル』と価値説明。"
+    },
+    "find_prerequisites_first_prompt_start_command": {
+      "status": "pass",
+      "answer": "Node.js 20以上、npm、MCP対応エージェント、ローカルcheckoutが必要。最初の依頼は『Brainbaseのオンボーディングを始めたいです。』、Codexのコマンドは npm run onboard:start -- --target codex。",
+      "evidence": "/guide/getting-started の『必要なもの』『AIに開始を依頼する』。"
+    },
+    "find_codex_mcp_judgment_host_order_and_success_checks": {
+      "status": "pass_with_friction",
+      "answer": "最初の価値を確認し、MCPをdry-run・承認・再起動・新セッションで検証してから、任意のJudgment Hostを登録する。HostはUserPromptSubmit、PostToolUse、Stopの3 Hookで、doctor=ready、3イベント、追従依頼の監査行、実MCP検索の📚行を確認する。",
+      "evidence": "/guide/mcp-install、/guide/judgment-audit、/guide/operations。順序と成功条件は複数ページに分散。"
+    },
+    "find_avoid_overwrite_and_recover": {
+      "status": "pass_with_friction",
+      "answer": "dry-runと未作成の/tmp出力先を使い、既存MCP/Hook設定へ自動マージ・上書きしない。承認後にBrainbase項目だけ統合し、再起動・新セッション・build/doctor・絶対パス・personal-os存在を順に確認する。",
+      "evidence": "/guide/mcp-install と /guide/judgment-audit の非破壊設定・復旧手順。"
+    }
+  },
+  "hard_gates": [
+    { "id": "home_value_statement", "status": "passed" },
+    { "id": "prerequisites_and_start_command", "status": "passed" },
+    { "id": "mcp_then_judgment_host_order", "status": "passed", "note": "Documented, but reconstructed across pages; interruption recovery requires returning to the relevant page." },
+    { "id": "non_destructive_config_recovery", "status": "passed", "note": "Explicit dry-run, separate output, approval, and recovery checks; manual merge remains a confirmation burden." },
+    { "id": "keyboard_reachable_primary_navigation", "status": "not_collected", "note": "Keyboard/voice accessibility was a persona lens; this run did not claim VoiceOver or real-device evidence." }
+  ],
+  "findings": [
+    {
+      "id": "P401-F1",
+      "severity": "medium",
+      "type": "friction",
+      "finding": "For a frequently interrupted recovery user, the recovery sequence is spread across MCP, Judgment Host, and operations pages; there is no single resumable checklist with a current-step marker.",
+      "evidence": "MCP troubleshooting lists build/doctor/data path/restart/new session, while Judgment Host adds hook trust, three events, and new task checks; operations adds completion criteria."
+    },
+    {
+      "id": "P401-F2",
+      "severity": "medium",
+      "type": "risk",
+      "finding": "Confirmation-first safety is explicit, but the user must manually merge only Brainbase entries into existing MCP and hooks files after reviewing generated fragments. Under time pressure, this is the highest-risk recovery step.",
+      "evidence": "MCP says onboard:install does not auto-merge and existing settings must not be deleted; Judgment Host says to integrate only the three Brainbase hooks while preserving other hooks."
+    },
+    {
+      "id": "P401-F3",
+      "severity": "low",
+      "type": "friction",
+      "finding": "The home page has a clear skip link and primary onboarding links, but recovery status, the first prompt, prerequisites, and the safe dry-run entry point are not visible until navigation into the guide.",
+      "evidence": "Home screenshot and browser text show value/links only; prerequisites and recovery checks begin on /guide/getting-started and later pages."
+    },
+    {
+      "id": "P401-F4",
+      "severity": "low",
+      "type": "clarity",
+      "finding": "The manual clearly distinguishes judgment evidence from knowledge evidence and unresolved/empty results, which supports confirmation-first recovery and avoids falsely treating generated config or ready=true as completion.",
+      "evidence": "/guide/judgment-audit and /guide/operations explicitly separate 🧠, 📚, and ⚠️ evidence and state that generated settings alone are not completion."
+    }
+  ],
+  "recovery": {
+    "status": "documented",
+    "steps": [
+      "Pause before writing settings; inspect the dry-run output and save fragments to an uncreated /tmp path.",
+      "Preserve existing MCP settings and hooks; manually add only approved Brainbase entries.",
+      "Restart the agent and open a new session/task rather than reusing a stale session.",
+      "Run npm run build and npm run doctor; check ~/.brainbase/personal-os/ and absolute executable/data paths.",
+      "For Judgment Host, verify doctor status=ready, UserPromptSubmit/PostToolUse/Stop, trust state, audit lines, and actual tool evidence.",
+      "If a journal or audit event is missing, follow the documented repair path; do not silently replace an incomplete episode."
+    ]
+  },
+  "screenshot_path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-401-G0.png",
+  "evidence_kind": "synthetic_browser_evaluation",
+  "real_device_evidence": "not_collected",
+  "model_requested": "gpt-5.6-luna",
+  "model_binding": "not_collected"
+}

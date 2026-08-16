@@ -1,0 +1,61 @@
+{
+  "persona_id": "P-206-G0",
+  "round": "round-01",
+  "persona": {
+    "type": "operator_intermediate_domain",
+    "experience": "intermediate",
+    "technical": "high",
+    "time_pressure": "low",
+    "focus": "frequently_interrupted",
+    "speed_priority": true,
+    "interaction": "keyboard",
+    "assistive_technology_viewpoint": "reduced_motion"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {"engine": "Playwright Chromium", "headless": false, "viewport": "1440x1000", "status": 200, "title": "Brainbase"},
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "価値文、導入の流れ、全体像、MCPツールへの導線を確認。トップは200。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process/", "result": "5フェーズ、最初の価値、確認後に記録する運用を確認。末尾スラッシュ付きで200。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/getting-started/", "result": "前提条件、開始プロンプト、CLI開始手順を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install/", "result": "dry-run、既存設定保護、再起動後の実結果確認を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit/", "result": "episode、Hook、doctor、監査行、実tool証跡を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/reference/mcp-tools/", "result": "MCP tool一覧と未確認・権限待ちを成功扱いしない境界を確認。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-206-G0.png"}
+  ],
+  "task_outcomes": {
+    "value_sentence": {"status": "pass", "finding": "トップの価値文から、仕事文脈をローカルSSOTとして育てAIへ再説明する負担を減らす目的を短時間で把握できる。"},
+    "prerequisites_first_prompt_start_command": {"status": "pass", "finding": "getting-startedにNode.js 20以上、npm、MCP対応エージェント、local checkout、開始文とnpm run onboard:start -- --target codexがまとまっている。"},
+    "codex_mcp_judgment_host_order_success_checks": {"status": "pass_with_friction", "finding": "MCPをdry-run・反映・新セッション検証してからJudgment Hostへ進む順序と、server/tool一覧・onboarding_status/get_context/search・doctor ready・監査行を確認する条件がある。複数ページ横断が必要。"},
+    "avoid_overwrite_recover": {"status": "pass_with_friction", "finding": "dry-run、別出力、既存設定を自動マージ／上書きしない境界と、build→doctor→正本ディレクトリ→再起動→新taskの復旧順が確認できる。ロールバック自体は未確認。"}
+  },
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass_with_friction",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "no_product_edits": true,
+    "notes": "Playwright ChromiumでDOM・画面遷移を確認。実キーボード操作、Reduced Motion設定の効果、実機、VoiceOverは未取得。末尾スラッシュなしのガイドURLは404だったため、リンク先の正規形（末尾スラッシュ）で評価。"
+  },
+  "exact_evidence_findings": [
+    "トップ: 自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照するPersonal Onboarding Kit。",
+    "準備: Node.js 20以上、npm、MCP対応AIエージェント、Brainbase local checkout。",
+    "開始: npm run onboard:start -- --target codex。",
+    "MCP: npm run onboard:install -- --target codex --dry-run。既存設定を消さず、自動マージしない。",
+    "Judgment Host: UserPromptSubmit→PostToolUse→Stop、doctorのreadyと3 Hook、実MCP呼出・監査行を確認。",
+    "指定URLの末尾スラッシュなしガイドは404、末尾スラッシュ付きは全ページ200。画面内リンクは末尾スラッシュ付き。"
+  ],
+  "findings": [
+    {"id": "P206-F1", "severity": "medium", "type": "friction", "finding": "中断後に再開する利用者には、MCP登録とJudgment Host監査の確認先が複数ページに分かれ、次の一手を再構成する負担が残る。", "evidence": "/guide/mcp-install/ と /guide/judgment-audit/ を横断。"},
+    {"id": "P206-F2", "severity": "medium", "type": "routing", "finding": "末尾スラッシュなしのガイドURLは404。UIリンクは正規形へ遷移するが、外部共有・ブックマーク・中断復帰時に再現しやすい。", "evidence": "Playwrightで /guide/onboarding-process は404、/guide/onboarding-process/ は200。"},
+    {"id": "P206-F3", "severity": "low", "type": "accessibility_evidence_gap", "finding": "Reduced Motion、実キーボード、実機での到達性は未検証。", "evidence": "PlaywrightのDOM・ナビゲーション観測のみ。"}
+  ],
+  "recovery": {"status": "documented", "steps": ["dry-runと別出力へ戻す", "npm run build", "npm run doctor", "~/.brainbase/personal-os/の存在確認", "実行ファイルとデータの絶対パス確認", "設定反映後にエージェント再起動", "新しいtaskでMCP tool・監査行・実tool証跡を確認"], "gap": "反映済み設定の自動ロールバック手順はnot_collected"},
+  "synthetic_browser_evaluation": {"status": "completed", "summary": "中断が多く速度優先の技術系オペレーターでも、トップから開始条件・MCP・監査・復旧を辿れる。複数ページ横断と末尾スラッシュ依存が摩擦。Reduced Motion・実キーボードは未取得。"},
+  "real_device_evidence": "not_collected",
+  "requested_luna": true,
+  "model_requested": "gpt-5.6-luna",
+  "binding": "not_collected",
+  "model_binding": "not_collected"
+}

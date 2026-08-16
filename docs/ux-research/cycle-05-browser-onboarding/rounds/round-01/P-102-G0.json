@@ -1,0 +1,77 @@
+{
+  "persona_id": "P-102-G0",
+  "persona": "first_time_individual",
+  "round": "round-01",
+  "viewpoint": {
+    "experience": "experienced",
+    "technical": "high",
+    "time_pressure": "low",
+    "focus": "focused",
+    "confirmation_preference": "confirmation_first",
+    "interaction": "keyboard",
+    "assistive_technology_viewpoint": "screen_reader"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "model_requested": "gpt-5.6-luna",
+  "model_binding": "not_collected",
+  "evidence_kind": "synthetic_browser_evaluation",
+  "real_device_evidence": "not_collected",
+  "browser_actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップ表示。Skip to content、ガイド、リファレンス、検索、導入の流れを見るを確認"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "5フェーズの順序、開始文、承認ルールを確認"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/getting-started", "result": "Node.js 20以上、npm、checkout、npm install/build、開始文、onboard:startを確認"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "MCP dry-run、別出力先、再起動、成功確認、Judgment Hostが別設定であることを確認"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "UserPromptSubmit→PostToolUse→Stopの順、doctor検証、監査行、異常時動作を確認"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/reference/mcp-tools", "result": "MCP tool名と未確認・権限待ちを成功扱いしない契約を確認"}
+  ],
+  "tasks": [
+    {
+      "id": "value_sentence",
+      "status": "pass",
+      "finding": "トップに『自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeがその文脈を参照しながら作業できる』とあり、価値を一文で説明できる。",
+      "friction": "トップの価値文は明確だが、最初に押す導入導線は本文を読んで選ぶ必要がある。"
+    },
+    {
+      "id": "prerequisites_first_prompt_start_command",
+      "status": "pass",
+      "finding": "準備と目的に Node.js 20以上、npm、Codex/Claude Code等、local checkout、git clone/cd/npm install/npm run build、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex がまとまっている。",
+      "friction": "cloneからbuildまでと開始後のコマンドが同じページにあり、経験者でも最小開始手順を再抽出する必要がある。"
+    },
+    {
+      "id": "codex_mcp_judgment_order_success",
+      "status": "pass",
+      "finding": "MCP登録→新しいセッションでtool/onboarding_status/get_context/searchを確認→任意のJudgment Host登録、という順序が明記される。Judgment HostはUserPromptSubmit、PostToolUse、Stopで、doctorのstatus=ready/events確認と新しいCodex taskの監査行確認まである。",
+      "friction": "MCP成功確認とJudgment Host成功確認が別ページに分かれ、順序を利用者が統合する必要がある。"
+    },
+    {
+      "id": "avoid_overwrite_recover",
+      "status": "pass",
+      "finding": "MCPは--dry-runと未作成の/tmp出力先を使い、既存設定へ自動マージせず既存設定を消さないと明記。Judgment Hostも--dry-run、別出力、既存Hookを残す。障害時はbuild→doctor→正本ディレクトリ→絶対パス→再起動→新taskの順に戻れる。",
+      "friction": "『問題時に戻る』手順は診断・再起動中心で、設定反映前に差分を戻す具体例はない。"
+    }
+  ],
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "notes": "Skip to contentと見出し構造は確認したが、VoiceOver等の実支援技術、実キーボード操作は未取得。"
+  },
+  "exact_evidence_findings": [
+    "トップ: Brainbaseは自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照しながら作業するPersonal Onboarding Kit。",
+    "準備: Node.js 20以上、npm、Codex/Claude Code/MCP対応エージェント、local checkout。",
+    "開始: npm run onboard:start -- --target codex（Claude Codeは--target claude）。",
+    "MCP: npm run onboard:install -- --target codex --dry-run。既存MCP設定へ自動マージせず、既存設定を消さない。",
+    "Judgment Host: UserPromptSubmitで開始、PostToolUseでMCP呼出記録、Stopで監査行検査。doctorでreadyと3 eventsを確認。"
+  ],
+  "recovery": {
+    "status": "documented",
+    "steps": ["dry-runへ戻る", "npm run build", "npm run doctor", "~/.brainbase/personal-os/の存在確認", "絶対パス確認", "設定反映後にエージェント再起動", "新しいtaskで再確認"],
+    "gap": "既存設定を反映した後の自動ロールバック手順はnot_collected"
+  },
+  "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-102-G0.png",
+  "overall": "adopt",
+  "recommendation": "現状の安全性・確認導線は採用。次回、MCP→Judgment Hostの統合チェックリストと設定差分の復旧例を同一導線へ寄せる。"
+}

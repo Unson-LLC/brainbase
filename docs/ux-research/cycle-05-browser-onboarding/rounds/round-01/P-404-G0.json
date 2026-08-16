@@ -1,0 +1,71 @@
+{
+  "persona_id": "P-404-G0",
+  "round": "round-01",
+  "persona": {
+    "type": "recovery_intermediate",
+    "experience": "intermediate",
+    "technical_literacy": "medium",
+    "time_pressure": "low",
+    "interruption_state": "frequently_interrupted",
+    "confirmation_preference": "confirmation_first",
+    "interaction": "keyboard",
+    "assistive_technology_viewpoint": "reduced_motion"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {
+    "engine": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1440x900",
+    "reduced_motion": "reduce",
+    "status": 200,
+    "title": "Brainbase"
+  },
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "Brainbaseの価値、実用場面、プロジェクト整理、人の確認、判断根拠を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "導入5フェーズ、最初の依頼文、順序、未完了を成功にしない共通ルールを確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/project-context", "result": "自分、プロジェクト、関係者、関係性、用語、判断基準、決定事項、作業場所を確認。下書き確認と承認後登録を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/first-value", "result": "実依頼のdemo、説明し直さずに済んだこと、正本と不明の区別、readyやdry-runだけでは完了でない条件を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "MCP dry-run、別出力、絶対パス、既存設定を消さない境界、新セッション確認、再起動を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "UserPromptSubmit/PostToolUse/Stop、監査行、実tool証跡、doctorによる検証、異常時の確認質問を確認。"},
+    {"action": "keyboard_tab", "result": "トップでTabを押すとSkip to content（#VPContent）へ到達。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-404-G0.png"}
+  ],
+  "task_outcomes": {
+    "explain_value": {"status": "pass", "finding": "Brainbaseは、自分の仕事文脈をローカルSSOTとして育て、CodexやClaude Codeへ渡し、説明の繰り返しを減らすPersonal Onboarding Kitだと説明できる。"},
+    "prerequisites_first_prompt_start_command": {"status": "pass_with_friction", "finding": "Node.js 20以上、npm、MCP対応エージェント、local checkout、開始文と npm run onboard:start -- --target codex を確認できる。トップから導入ページへ移動する必要があり、頻繁な中断後の再開では一手増える。"},
+    "codex_mcp_judgment_host_order_success_checks": {"status": "pass_with_friction", "finding": "最初の価値を確認してからMCPをdry-run・別出力で反映し、新セッションでtoolを確認し、任意でJudgment Hostを登録する順序と、実回答・実tool・監査行・doctorの確認条件を把握できる。複数ページ横断が必要。"},
+    "avoid_config_overwrite_recover": {"status": "pass", "finding": "dry-run、/tmpの別出力、既存設定を自動マージ・削除しないこと、承認後に反映、再起動、新セッション確認、問題時のbuild/doctor/絶対パス確認手順を確認できる。"}
+  },
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass_with_friction",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass_with_friction",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "pass",
+    "no_product_edits": true,
+    "notes": "visible Playwright Chromium、1440x900、prefers-reduced-motion: reduceで合成評価。音声入力、VoiceOver、実Codex task、実MCP呼び出し、実Hookイベント、実端末はnot_collected。"
+  },
+  "exact_evidence_findings": [
+    "トップ見出し: 『自分の仕事文脈をAIに渡すためのMCPマニュアル』。",
+    "導入ページ: 『Brainbaseのオンボーディングを始めたいです。』、5フェーズ、説明し直さずに役立つ回答を完了目安として提示。",
+    "最初の価値: ready: true、Skills生成、MCP dry-runだけでは確認の代わりにならない。",
+    "MCP: dry-run、別出力、絶対パス、既存設定を消さない、反映後の再起動、新セッションでbrainbaseとtoolを確認。",
+    "Judgment Host: UserPromptSubmit、PostToolUse、Stopの順で判断・実呼び出し・返答監査を分離。参照不要の0回も明示し、対象不明は確認質問。",
+    "キーボード: 初回TabでSkip to content（#VPContent）へ到達。",
+    "トップロード時にFailed to load resource: server responded with status 404を1件記録。原因は未確認。"
+  ],
+  "findings": [
+    {"id": "P404-F1", "severity": "medium", "type": "recovery_friction", "finding": "復旧中の中級利用者が再開地点を一目で特定できる『現在地／次の一手』の復旧導線はページ横断で再構成する必要がある。低圧力でも中断が多いと再読コストになる。", "evidence": "/guide/onboarding-process、/guide/project-context、/guide/first-value、/guide/mcp-install、/guide/judgment-audit"},
+    {"id": "P404-F2", "severity": "low", "type": "safety_clarity", "finding": "既存設定を消さない、dry-run・別出力・承認後反映は明確で、復旧の判断材料になる。自動ロールバックや直前状態の保存方法まではブラウザ表示で確認できない。", "evidence": "/guide/mcp-install"},
+    {"id": "P404-F3", "severity": "low", "type": "keyboard", "finding": "Skip to contentはキーボードで到達できた。ページ内の全操作、実エージェントのキーボード操作、VoiceOver、音声入力は未取得。", "evidence": "visible Playwright ChromiumでTab到達を確認"},
+    {"id": "P404-F4", "severity": "low", "type": "evidence_gap", "finding": "reduced-motion設定はブラウザ文脈に適用したが、アニメーションの実際の差分はnot_collected。トップの404リソース原因も未確認。", "evidence": "Playwright console/response event"}
+  ],
+  "recovery": {"status": "documented", "steps": ["最後に確認したフェーズへ戻る", "dry-runと別出力へ戻す", "npm run build", "npm run doctor", "~/.brainbase/personal-os/の存在確認", "実行ファイルとデータの絶対パス確認", "設定反映後にエージェント再起動", "新taskでMCP tool・監査行・実tool証跡を確認"], "gap": "反映済み設定の自動ロールバック、前回の完了フェーズを保存して再開する手順はnot_collected"},
+  "synthetic_browser_evaluation": {"status": "completed", "summary": "中級・低圧力・頻繁な中断・キーボード利用者として、価値、開始条件、実依頼の完了条件、MCP→Judgment Hostの順序、安全境界、復旧は確認できた。中断後の再開地点はページ横断で再構成するため、復旧時の摩擦が残る。"},
+  "real_device_evidence": "not_collected",
+  "requested_luna": true,
+  "model_requested": "gpt-5.6-luna",
+  "binding": "not_collected",
+  "model_binding": "not_collected"
+}
