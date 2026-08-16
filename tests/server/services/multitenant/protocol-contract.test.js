@@ -5,6 +5,7 @@ import {
     verifyTenantContext
 } from '../../../../server/services/multitenant/tenant-context.js';
 import { negotiateProtocol } from '../../../../server/services/multitenant/protocol-contract.js';
+import { expectContractError } from './test-helpers.js';
 
 function validEnvelope() {
     return {
@@ -40,11 +41,15 @@ describe('canonical TenantContextEnvelope', () => {
         const tooLong = validEnvelope();
         tooLong.expires_at = '2026-08-16T00:05:01.000Z';
         const signed = createSignedTenantContext(tooLong, { key_id: 'key-current', private_key: privateKey });
-        expect(() => verifyTenantContext(signed, { keys: [{ key_id: 'key-current', status: 'current', public_key: publicKey }], audience: 'mana-runtime', deployment_id: tooLong.placement.deployment_id, now: new Date('2026-08-16T00:00:01Z') }))
-            .toThrowErrorMatchingObject({ code: 'TENANT_CONTEXT_EXPIRED' });
+        expectContractError(
+            () => verifyTenantContext(signed, { keys: [{ key_id: 'key-current', status: 'current', public_key: publicKey }], audience: 'mana-runtime', deployment_id: tooLong.placement.deployment_id, now: new Date('2026-08-16T00:00:01Z') }),
+            { code: 'TENANT_CONTEXT_EXPIRED' }
+        );
         const valid = createSignedTenantContext(validEnvelope(), { key_id: 'key-current', private_key: privateKey });
-        expect(() => verifyTenantContext({ ...valid, actor: { ...valid.actor, principal_id: 'tampered' } }, { keys: [{ key_id: 'key-current', status: 'current', public_key: publicKey }], audience: 'mana-runtime', deployment_id: valid.placement.deployment_id, now: new Date('2026-08-16T00:01:00Z') }))
-            .toThrowErrorMatchingObject({ code: 'TENANT_CONTEXT_SIGNATURE_INVALID' });
+        expectContractError(
+            () => verifyTenantContext({ ...valid, actor: { ...valid.actor, principal_id: 'tampered' } }, { keys: [{ key_id: 'key-current', status: 'current', public_key: publicKey }], audience: 'mana-runtime', deployment_id: valid.placement.deployment_id, now: new Date('2026-08-16T00:01:00Z') }),
+            { code: 'TENANT_CONTEXT_SIGNATURE_INVALID' }
+        );
     });
 });
 
@@ -64,9 +69,13 @@ describe('protocol negotiation', () => {
     });
 
     it('AC-302/305: major不一致や必須機能不足を拒否しsilent downgradeしない', () => {
-        expect(() => negotiateProtocol({ deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV', deployment_profile: 'shared_cloud', supported_range: '>=2.0 <3.0', required_capabilities: [] }))
-            .toThrowErrorMatchingObject({ code: 'PROTOCOL_VERSION_UNSUPPORTED' });
-        expect(() => negotiateProtocol({ deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV', deployment_profile: 'shared_cloud', supported_range: '>=1.0 <2.0', required_capabilities: ['unknown_required'] }))
-            .toThrowErrorMatchingObject({ code: 'PROTOCOL_CAPABILITY_UNSUPPORTED' });
+        expectContractError(
+            () => negotiateProtocol({ deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV', deployment_profile: 'shared_cloud', supported_range: '>=2.0 <3.0', required_capabilities: [] }),
+            { code: 'PROTOCOL_VERSION_UNSUPPORTED' }
+        );
+        expectContractError(
+            () => negotiateProtocol({ deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV', deployment_profile: 'shared_cloud', supported_range: '>=1.0 <2.0', required_capabilities: ['unknown_required'] }),
+            { code: 'PROTOCOL_CAPABILITY_UNSUPPORTED' }
+        );
     });
 });

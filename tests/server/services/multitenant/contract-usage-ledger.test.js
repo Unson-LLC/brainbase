@@ -4,6 +4,7 @@ import {
     computeBusinessIdempotencyKey,
     normalizeUsageEvent
 } from '../../../../server/services/multitenant/contract-usage-ledger.js';
+import { expectContractError } from './test-helpers.js';
 
 const ids = {
     tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
@@ -26,8 +27,10 @@ describe('ContractUsageLedger', () => {
         });
         expect(ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: ids.contract_revision, metric: 'tool_calls', observed_quantity: 79, requested_quantity: 1 }).decision).toBe('warning');
         expect(ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: ids.contract_revision, metric: 'tool_calls', observed_quantity: 99, requested_quantity: 1 }).decision).toBe('hard_stopped');
-        expect(() => ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FAW', metric: 'tool_calls', observed_quantity: 0, requested_quantity: 1 }))
-            .toThrowErrorMatchingObject({ code: 'UPSTREAM_UNAVAILABLE' });
+        expectContractError(
+            () => ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FAW', metric: 'tool_calls', observed_quantity: 0, requested_quantity: 1 }),
+            { code: 'UPSTREAM_UNAVAILABLE' }
+        );
     });
 
     it('AC-202/D-006: length-prefix固定式でtenant別の副作用claimを冪等化する', () => {
@@ -41,15 +44,19 @@ describe('ContractUsageLedger', () => {
         const ledger = new ContractUsageLedger();
         expect(ledger.claimEffect({ idempotency_key: key, payload_hash: 'payload-a', context_hash: 'context-a' }).state).toBe('claimed');
         expect(ledger.claimEffect({ idempotency_key: key, payload_hash: 'payload-a', context_hash: 'context-a' }).replayed).toBe(true);
-        expect(() => ledger.claimEffect({ idempotency_key: key, payload_hash: 'payload-b', context_hash: 'context-a' }))
-            .toThrowErrorMatchingObject({ code: 'IDEMPOTENCY_CONFLICT' });
+        expectContractError(
+            () => ledger.claimEffect({ idempotency_key: key, payload_hash: 'payload-b', context_hash: 'context-a' }),
+            { code: 'IDEMPOTENCY_CONFLICT' }
+        );
     });
 
     it('AC-204/D-007: outcomeとcollection_stateを分離し、失敗消費と未計測を0へ丸めない', () => {
         expect(normalizeUsageEvent({ ...ids, kind: 'ai', unit: 'token', quantity: null, outcome: 'failed', collection_state: 'not_collected', failure_code: 'UPSTREAM_UNAVAILABLE' }))
             .toMatchObject({ outcome: 'failed', collection_state: 'not_collected', quantity: null });
-        expect(() => normalizeUsageEvent({ ...ids, kind: 'ai', unit: 'token', quantity: 0, outcome: 'failed', collection_state: 'not_collected', failure_code: 'UPSTREAM_UNAVAILABLE' }))
-            .toThrowErrorMatchingObject({ code: 'USAGE_COLLECTION_INVALID' });
+        expectContractError(
+            () => normalizeUsageEvent({ ...ids, kind: 'ai', unit: 'token', quantity: 0, outcome: 'failed', collection_state: 'not_collected', failure_code: 'UPSTREAM_UNAVAILABLE' }),
+            { code: 'USAGE_COLLECTION_INVALID' }
+        );
         expect(normalizeUsageEvent({ ...ids, kind: 'tool', unit: 'call', quantity: 0, outcome: 'succeeded', collection_state: 'collected', failure_code: 'NO_DATA' }))
             .toMatchObject({ quantity: '0', failure_code: 'NO_DATA' });
     });

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { CredentialBroker } from '../../../../server/services/multitenant/credential-broker.js';
+import { expectContractError } from './test-helpers.js';
 
 const binding = {
     tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
@@ -16,13 +17,17 @@ describe('CredentialBroker', () => {
         const broker = new CredentialBroker({ now: () => new Date(nowMs) });
         broker.register(binding);
 
-        expect(() => broker.issueLease({ ...binding, operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV', audience: 'mana-runtime', ttl_seconds: 61 }))
-            .toThrowErrorMatchingObject({ code: 'CREDENTIAL_LEASE_INVALID' });
+        expectContractError(
+            () => broker.issueLease({ ...binding, operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV', audience: 'mana-runtime', ttl_seconds: 61 }),
+            { code: 'CREDENTIAL_LEASE_INVALID' }
+        );
         const lease = broker.issueLease({ ...binding, operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV', audience: 'mana-runtime', ttl_seconds: 60 });
         expect(lease).not.toHaveProperty('credential');
         expect(lease).not.toHaveProperty('token');
-        expect(() => broker.consumeLease({ lease_ref: lease.lease_ref, operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV', audience: 'other' }))
-            .toThrowErrorMatchingObject({ code: 'CREDENTIAL_LEASE_SCOPE_MISMATCH' });
+        expectContractError(
+            () => broker.consumeLease({ lease_ref: lease.lease_ref, operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV', audience: 'other' }),
+            { code: 'CREDENTIAL_LEASE_SCOPE_MISMATCH' }
+        );
         const volatile = broker.consumeLease({
             lease_ref: lease.lease_ref,
             operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
@@ -30,8 +35,10 @@ describe('CredentialBroker', () => {
             materialize: () => randomBytes(32)
         });
         expect(Buffer.isBuffer(volatile)).toBe(true);
-        expect(() => broker.consumeLease({ lease_ref: lease.lease_ref, operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV', audience: 'mana-runtime' }))
-            .toThrowErrorMatchingObject({ code: 'CREDENTIAL_LEASE_ALREADY_USED' });
+        expectContractError(
+            () => broker.consumeLease({ lease_ref: lease.lease_ref, operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV', audience: 'mana-runtime' }),
+            { code: 'CREDENTIAL_LEASE_ALREADY_USED' }
+        );
     });
 
     it('D-005: OAuth refreshをexpected revisionのCASで更新し競合を監査する', () => {
@@ -42,9 +49,9 @@ describe('CredentialBroker', () => {
             expected_refresh_revision: 4,
             new_credential_ref: 'credref:rotated'
         })).toMatchObject({ credential_ref: 'credref:rotated', refresh_revision: 5 });
-        expect(() => broker.compareAndSwapRefresh({
+        expectContractError(() => broker.compareAndSwapRefresh({
             credential_ref: 'credref:rotated', expected_refresh_revision: 4, new_credential_ref: 'credref:stale'
-        })).toThrowErrorMatchingObject({ code: 'OAUTH_REFRESH_CONFLICT' });
+        }), { code: 'OAUTH_REFRESH_CONFLICT' });
         expect(broker.auditEvents.every((event) => !JSON.stringify(event).includes('token'))).toBe(true);
     });
 });

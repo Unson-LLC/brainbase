@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TenantAuthority } from '../../../../server/services/multitenant/tenant-authority.js';
 import { isCanonicalId } from '../../../../server/services/multitenant/ids.js';
+import { expectContractError } from './test-helpers.js';
 
 describe('TenantAuthority', () => {
     it('AC-001: canonical IDを発行し、許可された状態遷移と終端削除だけを受理する', () => {
@@ -12,7 +13,7 @@ describe('TenantAuthority', () => {
         expect(authority.transitionTenant(tenant.tenant_id, 1, 'active').tenant_revision).toBe(2);
         expect(authority.transitionTenant(tenant.tenant_id, 2, 'deletion_pending').status).toBe('deletion_pending');
         expect(authority.transitionTenant(tenant.tenant_id, 3, 'deleted').status).toBe('deleted');
-        expect(() => authority.transitionTenant(tenant.tenant_id, 4, 'active')).toThrowErrorMatchingObject({
+        expectContractError(() => authority.transitionTenant(tenant.tenant_id, 4, 'active'), {
             code: 'TENANT_INVALID_TRANSITION'
         });
     });
@@ -27,7 +28,7 @@ describe('TenantAuthority', () => {
             { project_code: 'same-name' },
             { organization_name: 'same-name' }
         ]) {
-            expect(() => authority.resolveTenant(selector)).toThrowErrorMatchingObject({ code: 'TENANT_UNKNOWN' });
+            expectContractError(() => authority.resolveTenant(selector), { code: 'TENANT_UNKNOWN' });
         }
     });
 
@@ -38,10 +39,14 @@ describe('TenantAuthority', () => {
         authority.transitionTenant(first.tenant_id, 1, 'active');
         authority.transitionTenant(second.tenant_id, 1, 'active');
 
-        expect(() => authority.resolveTenant({ tenant_ids: [] })).toThrowErrorMatchingObject({ code: 'TENANT_UNKNOWN' });
-        expect(() => authority.resolveTenant({ tenant_ids: [first.tenant_id, second.tenant_id] }))
-            .toThrowErrorMatchingObject({ code: 'TENANT_AMBIGUOUS' });
-        expect(() => authority.resolveTenant({ tenant_id: 'ten_00000000000000000000000000' }))
-            .toThrowErrorMatchingObject({ code: 'TENANT_UNKNOWN' });
+        expectContractError(() => authority.resolveTenant({ tenant_ids: [] }), { code: 'TENANT_UNKNOWN' });
+        expectContractError(
+            () => authority.resolveTenant({ tenant_ids: [first.tenant_id, second.tenant_id] }),
+            { code: 'TENANT_AMBIGUOUS' }
+        );
+        expectContractError(
+            () => authority.resolveTenant({ tenant_id: 'ten_00000000000000000000000000' }),
+            { code: 'TENANT_UNKNOWN' }
+        );
     });
 });
