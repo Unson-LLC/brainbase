@@ -13,7 +13,7 @@ source:
 architecture_reason: "ADR必須。tenant正本、認証・認可、credential、課金、Cloud／OSS互換契約を同時に変更し、既存のproject・organization・owner境界へ影響するため。"
 architecture_docs:
   - path: docs/architecture/story-brainbase-multitenant-platform.md
-    status: required_not_started
+    status: accepted
 spec_docs:
   - path: docs/specs/story-brainbase-multitenant-platform.vibepro.json
     status: required_not_started
