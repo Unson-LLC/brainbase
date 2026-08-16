@@ -166,6 +166,8 @@ export interface JudgmentEpisode {
   audit_contract: {
     schema_version: 'brainbase-owner-audit-contract-v1';
     repair_body_policy: 'preserve';
+    zero_call_display_line: string | null;
+    zero_call_display_line_digest: string | null;
   };
   episode_digest: string;
 }
@@ -180,6 +182,9 @@ export interface JudgmentToolEvent {
   tool_name: string;
   tool_input: unknown;
   tool_response: unknown;
+  audit_kind: 'routing' | 'search' | 'retrieval';
+  success: boolean;
+  satisfies: string[];
   display_line: string;
   event_fingerprint: string;
   event_digest: string;
@@ -219,6 +224,12 @@ export interface JudgmentStopBlock {
 }
 
 const RUNTIME_VERSION = 'portable-judgment-runtime-1.0.0';
+const ZERO_CALL_DISPLAY_LINE = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
+const PORTABLE_KNOWLEDGE_TOOLS = {
+  get_context: { auditKind: 'routing', label: 'Brainbase参照先' },
+  search: { auditKind: 'search', label: 'Brainbase検索' },
+  search_personal_kg: { auditKind: 'retrieval', label: 'Brainbase取得' }
+} as const;
 
 const NODES: Record<string, JudgmentNodeDefinition> = {
   entry: { id: 'entry', kind: 'common', instruction: 'Enter once for this managed turn.' },
@@ -1052,7 +1063,12 @@ function readEpisode(path: string): JudgmentEpisode {
   const adoption = value.adoption as unknown as JudgmentAdoptionEntry;
   const auditContract = value.audit_contract as Record<string, unknown>;
   if (auditContract.schema_version !== 'brainbase-owner-audit-contract-v1'
-    || auditContract.repair_body_policy !== 'preserve') {
+    || auditContract.repair_body_policy !== 'preserve'
+    || (auditContract.zero_call_display_line !== null && typeof auditContract.zero_call_display_line !== 'string')
+    || (auditContract.zero_call_display_line_digest !== null && typeof auditContract.zero_call_display_line_digest !== 'string')
+    || (typeof auditContract.zero_call_display_line === 'string'
+      && auditContract.zero_call_display_line_digest !== sha256(auditContract.zero_call_display_line))
+    || (auditContract.zero_call_display_line === null && auditContract.zero_call_display_line_digest !== null)) {
     throw new Error(`judgment_owner_audit_contract_invalid:${basename(path)}`);
   }
   if (value.initial_receipt_digest !== sha256(canonicalJson(adoption.receipt))) {
@@ -1079,6 +1095,10 @@ function readToolEvent(path: string): JudgmentToolEvent {
     || typeof value.recorded_at !== 'string'
     || typeof value.tool_use_id !== 'string'
     || typeof value.tool_name !== 'string'
+    || !['routing', 'search', 'retrieval'].includes(String(value.audit_kind))
+    || typeof value.success !== 'boolean'
+    || !Array.isArray(value.satisfies)
+    || !value.satisfies.every((capability) => typeof capability === 'string')
     || typeof value.display_line !== 'string'
     || typeof value.event_fingerprint !== 'string'
     || typeof value.event_digest !== 'string') {
@@ -1148,7 +1168,13 @@ function readContinuation(path: string): JudgmentContinuation {
 }
 
 function requiredAuditLines(episode: JudgmentEpisode, events: JudgmentToolEvent[]): string[] {
-  return [episode.adoption.owner_audit.display_line, ...events.map((event) => event.display_line)];
+  return [
+    episode.adoption.owner_audit.display_line,
+    ...(events.length === 0 && episode.audit_contract.zero_call_display_line
+      ? [episode.audit_contract.zero_call_display_line]
+      : []),
+    ...events.map((event) => event.display_line)
+  ];
 }
 
 function answerContainsExactAuditPrefix(answer: string, expectedLines: string[]): boolean {
@@ -1165,7 +1191,7 @@ function normalizedAnswerBody(answer: string, expectedLines: string[]): string {
     .map((line) => line.replace(/[ \t]+$/u, ''))
     .filter((line) => !auditLines.has(line));
   while (bodyLines.length > 0 && (
-    bodyLines[0] === '' || /^(?:🧠 |📚 Brainbase|⚠️ Brainbase)/u.test(bodyLines[0])
+    bodyLines[0] === '' || /^(?:🧠 |📚 Brainbase|⚠️ (?:Brainbase|判断))/u.test(bodyLines[0])
   )) bodyLines.shift();
   while (bodyLines.at(-1) === '') bodyLines.pop();
   return bodyLines.join('\n');
@@ -1267,13 +1293,13 @@ export function buildOwnerAudit(
 
   if (receipt.status === 'needs_clarification' || receipt.selected_dag_ids.includes('clarification.v1')) {
     decision = '確認質問';
-    displayLine = `⚠️ Brainbase参照: 「${excerpt || '現在の依頼'}」の対象を特定できず → ${decision}`;
+    displayLine = `⚠️ 判断参照: 「${excerpt || '現在の依頼'}」の対象を特定できず → ${decision}`;
   } else if (evidence.sourceKind === 'prior_turn_unavailable') {
     decision = '判断証跡を要確認';
-    displayLine = `⚠️ Brainbase参照: 参照元の会話を確認できず → ${decision}`;
+    displayLine = `⚠️ 判断参照: 参照元の会話を確認できず → ${decision}`;
   } else {
     const prefix = evidence.sourceKind.startsWith('prior_turn') ? '直前の' : '';
-    displayLine = `🧠 Brainbase参照: ${prefix}「${excerpt || '現在の依頼'}」を参照 → ${decision} ✓`;
+    displayLine = `🧠 判断参照: ${prefix}「${excerpt || '現在の依頼'}」を参照 → ${decision} ✓`;
   }
 
   return {
@@ -1310,6 +1336,8 @@ function successOutput(
   const auditContract = {
     schema_version: 'brainbase-audit-contract-v1',
     owner_line: ownerReferenceLine,
+    zero_call_line: receipt.selected_dag_ids.includes('knowledge.v1') ? null : ZERO_CALL_DISPLAY_LINE,
+    portable_knowledge_tools: Object.keys(PORTABLE_KNOWLEDGE_TOOLS),
     required_order: ['judgment', 'knowledge', 'warning'],
     exact_once: true
   };
@@ -1320,6 +1348,10 @@ function successOutput(
     'A judgment receipt is not action authorization. Normal host permissions and approval boundaries remain in force.',
     `The first line of every user-facing response must be exactly this Host-generated line:\n${ownerReferenceLine}`,
     'Do not alter, translate, summarize, omit, or repeat that owner-visible line. It reports judgment evidence, not action authorization or completed knowledge retrieval.',
+    'After a portable Brainbase MCP call, preserve each Host-generated PostToolUse systemMessage after the judgment line in journal order. A success line proves only that call; a warning does not satisfy required knowledge retrieval.',
+    receipt.selected_dag_ids.includes('knowledge.v1')
+      ? 'This route requires a successful portable knowledge call; do not claim a zero-call completion.'
+      : `If no portable Brainbase MCP call occurs, put this exact line immediately after the judgment line:\n${ZERO_CALL_DISPLAY_LINE}`,
     `Execution plan: ${JSON.stringify(executionPlan)}`,
     `audit_contract: ${JSON.stringify(auditContract)}`
   ].join('\n');
@@ -1371,7 +1403,13 @@ export async function runJudgmentHost(payload: JudgmentHookPayload, options: Jud
       adoption,
       audit_contract: {
         schema_version: 'brainbase-owner-audit-contract-v1' as const,
-        repair_body_policy: 'preserve' as const
+        repair_body_policy: 'preserve' as const,
+        zero_call_display_line: adoption.receipt.selected_dag_ids.includes('knowledge.v1')
+          ? null
+          : ZERO_CALL_DISPLAY_LINE,
+        zero_call_display_line_digest: adoption.receipt.selected_dag_ids.includes('knowledge.v1')
+          ? null
+          : sha256(ZERO_CALL_DISPLAY_LINE)
       }
     };
     const episode: JudgmentEpisode = {
@@ -1390,12 +1428,102 @@ function hookIdentity(payload: JudgmentHookPayload): { sessionRef: string; turnI
   return { sessionRef: sha256(sessionId), turnId };
 }
 
-async function recordToolUse(payload: JudgmentHookPayload, env: Environment): Promise<JudgmentToolEvent> {
+type PortableKnowledgeTool = keyof typeof PORTABLE_KNOWLEDGE_TOOLS;
+
+function portableKnowledgeTool(toolName: string): PortableKnowledgeTool | null {
+  const normalized = toolName.split(/__|[/.]/u).filter(Boolean).at(-1) ?? '';
+  return normalized in PORTABLE_KNOWLEDGE_TOOLS ? normalized as PortableKnowledgeTool : null;
+}
+
+function validContentBlock(value: unknown): boolean {
+  const block = record(value);
+  if (!block || typeof block.type !== 'string') return false;
+  if (block.type === 'text') return typeof block.text === 'string';
+  if (block.type === 'image' || block.type === 'audio') {
+    return typeof block.data === 'string' && typeof block.mimeType === 'string';
+  }
+  if (block.type === 'resource') return record(block.resource) !== null;
+  if (block.type === 'resource_link') return typeof block.uri === 'string';
+  return false;
+}
+
+function callResultStatus(response: unknown): 'success' | 'failure' | 'malformed' | 'empty' {
+  const result = record(response);
+  if (!result
+    || !Array.isArray(result.content)
+    || !result.content.every(validContentBlock)
+    || (result.isError !== undefined && typeof result.isError !== 'boolean')) {
+    return 'malformed';
+  }
+  if (result.isError === true) return 'failure';
+  if (result.content.length === 0) return 'empty';
+  const hasMeaningfulContent = result.content.some((value) => {
+    const block = record(value);
+    return block && (block.type !== 'text' || (typeof block.text === 'string' && block.text.trim().length > 0));
+  });
+  return hasMeaningfulContent ? 'success' : 'empty';
+}
+
+function sourceSelection(response: unknown): { selected: string[]; excluded: Array<{ source: string; reason: string }> } | null {
+  const result = record(response);
+  if (!result || !Array.isArray(result.content)) return null;
+  for (const value of result.content) {
+    const block = record(value);
+    if (!block || block.type !== 'text' || typeof block.text !== 'string') continue;
+    try {
+      const parsed = JSON.parse(block.text);
+      const parsedRecord = record(parsed);
+      const selection = record(parsedRecord?.source_selection);
+      if (!selection) continue;
+      const selected = Array.isArray(selection.selected)
+        ? selection.selected.filter((item): item is string => typeof item === 'string')
+        : [];
+      const excluded = Array.isArray(selection.excluded)
+        ? selection.excluded.flatMap((item) => {
+          const excludedItem = record(item);
+          if (!excludedItem || typeof excludedItem.source !== 'string' || typeof excludedItem.reason !== 'string') return [];
+          return [{ source: excludedItem.source, reason: excludedItem.reason }];
+        })
+        : [];
+      if (selected.length > 0 || excluded.length > 0) return { selected, excluded };
+    } catch {
+      // Text content is not required to be JSON.
+    }
+  }
+  return null;
+}
+
+function toolDisplayLine(
+  tool: PortableKnowledgeTool,
+  input: unknown,
+  response: unknown,
+  status: ReturnType<typeof callResultStatus>
+): string {
+  const contract = PORTABLE_KNOWLEDGE_TOOLS[tool];
+  const target = contract.auditKind === 'routing'
+    ? tool
+    : sanitizeOwnerExcerpt(record(input)?.query ?? tool);
+  if (status !== 'success') {
+    const result = status === 'failure' ? '失敗応答' : status === 'malformed' ? '不正な応答形式' : '空応答';
+    return `⚠️ ${contract.label}: 「${target}」→ ${result}を記録`;
+  }
+  const selection = sourceSelection(response);
+  const selectionParts = selection ? [
+    ...(selection.selected.length > 0 ? [`採用: ${selection.selected.map(sanitizeOwnerExcerpt).join('・')}`] : []),
+    ...(selection.excluded.length > 0 ? [`除外: ${selection.excluded.map((item) => `${sanitizeOwnerExcerpt(item.source)}（${sanitizeOwnerExcerpt(item.reason)}）`).join('・')}`] : [])
+  ] : [];
+  const result = selectionParts.length > 0 ? selectionParts.join('／') : '正常応答を確認';
+  return `📚 ${contract.label}: 「${target}」→ ${result} ✓`;
+}
+
+async function recordToolUse(payload: JudgmentHookPayload, env: Environment): Promise<JudgmentToolEvent | null> {
   const { sessionRef, turnId } = hookIdentity(payload);
   const paths = journalPaths(sessionRef, turnId, env);
   const toolUseId = typeof payload.tool_use_id === 'string' ? payload.tool_use_id.trim() : '';
   const toolName = typeof payload.tool_name === 'string' ? payload.tool_name.trim() : '';
   if (!toolUseId || !toolName) throw new TypeError('PostToolUse requires tool_use_id and tool_name');
+  const portableTool = portableKnowledgeTool(toolName);
+  if (!portableTool) return null;
   return withTurnLock(paths.lock, async () => {
     let episode: JudgmentEpisode;
     try {
@@ -1418,6 +1546,7 @@ async function recordToolUse(payload: JudgmentHookPayload, env: Environment): Pr
     }
     const toolInput = payload.tool_input ?? null;
     const toolResponse = payload.tool_response ?? null;
+    const responseStatus = callResultStatus(toolResponse);
     const eventFingerprint = sha256(canonicalJson({ tool_use_id: toolUseId, tool_name: toolName, tool_input: toolInput, tool_response: toolResponse }));
     const events = readEvents(paths.events);
     const replay = events.find((event) => event.tool_use_id === toolUseId);
@@ -1435,7 +1564,10 @@ async function recordToolUse(payload: JudgmentHookPayload, env: Environment): Pr
       tool_name: toolName,
       tool_input: toolInput,
       tool_response: toolResponse,
-      display_line: `📚 Brainbase呼出: 「${sanitizeOwnerExcerpt(toolName)}」を記録 ✓`,
+      audit_kind: PORTABLE_KNOWLEDGE_TOOLS[portableTool].auditKind,
+      success: responseStatus === 'success',
+      satisfies: responseStatus === 'success' ? ['knowledge.resolve'] : [],
+      display_line: toolDisplayLine(portableTool, toolInput, toolResponse, responseStatus),
       event_fingerprint: eventFingerprint
     };
     const event: JudgmentToolEvent = {
@@ -1484,7 +1616,8 @@ async function finalizeEpisode(
     const expectedAuditLines = requiredAuditLines(episode, events);
     const expectedAuditLinesDigest = sha256(canonicalJson(expectedAuditLines));
     const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : '';
-    const missingKnowledge = episode.adoption.receipt.selected_dag_ids.includes('knowledge.v1') && events.length === 0;
+    const missingKnowledge = episode.adoption.receipt.selected_dag_ids.includes('knowledge.v1')
+      && !events.some((event) => event.success && event.satisfies.includes('knowledge.resolve'));
     const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines);
     let continuation: JudgmentContinuation | null = null;
     try {
@@ -1563,11 +1696,14 @@ async function finalizeEpisode(
 export async function processJudgmentHook(
   payload: JudgmentHookPayload,
   options: JudgmentHostOptions = {}
-): Promise<JudgmentHookOutput | JudgmentToolEvent | JudgmentFinalReceipt | JudgmentStopBlock | Record<string, never>> {
+): Promise<JudgmentHookOutput | JudgmentFinalReceipt | JudgmentStopBlock | { systemMessage: string } | Record<string, never>> {
   const eventName = payload.hook_event_name ?? payload.hookEventName ?? 'UserPromptSubmit';
   const env = options.env ?? process.env;
   if (eventName === 'UserPromptSubmit') return runJudgmentHost(payload, options);
-  if (eventName === 'PostToolUse') return recordToolUse(payload, env);
+  if (eventName === 'PostToolUse') {
+    const event = await recordToolUse(payload, env);
+    return event ? { systemMessage: event.display_line } : {};
+  }
   if (eventName === 'Stop') {
     const output = await finalizeEpisode(payload, env);
     if ('decision' in output && output.decision === 'block' && payload.stop_hook_active === true) {

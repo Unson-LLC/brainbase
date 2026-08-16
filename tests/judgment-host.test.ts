@@ -150,7 +150,7 @@ describe('portable Judgment Resolver Host contract', () => {
     expect(output.continue).toBe(true);
     expect(output.hookSpecificOutput.additionalContext).toContain('A clarification receipt means ask');
     expect(output.hookSpecificOutput.additionalContext).toContain(
-      '⚠️ Brainbase参照: 「それでいい」の対象を特定できず → 確認質問'
+      '⚠️ 判断参照: 「それでいい」の対象を特定できず → 確認質問'
     );
   });
 
@@ -175,7 +175,7 @@ describe('portable Judgment Resolver Host contract', () => {
     expect(first.receipt.resolution_id).toBe('receipt-once');
     expect(second.receipt).toEqual(first.receipt);
     expect(second.hookSpecificOutput.additionalContext).toContain(
-      '🧠 Brainbase参照: 「この仕組みを説明して」を参照 → 質問として回答 ✓'
+      '🧠 判断参照: 「この仕組みを説明して」を参照 → 質問として回答 ✓'
     );
 
     const [sessionDirectory] = await readdir(env.BRAINBASE_JUDGMENT_JOURNAL_DIR);
@@ -195,7 +195,7 @@ describe('portable Judgment Resolver Host contract', () => {
         source_turn_ids: ['turn-1'],
         source_excerpt: 'この仕組みを説明して',
         decision: '質問として回答',
-        display_line: '🧠 Brainbase参照: 「この仕組みを説明して」を参照 → 質問として回答 ✓'
+        display_line: '🧠 判断参照: 「この仕組みを説明して」を参照 → 質問として回答 ✓'
       }
     });
   });
@@ -254,7 +254,7 @@ describe('portable Judgment Resolver Host contract', () => {
     expect(resolver).not.toHaveBeenCalled();
     expect(replayed.receipt).toEqual(first.receipt);
     expect(replayed.hookSpecificOutput.additionalContext).toContain(
-      '🧠 Brainbase参照: 「この仕組みを説明して」を参照 → 質問として回答 ✓'
+      '🧠 判断参照: 「この仕組みを説明して」を参照 → 質問として回答 ✓'
     );
   });
 
@@ -361,16 +361,16 @@ describe('portable Judgment Resolver Host contract', () => {
     const firstEvent = await processJudgmentHook({
       hook_event_name: 'PostToolUse',
       tool_use_id: 'tool-a',
-      tool_name: 'brainbase_knowledge_resolve',
-      tool_input: { intent: 'project context' },
+      tool_name: 'get_context',
+      tool_input: {},
       tool_response: { content: [{ type: 'text', text: 'resolved' }] },
       ...identity
     }, { env, resolver });
     const secondEvent = await processJudgmentHook({
       hook_event_name: 'PostToolUse',
       tool_use_id: 'tool-b',
-      tool_name: 'get_entity',
-      tool_input: { entity_type: 'project', entity_id: 'brainbase' },
+      tool_name: 'search',
+      tool_input: { query: 'brainbase project' },
       tool_response: { content: [{ type: 'text', text: 'project' }] },
       ...identity
     }, { env, resolver });
@@ -378,8 +378,8 @@ describe('portable Judgment Resolver Host contract', () => {
       .split('\n').find((line) => line.startsWith('🧠')) ?? '';
     const completeAnswer = [
       ownerLine,
-      firstEvent.display_line,
-      secondEvent.display_line,
+      firstEvent.systemMessage,
+      secondEvent.systemMessage,
       '実装しました。'
     ].join('\n');
     const finalized = await processJudgmentHook({
@@ -426,8 +426,8 @@ describe('portable Judgment Resolver Host contract', () => {
     const eventPayload = {
       hook_event_name: 'PostToolUse',
       tool_use_id: 'tool-stable',
-      tool_name: 'get_entity',
-      tool_input: { entity_type: 'project', entity_id: 'brainbase' },
+      tool_name: 'search_personal_kg',
+      tool_input: { query: 'brainbase project' },
       tool_response: { content: [{ type: 'text', text: 'project' }] },
       ...identity
     };
@@ -438,7 +438,7 @@ describe('portable Judgment Resolver Host contract', () => {
       .split('\n').find((line) => line.startsWith('🧠')) ?? '';
     await processJudgmentHook({
       hook_event_name: 'Stop',
-      last_assistant_message: `${ownerLine}\n${first.display_line}\ndone`,
+      last_assistant_message: `${ownerLine}\n${first.systemMessage}\ndone`,
       ...identity
     }, { env });
 
@@ -456,15 +456,15 @@ describe('portable Judgment Resolver Host contract', () => {
     const identity = { session_id: 'session-conflict', turn_id: 'turn-1', cwd: root };
     await processJudgmentHook({ hook_event_name: 'UserPromptSubmit', prompt: '実装して', ...identity }, { env });
     await processJudgmentHook({
-      hook_event_name: 'PostToolUse', tool_use_id: 'tool-reused', tool_name: 'tool-a',
-      tool_input: { value: 'A' }, tool_response: { content: [] }, ...identity
+      hook_event_name: 'PostToolUse', tool_use_id: 'tool-reused', tool_name: 'search',
+      tool_input: { query: 'A' }, tool_response: { content: [] }, ...identity
     }, { env });
     const paths = episodePaths(journal, identity.session_id, identity.turn_id);
     const before = await readdir(paths.events);
 
     await expect(processJudgmentHook({
-      hook_event_name: 'PostToolUse', tool_use_id: 'tool-reused', tool_name: 'tool-b',
-      tool_input: { value: 'B' }, tool_response: { content: [] }, ...identity
+      hook_event_name: 'PostToolUse', tool_use_id: 'tool-reused', tool_name: 'search_personal_kg',
+      tool_input: { query: 'B' }, tool_response: { content: [] }, ...identity
     }, { env })).rejects.toThrow('judgment_tool_event_conflict');
 
     expect(await readdir(paths.events)).toEqual(before);
@@ -514,6 +514,7 @@ describe('portable Judgment Resolver Host contract', () => {
     }, { env });
     const ownerLine = (started.hookSpecificOutput?.additionalContext ?? '')
       .split('\n').find((line) => line.startsWith('🧠')) ?? '';
+    const zeroCallLine = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
     const body = '修正内容は3点です。\n\n- lifecycle\n- audit\n- tests';
 
     const first = await processJudgmentHook({
@@ -523,11 +524,12 @@ describe('portable Judgment Resolver Host contract', () => {
 
     expect(first).toMatchObject({ decision: 'block' });
     expect(first.reason).toContain(ownerLine);
+    expect(first.reason).toContain(zeroCallLine);
     expect(first.reason).toContain('削除・要約・置換せずそのまま残す');
 
     const repaired = await processJudgmentHook({
       hook_event_name: 'Stop', stop_hook_active: true,
-      last_assistant_message: `${ownerLine}\n${body}`, ...identity
+      last_assistant_message: `${ownerLine}\n${zeroCallLine}\n${body}`, ...identity
     }, { env });
     expect(repaired).toMatchObject({ completion_status: 'complete', owner_audit_complete: true });
   });
@@ -545,7 +547,7 @@ describe('portable Judgment Resolver Host contract', () => {
     }, { env });
     const ownerLine = (started.hookSpecificOutput?.additionalContext ?? '')
       .split('\n').find((line) => line.startsWith('🧠')) ?? '';
-    const eventLine = event.display_line;
+    const eventLine = event.systemMessage;
 
     for (const answer of [
       '本文だけ',
@@ -630,6 +632,131 @@ describe('portable Judgment Resolver Host contract', () => {
     }, { env })).rejects.toThrow('judgment_stop_repair_exhausted');
   });
 
+  it('separates judgment evidence from a successful portable search call', async () => {
+    const root = await tempDir();
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+    const identity = { session_id: 'session-search-evidence', turn_id: 'turn-1', cwd: root };
+    const started = await processJudgmentHook({
+      hook_event_name: 'UserPromptSubmit', prompt: 'Alphaを検索して', ...identity
+    }, { env });
+    const ownerLine = (started.hookSpecificOutput?.additionalContext ?? '')
+      .split('\n').find((line) => line.startsWith('🧠')) ?? '';
+    expect(ownerLine).toContain('🧠 判断参照:');
+    expect(ownerLine).not.toContain('Brainbase参照');
+
+    const recorded = await processJudgmentHook({
+      hook_event_name: 'PostToolUse', tool_use_id: 'tool-search', tool_name: 'mcp__brainbase__search',
+      tool_input: { query: 'Alpha' },
+      tool_response: { content: [{ type: 'text', text: JSON.stringify({ results: [{ name: 'Alpha' }] }) }] },
+      ...identity
+    }, { env });
+
+    expect(recorded).toEqual({ systemMessage: '📚 Brainbase検索: 「Alpha」→ 正常応答を確認 ✓' });
+    const result = await processJudgmentHook({
+      hook_event_name: 'Stop', stop_hook_active: false,
+      last_assistant_message: `${ownerLine}\n${recorded.systemMessage}\n検索結果です`, ...identity
+    }, { env });
+    expect(result).toMatchObject({ completion_status: 'complete', owner_audit_line_count: 2 });
+  });
+
+  it('records isError, malformed, and empty CallToolResult envelopes as warnings, never successful evidence', async () => {
+    const root = await tempDir();
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+    const cases = [
+      { suffix: 'error', response: { isError: true, content: [{ type: 'text', text: 'failed' }] }, expected: '失敗応答' },
+      { suffix: 'malformed', response: { content: [{ type: 'text' }] }, expected: '不正な応答形式' },
+      { suffix: 'empty', response: { content: [] }, expected: '空応答' }
+    ];
+    for (const testCase of cases) {
+      const identity = { session_id: `session-${testCase.suffix}`, turn_id: 'turn-1', cwd: root };
+      const started = await processJudgmentHook({
+        hook_event_name: 'UserPromptSubmit', prompt: 'Alphaを検索して', ...identity
+      }, { env });
+      const recorded = await processJudgmentHook({
+        hook_event_name: 'PostToolUse', tool_use_id: `tool-${testCase.suffix}`,
+        tool_name: 'search', tool_input: { query: 'Alpha' }, tool_response: testCase.response,
+        ...identity
+      }, { env });
+      expect(recorded.systemMessage).toBe(`⚠️ Brainbase検索: 「Alpha」→ ${testCase.expected}を記録`);
+      const paths = episodePaths(env.BRAINBASE_JUDGMENT_JOURNAL_DIR, identity.session_id, identity.turn_id);
+      const [eventName] = await readdir(paths.events);
+      const event = JSON.parse(await readFile(join(paths.events, eventName), 'utf8'));
+      expect(event).toMatchObject({ audit_kind: 'search', success: false, satisfies: [] });
+      const ownerLine = (started.hookSpecificOutput?.additionalContext ?? '')
+        .split('\n').find((line) => line.startsWith('🧠')) ?? '';
+      const stopped = await processJudgmentHook({
+        hook_event_name: 'Stop', stop_hook_active: false,
+        last_assistant_message: `${ownerLine}\n${recorded.systemMessage}\n検索結果は確認できませんでした`, ...identity
+      }, { env });
+      expect(stopped).toMatchObject({ decision: 'block' });
+      expect(stopped.reason).toContain('knowledge.resolve');
+    }
+  });
+
+  it('uses the dedicated zero-call line only when knowledge resolution is not required', async () => {
+    const root = await tempDir();
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+    const identity = { session_id: 'session-zero-call', turn_id: 'turn-1', cwd: root };
+    const started = await processJudgmentHook({
+      hook_event_name: 'UserPromptSubmit', prompt: 'この仕組みを説明して', ...identity
+    }, { env });
+    const ownerLine = (started.hookSpecificOutput?.additionalContext ?? '')
+      .split('\n').find((line) => line.startsWith('🧠')) ?? '';
+    const zeroCallLine = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
+    const result = await processJudgmentHook({
+      hook_event_name: 'Stop', stop_hook_active: false,
+      last_assistant_message: `${ownerLine}\n${zeroCallLine}\n回答`, ...identity
+    }, { env });
+    expect(result).toMatchObject({ completion_status: 'complete', owner_audit_line_count: 2 });
+  });
+
+  it('keeps multiple successful portable calls in journal commit order', async () => {
+    const root = await tempDir();
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+    const identity = { session_id: 'session-multiple-evidence', turn_id: 'turn-1', cwd: root };
+    const started = await processJudgmentHook({
+      hook_event_name: 'UserPromptSubmit', prompt: 'Alphaを検索して', ...identity
+    }, { env });
+    const ownerLine = (started.hookSpecificOutput?.additionalContext ?? '')
+      .split('\n').find((line) => line.startsWith('🧠')) ?? '';
+    const first = await processJudgmentHook({
+      hook_event_name: 'PostToolUse', tool_use_id: 'tool-context', tool_name: 'get_context',
+      tool_input: {}, tool_response: { content: [{ type: 'text', text: '{"owner":{"name":"Owner"}}' }] }, ...identity
+    }, { env });
+    const second = await processJudgmentHook({
+      hook_event_name: 'PostToolUse', tool_use_id: 'tool-personal', tool_name: 'search_personal_kg',
+      tool_input: { query: 'Alpha' }, tool_response: { content: [{ type: 'text', text: '{"results":[]}' }] }, ...identity
+    }, { env });
+    const result = await processJudgmentHook({
+      hook_event_name: 'Stop', stop_hook_active: false,
+      last_assistant_message: [ownerLine, first.systemMessage, second.systemMessage, '回答'].join('\n'), ...identity
+    }, { env });
+    expect(result).toMatchObject({ completion_status: 'complete', owner_audit_line_count: 3 });
+  });
+
+  it('renders source selection and exclusions only when they exist in the tool result', async () => {
+    const root = await tempDir();
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+    const identity = { session_id: 'session-source-selection', turn_id: 'turn-1', cwd: root };
+    await processJudgmentHook({
+      hook_event_name: 'UserPromptSubmit', prompt: 'contextを確認して', ...identity
+    }, { env });
+    const recorded = await processJudgmentHook({
+      hook_event_name: 'PostToolUse', tool_use_id: 'tool-routing', tool_name: 'get_context',
+      tool_input: { selected_source: 'input-must-not-be-used' },
+      tool_response: { content: [{ type: 'text', text: JSON.stringify({
+        source_selection: {
+          selected: ['personal-os'],
+          excluded: [{ source: 'workspace', reason: 'not canonical' }]
+        }
+      }) }] },
+      ...identity
+    }, { env });
+    expect(recorded.systemMessage).toContain('採用: personal-os');
+    expect(recorded.systemMessage).toContain('除外: workspace（not canonical）');
+    expect(recorded.systemMessage).not.toContain('input-must-not-be-used');
+  });
+
   it('binds every applicable AGENTS.md from repository root to cwd', async () => {
     const root = await tempDir();
     const nested = join(root, 'a', 'b');
@@ -680,7 +807,7 @@ describe('portable Judgment Resolver Host contract', () => {
     } as JudgmentReceipt;
 
     expect(buildOwnerReferenceLine(request, receipt)).toBe(
-      '🧠 Brainbase参照: 直前の「ログイン後の白画面を直して」を参照 → 実装依頼として継続 ✓'
+      '🧠 判断参照: 直前の「ログイン後の白画面を直して」を参照 → 実装依頼として継続 ✓'
     );
 
     const output = capture();
@@ -739,7 +866,7 @@ describe('portable Judgment Resolver Host contract', () => {
     const line = buildOwnerReferenceLine(request, receipt);
 
     expect(line).toBe(
-      '🧠 Brainbase参照: 「token=[秘密情報] を使って本番環境を確認し、…」を参照 → 調査として確認 ✓'
+      '🧠 判断参照: 「token=[秘密情報] を使って本番環境を確認し、…」を参照 → 調査として確認 ✓'
     );
     expect(line).not.toContain('sk-secret-value');
     expect(line.split('\n')).toHaveLength(1);
@@ -765,7 +892,7 @@ describe('portable Judgment Resolver Host contract', () => {
     } as JudgmentReceipt;
 
     expect(buildOwnerReferenceLine(request, receipt)).toBe(
-      '⚠️ Brainbase参照: 参照元の会話を確認できず → 判断証跡を要確認'
+      '⚠️ 判断参照: 参照元の会話を確認できず → 判断証跡を要確認'
     );
   });
 
@@ -794,6 +921,6 @@ describe('portable Judgment Resolver Host contract', () => {
         host_binding: { status: 'managed', enforcement_level: 'host_contract' }
       }
     });
-    expect(result.hookSpecificOutput.additionalContext).toContain('🧠 Brainbase参照:');
+    expect(result.hookSpecificOutput.additionalContext).toContain('🧠 判断参照:');
   });
 });
