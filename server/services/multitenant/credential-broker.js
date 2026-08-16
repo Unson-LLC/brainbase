@@ -20,6 +20,7 @@ function leaseRef() {
 export class CredentialBroker {
     #credentials = new Map();
     #leases = new Map();
+    #currentByConnection = new Map();
 
     constructor({ now = () => new Date() } = {}) {
         this.now = now;
@@ -37,6 +38,7 @@ export class CredentialBroker {
             refresh_revision: input.refresh_revision ?? 1
         });
         this.#credentials.set(record.credential_ref, record);
+        this.#currentByConnection.set(`${record.tenant_id}:${record.connection_id}`, record);
         return record;
     }
 
@@ -82,6 +84,10 @@ export class CredentialBroker {
         if (lease.operation_id !== operation_id || lease.audience !== audience) {
             throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
         }
+        const current = this.#currentByConnection.get(`${lease.tenant_id}:${lease.connection_id}`);
+        if (!current || REQUIRED_BINDING_FIELDS.some((field) => current[field] !== lease[field])) {
+            throw new ContractError('CREDENTIAL_BINDING_STALE', { status: 409 });
+        }
         lease.used = true;
         return materialize(lease.credential_ref);
     }
@@ -105,6 +111,7 @@ export class CredentialBroker {
         });
         this.#credentials.delete(credential_ref);
         this.#credentials.set(new_credential_ref, updated);
+        this.#currentByConnection.set(`${updated.tenant_id}:${updated.connection_id}`, updated);
         this.auditEvents.push(Object.freeze({
             event_type: 'oauth_refresh.updated.v1',
             previous_credential_ref: credential_ref,

@@ -18,8 +18,33 @@ const OPTIONAL_CAPABILITIES = new Set([
     'cloud_billing_export', 'managed_operations', 'shared_cloud_rls_conformance', 'cloud_standard_credential'
 ]);
 
+function parseVersion(value) {
+    const match = /^(\d+)\.(\d+)(?:\.(\d+))?$/.exec(value);
+    return match ? match.slice(1).map((part) => Number(part ?? 0)) : null;
+}
+
+function compareVersion(left, right) {
+    for (let index = 0; index < 3; index += 1) {
+        if (left[index] !== right[index]) return left[index] - right[index];
+    }
+    return 0;
+}
+
 function supportsV1(range) {
-    return typeof range === 'string' && /(?:^|[=\s])1(?:\.\d+)?/.test(range) && /<\s*2(?:\.0)?/.test(range);
+    if (typeof range !== 'string') return false;
+    const tokens = range.trim().split(/\s+/);
+    if (tokens.length !== 2) return false;
+    const constraints = tokens.map((token) => /^(>=|>|<=|<)(\d+\.\d+(?:\.\d+)?)$/.exec(token));
+    if (constraints.some((constraint) => !constraint)) return false;
+    const version = [1, 0, 0];
+    return constraints.every(([, operator, raw]) => {
+        const candidate = parseVersion(raw);
+        const comparison = compareVersion(version, candidate);
+        return operator === '>=' ? comparison >= 0
+            : operator === '>' ? comparison > 0
+                : operator === '<=' ? comparison <= 0
+                    : comparison < 0;
+    });
 }
 
 export function negotiateProtocol(input, { now = new Date() } = {}) {
