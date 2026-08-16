@@ -15,6 +15,8 @@ function contextBoundInput(req) {
         tenant_revision_at_write: context.tenant.tenant_revision,
         connection_id: context.workspace_connection.connection_id,
         connection_revision: context.workspace_connection.connection_revision,
+        workspace_id: context.workspace_connection.workspace_id,
+        app_id: context.workspace_connection.app_id,
         deployment_id: context.placement.deployment_id,
         correlation_id: context.correlation_id,
         operation_id: context.operation_id,
@@ -63,31 +65,47 @@ export function createTenantRuntimeRouter({
         res.json(await tenantAuthority.resolveContext(req.body));
     }));
     router.use(asyncHandler(async (req, _res, next) => {
+        if (req.get('Brainbase-Protocol-Version') !== '1.0') {
+            throw new ContractError('PROTOCOL_VERSION_UNSUPPORTED', { status: 400, fault_domain: 'protocol' });
+        }
         if (!req.body?.tenant_context) {
             throw new ContractError('TENANT_CONTEXT_INVALID', { status: 400, fault_domain: 'protocol' });
         }
         req.tenantContext = await tenantContextVerifier(req.body.tenant_context, {
             service_identity: req.serviceIdentity
         });
+        if (req.get('Brainbase-Deployment-Id') !== req.tenantContext.placement.deployment_id) {
+            throw new ContractError('FALLBACK_FORBIDDEN', { status: 403, fault_domain: 'protocol' });
+        }
         next();
     }));
+    async function revalidateAuthoritativeBinding(req) {
+        const input = contextBoundInput(req);
+        const current = await connectionRegistry.validateRevision(input);
+        if (!current?.authoritative
+            || current.credential_ref !== input.credential_ref
+            || current.credential_mode !== input.credential_mode) {
+            throw new ContractError('WORKSPACE_CONNECTION_STALE_REVISION', { status: 409 });
+        }
+        return input;
+    }
     router.post('/workspace-connections:validate-revision', asyncHandler(async (req, res) => {
         res.json(await connectionRegistry.validateRevision(contextBoundInput(req)));
     }));
     router.post('/credential-leases', asyncHandler(async (req, res) => {
-        res.status(201).json(await credentialBroker.issueLease(contextBoundInput(req)));
+        res.status(201).json(await credentialBroker.issueLease(await revalidateAuthoritativeBinding(req)));
     }));
     router.post('/oauth-refresh:compare-and-swap', asyncHandler(async (req, res) => {
-        res.json(await credentialBroker.compareAndSwapRefresh(contextBoundInput(req)));
+        res.json(await credentialBroker.compareAndSwapRefresh(await revalidateAuthoritativeBinding(req)));
     }));
     router.post('/quota:decide', asyncHandler(async (req, res) => {
-        res.json(await usageLedger.decideQuota(contextBoundInput(req)));
+        res.json(await usageLedger.decideQuota(await revalidateAuthoritativeBinding(req)));
     }));
     router.post('/usage-events', asyncHandler(async (req, res) => {
-        res.status(202).json(await usageLedger.recordUsage(contextBoundInput(req)));
+        res.status(202).json(await usageLedger.recordUsage(await revalidateAuthoritativeBinding(req)));
     }));
     router.post('/operation-receipts:finalize', asyncHandler(async (req, res) => {
-        res.status(201).json(await usageLedger.finalizeReceipt(contextBoundInput(req)));
+        res.status(201).json(await usageLedger.finalizeReceipt(await revalidateAuthoritativeBinding(req)));
     }));
 
     router.use((error, req, res, _next) => {

@@ -49,6 +49,7 @@ export class WorkspaceConnectionRegistry {
             granted_scopes: [...new Set(input.granted_scopes)].sort(),
             status: 'active',
             credential_ref: input.credential_ref,
+            credential_mode: input.credential_mode ?? 'cloud_standard',
             installed_at: installedAt,
             revoked_at: null,
             supersedes_connection_revision: null
@@ -112,7 +113,11 @@ export class WorkspaceConnectionRegistry {
             tenant_id: current.tenant_id,
             connection_id: current.connection_id,
             connection_revision: current.connection_revision,
-            status: current.status
+            status: current.status,
+            workspace_id: current.workspace_id,
+            app_id: current.app_id,
+            credential_ref: current.credential_ref,
+            credential_mode: current.credential_mode
         });
     }
 
