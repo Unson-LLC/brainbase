@@ -2,6 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { createTenantRuntimeRouter } from '../../../server/routes/tenant-runtime.js';
+import { registerTenantRuntimeApiRoute } from '../../../server/bootstrap/register-api-routes.js';
 
 function createApp(overrides = {}) {
     const app = express();
@@ -18,6 +19,23 @@ function createApp(overrides = {}) {
 }
 
 describe('tenant runtime API', () => {
+    it('AC-005/301: production bootstrapへservice-auth付きruntime routeを登録する', async () => {
+        const app = express();
+        app.use(express.json());
+        registerTenantRuntimeApiRoute(app, {
+            serviceAuth: (_req, _res, next) => next(),
+            verificationKeys: () => [],
+            connectionRegistry: { validateRevision: () => ({ valid: true }) },
+            credentialBroker: { issueLease: () => ({ lease_ref: 'lease:opaque' }) },
+            usageLedger: { recordUsage: (input) => input }
+        });
+        const response = await request(app).post('/api/v1/runtime/negotiate').send({
+            deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV', deployment_profile: 'shared_cloud',
+            supported_range: '>=1.0 <2.0', required_capabilities: []
+        });
+        expect(response.status).toBe(200);
+    });
+
     it('AC-301/302: service auth後にCloud/OSS共通v1 negotiationを返す', async () => {
         const response = await request(createApp())
             .post('/api/v1/runtime/negotiate')
