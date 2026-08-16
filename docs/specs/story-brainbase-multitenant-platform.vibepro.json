@@ -229,7 +229,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-001"
+        "ac_id": "AC-1"
           }
         ],
         "architecture_refs": [
@@ -245,8 +245,8 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/tenant-authority.test.js",
-            "case": "AC-001 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/tenant-authority.test.js",
+        "case": "AC-001: canonical IDを発行し、許可された状態遷移と終端削除だけを受理する"
           }
         ]
       },
@@ -268,7 +268,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-002"
+        "ac_id": "AC-2"
           }
         ],
         "architecture_refs": [
@@ -287,12 +287,12 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
-            "case": "AC-002 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
+        "case": "AC-002: 全帰属objectにtenant_idとwrite時revisionを要求する"
           },
           {
-            "file": "tests/server/services/multitenant/persistence-schema.test.js",
-            "case": "AC-002 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/persistence-schema.test.js",
+        "case": "AC-002/005: 帰属table、FK、RLS、repository用tenant revision境界を定義する"
           }
         ]
       },
@@ -318,7 +318,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-003"
+        "ac_id": "AC-3"
           }
         ],
         "architecture_refs": [
@@ -337,12 +337,12 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/tenant-authority.test.js",
-            "case": "AC-003 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/tenant-authority.test.js",
+        "case": "AC-003: workspace ID、project code、organization名をtenant IDとして解決しない"
           },
           {
-            "file": "tests/server/services/multitenant/service-auth.test.js",
-            "case": "AC-003 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/service-auth.test.js",
+        "case": "D-001/AC-003: token内tenant自己申告をservice identityとして採用しない"
           }
         ]
       },
@@ -368,7 +368,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-004"
+        "ac_id": "AC-4"
           }
         ],
         "architecture_refs": [
@@ -387,12 +387,12 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/tenant-authority.test.js",
-            "case": "AC-004 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/tenant-authority.test.js",
+        "case": "AC-004: 未解決、複数解決、無効tenantを業務処理前に分類して拒否する"
           },
           {
-            "file": "tests/server/services/multitenant/protocol-contract.test.js",
-            "case": "AC-004 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/protocol-contract.test.js",
+        "case": "D-001/AC-004/AC-305: nested shape、audience型、JWS header、公開鍵有効期間をfail closedにする"
           }
         ]
       },
@@ -418,7 +418,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-005"
+        "ac_id": "AC-5"
           }
         ],
         "architecture_refs": [
@@ -440,16 +440,16 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
-            "case": "AC-005 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
+        "case": "AC-005/AC-305: 全entry pointで越境を同じ非開示エラーにしfallbackしない"
           },
           {
-            "file": "tests/server/services/multitenant/postgres-repository.test.js",
-            "case": "AC-005 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/postgres-repository.test.js",
+        "case": "AC-005/AC-105/D-003: transaction-local tenant RLSを設定しauthoritative revisionをlock付きで読む"
           },
           {
-            "file": "tests/server/routes/tenant-runtime-contract.test.js",
-            "case": "AC-005 dedicated TDD contract coverage"
+        "file": "tests/server/routes/tenant-runtime-contract.test.js",
+        "case": "AC-005/301: production bootstrapへservice-auth付きruntime routeを登録する"
           }
         ]
       },
@@ -479,7 +479,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-006"
+        "ac_id": "AC-6"
           }
         ],
         "architecture_refs": [
@@ -498,8 +498,8 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/migration-planner.test.js",
-            "case": "AC-006 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/migration-planner.test.js",
+        "case": "AC-006: dry-runは書込0で件数を照合し曖昧・未帰属を隔離候補にする"
           }
         ]
       },
@@ -521,7 +521,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-101"
+        "ac_id": "AC-7"
           }
         ],
         "architecture_refs": [
@@ -540,8 +540,8 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/workspace-connection.test.js",
-            "case": "AC-101 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/workspace-connection.test.js",
+        "case": "AC-101/AC-102/AC-103: 複数workspace、再install履歴、監査field、単調revisionを正本化する"
           }
         ]
       },
@@ -563,7 +563,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-102"
+        "ac_id": "AC-8"
           }
         ],
         "architecture_refs": [
@@ -579,8 +579,8 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/workspace-connection.test.js",
-            "case": "AC-102 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/workspace-connection.test.js",
+        "case": "AC-101/AC-102/AC-103: 複数workspace、再install履歴、監査field、単調revisionを正本化する"
           }
         ]
       },
@@ -602,7 +602,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-103"
+        "ac_id": "AC-9"
           }
         ],
         "architecture_refs": [
@@ -621,8 +621,8 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/workspace-connection.test.js",
-            "case": "AC-103 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/workspace-connection.test.js",
+        "case": "AC-101/AC-102/AC-103: 複数workspace、再install履歴、監査field、単調revisionを正本化する"
           }
         ]
       },
@@ -644,7 +644,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-104"
+        "ac_id": "AC-10"
           }
         ],
         "architecture_refs": [
@@ -666,16 +666,16 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/workspace-connection.test.js",
-            "case": "AC-104 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/workspace-connection.test.js",
+        "case": "AC-104: credential本文らしい入力を保存前に拒否する"
           },
           {
-            "file": "tests/server/services/multitenant/credential-broker.test.js",
-            "case": "AC-104 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/credential-broker.test.js",
+        "case": "D-005/AC-104/AC-305: 最大60秒、single-use、operation/audience/mode束縛のopaque leaseを発行する"
           },
           {
-            "file": "tests/server/services/multitenant/persistence-schema.test.js",
-            "case": "AC-104 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/persistence-schema.test.js",
+        "case": "AC-104/D-005: secret本文用の通常列を持たずopaque refとrefresh revisionだけを永続化する"
           }
         ]
       },
@@ -705,7 +705,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-105"
+        "ac_id": "AC-11"
           }
         ],
         "architecture_refs": [
@@ -724,12 +724,12 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/workspace-connection.test.js",
-            "case": "AC-105 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/workspace-connection.test.js",
+        "case": "AC-105: 未登録、失効、別tenant、別app、scope不足、stale revisionを区別する"
           },
           {
-            "file": "tests/server/services/multitenant/postgres-repository.test.js",
-            "case": "AC-105 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/postgres-repository.test.js",
+        "case": "AC-005/AC-105/D-003: transaction-local tenant RLSを設定しauthoritative revisionをlock付きで読む"
           }
         ]
       },
@@ -755,7 +755,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-201"
+        "ac_id": "AC-12"
           }
         ],
         "architecture_refs": [
@@ -774,8 +774,8 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
-            "case": "AC-201 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+        "case": "AC-201/AC-203: plan枠、警告閾値、hard stop、超過方針をrevision固定で判断する"
           }
         ]
       },
@@ -797,7 +797,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-202"
+        "ac_id": "AC-13"
           }
         ],
         "architecture_refs": [
@@ -816,12 +816,12 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
-            "case": "AC-202 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+        "case": "AC-202/D-006: length-prefix固定式でtenant別の副作用claimを冪等化する"
           },
           {
-            "file": "tests/server/services/multitenant/postgres-repository.test.js",
-            "case": "AC-202 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/postgres-repository.test.js",
+        "case": "D-006/AC-202: claim conflict時はpayload/context hash差分を追加副作用なしで拒否する"
           }
         ]
       },
@@ -847,7 +847,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-203"
+        "ac_id": "AC-14"
           }
         ],
         "architecture_refs": [
@@ -863,8 +863,8 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
-            "case": "AC-203 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+        "case": "AC-201/AC-203: plan枠、警告閾値、hard stop、超過方針をrevision固定で判断する"
           }
         ]
       },
@@ -886,7 +886,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-204"
+        "ac_id": "AC-15"
           }
         ],
         "architecture_refs": [
@@ -905,12 +905,12 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
-            "case": "AC-204 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+        "case": "AC-204/D-007: outcomeとcollection_stateを分離し、失敗消費と未計測を0へ丸めない"
           },
           {
-            "file": "tests/server/services/multitenant/persistence-schema.test.js",
-            "case": "AC-204 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/persistence-schema.test.js",
+        "case": "D-006/AC-204: Usage、Receipt、30日claim保持、collection/outcome制約を持つ"
           }
         ]
       },
@@ -936,7 +936,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-205"
+        "ac_id": "AC-16"
           }
         ],
         "architecture_refs": [
@@ -955,8 +955,8 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
-            "case": "AC-205 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+        "case": "AC-205: Receiptへ当時のrate・FX・販売価格revisionをimmutable snapshotとして固定する"
           }
         ]
       },
@@ -978,7 +978,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-301"
+        "ac_id": "AC-17"
           }
         ],
         "architecture_refs": [
@@ -1000,20 +1000,20 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/service-auth.test.js",
-            "case": "AC-301 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/service-auth.test.js",
+        "case": "D-001/AC-301: issuer subject audience deployment expiry capabilityを検証する"
           },
           {
-            "file": "tests/server/services/multitenant/protocol-contract.test.js",
-            "case": "AC-301 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/protocol-contract.test.js",
+        "case": "D-001/AC-301: snake_case canonical JSONのdetached Ed25519 JWSを検証しimmutable化する"
           },
           {
-            "file": "tests/server/routes/tenant-runtime-contract.test.js",
-            "case": "AC-301 dedicated TDD contract coverage"
+        "file": "tests/server/routes/tenant-runtime-contract.test.js",
+        "case": "AC-301/AC-302: service auth後にCloud/OSS共通v1 negotiationを返す"
           },
           {
-            "file": "tests/server/services/multitenant/contract-fixtures.test.js",
-            "case": "AC-301 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/contract-fixtures.test.js",
+        "case": "$id: positive fixture"
           }
         ]
       },
@@ -1047,7 +1047,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-302"
+        "ac_id": "AC-18"
           }
         ],
         "architecture_refs": [
@@ -1066,12 +1066,12 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/protocol-contract.test.js",
-            "case": "AC-302 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/protocol-contract.test.js",
+        "case": "AC-301/AC-302: %sでprotocol v1と共通必須capabilityを交渉する"
           },
           {
-            "file": "tests/server/services/multitenant/contract-fixtures.test.js",
-            "case": "AC-302 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/contract-fixtures.test.js",
+        "case": "$id: positive fixture"
           }
         ]
       },
@@ -1097,7 +1097,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-303"
+        "ac_id": "AC-19"
           }
         ],
         "architecture_refs": [
@@ -1113,12 +1113,12 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/protocol-contract.test.js",
-            "case": "AC-303 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/protocol-contract.test.js",
+        "case": "AC-303: OSSではCloud任意機能だけを理由付きnon_applicableにする"
           },
           {
-            "file": "tests/server/services/multitenant/contract-fixtures.test.js",
-            "case": "AC-303 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/contract-fixtures.test.js",
+        "case": "$id: non-applicable fixture"
           }
         ]
       },
@@ -1144,7 +1144,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-304"
+        "ac_id": "AC-20"
           }
         ],
         "architecture_refs": [
@@ -1163,8 +1163,8 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/routes/tenant-runtime-contract.test.js",
-            "case": "AC-304 dedicated TDD contract coverage"
+        "file": "tests/server/routes/tenant-runtime-contract.test.js",
+        "case": "AC-304: failureをapplication/problem+jsonと機械判定可能なfault_domainで返す"
           }
         ]
       },
@@ -1186,7 +1186,7 @@
         "story_refs": [
           {
             "kind": "acceptance_criteria",
-            "ac_id": "AC-305"
+        "ac_id": "AC-21"
           }
         ],
         "architecture_refs": [
@@ -1211,16 +1211,16 @@
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
-            "case": "AC-305 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
+        "case": "AC-005/AC-305: 全entry pointで越境を同じ非開示エラーにしfallbackしない"
           },
           {
-            "file": "tests/server/services/multitenant/credential-broker.test.js",
-            "case": "AC-305 dedicated TDD contract coverage"
+        "file": "tests/server/services/multitenant/credential-broker.test.js",
+        "case": "D-005/AC-104/AC-305: 最大60秒、single-use、operation/audience/mode束縛のopaque leaseを発行する"
           },
           {
-            "file": "tests/server/routes/tenant-runtime-contract.test.js",
-            "case": "AC-305 dedicated TDD contract coverage"
+        "file": "tests/server/routes/tenant-runtime-contract.test.js",
+        "case": "D-001/AC-301/AC-305: 各業務境界でEnvelopeを再検証しbodyの越境自己申告を拒否する"
           }
         ]
       },
