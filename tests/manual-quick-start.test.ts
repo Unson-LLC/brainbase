@@ -45,6 +45,16 @@ describe('public manual quick start', () => {
     expect(guide).toContain('未確認を成功扱いしない');
   });
 
+  it('gives interrupted users a copyable progress handoff', async () => {
+    const guide = await text('docs/manual/guide/quick-start.md');
+
+    expect(guide).toContain('現在地メモ');
+    expect(guide).toContain('完了済み:');
+    expect(guide).toContain('次にやること:');
+    expect(guide).toContain('未確認:');
+    expect(guide).toContain('中断前にコードブロックをコピー');
+  });
+
   it('declares a favicon asset instead of requesting the missing default icon', async () => {
     const config = await text('docs/.vitepress/config.mjs');
 
