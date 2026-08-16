@@ -41,6 +41,7 @@ export interface JudgmentHookPayload {
   tool_input?: unknown;
   tool_response?: unknown;
   last_assistant_message?: string;
+  stop_hook_active?: boolean;
 }
 
 export interface JudgmentRequest {
@@ -162,6 +163,10 @@ export interface JudgmentEpisode {
   request_text_digest: string;
   initial_receipt_digest: string;
   adoption: JudgmentAdoptionEntry;
+  audit_contract: {
+    schema_version: 'brainbase-owner-audit-contract-v1';
+    repair_body_policy: 'preserve';
+  };
   episode_digest: string;
 }
 
@@ -175,6 +180,7 @@ export interface JudgmentToolEvent {
   tool_name: string;
   tool_input: unknown;
   tool_response: unknown;
+  display_line: string;
   event_fingerprint: string;
   event_digest: string;
 }
@@ -188,7 +194,28 @@ export interface JudgmentFinalReceipt {
   event_count: number;
   event_set_digest: string;
   answer_digest: string;
+  completion_status?: 'complete';
+  owner_audit_complete?: boolean;
+  owner_audit_line_count?: number;
   final_digest: string;
+}
+
+interface JudgmentContinuation {
+  schema_version: 'brainbase-judgment-continuation-v1';
+  requested_at: string;
+  missing_capabilities: string[];
+  expected_audit_lines_digest: string;
+  answer_body_binding?: {
+    schema_version: 'brainbase-answer-body-binding-v1';
+    body_digest: string;
+    character_count: number;
+  };
+  continuation_digest: string;
+}
+
+export interface JudgmentStopBlock {
+  decision: 'block';
+  reason: string;
 }
 
 const RUNTIME_VERSION = 'portable-judgment-runtime-1.0.0';
@@ -298,7 +325,8 @@ function contentText(content: unknown): string {
 
 function isInjectedHostEnvelope(text: string): boolean {
   const trimmed = text.trimStart();
-  return trimmed.startsWith('<recommended_plugins>')
+  return trimmed.startsWith('<hook_prompt')
+    || trimmed.startsWith('<recommended_plugins>')
     || trimmed.startsWith('# AGENTS.md instructions for ')
     || trimmed.startsWith('<environment_context>')
     || trimmed.startsWith('<app-context>');
@@ -480,6 +508,7 @@ function journalPaths(sessionRef: string, turnId: string, env: Environment): {
   episode: string;
   events: string;
   final: string;
+  continuation: string;
   lock: string;
 } {
   const directory = join(journalRoot(env), sessionRef);
@@ -490,6 +519,7 @@ function journalPaths(sessionRef: string, turnId: string, env: Environment): {
     episode: join(directory, `${turnRef}.episode.json`),
     events: join(directory, `${turnRef}.events`),
     final: join(directory, `${turnRef}.final.json`),
+    continuation: join(directory, `${turnRef}.continuation.json`),
     lock: join(directory, `${turnRef}.lock`)
   };
 }
@@ -1012,6 +1042,7 @@ function readEpisode(path: string): JudgmentEpisode {
     || typeof value.request_text_digest !== 'string'
     || typeof value.initial_receipt_digest !== 'string'
     || !record(value.adoption)
+    || !record(value.audit_contract)
     || typeof value.episode_digest !== 'string') {
     throw new Error(`judgment_journal_invalid:${basename(path)}`);
   }
@@ -1019,6 +1050,11 @@ function readEpisode(path: string): JudgmentEpisode {
     throw new Error(`judgment_episode_digest_mismatch:${basename(path)}`);
   }
   const adoption = value.adoption as unknown as JudgmentAdoptionEntry;
+  const auditContract = value.audit_contract as Record<string, unknown>;
+  if (auditContract.schema_version !== 'brainbase-owner-audit-contract-v1'
+    || auditContract.repair_body_policy !== 'preserve') {
+    throw new Error(`judgment_owner_audit_contract_invalid:${basename(path)}`);
+  }
   if (value.initial_receipt_digest !== sha256(canonicalJson(adoption.receipt))) {
     throw new Error(`judgment_episode_receipt_digest_mismatch:${basename(path)}`);
   }
@@ -1043,6 +1079,7 @@ function readToolEvent(path: string): JudgmentToolEvent {
     || typeof value.recorded_at !== 'string'
     || typeof value.tool_use_id !== 'string'
     || typeof value.tool_name !== 'string'
+    || typeof value.display_line !== 'string'
     || typeof value.event_fingerprint !== 'string'
     || typeof value.event_digest !== 'string') {
     throw new Error(`judgment_journal_invalid:${basename(path)}`);
@@ -1085,6 +1122,53 @@ function readFinal(path: string): JudgmentFinalReceipt {
     throw new Error(`judgment_final_digest_mismatch:${basename(path)}`);
   }
   return value as unknown as JudgmentFinalReceipt;
+}
+
+function readContinuation(path: string): JudgmentContinuation {
+  const value = readJsonArtifact(path);
+  if (value.schema_version !== 'brainbase-judgment-continuation-v1'
+    || typeof value.requested_at !== 'string'
+    || !Array.isArray(value.missing_capabilities)
+    || typeof value.expected_audit_lines_digest !== 'string'
+    || typeof value.continuation_digest !== 'string') {
+    throw new Error(`judgment_journal_invalid:${basename(path)}`);
+  }
+  if (value.continuation_digest !== artifactDigest(value, 'continuation_digest')) {
+    throw new Error(`judgment_continuation_digest_mismatch:${basename(path)}`);
+  }
+  if (value.answer_body_binding !== undefined) {
+    const binding = record(value.answer_body_binding);
+    if (!binding || binding.schema_version !== 'brainbase-answer-body-binding-v1'
+      || typeof binding.body_digest !== 'string'
+      || typeof binding.character_count !== 'number') {
+      throw new Error(`judgment_answer_body_binding_invalid:${basename(path)}`);
+    }
+  }
+  return value as unknown as JudgmentContinuation;
+}
+
+function requiredAuditLines(episode: JudgmentEpisode, events: JudgmentToolEvent[]): string[] {
+  return [episode.adoption.owner_audit.display_line, ...events.map((event) => event.display_line)];
+}
+
+function answerContainsExactAuditPrefix(answer: string, expectedLines: string[]): boolean {
+  const lines = answer.replaceAll('\r\n', '\n').split('\n').map((line) => line.replace(/[ \t]+$/u, ''));
+  const expected = expectedLines.map((line) => line.replace(/[ \t]+$/u, ''));
+  if (!expected.every((line, index) => lines[index] === line)) return false;
+  const counts = new Map(expected.map((line) => [line, expected.filter((candidate) => candidate === line).length]));
+  return [...counts].every(([line, count]) => lines.filter((candidate) => candidate === line).length === count);
+}
+
+function normalizedAnswerBody(answer: string, expectedLines: string[]): string {
+  const auditLines = new Set(expectedLines.map((line) => line.replace(/[ \t]+$/u, '')));
+  const bodyLines = answer.replaceAll('\r\n', '\n').split('\n')
+    .map((line) => line.replace(/[ \t]+$/u, ''))
+    .filter((line) => !auditLines.has(line));
+  while (bodyLines.length > 0 && (
+    bodyLines[0] === '' || /^(?:🧠 |📚 Brainbase|⚠️ Brainbase)/u.test(bodyLines[0])
+  )) bodyLines.shift();
+  while (bodyLines.at(-1) === '') bodyLines.pop();
+  return bodyLines.join('\n');
 }
 
 const OWNER_EXCERPT_LIMIT = 26;
@@ -1284,7 +1368,11 @@ export async function runJudgmentHost(payload: JudgmentHookPayload, options: Jud
       started_at: new Date().toISOString(),
       request_text_digest: sha256(request.request),
       initial_receipt_digest: sha256(canonicalJson(adoption.receipt)),
-      adoption
+      adoption,
+      audit_contract: {
+        schema_version: 'brainbase-owner-audit-contract-v1' as const,
+        repair_body_policy: 'preserve' as const
+      }
     };
     const episode: JudgmentEpisode = {
       ...episodeWithoutDigest,
@@ -1347,6 +1435,7 @@ async function recordToolUse(payload: JudgmentHookPayload, env: Environment): Pr
       tool_name: toolName,
       tool_input: toolInput,
       tool_response: toolResponse,
+      display_line: `📚 Brainbase呼出: 「${sanitizeOwnerExcerpt(toolName)}」を記録 ✓`,
       event_fingerprint: eventFingerprint
     };
     const event: JudgmentToolEvent = {
@@ -1359,7 +1448,10 @@ async function recordToolUse(payload: JudgmentHookPayload, env: Environment): Pr
   });
 }
 
-async function finalizeEpisode(payload: JudgmentHookPayload, env: Environment): Promise<JudgmentFinalReceipt> {
+async function finalizeEpisode(
+  payload: JudgmentHookPayload,
+  env: Environment
+): Promise<JudgmentFinalReceipt | JudgmentStopBlock> {
   const { sessionRef, turnId } = hookIdentity(payload);
   const paths = journalPaths(sessionRef, turnId, env);
   const answerDigest = sha256(typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : '');
@@ -1389,6 +1481,63 @@ async function finalizeEpisode(payload: JudgmentHookPayload, env: Environment): 
     } catch (error) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
     }
+    const expectedAuditLines = requiredAuditLines(episode, events);
+    const expectedAuditLinesDigest = sha256(canonicalJson(expectedAuditLines));
+    const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : '';
+    const missingKnowledge = episode.adoption.receipt.selected_dag_ids.includes('knowledge.v1') && events.length === 0;
+    const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines);
+    let continuation: JudgmentContinuation | null = null;
+    try {
+      continuation = readContinuation(paths.continuation);
+      if (continuation.expected_audit_lines_digest !== expectedAuditLinesDigest) {
+        throw new Error('judgment_continuation_audit_lines_mismatch');
+      }
+    } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+    }
+    const body = normalizedAnswerBody(answer, expectedAuditLines);
+    const binding = continuation?.answer_body_binding;
+    const missingAnswerBody = Boolean(binding) && (
+      binding?.character_count !== body.length || binding.body_digest !== sha256(body)
+    );
+    if (missingKnowledge || missingOwnerAudit || missingAnswerBody) {
+      const missingCapabilities = [
+        ...(missingKnowledge ? ['knowledge.resolve'] : []),
+        ...(missingOwnerAudit ? ['owner.audit.display'] : []),
+        ...(missingAnswerBody ? ['answer.body.preservation'] : [])
+      ];
+      if (!continuation) {
+        const continuationWithoutDigest = {
+          schema_version: 'brainbase-judgment-continuation-v1' as const,
+          requested_at: new Date().toISOString(),
+          missing_capabilities: missingCapabilities,
+          expected_audit_lines_digest: expectedAuditLinesDigest,
+          ...(!missingKnowledge && missingOwnerAudit ? {
+            answer_body_binding: {
+              schema_version: 'brainbase-answer-body-binding-v1' as const,
+              body_digest: sha256(body),
+              character_count: body.length
+            }
+          } : {})
+        };
+        continuation = {
+          ...continuationWithoutDigest,
+          continuation_digest: sha256(canonicalJson(continuationWithoutDigest))
+        };
+        writeImmutableJson(paths.continuation, continuation as unknown as Record<string, unknown>);
+      }
+      const reasons = [
+        ...(missingKnowledge ? ['required capability knowledge.resolveを実行し、成功した結果をepisodeへ記録する'] : []),
+        ...(missingOwnerAudit ? [`最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${expectedAuditLines.join('\n')}`] : []),
+        ...((missingAnswerBody || continuation.answer_body_binding) ? [
+          '最初に差し戻された回答の監査行以外の本文を、削除・要約・置換せずそのまま残す'
+        ] : [])
+      ];
+      return {
+        decision: 'block',
+        reason: `Brainbase judgment episodeを完了する前に${reasons.join('。その後')}。監査行の後に、元の回答本文をそのまま続けてください。`
+      };
+    }
     const finalWithoutDigest = {
       schema_version: 'brainbase-judgment-final-v1' as const,
       session_ref: sessionRef,
@@ -1397,7 +1546,10 @@ async function finalizeEpisode(payload: JudgmentHookPayload, env: Environment): 
       initial_receipt_digest: episode.initial_receipt_digest,
       event_count: events.length,
       event_set_digest: eventSetDigest,
-      answer_digest: answerDigest
+      answer_digest: answerDigest,
+      completion_status: 'complete' as const,
+      owner_audit_complete: true,
+      owner_audit_line_count: expectedAuditLines.length
     };
     const final: JudgmentFinalReceipt = {
       ...finalWithoutDigest,
@@ -1411,12 +1563,18 @@ async function finalizeEpisode(payload: JudgmentHookPayload, env: Environment): 
 export async function processJudgmentHook(
   payload: JudgmentHookPayload,
   options: JudgmentHostOptions = {}
-): Promise<JudgmentHookOutput | JudgmentToolEvent | JudgmentFinalReceipt | Record<string, never>> {
+): Promise<JudgmentHookOutput | JudgmentToolEvent | JudgmentFinalReceipt | JudgmentStopBlock | Record<string, never>> {
   const eventName = payload.hook_event_name ?? payload.hookEventName ?? 'UserPromptSubmit';
   const env = options.env ?? process.env;
   if (eventName === 'UserPromptSubmit') return runJudgmentHost(payload, options);
   if (eventName === 'PostToolUse') return recordToolUse(payload, env);
-  if (eventName === 'Stop') return finalizeEpisode(payload, env);
+  if (eventName === 'Stop') {
+    const output = await finalizeEpisode(payload, env);
+    if ('decision' in output && output.decision === 'block' && payload.stop_hook_active === true) {
+      throw new Error('judgment_stop_repair_exhausted');
+    }
+    return output;
+  }
   return {};
 }
 

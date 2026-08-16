@@ -305,6 +305,25 @@ describe('portable Judgment Resolver Host contract', () => {
     expect(request.conversation_context.messages.map((message) => message.text)).toEqual(['Do that']);
   });
 
+  it('does not reclassify Host-injected envelopes as user requests', async () => {
+    const root = await tempDir();
+    const request = buildJudgmentRequest({
+      prompt: '続けて', session_id: 'session-host-envelope', turn_id: 'turn-2', cwd: root
+    }, {
+      env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') },
+      trustedConversationMessages: [
+        { role: 'user', turn_id: 'turn-1', text: 'Resolverを実装して' },
+        { role: 'user', turn_id: 'turn-hidden-1', text: '<hook_prompt id="repair">監査行を直して</hook_prompt>' },
+        { role: 'user', turn_id: 'turn-hidden-2', text: '# AGENTS.md instructions for /tmp/repo' },
+        { role: 'user', turn_id: 'turn-hidden-3', text: '<environment_context>hidden</environment_context>' }
+      ]
+    });
+
+    expect(request.conversation_context.messages.map((message) => message.text)).toEqual([
+      'Resolverを実装して', '続けて'
+    ]);
+  });
+
   it('fails loudly when an adopted local journal entry is corrupt', async () => {
     const root = await tempDir();
     const journal = join(root, 'journal');
@@ -339,7 +358,7 @@ describe('portable Judgment Resolver Host contract', () => {
       prompt: 'Resolverを実装して',
       ...identity
     }, { env, resolver });
-    await processJudgmentHook({
+    const firstEvent = await processJudgmentHook({
       hook_event_name: 'PostToolUse',
       tool_use_id: 'tool-a',
       tool_name: 'brainbase_knowledge_resolve',
@@ -347,7 +366,7 @@ describe('portable Judgment Resolver Host contract', () => {
       tool_response: { content: [{ type: 'text', text: 'resolved' }] },
       ...identity
     }, { env, resolver });
-    await processJudgmentHook({
+    const secondEvent = await processJudgmentHook({
       hook_event_name: 'PostToolUse',
       tool_use_id: 'tool-b',
       tool_name: 'get_entity',
@@ -355,14 +374,22 @@ describe('portable Judgment Resolver Host contract', () => {
       tool_response: { content: [{ type: 'text', text: 'project' }] },
       ...identity
     }, { env, resolver });
+    const ownerLine = (started.hookSpecificOutput?.additionalContext ?? '')
+      .split('\n').find((line) => line.startsWith('🧠')) ?? '';
+    const completeAnswer = [
+      ownerLine,
+      firstEvent.display_line,
+      secondEvent.display_line,
+      '実装しました。'
+    ].join('\n');
     const finalized = await processJudgmentHook({
       hook_event_name: 'Stop',
-      last_assistant_message: '実装しました。',
+      last_assistant_message: completeAnswer,
       ...identity
     }, { env, resolver });
     const replayed = await processJudgmentHook({
       hook_event_name: 'Stop',
-      last_assistant_message: '実装しました。',
+      last_assistant_message: completeAnswer,
       ...identity
     }, { env, resolver });
 
@@ -395,7 +422,7 @@ describe('portable Judgment Resolver Host contract', () => {
     const journal = join(root, 'journal');
     const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
     const identity = { session_id: 'session-replay-event', turn_id: 'turn-1', cwd: root };
-    await processJudgmentHook({ hook_event_name: 'UserPromptSubmit', prompt: '実装して', ...identity }, { env });
+    const started = await processJudgmentHook({ hook_event_name: 'UserPromptSubmit', prompt: '実装して', ...identity }, { env });
     const eventPayload = {
       hook_event_name: 'PostToolUse',
       tool_use_id: 'tool-stable',
@@ -407,7 +434,13 @@ describe('portable Judgment Resolver Host contract', () => {
 
     const first = await processJudgmentHook(eventPayload, { env });
     const second = await processJudgmentHook(eventPayload, { env });
-    await processJudgmentHook({ hook_event_name: 'Stop', last_assistant_message: 'done', ...identity }, { env });
+    const ownerLine = (started.hookSpecificOutput?.additionalContext ?? '')
+      .split('\n').find((line) => line.startsWith('🧠')) ?? '';
+    await processJudgmentHook({
+      hook_event_name: 'Stop',
+      last_assistant_message: `${ownerLine}\n${first.display_line}\ndone`,
+      ...identity
+    }, { env });
 
     expect(second).toEqual(first);
     const paths = episodePaths(journal, identity.session_id, identity.turn_id);
@@ -472,6 +505,131 @@ describe('portable Judgment Resolver Host contract', () => {
     }, { env })).rejects.toThrow('judgment_orphan_stop');
   });
 
+  it('blocks the first repairable Stop with the exact audit prefix and preserves the original answer body', async () => {
+    const root = await tempDir();
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+    const identity = { session_id: 'session-audit-repair', turn_id: 'turn-1', cwd: root };
+    const started = await processJudgmentHook({
+      hook_event_name: 'UserPromptSubmit', prompt: '変更内容を説明して', ...identity
+    }, { env });
+    const ownerLine = (started.hookSpecificOutput?.additionalContext ?? '')
+      .split('\n').find((line) => line.startsWith('🧠')) ?? '';
+    const body = '修正内容は3点です。\n\n- lifecycle\n- audit\n- tests';
+
+    const first = await processJudgmentHook({
+      hook_event_name: 'Stop', stop_hook_active: false,
+      last_assistant_message: body, ...identity
+    }, { env });
+
+    expect(first).toMatchObject({ decision: 'block' });
+    expect(first.reason).toContain(ownerLine);
+    expect(first.reason).toContain('削除・要約・置換せずそのまま残す');
+
+    const repaired = await processJudgmentHook({
+      hook_event_name: 'Stop', stop_hook_active: true,
+      last_assistant_message: `${ownerLine}\n${body}`, ...identity
+    }, { env });
+    expect(repaired).toMatchObject({ completion_status: 'complete', owner_audit_complete: true });
+  });
+
+  it('rejects missing, duplicate, and out-of-order audit lines', async () => {
+    const root = await tempDir();
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+    const identity = { session_id: 'session-audit-order', turn_id: 'turn-1', cwd: root };
+    const started = await processJudgmentHook({
+      hook_event_name: 'UserPromptSubmit', prompt: '結果を説明して', ...identity
+    }, { env });
+    const event = await processJudgmentHook({
+      hook_event_name: 'PostToolUse', tool_use_id: 'tool-order', tool_name: 'get_context',
+      tool_input: {}, tool_response: { content: [] }, ...identity
+    }, { env });
+    const ownerLine = (started.hookSpecificOutput?.additionalContext ?? '')
+      .split('\n').find((line) => line.startsWith('🧠')) ?? '';
+    const eventLine = event.display_line;
+
+    for (const answer of [
+      '本文だけ',
+      `${ownerLine}\n${ownerLine}\n${eventLine}\n本文`,
+      `${eventLine}\n${ownerLine}\n本文`
+    ]) {
+      const result = await processJudgmentHook({
+        hook_event_name: 'Stop', stop_hook_active: false,
+        last_assistant_message: answer, ...identity
+      }, { env });
+      expect(result).toMatchObject({ decision: 'block' });
+      expect(result.reason).toContain(`${ownerLine}\n${eventLine}`);
+    }
+  });
+
+  it('exhausts the one bounded repair when the answer body changes', async () => {
+    const root = await tempDir();
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+    const identity = { session_id: 'session-body-binding', turn_id: 'turn-1', cwd: root };
+    const started = await processJudgmentHook({
+      hook_event_name: 'UserPromptSubmit', prompt: '詳しく説明して', ...identity
+    }, { env });
+    const ownerLine = (started.hookSpecificOutput?.additionalContext ?? '')
+      .split('\n').find((line) => line.startsWith('🧠')) ?? '';
+    await processJudgmentHook({
+      hook_event_name: 'Stop', stop_hook_active: false,
+      last_assistant_message: '詳しい本文を保持する', ...identity
+    }, { env });
+
+    await expect(processJudgmentHook({
+      hook_event_name: 'Stop', stop_hook_active: true,
+      last_assistant_message: `${ownerLine}\n短縮`, ...identity
+    }, { env })).rejects.toThrow('judgment_stop_repair_exhausted');
+  });
+
+  it('returns nonzero from the active Stop hook after repair is exhausted', async () => {
+    const root = await tempDir();
+    const journal = join(root, 'journal');
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
+    vi.stubEnv('BRAINBASE_JUDGMENT_JOURNAL_DIR', journal);
+    const identity = { session_id: 'session-cli-repair', turn_id: 'turn-1', cwd: root };
+    const started = await processJudgmentHook({
+      hook_event_name: 'UserPromptSubmit', prompt: '説明して', ...identity
+    }, { env });
+    const ownerLine = (started.hookSpecificOutput?.additionalContext ?? '')
+      .split('\n').find((line) => line.startsWith('🧠')) ?? '';
+    await processJudgmentHook({
+      hook_event_name: 'Stop', stop_hook_active: false,
+      last_assistant_message: '元の詳しい本文', ...identity
+    }, { env });
+    const output = capture();
+    const code = await runCli(['judgment:hook'], {
+      ...output.io,
+      stdin: Readable.from([JSON.stringify({
+        hook_event_name: 'Stop', stop_hook_active: true,
+        last_assistant_message: `${ownerLine}\n短縮`, ...identity
+      })])
+    });
+
+    expect(code).toBe(1);
+    expect(output.stderr()).toContain('judgment_stop_repair_exhausted');
+  });
+
+  it('does not complete a knowledge route without a recorded capability event', async () => {
+    const root = await tempDir();
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+    const identity = { session_id: 'session-required-knowledge', turn_id: 'turn-1', cwd: root };
+    const started = await processJudgmentHook({
+      hook_event_name: 'UserPromptSubmit', prompt: 'Brainbaseで検索して', ...identity
+    }, { env });
+    const ownerLine = (started.hookSpecificOutput?.additionalContext ?? '')
+      .split('\n').find((line) => line.startsWith('🧠')) ?? '';
+    const first = await processJudgmentHook({
+      hook_event_name: 'Stop', stop_hook_active: false,
+      last_assistant_message: `${ownerLine}\n本文`, ...identity
+    }, { env });
+    expect(first).toMatchObject({ decision: 'block' });
+    expect(first.reason).toContain('knowledge.resolve');
+    await expect(processJudgmentHook({
+      hook_event_name: 'Stop', stop_hook_active: true,
+      last_assistant_message: `${ownerLine}\n本文`, ...identity
+    }, { env })).rejects.toThrow('judgment_stop_repair_exhausted');
+  });
+
   it('binds every applicable AGENTS.md from repository root to cwd', async () => {
     const root = await tempDir();
     const nested = join(root, 'a', 'b');
@@ -533,6 +691,30 @@ describe('portable Judgment Resolver Host contract', () => {
     const hook = config.hooks.UserPromptSubmit[0].hooks[0];
     expect(hook.command).toContain('judgment:hook');
     expect(JSON.stringify(config)).not.toMatch(/https?:\/\/|Infisical|Lightsail|Unson/iu);
+  });
+
+  it('lets doctor verify the three installed lifecycle hooks', async () => {
+    const root = await tempDir();
+    const dataDir = join(root, 'personal-os');
+    const hooksPath = join(root, 'hooks.json');
+    const initOutput = capture();
+    expect(await runCli(['onboard:init', '--dir', dataDir], initOutput.io)).toBe(0);
+    const installOutput = capture();
+    expect(await runCli(['judgment:install', '--target', 'codex', '--dry-run'], installOutput.io)).toBe(0);
+    await writeFile(hooksPath, installOutput.stdout());
+    const doctorOutput = capture();
+
+    const code = await runCli([
+      'doctor', '--dir', dataDir, '--judgment-hooks', hooksPath
+    ], doctorOutput.io);
+
+    expect(code).toBe(0);
+    expect(JSON.parse(doctorOutput.stdout())).toMatchObject({
+      judgment_hooks: {
+        status: 'ready',
+        events: ['UserPromptSubmit', 'PostToolUse', 'Stop']
+      }
+    });
   });
 
   it('redacts secrets, truncates long excerpts, and keeps the owner audit on one line', async () => {

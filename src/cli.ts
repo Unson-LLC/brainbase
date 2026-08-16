@@ -125,12 +125,18 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
 }
 
 async function judgmentHook(io: CliIo): Promise<number> {
+  let payload: JudgmentHookPayload = {};
   try {
     const input = await readHookStdin(io.stdin ?? process.stdin);
-    const payload = JSON.parse(input || '{}') as JudgmentHookPayload;
+    payload = JSON.parse(input || '{}') as JudgmentHookPayload;
     write(io, `${JSON.stringify(await processJudgmentHook(payload))}\n`);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
+    const eventName = payload.hook_event_name ?? payload.hookEventName;
+    if (eventName === 'Stop' && payload.stop_hook_active === true) {
+      writeError(io, `${reason}\n`);
+      return 1;
+    }
     write(io, `${JSON.stringify(blockedJudgmentOutput(reason))}\n`);
   }
   return 0;
@@ -865,7 +871,30 @@ async function writeConfigSnippet(outputPath: string, payload: string): Promise<
 async function doctor(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const dataDir = resolveDataDir(first(parsed, 'dir'));
   const os = await loadPersonalOs(dataDir);
-  write(io, `${JSON.stringify(onboardingStatus(os), null, 2)}\n`);
+  const status = onboardingStatus(os);
+  const judgmentHooksPath = first(parsed, 'judgment-hooks');
+  if (!judgmentHooksPath) {
+    write(io, `${JSON.stringify(status, null, 2)}\n`);
+    return 0;
+  }
+  const config = JSON.parse(await readFile(judgmentHooksPath, 'utf8')) as Record<string, unknown>;
+  const hooks = config.hooks as Record<string, unknown> | undefined;
+  const requiredEvents = ['UserPromptSubmit', 'PostToolUse', 'Stop'];
+  const valid = Boolean(hooks) && requiredEvents.every((eventName) => {
+    const bindings = hooks?.[eventName];
+    return Array.isArray(bindings) && bindings.some((binding) => {
+      const commands = (binding as { hooks?: unknown }).hooks;
+      return Array.isArray(commands) && commands.some((command) => (
+        typeof (command as { command?: unknown }).command === 'string'
+        && (command as { command: string }).command.includes('judgment:hook')
+      ));
+    });
+  });
+  if (!valid) throw new Error('judgment_hooks_invalid');
+  write(io, `${JSON.stringify({
+    ...status,
+    judgment_hooks: { status: 'ready', events: requiredEvents, source: judgmentHooksPath }
+  }, null, 2)}\n`);
   return 0;
 }
 
