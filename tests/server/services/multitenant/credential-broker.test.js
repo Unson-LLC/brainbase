@@ -54,4 +54,19 @@ describe('CredentialBroker', () => {
         }), { code: 'OAUTH_REFRESH_CONFLICT' });
         expect(broker.auditEvents.every((event) => !JSON.stringify(event).includes('token'))).toBe(true);
     });
+
+    it('D-005/AC-105/AC-305: refresh・reinstall後の旧leaseを拒否し新しいbindingだけを許可する', () => {
+        const broker = new CredentialBroker();
+        broker.register({ ...binding, refresh_revision: 1 });
+        const oldLease = broker.issueLease({ ...binding, operation_id: 'op-old', audience: 'mana-runtime' });
+        const rotated = broker.compareAndSwapRefresh({ credential_ref: binding.credential_ref, expected_refresh_revision: 1, new_credential_ref: 'credref:rotated' });
+        expectContractError(() => broker.consumeLease({ lease_ref: oldLease.lease_ref, operation_id: 'op-old', audience: 'mana-runtime' }), { code: 'CREDENTIAL_BINDING_STALE' });
+        expect(broker.issueLease({ ...binding, credential_ref: rotated.credential_ref, operation_id: 'op-new', audience: 'mana-runtime' })).toHaveProperty('lease_ref');
+
+        const revisionTwo = { ...binding, connection_revision: 3, credential_ref: 'credref:revision-3' };
+        broker.register(revisionTwo);
+        const staleRevisionLease = broker.issueLease({ ...revisionTwo, operation_id: 'op-reinstall', audience: 'mana-runtime' });
+        broker.register({ ...revisionTwo, connection_revision: 4, credential_ref: 'credref:revision-4' });
+        expectContractError(() => broker.consumeLease({ lease_ref: staleRevisionLease.lease_ref, operation_id: 'op-reinstall', audience: 'mana-runtime' }), { code: 'CREDENTIAL_BINDING_STALE' });
+    });
 });

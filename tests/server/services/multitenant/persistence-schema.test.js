@@ -16,7 +16,13 @@ describe('multitenant persistence schema', () => {
         }
         expect(sql).toContain('tenant_revision_at_write');
         expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/);
+        expect((sql.match(/FORCE ROW LEVEL SECURITY/g) ?? [])).toHaveLength(14);
         expect(sql).toContain("current_setting('brainbase.tenant_id', true)");
+        expect(sql).toContain('FOREIGN KEY (tenant_id, organization_id) REFERENCES tenant_organizations(tenant_id, organization_id)');
+        expect(sql).toContain('FOREIGN KEY (tenant_id, source_entity_id) REFERENCES tenant_graph_entities(tenant_id, entity_id)');
+        expect(sql).toContain('FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision)');
+        expect(sql).toContain('FOREIGN KEY (tenant_id, corrects_receipt_id) REFERENCES tenant_operation_receipts(tenant_id, receipt_id)');
+        expect(sql).toContain('FOREIGN KEY (tenant_id, migration_id) REFERENCES tenant_migrations(tenant_id, migration_id)');
     });
 
     it('AC-104/D-005: secret本文用の通常列を持たずopaque refとrefresh revisionだけを永続化する', async () => {

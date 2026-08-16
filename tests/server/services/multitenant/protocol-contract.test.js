@@ -51,6 +51,23 @@ describe('canonical TenantContextEnvelope', () => {
             { code: 'TENANT_CONTEXT_SIGNATURE_INVALID' }
         );
     });
+
+    it('D-001/AC-004/AC-305: nested shape、audience型、JWS header、公開鍵有効期間をfail closedにする', () => {
+        const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+        const options = {
+            keys: [{ key_id: 'key-current', status: 'current', public_key: publicKey, not_before: '2026-08-15T00:00:00Z', expires_at: '2026-08-17T00:00:00Z' }],
+            audience: 'mana-runtime', deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV', now: new Date('2026-08-16T00:01:00Z')
+        };
+        expectContractError(() => createSignedTenantContext({ ...validEnvelope(), audience: 'mana-runtime' }, { key_id: 'key-current', private_key: privateKey }), { code: 'TENANT_CONTEXT_INVALID' });
+        expectContractError(() => createSignedTenantContext({ ...validEnvelope(), actor: { principal_id: 'person-opaque' } }, { key_id: 'key-current', private_key: privateKey }), { code: 'TENANT_CONTEXT_INVALID' });
+
+        const signed = createSignedTenantContext(validEnvelope(), { key_id: 'key-current', private_key: privateKey });
+        const [protected64, , signature64] = signed.integrity.value.split('.');
+        const wrongHeader = Buffer.from(JSON.stringify({ alg: 'EdDSA', kid: 'key-other' })).toString('base64url');
+        expectContractError(() => verifyTenantContext({ ...signed, integrity: { ...signed.integrity, value: `${wrongHeader}..${signature64}` } }, options), { code: 'TENANT_CONTEXT_SIGNATURE_INVALID' });
+        expect(protected64).not.toBe(wrongHeader);
+        expectContractError(() => verifyTenantContext(signed, { ...options, keys: [{ ...options.keys[0], expires_at: '2026-08-15T23:59:00Z' }] }), { code: 'TENANT_CONTEXT_SIGNATURE_INVALID' });
+    });
 });
 
 describe('protocol negotiation', () => {
@@ -77,5 +94,11 @@ describe('protocol negotiation', () => {
             () => negotiateProtocol({ deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV', deployment_profile: 'shared_cloud', supported_range: '>=1.0 <2.0', required_capabilities: ['unknown_required'] }),
             { code: 'PROTOCOL_CAPABILITY_UNSUPPORTED' }
         );
+        for (const supported_range of ['1.x', '>=1.0', '>=0.9 <1.0', 'garbage >=1 <2']) {
+            expectContractError(
+                () => negotiateProtocol({ deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV', deployment_profile: 'shared_cloud', supported_range, required_capabilities: [] }),
+                { code: 'PROTOCOL_VERSION_UNSUPPORTED' }
+            );
+        }
     });
 });

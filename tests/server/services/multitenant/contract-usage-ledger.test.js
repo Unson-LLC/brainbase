@@ -13,7 +13,9 @@ const ids = {
     deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     correlation_id: 'cor_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
-    contract_revision: 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FAV'
+    contract_revision: 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    tenant_revision_at_write: 3,
+    idempotency_key: 'ik1_0123456789012345678901234567890123456789012'
 };
 
 describe('ContractUsageLedger', () => {
@@ -30,6 +32,10 @@ describe('ContractUsageLedger', () => {
         expectContractError(
             () => ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FAW', metric: 'tool_calls', observed_quantity: 0, requested_quantity: 1 }),
             { code: 'UPSTREAM_UNAVAILABLE' }
+        );
+        expectContractError(
+            () => ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: ids.contract_revision, metric: 'tool_calls', observed_quantity: 0, requested_quantity: -1 }),
+            { code: 'QUOTA_INPUT_INVALID' }
         );
     });
 
@@ -72,5 +78,17 @@ describe('ContractUsageLedger', () => {
         });
         expect(receipt.pricing_snapshot).toMatchObject({ rate_card_revision: 8, fx_table_revision: 5, sales_price_revision: 3, purchase_minor_units: null });
         expect(Object.isFrozen(receipt)).toBe(true);
+        expect(ledger.finalizeReceipt({ ...receipt })).toEqual(receipt);
+        expectContractError(() => ledger.finalizeReceipt({ ...receipt, outcome: 'succeeded' }), { code: 'IDEMPOTENCY_CONFLICT' });
+    });
+
+    it('AC-204/AC-205: Usageのsame-payload replayとpartialのunknown_fieldsを厳密化する', () => {
+        const ledger = new ContractUsageLedger();
+        const input = { ...ids, kind: 'tool', unit: 'call', quantity: 1, outcome: 'succeeded', collection_state: 'collected', observed_at: '2026-08-16T00:00:00Z' };
+        const first = ledger.recordUsage(input);
+        expect(ledger.recordUsage(input)).toEqual(first);
+        expectContractError(() => ledger.recordUsage({ ...input, quantity: 2 }), { code: 'IDEMPOTENCY_CONFLICT' });
+        expectContractError(() => normalizeUsageEvent({ ...ids, kind: 'tool', unit: 'call', quantity: 1, outcome: 'failed', collection_state: 'partial', unknown_fields: [] }), { code: 'USAGE_COLLECTION_INVALID' });
+        expectContractError(() => normalizeUsageEvent({ ...ids, kind: 'tool', unit: 'call', quantity: -1, outcome: 'succeeded', collection_state: 'collected' }), { code: 'USAGE_COLLECTION_INVALID' });
     });
 });
