@@ -4,6 +4,9 @@ export default {
   lang: 'ja-JP',
   cleanUrls: true,
   srcDir: 'manual',
+  head: [
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/assets/brainbase-mark.svg' }]
+  ],
   themeConfig: {
     siteTitle: 'Brainbase Manual',
     nav: [
@@ -17,6 +20,7 @@ export default {
           text: 'まず理解する',
           items: [
             { text: '概要', link: '/' },
+            { text: '最短で試す', link: '/guide/quick-start' },
             { text: '全体像', link: '/guide/grand-design' },
             { text: '導入の5フェーズ', link: '/guide/onboarding-process' }
           ]

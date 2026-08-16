@@ -8,6 +8,8 @@ BrainbaseのJudgment HostをCodexへ登録すると、1つのturnを3つのHook�
 
 この機能はCodex向けの任意設定です。ローカルで動作し、Hosted Brainbase、secret、プロジェクトへの接続は必要ありません。
 
+初回導入では、先にMCPの実動作を確認します。[10分で試す](/guide/quick-start)のチェックリストへ戻れば、現在地と次の確認を一枚で追えます。
+
 ## 表示の見方
 
 知識参照が不要だったturnでは、返答の先頭が次のようになります。

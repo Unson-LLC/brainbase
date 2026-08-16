@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Brainbase">
+  <rect width="64" height="64" rx="14" fill="#3156d3"/>
+  <path d="M19 15h16c9 0 14 4 14 11 0 4-2 7-6 9 5 2 7 6 7 11 0 8-6 13-16 13H19V15zm10 9v8h6c3 0 5-1 5-4s-2-4-5-4h-6zm0 17v9h7c3 0 5-2 5-5s-2-4-6-4h-6z" fill="#fff"/>
+</svg>

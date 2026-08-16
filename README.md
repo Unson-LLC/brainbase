@@ -12,6 +12,8 @@ This repository does not include the internal Brainbase UI, session runtime, xte
 
 Read the public onboarding manual at [brainbase.pages.dev](https://brainbase.pages.dev/). It guides users through five phases: choose one real use case, register approved work context, prove the first value, add only necessary sources, and operationalize Skills, routines, and MCP.
 
+For the shortest safe path, open [10分で試す](https://brainbase.pages.dev/guide/quick-start). It keeps the first prompt, MCP setup, optional Judgment Host setup, verification, and interruption recovery in one resumable checklist.
+
 The manual is the best starting point for first-time users. It explains Brainbase concepts, the first onboarding flow, MCP registration, project context setup, source onboarding, daily routines, and CLI reference.
 
 ## Agent-assisted Onboarding

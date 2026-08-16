@@ -10,14 +10,11 @@ hero:
     alt: 仕事の文脈をBrainbaseに整理し、AIエージェントへ渡す流れ
   actions:
     - theme: brand
+      text: 10分で試す
+      link: /guide/quick-start
+    - theme: alt
       text: 導入の流れを見る
       link: /guide/onboarding-process
-    - theme: alt
-      text: 全体像を見る
-      link: /guide/grand-design
-    - theme: alt
-      text: MCPツールを見る
-      link: /reference/mcp-tools
 
 features:
   - title: ひとつの実用場面から始める
@@ -33,6 +30,8 @@ features:
 ## このマニュアルの位置づけ
 
 このサイトは、Brainbaseを初めて導入する人向けの入口です。
+
+迷わず始めたい場合は、[10分で試すためのチェックリスト](/guide/quick-start)を開いてください。途中で中断しても、同じページの「中断したらここから再開」から現在地を確認できます。
 
 内部設計資料や開発者向けの仕様書ではなく、まず「AIに二度と説明したくない文脈」をどのように整理し、MCP経由でCodexやClaude Codeに渡すかを説明します。
 
