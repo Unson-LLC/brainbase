@@ -53,7 +53,7 @@ describe('tenant runtime API', () => {
         expect(response.status).toBe(200);
     });
 
-    it('AC-301/302: service auth後にCloud/OSS共通v1 negotiationを返す', async () => {
+    it('AC-301/AC-302: service auth後にCloud/OSS共通v1 negotiationを返す', async () => {
         const response = await request(createApp())
             .post('/api/v1/runtime/negotiate')
             .set('authorization', 'Bearer service-test')
@@ -86,7 +86,7 @@ describe('tenant runtime API', () => {
         expect(response.body).toMatchObject({ code: 'WORKSPACE_CONNECTION_UNAVAILABLE', fault_domain: 'brainbase_cloud', retryable: true });
     });
 
-    it('D-001/AC-301/305: 各業務境界でEnvelopeを再検証しbodyの越境自己申告を拒否する', async () => {
+    it('D-001/AC-301/AC-305: 各業務境界でEnvelopeを再検証しbodyの越境自己申告を拒否する', async () => {
         const tenantContextVerifier = vi.fn((input) => input);
         const connectionRegistry = { validateRevision: vi.fn() };
         const app = createApp({ tenantContextVerifier, connectionRegistry });

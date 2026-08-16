@@ -6,7 +6,7 @@ const tenantA = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV';
 const tenantB = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAW';
 
 describe('WorkspaceConnectionRegistry', () => {
-    it('AC-101/102/103: 複数workspace、再install履歴、監査field、単調revisionを正本化する', () => {
+    it('AC-101/AC-102/AC-103: 複数workspace、再install履歴、監査field、単調revisionを正本化する', () => {
         const registry = new WorkspaceConnectionRegistry();
         const first = registry.register({
             tenant_id: tenantA,

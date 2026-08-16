@@ -36,7 +36,7 @@ describe('canonical TenantContextEnvelope', () => {
         expect(verified.integrity).toMatchObject({ method: 'jws_detached', algorithm: 'EdDSA', key_id: 'key-current' });
     });
 
-    it('D-001: TTL超過、期限切れ、改ざん、unknown keyを分類して拒否する', () => {
+    it('D-001/AC-004: TTL超過、期限切れ、改ざん、unknown keyを分類して拒否する', () => {
         const { publicKey, privateKey } = generateKeyPairSync('ed25519');
         const tooLong = validEnvelope();
         tooLong.expires_at = '2026-08-16T00:05:01.000Z';
@@ -54,7 +54,7 @@ describe('canonical TenantContextEnvelope', () => {
 });
 
 describe('protocol negotiation', () => {
-    it.each(['shared_cloud', 'customer_managed_oss'])('AC-301/302: %sでprotocol v1と共通必須capabilityを交渉する', (profile) => {
+    it.each(['shared_cloud', 'customer_managed_oss'])('AC-301/AC-302: %sでprotocol v1と共通必須capabilityを交渉する', (profile) => {
         expect(negotiateProtocol({
             deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV', deployment_profile: profile,
             supported_range: '>=1.0 <2.0', required_capabilities: ['signed_tenant_context', 'usage_receipt_v1'],
@@ -68,7 +68,7 @@ describe('protocol negotiation', () => {
         expect(result.required_capabilities).toContain('tenant_scoped_authorization');
     });
 
-    it('AC-302/305: major不一致や必須機能不足を拒否しsilent downgradeしない', () => {
+    it('AC-302/AC-305: major不一致や必須機能不足を拒否しsilent downgradeしない', () => {
         expectContractError(
             () => negotiateProtocol({ deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV', deployment_profile: 'shared_cloud', supported_range: '>=2.0 <3.0', required_capabilities: [] }),
             { code: 'PROTOCOL_VERSION_UNSUPPORTED' }

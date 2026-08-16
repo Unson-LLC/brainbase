@@ -480,7 +480,7 @@ tenant context、署名／時刻、revision、認可、credential scope、isolat
 
 ## 10. TDD Red設計
 
-プロダクションコードより先に次のtestを追加し、既存実装で意図どおり失敗することを確認する。現段階ではtestコード自体も未作成である。
+プロダクションコードより先に次のtestを追加し、既存実装で意図どおり失敗することを確認した。最初の8 suiteは対象moduleのimport不能、永続化schemaは`ENOENT`、PostgreSQL repositoryはmodule import不能、route登録は`registerTenantRuntimeApiRoute is not a function`、service authはmodule import不能、Envelope業務境界は越境bodyに`200`を返す失敗でRedを固定した。環境変数、外部service、秘密値には依存していない。
 
 | test file | 最初のRed | 主な対象 |
 |---|---|---|
@@ -492,12 +492,16 @@ tenant context、署名／時刻、revision、認可、credential scope、isolat
 | `tests/server/services/multitenant/protocol-contract.test.js` | canonical Envelope検証／protocol negotiationが存在せず失敗 | Ed25519、TTL、Cloud／OSS、failure分類 |
 | `tests/server/routes/tenant-runtime-contract.test.js` | negotiate／tenant-context APIがなく404で失敗 | service auth、Cloud／OSS共通contract、failure分類 |
 | `tests/server/services/multitenant/migration-planner.test.js` | tenant列／dry-run／quarantine／rollbackがなく失敗 | 既存データ移行 |
+| `tests/server/services/multitenant/persistence-schema.test.js` | `server/sql/multitenant-platform-schema.sql`がなく3件とも`ENOENT`で失敗 | tenant FK、RLS、secret非保存、Usage／Receipt制約 |
+| `tests/server/services/multitenant/postgres-repository.test.js` | PostgreSQL repository moduleがなくimport不能 | transaction-local RLS、authoritative revision、refresh CAS、idempotency claim |
+| `tests/server/services/multitenant/service-auth.test.js` | service auth moduleがなくimport不能 | issuer、subject、audience、deployment、expiry、capability |
+| `tests/server/routes/tenant-runtime-contract.test.js`（Envelope境界） | tenant不一致bodyを`403`で拒否できず`200`になり失敗 | 検証済みEnvelopeへの業務入力束縛 |
 
 Redの成立条件は「新contractがないため期待した箇所で失敗する」ことであり、環境変数不足、外部サービス停止、秘密値不足による失敗はRed証拠にしない。各Redを確認後、slice単位で最小実装し、Green、既存回帰、Refactorへ進む。
 
 ## 11. 受入条件traceability
 
-| AC | Spec clause／scenario | planned test case | 現行差分とRed理由 |
+| AC | Spec clause／scenario | planned test case | 実装前差分とRed理由 |
 |---|---|---|---|
 | `AC-001` | INV-001、Contract-01 | `tenant-authority: lifecycle and terminal delete` | canonical Tenant Authority／stateがない |
 | `AC-002` | INV-002、Contract-02 | `tenant-authorization-boundary: every owned row has tenant` | organization／project／Graph／Receiptを束ねるtenant列がない |
@@ -547,9 +551,10 @@ blocking open decisionは0件である。今後D-001〜D-009の意味を変え�
 | Graphify／codebase graph差分調査 | 確認済み。現行のorganization fallback、tenant ledger不在、Receipt境界不足を確認 |
 | VibePro Spec readiness | ready |
 | 21 AC trace | 本SpecとVibePro機械Specで定義 |
-| positive／negative／non-applicable fixture | 横断契約に追従して設計済み、実行証拠は`not_collected` |
-| TDD Red | 設計済み、未実行 |
-| unit／integration／migration／contract CI | 未実行。コード変更なし |
+| positive／negative／non-applicable fixture | `tests/fixtures/multitenant-contract/v1/`へ秘密値なしで固定し、Cloud／OSS contract testはGreen。本番readbackではない |
+| TDD Red | 実行済み。module／schema／route／Envelope境界の欠落を実装前に固定 |
+| 対象unit／schema／repository／route／contract | 12 files、50 tests Green |
+| repository全体のCI | この時点では未取得。PR push後に別途readbackする |
 | Cloud／OSS deployment readback | `not_collected` |
 | 実Slackイベント〜Receipt E2E | `not_collected` |
 | tenant別請求照合 | `not_collected` |

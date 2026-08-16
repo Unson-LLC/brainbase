@@ -24,7 +24,7 @@
   "implementation_start_gate": {
     "status": "PASS",
     "blocking_open_decisions": 0,
-    "implementation_evidence": "not_collected",
+    "implementation_evidence": "targeted_unit_contract_green",
     "production_evidence": "not_collected"
   },
   "cross_lane_decision_table": [
@@ -218,7 +218,7 @@
     "positive": "tests/fixtures/multitenant-contract/v1/positive.json",
     "negative": "tests/fixtures/multitenant-contract/v1/negative.json",
     "non_applicable": "tests/fixtures/multitenant-contract/v1/non-applicable.json",
-    "execution_evidence": "not_collected"
+    "execution_evidence": "contract_tests_green_not_production_readback"
   },
   "clauses": [
     {
@@ -240,27 +240,27 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/auth-service.js"
+            "file": "server/services/multitenant/tenant-authority.js"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/unit/auth-service-lifecycle.test.js",
-            "case": "baseline auth lifecycle evidence; dedicated AC-001 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/tenant-authority.test.js",
+            "case": "AC-001 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/unit/auth-service-lifecycle.test.js",
-            "must_cover": "lifecycle"
+            "file_glob": "tests/server/services/multitenant/tenant-authority.test.js",
+            "must_cover": "AC-001"
           }
         ]
       },
       "confidence": 0.96,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "INV-001",
@@ -281,30 +281,38 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/project-access/project-access-policy.js"
+            "file": "server/services/multitenant/tenant-boundary.js"
           },
           {
-            "file": "server/routes/knowledge-events.js"
+            "file": "server/sql/multitenant-platform-schema.sql"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/project-access-policy.test.js",
-            "case": "baseline project ownership evidence; dedicated AC-002 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
+            "case": "AC-002 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/services/multitenant/persistence-schema.test.js",
+            "case": "AC-002 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/server/services/project-access-policy.test.js",
-            "must_cover": "project"
+            "file_glob": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
+            "must_cover": "AC-002"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/persistence-schema.test.js",
+            "must_cover": "AC-002"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "INV-002",
@@ -325,27 +333,38 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/auth-service.js"
+            "file": "server/services/multitenant/tenant-authority.js"
+          },
+          {
+            "file": "server/services/multitenant/service-auth.js"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/unit/auth-service-permission.test.js",
-            "case": "baseline permission evidence; dedicated AC-003 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/tenant-authority.test.js",
+            "case": "AC-003 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/services/multitenant/service-auth.test.js",
+            "case": "AC-003 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/unit/auth-service-permission.test.js",
-            "must_cover": "organization"
+            "file_glob": "tests/server/services/multitenant/tenant-authority.test.js",
+            "must_cover": "AC-003"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/service-auth.test.js",
+            "must_cover": "AC-003"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "C-002",
@@ -366,27 +385,38 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/auth-service.js"
+            "file": "server/services/multitenant/tenant-authority.js"
+          },
+          {
+            "file": "server/services/multitenant/tenant-context.js"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/unit/auth-service-permission.test.js",
-            "case": "baseline access evidence; dedicated AC-004 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/tenant-authority.test.js",
+            "case": "AC-004 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/services/multitenant/protocol-contract.test.js",
+            "case": "AC-004 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/unit/auth-service-permission.test.js",
-            "must_cover": "access"
+            "file_glob": "tests/server/services/multitenant/tenant-authority.test.js",
+            "must_cover": "AC-004"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/protocol-contract.test.js",
+            "must_cover": "AC-004"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "INV-003",
@@ -407,30 +437,49 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/project-access/project-access-policy.js"
+            "file": "server/services/multitenant/tenant-boundary.js"
           },
           {
-            "file": "mcp/brainbase/src/server.ts"
+            "file": "server/services/multitenant/postgres-repository.js"
+          },
+          {
+            "file": "server/bootstrap/register-api-routes.js"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/project-access-policy.test.js",
-            "case": "baseline project access evidence; dedicated AC-005 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
+            "case": "AC-005 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/services/multitenant/postgres-repository.test.js",
+            "case": "AC-005 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/routes/tenant-runtime-contract.test.js",
+            "case": "AC-005 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/server/services/project-access-policy.test.js",
-            "must_cover": "access"
+            "file_glob": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/postgres-repository.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
+            "must_cover": "AC-005"
           }
         ]
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "C-003",
@@ -451,27 +500,30 @@
         ],
         "code_refs": [
           {
-            "file": "scripts/run-canonical-task-postgres-migration-workflow.js"
+            "file": "server/services/multitenant/migration-planner.js"
+          },
+          {
+            "file": "server/sql/multitenant-platform-schema.sql"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/server/scripts/run-canonical-task-postgres-migration-workflow.test.js",
-            "case": "baseline migration workflow evidence; dedicated AC-006 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/migration-planner.test.js",
+            "case": "AC-006 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/server/scripts/run-canonical-task-postgres-migration-workflow.test.js",
-            "must_cover": "migration"
+            "file_glob": "tests/server/services/multitenant/migration-planner.test.js",
+            "must_cover": "AC-006"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "C-004",
@@ -492,27 +544,30 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/account/account-repository.js"
+            "file": "server/services/multitenant/workspace-connection-registry.js"
+          },
+          {
+            "file": "server/sql/multitenant-platform-schema.sql"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/account/pg/pg-account-repository-contract.test.js",
-            "case": "baseline account repository evidence; dedicated AC-101 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/workspace-connection.test.js",
+            "case": "AC-101 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/account/pg/pg-account-repository-contract.test.js",
-            "must_cover": "account"
+            "file_glob": "tests/server/services/multitenant/workspace-connection.test.js",
+            "must_cover": "AC-101"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "C-005",
@@ -533,27 +588,27 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/account/account-repository.js"
+            "file": "server/services/multitenant/workspace-connection-registry.js"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/account/scenarios/s-3-revoke.test.js",
-            "case": "baseline revoke evidence; dedicated AC-102 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/workspace-connection.test.js",
+            "case": "AC-102 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/account/scenarios/s-3-revoke.test.js",
-            "must_cover": "revoke"
+            "file_glob": "tests/server/services/multitenant/workspace-connection.test.js",
+            "must_cover": "AC-102"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "C-006",
@@ -574,27 +629,30 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/account/account-repository.js"
+            "file": "server/services/multitenant/workspace-connection-registry.js"
+          },
+          {
+            "file": "server/sql/multitenant-platform-schema.sql"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/account/invariants/inv-3-audit-required.test.js",
-            "case": "baseline audit evidence; dedicated AC-103 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/workspace-connection.test.js",
+            "case": "AC-103 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/account/invariants/inv-3-audit-required.test.js",
-            "must_cover": "audit"
+            "file_glob": "tests/server/services/multitenant/workspace-connection.test.js",
+            "must_cover": "AC-103"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "INV-004",
@@ -615,27 +673,49 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/account/account-repository.js"
+            "file": "server/services/multitenant/workspace-connection-registry.js"
+          },
+          {
+            "file": "server/services/multitenant/credential-broker.js"
+          },
+          {
+            "file": "server/sql/multitenant-platform-schema.sql"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/account/invariants/inv-1-credential-no-secret.test.js",
-            "case": "baseline no-secret evidence; dedicated AC-104 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/workspace-connection.test.js",
+            "case": "AC-104 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/services/multitenant/credential-broker.test.js",
+            "case": "AC-104 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/services/multitenant/persistence-schema.test.js",
+            "case": "AC-104 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/account/invariants/inv-1-credential-no-secret.test.js",
-            "must_cover": "secret"
+            "file_glob": "tests/server/services/multitenant/workspace-connection.test.js",
+            "must_cover": "AC-104"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/credential-broker.test.js",
+            "must_cover": "AC-104"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/persistence-schema.test.js",
+            "must_cover": "AC-104"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "C-007",
@@ -656,27 +736,38 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/account/account-repository.js"
+            "file": "server/services/multitenant/workspace-connection-registry.js"
+          },
+          {
+            "file": "server/services/multitenant/postgres-repository.js"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/account/invariants/inv-4-scope-integrity.test.js",
-            "case": "baseline scope integrity evidence; dedicated AC-105 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/workspace-connection.test.js",
+            "case": "AC-105 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/services/multitenant/postgres-repository.test.js",
+            "case": "AC-105 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/account/invariants/inv-4-scope-integrity.test.js",
-            "must_cover": "scope"
+            "file_glob": "tests/server/services/multitenant/workspace-connection.test.js",
+            "must_cover": "AC-105"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/postgres-repository.test.js",
+            "must_cover": "AC-105"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "C-008",
@@ -697,27 +788,30 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/token-usage-service.js"
+            "file": "server/services/multitenant/contract-usage-ledger.js"
+          },
+          {
+            "file": "server/sql/multitenant-platform-schema.sql"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/token-usage-service.test.js",
-            "case": "baseline usage evidence; dedicated AC-201 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "case": "AC-201 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/server/services/token-usage-service.test.js",
-            "must_cover": "usage"
+            "file_glob": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "must_cover": "AC-201"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "C-009",
@@ -738,30 +832,38 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/token-usage-service.js"
+            "file": "server/services/multitenant/contract-usage-ledger.js"
           },
           {
-            "file": "server/services/run-receipt/contract.js"
+            "file": "server/services/multitenant/postgres-repository.js"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/token-usage-service.test.js",
-            "case": "baseline token usage evidence; dedicated AC-202 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "case": "AC-202 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/services/multitenant/postgres-repository.test.js",
+            "case": "AC-202 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/server/services/token-usage-service.test.js",
-            "must_cover": "token"
+            "file_glob": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "must_cover": "AC-202"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/postgres-repository.test.js",
+            "must_cover": "AC-202"
           }
         ]
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "C-010",
@@ -782,27 +884,27 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/token-usage-service.js"
+            "file": "server/services/multitenant/contract-usage-ledger.js"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/token-usage-service.test.js",
-            "case": "baseline quota evidence; dedicated AC-203 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "case": "AC-203 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/server/services/token-usage-service.test.js",
-            "must_cover": "usage"
+            "file_glob": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "must_cover": "AC-203"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "INV-005",
@@ -823,30 +925,38 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/run-receipt/contract.js"
+            "file": "server/services/multitenant/contract-usage-ledger.js"
           },
           {
-            "file": "server/services/token-usage-service.js"
+            "file": "server/sql/multitenant-platform-schema.sql"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/run-receipt-contract.test.js",
-            "case": "baseline receipt evidence; dedicated AC-204 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "case": "AC-204 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/services/multitenant/persistence-schema.test.js",
+            "case": "AC-204 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/server/services/run-receipt-contract.test.js",
-            "must_cover": "receipt"
+            "file_glob": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "must_cover": "AC-204"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/persistence-schema.test.js",
+            "must_cover": "AC-204"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "C-011",
@@ -867,27 +977,30 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/run-receipt/contract.js"
+            "file": "server/services/multitenant/contract-usage-ledger.js"
+          },
+          {
+            "file": "server/sql/multitenant-platform-schema.sql"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/run-receipt-contract.test.js",
-            "case": "baseline pricing receipt evidence; dedicated AC-205 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "case": "AC-205 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/server/services/run-receipt-contract.test.js",
-            "must_cover": "receipt"
+            "file_glob": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "must_cover": "AC-205"
           }
         ]
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "C-012",
@@ -908,27 +1021,57 @@
         ],
         "code_refs": [
           {
-            "file": "server/routes/knowledge-events.js"
+            "file": "server/services/multitenant/service-auth.js"
+          },
+          {
+            "file": "server/services/multitenant/tenant-context.js"
+          },
+          {
+            "file": "server/routes/tenant-runtime.js"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/server/routes/auth-service-token.test.js",
-            "case": "baseline service auth evidence; dedicated AC-301 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/service-auth.test.js",
+            "case": "AC-301 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/services/multitenant/protocol-contract.test.js",
+            "case": "AC-301 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/routes/tenant-runtime-contract.test.js",
+            "case": "AC-301 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/services/multitenant/contract-fixtures.test.js",
+            "case": "AC-301 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/server/routes/auth-service-token.test.js",
-            "must_cover": "service"
+            "file_glob": "tests/server/services/multitenant/service-auth.test.js",
+            "must_cover": "AC-301"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/protocol-contract.test.js",
+            "must_cover": "AC-301"
+          },
+          {
+            "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
+            "must_cover": "AC-301"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/contract-fixtures.test.js",
+            "must_cover": "AC-301"
           }
         ]
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "C-013",
@@ -949,27 +1092,38 @@
         ],
         "code_refs": [
           {
-            "file": "server/routes/knowledge-events.js"
+            "file": "server/services/multitenant/protocol-contract.js"
+          },
+          {
+            "file": "server/routes/tenant-runtime.js"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/server/routes/auth-service-token.test.js",
-            "case": "baseline token protocol evidence; dedicated AC-302 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/protocol-contract.test.js",
+            "case": "AC-302 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/services/multitenant/contract-fixtures.test.js",
+            "case": "AC-302 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/server/routes/auth-service-token.test.js",
-            "must_cover": "token"
+            "file_glob": "tests/server/services/multitenant/protocol-contract.test.js",
+            "must_cover": "AC-302"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/contract-fixtures.test.js",
+            "must_cover": "AC-302"
           }
         ]
       },
       "confidence": 0.92,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "INV-006",
@@ -990,27 +1144,35 @@
         ],
         "code_refs": [
           {
-            "file": "server/routes/knowledge-events.js"
+            "file": "server/services/multitenant/protocol-contract.js"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/server/routes/auth-service-token.test.js",
-            "case": "baseline service capability evidence; dedicated AC-303 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/protocol-contract.test.js",
+            "case": "AC-303 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/services/multitenant/contract-fixtures.test.js",
+            "case": "AC-303 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/server/routes/auth-service-token.test.js",
-            "must_cover": "service"
+            "file_glob": "tests/server/services/multitenant/protocol-contract.test.js",
+            "must_cover": "AC-303"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/contract-fixtures.test.js",
+            "must_cover": "AC-303"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "C-014",
@@ -1031,27 +1193,30 @@
         ],
         "code_refs": [
           {
-            "file": "server/routes/knowledge-events.js"
+            "file": "server/services/multitenant/protocol-contract.js"
+          },
+          {
+            "file": "server/routes/tenant-runtime.js"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/server/routes/knowledge-event-routes.test.js",
-            "case": "baseline error route evidence; dedicated AC-304 Red is planned by the Spec"
+            "file": "tests/server/routes/tenant-runtime-contract.test.js",
+            "case": "AC-304 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/server/routes/knowledge-event-routes.test.js",
-            "must_cover": "error"
+            "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
+            "must_cover": "AC-304"
           }
         ]
       },
       "confidence": 0.9,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     },
     {
       "id": "INV-007",
@@ -1072,30 +1237,52 @@
         ],
         "code_refs": [
           {
-            "file": "server/services/project-access/project-access-policy.js"
+            "file": "server/services/multitenant/tenant-boundary.js"
           },
           {
-            "file": "server/routes/knowledge-events.js"
+            "file": "server/services/multitenant/tenant-context.js"
+          },
+          {
+            "file": "server/services/multitenant/credential-broker.js"
+          },
+          {
+            "file": "server/routes/tenant-runtime.js"
           }
         ],
         "test_refs": [
           {
-            "file": "tests/server/services/project-access-policy.test.js",
-            "case": "baseline access fallback evidence; dedicated AC-305 Red is planned by the Spec"
+            "file": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
+            "case": "AC-305 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/services/multitenant/credential-broker.test.js",
+            "case": "AC-305 dedicated TDD contract coverage"
+          },
+          {
+            "file": "tests/server/routes/tenant-runtime-contract.test.js",
+            "case": "AC-305 dedicated TDD contract coverage"
           }
         ]
       },
       "verifiable_by": {
         "test_pattern": [
           {
-            "file_glob": "tests/server/services/project-access-policy.test.js",
-            "must_cover": "access"
+            "file_glob": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
+            "must_cover": "AC-305"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/credential-broker.test.js",
+            "must_cover": "AC-305"
+          },
+          {
+            "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
+            "must_cover": "AC-305"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T13:34:20.679Z"
+      "last_revised_at": "2026-08-16T14:07:27.922Z"
     }
   ],
   "planned_test_suites": [
@@ -1133,6 +1320,6 @@
     }
   ],
   "open_questions": [],
-  "generated_at": "2026-08-16T13:34:20.678Z",
-  "previous_spec_id": null
+  "generated_at": "2026-08-16T14:07:27.921Z",
+  "previous_spec_id": "2026-08-16T14:06:48.218Z"
 }

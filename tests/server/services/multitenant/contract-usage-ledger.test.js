@@ -17,7 +17,7 @@ const ids = {
 };
 
 describe('ContractUsageLedger', () => {
-    it('AC-201/203: plan枠、警告閾値、hard stop、超過方針をrevision固定で判断する', () => {
+    it('AC-201/AC-203: plan枠、警告閾値、hard stop、超過方針をrevision固定で判断する', () => {
         const ledger = new ContractUsageLedger();
         ledger.registerContract({
             ...ids, contract_id: ids.contract_revision, contract_revision_number: 4,

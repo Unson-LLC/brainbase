@@ -9,7 +9,7 @@ function load(name) {
     return JSON.parse(readFileSync(resolve(fixtureRoot, name), 'utf8'));
 }
 
-describe('Cloud/OSS protocol v1 contract fixtures', () => {
+describe('AC-301/AC-302/AC-303: Cloud/OSS protocol v1 contract fixtures', () => {
     const positive = load('positive.json');
     it.each(positive.cases)('$id: positive fixture', ({ input, expected }) => {
         const result = negotiateProtocol(input, { now: new Date('2026-08-16T00:00:00.000Z') });

@@ -12,7 +12,7 @@ const binding = {
 };
 
 describe('CredentialBroker', () => {
-    it('D-005: 最大60秒、single-use、operation/audience/mode束縛のopaque leaseを発行する', () => {
+    it('D-005/AC-104/AC-305: 最大60秒、single-use、operation/audience/mode束縛のopaque leaseを発行する', () => {
         let nowMs = Date.parse('2026-08-16T00:00:00Z');
         const broker = new CredentialBroker({ now: () => new Date(nowMs) });
         broker.register(binding);

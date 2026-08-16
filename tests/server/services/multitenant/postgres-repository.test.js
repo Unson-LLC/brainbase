@@ -12,7 +12,7 @@ function poolWithRows(rowsByPattern) {
 }
 
 describe('MultitenantPostgresRepository', () => {
-    it('AC-005/D-003: transaction-local tenant RLSを設定しauthoritative revisionをlock付きで読む', async () => {
+    it('AC-005/AC-105/D-003: transaction-local tenant RLSを設定しauthoritative revisionをlock付きで読む', async () => {
         const { pool, client } = poolWithRows({
             'FROM workspace_connections': [{ tenant_id: 'ten_a', connection_id: 'wsc_a', connection_revision: 3, status: 'active', workspace_id: 'w', app_id: 'a', granted_scopes: ['chat:write'] }]
         });
@@ -37,7 +37,7 @@ describe('MultitenantPostgresRepository', () => {
         );
     });
 
-    it('D-006: claim conflict時はpayload/context hash差分を追加副作用なしで拒否する', async () => {
+    it('D-006/AC-202: claim conflict時はpayload/context hash差分を追加副作用なしで拒否する', async () => {
         const { pool } = poolWithRows({
             'INSERT INTO tenant_business_effect_claims': [],
             'FROM tenant_business_effect_claims': [{ idempotency_key: 'ik1_x', payload_hash: 'old', context_hash: 'context', claim_state: 'claimed' }]
