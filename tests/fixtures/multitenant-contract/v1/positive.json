@@ -1,0 +1,35 @@
+{
+  "fixture_version": "1.0",
+  "evidence_boundary": "contract_fixture_not_production_readback",
+  "cases": [
+    {
+      "id": "BBMT-P-005-cloud",
+      "input": {
+        "deployment_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "deployment_profile": "shared_cloud",
+        "supported_range": ">=1.0 <2.0",
+        "required_capabilities": ["signed_tenant_context", "usage_receipt_v1"],
+        "optional_capabilities": ["cloud_billing_export"]
+      },
+      "expected": {
+        "protocol_id": "mana-brainbase-tenant-context",
+        "selected_version": "1.0",
+        "optional_status": "available"
+      }
+    },
+    {
+      "id": "BBMT-P-005-oss",
+      "input": {
+        "deployment_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAW",
+        "deployment_profile": "customer_managed_oss",
+        "supported_range": ">=1.0 <2.0",
+        "required_capabilities": ["signed_tenant_context", "usage_receipt_v1"],
+        "optional_capabilities": []
+      },
+      "expected": {
+        "protocol_id": "mana-brainbase-tenant-context",
+        "selected_version": "1.0"
+      }
+    }
+  ]
+}
