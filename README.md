@@ -405,10 +405,12 @@ brainbase judgment:install --target codex --dry-run
 Review and merge the printed snippet into `~/.codex/hooks.json`. The command is preview-only unless `--output` is provided; it never overwrites an existing config. After installation, the Host instructs the AI to begin every user-facing response with an exact owner-visible audit line such as:
 
 ```text
-🧠 Brainbase参照: 直前の「ログイン後の白画面を直して」を参照 → 実装依頼として継続 ✓
+🧠 判断参照: 直前の「ログイン後の白画面を直して」を参照 → 実装依頼として継続 ✓
 ```
 
-The line identifies the concrete current or prior user statement used as judgment evidence and the decision made from it. The excerpt is collapsed to one line, limited to 26 Unicode characters, and redacts secret-like assignments and token formats. For example, a question may show `「この仕組みを説明して」を参照 → 質問として回答 ✓`; an unresolved follow-up shows `⚠️ Brainbase参照: 「それでいい」の対象を特定できず → 確認質問` instead of looking like a successful resolution.
+The line identifies the concrete current or prior user statement used as judgment evidence and the decision made from it. The excerpt is collapsed to one line, limited to 26 Unicode characters, and redacts secret-like assignments and token formats. For example, a question may show `「この仕組みを説明して」を参照 → 質問として回答 ✓`; an unresolved follow-up shows `⚠️ 判断参照: 「それでいい」の対象を特定できず → 確認質問` instead of looking like a successful resolution.
+
+Judgment evidence and knowledge-call evidence are separate. A `🧠 判断参照` line says which request the Resolver judged; it never proves that an MCP lookup happened. The Host emits `📚` only after an actual successful portable MCP call and emits `⚠️` for `isError`, malformed, or empty CallToolResult envelopes. The portable mappings are `get_context` → routing (`Brainbase参照先`), `search` → search (`Brainbase検索`), and `search_personal_kg` → retrieval (`Brainbase取得`). Source selection and exclusions appear only when the tool result contains them. When a turn requires no knowledge lookup and none occurred, the exact audit is `📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓`; a knowledge-required turn cannot use that line to satisfy retrieval.
 
 Detailed receipts, ordered tool events, the final event snapshot, and the exact owner-visible line are journaled together under `~/.brainbase/personal-os/judgment-journal/`, keyed by session and turn. Replayed tool events with the same `tool_use_id` and content are idempotent; conflicting reuse, corrupt journals, and a `Stop` without a matching active episode fail loudly. Only one receipt is adopted for a turn, and later duplicate hook calls reuse the stored line instead of rendering a possibly different summary. The line reports Resolver judgment evidence; it does not claim that Personal OS knowledge was already retrieved.
 
