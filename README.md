@@ -392,7 +392,7 @@ brainbase onboard:seed \
   --relationship "Key Partner|collaborator|Works with me on AI adoption"
 ```
 
-## Judgment Resolver Host (Codex preview)
+## Judgment Resolver Host for Codex
 
 Brainbase includes a local Judgment Resolver core and a Codex lifecycle Host adapter. The Host starts one portable episode at `UserPromptSubmit`, appends ordered tool events at `PostToolUse`, and finalizes the same episode at `Stop`. It builds one canonical context, adopts exactly one receipt for the turn, and gives the model only the selected judgment nodes and audit contract to follow. The full route receipt remains in the local journal instead of being injected into model context. It does not call a hosted Brainbase service, require a secret, or check project access.
 
@@ -402,7 +402,19 @@ Preview the Codex `UserPromptSubmit`, `PostToolUse`, and `Stop` hook snippet:
 brainbase judgment:install --target codex --dry-run
 ```
 
-Review and merge the printed snippet into `~/.codex/hooks.json`. The command is preview-only unless `--output` is provided; it never overwrites an existing config. After installation, the Host instructs the AI to begin every user-facing response with an exact owner-visible audit line such as:
+Review and merge all three printed event bindings into `~/.codex/hooks.json`. The command is preview-only unless `--output` is provided; it never merges into or overwrites an existing config. To save a new snippet file before reviewing it:
+
+```bash
+brainbase judgment:install --target codex --output /tmp/brainbase-judgment-hooks.json
+```
+
+Preserve unrelated hooks, then verify the installed bindings and start a new Codex task:
+
+```bash
+brainbase doctor --dir ~/.brainbase/personal-os --judgment-hooks ~/.codex/hooks.json
+```
+
+After installation, the Host instructs the AI to begin every user-facing response with an exact owner-visible audit line such as:
 
 ```text
 🧠 判断参照: 直前の「ログイン後の白画面を直して」を参照 → 実装依頼として継続 ✓
@@ -414,11 +426,7 @@ Judgment evidence and knowledge-call evidence are separate. A `🧠 判断参照
 
 Detailed receipts, ordered tool events, the final event snapshot, and the exact owner-visible line are journaled together under `~/.brainbase/personal-os/judgment-journal/`, keyed by session and turn. Replayed tool events with the same `tool_use_id` and content are idempotent; conflicting reuse, corrupt journals, and a `Stop` without a matching active episode fail loudly. Only one receipt is adopted for a turn, and later duplicate hook calls reuse the stored line instead of rendering a possibly different summary. The line reports Resolver judgment evidence; it does not claim that Personal OS knowledge was already retrieved.
 
-At `Stop`, the Host verifies that all expected audit lines appear at the beginning, exactly once, and in journal order. The first repairable failure returns one bounded block instruction and binds the non-audit answer body by digest. If the active repair changes that body or still omits the required audit contract, the hook exits nonzero with `judgment_stop_repair_exhausted` instead of completing the episode. You can verify an installed three-hook snippet together with the local Personal OS:
-
-```bash
-brainbase doctor --dir ~/.brainbase/personal-os --judgment-hooks /path/to/hooks.json
-```
+At `Stop`, the Host verifies that all expected audit lines appear at the beginning, exactly once, and in journal order. The first repairable failure returns one bounded block instruction and binds the non-audit answer body by digest. If the active repair changes that body or still omits the required audit contract, the hook exits nonzero with `judgment_stop_repair_exhausted` instead of completing the episode.
 
 Every turn is judged, including questions and follow-up instructions. If a follow-up has no usable referent, the receipt selects clarification and the AI asks what the user meant; it does not refuse merely because classification or project context is incomplete. A receipt is judgment evidence, not permission to write files, send messages, deploy, purchase, or perform any other external effect. Normal host permissions and user approvals still apply.
 

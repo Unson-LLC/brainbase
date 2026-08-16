@@ -136,4 +136,20 @@ describe('MCP-only repository hygiene', () => {
     expect(readme).toContain('MCP `get_context` / `search` verification');
     expect(readme).toContain('Do not treat those generated artifacts as installed');
   });
+
+  it('keeps the public Judgment Host guide aligned with the three-hook audit contract', async () => {
+    const guide = await readFile(join(repoRoot, 'docs/manual/guide/judgment-audit.md'), 'utf8');
+    const operations = await readFile(join(repoRoot, 'docs/manual/guide/operations.md'), 'utf8');
+    const cliReference = await readFile(join(repoRoot, 'docs/manual/reference/cli.md'), 'utf8');
+    const publicDocs = `${guide}\n${operations}\n${cliReference}`;
+
+    expect(guide).toContain('`UserPromptSubmit`');
+    expect(guide).toContain('`PostToolUse`');
+    expect(guide).toContain('`Stop`');
+    expect(guide).toContain('🧠 判断参照:');
+    expect(guide).toContain('📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓');
+    expect(guide).toContain('doctor --judgment-hooks');
+    expect(publicDocs).not.toContain('🧠 Brainbase参照:');
+    expect(publicDocs).not.toContain('⚠️ Brainbase参照:');
+  });
 });

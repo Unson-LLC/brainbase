@@ -46,7 +46,7 @@ npm run onboard:demo -- --scenario "実際に試す依頼"
 | `onboard:skills` | 公開Skillsを生成する | `--out` を付けた時だけファイルを作る |
 | `onboard:routines` | `ohayo`、`oyasumi`、`retro` の定義を生成する | 定期実行は登録しない |
 | `onboard:install` | MCP設定断片を出力または別ファイルへ保存する | `--output` の時だけ指定先へ新規ファイルを作る |
-| `doctor` | ローカル正本と接続状態を点検する | しない |
+| `doctor` | ローカル正本、接続状態、任意でJudgment Hookを点検する | しない |
 | `mcp` / `start` | MCPサーバーをstdioで起動する | しない |
 
 ```bash
@@ -56,6 +56,21 @@ npm run onboard:install -- --target codex --dry-run
 npm run doctor
 npm run start
 ```
+
+## Judgment Host
+
+| コマンド | 役割 | ライブ設定への書き込み |
+| --- | --- | --- |
+| `judgment:install` | Codex用の `UserPromptSubmit`、`PostToolUse`、`Stop` Hook設定断片を生成する | `--output` の時だけ指定先へ新規ファイルを作る |
+| `doctor --judgment-hooks` | 3つのHookが設定されているか点検する | しない |
+
+```bash
+brainbase judgment:install --target codex --dry-run
+brainbase judgment:install --target codex --output /tmp/brainbase-judgment-hooks.json
+brainbase doctor --dir ~/.brainbase/personal-os --judgment-hooks ~/.codex/hooks.json
+```
+
+`judgment:install` は既存の `~/.codex/hooks.json` へ自動マージしません。出力を確認し、Brainbaseの3項目だけを既存設定へ統合します。`--output` は未作成のファイルだけを受け付けます。導入後は新しいCodex taskを開いて確認します。
 
 ## Ontology
 
