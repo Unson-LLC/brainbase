@@ -164,6 +164,9 @@ export function registerTenantRuntimeApiRoute(app, services) {
     if (!services?.serviceAuth) {
         throw new Error('Tenant runtime service authentication middleware is required');
     }
+    if (!services?.tenantContextVerifier) {
+        throw new Error('Tenant runtime context verifier is required');
+    }
     app.use('/api/v1/runtime', createTenantRuntimeRouter(services));
 }
 
