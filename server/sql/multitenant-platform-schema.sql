@@ -15,17 +15,19 @@ CREATE TABLE IF NOT EXISTS tenant_organizations (
     tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
     tenant_revision_at_write BIGINT NOT NULL,
     organization_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-    FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision)
+    FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision),
+    UNIQUE (tenant_id, organization_id)
 );
 
 CREATE TABLE IF NOT EXISTS tenant_memberships (
     membership_id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
     tenant_revision_at_write BIGINT NOT NULL,
-    organization_id TEXT NOT NULL REFERENCES tenant_organizations(organization_id),
+    organization_id TEXT NOT NULL,
     principal_id TEXT NOT NULL,
     membership_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-    FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision)
+    FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision),
+    FOREIGN KEY (tenant_id, organization_id) REFERENCES tenant_organizations(tenant_id, organization_id)
 );
 
 CREATE TABLE IF NOT EXISTS tenant_projects (
@@ -43,17 +45,20 @@ CREATE TABLE IF NOT EXISTS tenant_graph_entities (
     tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
     tenant_revision_at_write BIGINT NOT NULL,
     entity_payload JSONB NOT NULL,
-    FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision)
+    FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision),
+    UNIQUE (tenant_id, entity_id)
 );
 
 CREATE TABLE IF NOT EXISTS tenant_graph_relations (
     relation_id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
     tenant_revision_at_write BIGINT NOT NULL,
-    source_entity_id TEXT NOT NULL REFERENCES tenant_graph_entities(entity_id),
-    target_entity_id TEXT NOT NULL REFERENCES tenant_graph_entities(entity_id),
+    source_entity_id TEXT NOT NULL,
+    target_entity_id TEXT NOT NULL,
     relation_payload JSONB NOT NULL,
-    FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision)
+    FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision),
+    FOREIGN KEY (tenant_id, source_entity_id) REFERENCES tenant_graph_entities(tenant_id, entity_id),
+    FOREIGN KEY (tenant_id, target_entity_id) REFERENCES tenant_graph_entities(tenant_id, entity_id)
 );
 
 CREATE TABLE IF NOT EXISTS workspace_connections (
@@ -72,6 +77,7 @@ CREATE TABLE IF NOT EXISTS workspace_connections (
     revoked_at TIMESTAMPTZ,
     supersedes_connection_revision BIGINT,
     FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision),
+    UNIQUE (tenant_id, connection_id),
     UNIQUE (tenant_id, connection_id, connection_revision)
 );
 
@@ -87,12 +93,13 @@ CREATE TABLE IF NOT EXISTS workspace_connection_revisions (
 CREATE TABLE IF NOT EXISTS credential_broker_refs (
     credential_ref TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
-    connection_id TEXT NOT NULL REFERENCES workspace_connections(connection_id),
+    connection_id TEXT NOT NULL,
     connection_revision BIGINT NOT NULL,
     credential_mode TEXT NOT NULL CHECK (credential_mode IN ('cloud_standard', 'customer_oauth', 'customer_api')),
     refresh_revision BIGINT NOT NULL CHECK (refresh_revision > 0),
     created_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL
+    updated_at TIMESTAMPTZ NOT NULL,
+    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision)
 );
 
 CREATE TABLE IF NOT EXISTS tenant_contract_revisions (
@@ -119,7 +126,7 @@ CREATE TABLE IF NOT EXISTS tenant_usage_events (
     protocol_version TEXT NOT NULL,
     tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
     tenant_revision_at_write BIGINT NOT NULL,
-    connection_id TEXT NOT NULL REFERENCES workspace_connections(connection_id),
+    connection_id TEXT NOT NULL,
     connection_revision BIGINT NOT NULL,
     contract_revision TEXT NOT NULL,
     deployment_id TEXT NOT NULL,
@@ -134,6 +141,7 @@ CREATE TABLE IF NOT EXISTS tenant_usage_events (
     failure_code TEXT,
     observed_at TIMESTAMPTZ NOT NULL,
     FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision),
+    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision),
     UNIQUE (tenant_id, idempotency_key),
     CHECK ((collection_state = 'not_collected' AND quantity IS NULL) OR collection_state <> 'not_collected')
 );
@@ -143,7 +151,7 @@ CREATE TABLE IF NOT EXISTS tenant_operation_receipts (
     protocol_version TEXT NOT NULL,
     tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
     tenant_revision_at_write BIGINT NOT NULL,
-    connection_id TEXT NOT NULL REFERENCES workspace_connections(connection_id),
+    connection_id TEXT NOT NULL,
     connection_revision BIGINT NOT NULL,
     contract_revision TEXT NOT NULL,
     deployment_id TEXT NOT NULL,
@@ -162,22 +170,27 @@ CREATE TABLE IF NOT EXISTS tenant_operation_receipts (
     failure_code TEXT,
     pricing_snapshot JSONB NOT NULL,
     finalized_at TIMESTAMPTZ NOT NULL,
-    corrects_receipt_id TEXT REFERENCES tenant_operation_receipts(receipt_id),
+    corrects_receipt_id TEXT,
     FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision),
+    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision),
+    FOREIGN KEY (tenant_id, corrects_receipt_id) REFERENCES tenant_operation_receipts(tenant_id, receipt_id),
+    UNIQUE (tenant_id, receipt_id),
     CHECK ((collection_state = 'not_collected' AND observed_units IS NULL) OR collection_state <> 'not_collected')
 );
 
 CREATE TABLE IF NOT EXISTS tenant_business_effect_claims (
     idempotency_key TEXT PRIMARY KEY CHECK (idempotency_key ~ '^ik1_[A-Za-z0-9_-]{43}$'),
     tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
-    connection_id TEXT NOT NULL REFERENCES workspace_connections(connection_id),
+    connection_id TEXT NOT NULL,
+    connection_revision BIGINT NOT NULL,
     operation_id TEXT NOT NULL,
     payload_hash TEXT NOT NULL,
     context_hash TEXT NOT NULL,
     claim_state TEXT NOT NULL CHECK (claim_state IN ('pending', 'claimed', 'succeeded', 'failed_terminal')),
     claimed_at TIMESTAMPTZ NOT NULL,
     retain_until TIMESTAMPTZ NOT NULL,
-    CHECK (retain_until >= claimed_at + INTERVAL '30 days')
+    CHECK (retain_until >= claimed_at + INTERVAL '30 days'),
+    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision)
 );
 
 CREATE TABLE IF NOT EXISTS tenant_migrations (
@@ -188,17 +201,19 @@ CREATE TABLE IF NOT EXISTS tenant_migrations (
     mode TEXT NOT NULL CHECK (mode IN ('dry_run', 'apply', 'rollback')),
     counts JSONB NOT NULL,
     collection_state TEXT NOT NULL CHECK (collection_state IN ('collected', 'partial', 'not_collected')),
-    created_at TIMESTAMPTZ NOT NULL
+    created_at TIMESTAMPTZ NOT NULL,
+    UNIQUE (tenant_id, migration_id)
 );
 
 CREATE TABLE IF NOT EXISTS tenant_migration_quarantine (
-    migration_id TEXT NOT NULL REFERENCES tenant_migrations(migration_id),
+    migration_id TEXT NOT NULL,
     tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
     source_id TEXT NOT NULL,
     reason TEXT NOT NULL CHECK (reason IN ('ambiguous', 'unowned', 'failed', 'apply_conflict', 'rollback_conflict')),
     source_snapshot JSONB NOT NULL,
     quarantined_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (migration_id, source_id)
+    PRIMARY KEY (migration_id, source_id),
+    FOREIGN KEY (tenant_id, migration_id) REFERENCES tenant_migrations(tenant_id, migration_id)
 );
 
 ALTER TABLE tenant_organizations ENABLE ROW LEVEL SECURITY;
@@ -215,6 +230,21 @@ ALTER TABLE tenant_operation_receipts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_business_effect_claims ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_migrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_migration_quarantine ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE tenant_organizations FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_memberships FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_projects FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_graph_entities FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_graph_relations FORCE ROW LEVEL SECURITY;
+ALTER TABLE workspace_connections FORCE ROW LEVEL SECURITY;
+ALTER TABLE workspace_connection_revisions FORCE ROW LEVEL SECURITY;
+ALTER TABLE credential_broker_refs FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_contract_revisions FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_usage_events FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_operation_receipts FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_business_effect_claims FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_migrations FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_migration_quarantine FORCE ROW LEVEL SECURITY;
 
 CREATE OR REPLACE FUNCTION brainbase_current_tenant_id()
 RETURNS TEXT
