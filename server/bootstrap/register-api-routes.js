@@ -27,6 +27,7 @@ import { createWikiRouter } from '../routes/wiki.js';
 import { createMiscRouter } from '../routes/misc.js';
 import { createUsageRouter } from '../routes/usage.js';
 import { createSnsGrowthRouter } from '../routes/sns-growth.js';
+import { createTenantRuntimeRouter } from '../routes/tenant-runtime.js';
 import {
     createWorkflowHumanStepRouter,
     createWorkflowRouter,
@@ -159,6 +160,13 @@ export function registerJudgmentResolutionApiRoute(app, {
     );
 }
 
+export function registerTenantRuntimeApiRoute(app, services) {
+    if (!services?.serviceAuth) {
+        throw new Error('Tenant runtime service authentication middleware is required');
+    }
+    app.use('/api/v1/runtime', createTenantRuntimeRouter(services));
+}
+
 export function registerApiRoutes(app, {
     configParser,
     configService,
@@ -197,8 +205,10 @@ export function registerApiRoutes(app, {
     workspaceRoot,
     uploadsDir,
     runtimeInfo,
-    brainbaseRoot
+    brainbaseRoot,
+    tenantRuntimeServices
 }) {
+    if (tenantRuntimeServices) registerTenantRuntimeApiRoute(app, tenantRuntimeServices);
     app.use('/api/state', createRetiredCapabilityRouter({
         capability: 'brainbase.session-state',
         owner: 'Codex app and CLI',
