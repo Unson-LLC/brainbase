@@ -49,4 +49,14 @@ describe('TenantAuthority', () => {
             { code: 'TENANT_UNKNOWN' }
         );
     });
+
+    it('D-001/AC-003: tenant-context resolverへcanonical tenant revisionだけを返す', async () => {
+        const authority = new TenantAuthority();
+        const created = authority.createTenant({ displayName: 'Runtime tenant' });
+        const active = authority.transitionTenant(created.tenant_id, 1, 'active');
+        await expect(authority.resolveContext({ tenant_id: active.tenant_id, expected_tenant_revision: 2 }))
+            .resolves.toMatchObject({ tenant: { tenant_id: active.tenant_id, tenant_revision: 2 } });
+        await expect(authority.resolveContext({ tenant_id: active.tenant_id, expected_tenant_revision: 1 }))
+            .rejects.toMatchObject({ code: 'TENANT_REVISION_MISMATCH' });
+    });
 });
