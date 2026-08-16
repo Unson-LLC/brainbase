@@ -1,0 +1,296 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-multitenant-platform",
+  "generated_by": { "caller": "codex", "stage": "spec" },
+  "clauses": [
+    {
+      "id": "BBMT-AC-001",
+      "type": "contract",
+      "statement": "Tenant Authorityだけがprefix付きopaque tenant_idを発行し、provisioning、active、suspended、deletion_pending、deletedの状態遷移と終端削除をrevision付きで管理する",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-001" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "Tenant Context契約" }],
+        "code_refs": [{ "file": "server/services/auth-service.js" }],
+        "test_refs": [{ "file": "tests/unit/auth-service-lifecycle.test.js", "case": "planned Red extension: AC-001 lifecycle and terminal delete" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/auth-service-lifecycle.test.js", "must_cover": "lifecycle" }] },
+      "confidence": 0.96
+    },
+    {
+      "id": "BBMT-AC-002",
+      "type": "invariant",
+      "statement": "organization、membership、project、Graph、connection、contract、usage、Receiptはtenant_id NOT NULLとwrite時tenant revisionを持ち、親子のtenant一致をDBまたはrepository guardで保証する",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "責務と正本" }],
+        "code_refs": [{ "file": "server/services/project-access/project-access-policy.js" }, { "file": "server/routes/knowledge-events.js" }],
+        "test_refs": [{ "file": "tests/server/services/project-access-policy.test.js", "case": "planned Red extension: AC-002 every owned row has exactly one tenant" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/services/project-access-policy.test.js", "must_cover": "project" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-003",
+      "type": "invariant",
+      "statement": "workspace ID、project code、organization名、deployment名、organization IDをtenant IDとして生成、推定、fallbackしてはならない",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-003" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "決定" }],
+        "code_refs": [{ "file": "server/services/auth-service.js" }],
+        "test_refs": [{ "file": "tests/unit/auth-service-permission.test.js", "case": "planned Red extension: AC-003 aliases never resolve tenant" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/auth-service-permission.test.js", "must_cover": "organization" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-004",
+      "type": "contract",
+      "statement": "actor認証後かつ業務処理前にTenant Authorityでtenantを一意解決し、未解決、複数解決、payload不一致、無効状態、改ざん、revision不一致をfail closedにする",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-004" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "信頼境界と拒否規則" }],
+        "code_refs": [{ "file": "server/services/auth-service.js" }],
+        "test_refs": [{ "file": "tests/unit/auth-service-permission.test.js", "case": "planned Red extension: AC-004 rejects unresolved ambiguous invalid before work" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/unit/auth-service-permission.test.js", "must_cover": "access" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-005",
+      "type": "invariant",
+      "statement": "管理API、MCP、background job、migration、監査ログは同じtenant resolutionとactor-resource-connection-deployment-revision照合guardを必ず通る",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-005" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "データ面" }],
+        "code_refs": [{ "file": "server/services/project-access/project-access-policy.js" }, { "file": "mcp/brainbase/src/server.ts" }],
+        "test_refs": [{ "file": "tests/server/services/project-access-policy.test.js", "case": "planned Red extension: AC-005 parameterized entry points enforce the same boundary" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/services/project-access-policy.test.js", "must_cover": "access" }] },
+      "confidence": 0.98
+    },
+    {
+      "id": "BBMT-AC-006",
+      "type": "contract",
+      "statement": "既存データ移行はwriteなしdry-run、scanned-eligible-ambiguous-unowned件数照合、apply件数照合、曖昧・未帰属隔離、更新競合を上書きしないmigration単位rollbackを持つ",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-006" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "移行" }],
+        "code_refs": [{ "file": "scripts/run-canonical-task-postgres-migration-workflow.js" }],
+        "test_refs": [{ "file": "tests/server/scripts/run-canonical-task-postgres-migration-workflow.test.js", "case": "planned Red extension: AC-006 dry-run counts quarantine and rollback" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/scripts/run-canonical-task-postgres-migration-workflow.test.js", "must_cover": "migration" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-101",
+      "type": "contract",
+      "statement": "Workspace Connection Registryはconnection_id、tenant_id、provider、installation_id、workspace_id、app_id、scopes、status、revision、opaque credential_handleを正本objectとして保持する",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-101" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "Workspace Connection" }],
+        "code_refs": [{ "file": "server/services/account/account-repository.js" }],
+        "test_refs": [{ "file": "tests/account/pg/pg-account-repository-contract.test.js", "case": "planned Red extension: AC-101 canonical external workspace relationship" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/account/pg/pg-account-repository-contract.test.js", "must_cover": "account" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-102",
+      "type": "contract",
+      "statement": "1 tenantは複数workspace connectionを持て、同一provider-workspace-appの再installはconnection_idを維持してrevisionを増やし、旧revisionとrevoked connectionを認可に使わない",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-102" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "Workspace Connection" }],
+        "code_refs": [{ "file": "server/services/account/account-repository.js" }],
+        "test_refs": [{ "file": "tests/account/scenarios/s-3-revoke.test.js", "case": "planned Red extension: AC-102 multi-workspace reinstall and revoke history" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/account/scenarios/s-3-revoke.test.js", "must_cover": "revoke" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-103",
+      "type": "contract",
+      "statement": "connectionのinstallation ID、workspace ID、app ID、scope、status、revisionはimmutable履歴と監査eventで追跡可能にする",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-103" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "Workspace Connection" }],
+        "code_refs": [{ "file": "server/services/account/account-repository.js" }],
+        "test_refs": [{ "file": "tests/account/invariants/inv-3-audit-required.test.js", "case": "planned Red extension: AC-103 audit fields and revision history" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/account/invariants/inv-3-audit-required.test.js", "must_cover": "audit" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-104",
+      "type": "invariant",
+      "statement": "token、secret、OAuth credential本文はGraph、通常DB列、通常ログ、event、Receipt、TenantContextEnvelopeへ保存せず、tenant-connection-revision-deploymentへ束縛したopaque handleだけを保持する",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-104" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "Workspace Connection" }],
+        "code_refs": [{ "file": "server/services/account/account-repository.js" }],
+        "test_refs": [{ "file": "tests/account/invariants/inv-1-credential-no-secret.test.js", "case": "planned Red extension: AC-104 rejects secret material and binds opaque handles" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/account/invariants/inv-1-credential-no-secret.test.js", "must_cover": "secret" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-105",
+      "type": "contract",
+      "statement": "未登録、revoked、別tenant、別app、scope不足、revision不一致を機械判定可能なcodeで区別し、どの場合も業務処理前にfallbackなしで拒否する",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-105" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "障害の意味" }],
+        "code_refs": [{ "file": "server/services/account/account-repository.js" }],
+        "test_refs": [{ "file": "tests/account/invariants/inv-4-scope-integrity.test.js", "case": "planned Red extension: AC-105 classified fail-closed matrix" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/account/invariants/inv-4-scope-integrity.test.js", "must_cover": "scope" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-201",
+      "type": "contract",
+      "statement": "Contract Authorityはtenant別にplan、AI・tool・Container・supportのallowance、警告threshold、hard stop、overage policy、effective periodをimmutable revisionとして保持する",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-201" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "契約・利用量・Receipt" }],
+        "code_refs": [{ "file": "server/services/token-usage-service.js" }],
+        "test_refs": [{ "file": "tests/server/services/token-usage-service.test.js", "case": "planned Red extension: AC-201 plan allowances policy and effective revision" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/services/token-usage-service.test.js", "must_cover": "usage" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-202",
+      "type": "contract",
+      "statement": "Usage LedgerはAI、tool、Container、storage、retry、external APIの実消費をtenant、deployment、correlation、idempotency keyへ帰属させ、同一keyの異内容を拒否する",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-202" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "契約・利用量・Receipt" }],
+        "code_refs": [{ "file": "server/services/token-usage-service.js" }, { "file": "server/services/run-receipt/contract.js" }],
+        "test_refs": [{ "file": "tests/server/services/token-usage-service.test.js", "case": "planned Red extension: AC-202 attributes every consumer by correlation" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/services/token-usage-service.test.js", "must_cover": "token" }] },
+      "confidence": 0.98
+    },
+    {
+      "id": "BBMT-AC-203",
+      "type": "contract",
+      "statement": "QuotaDecisionはallowed、warning、hard_stopped、approval_required、unavailableを返し、50%、80%、100%等のbasis-point thresholdとoverage policyをcontract revisionに固定する",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-203" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "契約・利用量・Receipt" }],
+        "code_refs": [{ "file": "server/services/token-usage-service.js" }],
+        "test_refs": [{ "file": "tests/server/services/token-usage-service.test.js", "case": "planned Red extension: AC-203 threshold warning hard stop and overage decisions" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/services/token-usage-service.test.js", "must_cover": "usage" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-204",
+      "type": "invariant",
+      "statement": "成功・失敗・cancel・timeoutの実消費を記録し、evidence_state measured、partial、unavailableを保持して未計測quantityやcostを0へ丸めない",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-204" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "監査面" }],
+        "code_refs": [{ "file": "server/services/run-receipt/contract.js" }, { "file": "server/services/token-usage-service.js" }],
+        "test_refs": [{ "file": "tests/server/services/run-receipt-contract.test.js", "case": "planned Red extension: AC-204 failed cost and unavailable are distinct from zero" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/services/run-receipt-contract.test.js", "must_cover": "receipt" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-205",
+      "type": "contract",
+      "statement": "Billing Receiptはpurchase rate、FX、sales priceのrevision、currency、minor units、effective timestampを固定し、確定後は訂正Receiptだけで変更する",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-205" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "契約・利用量・Receipt" }],
+        "code_refs": [{ "file": "server/services/run-receipt/contract.js" }],
+        "test_refs": [{ "file": "tests/server/services/run-receipt-contract.test.js", "case": "planned Red extension: AC-205 historical purchase fx and sales revisions" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/services/run-receipt-contract.test.js", "must_cover": "receipt" }] },
+      "confidence": 0.98
+    },
+    {
+      "id": "BBMT-AC-301",
+      "type": "contract",
+      "statement": "Brainbase Cloudと互換OSSはservice authentication、authorization、TenantContextEnvelope、minimum Receipt、application/problem+json ErrorEnvelopeを同じ意味で提供する",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-301" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "Cloud／OSS共通契約" }],
+        "code_refs": [{ "file": "server/routes/knowledge-events.js" }],
+        "test_refs": [{ "file": "tests/server/routes/auth-service-token.test.js", "case": "planned Red extension: AC-301 cloud and oss fixture parity" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/routes/auth-service-token.test.js", "must_cover": "service" }] },
+      "confidence": 0.98
+    },
+    {
+      "id": "BBMT-AC-302",
+      "type": "contract",
+      "statement": "runtime negotiate APIはclientとserverのprotocol range、compatibility_until、required capability、optional capability、deployment profileを照合し、required不一致をprotocol_incompatibleで拒否する",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-302" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "Cloud／OSS共通契約" }],
+        "code_refs": [{ "file": "server/routes/knowledge-events.js" }],
+        "test_refs": [{ "file": "tests/server/routes/auth-service-token.test.js", "case": "planned Red extension: AC-302 version range required optional compatibility" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/routes/auth-service-token.test.js", "must_cover": "token" }] },
+      "confidence": 0.92
+    },
+    {
+      "id": "BBMT-AC-303",
+      "type": "invariant",
+      "statement": "cloud billing exportとmanaged operationsはoptional capabilityとし、互換OSSのminimum required contractへ混ぜず、不在時はunsupportedとして接続全体と区別する",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-303" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "Cloud／OSS共通契約" }],
+        "code_refs": [{ "file": "server/routes/knowledge-events.js" }],
+        "test_refs": [{ "file": "tests/server/routes/auth-service-token.test.js", "case": "planned Red extension: AC-303 cloud optional features are non-applicable to OSS" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/routes/auth-service-token.test.js", "must_cover": "service" }] },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-304",
+      "type": "contract",
+      "statement": "ErrorEnvelopeはcode、retryable、correlation_idとfault_domain customer_environment、brainbase_cloud、mana_runtime、protocolを持ち、障害責務を機械判定可能にする",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-304" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "障害の意味" }],
+        "code_refs": [{ "file": "server/routes/knowledge-events.js" }],
+        "test_refs": [{ "file": "tests/server/routes/knowledge-event-routes.test.js", "case": "planned Red extension: AC-304 machine-readable fault domains" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/routes/knowledge-event-routes.test.js", "must_cover": "error" }] },
+      "confidence": 0.9
+    },
+    {
+      "id": "BBMT-AC-305",
+      "type": "invariant",
+      "statement": "tenant、deployment、connection revision、credential bindingのどれかが不一致または失効したとき、別tenant、別deployment、別credential、default projectへfallbackしてはならない",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-305" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-brainbase-multitenant-platform.md", "section": "信頼境界と拒否規則" }],
+        "code_refs": [{ "file": "server/services/project-access/project-access-policy.js" }, { "file": "server/routes/knowledge-events.js" }],
+        "test_refs": [{ "file": "tests/server/services/project-access-policy.test.js", "case": "planned Red extension: AC-305 never falls back across isolation keys" }]
+      },
+      "verifiable_by": { "test_pattern": [{ "file_glob": "tests/server/services/project-access-policy.test.js", "must_cover": "access" }] },
+      "confidence": 0.99
+    }
+  ],
+  "planned_test_suites": [
+    { "layer": "unit", "covers": ["tenant lifecycle and unique resolution", "workspace connection revisions and opaque credentials", "contract quota usage and Receipt evidence states"] },
+    { "layer": "integration", "covers": ["API MCP job migration and audit boundary parity", "service auth and TenantContextEnvelope validation", "cross-tenant and cross-deployment negative matrix"] },
+    { "layer": "migration", "covers": ["dry-run count reconciliation", "ambiguous and unowned quarantine", "conflict-safe rollback"] },
+    { "layer": "contract", "covers": ["Cloud and OSS positive fixtures", "Cloud and OSS negative fixtures", "optional capability non-applicable fixtures"] }
+  ],
+  "open_questions": [
+    { "id": "BBMT-Q-001", "question": "横断レーンとtenant_id、connection_id、deployment_idのopaque ID形式を確定する", "owner": "cross-lane", "status": "open" },
+    { "id": "BBMT-Q-002", "question": "mana-runtimeが運ぶTenantContextEnvelopeのfield名、署名方式、TTL、idempotency scopeを照合する", "owner": "mana-runtime", "status": "open" },
+    { "id": "BBMT-Q-003", "question": "protocol初版、互換期間、requiredとoptional capability名をIssue #466契約と照合する", "owner": "cross-lane", "status": "open" },
+    { "id": "BBMT-Q-004", "question": "fault_domainの判定主体とcustomer_environment、brainbase_cloud、mana_runtimeの境界を照合する", "owner": "cross-lane", "status": "open" },
+    { "id": "BBMT-Q-005", "question": "usage meterとunitの共通語彙、retry二重計上防止、correlation ID生成主体を照合する", "owner": "mana-runtime", "status": "open" },
+    { "id": "BBMT-Q-006", "question": "Receipt minimum schemaとmana execution receiptからbilling Receiptへの参照方法を照合する", "owner": "cross-lane", "status": "open" },
+    { "id": "BBMT-Q-007", "question": "Secret Store opaque handleの解決をBrainbase proxyだけに限定するかmana-runtimeにも許すか決定する", "owner": "security", "status": "open" },
+    { "id": "BBMT-Q-008", "question": "connection revision eventの順序、再試行、欠番回復契約を照合する", "owner": "mana-runtime", "status": "open" }
+  ]
+}
