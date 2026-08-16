@@ -46,7 +46,7 @@ import {
   type ProjectRegistrationPlan
 } from './projects.js';
 import { renderGuidedFirstRun, type GuidedTarget } from './guided-onboarding.js';
-import { blockedJudgmentOutput, runJudgmentHost, type JudgmentHookPayload } from './judgment-host.js';
+import { blockedJudgmentOutput, processJudgmentHook, type JudgmentHookPayload } from './judgment-host.js';
 import type { DecisionRecord, GraphEntity, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -128,9 +128,7 @@ async function judgmentHook(io: CliIo): Promise<number> {
   try {
     const input = await readHookStdin(io.stdin ?? process.stdin);
     const payload = JSON.parse(input || '{}') as JudgmentHookPayload;
-    const eventName = payload.hook_event_name ?? payload.hookEventName ?? 'UserPromptSubmit';
-    if (eventName !== 'UserPromptSubmit') return 0;
-    write(io, `${JSON.stringify(await runJudgmentHost(payload))}\n`);
+    write(io, `${JSON.stringify(await processJudgmentHook(payload))}\n`);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     write(io, `${JSON.stringify(blockedJudgmentOutput(reason))}\n`);
@@ -142,15 +140,18 @@ async function judgmentInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const target = first(parsed, 'target');
   if (target !== 'codex') throw new Error('judgment:install currently requires --target codex');
   const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
+  const hook = {
+    hooks: [{
+      type: 'command',
+      command: `${JSON.stringify(process.execPath)} ${JSON.stringify(cliPath)} judgment:hook`,
+      statusMessage: 'brainbase judgment resolver'
+    }]
+  };
   const payload = `${JSON.stringify({
     hooks: {
-      UserPromptSubmit: [{
-        hooks: [{
-          type: 'command',
-          command: `${JSON.stringify(process.execPath)} ${JSON.stringify(cliPath)} judgment:hook`,
-          statusMessage: 'brainbase judgment resolver'
-        }]
-      }]
+      UserPromptSubmit: [hook],
+      PostToolUse: [hook],
+      Stop: [hook]
     }
   }, null, 2)}\n`;
   const outputPath = first(parsed, 'output');

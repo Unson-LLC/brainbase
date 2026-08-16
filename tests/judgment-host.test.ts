@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -6,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildJudgmentRequest,
   buildOwnerReferenceLine,
+  canonicalJson,
+  processJudgmentHook,
   resolveLocalJudgment,
   runJudgmentHost,
   type JudgmentReceipt
@@ -13,6 +16,21 @@ import {
 import { runCli } from '../src/cli.js';
 
 const dirs: string[] = [];
+
+function digest(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function episodePaths(journal: string, sessionId: string, turnId: string) {
+  const directory = join(journal, digest(sessionId));
+  const turnRef = digest(turnId);
+  return {
+    directory,
+    episode: join(directory, `${turnRef}.episode.json`),
+    events: join(directory, `${turnRef}.events`),
+    final: join(directory, `${turnRef}.final.json`)
+  };
+}
 
 async function tempDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'brainbase-judgment-'));
@@ -161,7 +179,8 @@ describe('portable Judgment Resolver Host contract', () => {
     );
 
     const [sessionDirectory] = await readdir(env.BRAINBASE_JUDGMENT_JOURNAL_DIR);
-    const [journalName] = await readdir(join(env.BRAINBASE_JUDGMENT_JOURNAL_DIR, sessionDirectory));
+    const [journalName] = (await readdir(join(env.BRAINBASE_JUDGMENT_JOURNAL_DIR, sessionDirectory)))
+      .filter((name) => /^[a-f0-9]{64}\.json$/u.test(name));
     const adoption = JSON.parse(await readFile(
       join(env.BRAINBASE_JUDGMENT_JOURNAL_DIR, sessionDirectory, journalName),
       'utf8'
@@ -220,7 +239,8 @@ describe('portable Judgment Resolver Host contract', () => {
     };
     const first = await runJudgmentHost(payload, { env });
     const [sessionDirectory] = await readdir(journal);
-    const [journalName] = await readdir(join(journal, sessionDirectory));
+    const [journalName] = (await readdir(join(journal, sessionDirectory)))
+      .filter((name) => /^[a-f0-9]{64}\.json$/u.test(name));
     const path = join(journal, sessionDirectory, journalName);
     const adoption = JSON.parse(await readFile(path, 'utf8'));
     delete adoption.receipt_digest;
@@ -298,10 +318,158 @@ describe('portable Judgment Resolver Host contract', () => {
     await runJudgmentHost(payload, { env });
     const [sessionDirectory] = await readdir(journal);
     const directory = join(journal, sessionDirectory);
-    const [entry] = await readdir(directory);
+    const [entry] = (await readdir(directory)).filter((name) => /^[a-f0-9]{64}\.json$/u.test(name));
     await writeFile(join(directory, entry), '{broken');
 
     await expect(runJudgmentHost(payload, { env })).rejects.toThrow(/judgment_journal_corrupt/u);
+  });
+
+  it('binds UserPromptSubmit, ordered PostToolUse events, and Stop to one portable episode without exposing the full route receipt', async () => {
+    const root = await tempDir();
+    const journal = join(root, 'journal');
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
+    const identity = { session_id: 'session-episode', turn_id: 'turn-1', cwd: root };
+    const resolver = vi.fn(async (request) => resolveLocalJudgment(request, {
+      now: () => new Date('2026-08-09T00:00:00.000Z'),
+      id: () => 'receipt-episode'
+    }));
+
+    const started = await processJudgmentHook({
+      hook_event_name: 'UserPromptSubmit',
+      prompt: 'Resolverを実装して',
+      ...identity
+    }, { env, resolver });
+    await processJudgmentHook({
+      hook_event_name: 'PostToolUse',
+      tool_use_id: 'tool-a',
+      tool_name: 'brainbase_knowledge_resolve',
+      tool_input: { intent: 'project context' },
+      tool_response: { content: [{ type: 'text', text: 'resolved' }] },
+      ...identity
+    }, { env, resolver });
+    await processJudgmentHook({
+      hook_event_name: 'PostToolUse',
+      tool_use_id: 'tool-b',
+      tool_name: 'get_entity',
+      tool_input: { entity_type: 'project', entity_id: 'brainbase' },
+      tool_response: { content: [{ type: 'text', text: 'project' }] },
+      ...identity
+    }, { env, resolver });
+    const finalized = await processJudgmentHook({
+      hook_event_name: 'Stop',
+      last_assistant_message: '実装しました。',
+      ...identity
+    }, { env, resolver });
+    const replayed = await processJudgmentHook({
+      hook_event_name: 'Stop',
+      last_assistant_message: '実装しました。',
+      ...identity
+    }, { env, resolver });
+
+    expect(resolver).toHaveBeenCalledTimes(1);
+    expect(started).toMatchObject({ continue: true, receipt: { resolution_id: 'receipt-episode' } });
+    const context = started.hookSpecificOutput?.additionalContext ?? '';
+    expect(context).toContain('active_node_definitions');
+    expect(context).toContain('audit_contract');
+    expect(context).not.toContain('Accepted judgment receipt:');
+    expect(context).not.toContain('receipt-episode');
+    expect(finalized).toEqual(replayed);
+
+    const paths = episodePaths(journal, identity.session_id, identity.turn_id);
+    const episode = JSON.parse(await readFile(paths.episode, 'utf8'));
+    const final = JSON.parse(await readFile(paths.final, 'utf8'));
+    const eventNames = (await readdir(paths.events)).sort();
+    const events = await Promise.all(eventNames.map(async (name) => JSON.parse(await readFile(join(paths.events, name), 'utf8'))));
+    expect(events.map((event) => event.sequence)).toEqual([1, 2]);
+    expect(events.map((event) => event.tool_use_id)).toEqual(['tool-a', 'tool-b']);
+    expect(final).toMatchObject({
+      schema_version: 'brainbase-judgment-final-v1',
+      initial_receipt_digest: episode.initial_receipt_digest,
+      event_count: 2
+    });
+    expect(final.event_set_digest).toBe(digest(canonicalJson(events)));
+  });
+
+  it('replays an identical tool_use_id idempotently', async () => {
+    const root = await tempDir();
+    const journal = join(root, 'journal');
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
+    const identity = { session_id: 'session-replay-event', turn_id: 'turn-1', cwd: root };
+    await processJudgmentHook({ hook_event_name: 'UserPromptSubmit', prompt: '実装して', ...identity }, { env });
+    const eventPayload = {
+      hook_event_name: 'PostToolUse',
+      tool_use_id: 'tool-stable',
+      tool_name: 'get_entity',
+      tool_input: { entity_type: 'project', entity_id: 'brainbase' },
+      tool_response: { content: [{ type: 'text', text: 'project' }] },
+      ...identity
+    };
+
+    const first = await processJudgmentHook(eventPayload, { env });
+    const second = await processJudgmentHook(eventPayload, { env });
+    await processJudgmentHook({ hook_event_name: 'Stop', last_assistant_message: 'done', ...identity }, { env });
+
+    expect(second).toEqual(first);
+    const paths = episodePaths(journal, identity.session_id, identity.turn_id);
+    expect(await readdir(paths.events)).toHaveLength(1);
+    const final = JSON.parse(await readFile(paths.final, 'utf8'));
+    expect(final.event_count).toBe(1);
+  });
+
+  it('rejects a reused tool_use_id with a different event envelope without mutating the journal', async () => {
+    const root = await tempDir();
+    const journal = join(root, 'journal');
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
+    const identity = { session_id: 'session-conflict', turn_id: 'turn-1', cwd: root };
+    await processJudgmentHook({ hook_event_name: 'UserPromptSubmit', prompt: '実装して', ...identity }, { env });
+    await processJudgmentHook({
+      hook_event_name: 'PostToolUse', tool_use_id: 'tool-reused', tool_name: 'tool-a',
+      tool_input: { value: 'A' }, tool_response: { content: [] }, ...identity
+    }, { env });
+    const paths = episodePaths(journal, identity.session_id, identity.turn_id);
+    const before = await readdir(paths.events);
+
+    await expect(processJudgmentHook({
+      hook_event_name: 'PostToolUse', tool_use_id: 'tool-reused', tool_name: 'tool-b',
+      tool_input: { value: 'B' }, tool_response: { content: [] }, ...identity
+    }, { env })).rejects.toThrow('judgment_tool_event_conflict');
+
+    expect(await readdir(paths.events)).toEqual(before);
+  });
+
+  it('fails loudly when an active episode journal is truncated', async () => {
+    const root = await tempDir();
+    const journal = join(root, 'journal');
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
+    const identity = { session_id: 'session-corrupt-episode', turn_id: 'turn-1', cwd: root };
+    await processJudgmentHook({ hook_event_name: 'UserPromptSubmit', prompt: '実装して', ...identity }, { env });
+    const paths = episodePaths(journal, identity.session_id, identity.turn_id);
+    await writeFile(paths.episode, '{broken');
+
+    await expect(processJudgmentHook({
+      hook_event_name: 'Stop', last_assistant_message: 'done', ...identity
+    }, { env })).rejects.toThrow(/judgment_journal_corrupt/u);
+    await expect(readFile(paths.final, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('rejects Stop without the matching active session and turn', async () => {
+    const root = await tempDir();
+    const journal = join(root, 'journal');
+    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
+
+    await expect(processJudgmentHook({
+      hook_event_name: 'Stop', session_id: 'orphan-session', turn_id: 'turn-1', cwd: root,
+      last_assistant_message: 'done'
+    }, { env })).rejects.toThrow('judgment_orphan_stop');
+
+    await processJudgmentHook({
+      hook_event_name: 'UserPromptSubmit', prompt: '実装して',
+      session_id: 'bound-session', turn_id: 'bound-turn', cwd: root
+    }, { env });
+    await expect(processJudgmentHook({
+      hook_event_name: 'Stop', session_id: 'bound-session', turn_id: 'other-turn', cwd: root,
+      last_assistant_message: 'done'
+    }, { env })).rejects.toThrow('judgment_orphan_stop');
   });
 
   it('binds every applicable AGENTS.md from repository root to cwd', async () => {
@@ -361,6 +529,7 @@ describe('portable Judgment Resolver Host contract', () => {
     const code = await runCli(['judgment:install', '--target', 'codex', '--dry-run'], output.io);
     expect(code).toBe(0);
     const config = JSON.parse(output.stdout());
+    expect(Object.keys(config.hooks)).toEqual(['UserPromptSubmit', 'PostToolUse', 'Stop']);
     const hook = config.hooks.UserPromptSubmit[0].hooks[0];
     expect(hook.command).toContain('judgment:hook');
     expect(JSON.stringify(config)).not.toMatch(/https?:\/\/|Infisical|Lightsail|Unson/iu);

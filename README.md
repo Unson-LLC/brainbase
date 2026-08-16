@@ -394,9 +394,9 @@ brainbase onboard:seed \
 
 ## Judgment Resolver Host (Codex preview)
 
-Brainbase includes a local Judgment Resolver core and a Codex pre-model Host adapter. The Host receives the current request and available conversation transcript before the model answers, builds one canonical context, adopts exactly one receipt for the turn, and gives the model only the selected judgment nodes to follow. It does not call a hosted Brainbase service, require a secret, or check project access.
+Brainbase includes a local Judgment Resolver core and a Codex lifecycle Host adapter. The Host starts one portable episode at `UserPromptSubmit`, appends ordered tool events at `PostToolUse`, and finalizes the same episode at `Stop`. It builds one canonical context, adopts exactly one receipt for the turn, and gives the model only the selected judgment nodes and audit contract to follow. The full route receipt remains in the local journal instead of being injected into model context. It does not call a hosted Brainbase service, require a secret, or check project access.
 
-Preview the Codex `UserPromptSubmit` hook snippet:
+Preview the Codex `UserPromptSubmit`, `PostToolUse`, and `Stop` hook snippet:
 
 ```bash
 brainbase judgment:install --target codex --dry-run
@@ -410,7 +410,7 @@ Review and merge the printed snippet into `~/.codex/hooks.json`. The command is 
 
 The line identifies the concrete current or prior user statement used as judgment evidence and the decision made from it. The excerpt is collapsed to one line, limited to 26 Unicode characters, and redacts secret-like assignments and token formats. For example, a question may show `「この仕組みを説明して」を参照 → 質問として回答 ✓`; an unresolved follow-up shows `⚠️ Brainbase参照: 「それでいい」の対象を特定できず → 確認質問` instead of looking like a successful resolution.
 
-Detailed receipts and the exact owner-visible line are journaled together under `~/.brainbase/personal-os/judgment-journal/`, keyed by session and turn. Only one receipt is adopted for a turn, and later duplicate hook calls reuse the stored line instead of rendering a possibly different summary. The line reports Resolver judgment evidence; it does not claim that Personal OS knowledge was already retrieved.
+Detailed receipts, ordered tool events, the final event snapshot, and the exact owner-visible line are journaled together under `~/.brainbase/personal-os/judgment-journal/`, keyed by session and turn. Replayed tool events with the same `tool_use_id` and content are idempotent; conflicting reuse, corrupt journals, and a `Stop` without a matching active episode fail loudly. Only one receipt is adopted for a turn, and later duplicate hook calls reuse the stored line instead of rendering a possibly different summary. The line reports Resolver judgment evidence; it does not claim that Personal OS knowledge was already retrieved.
 
 Every turn is judged, including questions and follow-up instructions. If a follow-up has no usable referent, the receipt selects clarification and the AI asks what the user meant; it does not refuse merely because classification or project context is incomplete. A receipt is judgment evidence, not permission to write files, send messages, deploy, purchase, or perform any other external effect. Normal host permissions and user approvals still apply.
 
