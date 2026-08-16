@@ -71,6 +71,14 @@ export class TenantAuthority {
         return deepFreeze(structuredClone(tenant));
     }
 
+    async resolveContext({ tenant_id, expected_tenant_revision } = {}) {
+        const tenant = this.resolveTenant({ tenant_id });
+        if (expected_tenant_revision !== undefined && tenant.tenant_revision !== expected_tenant_revision) {
+            throw new ContractError('TENANT_REVISION_MISMATCH', { status: 409 });
+        }
+        return deepFreeze({ tenant });
+    }
+
     getTenant(tenantId) {
         const tenant = this.#tenants.get(tenantId);
         return tenant ? deepFreeze(structuredClone(tenant)) : null;
