@@ -6,10 +6,12 @@
 
 - 接続済みソースを最小scopeで取り込み、候補の確認から最初の価値検証まで進めるConnected-world onboardingを追加
 - 初心者向けオンボーディングで、復旧手順とMCP導入後の次行動をより明確に表示
-- Codexのモデル生成前に、今の質問と会話履歴から1つのJudgment receiptを採用するローカルHostを追加
-- 返答の先頭に、実際に参照したユーザー発言と判断結果を `🧠 Brainbase参照:` として短く表示
+- Codexの `UserPromptSubmit`、`PostToolUse`、`Stop` を1つのportable judgment episodeとして扱うローカルHostを追加
+- 返答の先頭に、実際に参照したユーザー発言と判断結果を `🧠 判断参照:` として短く表示
+- 判断証跡と実際のBrainbase MCP呼び出しを分け、検索・取得・参照先と0回だった事実を `📚` / `⚠️` で表示
 - 参照元を特定できない追従依頼は成功に見せず、確認質問または警告として表示
-- 表示行とreceiptを同じjournalに保存し、同じturnの再実行時に表示が変わらないように更新
+- receipt、順序付きtool event、表示行を同じjournalに保存し、重複・競合・破損・orphan Stopをfail closedで処理
+- `doctor --judgment-hooks` による3 Hookの導入検証を追加
 
 ## 2026-07-10
 

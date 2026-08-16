@@ -1012,7 +1012,7 @@ function usage(): string {
   brainbase ontology:audit [--dir path] [--ontology-version 0.0.0|1.0.0]
   brainbase judgment:install --target codex [--dry-run] [--output path]
   brainbase judgment:hook
-  brainbase doctor [--dir path]
+  brainbase doctor [--dir path] [--judgment-hooks path]
 `;
 }
 

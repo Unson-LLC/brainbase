@@ -844,6 +844,15 @@ describe('portable Judgment Resolver Host contract', () => {
     });
   });
 
+  it('documents the Judgment Hook verification option in CLI help', async () => {
+    const output = capture();
+
+    expect(await runCli([], output.io)).toBe(0);
+    expect(output.stdout()).toContain(
+      'brainbase doctor [--dir path] [--judgment-hooks path]'
+    );
+  });
+
   it('redacts secrets, truncates long excerpts, and keeps the owner audit on one line', async () => {
     const root = await tempDir();
     const request = buildJudgmentRequest({

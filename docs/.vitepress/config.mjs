@@ -35,7 +35,7 @@ export default {
           text: '運用の詳細',
           items: [
             { text: 'MCPを登録する', link: '/guide/mcp-install' },
-            { text: 'AIの判断参照を確認する', link: '/guide/judgment-audit' },
+            { text: 'Judgment Hostを登録する', link: '/guide/judgment-audit' },
             { text: 'Ontology 1.0.0', link: '/guide/ontology' },
             { text: '毎日と毎週の見直し', link: '/guide/daily-routines' }
           ]
