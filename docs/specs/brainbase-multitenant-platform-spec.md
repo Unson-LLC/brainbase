@@ -1,33 +1,31 @@
 ---
 spec_id: SPEC-brainbase-multitenant-platform
 title: Brainbase Cloud／OSS共通マルチテナント契約
-status: draft
+status: final
 date: 2026-08-16
 story_id: story-brainbase-multitenant-platform
 related_adrs:
   - docs/architecture/story-brainbase-multitenant-platform.md
 implementation_files:
-  - server/services/tenant/
-  - server/services/workspace-connection/
-  - server/services/contract/
-  - server/services/usage-ledger/
-  - server/services/run-receipt/
+  - server/services/multitenant/
   - server/routes/tenant-runtime.js
   - migrations/
 test_files:
-  - tests/server/services/tenant-authority.test.js
-  - tests/server/services/workspace-connection-registry.test.js
-  - tests/server/services/tenant-authorization-boundary.test.js
-  - tests/server/services/tenant-usage-receipt.test.js
+  - tests/server/services/multitenant/tenant-authority.test.js
+  - tests/server/services/multitenant/tenant-authorization-boundary.test.js
+  - tests/server/services/multitenant/workspace-connection.test.js
+  - tests/server/services/multitenant/credential-broker.test.js
+  - tests/server/services/multitenant/contract-usage-ledger.test.js
+  - tests/server/services/multitenant/protocol-contract.test.js
+  - tests/server/services/multitenant/migration-planner.test.js
   - tests/server/routes/tenant-runtime-contract.test.js
-  - tests/migrations/tenant-backfill.test.js
 ---
 
 # Brainbase Cloud／OSS共通マルチテナント契約
 
 ## 0. 状態と境界
 
-このSpecは実装着手前のdraftである。Storyとaccepted Architectureを具体化するが、横断レーンとの照合が終わるまでプロダクションコードの正本にはしない。
+このSpecは実装着手用のfinalである。先行してVibePro draftを生成・検証した後、Storyとaccepted Architectureを具体化し、横断契約の正本入力としてmana-runtime PR #237 HEAD `ba1942e15935e00d1c603f57284439384bc95cac`のD-001〜D-009を採用した。実装開始ゲートはSpecのfingerprintとdriftを記録した時点で開くが、実装・fixture・CI・本番readbackの成功を意味しない。
 
 - Brainbaseが所有する: tenant正本、帰属、connection、credential参照、contract、quota、usage、Receipt、Cloud／OSS接続契約。
 - mana-runtimeが所有する: Slack受信、Queue／Durable Object／Container内のtenant context伝播、返信。
@@ -42,14 +40,14 @@ test_files:
 - **INV-004 Fail closed**: 未解決、複数解決、失効、改ざん、scope不足、revision不一致、正本到達不能はdefault tenantや別resourceへfallbackせず拒否する。
 - **INV-005 Non-disclosure**: 別tenant resourceへのアクセスは存在有無を漏らさず`scope_mismatch`として同じ外形で拒否する。
 - **INV-006 Opaque credential**: Brainbaseの通常DB、Graph、ログ、event、Receiptはcredential本文を保持しない。Secret Storeのtenant限定opaque handleだけを保持する。
-- **INV-007 Evidence state**: `measured`、`partial`、`unavailable`を区別し、未計測・取得不能・部分取得を0件、0円、成功へ変換しない。
+- **INV-007 Collection and outcome**: `collection_state=collected|partial|not_collected`と`outcome=succeeded|failed|cancelled|timed_out`を独立に保持し、未計測・取得不能・部分取得を0件、0円、成功へ変換しない。取得済み空結果だけは`collected`、`observed_units=0`、`failure_code=NO_DATA`とする。
 - **INV-008 Immutable accounting**: 確定Receiptは追記訂正だけを許し、当時のcontract、rate、FX revisionを保持する。
 - **INV-009 Deployment isolation**: tenant、deployment、connection、credentialのいずれかが一致しない場合、別の組み合わせへfallbackしない。
 - **INV-010 Uniform boundary**: 管理API、MCP、background job、migration、監査ログで同じtenant解決・照合規則を使う。
 
 ## 2. 識別子と共通型
 
-外部に出るIDはopaque stringとして扱う。draftの推奨形式はprefix付きULIDであるが、横断レーンで形式を照合する。
+新規の共有IDは小文字prefixと26文字の大文字Crockford ULIDで発行する。provider IDと既存Brainbase entity IDはcanonical opaque stringとしてbyte-for-byte保持し、形式を推定・変換・再発行しない。
 
 | 型 | draft形式 | 意味 |
 |---|---|---|
@@ -62,9 +60,10 @@ test_files:
 | `usage_event_id` | `use_<ULID>` | 冪等な実消費event |
 | `receipt_id` | `rcp_<ULID>` | 相関ID単位の利用証跡 |
 | `correlation_id` | `cor_<ULID>` | runtimeをまたぐ実行相関 |
-| `idempotency_key` | 1〜128文字 | producerとoperation内で一意 |
+| `operation_id` | `op_<ULID>` | 論理的な副作用1件 |
+| `idempotency_key` | `ik1_<base64url SHA-256>` | 固定導出式で生成する副作用claim key |
 | `deployment_id` | `dep_<ULID>` | Cloud／OSSの接続先instance |
-| `credential_handle` | provider opaque string | Secret Store内の参照。本文ではない |
+| `credential_ref` | provider opaque string | Brainbase credential broker内の参照。本文ではない |
 
 時刻はUTCのRFC 3339、通貨はISO 4217、金額はminor unitの整数、比率はbasis point、数量は整数またはdecimal stringで表す。JavaScriptの浮動小数金額を永続化しない。
 
@@ -116,14 +115,14 @@ DBの外部キーまたはrepository guardで親子の`tenant_id`一致を保証
   "app_id": "provider opaque id",
   "granted_scopes": ["scope:name"],
   "status": "pending|active|revoked",
-  "credential_handle": "opaque secret-store reference",
+  "credential_ref": "opaque credential-broker reference",
   "installed_at": "RFC3339",
   "revoked_at": null,
   "supersedes_connection_revision": 2
 }
 ```
 
-同じtenantは複数workspaceを持てる。同じprovider／workspace／appの再installは`connection_id`を維持してrevisionを増やす。異なるappへのinstallは別connectionとする。過去revisionは監査用に保持するが認可には使わない。`credential_handle`は`tenant_id`、`connection_id`、`connection_revision`、`deployment_id`へ束縛され、Secret Store解決時に再照合する。
+同じtenantは複数workspaceを持てる。同じprovider／workspace／appの再installは`connection_id`を維持してrevisionを増やす。異なるappへのinstallは別connectionとする。過去revisionは監査用に保持するが認可には使わない。`credential_ref`は`tenant_id`、`connection_id`、`connection_revision`、`operation_id`、`audience`、`credential_mode`へ束縛する。projection cacheは最大30秒とし、credential lease、Brainbase write、Slack deliveryの直前には`expected_connection_revision`を指定した正本readを必須にする。revision eventは単調増加するcache invalidation hintであり、不可逆な副作用を単独では許可しない。
 
 ### Contract-04: ServicePrincipalとTenantContextEnvelope
 
@@ -132,37 +131,73 @@ service tokenはcredentialとは別の短命な認証手段で、少なくとも
 ```json
 {
   "schema_version": "1.0",
+  "protocol_id": "mana-brainbase-tenant-context",
   "protocol_version": "1.0",
-  "tenant_id": "ten_<ULID>",
-  "tenant_revision": 7,
-  "actor": {
-    "principal_id": "service or person id",
-    "principal_type": "person|service",
-    "delegated_by": null
+  "issuer": "brainbase",
+  "audience": ["mana-runtime", "brainbase-api"],
+  "tenant": {
+    "tenant_id": "ten_<ULID>",
+    "tenant_revision": 7
   },
-  "deployment_id": "dep_<ULID>",
-  "connection": {
+  "workspace_connection": {
     "connection_id": "wsc_<ULID>",
-    "connection_revision": 3
+    "connection_revision": 3,
+    "status": "active",
+    "provider": "slack",
+    "installation_id": "provider opaque id",
+    "workspace_id": "provider opaque id",
+    "app_id": "provider opaque id"
   },
-  "organization_ids": ["organization id"],
-  "project_ids": ["project id"],
-  "data_scopes": ["graph:read"],
-  "capabilities": ["receipt:write"],
-  "contract_revision": 4,
+  "actor": {
+    "principal_id": "Brainbase canonical opaque id",
+    "principal_type": "person|service",
+    "authenticated_subject_id": "authenticated opaque subject"
+  },
+  "authorization": {
+    "organization_ids": ["organization opaque id"],
+    "project_ids": ["project opaque id"],
+    "data_scopes": ["graph:read"],
+    "capability_ids": ["receipt:write"]
+  },
+  "placement": {
+    "deployment_id": "dep_<ULID>",
+    "profile": "shared_cloud|dedicated_cloud|customer_managed_oss"
+  },
+  "slack": {
+    "event_id": "provider opaque id",
+    "channel_id": "provider opaque id",
+    "thread_ts": "provider opaque id",
+    "requester_id": "provider opaque id"
+  },
   "correlation_id": "cor_<ULID>",
-  "idempotency_key": "producer operation key",
+  "operation_id": "op_<ULID>",
+  "idempotency_key": "ik1_<base64url SHA-256>",
+  "contract_revision": "ctr_<ULID>",
+  "credential": {
+    "mode": "cloud_standard|customer_oauth|customer_api",
+    "credential_ref": "opaque tenant-bound reference",
+    "billing_principal_id": "Brainbase canonical opaque id"
+  },
   "issued_at": "RFC3339",
   "expires_at": "RFC3339",
   "integrity": {
-    "method": "jws|mtls-bound",
-    "key_id": "public key id only",
-    "value": "detached or compact proof"
+    "method": "jws_detached",
+    "algorithm": "EdDSA",
+    "key_id": "published public key id",
+    "value": "RFC 7515 detached compact JWS"
   }
 }
 ```
 
-Envelopeは各境界で署名／binding、期限、audience、deployment、全revisionを再検証する。cache hitでも正本revisionより古ければ拒否する。秘密値はEnvelopeへ入れない。
+Envelopeはsnake_caseのimmutable objectとし、`integrity`を除外したRFC 8785 canonical JSONをEdDSA／Ed25519 detached JWSで署名する。TTLは最大300秒、clock skewは最大30秒で、延長・mutationは禁止し、新しい解決と署名で置換する。各境界で署名、公開鍵status、issuer、audience、期限、deployment、tenant／connection revisionを再検証する。秘密値はEnvelopeへ入れない。
+
+Brainbaseは`GET /api/v1/runtime/verification-keys`でcurrentとretiringのEd25519公開鍵だけを公開する。各keyは`key_id`、`algorithm=EdDSA`、`public_key_format=jwk`、`public_key={kty:OKP,crv:Ed25519,x}`、`status=current|retiring`、有効期間を持つ。retiring keyは、そのkeyで署名した全Envelopeが期限切れになるまで公開し、private keyやsecretを返さない。
+
+### Contract-04a: Credential broker
+
+Brainbaseだけがcredential本文とOAuth refresh stateを所有する。外部runtimeはopaque `credential_ref`だけを保持し、`tenant_id + connection_id + connection_revision + operation_id + audience + credential_mode`に束縛したsingle-use lease／proxy handleを要求する。lease TTLは最大60秒で、再利用、audience違い、revision違い、mode fallbackを拒否する。providerがcredential本文を要求する場合も、trusted injectorの揮発メモリにだけmaterializeし、Queue、Durable Object、model/tool payload、disk、log、fixture、Receiptへ記録しない。
+
+OAuth refreshは`credential_ref`と`expected_refresh_revision`によるcompare-and-swapを必須とする。成功時だけrevisionを単調増加させ、競合は`OAUTH_REFRESH_CONFLICT`で拒否し、secretを含まない監査eventを残す。
 
 ### Contract-05: ContractRevision／QuotaDecision
 
@@ -196,54 +231,80 @@ QuotaDecisionは`allowed|warning|hard_stopped|approval_required|unavailable`の�
 ```json
 {
   "usage_event_id": "use_<ULID>",
-  "schema_version": "1.0",
+  "protocol_version": "1.0",
   "tenant_id": "ten_<ULID>",
-  "tenant_revision": 7,
+  "connection_id": "wsc_<ULID>",
+  "connection_revision": 7,
+  "contract_revision": "ctr_<ULID>",
   "deployment_id": "dep_<ULID>",
   "correlation_id": "cor_<ULID>",
-  "idempotency_key": "source event key",
-  "execution_outcome": "succeeded|failed|cancelled|timed_out",
-  "consumer": "ai|tool|container|storage|retry|external_api",
-  "meter": "provider-specific normalized name",
+  "operation_id": "op_<ULID>",
+  "idempotency_key": "ik1_<base64url SHA-256>",
+  "kind": "ai|tool|container|storage|retry|external_api",
   "quantity": "decimal string or null",
   "unit": "token|call|millisecond|byte|request",
-  "evidence_state": "measured|partial|unavailable",
-  "source_reference": "non-secret source receipt id",
-  "occurred_at": "RFC3339",
-  "recorded_at": "RFC3339"
+  "outcome": "succeeded|failed|cancelled|timed_out",
+  "collection_state": "collected|partial|not_collected",
+  "failure_code": "NO_DATA|UPSTREAM_UNAVAILABLE|PARTIAL_RESULT|TIMEOUT|null",
+  "observed_at": "RFC3339"
 }
 ```
 
-`measured`だけが数量確定を許す。`partial`は既知部分のquantityと欠落sourceを別フィールドで記録し、`unavailable`のquantityは`null`とする。失敗実行もeventを残す。同一producer／operationの`idempotency_key`は同一内容なら再送成功、異なる内容なら`idempotency_conflict`とする。
+`collected`だけが完全な数量確定を許す。`partial`は既知部分のquantityとunknown fieldsを分離し、`not_collected`のquantityは`null`とする。失敗実行も観測済み消費を残す。timeout／unavailableはfailure observationでありoutcomeではない。取得済み空結果は`outcome=succeeded`、`collection_state=collected`、`quantity=0`、`failure_code=NO_DATA`とする。
 
-### Contract-07: BillingReceipt
+### Contract-07: OperationReceipt
 
 ```json
 {
   "receipt_id": "rcp_<ULID>",
-  "receipt_revision": 1,
+  "protocol_version": "1.0",
   "tenant_id": "ten_<ULID>",
+  "connection_id": "wsc_<ULID>",
+  "connection_revision": 7,
+  "contract_revision": "ctr_<ULID>",
   "deployment_id": "dep_<ULID>",
   "correlation_id": "cor_<ULID>",
-  "execution_outcome": "succeeded|failed|cancelled|timed_out",
-  "evidence_state": "measured|partial|unavailable",
-  "usage_event_ids": ["use_<ULID>"],
-  "contract_revision": 4,
-  "rate_card_revision": 8,
-  "fx_table_revision": 5,
-  "cost": {
+  "operation_ids": ["op_<ULID>"],
+  "idempotency_keys": ["ik1_<base64url SHA-256>"],
+  "actor_principal_id": "Brainbase canonical opaque id",
+  "project_id": "Brainbase canonical opaque id",
+  "capability_id": "task.write",
+  "quota_decision": "allowed|warning|hard_stopped|approval_required|unavailable",
+  "credential_mode": "cloud_standard|customer_oauth|customer_api",
+  "outcome": "succeeded|failed|cancelled|timed_out",
+  "failure_code": null,
+  "usage": {
+    "collection_state": "collected|partial|not_collected",
+    "observed_units": "decimal string or null",
+    "unknown_fields": []
+  },
+  "reply": {
+    "state": "not_requested|pending|succeeded|failed"
+  },
+  "pricing_snapshot": {
+    "rate_card_revision": 8,
+    "fx_table_revision": 5,
+    "sales_price_revision": 3,
     "purchase_currency": "USD",
     "purchase_minor_units": 123,
     "billing_currency": "JPY",
     "billing_minor_units": 190,
-    "fx_rate_decimal": "150.1234"
+    "fx_rate_decimal": "150.1234",
+    "effective_at": "RFC3339"
   },
-  "pricing_effective_at": "RFC3339",
   "finalized_at": "RFC3339"
 }
 ```
 
-`partial|unavailable`では未知の金額を`0`にせず、未知フィールドを`null`、既知部分を`known_cost`として分離する。確定後の単価・為替変更は既存Receiptを書き換えず、訂正Receiptで参照する。
+`partial|not_collected`では未知の金額を`0`にせず、未知フィールドを`null`、既知部分だけを保存する。Receiptはfinalize後immutableで、訂正Receiptだけが既存Receiptを参照できる。terminal claimとReceiptは最低30日保持する。
+
+### Contract-08: Business-effect idempotency ledger
+
+`LP(v) = uint32be(UTF-8 byte length of v) || UTF-8(v)`とし、次の式だけをcanonical key生成に使う。
+
+`ik1_ + base64url_without_padding(SHA-256(LP(protocol_id) || LP(protocol_major) || LP(tenant_id) || LP(connection_id) || LP(slack_event_id) || LP(operation_id)))`
+
+同じaccepted Slack eventは同じ`correlation_id`を維持し、論理的な副作用ごとに安定した`operation_id`を持つ。Brainbase writeとSlack deliveryは別operation ID／別claimとする。claimは`pending|claimed|succeeded|failed_terminal`で、同一key・同一payload/context hashはreplay-safe、claim後のpayload hashまたはcontext hash不一致は`IDEMPOTENCY_CONFLICT`で追加副作用0件のまま拒否する。
 
 ## 4. API契約
 
@@ -255,21 +316,25 @@ QuotaDecisionは`allowed|warning|hard_stopped|approval_required|unavailable`の�
 |---|---|---|---|
 | `POST /api/v1/tenants` | display name、owner principal | `201 Tenant` | invalid principal、duplicate idempotency |
 | `PATCH /api/v1/tenants/{tenant_id}` | expected revision、状態変更 | `200 Tenant` | revision mismatch、invalid transition |
-| `POST /api/v1/tenants/{tenant_id}/workspace-connections` | provider installation metadata、credential handle | `201 WorkspaceConnection` | wrong tenant／app、secret-like payload |
+| `POST /api/v1/tenants/{tenant_id}/workspace-connections` | provider installation metadata、credential ref | `201 WorkspaceConnection` | wrong tenant／app、secret-like payload |
 | `POST /api/v1/tenants/{tenant_id}/workspace-connections/{connection_id}:revoke` | expected revision、reason | `200 WorkspaceConnection` | stale revision、wrong tenant |
 | `PUT /api/v1/tenants/{tenant_id}/contracts/{contract_id}/revisions/{revision}` | immutable contract revision | `201 ContractRevision` | overlapping active period、invalid threshold |
-| `GET /api/v1/tenants/{tenant_id}/receipts/{receipt_id}` | tenant-scoped id | `200 BillingReceipt` | cross-tenant resource is non-disclosing denial |
+| `GET /api/v1/tenants/{tenant_id}/receipts/{receipt_id}` | tenant-scoped id | `200 OperationReceipt` | cross-tenant resource is non-disclosing denial |
 
 ### 外部runtime API
 
 | method／path | 入力 | 成功 | 意味 |
 |---|---|---|---|
 | `POST /api/v1/runtime/negotiate` | protocol range、required／optional capabilities、deployment | `200 NegotiationResult` | 共通契約を開始する前のversion交渉 |
+| `GET /api/v1/runtime/verification-keys` | なし | `200 VerificationKeySet` | current／retiring Ed25519公開鍵だけを返す |
 | `POST /api/v1/runtime/tenant-context:resolve` | signed service identity、connection selector、requested scopes | `200 TenantContextEnvelope` | Tenant Authorityで一意解決 |
+| `POST /api/v1/runtime/workspace-connections:validate-revision` | tenant、connection、expected revision、workspace／app | `200 RevisionValidation` | 不可逆副作用直前のauthoritative conditional read |
+| `POST /api/v1/runtime/credential-leases` | Envelope、operation、audience、mode | `201 CredentialLease` | 最大60秒・single-useのopaque lease／proxy handle |
+| `POST /api/v1/runtime/oauth-refresh:compare-and-swap` | credential ref、expected refresh revision、new opaque ref | `200 RefreshState` | Brainbase所有の競合安全なrefresh |
 | `POST /api/v1/runtime/quota:decide` | Envelope、metric、requested quantity | `200 QuotaDecision` | contract revisionを固定した判断 |
 | `POST /api/v1/runtime/usage-events` | Envelope、UsageEvent | `202 UsageEvent` | 成否に関係なく冪等記録 |
-| `POST /api/v1/runtime/receipts:finalize` | Envelope、correlation、event set | `201 BillingReceipt` | evidence stateを保存 |
-| `GET /api/v1/runtime/receipts/{receipt_id}` | Envelope | `200 BillingReceipt` | tenant／deployment／correlationを照合 |
+| `POST /api/v1/runtime/operation-receipts:finalize` | Envelope、correlation、operation／usage set | `201 OperationReceipt` | outcomeとcollection stateを分離して保存 |
+| `GET /api/v1/runtime/operation-receipts/{receipt_id}` | Envelope | `200 OperationReceipt` | tenant／deployment／correlationを照合 |
 
 `tenant-context:resolve`のselectorは`connection_id + connection_revision`、または管理面で事前登録したexternal mapping keyだけを許す。workspace ID単体から曖昧候補を選ばない。
 
@@ -290,7 +355,7 @@ QuotaDecisionは`allowed|warning|hard_stopped|approval_required|unavailable`の�
 }
 ```
 
-外部へ許す`code`は`not_found`、`ambiguous`、`revoked`、`scope_mismatch`、`revision_mismatch`、`integrity_failed`、`upstream_unavailable`、`partial`、`unsupported`、`protocol_incompatible`、`quota_exceeded`、`idempotency_conflict`。別tenantのresourceは`not_found`と区別できる詳細を返さない。内部監査には非公開の判断根拠を相関IDで保存する。
+固定codeは`TENANT_UNKNOWN`、`TENANT_AMBIGUOUS`、`TENANT_CONTEXT_SIGNATURE_INVALID`、`TENANT_CONTEXT_EXPIRED`、`WORKSPACE_CONNECTION_REVOKED`、`WORKSPACE_CONNECTION_STALE_REVISION`、`WORKSPACE_CONNECTION_UNAVAILABLE`、`WORKSPACE_OR_APP_MISMATCH`、`ACTOR_SCOPE_MISMATCH`、`PROJECT_SCOPE_MISMATCH`、`CAPABILITY_SCOPE_MISMATCH`、`CROSS_TENANT_CANDIDATE`、`QUOTA_EXCEEDED`、`UPSTREAM_UNAVAILABLE`、`PARTIAL_RESULT`、`TIMEOUT`、`RETRY_EXHAUSTED`、`IDEMPOTENCY_CONFLICT`、`FALLBACK_FORBIDDEN`、`SECRET_ARTIFACT_FORBIDDEN`、`PROTOCOL_VERSION_UNSUPPORTED`、`PROTOCOL_CAPABILITY_UNSUPPORTED`、`NO_DATA`、`OAUTH_REFRESH_CONFLICT`とする。別tenantのresourceは存在有無を漏らさない。内部監査には非公開の判断根拠を相関IDで保存する。
 
 ## 5. Protocol version negotiation
 
@@ -298,26 +363,30 @@ QuotaDecisionは`allowed|warning|hard_stopped|approval_required|unavailable`の�
 
 ```json
 {
-  "selected_protocol_version": "1.0",
-  "server_supported_range": ">=1.0 <2.0",
+  "protocol_id": "mana-brainbase-tenant-context",
+  "selected_version": "1.0",
+  "supported_range": ">=1.0 <2.0",
   "compatibility_until": "RFC3339",
   "required_capabilities": [
-    "tenant_context.v1",
-    "workspace_connection_revision.v1",
-    "usage_evidence_state.v1",
-    "receipt_minimum.v1",
-    "problem_details.v1"
+    "signed_tenant_context",
+    "connection_revision_recheck",
+    "tenant_scoped_authorization",
+    "credential_broker_v1",
+    "usage_receipt_v1",
+    "idempotent_effects_v1"
   ],
   "optional_capabilities": {
-    "cloud_billing_export.v1": "available|unsupported",
-    "managed_operations.v1": "available|unsupported"
+    "cloud_billing_export": "available|non_applicable",
+    "managed_operations": "available|non_applicable",
+    "shared_cloud_rls_conformance": "available|non_applicable",
+    "cloud_standard_credential": "available|non_applicable"
   },
   "deployment_id": "dep_<ULID>",
   "deployment_profile": "shared_cloud|dedicated_cloud|customer_managed_oss"
 }
 ```
 
-required capabilityまたはversion範囲が一致しなければ`protocol_incompatible`で停止する。optional capability不在は`unsupported`として機械判定でき、接続全体は成立してよい。Cloud課金exportやmanaged operationsをOSS必須にしない。互換期間の具体日、protocol `1.0`の確定、capability名は横断レーンで照合する。
+protocol IDは`mana-brainbase-tenant-context`、currentは`1.0`、rangeは`>=1.0 <2.0`で固定する。同一major内で共通の最高minorを選び、required capability不足は`PROTOCOL_CAPABILITY_UNSUPPORTED`、major不一致は`PROTOCOL_VERSION_UNSUPPORTED`で業務処理前に停止する。silent downgradeとfallbackは禁止する。互換性廃止は最低90日前に通知する。optional capabilityだけが理由付き`non_applicable`を返せる。
 
 ## 6. Event契約
 
@@ -326,11 +395,11 @@ Brainbaseが外へ公開するeventはoutboxで冪等配信する。payloadは�
 | event_type | 発生条件 | 最低payload |
 |---|---|---|
 | `tenant.status.changed.v1` | tenant状態変更 | tenant revision、from／to status |
-| `workspace_connection.changed.v1` | install、scope変更、revoke | connection ID／revision／status。credential handleも出さない |
+| `workspace_connection.changed.v1` | install、scope変更、revoke | connection ID／revision／status。credential refも出さない |
 | `contract.revision.activated.v1` | contract適用開始 | contract ID／revision／effective period |
 | `quota.threshold.crossed.v1` | 50／80／100%等を横断 | metric、threshold、decision |
-| `usage.evidence.recorded.v1` | usage event永続化 | usage event ID、consumer、evidence state |
-| `receipt.finalized.v1` | Receipt確定 | receipt ID／revision、evidence state、outcome |
+| `usage.collection.recorded.v1` | usage event永続化 | usage event ID、kind、collection state、outcome |
+| `operation_receipt.finalized.v1` | Receipt確定 | receipt ID、collection state、outcome |
 
 consumerはevent中のtenantを信頼せず、service identity、deployment、revisionと照合する。古いrevision eventは再適用せず、欠番は正本readbackを要求する。
 
@@ -354,7 +423,7 @@ consumerはevent中のtenantを信頼せず、service identity、deployment、re
     "unowned": 0,
     "failed": 0
   },
-  "evidence_state": "measured|partial|unavailable"
+  "collection_state": "collected|partial|not_collected"
 }
 ```
 
@@ -368,30 +437,34 @@ fixtureは設計／CI証拠であり本番readbackではない。`tests/fixtures
 
 - **BBMT-P-001**: active tenant、active connectionの最新revision、正しいapp／scope／deploymentでTenant AのGraphとReceiptへ到達する。
 - **BBMT-P-002**: Tenant Aが2つのworkspace connectionを持ち、いずれも同じtenantへ一意解決される。
-- **BBMT-P-003**: reinstallでrevisionが増え、旧revisionは拒否、新revisionだけがcredential解決できる。
+- **BBMT-P-003**: reinstallでrevisionが増え、旧revisionは`WORKSPACE_CONNECTION_STALE_REVISION`、新revisionだけが最大60秒single-use credential leaseを取得できる。
 - **BBMT-P-004**: failed executionのAI／tool／retry消費が同じcorrelationでReceiptへ入る。
 - **BBMT-P-005**: Cloud／OSSの両adapterがrequired capability、ErrorEnvelope、minimum Receiptの同じfixtureを満たす。
+- **BBMT-P-006**: detached Ed25519 JWS、TTL 300秒、current／retiring key、audienceを満たすcanonical Envelopeが受理される。
 
 ### negative
 
-- **BBMT-N-001**: Tenant AのactorがTenant B resource IDを指定すると存在を漏らさず拒否する。
-- **BBMT-N-002**: workspace IDだけで複数connection候補が出た場合は`ambiguous`で拒否する。
-- **BBMT-N-003**: revoked connectionは古いcacheやdefault tenantへfallbackしない。
-- **BBMT-N-004**: connection revision不一致を`revision_mismatch`で拒否する。
-- **BBMT-N-005**: app不一致、scope不足、deployment不一致をそれぞれfail closedにする。
-- **BBMT-N-006**: credential本文らしいfieldを管理APIへ送ると保存前に拒否し、ログへ出さない。
-- **BBMT-N-007**: Tenant Authority／Contract Authority到達不能を成功やallowへ丸めない。
-- **BBMT-N-008**: `unavailable` usageをquantity 0、cost 0として確定しない。
-- **BBMT-N-009**: protocol required capability不足時に別deploymentへfallbackしない。
+- **BBMT-N-001**: 未解決／複数解決は`TENANT_UNKNOWN`／`TENANT_AMBIGUOUS`。
+- **BBMT-N-002**: JWS不正、期限切れ、TTL 301秒は`TENANT_CONTEXT_SIGNATURE_INVALID`／`TENANT_CONTEXT_EXPIRED`。
+- **BBMT-N-003**: 別tenant credential／leaseは`CROSS_TENANT_CANDIDATE`。
+- **BBMT-N-004**: revoked／stale／正本read不能は`WORKSPACE_CONNECTION_REVOKED`／`WORKSPACE_CONNECTION_STALE_REVISION`／`WORKSPACE_CONNECTION_UNAVAILABLE`。
+- **BBMT-N-005**: workspace／app、project、capability不一致はそれぞれ`WORKSPACE_OR_APP_MISMATCH`、`PROJECT_SCOPE_MISMATCH`、`CAPABILITY_SCOPE_MISMATCH`。
+- **BBMT-N-006**: credential本文らしいfieldは`SECRET_ARTIFACT_FORBIDDEN`で保存・log前に拒否する。
+- **BBMT-N-007**: Contract Authority到達不能は`UPSTREAM_UNAVAILABLE`でallowへ丸めない。
+- **BBMT-N-008**: unavailable／partial／timeoutを`UPSTREAM_UNAVAILABLE`／`PARTIAL_RESULT`／`TIMEOUT`とし、0または成功へ丸めない。
+- **BBMT-N-009**: protocol major／required capability不足は`PROTOCOL_VERSION_UNSUPPORTED`／`PROTOCOL_CAPABILITY_UNSUPPORTED`で別deploymentへfallbackしない。
 - **BBMT-N-010**: migrationの曖昧・未帰属行を通常queryから読めない。
-- **BBMT-N-011**: 同一idempotency keyの異なるpayloadを拒否する。
-- **BBMT-N-012**: expired service token、audience不一致、Envelope改ざんを業務処理前に拒否する。
+- **BBMT-N-011**: 同一idempotency keyのpayload／context hash不一致を`IDEMPOTENCY_CONFLICT`で拒否する。
+- **BBMT-N-012**: credential leaseの再利用、60秒超過、audience／mode不一致を拒否する。
+- **BBMT-N-013**: tenant、connection、credential、deployment、protocolのfallback試行を`FALLBACK_FORBIDDEN`で拒否する。
 
 ### non-applicable
 
-- **BBMT-NA-001**: OSSに`cloud_billing_export.v1`がない場合、optional capabilityを`unsupported`とし、minimum Receipt契約は通す。
-- **BBMT-NA-002**: single-tenant OSS配置でもtenant context省略は不可だが、共有Cloud固有RLS testは`not_applicable`理由付きで除外できる。
+- **BBMT-NA-001**: `customer_managed_oss`に`cloud_billing_export`、`managed_operations`、`cloud_standard_credential`がない場合、optional capabilityだけを理由付き`non_applicable`とし、minimum Receipt契約は通す。
+- **BBMT-NA-002**: single-tenant OSS配置でもtenant context省略は不可だが、共有Cloud固有RLS testは`non_applicable`理由付きで除外できる。
 - **BBMT-NA-003**: 顧客固有価格が未確定でもrate revisionのschema contractは検証し、実価格fixtureは非適用とする。
+
+tenant context、署名／時刻、revision、認可、credential scope、isolation、idempotency、failure semantics、Usage／Receipt、fallback禁止はCloud／OSSとも常に必須で、`non_applicable`にできない。全fixtureのruntime／本番実行証拠は作成時点で`not_collected`とする。
 
 ## 9. Anti-patterns
 
@@ -411,12 +484,14 @@ fixtureは設計／CI証拠であり本番readbackではない。`tests/fixtures
 
 | test file | 最初のRed | 主な対象 |
 |---|---|---|
-| `tests/server/services/tenant-authority.test.js` | Tenant Authority module／schemaが存在せず失敗 | tenant lifecycle、一意解決、状態、ID非推定 |
-| `tests/server/services/tenant-authorization-boundary.test.js` | 現行authがorganization／tenantをfallbackし越境fixtureを拒否できず失敗 | API、MCP、job、Graph、projectの同一境界 |
-| `tests/server/services/workspace-connection-registry.test.js` | connection revision／reinstall／credential bindingが未実装で失敗 | connection正本、opaque handle、scope、revoke |
-| `tests/server/services/tenant-usage-receipt.test.js` | Run Receiptにtenant／evidence state／rate revisionがなく失敗 | contract、quota、usage、Receipt |
+| `tests/server/services/multitenant/tenant-authority.test.js` | Tenant Authority module／schemaが存在せず失敗 | tenant lifecycle、一意解決、状態、ID非推定 |
+| `tests/server/services/multitenant/tenant-authorization-boundary.test.js` | 現行authがorganization／tenantをfallbackし越境fixtureを拒否できず失敗 | API、MCP、job、Graph、projectの同一境界 |
+| `tests/server/services/multitenant/workspace-connection.test.js` | connection revision／reinstall／credential bindingが未実装で失敗 | connection正本、opaque credential ref、scope、revoke |
+| `tests/server/services/multitenant/credential-broker.test.js` | single-use lease／OAuth refresh CASが存在せず失敗 | opaque ref、最大60秒lease、operation／audience束縛、CAS |
+| `tests/server/services/multitenant/contract-usage-ledger.test.js` | canonical UsageEvent／OperationReceipt、collection stateとoutcome分離、rate revisionがなく失敗 | contract、quota、usage、Receipt、business-effect ledger |
+| `tests/server/services/multitenant/protocol-contract.test.js` | canonical Envelope検証／protocol negotiationが存在せず失敗 | Ed25519、TTL、Cloud／OSS、failure分類 |
 | `tests/server/routes/tenant-runtime-contract.test.js` | negotiate／tenant-context APIがなく404で失敗 | service auth、Cloud／OSS共通contract、failure分類 |
-| `tests/migrations/tenant-backfill.test.js` | tenant列／dry-run／quarantine／rollbackがなく失敗 | 既存データ移行 |
+| `tests/server/services/multitenant/migration-planner.test.js` | tenant列／dry-run／quarantine／rollbackがなく失敗 | 既存データ移行 |
 
 Redの成立条件は「新contractがないため期待した箇所で失敗する」ことであり、環境変数不足、外部サービス停止、秘密値不足による失敗はRed証拠にしない。各Redを確認後、slice単位で最小実装し、Green、既存回帰、Refactorへ進む。
 
@@ -438,9 +513,9 @@ Redの成立条件は「新contractがないため期待した箇所で失敗す
 | `AC-201` | Contract-05 | `tenant-usage-receipt: stores plan allowances and policy` | tenant別Contract Authorityがない |
 | `AC-202` | Contract-06、BBMT-P-004 | `tenant-usage-receipt: attributes every consumer by correlation` | token集計はあるがtenant ledgerがない |
 | `AC-203` | Contract-05、quota event | `tenant-usage-receipt: 50 80 100 and overage decisions` | quota policy／decisionがない |
-| `AC-204` | INV-007、Contract-06／07、BBMT-N-008 | `tenant-usage-receipt: failed cost and unavailable are distinct` | Run Receiptにevidence stateがない |
+| `AC-204` | INV-007、Contract-06／07、BBMT-N-008 | `tenant-usage-receipt: failed cost and not_collected are distinct` | OperationReceiptにcollection state分離がない |
 | `AC-205` | INV-008、Contract-05／07 | `tenant-usage-receipt: historical rate fx sales revisions` | rate／FX／販売価格revisionがない |
-| `AC-301` | Contract-04〜07、BBMT-P-005 | `tenant-runtime-contract: cloud and oss fixture parity` | 共通runtime APIがない |
+| `AC-301` | Contract-04〜08、BBMT-P-005／006 | `tenant-runtime-contract: cloud and oss fixture parity` | 共通runtime APIがない |
 | `AC-302` | Protocol negotiation、BBMT-N-009 | `tenant-runtime-contract: version range required optional compatibility` | negotiation endpoint／capability schemaがない |
 | `AC-303` | Protocol negotiation、BBMT-NA-001／003 | `tenant-runtime-contract: cloud optional features are non-applicable` | Cloud／OSS capability分類がない |
 | `AC-304` | ErrorEnvelope | `tenant-runtime-contract: machine-readable fault domains` | 現行errorに統一fault domainがない |
@@ -448,20 +523,21 @@ Redの成立条件は「新contractがないため期待した箇所で失敗す
 
 21件すべてが最低1つのclauseとplanned testへ対応する。VibePro機械Specでは同じAC IDを`story_refs`へ保持する。
 
-## 12. 横断レーンとの照合待ち
+## 12. 横断契約の固定判断
 
-次は意図を確定しているが、名前・形式・versionをBrainbase単独でfinalにしない。
+| ID | Brainbase実装入力 |
+|---|---|
+| D-001 | canonical snake_case Envelope、RFC 8785、detached JWS EdDSA／Ed25519、TTL最大300秒、skew 30秒、current／retiring公開鍵 |
+| D-002 | 新規共有IDは小文字prefix＋大文字Crockford ULID、既存Brainbase／provider IDはopaque、`op_<ULID>`追加 |
+| D-003 | ordered revision event＋副作用直前のauthoritative expected-revision read、cache最大30秒 |
+| D-004 | `mana-brainbase-tenant-context`、current `1.0`、`>=1.0 <2.0`、最高共通minor、最低90日互換通知 |
+| D-005 | Brainbaseがcredential／refresh sole owner、最大60秒single-use lease、OAuth refresh CAS |
+| D-006 | Brainbaseがquota、UsageEvent、OperationReceipt、business-effect ledger owner、固定length-prefixed key、terminal claim最低30日 |
+| D-007 | `collection_state`と`outcome`を分離、取得済み空は`NO_DATA` |
+| D-008 | BrainbaseはContainer実装を所有せず、sanitization statusがあればReceipt evidenceとしてのみ受理 |
+| D-009 | wire profileは`customer_managed_oss`、明示optional capabilityだけ理由付き`non_applicable` |
 
-1. mana-runtimeが運ぶ`TenantContextEnvelope`のfield名、署名方式、TTL、idempotency scope。
-2. Issue #466横断契約の`tenant_id`、`connection_id`、`deployment_id`形式。
-3. protocol version初版、互換期間、required／optional capability名。
-4. `fault_domain`の責務境界と、customer environment／Brainbase Cloud／mana-runtimeの判定主体。
-5. usage consumer／meter／unitの共通語彙、retry二重計上防止、correlation ID生成主体。
-6. Receipt minimum schemaと、mana-runtime側execution receiptからBrainbase billing Receiptへの参照方法。
-7. Secret Store opaque handleをmana-runtimeが解決するか、Brainbase proxyだけが解決するか。
-8. connection revision変更eventの再試行・順序・欠番回復契約。
-
-照合でfield名が変わってもINV-001〜010の意味は変えない。意味が衝突する場合はStory／Architectureへ戻して判断する。
+blocking open decisionは0件である。今後D-001〜D-009の意味を変える必要が生じた場合は、Brainbase Spec単独で変更せず横断契約へ戻して再決定する。
 
 ## 13. Verification
 
@@ -471,10 +547,9 @@ Redの成立条件は「新contractがないため期待した箇所で失敗す
 | Graphify／codebase graph差分調査 | 確認済み。現行のorganization fallback、tenant ledger不在、Receipt境界不足を確認 |
 | VibePro Spec readiness | ready |
 | 21 AC trace | 本SpecとVibePro機械Specで定義 |
-| positive／negative／non-applicable fixture | 設計済み、未実装 |
+| positive／negative／non-applicable fixture | 横断契約に追従して設計済み、実行証拠は`not_collected` |
 | TDD Red | 設計済み、未実行 |
 | unit／integration／migration／contract CI | 未実行。コード変更なし |
 | Cloud／OSS deployment readback | `not_collected` |
 | 実Slackイベント〜Receipt E2E | `not_collected` |
 | tenant別請求照合 | `not_collected` |
-
