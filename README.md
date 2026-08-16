@@ -412,6 +412,12 @@ The line identifies the concrete current or prior user statement used as judgmen
 
 Detailed receipts, ordered tool events, the final event snapshot, and the exact owner-visible line are journaled together under `~/.brainbase/personal-os/judgment-journal/`, keyed by session and turn. Replayed tool events with the same `tool_use_id` and content are idempotent; conflicting reuse, corrupt journals, and a `Stop` without a matching active episode fail loudly. Only one receipt is adopted for a turn, and later duplicate hook calls reuse the stored line instead of rendering a possibly different summary. The line reports Resolver judgment evidence; it does not claim that Personal OS knowledge was already retrieved.
 
+At `Stop`, the Host verifies that all expected audit lines appear at the beginning, exactly once, and in journal order. The first repairable failure returns one bounded block instruction and binds the non-audit answer body by digest. If the active repair changes that body or still omits the required audit contract, the hook exits nonzero with `judgment_stop_repair_exhausted` instead of completing the episode. You can verify an installed three-hook snippet together with the local Personal OS:
+
+```bash
+brainbase doctor --dir ~/.brainbase/personal-os --judgment-hooks /path/to/hooks.json
+```
+
 Every turn is judged, including questions and follow-up instructions. If a follow-up has no usable referent, the receipt selects clarification and the AI asks what the user meant; it does not refuse merely because classification or project context is incomplete. A receipt is judgment evidence, not permission to write files, send messages, deploy, purchase, or perform any other external effect. Normal host permissions and user approvals still apply.
 
 ## Install MCP Config
