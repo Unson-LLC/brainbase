@@ -137,7 +137,7 @@ export function onboardingStatus(os: PersonalOs): Record<string, unknown> {
       ready: valueDemoReady,
       missing,
       command: `brainbase onboard:demo --dir ${shellArg(os.dataDir)} --scenario "<real request>"`,
-      completionSignal: valueDemoReady ? 'first_value_demo_ready' : 'needs_seed'
+      completionSignal: valueDemoReady ? 'cli_sample_ready' : 'needs_seed'
     },
     operationalization,
     counts: {

@@ -8,12 +8,13 @@ BrainbaseのCLIは、オンボーディング、情報源の整理、Skillsと�
 
 パッケージとしてインストールした場合は、すべて `brainbase <command>` で実行できます。
 
-`brainbase --help`はデータを書き込まず、最短の3ステップを先頭に表示します。
+`brainbase --help`はデータを書き込まず、実エージェントで本人が価値を判断するまでの5ステップを先頭に表示します。
 
 ```bash
 brainbase onboard:start --target codex
 # 表示された onboard:seed を確認して実行
-brainbase onboard:demo --scenario "実際に試す依頼"
+brainbase onboard:install --target codex --dry-run
+# 設定反映・再起動後、実エージェントでget_context/searchを使って依頼し、本人が役立ったか判断
 ```
 
 ## 導入
@@ -24,7 +25,7 @@ brainbase onboard:demo --scenario "実際に試す依頼"
 | `onboard:init` | 最小の正本ファイルを作る | 空ファイルだけ作る |
 | `onboard:seed` | 承認した自分、価値観、関係性などを登録する | する |
 | `onboard:projects` | プロジェクト、関係者、関係性の登録内容を確認する | `--write` の時だけする |
-| `onboard:demo` | 登録した文脈で最初の価値を試す | しない |
+| `onboard:demo` | 登録した文脈から作れるCLIサンプルを任意でプレビューする | しない |
 
 ```bash
 npm run onboard:start -- --target codex
@@ -34,7 +35,7 @@ node dist/cli.js onboard:projects --name "プロジェクト" --goal "目的"
 npm run onboard:demo -- --scenario "実際に試す依頼"
 ```
 
-`onboard:start`と`onboard:demo`は、通常は現在地と次の一手だけを表示します。保存候補、情報源、運用化を含む全項目は`--details`で表示できます。
+`onboard:start`と`onboard:demo`は、通常は現在地と次の一手だけを表示します。`onboard:demo`の`cli_sample_ready`は実エージェント接続前のプレビュー準備完了であり、初回価値の達成ではありません。
 
 `onboard:seed`の関係者は`"人|役割|覚えておく文脈"`形式です。不正な入力は保存前に拒否され、既に入力した名前、価値観、プロジェクト、判断基準、正しい関係者を保持した再実行コマンドが表示されます。
 

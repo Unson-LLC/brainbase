@@ -1,0 +1,27 @@
+{
+  "id": "after-02-start",
+  "invocation_kind": "child_process.spawn",
+  "executable": "<isolated-run-root>/consumer/node_modules/.bin/brainbase",
+  "args": [
+    "onboard:start",
+    "--target",
+    "codex",
+    "--dir",
+    "<isolated-run-root>/personal-os",
+    "--name",
+    "佐藤",
+    "--value",
+    "同じ前提を説明し直さず、事実と未確認を分ける",
+    "--project",
+    "Atlas導入",
+    "--decision-principle",
+    "実測と利用者成果を分けて判断する",
+    "--stakeholder",
+    "田中|最終判断者|Atlas導入の承認を担当"
+  ],
+  "cwd": "<isolated-run-root>/consumer",
+  "exit_code": 0,
+  "duration_ms": 648,
+  "stdout": "# Brainbase 初回オンボーディング\n\n- 状態: 最小文脈の保存待ち\n- データ: `<isolated-run-root>/personal-os`\n- 不足: 本人の前提、今の仕事、関係者\n\n## 次に実行\n`brainbase onboard:seed --dir <isolated-run-root>/personal-os --name \"佐藤\" --value \"同じ前提を説明し直さず、事実と未確認を分ける\" --project \"Atlas導入\" --decision-principle \"実測と利用者成果を分けて判断する\" --relationship \"田中|最終判断者|Atlas導入の承認を担当\"`\n\n## 確認できる価値\nAtlas導入と田中さんの文脈を説明し直さなくても、相談論点が出ること。\n\n- この案内だけではデータを書き込みません。seed実行時も既存データは削除しません。\n- 詳細を見る: `brainbase onboard:start --target codex --dir <isolated-run-root>/personal-os --details`\n",
+  "stderr": ""
+}

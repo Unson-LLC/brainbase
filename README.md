@@ -28,17 +28,19 @@ npm run onboard:start -- --target codex
 
 `onboard:start`は日本語の初回導入コマンドです。最小ディレクトリだけを作り、本人、プロジェクト、関係者、判断、メール、カレンダー、ドライブ、タスクの事実は、利用者が承認するまで保存しません。通常表示は次の一手だけに絞り、全項目は`--details`で確認できます。
 
-公開CLIをインストール済みなら、次の3ステップです。
+公開CLIをインストール済みなら、次の5ステップです。
 
 ```bash
 brainbase onboard:start --target codex
 # 表示された onboard:seed を確認して実行
-brainbase onboard:demo --scenario "実際に試す依頼"
+brainbase onboard:install --target codex --dry-run
+# 設定を承認・反映し、Codexを再起動
+# 新しいCodexでBrainbaseのget_context/searchを使って実際の依頼を試す
 ```
 
-リポジトリをcloneした場合は、同じ流れを`npm run onboard:start -- --target codex`、表示された`npm run`コマンド、`npm run onboard:demo -- --scenario "実際に試す依頼"`で進めます。
+リポジトリをcloneした場合も、`npm run onboard:start -- --target codex`から同じ順序で進めます。
 
-利用者がBrainbaseの導入を依頼したら、エージェントはチェックリストを返すだけでなく、この公開CLIを実行します。最小文脈を確認し、承認された事実だけを`onboard:seed`で保存し、現実の依頼で`onboard:demo`を実行します。プロンプト、出力、説明し直さずに済んだ前提、まだ終わっていない運用化を分けて示します。`ready: true`、`first_value_demo_ready`、Skillsやルーティンの生成、`onboard:install --dry-run`だけでは導入完了ではありません。
+利用者がBrainbaseの導入を依頼したら、エージェントはチェックリストを返すだけでなく、この公開CLIを実行します。承認された最小文脈を保存し、MCP設定を反映した新しい実エージェントで`get_context`と`search`を使って現実の依頼へ回答します。その実回答を見た本人が「役立った」と判断して初めて初回価値です。`ready: true`、`cli_sample_ready`、CLIの処理時間、合成ペルソナ評価、Skillsやルーティンの生成、`onboard:install --dry-run`だけでは導入完了ではありません。
 
 For a Google Workspace / Google Drive / local-notes setup, pass the known answers and let the command surface what still needs approval:
 
@@ -83,21 +85,22 @@ brainbase onboard:seed \
   --relationship "Key Partner|collaborator|Context you want AI tools to remember"
 ```
 
-Run the first value demo with a real request. This is the onboarding completion signal:
+Optionally preview the saved context locally. This is not an onboarding completion signal:
 
 ```bash
 brainbase onboard:demo --scenario "Draft the first note I should send to Key Partner about Current project"
 ```
 
-`onboard:demo` reads only locally saved, approved facts. It does not call an LLM, hosted backend, or raw source collector. If it returns `ready: true`, the agent still needs to show the try-this prompt, sample result, and plain-language value: the user did not have to explain the saved work premise or person context again.
+`onboard:demo` reads only locally saved, approved facts. It does not call an LLM, an agent, or a hosted backend. Its result is only a preview. Continue through MCP installation, restart the selected agent, make a real request using `get_context` and `search`, and ask the user whether that actual answer was useful.
 
-After the demo, keep onboarding open until the operationalization checklist is either completed or explicitly deferred:
+After the demo, keep onboarding open: the preview is not the first-value gate. Continue until a real agent uses Brainbase and the human user confirms that the result was useful.
+
+After seed, install and verify MCP before asking for the human value judgment:
 
 ```bash
-brainbase onboard:skills --target codex
-brainbase onboard:routines --target codex --cwd /path/to/brainbase
 brainbase onboard:install --target codex --dry-run
 brainbase doctor
+# restart Codex, use get_context/search for the real request, then ask whether it was useful
 ```
 
 The recommended order is public skills, `ohayo` / `oyasumi` / `retro` routines registered paused or confirmation-gated, real MCP config merge after approving the dry-run snippet, source allowlist / import / candidate review decisions, then `doctor` plus MCP `get_context` / `search` verification from a fresh agent session.

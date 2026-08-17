@@ -34,12 +34,12 @@ export function buildOperationalizationPlan(input: OperationalizationPlanInput =
   const routinesTarget = target === 'claude' ? 'claude' : 'codex';
 
   return {
-    goal: '初回価値を確認した後、必要な運用設定だけを順に完了する。',
+    goal: 'CLIプレビュー後、実エージェントで本人が初回価値を確認するまでを順に完了する。',
     completed: input.firstValueReady
       ? [
         '承認した最小文脈をローカルへ保存済み。',
-        'doctorで初回価値デモの準備完了を確認可能。',
-        'onboard:demoでプロンプト、サンプル結果、価値の説明を確認済み。'
+        'doctorでCLI文脈プレビューの準備完了を確認可能。',
+        'onboard:demoを実行した場合も、確認できるのはローカルCLIサンプルだけ。'
       ]
       : [
         'Personal OSの準備を開始済み。'
@@ -87,9 +87,11 @@ export function buildOperationalizationPlan(input: OperationalizationPlanInput =
       }
     ],
     recommendedOrder: [
-      '対象エージェントへ公開スキルを配置する。',
-      'ohayo / oyasumi / retroを生成し、一時停止または確認付きで登録する。',
       'Brainbase MCP設定を実際のCodex / Claude / CodeCode設定へ反映し、エージェントを再起動する。',
+      '新しいエージェントで現実の依頼を送り、MCP get_contextとsearchを使った実回答を確認する。',
+      '利用者本人に役立ったかを確認する。役立たなければ不足文脈だけを追加して再試行する。',
+      '対象エージェントへ公開スキルを配置する。',
+      '必要になった時だけohayo / oyasumi / retroを確認付きで登録する。',
       '追加文脈が必要な場合だけ参照許可範囲を決め、取込と候補レビューを行う。',
       'doctorを実行し、新しいエージェントセッションでMCP get_contextとsearchを確認する。'
     ],
@@ -100,7 +102,8 @@ export function buildOperationalizationPlan(input: OperationalizationPlanInput =
       '参照元の取込はローカル優先とし、正本化前にレビューします。'
     ],
     completionCheck: [
-      '利用者が初回価値の出力を確認済み。',
+      '実際のエージェントがBrainbase MCP get_context/searchを使って現実の依頼へ回答済み。',
+      '利用者本人がその回答を役立つと確認済み。',
       '完了報告に残っている運用設定をすべて記載済み。',
       '実設定反映後、対象エージェントからBrainbase MCP get_context/searchを呼び出せる。',
       '参照許可範囲と候補レビューを完了、または明示的に延期済み。'

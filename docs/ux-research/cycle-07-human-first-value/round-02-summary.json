@@ -1,0 +1,56 @@
+{
+  "schema_version": "brainbase.persona-ux-round.v1",
+  "cycle": "cycle-07-human-first-value",
+  "round": 2,
+  "panel_size": 32,
+  "persona_ids": [
+    "P-101-G0", "P-102-G0", "P-103-G0", "P-104-G0", "P-105-G1", "P-106-G1", "P-107-G0", "P-108-G0",
+    "P-201-G0", "P-202-G0", "P-203-G0", "P-204-G0", "P-205-G1", "P-206-G1", "P-207-G0", "P-208-G0",
+    "P-301-G0", "P-302-G0", "P-303-G0", "P-304-G0", "P-305-G1", "P-306-G1", "P-307-G0", "P-308-G0",
+    "P-401-G0", "P-402-G0", "P-403-G0", "P-404-G0", "P-405-G1", "P-406-G1", "P-407-G0", "P-408-G0"
+  ],
+  "execution": {
+    "requested_model": "gpt-5.6-luna",
+    "requested_reasoning_effort": "low",
+    "effective_model_and_effort": "not_collected",
+    "evaluation_kind": "synthetic_persona_evaluation",
+    "independent_fresh_contexts": true,
+    "evaluated_package_version": "0.2.2",
+    "evaluated_candidate_duration_ms": 35789
+  },
+  "task_consensus": {
+    "next_operation": "pass",
+    "safe_minimum_context_save": "pass",
+    "real_agent_mcp_request": "pass",
+    "facts_and_unconfirmed_separated": "pass",
+    "human_value_judgment_and_retry": "not_collected"
+  },
+  "gate_consensus": {
+    "no_false_success": "pass",
+    "next_or_recovery_action": "pass",
+    "displayed_commands_execute_in_isolation": "pass_local_tarball_scope_with_persistent_config_not_collected",
+    "no_implicit_delete_or_overwrite": "pass_fixture_scope",
+    "real_agent_mcp_evidence_required": "pass",
+    "no_human_value_claim_without_observation": "pass",
+    "understandable_japanese": "pass_with_minor_friction"
+  },
+  "candidate_end_to_end_journey": {
+    "status": "pass",
+    "duration_ms": 35789,
+    "budget_ms": 600000,
+    "actual_mcp_used": true,
+    "useful_body_present": true
+  },
+  "human_first_value": {
+    "human_value_recognition": "not_collected",
+    "first_value_achieved": false,
+    "ten_minute_claim_allowed": false
+  },
+  "recurring_friction": [
+    "doctorの保留項目は中断の多い利用者には長く、接続、実依頼、本人確認の順序を先に読む必要がある。",
+    "収集した実Codex証拠は起動時の隔離MCP設定であり、利用者の永続設定への反映は未収集である。",
+    "実機の音声入力、スクリーンリーダー、production registry installは未収集である。"
+  ],
+  "new_trace_backed_product_majors": 0,
+  "convergence": "not_claimed_human_observation_required"
+}

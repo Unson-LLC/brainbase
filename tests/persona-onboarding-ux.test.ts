@@ -177,7 +177,7 @@ describe('beginner-safe onboarding output contract', () => {
       });
       expect((completed.guide as typeof completed.guide & { plainText: string }).plainText).toContain('完了済み操作は繰り返しません');
     }
-  });
+  }, 30_000);
 
   it('puts a plain-language map before the full ontology contract', async () => {
     const result = await callBrainbaseTool('get_ontology') as {

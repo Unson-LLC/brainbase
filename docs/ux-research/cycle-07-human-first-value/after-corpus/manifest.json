@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "evidence_kind": "candidate_end_to_end_journey",
+  "source_snapshot": "working-tree",
+  "base_revision": "f554e03ce7389a0534e4e6076b8eb9c188cb4a6d",
+  "package": "unson-brainbase-mcp-0.2.2.tgz",
+  "tarball_sha256": "27980fc4626e48756b5e834842a7ba653365cdc6188046ae823dae85a4c54b81",
+  "journey_budget_ms": 600000,
+  "candidate_answer_duration_ms": 35789,
+  "candidate_answer_within_budget": true,
+  "installed_from_local_tarball": true,
+  "displayed_seed_executed": true,
+  "actual_codex_exit_code": 0,
+  "actual_mcp_used": true,
+  "useful_body_present": true,
+  "candidate_journey_passed": true,
+  "human_value_recognition": "not_collected",
+  "first_value_achieved": false,
+  "production_registry_install": "not_collected",
+  "traces": [
+    {
+      "id": "after-01-install",
+      "sha256": "96ef1b276b5d7a58da8520a0ef09ffda48adc70d537912bb38f9386ee5a1e0e3",
+      "exit_code": 0,
+      "duration_ms": 2302
+    },
+    {
+      "id": "after-02-start",
+      "sha256": "6ddbbc24b763702e5288378464c085823bc5f1e6d90ee0087cfef496d028f541",
+      "exit_code": 0,
+      "duration_ms": 648
+    },
+    {
+      "id": "after-03-displayed-seed",
+      "sha256": "b5afa3d5a4cbdfcc1e5229a6f8ce00297216ff04a88591ab6cb0074d89f5d770",
+      "exit_code": 0,
+      "duration_ms": 344
+    },
+    {
+      "id": "after-04-install-preview",
+      "sha256": "5665a05a8c4000fb09dd926e4873d4952d6da8e9948a228b8fcd8e57c9dee65f",
+      "exit_code": 0,
+      "duration_ms": 247
+    },
+    {
+      "id": "after-05-doctor",
+      "sha256": "3b24c979d1158f6e1790df13ec25987f515349381fbfee5a53be42cb2f70612e",
+      "exit_code": 0,
+      "duration_ms": 248
+    },
+    {
+      "id": "after-06-real-codex",
+      "sha256": "edbdf45f03fec472ec26007d5b6988075aaa73cc968eff78324649215d6aa40d",
+      "exit_code": 0,
+      "duration_ms": 31989
+    }
+  ]
+}

@@ -179,7 +179,10 @@ export interface ValueDemo {
   valueExplanation: string;
   operationalization: OperationalizationPlan;
   nextStep: string;
-  completionSignal: 'needs_seed' | 'first_value_demo_ready';
+  completionSignal: 'needs_seed' | 'cli_sample_ready';
+  onboardingComplete: false;
+  humanValueStatus: 'not_observed';
+  actualAgentPrompt: string;
 }
 
 export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
@@ -224,12 +227,12 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
       },
       {
         id: 'first_value_demo',
-        title: 'First value demo',
+        title: 'CLI preview and actual agent value check',
         questions: [
-          'Run brainbase onboard:demo with the real request the user chose.',
-          'Show the try-this prompt, sample result, and what the user did not have to explain again.',
-          'Treat the useful output, not ready=true or connector readiness, as the onboarding completion signal.',
-          'After showing the useful output, report the remaining operationalization actions instead of calling onboarding done.'
+          'Optionally run brainbase onboard:demo to preview which saved context should be used.',
+          'Install the MCP config after user approval and restart the selected agent.',
+          'Send the real request through that agent and require get_context/search evidence.',
+          'Ask the user whether the actual answer was useful. A CLI sample or synthetic evaluator is not onboarding completion.'
         ]
       },
       {
@@ -255,7 +258,10 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
       'brainbase onboard:init',
       'brainbase onboard:seed --name "<name>" --value "<what should not be re-explained>" --project "<current project>" --relationship "<person>|<role>|<context>"',
       'brainbase onboard:projects --name "<project>" --goal "<goal>" --status "<status>" --role "<your role>"',
-      'brainbase onboard:demo --scenario "<real request that should now work>"',
+      'brainbase onboard:install --target codex --dry-run',
+      'Restart the selected agent, then send the real request and require Brainbase get_context/search.',
+      'Ask the user whether the actual answer was useful.',
+      'brainbase onboard:demo --scenario "<optional local preview>"',
       'brainbase onboard:skills --target codex',
       'brainbase onboard:routines --target codex --cwd <brainbase-checkout>',
       'brainbase onboard:install --target codex --dry-run',
@@ -265,10 +271,11 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
     completionCheck: [
       'Personal OS directory exists.',
       'The approved self, work, and person context are saved locally.',
-      'brainbase onboard:demo returns a try-this prompt, sample result, and useful answer for the selected real request.',
-      'The user can see what they did not have to explain again.',
+      'The CLI sample, if used, is labeled as a preview rather than an onboarding completion signal.',
       'The completion report lists public skills, ohayo/oyasumi/retro routines, real MCP config merge, source allowlists, and MCP get_context/search verification as unfinished operationalization work.',
       'The selected MCP client has a Brainbase config snippet merged into its real config after user approval.',
+      'A fresh agent session used Brainbase get_context/search for the real request.',
+      'The user personally confirmed that the actual agent answer was useful.',
       'Source diagnosis is optional follow-up work, but source allowlist/import/candidate review must be explicitly completed or deferred.'
     ]
   };
@@ -303,9 +310,10 @@ export function buildValueDemo(input: ValueDemoInput): ValueDemo {
     dataDir: input.os.dataDir,
     firstValueReady: ready
   });
+  const actualAgentPrompt = `Brainbaseのget_contextとsearchを使い、保存済み文脈を根拠に「${scenario}」へ回答してください。使った前提と未確認事項を分けてください。`;
 
   return {
-    goal: '追加設定へ進む前に、保存した文脈が役立つ回答を一つ確認する。',
+    goal: '実エージェント接続前に、保存した文脈から作れる出力をプレビューする。',
     ready,
     missing,
     scenario,
@@ -330,9 +338,12 @@ export function buildValueDemo(input: ValueDemoInput): ValueDemo {
     valueExplanation,
     operationalization,
     nextStep: ready
-      ? '必要なら --details で、スキル、ルーティン、MCP設定、参照許可、動作確認の残作業を確認します。'
+      ? 'MCP設定を反映して新しいエージェントを開き、実際の回答を確認した後、本人が役立ったかを判断します。'
       : `まず最小文脈を保存します: ${missing.map(missingLabel).join(', ')}。`,
-    completionSignal: ready ? 'first_value_demo_ready' : 'needs_seed'
+    completionSignal: ready ? 'cli_sample_ready' : 'needs_seed',
+    onboardingComplete: false,
+    humanValueStatus: 'not_observed',
+    actualAgentPrompt
   };
 }
 
@@ -709,12 +720,12 @@ export function renderValueDemo(input: ValueDemoInput, format: OnboardingFormat,
   }
 
   const lines = [
-    '# Brainbase 初回価値デモ',
+    '# Brainbase 文脈プレビュー',
     '',
     demo.goal,
     '',
     `- 状態: ${demo.ready ? '準備済み' : '要設定'}`,
-    `- 完了シグナル: ${demo.completionSignal}`,
+    `- プレビュー状態: ${demo.completionSignal}`,
     `- 不足: ${demo.missing.length === 0 ? 'なし' : demo.missing.map(missingLabel).join(', ')}`,
     '',
     '## 今すぐ試す',
@@ -722,6 +733,7 @@ export function renderValueDemo(input: ValueDemoInput, format: OnboardingFormat,
     '',
     '## サンプル結果',
     'これはCLIが保存済み文脈から組み立てたサンプルです。実際のエージェント応答ではありません。',
+    'このサンプルだけでは初回価値の達成になりません。',
     '- 実エージェント接続: 未確認',
     `- 実応答の確認方法: ${demo.realVerification}`,
     '',
@@ -732,9 +744,10 @@ export function renderValueDemo(input: ValueDemoInput, format: OnboardingFormat,
     '',
     '## 次に実行',
     demo.ready
-      ? `\`brainbase onboard:demo --dir ${shellArg(input.os.dataDir)} --scenario ${shellArg(demo.scenario)} --details\``
+      ? `\`brainbase onboard:install --target codex --dir ${shellArg(input.os.dataDir)} --dry-run\``
       : `\`brainbase onboard:start --dir ${shellArg(input.os.dataDir)} --target codex\``,
     demo.nextStep,
+    ...(demo.ready ? ['', '## 実エージェントへ送る依頼', demo.actualAgentPrompt, '', '回答後、本人に役立ったかを確認してください。'] : []),
     ''
   ];
   if (details) {
@@ -1025,7 +1038,7 @@ function buildValueExplanation(input: {
 
 function buildMissingDemoAnswer(missing: string[]): string {
   return [
-    'まだ最初の価値体験はできません。',
+    'まだ接続前プレビューを作れません。',
     `足りない最小メモ: ${missing.map(missingLabel).join(', ')}。`,
     'まず、あなたが毎回説明したくないことを一つだけ保存してから、同じプロンプトをもう一度試します。'
   ].join('\n');

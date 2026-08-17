@@ -1,0 +1,18 @@
+{
+  "id": "after-04-install-preview",
+  "invocation_kind": "child_process.spawn",
+  "executable": "<isolated-run-root>/consumer/node_modules/.bin/brainbase",
+  "args": [
+    "onboard:install",
+    "--target",
+    "codex",
+    "--dir",
+    "<isolated-run-root>/personal-os",
+    "--dry-run"
+  ],
+  "cwd": "<isolated-run-root>/consumer",
+  "exit_code": 0,
+  "duration_ms": 247,
+  "stdout": "[mcp_servers.brainbase]\ncommand = \"/usr/local/Cellar/node/26.3.1/bin/node\"\nargs = [\"/private<isolated-run-root>/consumer/node_modules/@unson/brainbase-mcp/dist/index.js\"]\n\n[mcp_servers.brainbase.env]\nBRAINBASE_PERSONAL_OS_DIR = \"<isolated-run-root>/personal-os\"\n",
+  "stderr": ""
+}

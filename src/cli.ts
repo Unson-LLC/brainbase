@@ -313,7 +313,8 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
     '- 同じ文脈は更新しました。既存の別データは削除していません。',
     '',
     '次に実行:',
-    `brainbase onboard:demo --dir ${shellArg(dataDir)} --scenario "保存した文脈を使って、次に進めるメモを作って"`,
+    `brainbase onboard:install --target codex --dir ${shellArg(dataDir)} --dry-run`,
+    '設定を承認・反映してエージェントを再起動した後、実際の依頼でBrainbaseのget_contextとsearchを使います。',
     ''
   ];
   write(io, summary.join('\n'));
@@ -1050,10 +1051,12 @@ function proposedPersonalOs(
 }
 
 function usage(): string {
-  return `最短で試す（3ステップ）:
+  return `初回価値まで（5ステップ）:
   1. brainbase onboard:start --target codex
   2. 表示された brainbase onboard:seed を確認して実行
-  3. brainbase onboard:demo --scenario "実際に試す依頼"
+  3. brainbase onboard:install --target codex --dry-run
+  4. 設定を承認・反映し、Codexを再起動
+  5. 新しいエージェントで実際の依頼を送り、役立ったか本人が判断
 
 使い方:
   brainbase-mcp

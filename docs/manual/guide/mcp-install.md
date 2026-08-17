@@ -1,6 +1,6 @@
 # MCPを登録する
 
-Brainbase MCPを登録すると、CodexやClaude Codeがローカルの正本を必要な時に読めるようになります。最初の価値を確認した後、運用開始の一部として設定します。
+Brainbase MCPを登録すると、CodexやClaude Codeがローカルの正本を必要な時に読めるようになります。CLIサンプルの後ではなく、実エージェントで最初の価値を確認する前に設定します。
 
 初回導入を一枚で進める場合は、[10分で試す](/guide/quick-start)のチェックリストを開いたまま、このページを詳細説明として参照してください。
 
@@ -32,6 +32,8 @@ npm run onboard:install -- --target codex --output /tmp/brainbase-mcp.toml
 3. `onboarding_status` が登録済みと未設定の項目を返す
 4. `get_context` が自分、仕事、関係性の文脈を返す
 5. `search` が登録した人物とプロジェクトを見つける
+
+確認できたら、[フェーズ3: 最初の価値](/guide/first-value)の現実の依頼を送り、実回答を見た本人が役立ったかを判断します。`get_context`や`search`が見えることだけでは初回価値の達成ではありません。
 
 ## うまく動かない時
 
