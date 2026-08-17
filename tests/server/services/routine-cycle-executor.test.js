@@ -228,6 +228,40 @@ describe('RoutineCycleExecutor', () => {
         expect(retrievabilityVerifier.verify).toHaveBeenCalledOnce();
     });
 
+    it('oyasumiは未配信Outboxが残っていればpartialにする', async () => {
+        const executor = new RoutineCycleExecutor({
+            oyasumiReconciler: {
+                reconcile: vi.fn(async () => ({
+                    unprocessed_count: 0,
+                    contradiction_count: 0,
+                    expired_count: 0,
+                    outbox_count: 2
+                })),
+                buildNightOutput: vi.fn(async () => ({
+                    headline: '残件を確認してから今日を閉じる',
+                    carryovers: [{ summary: '未配信が2件あります' }]
+                }))
+            },
+            episodeCompressor: { compress: vi.fn(async () => ({ episode_ids: [], confirmed: true })) },
+            retrievabilityVerifier: { verify: vi.fn(async () => ({ retrievable: true })) }
+        });
+
+        const result = await executor.execute({ routine: 'oyasumi' });
+
+        expect(result).toMatchObject({
+            status: 'partial',
+            coverage: 'partial',
+            anomalies: [{ code: 'routine_outbox_carryover', count: 2 }],
+            routine_summary: {
+                coverage: 'partial',
+                routine_output: {
+                    headline: '残件を確認してから今日を閉じる',
+                    carryovers: [{ summary: '未配信が2件あります' }]
+                }
+            }
+        });
+    });
+
     it('oyasumiの照合結果が全欠落なら未確認としてpartialにする', async () => {
         const executor = new RoutineCycleExecutor({
             oyasumiReconciler: { reconcile: vi.fn(async () => ({})) },
@@ -601,7 +635,7 @@ describe('RoutineCycleExecutor', () => {
             { status: 'unavailable', delivered: 0, failed: 2, retryable: 1, dead_lettered: 1, pending: 3 },
             'judgment_outbox_dead_lettered'
         ]
-    ])('ohayoはjudgment outbox %sをpartialにする', async (_case, delivery, anomalyCode) => {
+    ])('ohayoはjudgment outbox %sをpartialにして警告を表示する', async (_case, delivery, anomalyCode) => {
         const executor = new RoutineCycleExecutor({
             judgmentOutboxDeliveryService: { deliverPending: vi.fn(async () => delivery) },
             livenessService: { listExceptions: vi.fn(async () => []) },
@@ -613,9 +647,18 @@ describe('RoutineCycleExecutor', () => {
             feedbackService: { recordUsage: vi.fn(async () => {}) }
         });
 
-        await expect(executor.execute({ routine: 'ohayo' })).resolves.toMatchObject({
+        const result = await executor.execute({ routine: 'ohayo' });
+
+        expect(result).toMatchObject({
             status: 'partial',
-            anomalies: [expect.objectContaining({ code: anomalyCode })]
+            coverage: 'partial',
+            anomalies: [expect.objectContaining({ code: anomalyCode })],
+            routine_summary: {
+                coverage: 'partial',
+                routine_output: {
+                    warnings: [expect.objectContaining({ summary: expect.any(String) })]
+                }
+            }
         });
     });
 
