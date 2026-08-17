@@ -193,10 +193,22 @@ describe('remote judgment Hook HTTP boundary', () => {
   });
 
   it('story-remote-judgment-hook:ac:4 fails closed when the canonical dispatcher is unavailable', async () => {
+    const diagnostics: unknown[] = [];
+    const transportError = Object.assign(new TypeError('secret transport detail'), {
+      code: 'UND_ERR_CONNECT_TIMEOUT',
+    });
     const result = await handleRemoteJudgmentHookRequest(request({
-      dispatch: async () => { throw new Error('offline'); },
+      dispatch: async () => { throw transportError; },
+      onDispatchError: (details: unknown) => diagnostics.push(details),
     }));
     assert.deepEqual(result, { status: 503, body: { error: 'judgment_hook_unavailable' } });
+    assert.deepEqual(diagnostics, [{
+      eventName: 'UserPromptSubmit',
+      reason: 'judgment_hook_unavailable',
+      errorName: 'TypeError',
+      errorCode: 'UND_ERR_CONNECT_TIMEOUT',
+    }]);
+    assert.equal(JSON.stringify(diagnostics).includes('secret transport detail'), false);
   });
 
   it('returns only bounded canonical judgment failure codes', async () => {
