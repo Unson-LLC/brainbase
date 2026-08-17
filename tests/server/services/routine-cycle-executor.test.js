@@ -609,6 +609,38 @@ describe('RoutineCycleExecutor', () => {
         });
     });
 
+    it('ohayoは隔離済みknowledge eventを警告表示しpartialにする', async () => {
+        const executor = new RoutineCycleExecutor({
+            livenessService: {
+                listExceptions: vi.fn(async () => [{ code: 'knowledge_event_dead_letter' }])
+            },
+            recallService: {
+                recallGraph: vi.fn(async () => []),
+                recallPersonalKg: vi.fn(async () => [])
+            },
+            ohayoGenerator: {
+                generate: vi.fn(async () => ({
+                    used_knowledge_ids: [],
+                    morning_output: { routine_output: { warnings: [] } }
+                }))
+            },
+            feedbackService: { recordUsage: vi.fn(async () => {}) }
+        });
+
+        const result = await executor.execute({ routine: 'ohayo' });
+
+        expect(result).toMatchObject({
+            status: 'partial',
+            coverage: 'partial',
+            anomalies: [{ code: 'routine_liveness_exception', source_code: 'knowledge_event_dead_letter' }],
+            routine_summary: {
+                routine_output: {
+                    warnings: [{ summary: '判断の知識化に失敗し、隔離された項目があります' }]
+                }
+            }
+        });
+    });
+
     it.each([
         [
             'unavailable',
