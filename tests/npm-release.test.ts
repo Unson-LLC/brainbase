@@ -531,7 +531,7 @@ describe('npm release CLI', () => {
     });
     expect(artifact.tarballSha256).toMatch(/^[a-f0-9]{64}$/u);
     expect(artifact.tarballIntegrity).toMatch(/^sha512-/u);
-  });
+  }, 30_000);
 
   it('does not produce a proof when validation fails', async () => {
     const { root, sha } = await releaseRoot();

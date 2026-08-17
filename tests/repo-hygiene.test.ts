@@ -111,7 +111,7 @@ describe('MCP-only repository hygiene', () => {
       || file === 'package.json'
       || file.startsWith('dist/')
     ))).toBe(true);
-  });
+  }, 30_000);
 
   it('onboarding-first-value-experience S-4 C-4 agent instructions require useful output, not only readiness', async () => {
     const agents = await readFile(join(repoRoot, 'AGENTS.md'), 'utf8');

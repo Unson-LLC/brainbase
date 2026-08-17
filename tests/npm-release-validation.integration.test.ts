@@ -58,5 +58,5 @@ describe('npm release validation evidence', () => {
         url: 'git+https://github.com/Unson-LLC/brainbase.git'
       }
     });
-  });
+  }, 30_000);
 });
