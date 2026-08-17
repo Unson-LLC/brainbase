@@ -299,7 +299,7 @@
       },
       "confidence": 0.96,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "INV-001",
@@ -351,7 +351,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "INV-002",
@@ -403,7 +403,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "C-002",
@@ -455,7 +455,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "INV-003",
@@ -518,7 +518,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "C-003",
@@ -562,7 +562,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "C-004",
@@ -606,7 +606,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "C-005",
@@ -647,7 +647,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "C-006",
@@ -691,7 +691,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "INV-004",
@@ -754,7 +754,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "C-007",
@@ -806,7 +806,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "C-008",
@@ -850,7 +850,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "C-009",
@@ -902,7 +902,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "C-010",
@@ -943,7 +943,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "INV-005",
@@ -995,7 +995,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "C-015",
@@ -1064,7 +1064,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-17T03:09:47.275Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "C-012",
@@ -1109,7 +1109,7 @@
           },
           {
             "file": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
-            "case": "Brainbase producer adapter reads the canonical PR #237 manifest"
+            "case": "locks the fixed commit, manifest digest, and all 23 shared fixtures"
           }
         ]
       },
@@ -1135,7 +1135,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "C-013",
@@ -1169,7 +1169,7 @@
           },
           {
             "file": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
-            "case": "Brainbase producer adapter reads the canonical PR #237 manifest"
+            "case": "locks the fixed commit, manifest digest, and all 23 shared fixtures"
           }
         ]
       },
@@ -1187,7 +1187,7 @@
       },
       "confidence": 0.92,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "INV-006",
@@ -1218,7 +1218,7 @@
           },
           {
             "file": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
-            "case": "Brainbase producer adapter reads the canonical PR #237 manifest"
+            "case": "locks the fixed commit, manifest digest, and all 23 shared fixtures"
           }
         ]
       },
@@ -1236,7 +1236,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "C-014",
@@ -1280,7 +1280,7 @@
       },
       "confidence": 0.9,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     },
     {
       "id": "INV-007",
@@ -1346,7 +1346,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:13:17.751Z"
+      "last_revised_at": "2026-08-17T03:23:26.931Z"
     }
   ],
   "planned_test_suites": [
@@ -1384,6 +1384,6 @@
     }
   ],
   "open_questions": [],
-  "generated_at": "2026-08-17T03:13:17.749Z",
-  "previous_spec_id": "2026-08-17T03:09:47.274Z"
+  "generated_at": "2026-08-17T03:23:26.929Z",
+  "previous_spec_id": "2026-08-17T03:13:17.749Z"
 }

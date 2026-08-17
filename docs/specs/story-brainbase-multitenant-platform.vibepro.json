@@ -1077,7 +1077,7 @@
           },
           {
         "file": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
-        "case": "Brainbase producer adapter reads the canonical PR #237 manifest"
+        "case": "locks the fixed commit, manifest digest, and all 23 shared fixtures"
         }
         ]
       },
@@ -1135,7 +1135,7 @@
           },
           {
         "file": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
-        "case": "Brainbase producer adapter reads the canonical PR #237 manifest"
+        "case": "locks the fixed commit, manifest digest, and all 23 shared fixtures"
         }
         ]
       },
@@ -1182,7 +1182,7 @@
           },
           {
         "file": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
-        "case": "Brainbase producer adapter reads the canonical PR #237 manifest"
+        "case": "locks the fixed commit, manifest digest, and all 23 shared fixtures"
         }
         ]
       },
