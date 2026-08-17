@@ -106,6 +106,18 @@ function safeRoutineOutput(routine, output = {}) {
     };
 }
 
+function morningExceptionAnomalies(exceptions) {
+    return (Array.isArray(exceptions) ? exceptions : [])
+        .filter((exception) => exception?.code === 'knowledge_event_dead_letter')
+        .map((exception) => {
+        const sourceCode = typeof exception?.code === 'string' ? exception.code : 'unknown';
+        const summary = sourceCode === 'knowledge_event_dead_letter'
+            ? '判断の知識化に失敗し、隔離された項目があります'
+            : safeText(exception?.summary) || `朝の確認で異常を検出しました（${sourceCode}）`;
+        return { code: 'routine_liveness_exception', source_code: sourceCode, summary };
+        });
+}
+
 export class RoutineCycleExecutor {
     constructor({
         oyasumiReconciler,
@@ -292,7 +304,7 @@ export class RoutineCycleExecutor {
             ? generated.used_knowledge_ids
             : [])]
             .filter((id) => recalledIds.has(id));
-        const anomalies = [];
+        const anomalies = morningExceptionAnomalies(exceptions);
         if (judgmentOutboxDelivery) {
             const deliveryCode = judgmentOutboxDelivery.dead_lettered > 0
                 ? 'judgment_outbox_dead_lettered'
@@ -345,11 +357,18 @@ export class RoutineCycleExecutor {
         const deliveryWarnings = anomalies
             .filter((anomaly) => anomaly.code.startsWith('judgment_outbox_') && anomaly.summary)
             .map((anomaly) => ({ summary: anomaly.summary }));
-        if (deliveryWarnings.length > 0) {
-            routineOutput.warnings = [
+        const livenessWarnings = anomalies
+            .filter((anomaly) => anomaly.code === 'routine_liveness_exception' && anomaly.summary)
+            .map((anomaly) => ({ summary: anomaly.summary }));
+        if (deliveryWarnings.length > 0 || livenessWarnings.length > 0) {
+            const warnings = [
                 ...(Array.isArray(routineOutput.warnings) ? routineOutput.warnings : []),
+                ...livenessWarnings,
                 ...deliveryWarnings
             ];
+            routineOutput.warnings = warnings.filter((warning, index) => (
+                warnings.findIndex((candidate) => candidate?.summary === warning?.summary) === index
+            ));
         }
         return {
             status: anomalies.length > 0 ? 'partial' : 'completed',
