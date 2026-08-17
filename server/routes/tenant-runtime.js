@@ -2,6 +2,7 @@ import express from 'express';
 import { negotiateProtocol, toProblem } from '../services/multitenant/protocol-contract.js';
 import { serializeVerificationKeys } from '../services/multitenant/tenant-context.js';
 import { ContractError } from '../services/multitenant/errors.js';
+import { assertTrustedProviderForwardRequest } from '../services/multitenant/trusted-provider-forwarder.js';
 
 function asyncHandler(handler) {
     return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
@@ -178,12 +179,10 @@ function providerForwardInput(req) {
     });
     if (['lease_id', 'lease_token', 'audience', 'provider_operation'].some((field) => (
         typeof input[field] !== 'string' || input[field].length === 0
-    )) || !input.request || typeof input.request !== 'object' || Array.isArray(input.request)
-        || Object.keys(input.request).some((field) => ![
-            'path_params', 'query', 'body', 'target_url'
-        ].includes(field))) {
+    ))) {
         throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
     }
+    assertTrustedProviderForwardRequest(input.request);
     return input;
 }
 

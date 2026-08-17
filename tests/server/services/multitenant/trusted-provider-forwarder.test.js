@@ -54,6 +54,111 @@ describe('trusted provider HTTP forwarder', () => {
         expect(init.body).not.toContain(providerCredential);
     });
 
+    it('P0-1: 専用idempotency_keyをproviderのIdempotency-Key headerに設定する', async () => {
+        const fetchImpl = vi.fn(async () => ({
+            status: 201,
+            headers: { get: () => 'application/json' },
+            json: async () => ({ id: 'task-1' })
+        }));
+        const forwarder = createTrustedHttpProviderForwarder({
+            provider: 'brainbase',
+            baseUrl: 'https://brainbase.example',
+            operations: {
+                'brainbase.tasks.create': {
+                    method: 'POST', path: '/api/companion/tasks', body_encoding: 'json',
+                    response_encoding: 'json', credential_placement: 'bearer'
+                }
+            },
+            fetchImpl
+        });
+
+        await forwarder.forward({
+            credential: Buffer.from('brainbase-provider-secret'),
+            operation: 'brainbase.tasks.create',
+            request: {
+                body: { title: '確認する' },
+                idempotency_key: 'slack:request-123:0'
+            }
+        });
+
+        const headers = new Headers(fetchImpl.mock.calls[0][1].headers);
+        expect(headers.get('Idempotency-Key')).toBe('slack:request-123:0');
+    });
+
+    it.each([
+        '',
+        ' leading',
+        'contains space',
+        'contains\nnewline',
+        '日本語',
+        123,
+        null,
+        'a'.repeat(201)
+    ])('P0-1: 不正なidempotency_key %jをprovider未到達で拒否する', async (idempotencyKey) => {
+        const fetchImpl = vi.fn();
+        const forwarder = createTrustedHttpProviderForwarder({
+            provider: 'brainbase',
+            baseUrl: 'https://brainbase.example',
+            operations: {
+                'brainbase.tasks.update': {
+                    method: 'PATCH', path: '/api/companion/tasks/task-1', body_encoding: 'json',
+                    response_encoding: 'json', credential_placement: 'bearer'
+                }
+            },
+            fetchImpl
+        });
+
+        await expectContractErrorAsync(
+            () => forwarder.forward({
+                credential: Buffer.from('brainbase-provider-secret'),
+                operation: 'brainbase.tasks.update',
+                request: { body: { title: '更新' }, idempotency_key: idempotencyKey }
+            }),
+            { code: 'SCHEMA_INVALID' }
+        );
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('P0-1: 任意headersとfixed Idempotency-Keyは専用fieldを迂回できない', async () => {
+        expect(() => createTrustedHttpProviderForwarder({
+            provider: 'brainbase',
+            baseUrl: 'https://brainbase.example',
+            operations: {
+                'brainbase.tasks.create': {
+                    method: 'POST', path: '/api/companion/tasks', body_encoding: 'json',
+                    response_encoding: 'json', credential_placement: 'bearer',
+                    fixed_headers: { 'Idempotency-Key': 'fixed-key' }
+                }
+            },
+            fetchImpl: vi.fn()
+        })).toThrow(/fixed header configuration/u);
+
+        const fetchImpl = vi.fn();
+        const forwarder = createTrustedHttpProviderForwarder({
+            provider: 'brainbase',
+            baseUrl: 'https://brainbase.example',
+            operations: {
+                'brainbase.tasks.create': {
+                    method: 'POST', path: '/api/companion/tasks', body_encoding: 'json',
+                    response_encoding: 'json', credential_placement: 'bearer'
+                }
+            },
+            fetchImpl
+        });
+        await expectContractErrorAsync(
+            () => forwarder.forward({
+                credential: Buffer.from('brainbase-provider-secret'),
+                operation: 'brainbase.tasks.create',
+                request: {
+                    body: { title: '確認する' },
+                    headers: { 'Idempotency-Key': 'arbitrary-key' }
+                }
+            }),
+            { code: 'SCHEMA_INVALID' }
+        );
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
     it('P0-1: GET queryとpath parameterをoperation定義の範囲だけ許可する', async () => {
         const fetchImpl = vi.fn(async () => ({
             status: 200,

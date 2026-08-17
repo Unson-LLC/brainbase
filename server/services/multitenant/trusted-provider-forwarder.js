@@ -13,10 +13,11 @@ const OPERATION_FIELDS = new Set([
     'credential_url_path_pattern', 'target_url_hosts', 'target_url_path_pattern',
     'max_request_bytes', 'max_response_bytes'
 ]);
-const REQUEST_FIELDS = new Set(['path_params', 'query', 'body', 'target_url']);
+const REQUEST_FIELDS = new Set(['path_params', 'query', 'body', 'target_url', 'idempotency_key']);
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/u;
 const PROHIBITED_FIXED_HEADERS = new Set([
     'authorization', 'x-api-key', 'xc-token', 'cookie', 'host', 'content-length',
-    'transfer-encoding', 'connection', 'proxy-authorization'
+    'transfer-encoding', 'connection', 'proxy-authorization', 'idempotency-key'
 ]);
 
 function failSchema() {
@@ -29,6 +30,17 @@ function failScope() {
 
 function isObject(value) {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+export function assertTrustedProviderForwardRequest(request) {
+    if (!isObject(request)
+        || Object.keys(request).some((field) => !REQUEST_FIELDS.has(field))
+        || (Object.hasOwn(request, 'idempotency_key')
+            && (typeof request.idempotency_key !== 'string'
+                || !IDEMPOTENCY_KEY.test(request.idempotency_key)))) {
+        failSchema();
+    }
+    return request;
 }
 
 function parseJsonObject(value, name) {
@@ -391,10 +403,10 @@ export function createTrustedHttpProviderForwarder({
         },
         async forward({ credential, operation, request }) {
             const definition = operationAllowlist[operation];
-            if (!definition || !isObject(request)
-                || Object.keys(request).some((field) => !REQUEST_FIELDS.has(field))
-                || ((!Buffer.isBuffer(credential) || credential.length === 0)
-                    && definition?.credential_placement !== 'none')) {
+            if (!definition) failScope();
+            assertTrustedProviderForwardRequest(request);
+            if ((!Buffer.isBuffer(credential) || credential.length === 0)
+                && definition.credential_placement !== 'none') {
                 failScope();
             }
             const body = encodeRequestBody(request.body, definition);
@@ -409,6 +421,9 @@ export function createTrustedHttpProviderForwarder({
                 ...definition.fixed_headers,
                 'brainbase-provider-operation': operation
             };
+            if (request.idempotency_key !== undefined) {
+                headers['Idempotency-Key'] = request.idempotency_key;
+            }
             const additionalCredentialEncodings = [];
             if (body !== undefined && !headers['content-type']) {
                 headers['content-type'] = definition.body_encoding === 'json'

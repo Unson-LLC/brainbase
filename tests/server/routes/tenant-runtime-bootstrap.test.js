@@ -163,7 +163,10 @@ describe('tenant runtime production wiring', () => {
         const materialize = async () => Buffer.from(credentialMaterial);
         const forward = async ({ credential, operation, request: providerRequest }) => {
             expect(Buffer.compare(credential, credentialMaterial)).toBe(0);
-            expect(providerRequest).toEqual({ body: { input: 'hello' } });
+            expect(providerRequest).toEqual({
+                body: { input: 'hello' },
+                idempotency_key: 'slack:request-123:0'
+            });
             return {
                 status: 202,
                 response_encoding: 'json',
@@ -227,7 +230,10 @@ describe('tenant runtime production wiring', () => {
                 lease_token: leaseResponse.body.lease_token,
                 audience: 'api.openai.com',
                 provider_operation: 'responses.create',
-                request: { body: { input: 'hello' } }
+                request: {
+                    body: { input: 'hello' },
+                    idempotency_key: 'slack:request-123:0'
+                }
             });
         expect(forwarded.status).toBe(202);
         expect(forwarded.body).toEqual({
@@ -251,7 +257,10 @@ describe('tenant runtime production wiring', () => {
                 lease_token: leaseResponse.body.lease_token,
                 audience: 'api.openai.com',
                 provider_operation: 'responses.create',
-                request: { body: { input: 'hello' } }
+                request: {
+                    body: { input: 'hello' },
+                    idempotency_key: 'slack:request-123:0'
+                }
             });
         expect(replay.status).toBe(409);
         expect(replay.body.code).toBe('CREDENTIAL_LEASE_ALREADY_USED');
