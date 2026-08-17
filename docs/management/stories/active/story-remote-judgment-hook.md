@@ -12,6 +12,7 @@ Slackへ議事録ファイルを投稿した利用者として、Cloudflare Cont
 - [x] AC4: `UserPromptSubmit`でResolverがunmanaged、timeout、invalid receiptならモデル実行前に失敗する。
 - [x] AC5: `PostToolUse`と`Stop`は同じsession/turnのepisodeへ記録され、必要なKnowledge Resolver呼び出しと監査行が欠ける場合はStopをblockする。
 - [x] AC6: 既存のloopback `/host/judgment/resolve` とCodex Hookの挙動は変えない。
+- [x] AC7: `UserPromptSubmit`の正常応答は、canonical episodeのroute receipt IDとSHA-256 digestを外部Hostへ返し、表示文から再生成させない。欠落・不正値はfail closedにする。
 
 ## 成功指標
 

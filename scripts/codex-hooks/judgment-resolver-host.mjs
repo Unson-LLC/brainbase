@@ -1399,6 +1399,7 @@ export async function processHookPayload(payload, dependencies = {}) {
     const eventName = payload?.hook_event_name || payload?.hookEventName;
     if (eventName === 'UserPromptSubmit') {
         const episode = await startEpisode(payload, dependencies);
+        await dependencies.onEpisodeStarted?.(episode);
         return successOutput(
             {}, episode.initial_route_receipt, episode.owner_audit, episodeAuditContract(episode)
         );

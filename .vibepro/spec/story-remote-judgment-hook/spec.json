@@ -199,6 +199,36 @@
       "confidence": 0.99,
       "first_seen_at": "2026-08-14T09:41:19.225Z",
       "last_revised_at": "2026-08-14T10:00:15.953Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "UserPromptSubmitはcanonical episodeのroute receipt IDとSHA-256 digestをHTTP envelopeへ直列化し、欠落または不正値をfail closedにする",
+      "origin": {
+        "story_refs": [
+          { "kind": "acceptance_criteria", "ac_id": "AC-7" }
+        ],
+        "architecture_refs": [
+          { "file": "docs/architecture/story-remote-judgment-hook.md", "section": "信頼境界" }
+        ],
+        "code_refs": [
+          { "file": "mcp/brainbase/src/server.ts" },
+          { "file": "mcp/brainbase/src/remote-judgment-hook-http.ts" }
+        ],
+        "test_refs": [
+          { "file": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts", "case": "returns the canonical UserPrompt route receipt identity and digest to remote runtimes" },
+          { "file": "tests/unit/judgment-resolver-host.test.js", "case": "UserPromptSubmitのcanonical episode metadataをremote adapterへ渡す" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts", "must_cover": "returns the canonical UserPrompt route receipt identity and digest to remote runtimes" },
+          { "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "UserPromptSubmitのcanonical episode metadataをremote adapterへ渡す" }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-08-17T01:29:05.000Z",
+      "last_revised_at": "2026-08-17T01:29:05.000Z"
     }
   ],
   "planned_test_suites": [

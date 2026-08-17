@@ -57,6 +57,7 @@ import {
   handleRemoteJudgmentHookRequest,
   REMOTE_JUDGMENT_HOOK_MAX_BODY_BYTES,
   REMOTE_JUDGMENT_HOOK_PATH,
+  type RemoteJudgmentHookDispatchResult,
 } from './remote-judgment-hook-http.js';
 
 // Global index. Runtime lookups rebuild and atomically swap this snapshot.
@@ -182,20 +183,35 @@ export function isAuthorizedMcpHttpRequest(authorization: string | undefined, ex
 async function dispatchRemoteJudgmentHook(
   payload: Record<string, unknown>,
   projectCode: string,
-): Promise<Record<string, unknown>> {
+): Promise<RemoteJudgmentHookDispatchResult> {
   const hostModuleUrl = new URL('../../../scripts/codex-hooks/judgment-resolver-host.mjs', import.meta.url);
   const hostModule = await import(hostModuleUrl.href) as {
     processHookPayload: (
       hookPayload: Record<string, unknown>,
-      dependencies?: { env?: NodeJS.ProcessEnv },
+      dependencies?: {
+        env?: NodeJS.ProcessEnv;
+        onEpisodeStarted?: (episode: Record<string, unknown>) => void;
+      },
     ) => Promise<Record<string, unknown>>;
   };
-  return hostModule.processHookPayload(payload, {
+  let receiptId: string | undefined;
+  let routeResolutionSha256: string | undefined;
+  const output = await hostModule.processHookPayload(payload, {
     env: {
       ...process.env,
       BRAINBASE_JUDGMENT_PROJECT_CODE: projectCode,
     },
+    onEpisodeStarted: (episode) => {
+      const receipt = episode.initial_route_receipt;
+      if (receipt && typeof receipt === 'object' && !Array.isArray(receipt)) {
+        const resolutionId = (receipt as Record<string, unknown>).resolution_id;
+        if (typeof resolutionId === 'string' && resolutionId.trim()) receiptId = resolutionId;
+      }
+      const digest = episode.initial_route_receipt_digest;
+      if (typeof digest === 'string') routeResolutionSha256 = digest;
+    },
   });
+  return { output, receiptId, routeResolutionSha256 };
 }
 
 async function prependPhilosophyContext(

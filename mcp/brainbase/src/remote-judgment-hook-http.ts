@@ -1,10 +1,16 @@
 export const REMOTE_JUDGMENT_HOOK_PATH = '/host/judgment/hook';
 export const REMOTE_JUDGMENT_HOOK_MAX_BODY_BYTES = 1024 * 1024;
 
+export interface RemoteJudgmentHookDispatchResult {
+  output: Record<string, unknown>;
+  receiptId?: string;
+  routeResolutionSha256?: string;
+}
+
 export type RemoteJudgmentHookDispatch = (
   payload: Record<string, unknown>,
   projectCode: string,
-) => Promise<Record<string, unknown>>;
+) => Promise<RemoteJudgmentHookDispatchResult>;
 
 export interface RemoteJudgmentHookRequest {
   method?: string;
@@ -66,16 +72,31 @@ export async function handleRemoteJudgmentHookRequest(
     return { status: 400, body: { error: 'invalid_hook_identity' } };
   }
   try {
-    const output = await request.dispatch(hookPayload, request.projectCode);
+    const dispatchResult = await request.dispatch(hookPayload, request.projectCode);
+    const { output } = dispatchResult;
+    if (!output || typeof output !== 'object' || Array.isArray(output)) {
+      return { status: 503, body: { error: 'judgment_hook_output_invalid' } };
+    }
     if (eventName === 'PostToolUse'
       && (typeof output.systemMessage !== 'string' || !output.systemMessage.trim())) {
       return { status: 503, body: { error: 'judgment_hook_audit_not_recorded' } };
+    }
+    if (eventName === 'UserPromptSubmit'
+      && (typeof dispatchResult.receiptId !== 'string' || !dispatchResult.receiptId.trim()
+        || typeof dispatchResult.routeResolutionSha256 !== 'string'
+        || !/^[a-f0-9]{64}$/.test(dispatchResult.routeResolutionSha256))) {
+      return { status: 503, body: { error: 'judgment_hook_route_receipt_missing' } };
     }
     return {
       status: 200,
       body: {
         schema_version: '1', accepted: true,
-        hook_event_name: eventName, session_id: sessionId, turn_id: turnId, output,
+        hook_event_name: eventName, session_id: sessionId, turn_id: turnId,
+        ...(eventName === 'UserPromptSubmit' ? {
+          receipt_id: dispatchResult.receiptId,
+          route_resolution_sha256: dispatchResult.routeResolutionSha256,
+        } : {}),
+        output,
       },
     };
   } catch {
