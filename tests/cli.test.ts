@@ -31,16 +31,17 @@ function capture() {
 }
 
 describe('onboarding CLI', () => {
-  it('CLI-UX-04 help leads with the shortest three-step first-value flow', async () => {
+  it('CLI-UX-04 help leads with the complete five-step human first-value flow', async () => {
     const output = capture();
     const code = await runCli(['--help'], output.io);
 
     expect(code).toBe(0);
-    expect(output.stdout()).toContain('最短で試す（3ステップ）');
+    expect(output.stdout()).toContain('初回価値まで（5ステップ）');
     expect(output.stdout()).toContain('1. brainbase onboard:start --target codex');
     expect(output.stdout()).toContain('2. 表示された brainbase onboard:seed を確認して実行');
-    expect(output.stdout()).toContain('3. brainbase onboard:demo --scenario "実際に試す依頼"');
-    expect(output.stdout().indexOf('最短で試す（3ステップ）')).toBeLessThan(output.stdout().indexOf('使い方:'));
+    expect(output.stdout()).toContain('3. brainbase onboard:install --target codex --dry-run');
+    expect(output.stdout()).toContain('5. 新しいエージェントで実際の依頼を送り、役立ったか本人が判断');
+    expect(output.stdout().indexOf('初回価値まで（5ステップ）')).toBeLessThan(output.stdout().indexOf('使い方:'));
   });
 
   it('CLI-UX-00 recognizes an npm-style symlink as the public CLI entrypoint', async () => {
@@ -215,7 +216,7 @@ describe('onboarding CLI', () => {
     expect(demo.ready).toBe(false);
     expect(demo.completionSignal).toBe('needs_seed');
     expect(demo.missing).toEqual(['self', 'work', 'relationships']);
-    expect(demo.answer).toContain('まだ最初の価値体験はできません');
+    expect(demo.answer).toContain('まだ接続前プレビューを作れません');
     expect(demo.valueExplanation).toContain('最小メモが足りません');
   });
 
@@ -244,7 +245,9 @@ describe('onboarding CLI', () => {
     expect(code).toBe(0);
     const demo = JSON.parse(output.stdout());
     expect(demo.ready).toBe(true);
-    expect(demo.completionSignal).toBe('first_value_demo_ready');
+    expect(demo.completionSignal).toBe('cli_sample_ready');
+    expect(demo.onboardingComplete).toBe(false);
+    expect(demo.humanValueStatus).toBe('not_observed');
     expect(demo.missing).toEqual([]);
     expect(demo.contextUsed.selectedRelationship).toMatchObject({
       person: 'Yamamoto Rikiya',
@@ -291,7 +294,7 @@ describe('onboarding CLI', () => {
         scope: 'local_cli_sample',
         ready: true,
         missing: [],
-        completionSignal: 'first_value_demo_ready'
+        completionSignal: 'cli_sample_ready'
       }
     });
     expect(status).not.toHaveProperty('connected');
@@ -299,7 +302,7 @@ describe('onboarding CLI', () => {
     expect(status.valueDemo).toMatchObject({
       ready: true,
       missing: [],
-      completionSignal: 'first_value_demo_ready'
+      completionSignal: 'cli_sample_ready'
     });
     expect(status.operationalization.pending.map((item: { id: string }) => item.id), 'onboarding-operationalization-next-actions S-4 C-4 doctor keeps operationalization separate from valueDemo.ready').toEqual([
       'public-skills',
@@ -344,8 +347,9 @@ describe('onboarding CLI', () => {
     expect(markdown).toContain('## 反映された文脈');
     expect(markdown).toContain('もう一度説明しなくても');
     expect(markdown).toContain('## 次に実行');
-    expect(markdown).toContain('brainbase onboard:demo');
-    expect(markdown).toContain('--details');
+    expect(markdown).toContain('brainbase onboard:install --target codex');
+    expect(markdown).toContain('--dry-run');
+    expect(markdown).toContain('このサンプルだけでは初回価値の達成になりません');
     expect(markdown).not.toContain('## まだ残っている運用化');
     expect(markdown.indexOf('## 今すぐ試す')).toBeLessThan(markdown.indexOf('## サンプル結果'));
     expect(markdown.indexOf('## サンプル結果')).toBeLessThan(markdown.indexOf('## 反映された文脈'));
@@ -426,11 +430,12 @@ describe('onboarding CLI', () => {
     expect(guide.projectRegistration.writeCommand).toContain('--write');
     expect(guide.nextCommands.map((item: { id: string }) => item.id)).toEqual([
       'self-seed',
+      'install',
+      'doctor',
+      'actual-agent-value',
       'first-value-demo',
       'skills',
       'routines',
-      'install',
-      'doctor',
       'project-dry-run',
       'project-write',
       'source-diagnosis',
@@ -443,9 +448,9 @@ describe('onboarding CLI', () => {
     expect(guide.nextCommands.find((item: { id: string }) => item.id === 'source-diagnosis').command).toContain('--assume-gog');
     expect(guide.nextCommands.find((item: { id: string }) => item.id === 'install').command).toContain('onboard:install --target codex');
     expect(guide.approvalGates.join('\n')).toContain('OAuth token');
-    expect(guide.approvalGates.join('\n')).toContain('最初の価値体験');
-    expect(guide.completionCheck.join('\n')).toContain('first_value_demo_ready');
-    expect(guide.completionCheck.join('\n'), 'onboarding-first-value-experience INV-1 completion check is user-facing, not only ready=true').toContain('説明し直さなくてよい');
+    expect(guide.approvalGates.join('\n')).toContain('実エージェントの回答と本人の価値判断');
+    expect(guide.completionCheck.join('\n')).not.toContain('first_value_demo_ready');
+    expect(guide.completionCheck.join('\n'), 'onboarding-first-value-experience INV-1 requires an actual agent answer and the user\'s value judgment').toContain('本人が役立ったかを判断');
 
     const os = await loadPersonalOs(dir);
     expect(os.graph.entities).toHaveLength(0);
@@ -469,15 +474,15 @@ describe('onboarding CLI', () => {
     expect(code).toBe(0);
     expect(output.stdout()).toContain('# Brainbase 初回オンボーディング開始');
     expect(output.stdout()).toContain('対象エージェント: Claude Code');
-    expect(output.stdout()).toContain('## まず試すこと');
-    expect(output.stdout()).toContain('### サンプル回答');
+    expect(output.stdout()).toContain('## 接続後に実エージェントで試すこと');
+    expect(output.stdout()).toContain('### 回答イメージ（接続前プレビュー）');
     expect(output.stdout(), 'onboarding-operationalization-next-actions S-3 markdown start shows operationalization before source setup').toContain('## まだ残っている運用化');
     expect(output.stdout()).toContain('brainbase onboard:skills --target');
     expect(output.stdout()).toContain('brainbase onboard:routines --target');
     expect(output.stdout()).toContain('メール');
-    expect(output.stdout()).toContain('接続準備（デモ後の任意ステップ）');
-    expect(output.stdout().indexOf('## まず試すこと')).toBeLessThan(output.stdout().indexOf('## 接続準備（デモ後の任意ステップ）'));
-    expect(output.stdout().indexOf('## まだ残っている運用化')).toBeLessThan(output.stdout().indexOf('## 接続準備（デモ後の任意ステップ）'));
+    expect(output.stdout()).toContain('追加接続（初回価値確認後の任意ステップ）');
+    expect(output.stdout().indexOf('## 接続後に実エージェントで試すこと')).toBeLessThan(output.stdout().indexOf('## 追加接続（初回価値確認後の任意ステップ）'));
+    expect(output.stdout().indexOf('## まだ残っている運用化')).toBeLessThan(output.stdout().indexOf('## 追加接続（初回価値確認後の任意ステップ）'));
     expect(output.stdout()).toContain('onboard:demo');
     expect(output.stdout()).toContain('ローカル設定が必要');
     expect(output.stdout()).toContain('ローカルGoGコマンドをインストールまたは設定する: __missing_brainbase_gog__');
@@ -523,7 +528,7 @@ describe('onboarding CLI', () => {
     await expect(access(dir)).rejects.toThrow();
   });
 
-  it('CLI-UX-03 seed confirmation lists saved context and the next copyable demo command', async () => {
+  it('CLI-UX-03 seed confirmation lists saved context and the next copyable MCP install preview', async () => {
     const dir = await tempDir();
     const output = capture();
     const code = await runCli([
@@ -538,7 +543,8 @@ describe('onboarding CLI', () => {
     expect(output.stdout()).toContain('プロジェクト: Atlas導入');
     expect(output.stdout()).toContain('関係者: 田中（責任者）');
     expect(output.stdout()).toContain('判断基準: 推測を事実として扱わない');
-    expect(output.stdout()).toContain(`brainbase onboard:demo --dir ${dir}`);
+    expect(output.stdout()).toContain(`brainbase onboard:install --target codex --dir ${dir} --dry-run`);
+    expect(output.stdout()).toContain('実際の依頼でBrainbaseのget_contextとsearchを使います');
   });
 
   it('CLI-UX-05 start translates missing canonical areas in the primary Japanese output', async () => {

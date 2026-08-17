@@ -87,6 +87,15 @@ describe('buildSkillBundle', () => {
     expect(joined).toContain('oauthトークン');
     expect(joined).toContain('チャットに貼るようユーザーに依頼しない');
   });
+
+  it('requires actual agent use and human value recognition before onboarding completion', () => {
+    const onboarding = buildSkillBundle('codex', ['brainbase-personal-onboarding']).skills[0].content;
+    expect(onboarding).toContain('実際のエージェント');
+    expect(onboarding).toContain('get_context');
+    expect(onboarding).toContain('search');
+    expect(onboarding).toContain('本人に役立ったかを確認');
+    expect(onboarding).toContain('CLIサンプルは初回価値の達成証拠にしない');
+  });
 });
 
 describe('onboard:skills CLI', () => {

@@ -97,7 +97,7 @@ describe('agent-assisted source onboarding acceptance', () => {
     expect(status.valueDemo, 'value-first-onboarding ac:5 `doctor` exposes a `valueDemo` readiness block so onboarding completion is not reduced to connector setup.').toMatchObject({
       ready: true,
       missing: [],
-      completionSignal: 'first_value_demo_ready'
+      completionSignal: 'cli_sample_ready'
     });
 
     const guidedDir = await tempDir();
@@ -123,7 +123,8 @@ describe('agent-assisted source onboarding acceptance', () => {
       'first_value_demo',
       'sources'
     ]);
-    expect(guidedCommandIds.indexOf('first-value-demo'), 'value-first-onboarding ac:6 primary `onboard:start` path presents first value demo before source diagnosis or candidate files.').toBeLessThan(guidedCommandIds.indexOf('source-diagnosis'));
+    expect(guidedCommandIds.indexOf('actual-agent-value'), 'value-first-onboarding ac:6 primary `onboard:start` path presents actual agent verification before source diagnosis or candidate files.').toBeLessThan(guidedCommandIds.indexOf('source-diagnosis'));
+    expect(guidedCommandIds.indexOf('install')).toBeLessThan(guidedCommandIds.indexOf('actual-agent-value'));
     expect(guided.nextCommands.find((item: { id: string }) => item.id === 'first-value-demo').command, 'value-first-onboarding ac:6 primary `onboard:start` path presents first value demo before source diagnosis or candidate files.').toContain('brainbase onboard:demo');
     expect(guided.nextCommands.find((item: { id: string }) => item.id === 'self-seed').command, 'value-first-onboarding ac:4 primary `onboard:start` path seeds relationship context before the first demo.').toContain('--relationship');
 

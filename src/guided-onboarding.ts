@@ -172,6 +172,7 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
     '--dir', input.dataDir,
     '--scenario', firstValueScenario
   ]);
+  const actualAgentPrompt = `Brainbaseのget_contextとsearchを使い、保存済み文脈を根拠に「${firstValueScenario}」へ回答してください。使った前提と未確認事項を分けてください。`;
   const projectDryRunCommand = project
     ? projectCommand(input.dataDir, project.project.name, input.project, project.project.sources, false)
     : undefined;
@@ -222,32 +223,14 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
     nextCommands: [
       {
         id: 'self-seed',
-        title: '最初のデモに必要な最小文脈を正本化する',
+        title: '最初の実利用に必要な最小文脈を正本化する',
         when: '名前、価値観、最初のプロジェクト、関係者文脈を本人が確認した後',
         command: selfSeedCommand
       },
       {
-        id: 'first-value-demo',
-        title: '最初の価値体験を実行する',
-        when: '最小文脈のseed直後。接続診断より先に実行する',
-        command: demoCommand
-      },
-      {
-        id: 'skills',
-        title: '公開オンボーディングskillsを配置する',
-        when: 'first value demoを見せた後。agentが次回も同じ運用を辿れるようにする',
-        command: operationalization.pending.find((item) => item.id === 'public-skills')?.command ?? 'brainbase onboard:skills --target codex'
-      },
-      {
-        id: 'routines',
-        title: 'ohayo / oyasumi / retroを確認付きで登録する',
-        when: 'first value demoを見せた後。最初はPAUSEDまたは確認付きで登録する',
-        command: operationalization.pending.find((item) => item.id === 'routines')?.command ?? 'brainbase onboard:routines --target codex --cwd <brainbase-checkout>'
-      },
-      {
         id: 'install',
         title: `${targetLabel(input.target)} 用のMCP設定を実configへmergeする`,
-        when: 'first value demoとskills/routines確認後。dry-runをプレビューにして承認後に実configへ反映する',
+        when: '最小文脈のseed直後。dry-runを確認し、承認後に実configへ反映する',
         command: operationalization.pending.find((item) => item.id === 'mcp-config')?.command ?? command(['brainbase', 'onboard:install', '--target', input.target, '--dir', input.dataDir, '--dry-run'])
       },
       {
@@ -256,10 +239,34 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
         when: 'MCP設定を実configへmergeし、対象エージェントを再起動した後',
         command: operationalization.pending.find((item) => item.id === 'verification')?.command ?? command(['brainbase', 'doctor', '--dir', input.dataDir])
       },
+      {
+        id: 'actual-agent-value',
+        title: '実エージェントで現実の依頼を試し、本人が価値を判断する',
+        when: 'MCP設定反映後の新しいエージェントセッション',
+        command: actualAgentPrompt
+      },
+      {
+        id: 'first-value-demo',
+        title: '必要ならCLI文脈プレビューを見る',
+        when: '実接続前に保存文脈から作れるサンプルだけ確認したい時。完了証拠にはしない',
+        command: demoCommand
+      },
+      {
+        id: 'skills',
+        title: '公開オンボーディングskillsを配置する',
+        when: '実エージェントの回答を本人が役立つと確認した後',
+        command: operationalization.pending.find((item) => item.id === 'public-skills')?.command ?? 'brainbase onboard:skills --target codex'
+      },
+      {
+        id: 'routines',
+        title: 'ohayo / oyasumi / retroを確認付きで登録する',
+        when: '初回価値確認後、継続運用が必要になった時',
+        command: operationalization.pending.find((item) => item.id === 'routines')?.command ?? 'brainbase onboard:routines --target codex --cwd <brainbase-checkout>'
+      },
       ...(projectDryRunCommand ? [{
         id: 'project-dry-run',
         title: 'プロジェクト登録内容を確認する',
-        when: '最初のデモ後、プロジェクト詳細を追加したい時',
+        when: '実エージェントの回答確認後、プロジェクト詳細を追加したい時',
         command: projectDryRunCommand
       }] : []),
       ...(projectWriteCommand ? [{
@@ -271,13 +278,13 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
       {
         id: 'source-diagnosis',
         title: 'メール・カレンダー・ドライブ・タスクの接続準備を診断する',
-        when: '最初の価値体験の後、追加文脈が必要だと分かった時',
+        when: '実エージェントの回答を確認した後、追加文脈が必要だと分かった時',
         command: diagnoseCommand
       },
       {
         id: 'candidates',
         title: '候補ファクトをレビュー用に作る',
-        when: '最初のデモ後、聞き取り内容をまだ正本化せずレビュー材料にしたい時',
+        when: '実エージェントの回答を確認した後、聞き取り内容をまだ正本化せずレビュー材料にしたい時',
         command: command([
           'brainbase',
           'onboard:candidates',
@@ -290,16 +297,16 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
     ],
     approvalGates: [
       'OAuth token、password、API key、refresh tokenはチャットへ貼らない。',
-      '接続診断や候補JSONを初回オンボーディングの完了扱いにしない。最初の価値体験を先に見る。',
+      '接続診断や候補JSONを初回オンボーディングの完了扱いにしない。実エージェントの回答と本人の価値判断を先に確認する。',
       'メール、カレンダー、ドライブ、タスクは最初はmetadata-firstで扱う。',
       'Google Driveとローカルファイルは明示されたfolder allowlistだけを見る。',
       'sources/ と candidates/ は二次材料であり、本人承認前にMCPの正本文脈へ入れない。',
       'プロジェクト、関係者、判断基準はdry-run確認後だけ --write または onboard:seed で正本化する。'
     ],
     completionCheck: [
-      'brainbase onboard:demo が、保存済み文脈を使った自然なプロンプトとサンプル回答を返す。',
-      'ready=true / first_value_demo_ready だけで完了扱いにせず、ユーザーが「説明し直さなくてよい」と分かる回答を見る。',
-      'doctor の valueDemo.ready が true になる。',
+      'CLIサンプルは接続前プレビューであり、初回価値の達成証拠にしない。',
+      '新しい実エージェントがBrainbase MCPのget_context/searchを使って現実の依頼へ回答する。',
+      '実回答を見た本人が役立ったかを判断する。',
       '完了報告には、公開skills、ohayo/oyasumi/retro、MCP実config merge、source allowlist/import/candidate review、MCP get_context/search確認の未完了タスクを必ず出す。',
       `${targetLabel(input.target)} のMCP設定に Brainbase が実登録されている。`,
       '最初のプロジェクトが get_context/search で見える。',
@@ -317,11 +324,11 @@ export function renderGuidedFirstRun(input: GuidedFirstRunInput, format: GuidedF
   if (!details) {
     const next = guide.currentStatus.missing.length > 0
       ? guide.nextCommands.find((item) => item.id === 'self-seed')
-      : guide.nextCommands.find((item) => item.id === 'first-value-demo');
+      : guide.nextCommands.find((item) => item.id === 'install');
     return [
       '# Brainbase 初回オンボーディング',
       '',
-      `- 状態: ${guide.currentStatus.missing.length > 0 ? '最小文脈の保存待ち' : '初回価値を確認できます'}`,
+      `- 状態: ${guide.currentStatus.missing.length > 0 ? '最小文脈の保存待ち' : '実エージェント接続待ち'}`,
       `- データ: \`${guide.dataDir}\``,
       `- 不足: ${guide.currentStatus.missing.length > 0 ? guide.currentStatus.missing.map(canonicalAreaLabel).join('、') : 'なし'}`,
       '',
@@ -347,13 +354,13 @@ export function renderGuidedFirstRun(input: GuidedFirstRunInput, format: GuidedF
     `- 正本ファクト書き込み: ${guide.initialized.canonicalFactWrites ? 'あり' : 'なし'}`,
     `- 現在の不足: ${guide.currentStatus.missing.length > 0 ? guide.currentStatus.missing.map(canonicalAreaLabel).join('、') : 'なし'}`,
     '',
-    '## まず試すこと',
+    '## 接続後に実エージェントで試すこと',
     guide.firstValueExperience.title,
     '',
     `- 試すプロンプト: 「${guide.firstValueExperience.tryPrompt}」`,
     `- 期待する価値: ${guide.firstValueExperience.expectedValue}`,
     '',
-    '### サンプル回答',
+    '### 回答イメージ（接続前プレビュー）',
     guide.firstValueExperience.sampleResult,
     '',
     '## まだ残っている運用化',
@@ -372,7 +379,7 @@ export function renderGuidedFirstRun(input: GuidedFirstRunInput, format: GuidedF
       ...section.questions.map((question) => `- ${question}`)
     ]),
     '',
-    '## 接続準備（デモ後の任意ステップ）',
+    '## 追加接続（初回価値確認後の任意ステップ）',
     ...guide.sourceReadiness.flatMap((source) => [
       '',
       `### ${source.title}`,
@@ -407,11 +414,11 @@ function buildJapaneseInterview(): GuidedInterviewSection[] {
   return [
     {
       id: 'value_target',
-      title: '最初の価値体験',
+      title: '本人が価値を判断できる最初の実利用',
       questions: [
         'Codex / Claude Code に毎回説明し直したくない仕事文脈は何ですか？',
         '今日のオンボーディングで「これは便利」と判断できる実リクエストは何ですか？',
-        '最初のデモは仕事前提、関係者、判断基準、プロジェクトのどれを使えれば成功ですか？'
+        '最初の実回答は仕事前提、関係者、判断基準、プロジェクトのどれを使えれば役立ったと判断できますか？'
       ]
     },
     {
@@ -420,7 +427,7 @@ function buildJapaneseInterview(): GuidedInterviewSection[] {
       questions: [
         'あなたの名前、呼ばれ方、Codex / Claude Code に覚えてほしい仕事上の前提は何ですか？',
         '判断基準、重視する価値観、避けたい進め方は何ですか？',
-        '最初のデモに必要な関係者は誰で、どういう文脈を覚えておくべきですか？'
+        '最初の実利用に必要な関係者は誰で、どういう文脈を覚えておくべきですか？'
       ]
     },
     {
@@ -436,24 +443,24 @@ function buildJapaneseInterview(): GuidedInterviewSection[] {
       id: 'approval',
       title: '正本化の承認',
       questions: [
-        '最初のデモに必要な本人、仕事、関係性の事実をこのままローカル正本に入れてよいですか？',
+        '最初の実利用に必要な本人、仕事、関係性の事実をこのままローカル正本に入れてよいですか？',
         '候補JSONではなく、会話上の要約として承認できますか？',
         'まだ正本化しない事実や除外したい文脈はありますか？'
       ]
     },
     {
       id: 'first_value_demo',
-      title: 'デモ確認',
+      title: '実エージェント回答の確認',
       questions: [
-        'seed直後に brainbase onboard:demo を実行し、説明し直しが減ったか確認してください。',
-        'デモが足りない場合、どの文脈が不足していましたか？'
+        'MCP設定反映と再起動後、実エージェントへ現実の依頼を送り、説明し直しが減ったか確認してください。',
+        '実回答が役立たない場合、どの文脈が不足していましたか？'
       ]
     },
     {
       id: 'sources',
-      title: 'デモ後のメール・カレンダー・ドライブ・タスク',
+      title: '初回価値確認後のメール・カレンダー・ドライブ・タスク',
       questions: [
-        '最初のデモ後に追加文脈が必要なら、メールは Gmail / Google Workspace / Outlook / Apple Mail / その他のどれですか？',
+        '初回価値確認後に追加文脈が必要なら、メールは Gmail / Google Workspace / Outlook / Apple Mail / その他のどれですか？',
         'カレンダーは Google Calendar / Outlook Calendar / Apple Calendar / その他のどれですか？',
         'ドキュメントは Google Drive / OneDrive / Dropbox / Notion / ローカルフォルダのどこにありますか？',
         'タスク管理は Notion / Todoist / Linear / GitHub Issues / NocoDB / CSV / カレンダーやメモ散在 / なし のどれですか？',
@@ -492,7 +499,7 @@ function buildFirstValueExperience(projectName: string | undefined, person: stri
     ].join('\n');
 
   return {
-    title: '最小メモを保存したら、まずこの一問で価値を確認します。',
+    title: '最小メモを保存して接続したら、実エージェントへこの一問を依頼します。',
     tryPrompt,
     expectedValue,
     sampleResult
