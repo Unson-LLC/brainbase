@@ -8,7 +8,9 @@
   "lifecycle": "final",
   "cross_lane_contract_source": {
     "pull_request": "https://github.com/Unson-LLC/mana-runtime/pull/237",
-    "head": "ba1942e15935e00d1c603f57284439384bc95cac",
+    "head": "37dd9f5eee783b9b3ba94c31c9c7e32f7afa3351",
+    "kit_path": "contracts/mana-brainbase-tenant-context/v1",
+    "fixture_set_sha256": "81c73707578ae42d6ed539aae3ac1e8eb3b0feac906e3856e73d8cdf6629d454",
     "decision_ids": [
       "D-001",
       "D-002",
@@ -31,7 +33,7 @@
     {
       "id": "D-001",
       "status": "fixed",
-      "decision": "Canonical snake_case TenantContextEnvelope; RFC 8785 without integrity; detached JWS EdDSA/Ed25519; TTL <= 300 seconds; skew <= 30 seconds; current and retiring public keys."
+      "decision": "Canonical snake_case TenantContextEnvelope; exact RFC 8785 without integrity; detached JWS EdDSA/Ed25519 with b64=false, crit=[b64], kid and canonical typ; canonical decimal string revisions; expires_at > issued_at; TTL <= 300 seconds; skew <= 30 seconds; current and retiring public keys."
     },
     {
       "id": "D-002",
@@ -46,17 +48,17 @@
     {
       "id": "D-004",
       "status": "fixed",
-      "decision": "Protocol mana-brainbase-tenant-context current 1.0 range >=1.0 <2.0; highest mutual minor; no downgrade; deprecation notice >= 90 days."
+      "decision": "Protocol mana-brainbase-tenant-context request/response messages advertise range >=1.0 <2.0, supported versions and every required capability; select the highest mutual v1 minor without downgrade; deprecation notice >= 90 days."
     },
     {
       "id": "D-005",
       "status": "fixed",
-      "decision": "Brainbase solely owns credentials and refresh; runtime uses opaque credential_ref and operation/audience-bound single-use lease <= 60 seconds; OAuth refresh uses CAS."
+      "decision": "Brainbase solely owns credentials and refresh; runtime uses opaque credential_ref and a lease_id/lease_token response bound to tenant, connection/revision, contract revision, operation, audience and credential mode; max_uses=1 and TTL <= 60 seconds; OAuth refresh uses CAS."
     },
     {
       "id": "D-006",
       "status": "fixed",
-      "decision": "Brainbase owns quota, canonical UsageEvent, OperationReceipt, and business-effect ledger; fixed length-prefixed idempotency formula; terminal claims retained >= 30 days."
+      "decision": "Brainbase owns credential_lease, quota_decision, business_effect and usage_receipt claims; mana-runtime owns queue_execution and slack_delivery claims. Brainbase emits canonical quota, UsageEvent and OperationReceipt wires with string revisions; all scopes use the fixed length-prefixed idempotency formula and terminal claims are retained >= 30 days."
     },
     {
       "id": "D-007",
@@ -87,7 +89,8 @@
         "tenant_scoped_authorization",
         "credential_broker_v1",
         "usage_receipt_v1",
-        "idempotent_effects_v1"
+        "idempotent_effects_v1",
+        "container_sanitization_v1"
       ],
       "optional_capabilities": [
         "cloud_billing_export",
@@ -99,7 +102,18 @@
     "tenant_context_envelope": {
       "wire_format": "canonical snake_case JSON",
       "canonicalization": "RFC 8785 over envelope with integrity omitted",
-      "signature": "RFC 7515 detached compact JWS EdDSA with Ed25519",
+      "signature": "RFC 7515 detached compact JWS EdDSA with Ed25519 over ASCII(protected64 + '.') followed by UTF-8 JCS(unsigned envelope); payload segment is empty and payload is not base64url encoded",
+      "protected_header": {
+        "alg": "EdDSA",
+        "b64": false,
+        "crit": [
+          "b64"
+        ],
+        "kid": "integrity.key_id",
+        "typ": "application/mana-brainbase-tenant-context+jws"
+      },
+      "revision_type": "canonical decimal string matching ^(0|[1-9][0-9]*)$",
+      "time_order": "expires_at must be later than issued_at",
       "ttl_seconds_maximum": 300,
       "clock_skew_seconds_maximum": 30,
       "verification_key_statuses": [
@@ -137,7 +151,7 @@
     "workspace_connection": {
       "canonical_owner": "Brainbase",
       "projection_cache_ttl_seconds_maximum": 30,
-      "revision_type": "integer >= 1 monotonically increasing",
+      "revision_type": "canonical decimal string matching ^(0|[1-9][0-9]*)$ and monotonically increasing numerically",
       "authoritative_recheck_points": [
         "ingress",
         "before_credential_lease",
@@ -149,13 +163,26 @@
       "canonical_owner": "Brainbase",
       "lease_ttl_seconds_maximum": 60,
       "single_use": true,
+      "request_message_type": "credential_lease_request",
+      "response_message_type": "credential_lease_response",
+      "response_fields": [
+        "lease_id",
+        "contract_revision",
+        "binding",
+        "issued_at",
+        "expires_at",
+        "max_uses",
+        "lease_token"
+      ],
       "lease_binding": [
         "tenant_id",
         "connection_id",
         "connection_revision",
+        "contract_revision",
         "operation_id",
         "audience",
-        "credential_mode"
+        "credential_mode",
+        "credential_ref"
       ],
       "refresh_compare_and_swap": true,
       "raw_secret_persistence": "forbidden"
@@ -170,6 +197,14 @@
         "failed_terminal"
       ],
       "terminal_claim_retention_days_minimum": 30,
+      "owner_by_scope": {
+        "credential_lease": "brainbase",
+        "quota_decision": "brainbase",
+        "business_effect": "brainbase",
+        "usage_receipt": "brainbase",
+        "queue_execution": "mana_runtime",
+        "slack_delivery": "mana_runtime"
+      },
       "conflict_rule": "same key after claim with different payload_hash or context_hash is IDEMPOTENCY_CONFLICT"
     },
     "usage_and_receipt": {
@@ -215,10 +250,14 @@
     }
   },
   "fixtures": {
-    "positive": "tests/fixtures/multitenant-contract/v1/positive.json",
-    "negative": "tests/fixtures/multitenant-contract/v1/negative.json",
-    "non_applicable": "tests/fixtures/multitenant-contract/v1/non-applicable.json",
-    "execution_evidence": "contract_tests_green_not_production_readback"
+    "canonical_source": "mana-runtime PR #237 HEAD 37dd9f5eee783b9b3ba94c31c9c7e32f7afa3351 contracts/mana-brainbase-tenant-context/v1/fixtures/manifest.json",
+    "fixture_set_sha256": "81c73707578ae42d6ed539aae3ac1e8eb3b0feac906e3856e73d8cdf6629d454",
+    "adapter_test": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+    "positive_count": 1,
+    "negative_count": 16,
+    "non_applicable_count": 1,
+    "duplication_policy": "Brainbase adapter reads the shared manifest and fixture files directly; copied fixtures or independently restated expected results are not conformance evidence",
+    "execution_evidence": "adapter_and_route_tests_green_not_production_readback"
   },
   "clauses": [
     {
@@ -260,7 +299,7 @@
       },
       "confidence": 0.96,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "INV-001",
@@ -312,7 +351,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "INV-002",
@@ -364,7 +403,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "C-002",
@@ -416,7 +455,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "INV-003",
@@ -479,7 +518,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "C-003",
@@ -523,7 +562,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "C-004",
@@ -567,7 +606,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "C-005",
@@ -608,7 +647,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "C-006",
@@ -652,7 +691,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "INV-004",
@@ -715,7 +754,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "C-007",
@@ -767,7 +806,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "C-008",
@@ -811,7 +850,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "C-009",
@@ -863,7 +902,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "C-010",
@@ -904,7 +943,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "INV-005",
@@ -956,7 +995,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "C-011",
@@ -1000,7 +1039,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "C-012",
@@ -1044,8 +1083,8 @@
             "case": "AC-301/AC-302: service auth後にCloud/OSS共通v1 negotiationを返す"
           },
           {
-            "file": "tests/server/services/multitenant/contract-fixtures.test.js",
-            "case": "$id: positive fixture"
+            "file": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+            "case": "Brainbase producer adapter reads the canonical PR #237 manifest"
           }
         ]
       },
@@ -1064,14 +1103,14 @@
             "must_cover": "AC-301"
           },
           {
-            "file_glob": "tests/server/services/multitenant/contract-fixtures.test.js",
-            "must_cover": "AC-301"
+            "file_glob": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+            "must_cover": "canonical PR #237 manifest"
           }
         ]
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "C-013",
@@ -1104,8 +1143,8 @@
             "case": "AC-301/AC-302: %sでprotocol v1と共通必須capabilityを交渉する"
           },
           {
-            "file": "tests/server/services/multitenant/contract-fixtures.test.js",
-            "case": "$id: positive fixture"
+            "file": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+            "case": "Brainbase producer adapter reads the canonical PR #237 manifest"
           }
         ]
       },
@@ -1116,14 +1155,14 @@
             "must_cover": "AC-302"
           },
           {
-            "file_glob": "tests/server/services/multitenant/contract-fixtures.test.js",
-            "must_cover": "AC-302"
+            "file_glob": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+            "must_cover": "canonical PR #237 manifest"
           }
         ]
       },
       "confidence": 0.92,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "INV-006",
@@ -1153,8 +1192,8 @@
             "case": "AC-303: OSSではCloud任意機能だけを理由付きnon_applicableにする"
           },
           {
-            "file": "tests/server/services/multitenant/contract-fixtures.test.js",
-            "case": "$id: non-applicable fixture"
+            "file": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+            "case": "Brainbase producer adapter reads the canonical PR #237 manifest"
           }
         ]
       },
@@ -1165,14 +1204,14 @@
             "must_cover": "AC-303"
           },
           {
-            "file_glob": "tests/server/services/multitenant/contract-fixtures.test.js",
-            "must_cover": "AC-303"
+            "file_glob": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+            "must_cover": "canonical PR #237 manifest"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "C-014",
@@ -1216,7 +1255,7 @@
       },
       "confidence": 0.9,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     },
     {
       "id": "INV-007",
@@ -1282,7 +1321,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-16T14:21:43.244Z"
+      "last_revised_at": "2026-08-17T01:46:31.037Z"
     }
   ],
   "planned_test_suites": [
@@ -1320,6 +1359,6 @@
     }
   ],
   "open_questions": [],
-  "generated_at": "2026-08-16T14:21:43.243Z",
-  "previous_spec_id": "2026-08-16T14:07:27.921Z"
+  "generated_at": "2026-08-17T00:41:30.145Z",
+  "previous_spec_id": "2026-08-16T14:21:43.243Z"
 }
