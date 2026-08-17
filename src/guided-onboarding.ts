@@ -172,7 +172,7 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
     '--dir', input.dataDir,
     '--scenario', firstValueScenario
   ]);
-  const actualAgentPrompt = `Brainbaseのget_contextとsearchを使い、保存済み文脈を根拠に「${firstValueScenario}」へ回答してください。使った前提と未確認事項を分けてください。`;
+  const actualAgentPrompt = `Brainbaseのresolve_entity、get_context、searchを使い、保存済み文脈を根拠に「${firstValueScenario}」へ回答してください。使った正規ID、関係、前提、未確認事項を分けてください。`;
   const projectDryRunCommand = project
     ? projectCommand(input.dataDir, project.project.name, input.project, project.project.sources, false)
     : undefined;
@@ -235,7 +235,7 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
       },
       {
         id: 'doctor',
-        title: 'doctor と MCP get_context/search で確認する',
+        title: 'doctor と MCP resolve_entity/get_context/search で確認する',
         when: 'MCP設定を実configへmergeし、対象エージェントを再起動した後',
         command: operationalization.pending.find((item) => item.id === 'verification')?.command ?? command(['brainbase', 'doctor', '--dir', input.dataDir])
       },
@@ -305,9 +305,9 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
     ],
     completionCheck: [
       'CLIサンプルは接続前プレビューであり、初回価値の達成証拠にしない。',
-      '新しい実エージェントがBrainbase MCPのget_context/searchを使って現実の依頼へ回答する。',
+      '新しい実エージェントがBrainbase MCPのresolve_entity/get_context/searchを使って現実の依頼へ回答する。',
       '実回答を見た本人が役立ったかを判断する。',
-      '完了報告には、公開skills、ohayo/oyasumi/retro、MCP実config merge、source allowlist/import/candidate review、MCP get_context/search確認の未完了タスクを必ず出す。',
+      '完了報告には、公開skills、ohayo/oyasumi/retro、MCP実config merge、source allowlist/import/candidate review、MCP resolve_entity/get_context/search確認の未完了タスクを必ず出す。',
       `${targetLabel(input.target)} のMCP設定に Brainbase が実登録されている。`,
       '最初のプロジェクトが get_context/search で見える。',
       '外部ソースは許可範囲、保存先、正本化前レビューの流れが説明できる。'

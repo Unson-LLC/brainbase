@@ -4,11 +4,16 @@ Brainbase MCPは、ローカルの個人SSOTをAIエージェントから参照�
 
 ## get_context
 
-自分、仕事、関係性、プロジェクトを統合した初期文脈を取得します。
+自分、仕事、関係性、プロジェクトを統合した初期文脈を取得します。任意の`project`と`as_of`で、追加される`canonicalGraph`のプロジェクト範囲と有効時点を指定できます。互換用のトップレベル`relationships`と`decisions`は、この指定では絞り込まれません。
 
 ```ts
-mcp__brainbase__get_context({})
+mcp__brainbase__get_context({
+  project: "project-atlas",
+  as_of: "2026-08-17T00:00:00.000Z"
+})
 ```
+
+Graph v2では従来の応答を維持したまま`canonicalGraph`を追加し、正規エンティティ、探索に使ったエッジIDの`relationPath`、探索時点を返します。エッジ本体は返しません。
 
 ## list_entities
 
@@ -30,15 +35,46 @@ mcp__brainbase__list_entities({
 
 ## search
 
-GraphとPersonal KGを横断検索します。
+GraphとPersonal KGを横断検索します。任意の`project`と`as_of`は、正規Graph由来の候補と関係経路のプロジェクト範囲・有効時点へ適用されます。互換用のlegacy投影は、結果上で`projection`または`unresolved`として区別されます。
 
 ```ts
 mcp__brainbase__search({
-  query: "Cursorvers"
+  query: "Cursorvers",
+  project: "project-atlas",
+  as_of: "2026-08-17T00:00:00.000Z"
 })
 ```
 
 検索結果だけで「存在しない」と断定しないでください。表記ゆれがありそうな場合は、別名や関連語でも確認します。
+
+Graph v2の結果は従来の`source`、`id`、`title`、`text`、`score`を維持しつつ、`canonicalEntityId`、`recordClass`、`projectionOf`、`projectionSources`、`relationPath`、`authority`を追加します。`recordClass`は`canonical`、`projection`、`unresolved`を区別します。同名候補が複数あるlegacy記録を正規IDへ推測接続しません。
+
+## resolve_entity
+
+任意の文章に含まれる表現を、Graph v2の正規エンティティIDへ接続します。本文そのものではなくhashとspanを残す、検証可能なEvidence Receiptを返します。
+
+```ts
+mcp__brainbase__resolve_entity({
+  text: "Atlas導入について田中さんに相談する",
+  asOf: "2026-08-17T00:00:00.000Z",
+  projectScope: {
+    projectIds: ["project-atlas"],
+    policy: "strict"
+  }
+})
+```
+
+必須入力は`text`と`asOf`です。任意で`dataDir`、抽出済みの`mentionSpans`、`projectScope`、対象を絞る`entityTypes`を渡せます。`resolve_entity`は`asOf`、`get_context`と`search`は`as_of`なので、項目名の違いに注意してください。
+
+結果は表現ごとに`resolved`、`ambiguous`、`unresolved`を区別します。候補が複数ある場合や情報源を検証できない場合に、勝手に1件へ確定しません。トップレベルの`status`は、検証済みGraph v2なら`verified`、Graph v1なら`migration_required`、Graphの欠落・破損なら`unverified`です。`unverified`時のReceiptは`blocked`となり、未取得を「該当なし」へ丸めません。`asOf`は時点が有効なエンティティとエッジだけを使うための必須値です。
+
+`projectScope.policy`は省略時に`strict`となり、次から選びます。
+
+- `strict`: 指定プロジェクトへIDエッジで到達できる候補だけを使う
+- `prefer_project`: 指定プロジェクトの候補を優先する
+- `allow_global_fallback`: プロジェクト内に候補がない場合だけ全体へ広げる
+
+Receiptには正規ID、候補根拠、Graph/Ontology/Resolverのversion、入力hash、source状態、決定論的digestが含まれます。元の本文やローカルの絶対pathはportable Receiptへ保存しません。
 
 ## search_personal_kg
 
@@ -135,7 +171,7 @@ seed済み項目、未設定項目、接続状態を見て、次に何を埋め�
 
 ## get_ontology
 
-同梱されているOntology 1.0.0を取得します。Personal OSのファイルを読めない状態でも利用できます。
+同梱されている現行Ontology 2.0.0を取得します。Personal OSのファイルを読めない状態でも利用できます。
 
 ```ts
 mcp__brainbase__get_ontology({})
@@ -145,7 +181,7 @@ mcp__brainbase__get_ontology({})
 
 ## audit_ontology
 
-ローカル正本をOntology 1.0.0に照らして監査します。
+ローカル正本を、Graph v2に記録されたOntology bindingまたは指定した履歴versionに照らして監査します。
 
 ```ts
 mcp__brainbase__audit_ontology({})
@@ -168,7 +204,7 @@ Decisionの明示的な `supersedes` から、有効、置換済み、競合を�
 ```ts
 mcp__brainbase__infer_decisions({
   asOf: "2026-08-03T00:00:00.000Z",
-  ontologyVersion: "1.0.0"
+  ontologyVersion: "2.0.0"
 })
 ```
 
@@ -177,7 +213,7 @@ mcp__brainbase__infer_decisions({
 
 ## ontology_impact
 
-過去versionから1.0.0への互換性、変更点、移行、ロールバック方法を取得します。
+過去versionから現行2.0.0への互換性、変更点、移行、ロールバック方法を取得します。
 
 ```ts
 mcp__brainbase__ontology_impact({

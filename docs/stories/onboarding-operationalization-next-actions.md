@@ -35,7 +35,7 @@ As a first-time Brainbase adopter, I want the completion report after the first 
 
 ## Acceptance Criteria
 
-- [ ] `onboard:demo --format json` after a ready first value demo includes pending actions for public skills, routines, MCP config merge, source allowlists / import / candidate review, and doctor plus MCP `get_context` / `search` verification.
+- [ ] `onboard:demo --format json` after a ready first value demo includes pending actions for public skills, routines, MCP config merge, source allowlists / import / candidate review, and doctor plus MCP `resolve_entity` / `get_context` / `search` verification.
 - [ ] Markdown `onboard:demo` shows the same unfinished operationalization actions after the first value output.
 - [ ] `onboard:start --format json` includes operationalization next commands in the recommended order: skills, routines with pause/confirmation, MCP config merge, verification, then optional project/source follow-up.
 - [ ] `doctor` exposes an `operationalization` section so agents cannot collapse onboarding to `valueDemo.ready`.

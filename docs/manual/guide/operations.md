@@ -45,7 +45,7 @@ Brainbase MCPの状態を確認し、私の現在のプロジェクトと重要�
 続けて、登録したプロジェクトについて検索してください。
 ```
 
-AIがMCPの `onboarding_status`、`get_context`、`search` を使い、正本に基づいて答えられれば運用開始です。
+AIがMCPの `onboarding_status`、`resolve_entity`、`get_context`、`search` を使い、正本に基づいて答えられれば運用開始です。
 
 Codex HostにJudgment Resolverを導入した場合は、すべての返答の先頭に `🧠 判断参照:` と、それに続く `📚` または `⚠️` の参照証跡が表示されることも確認します。前者は判断に使った依頼と対応方針、後者は実際のBrainbase MCP呼び出し、または参照不要で0回だった事実を示します。詳しい見方と3つのHookの導入手順は[Judgment Hostを登録して判断・参照証跡を確認する](/guide/judgment-audit)にあります。
 

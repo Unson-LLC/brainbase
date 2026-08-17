@@ -35,12 +35,12 @@ brainbase onboard:start --target codex
 # 表示された onboard:seed を確認して実行
 brainbase onboard:install --target codex --dry-run
 # 設定を承認・反映し、Codexを再起動
-# 新しいCodexでBrainbaseのget_context/searchを使って実際の依頼を試す
+# 新しいCodexでBrainbaseのresolve_entity/get_context/searchを使って実際の依頼を試す
 ```
 
 リポジトリをcloneした場合も、`npm run onboard:start -- --target codex`から同じ順序で進めます。
 
-利用者がBrainbaseの導入を依頼したら、エージェントはチェックリストを返すだけでなく、この公開CLIを実行します。承認された最小文脈を保存し、MCP設定を反映した新しい実エージェントで`get_context`と`search`を使って現実の依頼へ回答します。その実回答を見た本人が「役立った」と判断して初めて初回価値です。`ready: true`、`cli_sample_ready`、CLIの処理時間、合成ペルソナ評価、Skillsやルーティンの生成、`onboard:install --dry-run`だけでは導入完了ではありません。
+利用者がBrainbaseの導入を依頼したら、エージェントはチェックリストを返すだけでなく、この公開CLIを実行します。承認された最小文脈を保存し、MCP設定を反映した新しい実エージェントで`resolve_entity`、`get_context`、`search`を使って現実の依頼へ回答します。その実回答を見た本人が「役立った」と判断して初めて初回価値です。`ready: true`、`cli_sample_ready`、CLIの処理時間、合成ペルソナ評価、Skillsやルーティンの生成、`onboard:install --dry-run`だけでは導入完了ではありません。
 
 For a Google Workspace / Google Drive / local-notes setup, pass the known answers and let the command surface what still needs approval:
 
@@ -91,7 +91,7 @@ Optionally preview the saved context locally. This is not an onboarding completi
 brainbase onboard:demo --scenario "Draft the first note I should send to Key Partner about Current project"
 ```
 
-`onboard:demo` reads only locally saved, approved facts. It does not call an LLM, an agent, or a hosted backend. Its result is only a preview. Continue through MCP installation, restart the selected agent, make a real request using `get_context` and `search`, and ask the user whether that actual answer was useful.
+`onboard:demo` reads only locally saved, approved facts. It does not call an LLM, an agent, or a hosted backend. Its result is only a preview. Continue through MCP installation, restart the selected agent, make a real request using `resolve_entity`, `get_context`, and `search`, and ask the user whether that actual answer was useful.
 
 After the demo, keep onboarding open: the preview is not the first-value gate. Continue until a real agent uses Brainbase and the human user confirms that the result was useful.
 
@@ -100,10 +100,10 @@ After seed, install and verify MCP before asking for the human value judgment:
 ```bash
 brainbase onboard:install --target codex --dry-run
 brainbase doctor
-# restart Codex, use get_context/search for the real request, then ask whether it was useful
+# restart Codex, use resolve_entity/get_context/search for the real request, then ask whether it was useful
 ```
 
-The recommended order is public skills, `ohayo` / `oyasumi` / `retro` routines registered paused or confirmation-gated, real MCP config merge after approving the dry-run snippet, source allowlist / import / candidate review decisions, then `doctor` plus MCP `get_context` / `search` verification from a fresh agent session.
+The recommended order is public skills, `ohayo` / `oyasumi` / `retro` routines registered paused or confirmation-gated, real MCP config merge after approving the dry-run snippet, source allowlist / import / candidate review decisions, then `doctor` plus MCP `resolve_entity` / `get_context` / `search` verification from a fresh agent session.
 
 The commands above are still safe by default. `onboard:skills` and `onboard:routines` generate output unless you provide an explicit `--out`, and `onboard:install --dry-run` is only a preview. Do not treat those generated artifacts as installed until the user approves file writes, scheduler registration, and live config changes.
 
@@ -290,7 +290,7 @@ The default data directory is:
 
 It contains the canonical local SSOT:
 
-- `graph.json`: people, organizations, projects, and relationship entities.
+- `graph.json`: canonical people, organizations, projects, and decisions, plus typed stable-ID edges between them.
 - `personal-kg.jsonl`: values, judgment criteria, experiences, and personal context.
 - `relationships.json`: relationship context that should survive across tools.
 - `decisions.jsonl`: decision records and principles.
@@ -319,6 +319,7 @@ BRAINBASE_PERSONAL_OS_DIR=/path/to/personal-os brainbase-mcp
 - `get_context`: returns initial AI context from the local Graph and Personal KG.
 - `list_entities`: lists `person`, `org`, `project`, `relationship`, and `decision` entities.
 - `search`: searches canonical Graph and Personal KG data.
+- `resolve_entity`: resolves mentions in text to canonical Graph v2 IDs and returns a privacy-safe evidence receipt.
 - `search_personal_kg`: searches owner-local Personal KG only.
 - `onboarding_status`: reports seeded areas, first value demo readiness, missing setup, and local connection status.
 - `get_ontology`: returns the immutable bundled active Ontology 2.0.0 release without reading Personal OS files.
@@ -335,6 +336,9 @@ brainbase ontology:show
 brainbase ontology:audit
 brainbase ontology:audit --ontology-version 0.0.0
 brainbase ontology:audit --ontology-version 1.0.0
+brainbase ontology:migrate
+# previewのexpectedInputDigestを確認してから適用
+brainbase ontology:migrate --write --expected-input-digest '<previewの値>'
 ```
 
 `ontology:audit` exits non-zero when an error-level violation exists or when a canonical file cannot be verified. It never reports an unavailable or malformed source as zero violations. Warnings, such as a relationship whose person is not yet present in the Graph, remain visible but do not block approved writes.
@@ -506,7 +510,7 @@ Keep or pin the internal `brainbase-unson` system when you need:
 - Legacy Graph API MCP tools such as `get_entity`.
 - VibePro runtime or internal 31013 operation surfaces.
 
-The v1 MCP surface contains the five original context/onboarding tools plus the additive Ontology tools: `get_ontology`, `audit_ontology`, `infer_decisions`, and `ontology_impact`. The active release is 2.0.0; 0.0.0 and 1.0.0 remain available for historical interpretation.
+The original MCP surface remains compatible and adds the Ontology tools plus `resolve_entity`. The active Ontology release is 2.0.0; 0.0.0 and 1.0.0 remain available for historical interpretation.
 
 ## Hosted Backends
 

@@ -40,7 +40,7 @@ export default {
           items: [
             { text: 'MCPを登録する', link: '/guide/mcp-install' },
             { text: 'Judgment Hostを登録する', link: '/guide/judgment-audit' },
-            { text: 'Ontology 1.0.0', link: '/guide/ontology' },
+            { text: 'Ontology 2.0.0と正規Graph', link: '/guide/ontology' },
             { text: '毎日と毎週の見直し', link: '/guide/daily-routines' }
           ]
         }

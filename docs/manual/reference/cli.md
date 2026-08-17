@@ -14,7 +14,7 @@ BrainbaseのCLIは、オンボーディング、情報源の整理、Skillsと�
 brainbase onboard:start --target codex
 # 表示された onboard:seed を確認して実行
 brainbase onboard:install --target codex --dry-run
-# 設定反映・再起動後、実エージェントでget_context/searchを使って依頼し、本人が役立ったか判断
+# 設定反映・再起動後、実エージェントでresolve_entity/get_context/searchを使って依頼し、本人が役立ったか判断
 ```
 
 ## 導入
@@ -70,6 +70,8 @@ npm run doctor
 npm run start
 ```
 
+通常のSSOT診断では、`doctor`は`graphDiagnosis`を返し、Graphを`healthy`、`issues`、`migration_required`、`invalid`、`unavailable`に分けます。`healthy`と`issues`は終了コード0ですが、`issues`は問題なしという意味ではないため件数と内訳を確認してください。`migration_required`、`invalid`、`unavailable`は非0で終了します。legacy投影は、名前が一意に正規IDへ対応する場合だけ`projection`として数え、同名候補が複数ある場合は`unresolved`として残します。`--judgment-hooks`で指定したファイルの欠落・不正JSON・必須Hook不足など、Graph診断より前の入力エラーでは`graphDiagnosis`を返さず非0で終了します。
+
 ## Judgment Host
 
 | コマンド | 役割 | ライブ設定への書き込み |
@@ -89,17 +91,23 @@ brainbase doctor --dir ~/.brainbase/personal-os --judgment-hooks ~/.codex/hooks.
 
 | コマンド | 役割 | 正本への書き込み |
 | --- | --- | --- |
-| `ontology:show` | 同梱のOntology 1.0.0全体をJSONで表示する | しない |
+| `ontology:show` | 同梱の現行Ontology 2.0.0全体をJSONで表示する | しない |
 | `ontology:audit` | ローカル正本の意味制約を監査する | しない |
+| `ontology:migrate` | Graph v1からv2への移行計画を確認・適用する | `--write`の時だけ4つの正本を一括更新する |
 
 ```bash
 node dist/cli.js ontology:show
 node dist/cli.js ontology:audit --dir /path/to/personal-os
 node dist/cli.js ontology:audit --dir /path/to/personal-os --ontology-version 0.0.0
+node dist/cli.js ontology:audit --dir /path/to/personal-os --ontology-version 1.0.0
+node dist/cli.js ontology:migrate --dir /path/to/personal-os
+node dist/cli.js ontology:migrate --dir /path/to/personal-os --write --expected-input-digest '<previewの値>'
 ```
 
 `ontology:audit` はerror違反または監査不能のときに非0で終了します。監査不能の場合は `status: "unverified"` と `violationCount: null` を返します。
-`--ontology-version`でsnapshotに記録された意味versionを指定できます。未指定は`1.0.0`、Kernel導入前のlegacy解釈は`0.0.0`です。`0.0.0`では1.0.0の`effectiveAt`、supersession、conflict規則を遡及適用しません。未対応versionは拒否します。
+`--ontology-version`でsnapshotに記録された意味versionを指定できます。Graph v2は記録済みbinding、legacy Graphは現行の`2.0.0`が既定です。Kernel導入前の解釈は`0.0.0`、最初のportable releaseは`1.0.0`です。未対応versionは拒否します。
+
+`ontology:migrate`は既定でpreviewだけを返し、ファイルを書きません。previewの`migration_required`は移行計画を正常に提示できた状態なので終了コード0です。適用にはpreviewの`expectedInputDigest`が必須です。計画が`blocked`の場合や、書込み時に入力が変わっていた場合は非0で停止し、古い計画を適用しません。
 
 すべての引数は次で確認できます。
 

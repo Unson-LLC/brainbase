@@ -125,7 +125,7 @@ describe('MCP-only repository hygiene', () => {
       expect(text, 'onboarding-operationalization-next-actions S-5 C-5 agent instructions require operationalization next actions').toContain('Commands existing in the product are not enough');
       expect(text).toContain('public skills placement');
       expect(text).toContain('ohayo` / `oyasumi` / `retro');
-      expect(text).toContain('MCP `get_context` / `search` verification');
+      expect(text).toContain('MCP `resolve_entity` / `get_context` / `search` verification');
     }
 
     expect(readme, 'onboarding-operationalization-next-actions S-5 C-5 README guidance must keep onboarding open after the demo').toContain('After the demo, keep onboarding open');
@@ -133,7 +133,7 @@ describe('MCP-only repository hygiene', () => {
     expect(readme).toContain('brainbase onboard:routines --target codex --cwd /path/to/brainbase');
     expect(readme).toContain('brainbase onboard:install --target codex --dry-run');
     expect(readme).toContain('source allowlist / import / candidate review decisions');
-    expect(readme).toContain('MCP `get_context` / `search` verification');
+    expect(readme).toContain('MCP `resolve_entity` / `get_context` / `search` verification');
     expect(readme).toContain('Do not treat those generated artifacts as installed');
   });
 

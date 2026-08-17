@@ -121,7 +121,7 @@ export function onboardingStatus(os: PersonalOs): Record<string, unknown> {
   const operationalization = buildOperationalizationPlan({ dataDir: os.dataDir, firstValueReady: valueDemoReady });
   return {
     dataDir: os.dataDir, localBackend: { connected: true, backend: 'local' },
-    agentMcp: { status: 'not_verified', verification: 'MCP設定を反映した新しいエージェントセッションで get_context / search を確認してください。' },
+    agentMcp: { status: 'not_verified', verification: 'MCP設定を反映した新しいエージェントセッションで resolve_entity / get_context / search を確認してください。' },
     operationallyReady: false, seeded, missing,
     valueDemo: { scope: 'local_cli_sample', ready: valueDemoReady, missing, command: `brainbase onboard:demo --dir ${shellArg(os.dataDir)} --scenario "<real request>"`, completionSignal: valueDemoReady ? 'cli_sample_ready' : 'needs_seed' },
     operationalization,
