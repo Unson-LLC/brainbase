@@ -14,9 +14,26 @@ const ids = {
     correlation_id: 'cor_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     contract_revision: '11',
-    tenant_revision_at_write: '3',
     idempotency_key: 'ik1_0123456789012345678901234567890123456789012'
 };
+
+function usageEvent(overrides = {}) {
+    return {
+        ...ids,
+        message_type: 'usage_event',
+        usage_event_id: 'usage_01ARZ3NDEKTSV4RRFFQ69G5FB2',
+        protocol_version: '1.0',
+        kind: 'tool',
+        quantity: 1,
+        unit: 'call',
+        collection_state: 'collected',
+        outcome: 'succeeded',
+        failure_code: null,
+        unknown_fields: [],
+        observed_at: '2026-08-16T00:00:00Z',
+        ...overrides
+    };
+}
 
 describe('ContractUsageLedger', () => {
     it('AC-201/AC-203: plan枠、警告閾値、hard stop、超過方針をrevision固定で判断する', () => {
@@ -25,7 +42,8 @@ describe('ContractUsageLedger', () => {
             ...ids, contract_id: ids.contract_revision, contract_revision_number: 4,
             plan_code: 'plan-a', allowances: { tool_calls: 100 },
             thresholds_basis_points: [5000, 8000, 10000], overage_policy: 'deny',
-            hard_stop_basis_points: 10000, rate_card_revision: 8, fx_table_revision: 5
+            hard_stop_basis_points: 10000, rate_card_revision: 8, fx_table_revision: 5,
+            window_started_at: '2026-08-01T00:00:00Z', window_ends_at: '2026-09-01T00:00:00Z'
         });
         expect(ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: ids.contract_revision, metric: 'tool_calls', observed_quantity: 79, requested_quantity: 1 }).decision).toBe('warning');
         expect(ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: ids.contract_revision, metric: 'tool_calls', observed_quantity: 99, requested_quantity: 1 }).decision).toBe('hard_stopped');
@@ -57,45 +75,73 @@ describe('ContractUsageLedger', () => {
     });
 
     it('AC-204/D-007: outcomeとcollection_stateを分離し、失敗消費と未計測を0へ丸めない', () => {
-        expect(normalizeUsageEvent({ ...ids, kind: 'ai', unit: 'token', quantity: null, outcome: 'failed', collection_state: 'not_collected', failure_code: 'UPSTREAM_UNAVAILABLE' }))
+        expect(normalizeUsageEvent(usageEvent({ kind: 'ai', unit: 'token', quantity: null, outcome: 'failed', collection_state: 'not_collected', failure_code: 'UPSTREAM_UNAVAILABLE' })))
             .toMatchObject({ outcome: 'failed', collection_state: 'not_collected', quantity: null });
         expectContractError(
-            () => normalizeUsageEvent({ ...ids, kind: 'ai', unit: 'token', quantity: 0, outcome: 'failed', collection_state: 'not_collected', failure_code: 'UPSTREAM_UNAVAILABLE' }),
+            () => normalizeUsageEvent(usageEvent({ kind: 'ai', unit: 'token', quantity: 0, outcome: 'failed', collection_state: 'not_collected', failure_code: 'UPSTREAM_UNAVAILABLE' })),
             { code: 'USAGE_NOT_COLLECTED_HAS_QUANTITY' }
         );
-        expect(normalizeUsageEvent({ ...ids, kind: 'tool', unit: 'call', quantity: 0, outcome: 'succeeded', collection_state: 'collected', failure_code: 'NO_DATA' }))
+        expect(normalizeUsageEvent(usageEvent({ quantity: 0, failure_code: 'NO_DATA' })))
             .toMatchObject({ quantity: 0, failure_code: 'NO_DATA' });
     });
 
-    it('AC-205: Receiptへ当時のrate・FX・販売価格revisionをimmutable snapshotとして固定する', () => {
+    it('AC-205: canonical Receiptを変えずBrainbase価格revisionをimmutable snapshotとして固定する', () => {
         const ledger = new ContractUsageLedger();
-        const receipt = ledger.finalizeReceipt({
-            ...ids,
+        const canonicalReceipt = {
+            message_type: 'operation_receipt',
+            receipt_id: 'receipt_01ARZ3NDEKTSV4RRFFQ69G5FB6',
+            protocol_version: '1.0',
+            tenant_id: ids.tenant_id,
+            connection_id: ids.connection_id,
+            connection_revision: ids.connection_revision,
+            contract_revision: ids.contract_revision,
+            deployment_id: ids.deployment_id,
+            correlation_id: ids.correlation_id,
+            operation_ids: [ids.operation_id],
+            idempotency_keys: [ids.idempotency_key],
             actor_principal_id: 'person-opaque', project_id: 'project-opaque', capability_id: 'task.write',
             quota_decision: 'allowed', credential_mode: 'customer_oauth', outcome: 'failed', failure_code: 'UPSTREAM_UNAVAILABLE',
-            usage: { collection_state: 'partial', observed_units: '12', unknown_fields: ['external_api'] },
-            pricing_snapshot: { rate_card_revision: 8, fx_table_revision: 5, sales_price_revision: 3, purchase_currency: 'USD', purchase_minor_units: null, billing_currency: 'JPY', billing_minor_units: null, fx_rate_decimal: '150.1234', effective_at: '2026-08-16T00:00:00Z' }
-        });
-        expect(receipt.pricing_snapshot).toMatchObject({ rate_card_revision: 8, fx_table_revision: 5, sales_price_revision: 3, purchase_minor_units: null });
-        expect(Object.isFrozen(receipt)).toBe(true);
-        expect(ledger.finalizeReceipt({ ...receipt })).toEqual(receipt);
-        expectContractError(() => ledger.finalizeReceipt({ ...receipt, outcome: 'succeeded' }), { code: 'IDEMPOTENCY_CONFLICT' });
+            collection_state: 'partial', usage_event_ids: [],
+            reply: { state: 'failed', reply_count: 0, legacy_reply_count: 0 },
+            completed_at: '2026-08-16T00:00:00Z'
+        };
+        const pricingSnapshot = {
+            rate_card_revision: '8', fx_table_revision: '5', sales_price_revision: '3',
+            purchase_currency: 'USD', purchase_minor_units: null,
+            billing_currency: 'JPY', billing_minor_units: null,
+            fx_rate_decimal: '150.1234', effective_at: '2026-08-16T00:00:00Z'
+        };
+        const finalized = ledger.finalizeReceiptWithPricing({ receipt: canonicalReceipt, pricing_snapshot: pricingSnapshot });
+        expect(finalized).toEqual({ receipt: canonicalReceipt, pricing_snapshot: pricingSnapshot });
+        expect(finalized.receipt).not.toHaveProperty('pricing_snapshot');
+        expect(Object.isFrozen(finalized)).toBe(true);
+        expect(ledger.readReceiptHistory({ tenant_id: ids.tenant_id, receipt_id: canonicalReceipt.receipt_id }))
+            .toEqual([finalized]);
+        expect(ledger.finalizeReceiptWithPricing({ receipt: canonicalReceipt, pricing_snapshot: pricingSnapshot })).toEqual(finalized);
+        expectContractError(
+            () => ledger.finalizeReceiptWithPricing({
+                receipt: canonicalReceipt,
+                pricing_snapshot: { ...pricingSnapshot, fx_table_revision: '6' }
+            }),
+            { code: 'IDEMPOTENCY_CONFLICT' }
+        );
     });
 
     it('AC-204/AC-205: Usageのsame-payload replayとpartialのunknown_fieldsを厳密化する', () => {
         const ledger = new ContractUsageLedger();
-        const input = { ...ids, usage_event_id: 'usage_01ARZ3NDEKTSV4RRFFQ69G5FB2', kind: 'tool', unit: 'call', quantity: 1, outcome: 'succeeded', collection_state: 'collected', observed_at: '2026-08-16T00:00:00Z' };
+        const input = usageEvent();
         const first = ledger.recordUsage(input);
         expect(ledger.recordUsage(input)).toEqual(first);
         expectContractError(() => ledger.recordUsage({ ...input, quantity: 2 }), { code: 'IDEMPOTENCY_CONFLICT' });
-        expectContractError(() => normalizeUsageEvent({ ...ids, kind: 'tool', unit: 'call', quantity: 1, outcome: 'failed', collection_state: 'partial', unknown_fields: [] }), { code: 'USAGE_PARTIAL_UNKNOWN_FIELDS_REQUIRED' });
-        expectContractError(() => normalizeUsageEvent({ ...ids, kind: 'tool', unit: 'call', quantity: -1, outcome: 'succeeded', collection_state: 'collected' }), { code: 'USAGE_COLLECTED_QUANTITY_REQUIRED' });
+        expectContractError(() => normalizeUsageEvent(usageEvent({ outcome: 'failed', collection_state: 'partial', unknown_fields: [] })), { code: 'USAGE_PARTIAL_UNKNOWN_FIELDS_REQUIRED' });
+        expectContractError(() => normalizeUsageEvent(usageEvent({ quantity: -1 })), { code: 'USAGE_COLLECTED_QUANTITY_REQUIRED' });
     });
 
     it('D-006: 同じbusiness-effect keyに属する複数UsageEventをevent ID単位で冪等化する', () => {
         const ledger = new ContractUsageLedger();
         const base = {
             ...ids,
+            message_type: 'usage_event', protocol_version: '1.0',
             idempotency_key: 'ik1_SMJlU0vl95PXZjE3Cs0smROt0-VqWWO1D83Nl7IkSTE',
             unit: 'tokens', quantity: 1, outcome: 'succeeded', collection_state: 'collected',
             failure_code: null, unknown_fields: [], observed_at: '2026-08-16T13:01:31Z'

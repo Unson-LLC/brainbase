@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { canonicalJson, deepFreeze } from './canonical-json.js';
+import { validateCanonicalWire } from './canonical-wire-validator.js';
 import { ContractError } from './errors.js';
+import { generateCanonicalId } from './ids.js';
 import { assertCanonicalRevision, validateTimeWindow } from './tenant-context.js';
 
 const MAX_LEASE_TTL_SECONDS = 60;
@@ -41,10 +43,11 @@ function assertLeaseRequest(request) {
         || request.requested_ttl_seconds > MAX_LEASE_TTL_SECONDS) {
         fail('CREDENTIAL_LEASE_TTL_INVALID');
     }
+    validateCanonicalWire('CredentialLeaseRequest', request);
 }
 
 function defaultLeaseId() {
-    return `lease_${randomBytes(24).toString('base64url')}`;
+    return generateCanonicalId('lease');
 }
 
 function defaultLeaseToken() {
@@ -71,6 +74,7 @@ export function validateCredentialLease(request, response, { now = new Date() } 
     validateTimeWindow(response, { now, max_ttl_seconds: MAX_LEASE_TTL_SECONDS });
     const ttlSeconds = (Date.parse(response.expires_at) - Date.parse(response.issued_at)) / 1000;
     if (ttlSeconds > request.requested_ttl_seconds) fail('CREDENTIAL_LEASE_TTL_INVALID');
+    validateCanonicalWire('CredentialLeaseResponse', response);
     return true;
 }
 

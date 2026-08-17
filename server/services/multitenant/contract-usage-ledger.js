@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { canonicalJson, deepFreeze } from './canonical-json.js';
+import { validateCanonicalWire } from './canonical-wire-validator.js';
 import { ContractError } from './errors.js';
 import { generateCanonicalId } from './ids.js';
 import { assertCanonicalRevision } from './tenant-context.js';
@@ -14,6 +15,13 @@ const IDEMPOTENCY_OWNER_BY_SCOPE = Object.freeze({
     queue_execution: 'mana_runtime',
     slack_delivery: 'mana_runtime'
 });
+const PRICING_SNAPSHOT_FIELDS = Object.freeze([
+    'rate_card_revision', 'fx_table_revision', 'sales_price_revision',
+    'purchase_currency', 'purchase_minor_units', 'billing_currency',
+    'billing_minor_units', 'fx_rate_decimal', 'effective_at'
+]);
+const CURRENCY = /^[A-Z]{3}$/;
+const POSITIVE_DECIMAL = /^(?:0\.(?:0*[1-9][0-9]*)|[1-9][0-9]*(?:\.[0-9]+)?)$/;
 
 function fail(code, options = {}) {
     throw new ContractError(code, { status: 400, fault_domain: 'protocol', ...options });
@@ -60,17 +68,12 @@ export function validateUsageEvent(event) {
         }
         if (event.quantity === 0 && event.failure_code !== 'NO_DATA') fail('USAGE_ZERO_REQUIRES_NO_DATA');
     }
+    validateCanonicalWire('UsageEvent', event);
     return true;
 }
 
 export function normalizeUsageEvent(input) {
-    const event = {
-        message_type: input.message_type ?? 'usage_event',
-        usage_event_id: input.usage_event_id ?? generateCanonicalId('usage'),
-        protocol_version: input.protocol_version ?? '1.0',
-        ...input,
-        unknown_fields: input.unknown_fields ?? []
-    };
+    const event = structuredClone(input);
     validateUsageEvent(event);
     return deepFreeze(structuredClone(event));
 }
@@ -90,6 +93,7 @@ export function validateQuotaDecision(decision) {
         .some((value) => typeof value !== 'number' || !Number.isFinite(value) || value < 0)) {
         fail('QUOTA_VALUE_INVALID');
     }
+    validateCanonicalWire('QuotaDecision', decision);
     return true;
 }
 
@@ -104,6 +108,7 @@ export function validateOperationReceipt(receipt) {
         || receipt.reply.legacy_reply_count !== 0) {
         fail('REPLY_OWNERSHIP_INVALID');
     }
+    validateCanonicalWire('OperationReceipt', receipt);
     return true;
 }
 
@@ -119,6 +124,34 @@ export function validateIdempotencyClaim(claim) {
         operation_id: claim.operation_id
     });
     if (claim.idempotency_key !== expectedKey) fail('IDEMPOTENCY_KEY_INVALID');
+    validateCanonicalWire('IdempotencyClaim', claim);
+    return true;
+}
+
+export function validatePricingSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)
+        || Object.keys(snapshot).length !== PRICING_SNAPSHOT_FIELDS.length
+        || PRICING_SNAPSHOT_FIELDS.some((field) => !Object.hasOwn(snapshot, field))) {
+        fail('PRICING_SNAPSHOT_INVALID');
+    }
+    for (const field of ['rate_card_revision', 'fx_table_revision', 'sales_price_revision']) {
+        assertCanonicalRevision(snapshot[field], `pricing_snapshot.${field}`);
+    }
+    for (const field of ['purchase_currency', 'billing_currency']) {
+        if (typeof snapshot[field] !== 'string' || !CURRENCY.test(snapshot[field])) fail('PRICING_SNAPSHOT_INVALID');
+    }
+    for (const field of ['purchase_minor_units', 'billing_minor_units']) {
+        if (snapshot[field] !== null && (!Number.isSafeInteger(snapshot[field]) || snapshot[field] < 0)) {
+            fail('PRICING_SNAPSHOT_INVALID');
+        }
+    }
+    if (typeof snapshot.fx_rate_decimal !== 'string' || !POSITIVE_DECIMAL.test(snapshot.fx_rate_decimal)) {
+        fail('PRICING_SNAPSHOT_INVALID');
+    }
+    if (typeof snapshot.effective_at !== 'string' || !snapshot.effective_at.endsWith('Z')
+        || !Number.isFinite(Date.parse(snapshot.effective_at))) {
+        fail('PRICING_SNAPSHOT_INVALID');
+    }
     return true;
 }
 
@@ -128,6 +161,7 @@ export class ContractUsageLedger {
     #usageEvents = new Map();
     #receipts = new Map();
     #receiptHashes = new Map();
+    #receiptPricing = new Map();
 
     constructor({ now = () => new Date() } = {}) {
         this.now = now;
@@ -248,5 +282,29 @@ export class ContractUsageLedger {
         this.#receipts.set(receipt.receipt_id, receipt);
         this.#receiptHashes.set(receipt.receipt_id, inputHash);
         return receipt;
+    }
+
+    finalizeReceiptWithPricing({ receipt: receiptInput, pricing_snapshot: pricingSnapshot }) {
+        validatePricingSnapshot(pricingSnapshot);
+        const receipt = this.finalizeReceipt(receiptInput);
+        const key = `${receipt.tenant_id}:${receipt.receipt_id}`;
+        const finalized = deepFreeze({
+            receipt,
+            pricing_snapshot: structuredClone(pricingSnapshot)
+        });
+        const existing = this.#receiptPricing.get(key);
+        if (existing) {
+            if (canonicalJson(existing) !== canonicalJson(finalized)) {
+                throw new ContractError('IDEMPOTENCY_CONFLICT', { status: 409 });
+            }
+            return existing;
+        }
+        this.#receiptPricing.set(key, finalized);
+        return finalized;
+    }
+
+    readReceiptHistory({ tenant_id: tenantId, receipt_id: receiptId }) {
+        const record = this.#receiptPricing.get(`${tenantId}:${receiptId}`);
+        return record ? deepFreeze([record]) : deepFreeze([]);
     }
 }

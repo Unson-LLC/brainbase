@@ -1,5 +1,6 @@
 import { createHash, createPrivateKey, createPublicKey, sign, verify } from 'node:crypto';
 import { canonicalJson, deepFreeze } from './canonical-json.js';
+import { validateCanonicalWire } from './canonical-wire-validator.js';
 import { ContractError } from './errors.js';
 
 export const MAX_ENVELOPE_TTL_SECONDS = 300;
@@ -21,7 +22,7 @@ const REQUIRED_OBJECT_FIELDS = Object.freeze({
     actor: ['principal_id', 'principal_type', 'authenticated_subject_id'],
     authorization: ['organization_ids', 'project_ids', 'data_scopes', 'capability_ids'],
     placement: ['deployment_id', 'profile'],
-    slack: ['event_id', 'channel_id', 'thread_ts', 'requester_id'],
+    slack: ['event_id', 'channel_id'],
     credential: ['mode', 'credential_ref', 'billing_principal_id']
 });
 
@@ -122,7 +123,7 @@ function assertExactProtectedHeader(header) {
     }
 }
 
-function assertEnvelopeShape(envelope) {
+function assertEnvelopeShape(envelope, { requireIntegrity = false } = {}) {
     if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
         fail('SCHEMA_INVALID');
     }
@@ -157,6 +158,7 @@ function assertEnvelopeShape(envelope) {
     assertCanonicalRevision(envelope.workspace_connection.connection_revision, 'workspace_connection.connection_revision');
     assertCanonicalRevision(envelope.contract_revision, 'contract_revision');
     if (envelope.idempotency_key !== expectedIdempotencyKey(envelope)) fail('IDEMPOTENCY_KEY_INVALID');
+    validateCanonicalWire(requireIntegrity ? 'TenantContextEnvelope' : 'TenantContextUnsigned', envelope);
 }
 
 export function createSignedTenantContext(envelope, { key_id, private_key }) {
@@ -180,7 +182,7 @@ export function verifyTenantContext(envelope, {
     keys, audience, deployment_id, now = new Date(), max_ttl_seconds = MAX_ENVELOPE_TTL_SECONDS,
     max_clock_skew_seconds = MAX_CLOCK_SKEW_SECONDS
 }) {
-    assertEnvelopeShape(envelope);
+    assertEnvelopeShape(envelope, { requireIntegrity: true });
     validateTimeWindow(envelope, { now, max_ttl_seconds, max_clock_skew_seconds });
     const integrity = envelope.integrity;
     if (!integrity || integrity.method !== 'jws_detached' || integrity.algorithm !== 'EdDSA') {

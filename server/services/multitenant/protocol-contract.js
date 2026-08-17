@@ -1,4 +1,5 @@
 import { deepFreeze } from './canonical-json.js';
+import { validateCanonicalWire } from './canonical-wire-validator.js';
 import { ContractError } from './errors.js';
 
 export const PROTOCOL_ID = 'mana-brainbase-tenant-context';
@@ -59,7 +60,8 @@ export function negotiateProtocol(input) {
     if (!['shared_cloud', 'dedicated_cloud', 'customer_managed_oss'].includes(input.deployment_profile)) {
         throw new ContractError('PROTOCOL_CAPABILITY_UNSUPPORTED', { status: 409, fault_domain: 'protocol' });
     }
-    return deepFreeze({
+    validateCanonicalWire('ProtocolNegotiationRequest', input);
+    const response = {
         message_type: 'protocol_negotiation_response',
         protocol_id: PROTOCOL_ID,
         selected_version: CURRENT_PROTOCOL_VERSION,
@@ -69,7 +71,9 @@ export function negotiateProtocol(input) {
         optional_capabilities: (input.optional_capabilities ?? [])
             .map((capability) => optionalCapability(capability, input.deployment_profile)),
         compatibility_until: COMPATIBILITY_UNTIL
-    });
+    };
+    validateCanonicalWire('ProtocolNegotiationResponse', response);
+    return deepFreeze(response);
 }
 
 export function faultDomainForCode(code) {
