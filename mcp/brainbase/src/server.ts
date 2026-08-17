@@ -1226,6 +1226,12 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
             : req.headers['x-brainbase-project-code'],
           isAuthorized: isAuthorizedMcpHttpRequest,
           dispatch: dispatchRemoteJudgmentHook,
+          onDispatchError: (details) => {
+            console.error(JSON.stringify({
+              event: 'brainbase_judgment_hook_dispatch_failed',
+              ...details,
+            }));
+          },
         });
         res.writeHead(result?.status ?? 404, {
           'Content-Type': 'application/json',

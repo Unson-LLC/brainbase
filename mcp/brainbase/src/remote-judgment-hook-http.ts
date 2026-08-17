@@ -21,6 +21,12 @@ export interface RemoteJudgmentHookRequest {
   projectCode?: string;
   isAuthorized: (authorization: string | undefined, expectedToken: string) => boolean;
   dispatch: RemoteJudgmentHookDispatch;
+  onDispatchError?: (details: {
+    eventName: string;
+    reason: string;
+    errorName: string;
+    errorCode?: string;
+  }) => void;
 }
 
 export interface RemoteJudgmentHookResponse {
@@ -104,6 +110,17 @@ export async function handleRemoteJudgmentHookRequest(
       && /^judgment_[a-z0-9_]{1,80}$/.test(error.message)
       ? error.message
       : 'judgment_hook_unavailable';
+    const errorCode = error && typeof error === 'object'
+      && 'code' in error && typeof error.code === 'string'
+      && /^[A-Z0-9_]{1,80}$/.test(error.code)
+      ? error.code
+      : undefined;
+    request.onDispatchError?.({
+      eventName,
+      reason,
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      ...(errorCode ? { errorCode } : {}),
+    });
     return { status: 503, body: { error: reason } };
   }
 }
