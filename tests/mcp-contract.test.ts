@@ -158,6 +158,38 @@ describe('MCP contract', () => {
     }
   });
 
+  it('retrieves Graph v2 scoped context and canonical search results over actual stdio', async () => {
+    const dataDir = await fixtureDir();
+    await writeFile(join(dataDir, 'graph.json'), `${JSON.stringify(canonicalResolutionGraph, null, 2)}\n`, 'utf8');
+    const { client, transport } = createClient(dataDir);
+    await client.connect(transport);
+    try {
+      const contextCall = await client.callTool({
+        name: 'get_context',
+        arguments: { project: 'project-atlas', as_of: '2026-08-17T00:00:00.000Z' }
+      });
+      const contextText = contextCall.content[0]?.type === 'text' ? contextCall.content[0].text : '{}';
+      expect(JSON.parse(contextText).canonicalGraph).toMatchObject({
+        schemaVersion: 2,
+        project: { id: 'project-atlas' },
+        authority: 'local_graph'
+      });
+
+      const searchCall = await client.callTool({
+        name: 'search',
+        arguments: { query: '田中さん', project: 'project-atlas', as_of: '2026-08-17T00:00:00.000Z' }
+      });
+      const searchText = searchCall.content[0]?.type === 'text' ? searchCall.content[0].text : '{}';
+      expect(JSON.parse(searchText).results[0]).toMatchObject({
+        canonicalEntityId: 'person-tanaka-atlas',
+        recordClass: 'canonical',
+        authority: 'local_graph'
+      });
+    } finally {
+      await client.close();
+    }
+  });
+
   it('distinguishes v1 migration, unavailable Graph, and invalid Graph from unresolved mentions', async () => {
     const v1Dir = await fixtureDir();
     await writeFile(join(v1Dir, 'graph.json'), `${JSON.stringify({

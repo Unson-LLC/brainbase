@@ -123,4 +123,10 @@ export interface SearchResult {
   title: string;
   text: string;
   score: number;
+  canonicalEntityId?: string;
+  recordClass: 'canonical' | 'projection' | 'unresolved';
+  projectionOf?: string;
+  projectionSources?: Array<'relationships' | 'decisions'>;
+  relationPath?: string[];
+  authority: 'local_graph' | 'personal_kg' | 'legacy_relationships' | 'legacy_decisions';
 }
