@@ -238,14 +238,18 @@ export class RoutineCycleExecutor {
                 ? await buildNightOutput({ input: input.input || {}, reconciliation, compression, verification })
                 : await buildNightOutput({ input: input.input || {}, reconciliation, compression, verification }, context)
             : null;
+        const outboxCarryoverCount = Number(reconciliation?.outbox_count) || 0;
+        const anomalies = outboxCarryoverCount > 0
+            ? [{ code: 'routine_outbox_carryover', count: outboxCarryoverCount }]
+            : [];
         return {
-            status: 'completed',
-            coverage: buildNightOutput ? 'confirmed' : 'partial',
+            status: anomalies.length > 0 ? 'partial' : 'completed',
+            coverage: buildNightOutput && anomalies.length === 0 ? 'confirmed' : 'partial',
             reconciliation,
             compression,
             verification,
             routine_output: routineOutput,
-            anomalies: []
+            anomalies
         };
     }
 
@@ -301,7 +305,22 @@ export class RoutineCycleExecutor {
                             : judgmentOutboxDelivery.pending > 0
                                 ? 'judgment_outbox_delivery_pending'
                                 : null;
-            if (deliveryCode) anomalies.push({ code: deliveryCode });
+            if (deliveryCode) {
+                const count = Number(
+                    judgmentOutboxDelivery.dead_lettered
+                    || judgmentOutboxDelivery.failed
+                    || judgmentOutboxDelivery.retryable
+                    || judgmentOutboxDelivery.pending
+                ) || 0;
+                const summary = ({
+                    judgment_outbox_dead_lettered: `判断の知識化に失敗し、${count}件を隔離しています`,
+                    judgment_outbox_delivery_unavailable: '判断の知識化サービスへ接続できません',
+                    judgment_outbox_delivery_failed: `判断の知識化に${count}件失敗しています`,
+                    judgment_outbox_delivery_retryable: `判断の知識化を${count}件再試行します`,
+                    judgment_outbox_delivery_pending: `判断の知識化が${count}件未配信です`
+                })[deliveryCode];
+                anomalies.push({ code: deliveryCode, summary });
+            }
         }
         for (const knowledgeId of usedKnowledgeIds) {
             try {
@@ -323,6 +342,15 @@ export class RoutineCycleExecutor {
             carryovers: [],
             references: []
         };
+        const deliveryWarnings = anomalies
+            .filter((anomaly) => anomaly.code.startsWith('judgment_outbox_') && anomaly.summary)
+            .map((anomaly) => ({ summary: anomaly.summary }));
+        if (deliveryWarnings.length > 0) {
+            routineOutput.warnings = [
+                ...(Array.isArray(routineOutput.warnings) ? routineOutput.warnings : []),
+                ...deliveryWarnings
+            ];
+        }
         return {
             status: anomalies.length > 0 ? 'partial' : 'completed',
             exceptions: morningOutput.exceptions,
