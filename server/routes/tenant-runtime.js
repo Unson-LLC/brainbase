@@ -135,6 +135,22 @@ function operationReceiptInput(req) {
     });
 }
 
+function operationReceiptWithPricingInput(req) {
+    const source = req.body ?? {};
+    const allowed = new Set(['tenant_context', 'receipt', 'pricing_snapshot']);
+    if (!source.receipt || !source.pricing_snapshot
+        || Object.keys(source).some((field) => !allowed.has(field))) {
+        throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
+    }
+    return {
+        receipt: operationReceiptInput({
+            tenantContext: req.tenantContext,
+            body: { tenant_context: source.tenant_context, ...source.receipt }
+        }),
+        pricing_snapshot: source.pricing_snapshot
+    };
+}
+
 function idempotencyClaimInput(req) {
     const context = req.tenantContext;
     return wireInput(req, [
@@ -155,6 +171,7 @@ export function createTenantRuntimeRouter({
     connectionRegistry,
     credentialBroker,
     usageLedger,
+    tenantBoundaryGateway,
     tenantContextVerifier,
     now = () => new Date()
 }) {
@@ -202,6 +219,25 @@ export function createTenantRuntimeRouter({
     router.post('/workspace-connections:validate-revision', asyncHandler(async (req, res) => {
         res.json(await connectionRegistry.validateRevision(contextBoundInput(req)));
     }));
+    for (const [path, entryPoint] of Object.entries({
+        'admin-api': 'admin_api',
+        mcp: 'mcp',
+        'background-job': 'background_job',
+        migration: 'migration',
+        'audit-log': 'audit_log'
+    })) {
+        router.post(`/tenant-boundaries/${path}:authorize`, asyncHandler(async (req, res) => {
+            if (!tenantBoundaryGateway?.authorize) {
+                throw new ContractError('UPSTREAM_UNAVAILABLE', { status: 503, retryable: true, fault_domain: 'brainbase_cloud' });
+            }
+            wireInput(req, ['resource_ref'], {});
+            res.json(await tenantBoundaryGateway.authorize({
+                tenant_context: req.tenantContext,
+                entry_point: entryPoint,
+                resource_ref: req.body.resource_ref
+            }));
+        }));
+    }
     router.post('/credential-leases', asyncHandler(async (req, res) => {
         const { current } = await revalidateAuthoritativeBinding(req);
         if (typeof credentialBroker.register === 'function') credentialBroker.register(current);
@@ -219,9 +255,24 @@ export function createTenantRuntimeRouter({
         await revalidateAuthoritativeBinding(req);
         res.status(202).json(await usageLedger.recordUsage(usageEventInput(req)));
     }));
-    router.post('/operation-receipts:finalize', asyncHandler(async (req, res) => {
+    router.post(/^\/operation-receipts:finalize-with-pricing$/, asyncHandler(async (req, res) => {
+        await revalidateAuthoritativeBinding(req);
+        res.status(201).json(await usageLedger.finalizeReceiptWithPricing(operationReceiptWithPricingInput(req)));
+    }));
+    router.post(/^\/operation-receipts:finalize$/, asyncHandler(async (req, res) => {
         await revalidateAuthoritativeBinding(req);
         res.status(201).json(await usageLedger.finalizeReceipt(operationReceiptInput(req)));
+    }));
+    router.post('/operation-receipts/:receiptId/history:read', asyncHandler(async (req, res) => {
+        await revalidateAuthoritativeBinding(req);
+        wireInput(req, [], {});
+        if (!/^receipt_[0-9A-HJKMNP-TV-Z]{26}$/.test(req.params.receiptId)) {
+            throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
+        }
+        res.json(await usageLedger.readReceiptHistory({
+            tenant_id: req.tenantContext.tenant.tenant_id,
+            receipt_id: req.params.receiptId
+        }));
     }));
     router.post('/idempotency-claims', asyncHandler(async (req, res) => {
         await revalidateAuthoritativeBinding(req);

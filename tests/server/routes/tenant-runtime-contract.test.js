@@ -30,6 +30,7 @@ function createApp(overrides = {}) {
         connectionRegistry: { validateRevision: (input) => ({ valid: true, authoritative: true, ...input, credential_ref: tenantContext.credential.credential_ref, credential_mode: tenantContext.credential.mode }) },
         credentialBroker: { issueLease: (input) => ({ lease_ref: 'lease:opaque', expires_at: '2026-08-16T00:01:00Z', ...input }) },
         usageLedger: { recordUsage: (input) => ({ accepted: true, ...input }) },
+        tenantBoundaryGateway: { authorize: (input) => ({ authorized: true, ...input }) },
         ...overrides
     }));
     return app;
@@ -223,6 +224,86 @@ describe('tenant runtime API', () => {
             scope: 'business_effect',
             idempotency_key: tenantContext.idempotency_key
         }), { connection_revision: '1' });
+    });
+
+    it.each([
+        ['admin API', 'admin-api', 'admin_api'],
+        ['MCP', 'mcp', 'mcp'],
+        ['background job', 'background-job', 'background_job'],
+        ['migration', 'migration', 'migration'],
+        ['audit log', 'audit-log', 'audit_log']
+    ])('AC-005: %s tenant boundaryは署名済みcontextと永続resource ownerを実routeで照合する', async (_label, route, entryPoint) => {
+        const tenantBoundaryGateway = { authorize: vi.fn(async (input) => ({ authorized: true, entry_point: input.entry_point })) };
+        const response = await request(createApp({ tenantBoundaryGateway }))
+            .post(`/api/v1/runtime/tenant-boundaries/${route}:authorize`)
+            .set({
+                authorization: 'Bearer service-test',
+                'Brainbase-Protocol-Version': '1.0',
+                'Brainbase-Deployment-Id': tenantContext.placement.deployment_id
+            })
+            .send({
+                tenant_context: tenantContext,
+                resource_ref: { object_type: 'project', resource_id: 'project-a' }
+            });
+
+        expect(response.status).toBe(200);
+        expect(tenantBoundaryGateway.authorize).toHaveBeenCalledWith({
+            tenant_context: tenantContext,
+            entry_point: entryPoint,
+            resource_ref: { object_type: 'project', resource_id: 'project-a' }
+        });
+    });
+
+    it('AC-205: HTTP finalize-with-pricingからledger保存とtenant限定history readbackへ接続する', async () => {
+        const finalized = {
+            receipt: { receipt_id: 'receipt_01ARZ3NDEKTSV4RRFFQ69G5FB6' },
+            pricing_snapshot: { rate_card_revision: '8', fx_table_revision: '5', sales_price_revision: '3' }
+        };
+        const usageLedger = {
+            finalizeReceiptWithPricing: vi.fn(async () => finalized),
+            readReceiptHistory: vi.fn(async () => [finalized])
+        };
+        const headers = {
+            authorization: 'Bearer service-test',
+            'Brainbase-Protocol-Version': '1.0',
+            'Brainbase-Deployment-Id': tenantContext.placement.deployment_id
+        };
+        const pricingSnapshot = {
+            rate_card_revision: '8', fx_table_revision: '5', sales_price_revision: '3',
+            purchase_currency: 'USD', purchase_minor_units: null,
+            billing_currency: 'JPY', billing_minor_units: null,
+            fx_rate_decimal: '150.1234', effective_at: '2026-08-16T13:01:35Z'
+        };
+        const receiptBody = {
+            message_type: 'operation_receipt', receipt_id: finalized.receipt.receipt_id,
+            protocol_version: '1.0', operation_ids: [tenantContext.operation_id],
+            idempotency_keys: [tenantContext.idempotency_key], actor_principal_id: 'person-a',
+            project_id: 'project-a', capability_id: 'task.read', quota_decision: 'allowed',
+            credential_mode: 'customer_oauth', collection_state: 'partial', outcome: 'failed',
+            failure_code: 'UPSTREAM_PARTIAL', usage_event_ids: [],
+            reply: { state: 'failed', reply_count: 0, legacy_reply_count: 0 },
+            completed_at: '2026-08-16T13:01:35Z'
+        };
+        const app = createApp({ usageLedger });
+        const createResponse = await request(app)
+            .post('/api/v1/runtime/operation-receipts:finalize-with-pricing')
+            .set(headers)
+            .send({ tenant_context: tenantContext, receipt: receiptBody, pricing_snapshot: pricingSnapshot });
+        const historyResponse = await request(app)
+            .post(`/api/v1/runtime/operation-receipts/${finalized.receipt.receipt_id}/history:read`)
+            .set(headers)
+            .send({ tenant_context: tenantContext });
+
+        expect(createResponse.status, JSON.stringify(createResponse.body)).toBe(201);
+        expect(historyResponse.status, JSON.stringify(historyResponse.body)).toBe(200);
+        expect(usageLedger.finalizeReceiptWithPricing).toHaveBeenCalledWith({
+            receipt: expect.objectContaining({ tenant_id: tenantContext.tenant.tenant_id }),
+            pricing_snapshot: pricingSnapshot
+        });
+        expect(usageLedger.readReceiptHistory).toHaveBeenCalledWith({
+            tenant_id: tenantContext.tenant.tenant_id,
+            receipt_id: finalized.receipt.receipt_id
+        });
     });
 
     it('D-009/AC-301/AC-305: runtime header欠損やdeployment不一致を拒否する', async () => {

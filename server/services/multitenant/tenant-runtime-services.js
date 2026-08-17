@@ -5,6 +5,7 @@ import { MultitenantPostgresRepository } from './postgres-repository.js';
 import { PostgresContractUsageLedger } from './postgres-contract-usage-ledger.js';
 import { TenantContextProducer } from './tenant-context-producer.js';
 import { verifyTenantContext } from './tenant-context.js';
+import { TenantBoundaryGateway } from './tenant-boundary.js';
 
 function tokenDigest(value) {
     return createHash('sha256').update(String(value), 'utf8').digest();
@@ -34,6 +35,7 @@ export function createTenantRuntimeServices({
     connectionRegistry,
     credentialBroker = new CredentialBroker(),
     usageLedger = new ContractUsageLedger(),
+    tenantBoundaryGateway,
     resolveContractRevision,
     resolveCanonicalContext,
     signingKey,
@@ -73,6 +75,7 @@ export function createTenantRuntimeServices({
         connectionRegistry,
         credentialBroker,
         usageLedger,
+        tenantBoundaryGateway,
         tenantContextVerifier: (envelope) => verifyTenantContext(envelope, {
             keys: verificationKeys(),
             audience,
@@ -96,6 +99,9 @@ export function createTenantRuntimeServicesFromEnv({ env = process.env, pool, no
     const privateKey = createPrivateKey({ key: privateJwk, format: 'jwk' });
     const repository = new MultitenantPostgresRepository({ pool, now });
     const usageLedger = new PostgresContractUsageLedger({ repository, now });
+    const tenantBoundaryGateway = new TenantBoundaryGateway({
+        resolveResource: (input) => repository.resolveOwnedResource(input)
+    });
     return createTenantRuntimeServices({
         serviceToken: requiredEnv(env, 'BRAINBASE_TENANT_RUNTIME_SERVICE_TOKEN'),
         connectionRegistry: {
@@ -106,6 +112,7 @@ export function createTenantRuntimeServicesFromEnv({ env = process.env, pool, no
             now
         }),
         usageLedger,
+        tenantBoundaryGateway,
         resolveCanonicalContext: (input) => repository.resolveRuntimeContext(input),
         signingKey: {
             key_id: requiredEnv(env, 'BRAINBASE_TENANT_CONTEXT_SIGNING_KEY_ID'),
