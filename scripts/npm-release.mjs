@@ -189,8 +189,7 @@ async function removeReleaseStagingTag(packageName, version, expectedSha, root, 
     execute('npm', ['dist-tag', 'rm', packageName, tag], root);
     return { status: 'removed', tag };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/\bE403\b|403 Forbidden/iu.test(message)) {
+    if (/\bE403\b|403 Forbidden/iu.test(commandFailureMessage(error))) {
       return { status: 'blocked', tag, reason: 'registry_permission_denied' };
     }
     throw error;
