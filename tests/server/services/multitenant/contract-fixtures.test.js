@@ -15,7 +15,8 @@ describe('AC-301/AC-302/AC-303: Cloud/OSS protocol v1 contract fixtures', () => 
         const result = negotiateProtocol(input, { now: new Date('2026-08-16T00:00:00.000Z') });
         expect(result).toMatchObject({ protocol_id: expected.protocol_id, selected_version: expected.selected_version });
         if (expected.optional_status) {
-            expect(result.optional_capabilities.cloud_billing_export.status).toBe(expected.optional_status);
+            expect(result.optional_capabilities.find(({ capability }) => capability === 'cloud_billing_export')?.status)
+                .toBe(expected.optional_status);
         }
     });
 
@@ -28,7 +29,8 @@ describe('AC-301/AC-302/AC-303: Cloud/OSS protocol v1 contract fixtures', () => 
     it.each(nonApplicable.cases)('$id: non-applicable fixture', ({ input, expected }) => {
         const result = negotiateProtocol(input);
         for (const capability of input.optional_capabilities) {
-            expect(result.optional_capabilities[capability]).toEqual(expected);
+            expect(result.optional_capabilities.find((candidate) => candidate.capability === capability))
+                .toMatchObject({ capability, status: expected.status, reason: expect.any(String) });
         }
     });
 

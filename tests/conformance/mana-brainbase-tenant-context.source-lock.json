@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/Unson-LLC/mana-runtime",
+  "pull_request": 237,
+  "commit": "37dd9f5eee783b9b3ba94c31c9c7e32f7afa3351",
+  "contract_root": "contracts/mana-brainbase-tenant-context/v1",
+  "fixture_manifest": "fixtures/manifest.json",
+  "fixture_set_sha256": "81c73707578ae42d6ed539aae3ac1e8eb3b0feac906e3856e73d8cdf6629d454",
+  "fixture_count": 18,
+  "evidence_boundary": "shared_contract_fixture_not_production_readback"
+}

@@ -5,20 +5,43 @@
     {
       "id": "BBMT-N-009-major-mismatch",
       "input": {
+        "message_type": "protocol_negotiation_request",
+        "protocol_id": "mana-brainbase-tenant-context",
         "deployment_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAV",
         "deployment_profile": "shared_cloud",
         "supported_range": ">=2.0 <3.0",
-        "required_capabilities": []
+        "supported_versions": ["2.0"],
+        "required_capabilities": [
+          "signed_tenant_context",
+          "connection_revision_recheck",
+          "tenant_scoped_authorization",
+          "credential_broker_v1",
+          "usage_receipt_v1",
+          "idempotent_effects_v1",
+          "container_sanitization_v1"
+        ]
       },
       "expected_code": "PROTOCOL_VERSION_UNSUPPORTED"
     },
     {
       "id": "BBMT-N-009-required-capability",
       "input": {
+        "message_type": "protocol_negotiation_request",
+        "protocol_id": "mana-brainbase-tenant-context",
         "deployment_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAV",
         "deployment_profile": "customer_managed_oss",
         "supported_range": ">=1.0 <2.0",
-        "required_capabilities": ["unknown_required_capability"]
+        "supported_versions": ["1.0"],
+        "required_capabilities": [
+          "signed_tenant_context",
+          "connection_revision_recheck",
+          "tenant_scoped_authorization",
+          "credential_broker_v1",
+          "usage_receipt_v1",
+          "idempotent_effects_v1",
+          "container_sanitization_v1",
+          "unknown_required_capability"
+        ]
       },
       "expected_code": "PROTOCOL_CAPABILITY_UNSUPPORTED"
     }

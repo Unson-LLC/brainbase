@@ -3,19 +3,20 @@ import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 import { createTenantRuntimeRouter } from '../../../server/routes/tenant-runtime.js';
 import { registerTenantRuntimeApiRoute } from '../../../server/bootstrap/register-api-routes.js';
+import { REQUIRED_CAPABILITIES } from '../../../server/services/multitenant/protocol-contract.js';
 
 const tenantContext = {
-    tenant: { tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV', tenant_revision: 3 },
+    tenant: { tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV', tenant_revision: '3' },
     workspace_connection: {
         connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
-        connection_revision: 1,
+        connection_revision: '1',
         workspace_id: 'workspace-opaque',
         app_id: 'app-opaque'
     },
     placement: { deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV' },
     operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     correlation_id: 'cor_01ARZ3NDEKTSV4RRFFQ69G5FAV',
-    contract_revision: 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    contract_revision: '1',
     credential: { mode: 'customer_oauth', credential_ref: 'credref:opaque' }
 };
 
@@ -34,6 +35,19 @@ function createApp(overrides = {}) {
     return app;
 }
 
+function negotiationRequest(deploymentProfile) {
+    return {
+        message_type: 'protocol_negotiation_request',
+        protocol_id: 'mana-brainbase-tenant-context',
+        deployment_id: tenantContext.placement.deployment_id,
+        deployment_profile: deploymentProfile,
+        supported_range: '>=1.0 <2.0',
+        supported_versions: ['1.0'],
+        required_capabilities: [...REQUIRED_CAPABILITIES],
+        optional_capabilities: []
+    };
+}
+
 describe('tenant runtime API', () => {
     it('AC-005/301: production bootstrapへservice-auth付きruntime routeを登録する', async () => {
         const app = express();
@@ -46,10 +60,7 @@ describe('tenant runtime API', () => {
             credentialBroker: { issueLease: () => ({ lease_ref: 'lease:opaque' }) },
             usageLedger: { recordUsage: (input) => input }
         });
-        const response = await request(app).post('/api/v1/runtime/negotiate').send({
-            deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV', deployment_profile: 'shared_cloud',
-            supported_range: '>=1.0 <2.0', required_capabilities: []
-        });
+        const response = await request(app).post('/api/v1/runtime/negotiate').send(negotiationRequest('shared_cloud'));
         expect(response.status).toBe(200);
     });
 
@@ -57,7 +68,7 @@ describe('tenant runtime API', () => {
         const response = await request(createApp())
             .post('/api/v1/runtime/negotiate')
             .set('authorization', 'Bearer service-test')
-            .send({ deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV', deployment_profile: 'customer_managed_oss', supported_range: '>=1.0 <2.0', required_capabilities: ['signed_tenant_context'] });
+            .send(negotiationRequest('customer_managed_oss'));
         expect(response.status).toBe(200);
         expect(response.body).toMatchObject({ protocol_id: 'mana-brainbase-tenant-context', selected_version: '1.0' });
     });
@@ -71,8 +82,14 @@ describe('tenant runtime API', () => {
 
     it('D-003/D-005: authoritative revision検証とopaque credential leaseをAPI化する', async () => {
         const headers = { authorization: 'Bearer service-test', 'Brainbase-Protocol-Version': '1.0', 'Brainbase-Deployment-Id': tenantContext.placement.deployment_id };
-        const revision = await request(createApp()).post('/api/v1/runtime/workspace-connections:validate-revision').set(headers).send({ tenant_context: tenantContext, tenant_id: tenantContext.tenant.tenant_id, connection_id: tenantContext.workspace_connection.connection_id, expected_connection_revision: 1 });
-        const lease = await request(createApp()).post('/api/v1/runtime/credential-leases').set(headers).send({ tenant_context: tenantContext, tenant_id: tenantContext.tenant.tenant_id, connection_id: tenantContext.workspace_connection.connection_id, connection_revision: 1, credential_mode: 'customer_oauth', credential_ref: 'credref:opaque', operation_id: tenantContext.operation_id, audience: 'mana-runtime', ttl_seconds: 60 });
+        const revision = await request(createApp()).post('/api/v1/runtime/workspace-connections:validate-revision').set(headers).send({ tenant_context: tenantContext, tenant_id: tenantContext.tenant.tenant_id, connection_id: tenantContext.workspace_connection.connection_id, expected_connection_revision: '1' });
+        const lease = await request(createApp()).post('/api/v1/runtime/credential-leases').set(headers).send({
+            tenant_context: tenantContext,
+            message_type: 'credential_lease_request',
+            protocol_version: '1.0',
+            binding: { audience: 'mana-runtime' },
+            requested_ttl_seconds: 60
+        });
         expect(revision.status).toBe(200);
         expect(lease.status).toBe(201);
         expect(lease.body).not.toHaveProperty('credential');
@@ -98,7 +115,7 @@ describe('tenant runtime API', () => {
                 tenant_context: tenantContext,
                 tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAW',
                 connection_id: tenantContext.workspace_connection.connection_id,
-                expected_connection_revision: 1
+                expected_connection_revision: '1'
             });
         expect(response.status).toBe(403);
         expect(response.body).toMatchObject({ code: 'CROSS_TENANT_CANDIDATE' });
@@ -117,6 +134,95 @@ describe('tenant runtime API', () => {
         expect(response.body).toMatchObject({ code: 'WORKSPACE_CONNECTION_STALE_REVISION' });
         expect(connectionRegistry.validateRevision).toHaveBeenCalledOnce();
         expect(credentialBroker.issueLease).not.toHaveBeenCalled();
+    });
+
+    it('D-006/D-007: quota・usage・receipt・business-effect claimをcanonical wireのまま実routeへ渡す', async () => {
+        const usageLedger = {
+            decideQuota: vi.fn((input) => input),
+            recordUsage: vi.fn((input) => input),
+            finalizeReceipt: vi.fn((input) => input),
+            claimEffect: vi.fn((input) => input)
+        };
+        const headers = {
+            authorization: 'Bearer service-test',
+            'Brainbase-Protocol-Version': '1.0',
+            'Brainbase-Deployment-Id': tenantContext.placement.deployment_id
+        };
+        const body = { tenant_context: tenantContext };
+        const app = createApp({ usageLedger });
+
+        const quota = await request(app).post('/api/v1/runtime/quota:decide').set(headers).send({
+            ...body,
+            quota_revision: '19',
+            metric: 'model_tokens',
+            observed_quantity: 1200,
+            requested_quantity: 0,
+            unit: 'model_tokens',
+            window_started_at: '2026-08-01T00:00:00Z',
+            window_ends_at: '2026-09-01T00:00:00Z'
+        });
+        const usage = await request(app).post('/api/v1/runtime/usage-events').set(headers).send({
+            ...body,
+            message_type: 'usage_event',
+            usage_event_id: 'usage_01ARZ3NDEKTSV4RRFFQ69G5FB2',
+            protocol_version: '1.0',
+            kind: 'provider_cost',
+            quantity: null,
+            unit: 'usd',
+            collection_state: 'not_collected',
+            outcome: 'timed_out',
+            failure_code: 'UPSTREAM_TIMEOUT',
+            unknown_fields: ['amount'],
+            observed_at: '2026-08-16T13:01:34Z'
+        });
+        const receipt = await request(app).post('/api/v1/runtime/operation-receipts:finalize').set(headers).send({
+            ...body,
+            message_type: 'operation_receipt',
+            receipt_id: 'receipt_01ARZ3NDEKTSV4RRFFQ69G5FB6',
+            protocol_version: '1.0',
+            operation_ids: [tenantContext.operation_id],
+            idempotency_keys: [tenantContext.idempotency_key],
+            actor_principal_id: 'person-a',
+            project_id: 'project-a',
+            capability_id: 'task.read',
+            quota_decision: 'allowed',
+            credential_mode: 'customer_oauth',
+            collection_state: 'partial',
+            outcome: 'failed',
+            failure_code: 'UPSTREAM_PARTIAL',
+            usage_event_ids: ['usage_01ARZ3NDEKTSV4RRFFQ69G5FB2'],
+            reply: { state: 'failed', reply_count: 0, legacy_reply_count: 0 },
+            completed_at: '2026-08-16T13:01:35Z'
+        });
+        const claim = await request(app).post('/api/v1/runtime/idempotency-claims').set(headers).send({
+            ...body,
+            message_type: 'idempotency_claim',
+            owner: 'brainbase',
+            scope: 'business_effect',
+            slack_event_id: 'Ev-A-001',
+            context_hash: `sha256:${'a'.repeat(64)}`,
+            payload_hash: `sha256:${'b'.repeat(64)}`,
+            state: 'succeeded',
+            retention_until: '2026-09-16T13:01:35Z'
+        });
+
+        expect([quota.status, usage.status, receipt.status, claim.status]).toEqual([200, 202, 201, 201]);
+        for (const call of [
+            usageLedger.decideQuota.mock.calls[0][0],
+            usageLedger.recordUsage.mock.calls[0][0],
+            usageLedger.finalizeReceipt.mock.calls[0][0],
+            usageLedger.claimEffect.mock.calls[0][0]
+        ]) {
+            expect(call).not.toHaveProperty('tenant_context');
+            expect(call).not.toHaveProperty('tenant_revision_at_write');
+            expect(call).not.toHaveProperty('credential_ref');
+            expect(call).not.toHaveProperty('workspace_id');
+        }
+        expect(usageLedger.claimEffect).toHaveBeenCalledWith(expect.objectContaining({
+            owner: 'brainbase',
+            scope: 'business_effect',
+            idempotency_key: tenantContext.idempotency_key
+        }), { connection_revision: '1' });
     });
 
     it('D-009/AC-301/AC-305: runtime header欠損やdeployment不一致を拒否する', async () => {

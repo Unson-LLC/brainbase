@@ -10,18 +10,18 @@ describe('multitenant persistence schema', () => {
         for (const table of [
             'brainbase_tenants', 'tenant_organizations', 'tenant_memberships', 'tenant_projects',
             'tenant_graph_entities', 'tenant_graph_relations', 'workspace_connections',
-            'tenant_contract_revisions', 'tenant_usage_events', 'tenant_operation_receipts'
+            'tenant_contract_revisions', 'tenant_quota_decisions', 'tenant_usage_events',
+            'tenant_operation_receipts'
         ]) {
             expect(sql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS\\s+${table}\\b`, 'i'));
         }
         expect(sql).toContain('tenant_revision_at_write');
         expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/);
-        expect((sql.match(/FORCE ROW LEVEL SECURITY/g) ?? [])).toHaveLength(14);
+        expect((sql.match(/FORCE ROW LEVEL SECURITY/g) ?? [])).toHaveLength(15);
         expect(sql).toContain("current_setting('brainbase.tenant_id', true)");
         expect(sql).toContain('FOREIGN KEY (tenant_id, organization_id) REFERENCES tenant_organizations(tenant_id, organization_id)');
         expect(sql).toContain('FOREIGN KEY (tenant_id, source_entity_id) REFERENCES tenant_graph_entities(tenant_id, entity_id)');
         expect(sql).toContain('FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision)');
-        expect(sql).toContain('FOREIGN KEY (tenant_id, corrects_receipt_id) REFERENCES tenant_operation_receipts(tenant_id, receipt_id)');
         expect(sql).toContain('FOREIGN KEY (tenant_id, migration_id) REFERENCES tenant_migrations(tenant_id, migration_id)');
     });
 
@@ -38,5 +38,11 @@ describe('multitenant persistence schema', () => {
         expect(sql).toContain("outcome IN ('succeeded', 'failed', 'cancelled', 'timed_out')");
         expect(sql).toContain("claim_state IN ('pending', 'claimed', 'succeeded', 'failed_terminal')");
         expect(sql).toContain("retain_until >= claimed_at + INTERVAL '30 days'");
+        expect(sql).toContain('decision_payload JSONB NOT NULL');
+        expect(sql).toContain('event_payload JSONB NOT NULL');
+        expect(sql).toContain('receipt_payload JSONB NOT NULL');
+        expect(sql).toContain('claim_payload JSONB NOT NULL');
+        expect(sql).toContain('UNIQUE (tenant_id, contract_revision)');
+        expect(sql).not.toMatch(/tenant_usage_events[\s\S]*?UNIQUE \(tenant_id, idempotency_key\)[\s\S]*?CREATE TABLE IF NOT EXISTS tenant_operation_receipts/);
     });
 });

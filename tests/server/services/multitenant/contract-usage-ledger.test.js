@@ -9,12 +9,12 @@ import { expectContractError } from './test-helpers.js';
 const ids = {
     tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
-    connection_revision: 1,
+    connection_revision: '1',
     deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     correlation_id: 'cor_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
-    contract_revision: 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FAV',
-    tenant_revision_at_write: 3,
+    contract_revision: '11',
+    tenant_revision_at_write: '3',
     idempotency_key: 'ik1_0123456789012345678901234567890123456789012'
 };
 
@@ -30,7 +30,7 @@ describe('ContractUsageLedger', () => {
         expect(ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: ids.contract_revision, metric: 'tool_calls', observed_quantity: 79, requested_quantity: 1 }).decision).toBe('warning');
         expect(ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: ids.contract_revision, metric: 'tool_calls', observed_quantity: 99, requested_quantity: 1 }).decision).toBe('hard_stopped');
         expectContractError(
-            () => ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FAW', metric: 'tool_calls', observed_quantity: 0, requested_quantity: 1 }),
+            () => ledger.decideQuota({ tenant_id: ids.tenant_id, contract_revision: '12', metric: 'tool_calls', observed_quantity: 0, requested_quantity: 1 }),
             { code: 'UPSTREAM_UNAVAILABLE' }
         );
         expectContractError(
@@ -61,10 +61,10 @@ describe('ContractUsageLedger', () => {
             .toMatchObject({ outcome: 'failed', collection_state: 'not_collected', quantity: null });
         expectContractError(
             () => normalizeUsageEvent({ ...ids, kind: 'ai', unit: 'token', quantity: 0, outcome: 'failed', collection_state: 'not_collected', failure_code: 'UPSTREAM_UNAVAILABLE' }),
-            { code: 'USAGE_COLLECTION_INVALID' }
+            { code: 'USAGE_NOT_COLLECTED_HAS_QUANTITY' }
         );
         expect(normalizeUsageEvent({ ...ids, kind: 'tool', unit: 'call', quantity: 0, outcome: 'succeeded', collection_state: 'collected', failure_code: 'NO_DATA' }))
-            .toMatchObject({ quantity: '0', failure_code: 'NO_DATA' });
+            .toMatchObject({ quantity: 0, failure_code: 'NO_DATA' });
     });
 
     it('AC-205: Receiptへ当時のrate・FX・販売価格revisionをimmutable snapshotとして固定する', () => {
@@ -84,11 +84,30 @@ describe('ContractUsageLedger', () => {
 
     it('AC-204/AC-205: Usageのsame-payload replayとpartialのunknown_fieldsを厳密化する', () => {
         const ledger = new ContractUsageLedger();
-        const input = { ...ids, kind: 'tool', unit: 'call', quantity: 1, outcome: 'succeeded', collection_state: 'collected', observed_at: '2026-08-16T00:00:00Z' };
+        const input = { ...ids, usage_event_id: 'usage_01ARZ3NDEKTSV4RRFFQ69G5FB2', kind: 'tool', unit: 'call', quantity: 1, outcome: 'succeeded', collection_state: 'collected', observed_at: '2026-08-16T00:00:00Z' };
         const first = ledger.recordUsage(input);
         expect(ledger.recordUsage(input)).toEqual(first);
         expectContractError(() => ledger.recordUsage({ ...input, quantity: 2 }), { code: 'IDEMPOTENCY_CONFLICT' });
-        expectContractError(() => normalizeUsageEvent({ ...ids, kind: 'tool', unit: 'call', quantity: 1, outcome: 'failed', collection_state: 'partial', unknown_fields: [] }), { code: 'USAGE_COLLECTION_INVALID' });
-        expectContractError(() => normalizeUsageEvent({ ...ids, kind: 'tool', unit: 'call', quantity: -1, outcome: 'succeeded', collection_state: 'collected' }), { code: 'USAGE_COLLECTION_INVALID' });
+        expectContractError(() => normalizeUsageEvent({ ...ids, kind: 'tool', unit: 'call', quantity: 1, outcome: 'failed', collection_state: 'partial', unknown_fields: [] }), { code: 'USAGE_PARTIAL_UNKNOWN_FIELDS_REQUIRED' });
+        expectContractError(() => normalizeUsageEvent({ ...ids, kind: 'tool', unit: 'call', quantity: -1, outcome: 'succeeded', collection_state: 'collected' }), { code: 'USAGE_COLLECTED_QUANTITY_REQUIRED' });
+    });
+
+    it('D-006: 同じbusiness-effect keyに属する複数UsageEventをevent ID単位で冪等化する', () => {
+        const ledger = new ContractUsageLedger();
+        const base = {
+            ...ids,
+            idempotency_key: 'ik1_SMJlU0vl95PXZjE3Cs0smROt0-VqWWO1D83Nl7IkSTE',
+            unit: 'tokens', quantity: 1, outcome: 'succeeded', collection_state: 'collected',
+            failure_code: null, unknown_fields: [], observed_at: '2026-08-16T13:01:31Z'
+        };
+        const first = ledger.recordUsage({ ...base, usage_event_id: 'usage_01ARZ3NDEKTSV4RRFFQ69G5FB2', kind: 'model_input_tokens' });
+        const second = ledger.recordUsage({ ...base, usage_event_id: 'usage_01ARZ3NDEKTSV4RRFFQ69G5FB3', kind: 'model_output_tokens' });
+
+        expect(second.usage_event_id).not.toBe(first.usage_event_id);
+        expect(ledger.recordUsage({ ...base, usage_event_id: first.usage_event_id, kind: first.kind })).toEqual(first);
+        expectContractError(
+            () => ledger.recordUsage({ ...base, usage_event_id: first.usage_event_id, kind: 'provider_cost' }),
+            { code: 'IDEMPOTENCY_CONFLICT' }
+        );
     });
 });

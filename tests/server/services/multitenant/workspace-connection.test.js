@@ -23,7 +23,7 @@ describe('WorkspaceConnectionRegistry', () => {
         const reinstalled = registry.reinstall({
             tenant_id: tenantA,
             connection_id: first.connection_id,
-            expected_connection_revision: 1,
+            expected_connection_revision: '1',
             installation_id: 'install-3',
             granted_scopes: ['chat:write', 'channels:read'],
             credential_ref: 'credref:three'
@@ -31,8 +31,8 @@ describe('WorkspaceConnectionRegistry', () => {
 
         expect(first.connection_id).not.toBe(second.connection_id);
         expect(reinstalled.connection_id).toBe(first.connection_id);
-        expect(reinstalled.connection_revision).toBe(2);
-        expect(reinstalled.supersedes_connection_revision).toBe(1);
+        expect(reinstalled.connection_revision).toBe('2');
+        expect(reinstalled.supersedes_connection_revision).toBe('1');
         expect(registry.history(first.connection_id)).toHaveLength(2);
     });
 
@@ -53,13 +53,13 @@ describe('WorkspaceConnectionRegistry', () => {
             granted_scopes: ['chat:write'], credential_ref: 'credref:opaque'
         });
 
-        expectContractError(() => registry.validateRevision({ tenant_id: tenantA, connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV', expected_connection_revision: 1 }), { code: 'WORKSPACE_CONNECTION_UNAVAILABLE' });
-        expectContractError(() => registry.validateRevision({ tenant_id: tenantB, connection_id: connection.connection_id, expected_connection_revision: 1 }), { code: 'CROSS_TENANT_CANDIDATE' });
-        expectContractError(() => registry.validateRevision({ tenant_id: tenantA, connection_id: connection.connection_id, expected_connection_revision: 1, app_id: 'other' }), { code: 'WORKSPACE_OR_APP_MISMATCH' });
-        expectContractError(() => registry.validateRevision({ tenant_id: tenantA, connection_id: connection.connection_id, expected_connection_revision: 1, required_scopes: ['channels:read'] }), { code: 'CAPABILITY_SCOPE_MISMATCH' });
-        registry.reinstall({ tenant_id: tenantA, connection_id: connection.connection_id, expected_connection_revision: 1, installation_id: 'i2', granted_scopes: ['chat:write'], credential_ref: 'credref:new' });
-        expectContractError(() => registry.validateRevision({ tenant_id: tenantA, connection_id: connection.connection_id, expected_connection_revision: 1 }), { code: 'WORKSPACE_CONNECTION_STALE_REVISION' });
-        registry.revoke({ tenant_id: tenantA, connection_id: connection.connection_id, expected_connection_revision: 2, reason: 'admin' });
-        expectContractError(() => registry.validateRevision({ tenant_id: tenantA, connection_id: connection.connection_id, expected_connection_revision: 3 }), { code: 'WORKSPACE_CONNECTION_REVOKED' });
+        expectContractError(() => registry.validateRevision({ tenant_id: tenantA, connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV', expected_connection_revision: '1' }), { code: 'WORKSPACE_CONNECTION_UNAVAILABLE' });
+        expectContractError(() => registry.validateRevision({ tenant_id: tenantB, connection_id: connection.connection_id, expected_connection_revision: '1' }), { code: 'CROSS_TENANT_CANDIDATE' });
+        expectContractError(() => registry.validateRevision({ tenant_id: tenantA, connection_id: connection.connection_id, expected_connection_revision: '1', app_id: 'other' }), { code: 'WORKSPACE_OR_APP_MISMATCH' });
+        expectContractError(() => registry.validateRevision({ tenant_id: tenantA, connection_id: connection.connection_id, expected_connection_revision: '1', required_scopes: ['channels:read'] }), { code: 'CAPABILITY_SCOPE_MISMATCH' });
+        registry.reinstall({ tenant_id: tenantA, connection_id: connection.connection_id, expected_connection_revision: '1', installation_id: 'i2', granted_scopes: ['chat:write'], credential_ref: 'credref:new' });
+        expectContractError(() => registry.validateRevision({ tenant_id: tenantA, connection_id: connection.connection_id, expected_connection_revision: '1' }), { code: 'WORKSPACE_CONNECTION_STALE_REVISION' });
+        registry.revoke({ tenant_id: tenantA, connection_id: connection.connection_id, expected_connection_revision: '2', reason: 'admin' });
+        expectContractError(() => registry.validateRevision({ tenant_id: tenantA, connection_id: connection.connection_id, expected_connection_revision: '3' }), { code: 'WORKSPACE_CONNECTION_REVOKED' });
     });
 });

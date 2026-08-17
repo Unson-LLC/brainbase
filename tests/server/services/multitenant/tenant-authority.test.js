@@ -10,10 +10,10 @@ describe('TenantAuthority', () => {
 
         expect(isCanonicalId(tenant.tenant_id, 'ten')).toBe(true);
         expect(tenant.status).toBe('provisioning');
-        expect(authority.transitionTenant(tenant.tenant_id, 1, 'active').tenant_revision).toBe(2);
-        expect(authority.transitionTenant(tenant.tenant_id, 2, 'deletion_pending').status).toBe('deletion_pending');
-        expect(authority.transitionTenant(tenant.tenant_id, 3, 'deleted').status).toBe('deleted');
-        expectContractError(() => authority.transitionTenant(tenant.tenant_id, 4, 'active'), {
+        expect(authority.transitionTenant(tenant.tenant_id, '1', 'active').tenant_revision).toBe('2');
+        expect(authority.transitionTenant(tenant.tenant_id, '2', 'deletion_pending').status).toBe('deletion_pending');
+        expect(authority.transitionTenant(tenant.tenant_id, '3', 'deleted').status).toBe('deleted');
+        expectContractError(() => authority.transitionTenant(tenant.tenant_id, '4', 'active'), {
             code: 'TENANT_INVALID_TRANSITION'
         });
     });
@@ -21,7 +21,7 @@ describe('TenantAuthority', () => {
     it('AC-003: workspace ID、project code、organization名をtenant IDとして解決しない', () => {
         const authority = new TenantAuthority();
         const tenant = authority.createTenant({ displayName: 'same-name' });
-        authority.transitionTenant(tenant.tenant_id, 1, 'active');
+        authority.transitionTenant(tenant.tenant_id, '1', 'active');
 
         for (const selector of [
             { workspace_id: 'W_PROVIDER' },
@@ -36,8 +36,8 @@ describe('TenantAuthority', () => {
         const authority = new TenantAuthority();
         const first = authority.createTenant({ displayName: 'A' });
         const second = authority.createTenant({ displayName: 'B' });
-        authority.transitionTenant(first.tenant_id, 1, 'active');
-        authority.transitionTenant(second.tenant_id, 1, 'active');
+        authority.transitionTenant(first.tenant_id, '1', 'active');
+        authority.transitionTenant(second.tenant_id, '1', 'active');
 
         expectContractError(() => authority.resolveTenant({ tenant_ids: [] }), { code: 'TENANT_UNKNOWN' });
         expectContractError(
@@ -53,10 +53,10 @@ describe('TenantAuthority', () => {
     it('D-001/AC-003: tenant-context resolverへcanonical tenant revisionだけを返す', async () => {
         const authority = new TenantAuthority();
         const created = authority.createTenant({ displayName: 'Runtime tenant' });
-        const active = authority.transitionTenant(created.tenant_id, 1, 'active');
-        await expect(authority.resolveContext({ tenant_id: active.tenant_id, expected_tenant_revision: 2 }))
-            .resolves.toMatchObject({ tenant: { tenant_id: active.tenant_id, tenant_revision: 2 } });
-        await expect(authority.resolveContext({ tenant_id: active.tenant_id, expected_tenant_revision: 1 }))
+        const active = authority.transitionTenant(created.tenant_id, '1', 'active');
+        await expect(authority.resolveContext({ tenant_id: active.tenant_id, expected_tenant_revision: '2' }))
+            .resolves.toMatchObject({ tenant: { tenant_id: active.tenant_id, tenant_revision: '2' } });
+        await expect(authority.resolveContext({ tenant_id: active.tenant_id, expected_tenant_revision: '1' }))
             .rejects.toMatchObject({ code: 'TENANT_REVISION_MISMATCH' });
     });
 });

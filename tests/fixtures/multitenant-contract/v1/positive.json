@@ -5,25 +5,47 @@
     {
       "id": "BBMT-P-005-cloud",
       "input": {
+        "message_type": "protocol_negotiation_request",
+        "protocol_id": "mana-brainbase-tenant-context",
         "deployment_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAV",
         "deployment_profile": "shared_cloud",
         "supported_range": ">=1.0 <2.0",
-        "required_capabilities": ["signed_tenant_context", "usage_receipt_v1"],
+        "supported_versions": ["1.0"],
+        "required_capabilities": [
+          "signed_tenant_context",
+          "connection_revision_recheck",
+          "tenant_scoped_authorization",
+          "credential_broker_v1",
+          "usage_receipt_v1",
+          "idempotent_effects_v1",
+          "container_sanitization_v1"
+        ],
         "optional_capabilities": ["cloud_billing_export"]
       },
       "expected": {
         "protocol_id": "mana-brainbase-tenant-context",
         "selected_version": "1.0",
-        "optional_status": "available"
+        "optional_status": "supported"
       }
     },
     {
       "id": "BBMT-P-005-oss",
       "input": {
+        "message_type": "protocol_negotiation_request",
+        "protocol_id": "mana-brainbase-tenant-context",
         "deployment_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAW",
         "deployment_profile": "customer_managed_oss",
         "supported_range": ">=1.0 <2.0",
-        "required_capabilities": ["signed_tenant_context", "usage_receipt_v1"],
+        "supported_versions": ["1.0"],
+        "required_capabilities": [
+          "signed_tenant_context",
+          "connection_revision_recheck",
+          "tenant_scoped_authorization",
+          "credential_broker_v1",
+          "usage_receipt_v1",
+          "idempotent_effects_v1",
+          "container_sanitization_v1"
+        ],
         "optional_capabilities": []
       },
       "expected": {

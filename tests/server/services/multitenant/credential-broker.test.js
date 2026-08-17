@@ -1,15 +1,32 @@
 import { randomBytes } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CredentialBroker } from '../../../../server/services/multitenant/credential-broker.js';
 import { expectContractError } from './test-helpers.js';
 
 const binding = {
     tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
-    connection_revision: 2,
+    connection_revision: '2',
     credential_ref: 'credref:opaque',
-    credential_mode: 'customer_oauth'
+    credential_mode: 'customer_oauth',
+    contract_revision: '1'
 };
+
+function leaseRequest(overrides = {}) {
+    const { binding: bindingOverride, ...requestOverrides } = overrides;
+    return {
+        message_type: 'credential_lease_request',
+        protocol_version: '1.0',
+        binding: {
+            ...binding,
+            operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            audience: 'mana-runtime',
+            ...bindingOverride
+        },
+        requested_ttl_seconds: 60,
+        ...requestOverrides
+    };
+}
 
 describe('CredentialBroker', () => {
     it('D-005/AC-104/AC-305: 最大60秒、single-use、operation/audience/mode束縛のopaque leaseを発行する', () => {
@@ -18,55 +35,75 @@ describe('CredentialBroker', () => {
         broker.register(binding);
 
         expectContractError(
-            () => broker.issueLease({ ...binding, operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV', audience: 'mana-runtime', ttl_seconds: 61 }),
-            { code: 'CREDENTIAL_LEASE_INVALID' }
+            () => broker.issueLease(leaseRequest({ requested_ttl_seconds: 61 })),
+            { code: 'CREDENTIAL_LEASE_TTL_INVALID' }
         );
-        const lease = broker.issueLease({ ...binding, operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV', audience: 'mana-runtime', ttl_seconds: 60 });
+        const lease = broker.issueLease(leaseRequest());
         expect(lease).not.toHaveProperty('credential');
-        expect(lease).not.toHaveProperty('token');
+        expect(lease).not.toHaveProperty('credential_value');
+        expect(lease).toMatchObject({ lease_id: expect.any(String), contract_revision: '1', max_uses: 1 });
         expectContractError(
-            () => broker.consumeLease({ lease_ref: lease.lease_ref, operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV', audience: 'other' }),
+            () => broker.consumeLease({ lease_id: lease.lease_id, lease_token: lease.lease_token, operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV', audience: 'other' }),
             { code: 'CREDENTIAL_LEASE_SCOPE_MISMATCH' }
         );
         const volatile = broker.consumeLease({
-            lease_ref: lease.lease_ref,
+            lease_id: lease.lease_id,
+            lease_token: lease.lease_token,
             operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
             audience: 'mana-runtime',
             materialize: () => randomBytes(32)
         });
         expect(Buffer.isBuffer(volatile)).toBe(true);
         expectContractError(
-            () => broker.consumeLease({ lease_ref: lease.lease_ref, operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV', audience: 'mana-runtime' }),
+            () => broker.consumeLease({ lease_id: lease.lease_id, lease_token: lease.lease_token, operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV', audience: 'mana-runtime' }),
             { code: 'CREDENTIAL_LEASE_ALREADY_USED' }
         );
     });
 
     it('D-005: OAuth refreshをexpected revisionのCASで更新し競合を監査する', () => {
         const broker = new CredentialBroker();
-        broker.register({ ...binding, refresh_revision: 4 });
+        broker.register({ ...binding, refresh_revision: '4' });
         expect(broker.compareAndSwapRefresh({
             credential_ref: binding.credential_ref,
-            expected_refresh_revision: 4,
+            expected_refresh_revision: '4',
             new_credential_ref: 'credref:rotated'
-        })).toMatchObject({ credential_ref: 'credref:rotated', refresh_revision: 5 });
+        })).toMatchObject({ credential_ref: 'credref:rotated', refresh_revision: '5' });
         expectContractError(() => broker.compareAndSwapRefresh({
-            credential_ref: 'credref:rotated', expected_refresh_revision: 4, new_credential_ref: 'credref:stale'
+            credential_ref: 'credref:rotated', expected_refresh_revision: '4', new_credential_ref: 'credref:stale'
         }), { code: 'OAUTH_REFRESH_CONFLICT' });
         expect(broker.auditEvents.every((event) => !JSON.stringify(event).includes('token'))).toBe(true);
     });
 
     it('D-005/AC-105/AC-305: refresh・reinstall後の旧leaseを拒否し新しいbindingだけを許可する', () => {
         const broker = new CredentialBroker();
-        broker.register({ ...binding, refresh_revision: 1 });
-        const oldLease = broker.issueLease({ ...binding, operation_id: 'op-old', audience: 'mana-runtime' });
-        const rotated = broker.compareAndSwapRefresh({ credential_ref: binding.credential_ref, expected_refresh_revision: 1, new_credential_ref: 'credref:rotated' });
-        expectContractError(() => broker.consumeLease({ lease_ref: oldLease.lease_ref, operation_id: 'op-old', audience: 'mana-runtime' }), { code: 'CREDENTIAL_BINDING_STALE' });
-        expect(broker.issueLease({ ...binding, credential_ref: rotated.credential_ref, operation_id: 'op-new', audience: 'mana-runtime' })).toHaveProperty('lease_ref');
+        broker.register({ ...binding, refresh_revision: '1' });
+        const oldLease = broker.issueLease(leaseRequest({ binding: { operation_id: 'op-old' } }));
+        const rotated = broker.compareAndSwapRefresh({ credential_ref: binding.credential_ref, expected_refresh_revision: '1', new_credential_ref: 'credref:rotated' });
+        expectContractError(() => broker.consumeLease({ lease_id: oldLease.lease_id, lease_token: oldLease.lease_token, operation_id: 'op-old', audience: 'mana-runtime' }), { code: 'CREDENTIAL_BINDING_STALE' });
+        expect(broker.issueLease(leaseRequest({ binding: { credential_ref: rotated.credential_ref, operation_id: 'op-new' } }))).toHaveProperty('lease_id');
 
-        const revisionTwo = { ...binding, connection_revision: 3, credential_ref: 'credref:revision-3' };
+        const revisionTwo = { ...binding, connection_revision: '3', credential_ref: 'credref:revision-3' };
         broker.register(revisionTwo);
-        const staleRevisionLease = broker.issueLease({ ...revisionTwo, operation_id: 'op-reinstall', audience: 'mana-runtime' });
-        broker.register({ ...revisionTwo, connection_revision: 4, credential_ref: 'credref:revision-4' });
-        expectContractError(() => broker.consumeLease({ lease_ref: staleRevisionLease.lease_ref, operation_id: 'op-reinstall', audience: 'mana-runtime' }), { code: 'CREDENTIAL_BINDING_STALE' });
+        const staleRevisionLease = broker.issueLease(leaseRequest({ binding: { ...revisionTwo, operation_id: 'op-reinstall' } }));
+        broker.register({ ...revisionTwo, connection_revision: '4', credential_ref: 'credref:revision-4' });
+        expectContractError(() => broker.consumeLease({ lease_id: staleRevisionLease.lease_id, lease_token: staleRevisionLease.lease_token, operation_id: 'op-reinstall', audience: 'mana-runtime' }), { code: 'CREDENTIAL_BINDING_STALE' });
+    });
+});
+
+describe('CredentialBroker PostgreSQL ownership', () => {
+    it('D-005: production OAuth refresh CASをBrainbase repositoryへ委譲する', async () => {
+        const repository = {
+            compareAndSwapRefresh: vi.fn(async () => ({ credential_ref: 'credref:new', refresh_revision: '8' }))
+        };
+        const broker = new CredentialBroker({ repository });
+        const input = {
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            credential_ref: 'credref:old',
+            expected_refresh_revision: '7',
+            new_credential_ref: 'credref:new'
+        };
+
+        await expect(broker.compareAndSwapRefresh(input)).resolves.toEqual({ credential_ref: 'credref:new', refresh_revision: '8' });
+        expect(repository.compareAndSwapRefresh).toHaveBeenCalledWith(input);
     });
 });
