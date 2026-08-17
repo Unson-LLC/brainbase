@@ -22,7 +22,9 @@ const argsSchema = z.object({
   type: z.enum(['person', 'org', 'project', 'relationship', 'decision']).optional(),
   fromVersion: z.string().optional(),
   ontologyVersion: z.string().optional(),
-  asOf: z.string().datetime({ offset: true }).optional()
+  asOf: z.string().datetime({ offset: true }).optional(),
+  project: z.string().min(1).optional(),
+  as_of: z.string().datetime({ offset: true }).optional()
 });
 
 const mentionSpanSchema = z.object({
@@ -128,7 +130,9 @@ export const toolDefinitions = [
     inputSchema: {
       type: 'object',
       properties: {
-        dataDir: { type: 'string' }
+        dataDir: { type: 'string' },
+        project: { type: 'string', description: 'Optional canonical project ID, name, or alias.' },
+        as_of: { type: 'string', format: 'date-time', description: 'RFC 3339 validity instant. Defaults to now.' }
       }
     }
   },
@@ -152,7 +156,9 @@ export const toolDefinitions = [
       properties: {
         dataDir: { type: 'string' },
         query: { type: 'string' },
-        limit: { type: 'number' }
+        limit: { type: 'number' },
+        project: { type: 'string', description: 'Optional canonical project ID, name, or alias.' },
+        as_of: { type: 'string', format: 'date-time', description: 'RFC 3339 validity instant. Defaults to now.' }
       }
     }
   },
@@ -410,14 +416,14 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
 
   switch (name) {
     case 'get_context':
-      return getContext(os);
+      return getContext(os, { project: args.project, asOf: args.as_of ?? args.asOf });
     case 'list_entities':
       return listEntities(os, args.type);
     case 'search':
       if (!args.query) {
         throw new Error('search requires query');
       }
-      return { results: searchAll(os, args.query, args.limit) };
+      return { results: searchAll(os, args.query, args.limit, { project: args.project, asOf: args.as_of ?? args.asOf }) };
     case 'search_personal_kg':
       if (!args.query) {
         throw new Error('search_personal_kg requires query');
