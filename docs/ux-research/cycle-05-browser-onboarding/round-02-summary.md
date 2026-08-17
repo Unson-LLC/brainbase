@@ -34,4 +34,3 @@ Round 1で採用した「10分で試す」導線を追加したHEADを、32人�
 - 個別評価は合成ペルソナによる実ブラウザ操作であり、実在利用者の観察ではない。
 - 個別JSONの表記には揺れがあるため、人数とローテーションは `rotation-manifest.json`、生の所見は各JSONを正本とする。
 - 実MCP登録、実Judgment Host登録、VoiceOver、物理端末、実行モデルbindingは `not_collected` とする。
-

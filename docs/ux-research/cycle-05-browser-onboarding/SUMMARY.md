@@ -34,4 +34,3 @@
 ## 証拠境界
 
 確認済みなのは、ローカルVitePress UI、ソース契約、ビルド、合成ペルソナによるPlaywright Chromium操作である。実在利用者、実機、VoiceOver、実MCP登録、実Judgment Host登録、実行モデルbindingは `not_collected` のまま残す。
-

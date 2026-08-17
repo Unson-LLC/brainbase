@@ -36,4 +36,3 @@
 - 実MCP登録と実Judgment Host登録は `not_collected`。
 - ペルソナが要求したモデルと、実行時モデルのbindingは同一と確認できないため `not_collected`。
 - 収束は合成ペルソナとローカルブラウザ証拠に対する判定であり、本番公開の証明ではない。本番はマージ後に別途readbackする。
-
