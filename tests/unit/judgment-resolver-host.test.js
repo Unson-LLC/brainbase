@@ -529,6 +529,15 @@ describe('Codex Judgment Resolver Host', () => {
         expect(existsSync(join(journalDirectory, `${hash(payload.turn_id)}.final.json`))).toBe(false);
     });
 
+    it('episode開始の未分類例外を入力構築段階の安全な正規コードへ変換する', async () => {
+        const root = temporaryDirectory();
+        await expect(startEpisode({
+            session_id: 'session-missing-prompt', turn_id: 'turn-missing-prompt', cwd: process.cwd()
+        }, {
+            env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') },
+        })).rejects.toThrow('judgment_episode_request_build_failed');
+    });
+
     it('UserPromptSubmitのcanonical episode metadataをremote adapterへ渡す', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
