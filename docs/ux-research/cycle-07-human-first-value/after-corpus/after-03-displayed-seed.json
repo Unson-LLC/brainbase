@@ -8,7 +8,7 @@
   ],
   "cwd": "<isolated-run-root>/consumer",
   "exit_code": 0,
-  "duration_ms": 361,
+  "duration_ms": 344,
   "stdout": "Brainbaseへ保存しました: <isolated-run-root>/personal-os\n- 本人: 佐藤\n- 価値観: 同じ前提を説明し直さず、事実と未確認を分ける\n- プロジェクト: Atlas導入\n- 関係者: 田中（最終判断者）\n- 判断基準: 実測と利用者成果を分けて判断する\n- 同じ文脈は更新しました。既存の別データは削除していません。\n\n次に実行:\nbrainbase onboard:install --target codex --dir <isolated-run-root>/personal-os --dry-run\n設定を承認・反映してエージェントを再起動した後、実際の依頼でBrainbaseのget_contextとsearchを使います。\n",
   "stderr": ""
 }

@@ -2,11 +2,11 @@
   "version": 1,
   "evidence_kind": "candidate_end_to_end_journey",
   "source_snapshot": "working-tree",
-  "base_revision": "6bfd8484730a088cf8cf4778e2fb5acbdc9ca5b3",
-  "package": "unson-brainbase-mcp-0.2.1.tgz",
-  "tarball_sha256": "155843cb3c08ecfb73004bac04e685018f7b44038f851ada11b893033261f12d",
+  "base_revision": "f554e03ce7389a0534e4e6076b8eb9c188cb4a6d",
+  "package": "unson-brainbase-mcp-0.2.2.tgz",
+  "tarball_sha256": "27980fc4626e48756b5e834842a7ba653365cdc6188046ae823dae85a4c54b81",
   "journey_budget_ms": 600000,
-  "candidate_answer_duration_ms": 44352,
+  "candidate_answer_duration_ms": 35789,
   "candidate_answer_within_budget": true,
   "installed_from_local_tarball": true,
   "displayed_seed_executed": true,
@@ -20,39 +20,39 @@
   "traces": [
     {
       "id": "after-01-install",
-      "sha256": "66f161e75c1a5bdd7b7a097e1250b220c179814b8873bacc1c03f3fe8a38b146",
+      "sha256": "96ef1b276b5d7a58da8520a0ef09ffda48adc70d537912bb38f9386ee5a1e0e3",
       "exit_code": 0,
-      "duration_ms": 4307
+      "duration_ms": 2302
     },
     {
       "id": "after-02-start",
-      "sha256": "0d96138cf07cd072fab5918c8eadaf392d57f35b0ce2d9a66e75cac652c4b251",
+      "sha256": "6ddbbc24b763702e5288378464c085823bc5f1e6d90ee0087cfef496d028f541",
       "exit_code": 0,
-      "duration_ms": 669
+      "duration_ms": 648
     },
     {
       "id": "after-03-displayed-seed",
-      "sha256": "5c7ce255989b3e676d55a00f9d0aa68a40b7e617618ff56b74aca6fb668b4b57",
+      "sha256": "b5afa3d5a4cbdfcc1e5229a6f8ce00297216ff04a88591ab6cb0074d89f5d770",
       "exit_code": 0,
-      "duration_ms": 361
+      "duration_ms": 344
     },
     {
       "id": "after-04-install-preview",
-      "sha256": "ffeb0110139c9979bf5b9675a347b5eaecd03ce1d7b18459eed081a8ed92c98c",
+      "sha256": "5665a05a8c4000fb09dd926e4873d4952d6da8e9948a228b8fcd8e57c9dee65f",
       "exit_code": 0,
-      "duration_ms": 391
+      "duration_ms": 247
     },
     {
       "id": "after-05-doctor",
-      "sha256": "a849e1834bd3dd2afc05c655a53c4e927e53b81c41c66f5dda96a770ba4ca52c",
+      "sha256": "3b24c979d1158f6e1790df13ec25987f515349381fbfee5a53be42cb2f70612e",
       "exit_code": 0,
-      "duration_ms": 363
+      "duration_ms": 248
     },
     {
       "id": "after-06-real-codex",
-      "sha256": "d8375fabc1873ba06d971c272ac75832387d34e7c6634f1c1dba4fb03b41d264",
+      "sha256": "edbdf45f03fec472ec26007d5b6988075aaa73cc968eff78324649215d6aa40d",
       "exit_code": 0,
-      "duration_ms": 38249
+      "duration_ms": 31989
     }
   ]
 }

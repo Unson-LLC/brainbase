@@ -5,11 +5,11 @@
   "args": [
     "install",
     "--ignore-scripts",
-    "<isolated-run-root>/unson-brainbase-mcp-0.2.1.tgz"
+    "<isolated-run-root>/unson-brainbase-mcp-0.2.2.tgz"
   ],
   "cwd": "<isolated-run-root>/consumer",
   "exit_code": 0,
-  "duration_ms": 4307,
-  "stdout": "\nadded 94 packages, and audited 95 packages in 4s\n\n32 packages are looking for funding\n  run `npm fund` for details\n\nfound 0 vulnerabilities\n",
+  "duration_ms": 2302,
+  "stdout": "\nadded 94 packages, and audited 95 packages in 2s\n\n32 packages are looking for funding\n  run `npm fund` for details\n\nfound 0 vulnerabilities\n",
   "stderr": ""
 }
