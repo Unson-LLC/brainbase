@@ -1,0 +1,65 @@
+{
+  "persona_id": "P-302-G0",
+  "round": "round-02",
+  "persona": {
+    "type": "ontology_steward",
+    "experience": "intermediate_domain",
+    "technical_literacy": "low",
+    "time_pressure": "low",
+    "interruption_state": "focused",
+    "confirmation_preference": "confirmation_first",
+    "interaction": "keyboard",
+    "assistive_technology_viewpoint": "reduced_motion"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "model_requested": "gpt-5.6-luna",
+  "model_binding": "not_collected",
+  "evidence_kind": "synthetic_browser_evaluation",
+  "human_observation": "not_collected",
+  "real_device_evidence": "not_collected",
+  "browser_evidence": {
+    "browser": "visible Playwright Chromium via system Google Chrome",
+    "viewport": "1440x900",
+    "reduced_motion": "reduce",
+    "actions": [
+      {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップから『10分で試す』を起点に、価値文、実用場面、プロジェクト整理、人の確認、判断根拠を確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/quick-start", "result": "準備、最初の価値、MCP、任意のJudgment Host、中断復帰、設定を元へ戻す手順を一枚で確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "5フェーズ、開始文、承認なしに正本を書き換えないこと、readyや設定生成だけを完了扱いしないことを確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/getting-started", "result": "Node.js 20以上、npm、MCP対応エージェント、local checkout、開始文、npm run onboard:start -- --target codex、依頼と対象プロジェクトを確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "MCP dry-run、別出力先、既存設定を消さない境界、新セッションでのtool実結果確認、MCP後にJudgment Hostへ進む順序を確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "UserPromptSubmit→PostToolUse→Stop、doctorのready/events、🧠/📚/⚠️監査行、実tool証跡、異常時の修復動作を確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/reference/mcp-tools", "result": "MCP toolの目的、Connected-world onboardingのstart→get→ingest→review→first_value順、未確認・権限待ちをready扱いしない契約を確認。HTTP 200。"},
+      {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-302-G0.png"}
+    ],
+    "console_errors": ["Failed to load resource: the server responded with a status of 404 (Not Found)"],
+    "console_error_cause": "not_collected"
+  },
+  "tasks": {
+    "value_sentence": {"status": "clear_success", "finding": "Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照しながら作業できるようにし、説明のやり直しを減らす仕組みだと一文で説明できる。"},
+    "prerequisites_first_prompt_start_command": {"status": "clear_success", "finding": "Node.js 20以上、npm、MCP対応エージェント、local checkout、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex、最初の依頼と対象プロジェクトを確認できる。"},
+    "codex_mcp_judgment_order_success": {"status": "success_with_friction", "finding": "10分チェックリストでMCP確認後に任意のJudgment Hostへ進む順序、MCPのserver/tool実結果、Judgment Hostのdoctor readyと新しいtaskの監査行を確認できる。詳細な成功条件は関連ページ横断で再構成する必要がある。"},
+    "avoid_overwrite_recover": {"status": "success_with_friction", "finding": "dry-run、config/hooksのcp -nバックアップ、既存項目を消さない境界、中断後のbuild→doctor→demo→新task確認、設定を元へ戻す案内を確認できる。ただし低技術利用者には差分比較と復元依頼の判断が重い。"}
+  },
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "no_product_edits": true,
+    "notes": "reducedMotion=reduceの可視Playwright ChromiumでDOMと導線を確認。実キーボード完遂、VoiceOver、実MCP接続、実Judgment Host接続は未取得。"
+  },
+  "findings": {
+    "new_actionable": [
+      {"id": "P302-R2-F01", "severity": "medium", "finding": "10分チェックリストにMCPとJudgment Hostの順序・成功確認・中断復帰が統合され、前ラウンドのページ往復摩擦は軽減した。一方、詳細確認は別ページへ分散しているため、各段階の確認結果を記録できる短いチェック表があると低技術利用者の再構成負荷をさらに下げられる。", "decision": "adopt"},
+      {"id": "P302-R2-F02", "severity": "medium", "finding": "設定を元へ戻す案内は追加されたが、現在ファイルとバックアップの差分をどう確認し、Codexへどの復元依頼を出すかの具体例がない。", "decision": "adopt"}
+    ],
+    "regressions": []
+  },
+  "recovery": {"status": "documented", "steps": ["dry-runへ戻る", "npm run build", "npm run doctor", "onboard:demoで承認済み文脈を確認", "新しいtaskでMCP get_context/searchを確認", "Judgment Host利用時のみ3 Hookと監査行を確認", "現在設定を別名保存してバックアップと比較し、確認済みバックアップへ戻す"], "gap": "差分比較・復元依頼の具体例と自動ロールバックはnot_collected"},
+  "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-302-G0.png",
+  "overall": "success_with_friction",
+  "status": "success_with_friction",
+  "recommendation": "10分チェックリストの各確認項目に、確認結果を残す最小表と設定差分・復元依頼の具体例を追加する。実キーボード、支援技術、実接続は別途検証する。"
+}

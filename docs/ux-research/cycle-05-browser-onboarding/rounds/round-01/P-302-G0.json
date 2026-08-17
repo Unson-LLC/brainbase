@@ -1,0 +1,45 @@
+{
+  "persona_id": "P-302-G0",
+  "round": "round-01",
+  "persona": {
+    "type": "ontology_steward",
+    "experience": "intermediate_domain",
+    "technical_literacy": "low",
+    "time_pressure": "low",
+    "interruption_state": "focused",
+    "confirmation_preference": "confirmation_first",
+    "interaction": "keyboard",
+    "assistive_technology_viewpoint": "reduced_motion"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {"engine": "Playwright Chromium", "headless": false, "viewport": "1440x900", "reduced_motion": "reduce", "status": 200, "title": "Brainbase"},
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "価値文、Skip to content、実用場面・プロジェクト整理・人の確認・判断根拠の説明を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "導入5フェーズ、全体順序、順序を守る理由、人が確認してから記録する共通ルールを確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/getting-started", "result": "Node.js 20以上、npm、MCP対応エージェント、local checkout、開始文とonboard:startを確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "MCP dry-run、設定断片の保存、新セッション確認、既存設定を消さない境界、Judgment Hostは別登録を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "判断証跡と知識参照の分離、Codex登録、doctor/監査行/実tool証跡による検証、異常時動作を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/reference/mcp-tools", "result": "get_context、list_entities、search、onboarding_status、ontology系ツールの目的と未確認を成功扱いしない契約を確認。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-302-G0.png"}
+  ],
+  "task_outcomes": {
+    "explain_value": {"status": "pass", "finding": "Brainbaseは、自分の仕事文脈をローカルSSOTとして育て、AIが参照できるようにすることで、プロジェクト・人・判断の説明を繰り返さず、人が確認してから記録できる仕組みだと説明できる。"},
+    "prerequisites_first_prompt_start_command": {"status": "pass_with_friction", "finding": "必要条件と開始文、npm run onboard:start -- --target codexを確認できる。トップから準備ページへ移動して情報を再構成する必要がある。"},
+    "codex_mcp_judgment_host_order_success_checks": {"status": "pass_with_friction", "finding": "価値理解→MCP dry-run・反映・新セッション検証→Judgment Host登録の順序と、server/tool実結果、doctor ready、監査行・実tool証跡の確認条件を把握できるが、ページが分かれている。"},
+    "avoid_config_overwrite_recover": {"status": "pass_with_friction", "finding": "dry-run、別出力先、既存設定を消さない境界、build→doctor→絶対パス→再起動→新taskの復旧手順を確認できる。手動統合は低技術利用者に不安を残す。"}
+  },
+  "hard_gates": {"unfinished_as_success": "pass", "current_or_next_action": "pass", "overwrite_risk": "pass", "recovery_path": "pass_with_friction", "human_confirmation_handoff": "pass", "keyboard_or_assistive_reachability": "partial", "no_product_edits": true, "notes": "PlaywrightでreducedMotion=reduceを設定。Tab 1回でSkip to contentへ到達しoutline=autoを確認。実キーボード操作、VoiceOver、実エージェント接続は未取得。"},
+  "exact_evidence_findings": ["トップ見出し: 『自分の仕事文脈をAIに渡すためのMCPマニュアル』。人が確認してから記録する説明あり。", "準備: Node.js 20以上、npm、MCP対応AIエージェント、local checkout、npm run onboard:start -- --target codex。", "MCP: dry-runと設定断片保存、新セッション確認。既存設定へ自動マージせず、既存設定を消さない。", "Judgment Host: 判断証跡と知識参照を分け、登録後にdoctor、監査行、実tool証跡を確認。", "実ブラウザのトップロードでFailed to load resource: server responded with a status of 404 (Not Found)を1件記録。原因は未確認。"],
+  "findings": [
+    {"id": "P302-F1", "severity": "medium", "type": "friction", "finding": "ontology stewardがMCP導入からJudgment Host、ontology系ツール確認へ進む順序と完了条件を再構成する必要がある。", "evidence": "/guide/mcp-install、/guide/judgment-audit、/reference/mcp-toolsが別ページ。"},
+    {"id": "P302-F2", "severity": "medium", "type": "friction", "finding": "確認優先と設定保護は明確だが、承認後の手動統合・新セッション検証の責任分界が低技術利用者には重い。", "evidence": "既存設定を消さない、dry-run、手動でBrainbase項目を追加する手順。"},
+    {"id": "P302-F3", "severity": "low", "type": "accessibility_evidence_gap", "finding": "reduced-motion設定下でもページ閲覧とSkip to contentへのキーボード到達は確認できたが、全操作の実キーボード完遂と支援技術は未検証。", "evidence": "visible Playwright Chromium、reducedMotion=reduce、Tab 1回のDOM観測のみ。"}
+  ],
+  "recovery": {"status": "documented", "steps": ["dry-runと別出力へ戻す", "npm run build", "npm run doctor", "~/.brainbase/personal-os/の存在確認", "実行ファイルとデータの絶対パス確認", "設定反映後にエージェント再起動", "新taskでMCP tool・監査行・実tool証跡を確認"], "gap": "反映済み設定の自動ロールバック手順はnot_collected"},
+  "synthetic_browser_evaluation": {"status": "completed", "summary": "価値、開始条件、順序、安全境界、復旧は資料横断で確認できる。focusedな中間ドメイン利用者でもページ横断の再構成が必要で、実支援技術の証拠は未取得。"},
+  "real_device_evidence": "not_collected",
+  "requested_luna": true,
+  "model_requested": "gpt-5.6-luna",
+  "binding": "not_collected",
+  "model_binding": "not_collected"
+}

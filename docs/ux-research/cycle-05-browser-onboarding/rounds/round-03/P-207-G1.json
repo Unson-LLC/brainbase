@@ -1,0 +1,77 @@
+{
+  "persona_id": "P-207-G1",
+  "evaluation_type": "cycle-05-round-03-independent-browser-evaluation",
+  "round": "round-03",
+  "cohort": "rotation",
+  "role": "team_operator",
+  "task_set_id": "team_operator-core",
+  "evaluated_head": "0e1e38530",
+  "fixture": "local VitePress preview at 127.0.0.1:4176",
+  "persona_attributes": {
+    "domain_experience": "new",
+    "technical_literacy": "medium",
+    "time_pressure": "low",
+    "interruption_state": "focused",
+    "work_style": "speed_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "evidence": {
+    "kind": "synthetic_browser_evaluation",
+    "browser": "visible Playwright Chromium (Google Chrome executable)",
+    "headless": false,
+    "url": "http://127.0.0.1:4176/",
+    "viewport": "1440x1000",
+    "title": "Brainbase",
+    "top_status": 200,
+    "screenshot": "screenshots/round-03/P-207-G1.png",
+    "actual_ui_browser_evidence": true,
+    "human_observation": "not_collected",
+    "real_device_evidence": "not_collected",
+    "assistive_technology": "not_collected",
+    "requested_model": "not_collected",
+    "model_binding": "not_collected"
+  },
+  "actions": [
+    {"action":"open","target":"トップ","result":"可視ブラウザで価値説明、Skip to content、主要ナビゲーション、『10分で試す』を確認。"},
+    {"action":"click","target":"10分で試す","result":"可視クリックで /guide/quick-start へ遷移。"},
+    {"action":"inspect","target":"現在地メモ／準備する／最初の価値を確認する／MCPを登録する／任意でJudgment Hostを登録する／中断したらここから再開","result":"開始依頼文・開始コマンド、実結果確認、MCP→Judgment Host順、dry-run・バックアップ・非上書き、復旧手順を確認。"},
+    {"action":"inspect","target":"チェック項目とブラウザ状態","result":"本文には [ ] のチェックリストが表示されるが input[type=checkbox] は0個。コンソール404を1件記録。"}
+  ],
+  "tasks": {
+    "value_sentence": {"status":"clear_success","hard_gate":"pass","reason":"トップの価値説明から、仕事の文脈をローカルSSOTとしてAIへ渡し、同じ前提を説明し直す負担を減らす導入キットだと説明できた。"},
+    "prerequisites_first_prompt_start_command": {"status":"clear_success","hard_gate":"pass","reason":"quick-startでNode.js 20以上、npm、Codex、clone/install/build、開始依頼文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを確認できた。"},
+    "codex_mcp_judgment_host_order_success_checks": {"status":"success_with_friction","hard_gate":"pass","reason":"MCPのdry-run・バックアップ・再起動後のget_context/search/onboarding_status実結果を先に確認し、その後に任意のJudgment Hostへ進む順序と、3 Hook ready・監査行の成功条件を読めた。詳細は複数節に分散し、画面上の実接続結果は未取得。"},
+    "avoid_overwrite_recover": {"status":"success_with_friction","hard_gate":"pass","reason":"config.tomlとhooks.jsonのバックアップ、既存項目を残す手動追加、未確認を成功扱いしない境界、build→doctor→実結果確認、設定比較による復旧、中断再開の手順を確認できた。チェック状態は保存されず、進捗を手元へコピーする必要がある。"}
+  },
+  "hard_gates": {
+    "unfinished_as_success":"pass",
+    "current_or_next_action":"pass",
+    "overwrite_risk":"pass",
+    "recovery_path":"pass",
+    "human_confirmation_handoff":"pass",
+    "keyboard_or_assistive_reachability":"not_collected",
+    "real_device":"not_collected",
+    "no_product_edits":"pass",
+    "requested_model":"not_collected",
+    "model_binding":"not_collected"
+  },
+  "workflow_reachability": {
+    "required_rows": 2,
+    "passed_rows": 2,
+    "failed_rows": 0,
+    "unexecuted_rows": 0,
+    "unresolved_dead_ends": 0,
+    "rows": [
+      {"id":"P207-G1-W1","screen":"/","start_state":"landing","primary_action":"10分で試す","enabled":true,"result":"pass","actual_action":"可視クリック","resulting_state":"/guide/quick-start","workflow_dead_end":false},
+      {"id":"P207-G1-W2","screen":"/guide/quick-start","start_state":"first_visit","primary_action":"中断したらここから再開","enabled":true,"result":"pass","actual_action":"ページ内アンカー確認","resulting_state":"現在地メモと復旧手順が表示","workflow_dead_end":false}
+    ]
+  },
+  "new_actionable_findings": [
+    {"id":"P207-G1-F1","severity":"medium","title":"表示上のチェックリストが保存可能な操作になっていない","evidence":"quick-start本文は『終わった項目に自分でチェック』と説明するが、可視ブラウザの input[type=checkbox] は0個で、画面を閉じると保存されない。","action":"チェック状態または現在フェーズを保存し、再訪時に次の一手を提示する。"}
+  ],
+  "regressions": [],
+  "browser_evidence": {"console_errors":["Failed to load resource: the server responded with a status of 404 (Not Found)"],"console_error_count":1,"note":"主要導線は継続できた。404の対象リソースと原因は未確認。"},
+  "summary":"固定4タスクを可視Playwrightで実行した。トップからquick-startへの導線、価値、準備・開始、MCP→Judgment Host順、非上書き・復旧は確認でき、workflow dead endは0件。新規所見は、チェックリストが表示専用で保存できない点。支援技術・実機・人手観察・モデル結合・404原因はnot_collected。",
+  "confidence":"medium"
+}

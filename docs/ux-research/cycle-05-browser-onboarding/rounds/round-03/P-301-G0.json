@@ -1,0 +1,27 @@
+{
+  "persona_id": "P-301-G0",
+  "round": "round-03",
+  "evaluation_type": "independent_visible_browser_evaluation",
+  "evaluated_head": "0e1e38530e41fa946af6afefdf3c24817b3e7eb70",
+  "url": "http://127.0.0.1:4176/",
+  "persona": {"role":"individual_operator","domain_experience":"new","technical_literacy":"high","time_pressure":"high","interruption_state":"likely","work_style":"speed_first","input_environment":"keyboard","accessibility_need":"none_declared"},
+  "browser": {"engine":"Playwright Chromium via installed Google Chrome","headless":false,"viewport":"1440x900","reduced_motion":"reduce","pages_visited":["/","/guide/quick-start","/guide/getting-started","/guide/mcp-install","/guide/judgment-audit","/guide/operations","/reference/mcp-tools"],"http_status":"200_on_visited_pages","screenshot":"docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-301-G0.png","console_errors":{"status":"observed","count":6,"message":"Failed to load resource: the server responded with a status of 404 (Not Found)","cause":"not_collected"}},
+  "fixed_tasks": {
+    "value_sentence": {"status":"clear_success","evidence":"トップで、Brainbaseは仕事文脈をローカルSSOTとして育てCodex/Claude Codeへ渡すPersonal Onboarding Kitであり、AIへ説明し直す負担を減らす仕組みだと一文で説明できた。"},
+    "prerequisites_first_prompt_start_command": {"status":"clear_success","evidence":"getting-startedでNode.js 20以上、npm、MCP対応エージェント、local checkout、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを確認できた。"},
+    "mcp_judgment_order_success_checks": {"status":"success_with_friction","evidence":"quick-start・mcp-install・judgment-audit・reference/mcp-toolsで、最初の価値→MCP dry-run/既存設定保護→新taskで実tool結果→任意のJudgment Host（3 Hook、doctor、監査行）の順序と成功条件を確認できた。複数ページ横断が必要で、実MCP/Host結果はnot_collected。"},
+    "avoid_overwrite_and_interruption_recovery": {"status":"success_with_friction","evidence":"quick-startの現在地メモ、未確認を完了扱いしない境界、dry-run・設定バックアップ・自動マージ/上書きなし、build→doctor→新task確認→復旧の順序を確認できた。メモは画面を閉じると保存されず、実復旧操作はnot_collected。"}
+  },
+  "hard_gates": {"unfinished_or_waiting_not_success":"pass","current_location_next_action":"pass","existing_config_not_overwritten":"pass","recovery_path":"pass","human_confirmation_handoff":"pass","no_product_edits":"pass","keyboard_or_assistive_technology":"not_collected","real_device":"not_collected","real_mcp_and_judgment_host":"not_collected","requested_model":"not_collected","model_binding":"not_collected"},
+  "new_actionable_findings": [
+    {"id":"P301-R3-F1","severity":"medium","type":"friction","finding":"MCPの実成功確認とJudgment Hostの監査確認が複数ページに分散し、速度優先・中断ありの利用者は順序と証跡を再構成する必要がある。","evidence":"quick-startからmcp-install、judgment-audit、reference/mcp-toolsへ移動して確認","recommendation":"10分チェックリストにMCP→Hostの成功確認、未確認時の戻り先、実tool/doctor/監査行を統合する。"},
+    {"id":"P301-R3-F2","severity":"medium","type":"recovery_gap","finding":"現在地メモは完了済み・次にやること・未確認・最後の実結果を示すが、画面を閉じると保存されず手動コピーが必要。","evidence":"/guide/quick-startの可視文言と入力欄","recommendation":"既存設定を変更せず、安全な保存・再表示またはコピー確認の導線を追加する。"}
+  ],
+  "regressions": [{"id":"P301-R3-R1","severity":"low","type":"console_error","finding":"全ページ巡回中に404リソースエラーを6件記録した。画面表示・導線は継続できたが対象リソースと利用者影響は未確認。","evidence":"Playwright Chromium console error収集","status":"observed_again","cause":"not_collected"}],
+  "recovery": {"status":"documented_with_persistence_gap","observed":"現在地メモ、未確認境界、非上書き、再開順序を確認できた。","missing":"チェック永続化、差分限定復元、実MCP/Host、実キーボード・支援技術・実機はnot_collected。"},
+  "evidence_kind":"actual_ui_browser_evidence",
+  "synthetic_browser_evaluation":"completed",
+  "overall":"success_with_friction",
+  "confidence":"high",
+  "product_code_edited":false
+}

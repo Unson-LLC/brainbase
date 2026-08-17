@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "evaluated_head": "bbf678da0f11ae47c775f901c761459bbd8b33d9",
+  "base_url": "http://127.0.0.1:4176/",
+  "browser": "Playwright Chromium visible",
+  "viewport_desktop": "1440x1000",
+  "reduced_motion": "reduce",
+  "screenshots": [
+    "screenshots/before/home-desktop.png",
+    "screenshots/before/getting-started-desktop.png",
+    "screenshots/before/home-mobile.png"
+  ],
+  "verified_http_200": [
+    "/guide/onboarding-process",
+    "/guide/getting-started",
+    "/guide/mcp-install",
+    "/guide/judgment-audit"
+  ],
+  "reproduced_failure": {
+    "path": "/favicon.ico",
+    "status": 404
+  },
+  "not_collected": [
+    "human_observation",
+    "real_device_evidence",
+    "VoiceOver",
+    "physical_mobile_device",
+    "actual_MCP_install",
+    "actual_Judgment_Host_install"
+  ]
+}

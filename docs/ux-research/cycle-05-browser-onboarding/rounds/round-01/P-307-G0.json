@@ -1,0 +1,61 @@
+{
+  "persona_id": "P-307-G0",
+  "round": "round-01",
+  "persona": {
+    "type": "ontology_steward",
+    "experience": "new_domain",
+    "technical_literacy": "high",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "confirmation_preference": "speed_first",
+    "interaction": "voice_and_keyboard",
+    "assistive_technology_viewpoint": "none"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {"engine": "Playwright Chromium", "headless": false, "viewport": "1440x900", "status": 200, "title": "Brainbase"},
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップの価値文と、導入の流れを見る・全体像を見る・MCPツールを見る導線を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "5フェーズ、開始文、承認なしに正本を書き換えないこと、ready: trueや設定生成だけを完了扱いしないことを確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/getting-started", "result": "Node.js 20以上、npm、MCP対応エージェント、local checkout、開始文、npm run onboard:start -- --target codexを確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "MCP dry-run、絶対パス、別出力先、新セッション確認、既存設定を自動マージ・上書きしない境界を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "UserPromptSubmit→PostToolUse→Stopの順、3 Hook、監査行、doctorと新taskでの検証、異常時の⚠️表示を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/reference/mcp-tools", "result": "get_context、search、onboarding_statusと、receipt/review/first-value、未確認・権限待ちをreadyや空結果にしない契約を確認。"},
+    {"action": "keyboard_focus", "result": "導入5フェーズページでTabを1回押すとSkip to contentリンクへ到達。実音声入力・支援技術は未取得。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-307-G0.png"}
+  ],
+  "task_outcomes": {
+    "explain_value": {"status": "pass", "finding": "Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照できるようにし、AIへ仕事を説明し直す負担を減らすPersonal Onboarding Kitだと一文で説明できる。"},
+    "prerequisites_first_prompt_start_command": {"status": "pass", "finding": "Node.js 20以上、npm、MCP対応AIエージェント、local checkout、npm install/build、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを確認できる。トップから準備ページへの遷移が必要。"},
+    "codex_mcp_judgment_host_order_success_checks": {"status": "pass_with_friction", "finding": "最初の価値確認後にMCPをdry-run→別出力→再起動済み新セッションで確認し、その後Judgment Hostを登録する順序。MCPはserver/tool一覧とonboarding_status/get_context/searchの実結果、Hostはdoctor ready・3 Hook・新taskの監査行と実tool証跡を確認する。順序と成功条件は別ページに分かれる。"},
+    "avoid_config_overwrite_recover": {"status": "pass", "finding": "dry-run、未作成の別出力先、絶対パス、既存設定を自動マージ・上書きしないことが明記され、build→doctor→個人正本ディレクトリ→設定反映後の再起動→新task検証という復旧導線も確認できる。自動ロールバックは未確認。"}
+  },
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass_with_friction",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "no_product_edits": true,
+    "notes": "実ブラウザのDOMと可視画面を確認。Tab 1回でSkip to contentへ到達したが、音声入力、VoiceOver、実エージェント接続は未取得。"
+  },
+  "exact_evidence_findings": [
+    "トップ: 『自分の仕事文脈をAIに渡すためのMCPマニュアル』、ローカルSSOTをCodex/Claude Codeへ渡す説明、3つの主要導線。",
+    "準備: Node.js 20以上、npm、MCP対応AIエージェント、local checkout、開始文、npm run onboard:start -- --target codex。",
+    "MCP: npm run onboard:install -- --target codex --dry-run、別出力先、既存MCP設定を自動マージせず既存設定を消さない、新セッションでtoolと状態を確認。",
+    "Judgment Host: UserPromptSubmitでepisode開始、PostToolUseで実MCP呼出記録、Stopで監査行検査。doctorと新taskでready・3 Hook・実tool証跡を確認。",
+    "実ブラウザのロードでFailed to load resource: server responded with a status of 404 (Not Found)を1件記録。対象リソースと原因は未確認。"
+  ],
+  "findings": [
+    {"id": "P307-F1", "severity": "medium", "type": "friction", "finding": "Ontology管理者のように導入順序と証跡を素早く把握したい利用者でも、MCPの成功条件とJudgment Hostの成功条件が別ページに分かれ、ページ間を往復して統合する必要がある。", "evidence": "/guide/mcp-install と /guide/judgment-audit が別ページ。"},
+    {"id": "P307-F2", "severity": "low", "type": "friction", "finding": "復旧手順は確認できるが、自動ロールバックや反映前後の差分確認までは示されず、既存設定を扱う場面では追加判断が残る。", "evidence": "dry-run・別出力・手動統合・再起動は明記、自動ロールバックはnot_collected。"},
+    {"id": "P307-F3", "severity": "low", "type": "evidence_gap", "finding": "ページロード時に404リソースが1件発生したが、画面上の主要導線は利用できた。", "evidence": "Playwright console error: Failed to load resource: the server responded with a status of 404 (Not Found)。"}
+  ],
+  "recovery": {"status": "documented", "steps": ["dry-runと未作成の別出力へ戻す", "npm run build", "npm run doctor", "~/.brainbase/personal-os/の存在確認", "MCP設定の実行ファイルとデータの絶対パス確認", "設定反映後にエージェント再起動", "新taskでMCP tool・監査行・実tool証跡を確認"], "gap": "反映済み設定の自動ロールバック手順はnot_collected"},
+  "synthetic_browser_evaluation": {"status": "completed", "summary": "価値、導入前提、開始文とコマンド、MCP→Judgment Hostの順序、安全境界、復旧手順を実ブラウザで確認できた。高技術・集中ペルソナでも証跡確認のページ横断に摩擦があり、実音声入力・実端末・実エージェント接続は未取得。"},
+  "real_device_evidence": "not_collected",
+  "requested_luna": true,
+  "model_requested": "gpt-5.6-luna",
+  "binding": "not_collected",
+  "model_binding": "not_collected"
+}

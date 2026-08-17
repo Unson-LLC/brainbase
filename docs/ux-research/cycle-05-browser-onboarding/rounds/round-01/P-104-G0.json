@@ -1,0 +1,29 @@
+{
+  "persona_id":"P-104","gate_id":"G0","round":"round-01",
+  "model_requested":"Codex GPT-5","model_binding":"assigned Codex agent; browser-run model binding not configurable",
+  "persona":{"type":"first-time individual","experience":"intermediate","technical_level":"medium","time_pressure":"low","mode":"focused","confirmation_preference":"confirmation-first","input":"keyboard","reduced_motion_viewpoint":true},
+  "environment":{"url":"http://127.0.0.1:4176/","browser":"visible Playwright Chromium","viewport":"1440x1000","reduced_motion":"viewpoint only; no real-device evidence","screenshot":"docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-104-G0.png"},
+  "actions":[
+    {"step":1,"action":"トップで価値と導線を確認","outcome":"AIに二度と説明したくない文脈をローカルSSOTとして育て、Codex/Claude Codeが参照するPersonal Onboarding Kitと説明。導入・全体像・MCPのリンクを確認"},
+    {"step":2,"action":"導入5フェーズとフェーズ1を確認","outcome":"準備→仕事の前提→最初の価値→情報源→運用開始の順序、Node.js 20以上/npm/対応エージェント/checkout、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを確認"},
+    {"step":3,"action":"MCPとJudgment Hostの登録・検証を確認","outcome":"MCPを先にdry-run・別出力・新セッションで検証し、後からJudgment HostのUserPromptSubmit→PostToolUse→Stopを登録。doctorと監査行・実tool呼び出しを確認"},
+    {"step":4,"action":"上書き回避と復旧を確認","outcome":"既存設定/Hookを自動マージ・消去せず、build、doctor、絶対パス、再起動、新セッションの順で戻れる案内を確認"}
+  ],
+  "task_outcomes":{"value_sentence":"pass","prerequisites_first_prompt_start_command":"pass","codex_mcp_judgment_host_order_and_success_checks":"pass","avoid_overwrite_and_recover":"pass_with_caveat"},
+  "hard_gates":[
+    {"gate":"未完了を成功と表示する","status":"pass","evidence":"未確認・空結果・ready誤認を避け、参照必須turnの0回を完了扱いしない"},
+    {"gate":"現在地または次の操作が分からない","status":"pass","evidence":"5フェーズの完了目安と次リンク、MCP後にJudgment Hostへ進む順序が明記"},
+    {"gate":"既存設定を破壊する可能性がある","status":"pass","evidence":"dry-run、別出力、自動マージなし、既存設定を消さない"},
+    {"gate":"失敗後の復旧手段がない","status":"pass","evidence":"build/doctor/path/restart/new sessionの復旧順、journal異常時の扱いあり"},
+    {"gate":"AIから人への確認・引き継ぎがない","status":"pass","evidence":"確認用下書きと承認後の正本反映、設定断片の人手統合を明記"},
+    {"gate":"主要操作がキーボードまたは支援技術から到達不能","status":"pass_synthetic_only","evidence":"Skip to content、見出し、テキストリンクをDOM確認。VoiceOver/実端末は未確認"}
+  ],
+  "exact_evidence_findings":[
+    {"source":"synthetic_browser_evaluation","finding":"公開導線から /guide/getting-started、/guide/mcp-install、/guide/judgment-audit を実ブラウザで表示"},
+    {"source":"synthetic_browser_evaluation","finding":"トップロード時に404リソースのconsole errorを1件観測。原因は未特定"},
+    {"source":"source_inspection","finding":"MCP動作確認後にJudgment Hostを登録する順序と、3 Hookの成功確認が本文に明記"}
+  ],
+  "recovery":{"status":"documented","steps":["npm run build","npm run doctor","~/.brainbase/personal-os/確認","絶対パス確認","再起動","新しいセッションで確認"],"safety":"既存設定/Hookを残し、journal異常や対応episodeなしStopを成功扱いしない"},
+  "synthetic_browser_evaluation":{"status":"complete","verdict":"adopt","summary":"確認-firstの中級個人利用者は価値、開始条件、開始文、コマンド、MCP→Judgment Host順、成功確認、復旧まで到達できた。トップの404リソース原因は要確認"},
+  "real_device_evidence":"not_collected"
+}

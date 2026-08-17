@@ -1,0 +1,62 @@
+{
+  "persona_id": "P-202-G0",
+  "round": "round-01",
+  "persona": {
+    "type": "first_time_individual",
+    "experience": "new_domain",
+    "technical": "medium",
+    "time_pressure": "low",
+    "focus": "frequently_interrupted",
+    "confirmation_preference": "speed_first",
+    "interaction": "keyboard",
+    "assistive_technology_viewpoint": "none_declared"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {"engine": "Playwright Chromium", "headless": false, "viewport": "1440x900", "status": 200, "title": "Brainbase"},
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップの価値文と導入・全体像・MCPへの導線を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/getting-started", "result": "Node.js 20以上、npm、MCP対応エージェント、local checkout、npm install/build、開始文と onboard:start を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "5フェーズ、最初の価値を先に試す順序、承認なしに正本を書き換えない境界を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "MCP dry-run、別出力、再起動、新セッションでの実結果確認、Judgment Hostは別設定を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "UserPromptSubmit→PostToolUse→Stop、doctor、監査行、異常時の復旧と新task確認を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/reference/mcp-tools", "result": "MCP tool群、receipt/review、未確認・権限待ちを空結果やreadyにしない境界を確認。"},
+    {"action": "capture_screenshot", "path": "screenshots/round-01/P-202-G0.png"}
+  ],
+  "task_outcomes": {
+    "value_sentence": {"status": "pass", "finding": "『自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照しながら作業』から、AIへ同じ説明を繰り返す負担を減らす仕組みだと短時間で説明できる。"},
+    "prerequisites_first_prompt_start_command": {"status": "pass_with_friction", "finding": "Node.js 20以上、npm、MCP対応エージェント、local checkout、npm install/build、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex は確認できる。ただし導入の入口と詳細手順を行き来する必要があり、中断後の再開地点を覚える負担が残る。"},
+    "codex_mcp_judgment_host_order_success_checks": {"status": "pass_with_friction", "finding": "最初の価値→MCP dry-run/反映/新セッション検証→任意のJudgment Host登録の順序、MCP tool実結果、doctor ready、3 Hook、監査行、実tool証跡は確認できる。MCP登録とJudgment Host監査が別ページで、速度優先の利用者には再構成が必要。"},
+    "avoid_overwrite_recover": {"status": "pass", "finding": "dry-run、未作成の別出力先、既存設定を自動マージ・上書きしないこと、確認後にBrainbase項目だけ統合することが明記される。build→doctor→正本ディレクトリ→絶対パス→再起動→新taskの復旧順もある。"}
+  },
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass_with_friction",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "no_product_edits": true,
+    "notes": "Skip to content、キーボードショートカット表記、見出し・リンクはDOMで確認したが、実キーボード操作と支援技術は未取得。実ブラウザのトップロードで404リソース1件を記録したが原因は未確認。"
+  },
+  "exact_evidence_findings": [
+    "トップ: AIに二度と説明したくない文脈をローカルSSOTとして育て、CodexやClaude Codeに渡すPersonal Onboarding Kit。",
+    "準備: Node.js 20以上、npm、Codex/Claude Code等のMCP対応AIエージェント、Brainbaseのlocal checkout。",
+    "開始: npm run onboard:start -- --target codex（Claude Codeは --target claude）。",
+    "MCP: npm run onboard:install -- --target codex --dry-run。別出力と絶対パス、既存MCP設定を消さない・自動マージしない。",
+    "Judgment Host: UserPromptSubmitでepisode開始、PostToolUseで実MCP呼出記録、Stopで監査行検査。doctorでstatus=readyとUserPromptSubmit/PostToolUse/Stopを確認。",
+    "実ブラウザ: HTTP 200、タイトルBrainbase。console errorとしてFailed to load resource: server responded with 404 (Not Found)を1件記録。"
+  ],
+  "findings": [
+    {"id": "P202-F1", "severity": "medium", "type": "friction", "finding": "価値から開始コマンド、MCP、Judgment Hostの成功条件まで到達できるが、getting-started、onboarding-process、mcp-install、judgment-auditを横断するため、頻繁に中断される利用者は再開位置を失いやすい。", "evidence": "/guide/mcp-install と /guide/judgment-audit は別ページで、MCP確認後にJudgment Hostへ進む記述がある。"},
+    {"id": "P202-F2", "severity": "low", "type": "friction", "finding": "speed-firstでも安全に進められるが、dry-run後の既存設定への手動統合と、どの実結果を貼れば成功かの確認を利用者側で組み立てる必要がある。", "evidence": "--dry-run、別出力、server/tool一覧、onboarding_status/get_context/searchの確認が各ページに分散。"},
+    {"id": "P202-F3", "severity": "low", "type": "evidence_gap", "finding": "トップロード時の404リソース1件と、実キーボード操作の到達性は未確認。", "evidence": "Playwright Chromiumのconsole error観測のみ。"
+    }
+  ],
+  "recovery": {"status": "documented", "steps": ["dry-runと別出力へ戻す", "npm run build", "npm run doctor", "~/.brainbase/personal-os/の存在確認", "MCP実行ファイルとデータの絶対パス確認", "設定反映後にエージェント再起動", "新しいtaskでMCP tool・監査行・実tool証跡を確認"], "gap": "反映済み設定の自動ロールバック手順はnot_collected"},
+  "synthetic_browser_evaluation": {"status": "completed", "summary": "新領域・中程度の技術力・低時間圧でも、ページ横断を許容すれば価値、開始、順序、安全境界、復旧を確認できる。頻繁な中断と速度優先では、再開用の一枚導線がないことが主な摩擦。キーボード実操作は未取得。"},
+  "real_device_evidence": "not_collected",
+  "requested_luna": true,
+  "model_requested": "gpt-5.6-luna",
+  "binding": "not_collected",
+  "model_binding": "not_collected"
+}

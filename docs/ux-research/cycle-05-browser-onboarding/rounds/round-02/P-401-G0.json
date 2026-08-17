@@ -1,0 +1,56 @@
+{
+  "persona_id": "P-401",
+  "gate_id": "G0",
+  "round": "round-02",
+  "model_requested": "Codex GPT-5",
+  "model_binding": "not_collected: browser evaluation ran in the assigned Codex agent; effective model and effort were not exposed by the browser runtime",
+  "persona": {
+    "type": "first-time individual",
+    "experience": "intermediate",
+    "technical_level": "medium",
+    "time_pressure": "medium",
+    "mode": "focused",
+    "confirmation_preference": "confirmation-first",
+    "input": "keyboard",
+    "reduced_motion_viewpoint": true
+  },
+  "environment": {
+    "url": "http://127.0.0.1:4176/",
+    "browser": "Playwright Chromium visible browser",
+    "viewport": "1440x1000",
+    "reduced_motion": "prefers-reduced-motion viewpoint configured; no real-device evidence",
+    "evaluated_head": "ceb8e6a76e2440124169ac58a742851a1e4a2710",
+    "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-401-G0.png"
+  },
+  "actions": [
+    {"step": 1, "action": "トップから『10分で試す』を起点に、見出し・本文・主要リンクを確認", "result": "価値説明と、10分で試すチェックリストへの導線を確認"},
+    {"step": 2, "action": "10分で試すの準備項目を読む", "result": "Node.js 20以上、npm、Codex、clone/install/build、開始文、npm run onboard:start -- --target codex、現実の依頼とプロジェクトを確認"},
+    {"step": 3, "action": "同ページのMCP手順を読む", "result": "dry-run、別出力、既存設定を自動マージ・削除しないこと、新しいセッションでbrainbase/get_context/list_entities/search/onboarding_statusを確認する順を確認"},
+    {"step": 4, "action": "MCP登録ページからJudgment Host登録ページへ進む", "result": "MCPの実動作確認後にUserPromptSubmit→PostToolUse→Stopを登録する順序を確認"},
+    {"step": 5, "action": "Judgment Hostの成功確認と中断復帰を読む", "result": "doctor --judgment-hooks、3 Hookのready、🧠/📚/⚠️監査行、実tool呼び出し、build/doctor/絶対パス/再起動/新taskの復旧順を確認"}
+  ],
+  "task_outcomes": {
+    "value_sentence": {"status": "pass", "evidence": "トップで『自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照するPersonal Onboarding Kit』と説明され、10分ページでも承認した仕事の前提を使いAIが役立つ回答を返す目標が明示される。"},
+    "prerequisites_first_prompt_start_command": {"status": "pass", "evidence": "10分ページにNode.js 20以上/npm、Codexでフォルダを開く、ビルド、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexがある。"},
+    "codex_mcp_judgment_host_order_and_success_checks": {"status": "pass", "evidence": "MCPページが新しいセッションでserver/tools/onboarding_status/get_context/searchを確認する手順を示し、Judgment HostページがMCP確認後に3 Hookを登録し、doctorのready/eventsと新taskの監査行・実tool呼び出しを確認する。"},
+    "avoid_overwrite_and_recover": {"status": "pass_with_caveat", "evidence": "dry-run、/tmp別出力、config/hooksのバックアップ、既存設定を自動マージ・上書き・削除しない契約と、build→doctor→personal-os→絶対パス→再起動→新taskの復旧順がある。実環境での復旧操作自体はnot_executed。"}
+  },
+  "hard_gates": [
+    {"gate": "未完了を成功と表示する", "status": "pass", "evidence": "ready:true、生成ファイル、表示だけでは完了でない。空結果、error、未確認、参照必須turnの0回を成功扱いしないと明記。"},
+    {"gate": "現在地または次の操作が分からない", "status": "pass", "evidence": "10分で試すの上から順の5項目、MCP確認後にJudgment Hostへ進むリンク、途中で中断したら同ページへ戻る導線がある。"},
+    {"gate": "既存設定を破壊する可能性がある", "status": "pass", "evidence": "dry-run、別出力、cp -nバックアップ、既存MCP/Hookを消さず自動マージ・上書きしないことが明示される。"},
+    {"gate": "失敗後の復旧手段がない", "status": "pass_with_caveat", "evidence": "build、doctor、ディレクトリ/絶対パス、再起動、新task、バックアップ比較の手順がある。実機復旧はnot_executed。"},
+    {"gate": "AIから人への確認・引き継ぎがない", "status": "pass", "evidence": "AIは確認用下書きを作り、承認された情報だけを正本へ残す。設定統合も人が内容確認後に行う。"},
+    {"gate": "主要操作がキーボードまたは支援技術から到達不能", "status": "pass_synthetic_only", "evidence": "Skip to content、見出し、テキストリンク、検索ボタンをDOMで確認。VoiceOver等の実機検証はnot_collected。"}
+  ],
+  "exact_evidence_findings": [
+    {"id": "P401-R2-001", "kind": "new_finding", "source": "synthetic_browser_evaluation", "severity": "low", "finding": "トップの最初の主要CTAは『10分で試す』で、価値理解から最短導線へ直結している。Round 1での複数CTA懸念は再評価時点では発見性の阻害にならなかった。", "decision": "adopt", "reason": "最短導線の明確化を維持する。"},
+    {"id": "P401-R2-002", "kind": "new_finding", "source": "synthetic_browser_evaluation", "severity": "medium", "finding": "中断復帰の手順は同一ページにあるが、実環境の状態を読み取る操作ではなく、build/doctor等の確認コマンドを利用者が実行する前提。", "decision": "defer", "reason": "ブラウザ評価の対象は手順発見であり、CLI実行環境なしに復旧可否は判定できない。"},
+    {"id": "P401-R2-003", "kind": "regression_check", "source": "synthetic_browser_evaluation", "severity": "none", "finding": "Round 1で確認された価値・開始条件・MCP→Judgment Host順序・非上書き契約の可視性に回帰なし。", "decision": "adopt", "reason": "同一固定タスクで再確認できた。"}
+  ],
+  "workflow_reachability": {"status": "not_executed", "evidence": "評価対象はマニュアルの可視導線であり、CLI実行・設定反映・新task・doctor・実MCP呼び出しはブラウザから実行していない。"},
+  "recovery": {"status": "documented_not_executed", "steps": ["npm run build", "npm run doctor", "~/.brainbase/personal-os/ の存在確認", "実行ファイル・データディレクトリの絶対パス確認", "設定反映後にエージェント再起動", "古いセッションでなく新しいtaskで確認", "設定不整合時は現在ファイルを別名保存し確認済みバックアップと比較"], "safety": "既存設定を上書きせず、判断不能なら現在設定・バックアップ・doctor結果を並べて確認する。"},
+  "synthetic_browser_evaluation": {"status": "complete", "verdict": "adopt", "summary": "中級・確認先行の個人利用者は、トップの『10分で試す』から価値、前提、依頼文、開始コマンド、MCP→Judgment Hostの順序、成功確認、非上書き、中断復帰を固定タスク内で発見できた。実環境のCLI/Hook/MCP結果と実機・人手評価は未取得。"},
+  "uncollected_evidence": ["human_observation", "real_device_evidence", "effective_model_binding", "CLI/MCP/Hook実行結果"],
+  "real_device_evidence": "not_collected"
+}

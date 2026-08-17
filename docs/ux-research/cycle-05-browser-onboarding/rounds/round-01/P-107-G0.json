@@ -1,0 +1,56 @@
+{
+  "persona_id": "P-107-G0",
+  "evaluation_type": "cycle-05-round-01-browser-onboarding",
+  "persona_attributes": {
+    "role": "first_time_individual",
+    "domain_experience": "intermediate",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "speed_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "browser_context": {
+    "url": "http://127.0.0.1:4176/",
+    "viewport": "1440x900",
+    "reduced_motion": "prefers-reduced-motion: reduce",
+    "browser_evidence": "synthetic_browser_evaluation",
+    "real_device_evidence": "not_collected"
+  },
+  "actions": [
+    { "action": "open", "url": "/", "result": "トップページを表示。価値文と導入導線を確認" },
+    { "action": "read", "url": "/guide/onboarding-process", "result": "5フェーズの順序、確認用下書き、承認なしの正本変更禁止、readyだけでは完了でない規則を確認" },
+    { "action": "open", "url": "/guide/getting-started", "result": "Node.js 20以上、npm、対応エージェント、local checkout、clone/install/build、開始プロンプトとrun commandを確認" },
+    { "action": "read", "url": "/reference/mcp-tools", "result": "MCP tools、Connected-world onboardingのstart/get/ingest/review/first_value順序、hash・permission・review境界を確認" },
+    { "action": "keyboard", "result": "TabでSkip to contentへフォーカス可能。音声入力と実機アクセシビリティは未確認" }
+  ],
+  "task_outcomes": {
+    "value_sentence": { "outcome": "clear_success", "evidence": "トップに『自分の仕事文脈をAIに渡すためのMCPマニュアル』、説明し直したくない文脈をローカルSSOTとして育てる旨が表示された" },
+    "prerequisites_first_prompt_start_command": { "outcome": "success_with_friction", "evidence": "getting-startedに Node.js 20以上/npm/Codex・Claude Code・MCP agent/local checkout、プロンプト『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex（Claudeは--target claude）がある" },
+    "codex_mcp_judgment_host_order_success": { "outcome": "partial_unverified", "evidence": "導入順序は確認できたが、Sidebarの『MCPを登録する』『Judgment Hostを登録する』リンク先を実ブラウザで直接開くと404。MCPリファレンスにはConnected-worldの5 tool順序はあるが、Codex MCP登録→Judgment Host登録の具体的な成功チェックはnot_collected" },
+    "avoid_overwrite_recover": { "outcome": "clear_success", "evidence": "確認用下書き、承認なしに正本を書き換えない、OAuth/password/API keyを貼らない、履歴削除を避ける順序が明示。MCP reviewはapprove/edit/reject、推論候補の直接approve禁止。取得不能・未確認をready/空結果扱いしない" }
+  },
+  "hard_gates": [
+    { "gate": "value_is_understandable", "status": "pass" },
+    { "gate": "prerequisites_and_start_are_actionable", "status": "pass_with_friction" },
+    { "gate": "codex_mcp_then_judgment_host_order_and_success_checks", "status": "not_collected", "reason": "linked pages resolved to 404 in this browser run" },
+    { "gate": "no_unapproved_overwrite_and_recovery_boundary", "status": "pass" },
+    { "gate": "real_assistive_device_evidence", "status": "not_collected" }
+  ],
+  "exact_evidence_findings": [
+    "トップの主文は『自分の仕事文脈をAIに渡すためのMCPマニュアル』。",
+    "フェーズ1は『Brainbaseのオンボーディングを始めたいです。』とnpm run onboard:start -- --target codexを提示。",
+    "導入順序は準備と目的→仕事の前提→最初の価値→必要な情報源→運用開始。",
+    "MCPリファレンスはbrainbase_onboarding_start/get/ingest/review/first_valueを順に提示し、selectedSourceIdsの最小scope、contentHash、permissionSnapshot、reviewを要求。",
+    "SidebarのMCP登録/Judgment Host登録リンクは存在するが、/guide/mcp-install と /guide/judgment-audit は404だった。"
+  ],
+  "recovery": {
+    "status": "supported",
+    "notes": "未承認の正本変更を避け、候補をedit/rejectし、取得不能・権限待ち・未確認をreadyや0件に丸めない。404ページから先へ進めず未確認として残した。"
+  },
+  "synthetic_browser_evaluation": "実ブラウザ（Playwright、visible Chromium、1440x900、reduced-motion指定）で画面・リンク・キーボードフォーカスを確認した。音声入力そのもの、OS設定、実際の支援技術、実エージェント接続は評価していない。",
+  "real_device_evidence": "not_collected",
+  "screenshot": "screenshots/round-01/P-107-G0.png",
+  "requested_luna_binding": "Luna: cycle-05-browser-onboarding / round-01 / P-107-G0。MCP登録→Judgment Host登録ページの404原因と成功チェックの実ブラウザ再評価を要求。"
+}

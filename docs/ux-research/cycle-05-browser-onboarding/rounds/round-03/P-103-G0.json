@@ -1,0 +1,89 @@
+{
+  "persona_id": "P-103-G0",
+  "gate_id": "G0",
+  "round": "round-03",
+  "evaluated_head": "0e1e38530",
+  "model_requested": "not_collected",
+  "model_binding": "not_collected",
+  "model_note": "Visible browser evaluation was executed by the assigned Codex agent; effective independent persona-model binding was not collected.",
+  "persona": {
+    "type": "first-time individual",
+    "experience": "new",
+    "technical_level": "low",
+    "time_pressure": "high",
+    "mode": "focused",
+    "work_style": "speed-first",
+    "input": "voice and keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "environment": {
+    "url": "http://127.0.0.1:4176/",
+    "browser": "visible Playwright Chromium",
+    "viewport": "1440x900",
+    "reduced_motion": "prefers-reduced-motion configured in browser context",
+    "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-103-G0.png",
+    "actual_ui_browser_evidence": "collected",
+    "human_evidence": "not_collected",
+    "real_device_evidence": "not_collected",
+    "assistive_technology_evidence": "not_collected"
+  },
+  "fixed_tasks": [
+    {
+      "id": "value_sentence",
+      "task": "トップから10分で試すへ進み、価値を一文で理解する",
+      "status": "clear_success",
+      "evidence": "トップで『自分の仕事文脈をAIに渡すためのMCPマニュアル』『Personal Onboarding Kit』を確認し、10分で試すリンクから/guide/quick-startへ到達した。"
+    },
+    {
+      "id": "prerequisites_first_prompt_start_command",
+      "task": "前提・最初の依頼・開始文・開始コマンドを確認する",
+      "status": "success_with_friction",
+      "evidence": "チェックリストの現在地メモ直後にNode.js 20以上/npm、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを確認できた。情報は見つかるが、低技術・時間圧ではチェックリストの本文量が多い。"
+    },
+    {
+      "id": "codex_mcp_judgment_host_order_and_success_checks",
+      "task": "MCP→Judgment Hostの順序と成功確認を確認する",
+      "status": "clear_success",
+      "evidence": "MCPページでdry-run、新しいセッション、get_context/search/onboarding_statusの実結果確認を確認し、Judgment HostページでMCP確認後にUserPromptSubmit→PostToolUse→Stop、doctor、監査行と実tool呼び出し確認の順序を確認した。"
+    },
+    {
+      "id": "avoid_overwrite_and_recover",
+      "task": "既存設定を上書きせず、中断後の復旧手順を確認する",
+      "status": "clear_success",
+      "evidence": "quick-startでcp -nによるバックアップ、自動マージなし、既存項目を消さないこと、build→doctor→onboard:demo→新しいtask→最初の未通過項目の順の復旧を確認した。"
+    }
+  ],
+  "task_outcomes": {
+    "value_sentence": "clear_success",
+    "prerequisites_first_prompt_start_command": "success_with_friction",
+    "codex_mcp_judgment_host_order_and_success_checks": "clear_success",
+    "avoid_overwrite_and_recover": "clear_success"
+  },
+  "hard_gates": [
+    {"gate":"未確認を成功と表示する","status":"pass","evidence":"quick-startとJudgment Hostページがready: true、生成、表示だけを完了根拠にせず、実結果がないものを未確認に残すと明記。"},
+    {"gate":"現在地または次の操作が分からない","status":"pass","evidence":"quick-start冒頭に現在地メモ、5項目、次の確認、再開手順があり、MCP確認後にJudgment Hostへ進む順序も明記。"},
+    {"gate":"既存設定を破壊する可能性がある","status":"pass","evidence":"dry-run、別出力先、cp -nバックアップ、自動マージなし、既存MCP/Hookを残す指示を実画面で確認。"},
+    {"gate":"失敗後の復旧手段がない","status":"pass","evidence":"build、doctor、正本ディレクトリ、絶対パス、再起動、新しいセッションの順序とバックアップ比較が明記。"},
+    {"gate":"AIから人への確認・引き継ぎがない","status":"pass","evidence":"承認した事実だけを登録し、設定断片を確認後に人が統合する手順を確認。"},
+    {"gate":"主要操作がキーボードまたは支援技術から到達不能","status":"not_collected","evidence":"DOMリンクと可視クリックは取得したが、キーボード実操作、音声入力、支援技術、実端末の証拠は未取得。"}
+  ],
+  "workflow_reachability": [
+    {"cell":"初回トップ→quick-start","status":"executed","result":"到達"},
+    {"cell":"quick-start→getting-started/mcp-install/judgment-audit","status":"executed","result":"各ページを直接・可視ブラウザで確認"},
+    {"cell":"中断後の実設定復旧","status":"not_executed","result":"ブラウザ評価の範囲外。実CLI・設定変更は未実施"}
+  ],
+  "new_actionable_findings": [
+    {"id":"P103-R3-F01","severity":"medium","finding":"現在地メモはページ冒頭に改善されたが、低技術・時間圧の初回利用者には、最初の一手（開始文と開始コマンド）が現在地メモの下に埋もれる。","evidence":"/guide/quick-startの可視本文で現在地メモの後に準備チェック・clone/install/build・開始文・開始コマンドが続く。4タスクは完了できたがsuccess_with_friction。","suggested_action":"現在地メモ直下に『最初の一手』として開始文と開始コマンドを固定し、準備詳細を折りたたむ案を検討する。","decision":"defer","reason":"既存の4タスクを阻害するhard gateではなく、Round 2から継続する中優先度の視認性課題。"
+    }
+  ],
+  "regressions": [],
+  "existing_observations": [
+    {"id":"P103-EXISTING-404","severity":"low","finding":"トップロード時に404 resource console errorを1件観測。","evidence":"可視Playwright Chromiumでトップを開いた際にFailed to load resource: 404 (Not Found)。Round 1/2にも同じ観測があり、Round 3の新規回帰とは断定しない。","status":"needs_triage","classification":"pre_existing_observation"}
+  ],
+  "synthetic_browser_evaluation": {
+    "status": "complete",
+    "verdict": "adopt_with_friction",
+    "summary": "P-103-G0は、改善された現在地メモから価値、開始条件、開始文、コマンド、MCP→Judgment Host順、成功確認、非上書き、復旧を実ブラウザで確認できた。hard gateは未検出。最初の一手の視認性は継続課題としてdeferする。"
+  },
+  "evidence_boundary": "synthetic_browser_evaluationのみ。human_observation、real_device、assistive_technology、実CLI設定変更はnot_collected。"
+}

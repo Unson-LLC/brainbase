@@ -1,0 +1,49 @@
+{
+  "persona_id": "P-403-G0",
+  "round": "round-01",
+  "persona": {
+    "type": "recovery_user",
+    "experience": "new",
+    "technical_literacy": "low",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "confirmation_preference": "confirmation_first",
+    "interaction": "voice+keyboard",
+    "assistive_technology_viewpoint": "none"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {"engine": "Playwright Chromium", "headless": false, "viewport": "1440x900", "status": 200, "title": "Brainbase"},
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/guide/getting-started", "result": "必要なもの、開始依頼、最初の実依頼、対象プロジェクト、フェーズ完了条件を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "MCPのdry-run、別出力、既存設定を消さないこと、新セッションでのtool確認を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "Judgment Hostの登録順序、UserPromptSubmit/PostToolUse/Stop、doctor・監査行・実tool証跡による成功確認を確認。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-403-G0.png"}
+  ],
+  "task_outcomes": {
+    "explain_value": {"status": "pass_with_friction", "finding": "開始ページは『何度も説明したくないこと』を実依頼として選ぶ流れを示す。低技術・高圧力では価値説明が複数ページに分散し、短時間の理解に摩擦がある。"},
+    "prerequisites_first_prompt_start_command": {"status": "pass", "finding": "Node.js 20以上、npm、MCP対応エージェント、local checkout、Brainbaseのオンボーディングを始めたいです。と npm run onboard:start -- --target codex を確認できる。"},
+    "codex_mcp_judgment_host_order_success_checks": {"status": "pass_with_friction", "finding": "MCP登録後に新セッションでtoolを確認し、Judgment Hostを登録してdoctor ready・監査行・実tool証跡を確認する順序は把握できる。ただし低技術利用者にはMCP、Host、hook名の説明が長く、実行成功と表示成功の区別に注意が必要。"},
+    "avoid_config_overwrite_recover": {"status": "pass_with_friction", "finding": "dry-run、別出力、既存設定を消さない境界、build→doctor→再起動→新taskの復旧手順を確認できる。中断後に同じrunをどこから再開するか、反映済み設定を戻す自動手順はブラウザ資料で未確認。"}
+  },
+  "hard_gates": {"unfinished_as_success": "pass", "current_or_next_action": "pass_with_friction", "overwrite_risk": "pass", "recovery_path": "pass_with_friction", "human_confirmation_handoff": "pass", "keyboard_or_assistive_reachability": "not_applicable", "no_product_edits": true, "notes": "visible Playwright Chromiumでページ表示・遷移・テキスト・スクリーンショットを確認。音声入力、実Codex task、実MCP呼び出し、Hookイベント、実端末復旧はnot_collected。"},
+  "exact_evidence_findings": [
+    "開始ページ: Node.js 20以上、npm、Codex/Claude Code/MCP対応AIエージェント、local checkout。",
+    "開始文: 『Brainbaseのオンボーディングを始めたいです。』。コマンド: npm run onboard:start -- --target codex。",
+    "開始時は自分・プロジェクト・関係者・決定事項を勝手に正本へ書かないと明記。",
+    "MCP登録ページ: dry-run、別出力、新セッションでserver/tool確認、既存設定を消さない境界。",
+    "Judgment Hostページ: UserPromptSubmit/PostToolUse/Stop、doctor ready、監査行、実tool証跡を成功確認に使う。",
+    "ブラウザは visible Playwright Chromium。指定スクリーンショットを保存。"
+  ],
+  "findings": [
+    {"id": "P403-F1", "severity": "medium", "type": "friction", "finding": "低技術・高圧力で中断が多い利用者は、開始、MCP、Judgment Hostのページを横断して順序と成功条件を再構成する必要がある。", "evidence": "/guide/getting-started、/guide/mcp-install、/guide/judgment-audit"},
+    {"id": "P403-F2", "severity": "medium", "type": "recovery_gap", "finding": "中断後の現在地・run識別子・次の一操作を画面資料から直接確認できず、確認優先の利用者が安全に復帰するにはAIへの再質問が必要になりうる。", "evidence": "ブラウザ表示上の開始/MCP/Judgment Host説明"},
+    {"id": "P403-F3", "severity": "low", "type": "evidence_gap", "finding": "音声の復唱・取消、実MCP/Hookイベント、実端末での復旧は未取得。", "evidence": "synthetic browser evaluationのみ"}
+  ],
+  "recovery": {"status": "documented", "steps": ["dry-runと別出力へ戻す", "npm run build", "npm run doctor", "絶対パスと設定存在を確認", "エージェントを再起動", "新taskでMCP tool・監査行・実tool証跡を確認"], "gap": "中断後に同一runの残作業を自動表示する導線と、反映済み設定のロールバックはnot_collected"},
+  "synthetic_browser_evaluation": {"status": "completed", "summary": "開始情報、MCP→Judgment Hostの順序、成功確認、安全な非上書き境界、復旧手順はブラウザで確認できた。低技術・高圧力・頻繁な中断ではページ横断と復帰地点の不明確さが摩擦になる。"},
+  "real_device_evidence": "not_collected",
+  "requested_luna": true,
+  "model_requested": "gpt-5.6-luna",
+  "binding": "not_collected",
+  "model_binding": "not_collected"
+}

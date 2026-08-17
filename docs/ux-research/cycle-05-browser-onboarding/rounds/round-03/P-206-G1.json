@@ -1,0 +1,58 @@
+{
+  "persona_id": "P-206-G1",
+  "evaluation_type": "cycle-05-round-03-independent-browser-evaluation",
+  "round": "round-03",
+  "cohort": "rotation",
+  "role": "team_operator",
+  "task_set_id": "team_operator-core",
+  "persona_attributes": {
+    "domain_experience": "experienced",
+    "technical_literacy": "low",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "confirmation_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "evidence": {
+    "kind": "synthetic_browser_evaluation",
+    "browser": "visible Playwright Chromium",
+    "url": "http://127.0.0.1:4176/",
+    "viewport": "1440x900",
+    "screenshot": "screenshots/round-03/P-206-G1.png",
+    "actual_ui_browser_evidence": true,
+    "human_observation": "not_collected",
+    "real_device_evidence": "not_collected",
+    "assistive_technology": "not_collected",
+    "requested_model": "not_collected",
+    "model_binding": "not_collected",
+    "evaluated_head": "0e1e38530e41fa946af6afefdf3c24817b3e7b70"
+  },
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップを可視Chromiumで開き、200・タイトルBrainbase・価値文・10分で試す導線を確認。"},
+    {"action": "click", "target": "10分で試す", "url": "http://127.0.0.1:4176/guide/quick-start", "result": "4タスクと現在地メモ、未確認を成功扱いしない注意、復旧手順を同一ページで確認。"},
+    {"action": "inspect", "target": "現在地メモ／1.準備する／2.最初の価値を確認する／3.MCPを登録する／4.Judgment Host／5.中断したらここから再開", "result": "開始依頼文・開始コマンド、実結果確認、MCP→任意Judgment Host順、設定バックアップと復旧の確認条件を確認。"},
+    {"action": "check", "target": "末尾スラッシュなしのガイドリンク、console/network", "result": "画面内リンクは末尾スラッシュなしURLを指すが、指定されたquick-start遷移は200。consoleには404リソース1件があり、具体的原因はnot_collected。"}
+  ],
+  "tasks": {
+    "value_sentence": {"status": "clear_success", "hard_gate": "pass", "reason": "トップの価値文から、仕事の文脈をローカルSSOTとして育てAIへ再説明する負担を減らす導入キットだと説明できた。"},
+    "prerequisites_first_prompt_start_command": {"status": "clear_success", "hard_gate": "pass", "reason": "Node.js 20以上、npm、Codexでフォルダを開く、clone/install/build、開始依頼文、npm run onboard:start -- --target codexを確認できた。"},
+    "codex_mcp_judgment_host_order_success_checks": {"status": "success_with_friction", "hard_gate": "pass", "reason": "MCPのdry-run・バックアップ・再起動後の実結果確認を先に行い、任意のJudgment Hostへ進む順序と3 Hook・監査行の確認条件を読めた。実キーボード、VoiceOver、実MCP呼出はnot_collected。"},
+    "avoid_overwrite_recover": {"status": "clear_success", "hard_gate": "pass", "reason": "既存設定を残す手動追加、別名バックアップ、未確認を成功扱いしない境界、build→doctor→実結果確認、現在設定を別名保存して確認済みバックアップと比較する復旧手順を確認できた。"}
+  },
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "no_product_edits": true
+  },
+  "new_actionable_findings": [],
+  "regressions": [
+    {"id": "P206-R3-1", "severity": "low", "type": "evidence_gap", "status": "not_collected", "finding": "コンソールに404リソースが1件出たが、画面上の4タスク完了を阻害せず、原因と利用者影響は追加取得できていない。"}
+  ],
+  "summary": "P-206-G1はトップから『10分で試す』へ進み、4タスクを可視ブラウザで完了できた。Round 2で確認された同一チェックリストの現在地メモ・復旧導線は維持され、hard gate違反と新規actionable findingはない。末尾スラッシュなしリンクとconsole 404は低優先の未確認境界として回帰欄に分離した。",
+  "confidence": "medium"
+}

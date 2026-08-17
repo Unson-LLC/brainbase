@@ -1,0 +1,83 @@
+{
+  "persona_id": "P-208-G0",
+  "model_condition": "実ブラウザ評価。チーム運営担当、新しい領域、技術理解は中程度、心理的圧力は低い、頻繁に中断される、速度優先、キーボード中心、アクセシビリティ要件の申告なし。",
+  "url": "http://127.0.0.1:4176/",
+  "evidence_reviewed": [
+    "実ブラウザ表示のトップページ、/guide/getting-started、/guide/onboarding-process、/reference/mcp-tools、/guide/mcp-install、/guide/judgment-audit、/guide/operations",
+    "スクリーンショット: screenshots/round-01/P-208-G0.png",
+    "ブラウザコンソール: Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "actions": [
+    "トップページを開き、価値説明、導入リンク、キーボードで到達できる主要リンクを確認",
+    "導入の5フェーズと準備ページで、開始プロンプト・必要条件・最初の依頼・対象プロジェクトを確認",
+    "MCPツール、MCP登録、Judgment Host、運用開始ページを順に閲覧し、実行順・成功チェック・未確認境界を確認",
+    "既存設定を上書きしない手順、dry-run、別出力先、doctor、新しいセッションによる復旧手順を確認",
+    "製品コードは変更せず、404コンソールエラーを記録"
+  ],
+  "tasks": {
+    "value_sentence": {
+      "outcome": "pass",
+      "reason": "トップページに『自分の仕事文脈をAIに渡すためのMCPマニュアル』と、仕事の文脈をローカルSSOTとして育てCodexやClaude Codeへ渡す説明があり、価値を一文で説明できる。",
+      "evidence": ["/:『自分の仕事文脈をAIに渡すためのMCPマニュアル』", "/:『AIに二度と説明したくない文脈』を整理しMCP経由で渡す"]
+    },
+    "start_info_and_first_command": {
+      "outcome": "success_with_friction",
+      "reason": "開始プロンプトと必要条件・最初の依頼は確認でき、getting-startedには npm run build と npm run onboard:start -- --target codex がある。ただしトップからコマンドへ直行できず、onboarding-processとgetting-startedを横断する必要がある。",
+      "evidence": ["/guide/onboarding-process:『Brainbaseのオンボーディングを始めたいです。』", "/guide/getting-started: Node.js 20以上、npm、ローカルcheckout、npm run build", "/guide/getting-started: npm run onboard:start -- --target codex"],
+      "friction": "中断されやすい利用者が再開時に最初のコマンドを再探索する可能性がある。"
+    },
+    "mcp_to_judgment_host_and_checks": {
+      "outcome": "success_with_friction",
+      "reason": "MCP登録ページはMCP動作確認後にJudgment Hostへ進む順序を明記し、get_context等の確認、doctor、3 Hook、監査行を示す。Connected-world onboardingもstart→get→ingest→review→first_valueの5 tool順序と未確認をready扱いしない境界を示す。ただし情報がreference、mcp-install、judgment-audit、operationsに分散している。",
+      "evidence": ["/guide/mcp-install:『MCPの動作確認後にJudgment Hostを登録』", "/guide/mcp-install:新しいセッションで brainbase tool と onboarding_status/get_context/search を確認", "/guide/judgment-audit: UserPromptSubmit、PostToolUse、Stop の3 Hookと doctor", "/reference/mcp-tools: Connected-world onboarding の5 tool順序、未確認を空/ready扱いしない", "/guide/operations:設定生成だけでは完了ではない"],
+      "friction": "最短のMCP→Judgment Host→doctor→新taskのチェックリストを一画面で取得できない。"
+    },
+    "no_overwrite_and_recovery": {
+      "outcome": "documented_not_browser_executed",
+      "reason": "dry-run、未作成の別出力先、既存設定へ自動マージしないこと、他のHookを残すこと、doctor、新しいセッション、journal破損や不完全Stopの扱いが文書化されている。実際の設定ファイル変更や中断後の状態再開UIは評価対象で実行していない。",
+      "evidence": ["/guide/mcp-install: --dry-run、/tmpへの別出力、既存MCP設定を自動マージしない", "/guide/judgment-audit:既存ファイルを上書きせずBrainbase項目だけ統合、doctor、新しいtask", "/guide/judgment-audit:対応episodeのないStopや破損journalを成功にしない", "/guide/operations:既存Skillsへの影響確認後に --out、正本へ自動書込みしない"],
+      "friction": "中断復帰時に『完了済み／次に実行するコマンド』を利用者向けに再表示するブラウザ経路は確認できない。"
+    }
+  },
+  "hard_gates": {
+    "no_product_edits": true,
+    "existing_config_not_overwritten": "documented_safe_boundary_not_executed",
+    "unverified_or_waiting_not_success": "documented",
+    "real_device": "not_collected"
+  },
+  "findings": [
+    {
+      "severity": "high",
+      "title": "中断復帰向けの最短開始情報がページ横断になる",
+      "evidence": "トップは導入ページへ、開始プロンプトとコマンドはgetting-startedへ分かれ、MCP/Judgment Host/doctorも別ページにある。"
+    },
+    {
+      "severity": "medium",
+      "title": "MCPからJudgment Hostまでの検証チェックが分散している",
+      "evidence": "MCP tool順序はreference、登録と再起動はmcp-install、3 Hookとdoctorはjudgment-audit、完了基準はoperationsに分散。"
+    },
+    {
+      "severity": "medium",
+      "title": "安全な設定反映と復旧は文書化されるが実行状態を再表示しない",
+      "evidence": "dry-run、別出力先、自動マージなし、journal異常時の境界は記載されるが、状態・完了済み・次の一手をブラウザで確認する導線はない。"
+    },
+    {
+      "severity": "low",
+      "title": "ページロード時の404コンソールエラー",
+      "evidence": "7ページを実ブラウザで閲覧した際、Failed to load resource: the server responded with a status of 404 (Not Found)を1件記録。画面操作は継続でき、原因は未確認。"
+    }
+  ],
+  "recovery": {
+    "status": "partial",
+    "observed": "設定を壊さないdry-run・別出力先・自動マージなし、doctor、新しいセッション、journal異常時の失敗境界は確認できた。",
+    "missing": "中断後にブラウザまたは一つのコマンドで状態、完了済み、次の操作を利用者向けに再表示する経路は未確認。"
+  },
+  "synthetic_browser_evaluation": {
+    "status": "completed",
+    "summary": "価値説明と開始情報は通る。MCP→Judgment Hostの順序、成功チェック、未確認境界、既存設定保護は複数ページを読めば通るが、速度優先・頻繁な中断の利用者には探索と再開の摩擦がある。"
+  },
+  "real_device_evidence": "not_collected",
+  "requested_luna": true,
+  "binding": "not_collected",
+  "confidence": "medium"
+}

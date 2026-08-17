@@ -1,0 +1,81 @@
+{
+  "persona_id": "P-204-G0",
+  "model_condition": "実ブラウザ評価。チーム運用者、経験あり、技術理解は低い、時間圧は低いが中断が多い、速度優先、キーボード操作、スクリーンリーダー観点。VoiceOver等の実支援技術と実機は未取得。",
+  "url": "http://127.0.0.1:4176/",
+  "evidence_reviewed": [
+    "実ブラウザ表示のトップページ、/guide/onboarding-process、/guide/getting-started、/reference/mcp-tools、/guide/mcp-install、/guide/judgment-audit、/guide/operations",
+    "スクリーンショット: screenshots/round-01/P-204-G0.png",
+    "ブラウザコンソールの404エラー1件"
+  ],
+  "actions": [
+    "トップを開き、チーム運用者としてBrainbaseの価値を一文で説明できるか確認",
+    "導入の5フェーズから、前提条件、最初の依頼文、開始コマンドと完了条件をたどった",
+    "MCP登録、Judgment Host登録、doctorと新しいセッションでの成功確認を複数ページで確認",
+    "既存設定の非上書き、dry-run、別出力先、失敗時のdoctorとjournal確認、中断復帰の手掛かりを確認",
+    "キーボード／スクリーンリーダー観点でskip link、見出し、コードブロック、ページ間の現在地を目視確認（実支援技術は未取得）",
+    "ブラウザコンソールの404を記録（製品変更なし）"
+  ],
+  "tasks": {
+    "value_sentence": {
+      "outcome": "pass",
+      "reason": "トップに『自分の仕事文脈をAIに渡すためのMCPマニュアル』とあり、ローカルSSOTとして育てた文脈をCodexやClaude Codeへ渡すPersonal Onboarding Kitだと説明される。チームの仕事を毎回説明し直さず、判断根拠を確認できる価値まで一文で把握できる。",
+      "evidence": ["/:『自分の仕事文脈をAIに渡すためのMCPマニュアル』", "/:『AIに二度と説明したくない文脈』をローカルSSOTとして育てる", "/:『AIの判断根拠を毎回確認できる』"]
+    },
+    "prerequisites_first_prompt_start_command": {
+      "outcome": "success_with_friction",
+      "reason": "Node.js 20以上、npm、対応エージェント、ローカルcheckout、git clone/npm install/npm run build、最初の依頼文『Brainbaseのオンボーディングを始めたいです。』、Codex用 npm run onboard:start -- --target codex、依頼と対象プロジェクトを決める完了条件を確認できる。導入5フェーズから準備ページへの遷移が必要で、途中で中断すると現在地と次の一手を再構成する負担がある。",
+      "evidence": ["/guide/getting-started: Node.js 20以上、npm、対応エージェント、ローカルcheckout", "/guide/getting-started: npm run build", "/guide/getting-started: npm run onboard:start -- --target codex", "/guide/onboarding-process:『Brainbaseのオンボーディングを始めたいです。』と5フェーズ", "/guide/getting-started: 依頼と対象プロジェクトが決まったらフェーズ2へ進む"],
+      "friction": "トップの導入リンクは5フェーズ概要へ進むだけで、前提条件とコマンドは準備ページに分散する。中断復帰時に完了済みフェーズを利用者向けに再表示する入口はブラウザで確認できない。"
+    },
+    "codex_mcp_judgment_order_success_recovery": {
+      "outcome": "success_with_friction",
+      "reason": "MCP登録後にget_context/list_entities/search/search_personal_kg/onboarding_statusと必要なconnected-world onboardingの順序、MCPの起動・tool確認・doctor・新セッションでの成功確認を確認できる。MCPの動作確認後にJudgment Hostを登録し、UserPromptSubmit、PostToolUse、Stopの3 Hookとdoctor、監査行を確認する契約も明示される。dry-run、別出力先、既存設定へ自動マージしない境界、journalの重複・競合・孤立Stopの異常動作まで文書化される一方、必要情報がMCP、登録、Judgment Host、運用ページに分散し、中断後に『今ここ／次の一手』を一画面で戻す導線は未確認。",
+      "evidence": ["/guide/mcp-install: dry-runと別出力先、既存MCP設定へ自動マージしない", "/guide/mcp-install: MCP動作確認後にJudgment Hostを登録", "/guide/mcp-install: MCP起動、tool、onboarding_status、get_context、searchの確認", "/guide/judgment-audit: UserPromptSubmit、PostToolUse、Stopの3 Hook", "/guide/judgment-audit: brainbase doctorでjudgment_hooks.status=readyと3 eventsを確認", "/guide/judgment-audit: journal破損、孤立Stop、修復枯渇の異常時動作", "/reference/mcp-tools: 未確認・権限待ち・errorを空やreadyとして扱わない", "/guide/operations: 生成だけでは完了にしない"],
+      "friction": "最短順序、各段階の成功チェック、失敗後の復旧はページ横断で読めるが、時間圧の低いチーム運用者でも中断後に状態・完了済み・次の操作を音声やキーボードで一続きに確認する専用導線はない。"
+    }
+  },
+  "hard_gates": {
+    "no_product_edits": true,
+    "existing_config_not_overwritten": "documented_safe_boundary",
+    "unverified_or_waiting_not_success": "documented",
+    "human_handoff": "documented_confirmation_before_canonical_write",
+    "keyboard_or_assistive_technology": "not_collected_for_real_device",
+    "real_device": "not_collected"
+  },
+  "findings": [
+    {
+      "severity": "high",
+      "title": "中断後の現在地と次の操作を再構成する必要がある",
+      "evidence": "実ブラウザでは導入5フェーズ、準備、MCP、Judgment Host、運用開始が別ページに分かれ、完了済みフェーズと次の操作を再表示する一画面の導線は確認できなかった。"
+    },
+    {
+      "severity": "medium",
+      "title": "MCPからJudgment Hostまでの成功チェックがページ横断になる",
+      "evidence": "MCP登録は/guide/mcp-install、tool順序は/reference/mcp-tools、3 Hookとdoctorは/guide/judgment-auditに分かれる。"
+    },
+    {
+      "severity": "medium",
+      "title": "既存設定保護と復旧境界は安全だが実行前の判断負荷が高い",
+      "evidence": "dry-run、別出力先、自動マージなし、doctor、journal異常時動作は明記されるが、利用者が中断後にどのコマンドから再開するかを一続きで確認できない。"
+    },
+    {
+      "severity": "low",
+      "title": "ページロード時に404コンソールエラー",
+      "evidence": "指定URLを実ブラウザで各ページへ遷移した際、Failed to load resource: the server responded with a status of 404 (Not Found)を1件取得。画面操作は継続できたが原因は未確認。"
+    }
+  ],
+  "recovery": {
+    "status": "partial",
+    "observed": "既存設定を上書きしないdry-runと別出力先、MCP→Judgment Hostの順序、doctor、journalの異常時境界、承認後のみ正本へ昇格する方針が文書化されている。",
+    "missing": "中断後に状態、完了済みフェーズ、次のコマンド、失敗時の戻り先を初心者にもキーボード／音声で再表示する実ブラウザ経路は未確認。"
+  },
+  "synthetic_browser_evaluation": {
+    "status": "completed",
+    "summary": "価値、前提、開始依頼、MCP→Judgment Hostの順序、成功境界、既存設定保護は資料を横断すれば確認できる。チーム運用者の中断復帰では、現在地と次の一手が分散しているため速度優先の利用に摩擦が残る。"
+  },
+  "real_device_evidence": "not_collected",
+  "evidence_kind": "synthetic_browser_evaluation",
+  "requested_luna": true,
+  "binding": "not_collected",
+  "confidence": "medium"
+}

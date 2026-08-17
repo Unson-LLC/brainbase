@@ -1,0 +1,58 @@
+{
+  "persona_id": "P-303-G0",
+  "model_condition": "実ブラウザ評価。Ontology steward、業務領域の経験あり、技術理解は中程度、時間圧は高い、集中して速度優先、音声入力とキーボード操作、スクリーンリーダー観点。実支援技術と実機は未取得。",
+  "url": "http://127.0.0.1:4176/",
+  "evidence_reviewed": [
+    "実ブラウザ表示のトップページ、/guide/onboarding-process、/guide/getting-started、/guide/grand-design、/reference/mcp-tools、/guide/mcp-install、/guide/judgment-audit、/guide/operations",
+    "スクリーンショット: screenshots/round-01/P-303-G0.png",
+    "ブラウザコンソールの404エラー1件"
+  ],
+  "actions": [
+    "トップを開き、Ontology stewardとしてBrainbaseの価値と正本／候補の境界を確認",
+    "導入5フェーズから、必要条件、最初の依頼文、開始コマンド、最初の価値の完了条件を確認",
+    "MCPのdry-run・別出力先・tool確認からJudgment Hostの3 Hook、doctor、監査行まで順に確認",
+    "既存設定の非上書き、承認前の正本変更禁止、journal異常時の復旧と中断後の再開手掛かりを確認",
+    "skip link、見出し、コードブロック、ページ間の現在地をキーボード／スクリーンリーダー観点で目視確認（実支援技術は未取得）",
+    "ブラウザコンソールの404を記録（製品変更なし）"
+  ],
+  "tasks": {
+    "value_sentence": {
+      "outcome": "pass",
+      "reason": "トップで『自分の仕事文脈をAIに渡すためのMCPマニュアル』と説明され、ローカルSSOT、MCP経由の参照、判断根拠の確認まで一続きに把握できる。Ontology stewardに必要な『確認済みだけを正本にする』境界も導入ページと全体像で確認できる。",
+      "evidence": ["/:『自分の仕事文脈をAIに渡すためのMCPマニュアル』", "/:『AIの判断根拠を毎回確認できる』", "/guide/grand-design:元データはそのまま正本にせず、人間が確認したものだけを正本へ入れる"]
+    },
+    "prerequisites_first_prompt_start_command": {
+      "outcome": "success_with_friction",
+      "reason": "Node.js 20以上、npm、対応エージェント、local checkout、git clone/npm install/npm run build、開始依頼『Brainbaseのオンボーディングを始めたいです。』、Codex用 npm run onboard:start -- --target codex、依頼と対象プロジェクトが決まる完了条件を確認できる。ただし概要、準備、運用の複数ページを行き来する必要があり、高圧時に音声で再開する一続きの入口はない。",
+      "evidence": ["/guide/getting-started: Node.js 20以上、npm、対応エージェント、local checkout", "/guide/getting-started: npm run build", "/guide/getting-started: npm run onboard:start -- --target codex", "/guide/onboarding-process:『Brainbaseのオンボーディングを始めたいです。』", "/guide/getting-started:現実の依頼と対象プロジェクトが決まったらフェーズ2へ進む"],
+      "friction": "トップから導入5フェーズを経由しないと、前提条件・開始コマンド・完了条件が揃わない。中断後に完了済みフェーズと次のコマンドを読み上げる状態表示は確認できない。"
+    },
+    "codex_mcp_judgment_order_success_recovery": {
+      "outcome": "success_with_friction",
+      "reason": "MCPをdry-runし別ファイルへ保存し、既存設定へ自動マージしない境界を確認できる。新セッションで onboarding_status/get_context/search 等を確認した後、任意のJudgment Hostを登録し、UserPromptSubmit→PostToolUse→Stopの順で判断・実呼び出し・監査を検証する流れも明記されている。doctor、journalの重複・競合・孤立Stop・修復枯渇、未確認や空結果を成功扱いしない契約は明確だが、MCP・Judgment Host・Ontology監査の成功判定が別ページに分散している。",
+      "evidence": ["/guide/mcp-install: --dry-run、別出力先、既存MCP設定へ自動マージしない", "/guide/mcp-install: MCP動作確認後にJudgment Hostを登録", "/guide/mcp-install: onboarding_status/get_context/search等の新セッション確認", "/guide/judgment-audit: UserPromptSubmit、PostToolUse、Stopの3 Hook", "/guide/judgment-audit: brainbase doctorでjudgment_hooks.status=readyと3 eventsを確認", "/guide/judgment-audit: journal破損・孤立Stop・修復枯渇の異常時動作", "/reference/mcp-tools: 未確認・権限待ち・errorを空やreadyとして扱わない", "/guide/operations: 設定生成だけでは導入完了としない"],
+      "friction": "Ontologyの変更影響やauditを判断したい利用者には、どのチェックをどの順に実行し、失敗時にどのページへ戻るかを一画面で確認できない。"
+    }
+  },
+  "hard_gates": {
+    "no_product_edits": true,
+    "existing_config_not_overwritten": "documented_safe_boundary",
+    "unverified_or_waiting_not_success": "documented",
+    "human_handoff": "documented_confirmation_before_canonical_write",
+    "keyboard_or_assistive_technology": "not_collected_for_real_device",
+    "real_device": "not_collected"
+  },
+  "findings": [
+    {"severity": "high", "title": "高圧時の中断復帰で現在地と次の検証を再構成する必要がある", "evidence": "導入5フェーズ、MCP登録、Judgment Host、Ontology／運用の情報は複数ページに分かれ、完了済みフェーズ・残りのチェック・再開コマンドを一画面で返す経路を確認できなかった。"},
+    {"severity": "medium", "title": "MCP→Judgment Host→Ontology監査の成功チェックがページ横断になる", "evidence": "MCP toolの順序は/reference/mcp-tools、登録と復旧は/guide/mcp-install、3 Hookとjournalは/guide/judgment-audit、運用完了条件は/guide/operationsに分散している。"},
+    {"severity": "medium", "title": "設定保護と復旧境界は明確だが、実行前の判断負荷が残る", "evidence": "dry-run、別出力先、自動マージなし、承認後のみ正本反映、doctor、journal異常時動作は記載されるが、失敗したOntology監査や中断後に最初に戻る具体的なコマンド導線は一続きでない。"},
+    {"severity": "low", "title": "ページロード時に404コンソールエラー", "evidence": "指定URLと関連ページを実ブラウザで遷移した際、Failed to load resource: the server responded with a status of 404 (Not Found)を1件取得。画面操作は継続できたが原因は未確認。"}
+  ],
+  "recovery": {"status": "partial", "observed": "既存設定を上書きしないdry-run・別出力先、承認前に正本を書き換えない境界、MCP→Judgment Hostの順序、doctor、journal異常時動作が文書化されている。", "missing": "中断後に状態、完了済みフェーズ、Ontology監査の残り、次のコマンド、失敗時の戻り先をキーボード／音声で一続きに再表示する実ブラウザ経路は未確認。"},
+  "synthetic_browser_evaluation": {"status": "completed", "summary": "価値、Ontologyの正本境界、開始条件、MCP→Judgment Hostの順序、設定保護、復旧契約は資料を横断すれば確認できる。高圧・速度優先の利用では、状態と次の検証が分散しており、中断復帰に摩擦が残る。"},
+  "real_device_evidence": "not_collected",
+  "evidence_kind": "synthetic_browser_evaluation",
+  "requested_luna": true,
+  "binding": "not_collected",
+  "confidence": "medium"
+}

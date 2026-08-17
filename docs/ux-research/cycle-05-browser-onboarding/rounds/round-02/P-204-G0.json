@@ -1,0 +1,83 @@
+{
+  "persona_id": "P-204-G0",
+  "round": 2,
+  "model_condition": "実ブラウザ評価。チーム運用者、経験あり、技術理解は低い、時間圧は低いが中断が多い、速度優先、キーボード操作、スクリーンリーダー観点。実支援技術と実機は未取得。",
+  "url": "http://127.0.0.1:4176/",
+  "evidence_reviewed": [
+    "実ブラウザ表示のトップページ、/guide/quick-start、/guide/onboarding-process、/reference/mcp-tools",
+    "スクリーンショット: screenshots/round-02/P-204-G0.png",
+    "ブラウザコンソールの404エラー1件"
+  ],
+  "actions": [
+    "トップから『10分で試す』を開き、チーム運用者として価値を一文で説明できるか確認",
+    "クイックスタートで前提条件、最初の依頼文、開始コマンド、完了条件を確認",
+    "MCPツールの順序、MCP成功確認、Judgment Hostの登録条件と監査確認を確認",
+    "dry-run、バックアップ、既存設定を自動マージしない境界、中断後の再開手順と設定復旧を確認",
+    "Skip link、見出し、コードブロック、ページ内の再開見出しを目視確認（実スクリーンリーダーは未取得）"
+  ],
+  "tasks": {
+    "value_sentence": {
+      "status": "clear_success",
+      "reason": "トップで、仕事文脈をローカルSSOTとして育てCodexやClaude Codeへ渡すPersonal Onboarding Kitであること、AIへ説明し直さず判断根拠を確認できることを一文で把握できた。",
+      "evidence": ["/:『自分の仕事文脈をAIに渡すためのMCPマニュアル』", "/:『AIに二度と説明したくない文脈』", "/:『AIの判断根拠を毎回確認できる』"]
+    },
+    "prerequisites_first_prompt_start_command": {
+      "status": "success_with_friction",
+      "reason": "Node.js 20以上、npm、Codex、clone/install/build、最初の依頼文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex、最初の現実の依頼と対象プロジェクトを確認できた。導入の5フェーズとクイックスタートを行き来するため、速度優先ではページ横断が残る。",
+      "evidence": ["/guide/quick-start: 1.準備する、開始依頼、開始コマンド、チェック項目", "/guide/onboarding-process: 導入の5フェーズと各完了条件"]
+    },
+    "codex_mcp_judgment_order_success_recovery": {
+      "status": "success_with_friction",
+      "reason": "MCP登録後にget_context、list_entities、search、search_personal_kg、onboarding_statusを使い、MCPの起動・tool確認・新しいtaskでの成功確認をしてから、任意でJudgment Hostへ進む順序を確認できた。MCPページ、クイックスタート、Judgment Host導線は複数ページに分散し、実際のtool呼び出しと監査行はこの静的マニュアルでは未取得。",
+      "evidence": ["/reference/mcp-tools: MCPツールとConnected-world onboardingの順序", "/guide/quick-start: MCP成功チェックとMCP完了後にJudgment Hostへ進む境界", "/guide/quick-start: 3 Hook、doctor、監査行の確認"]
+    },
+    "non_overwrite_and_interruption_recovery": {
+      "status": "clear_success",
+      "reason": "クイックスタートにdry-run、config/hooksのバックアップ、既存設定を自動マージしない境界、承認なしに正本を書き換えないルールがあり、『中断したらここから再開』でbuild→doctor→onboard:demo→新しいtaskのMCP確認→最初に通らない項目だけ直す手順が同一ページに明示された。Round 1の現在地再構成負荷は改善している。",
+      "evidence": ["/guide/quick-start: dry-runとconfig.toml/hooks.jsonのバックアップ", "/guide/quick-start: 既存MCP項目を消さず自動マージしない", "/guide/quick-start: 5.中断したらここから再開", "/guide/quick-start: 設定を元へ戻す"]
+    }
+  },
+  "hard_gates": {
+    "no_product_edits": "pass",
+    "existing_config_not_overwritten": "pass",
+    "unverified_or_waiting_not_success": "pass",
+    "human_handoff": "pass",
+    "keyboard_or_assistive_technology": "not_collected",
+    "real_device": "not_collected",
+    "requested_model": "not_collected",
+    "model_binding": "not_collected"
+  },
+  "new_actionable_findings": [
+    {
+      "severity": "medium",
+      "title": "MCP実行結果とJudgment Host監査結果を一画面で確認できない",
+      "evidence": "静的マニュアル上の手順と成功条件は確認できるが、実際のtool呼び出し、doctor結果、監査行の取得場所はブラウザ内にない。"
+    },
+    {
+      "severity": "low",
+      "title": "ページロード時に404コンソールエラーが継続",
+      "evidence": "トップから関連ページを巡回した実ブラウザでFailed to load resource: 404を1件取得。画面操作は継続できたが原因は未確認。"
+    }
+  ],
+  "regressions": [],
+  "improvements_from_round_01": [
+    {
+      "title": "中断復帰の導線が同一ページに追加された",
+      "evidence": "/guide/quick-startに『5. 中断したらここから再開』と、build、doctor、onboard:demo、MCP確認、最初に通らない項目へ戻る手順が明示されている。"
+    }
+  ],
+  "recovery": {
+    "status": "improved_partial",
+    "observed": "中断後の確認順序、設定を上書きしない境界、バックアップからの復旧方針が同一ページで確認できた。",
+    "missing": "実際のMCP結果、doctor、監査行、実スクリーンリーダー操作は未取得。"
+  },
+  "synthetic_browser_evaluation": {
+    "status": "completed",
+    "summary": "価値と開始手順はトップから10分で試すまでの短い導線で確認できる。中断復帰はRound 1より明確になった。一方、MCP→Judgment Hostの実成功は静的ページだけでは証明できず、実行結果の確認がページ外に残る。"
+  },
+  "real_device_evidence": "not_collected",
+  "evidence_kind": "actual_ui_browser_evidence",
+  "requested_model": "not_collected",
+  "model_binding": "not_collected",
+  "confidence": "medium"
+}

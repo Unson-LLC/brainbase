@@ -1,0 +1,70 @@
+{
+  "persona_id": "P-403-G0",
+  "round": 2,
+  "evaluation_type": "cycle-05-round-02-browser-onboarding",
+  "model_condition": "実ブラウザ評価。新規の復旧利用者、技術理解は低い、時間圧は高い、頻繁に中断、確認優先、音声入力想定を含むが実音声入力は未取得。",
+  "url": "http://127.0.0.1:4176/",
+  "browser": {"engine": "Playwright Chromium", "headless": false, "viewport": "1440x900", "title": "Brainbase", "status": 200},
+  "evaluated_revision": "worktree HEAD (browser served at 127.0.0.1:4176; exact commit not_collected)",
+  "evidence_reviewed": [
+    "トップページから『10分で試す』を開く実ブラウザ操作",
+    "/guide/quick-start、/guide/onboarding-process、/reference/mcp-tools の実ブラウザ表示",
+    "スクリーンショット: screenshots/round-02/P-403-G0.png",
+    "ブラウザコンソールの404エラー2件"
+  ],
+  "actions": [
+    "トップを起点に『10分で試す』を開き、時間圧が高くても価値を一文で説明できるか確認",
+    "クイックスタートで前提、最初の依頼文、開始コマンド、完了条件を確認",
+    "MCPを先に検証し、Judgment Hostへ進む順序と各成功条件を確認",
+    "dry-run、バックアップ、既存設定を自動マージしない境界、中断後の再開・復旧を確認",
+    "Skip linkと見出しを目視確認（実音声入力・支援技術・実機は未取得）"
+  ],
+  "tasks": {
+    "value_sentence": {
+      "status": "clear_success",
+      "reason": "トップの見出しと説明から、仕事の文脈をローカルSSOTとしてAIへ渡し、説明のやり直しを減らすPersonal Onboarding Kitだと短時間で言い換えられた。『10分で試す』の導線も明確だった。",
+      "evidence": ["/:『自分の仕事文脈をAIに渡すためのMCPマニュアル』", "/:『AIに二度と説明したくない文脈』", "/:『AIの判断根拠を毎回確認できる』"]
+    },
+    "prerequisites_first_prompt_start_command": {
+      "status": "success_with_friction",
+      "reason": "Node.js 20以上、npm、Codex、clone/install/build、開始依頼文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex、現実の依頼と対象プロジェクトを確認できた。ただし低技術・高時間圧では、コードブロックを順に実行する前に『最初にここだけ』をさらに絞りたい。",
+      "evidence": ["/guide/quick-start: 準備、開始依頼、開始コマンド、チェック項目", "/guide/onboarding-process: 5フェーズと完了条件"]
+    },
+    "codex_mcp_judgment_order_success_checks": {
+      "status": "success_with_friction",
+      "reason": "MCPのdry-run・再起動・新taskでのget_context/search/onboarding_status確認を先に行い、MCP確認後だけ任意のJudgment Hostへ進む順序を確認できた。Host側は3 Hook ready、新taskの🧠行、実toolに対応する📚行が成功条件。実際のMCP呼び出し・Hook receiptはこのブラウザ評価では取得していない。",
+      "evidence": ["/guide/quick-start: MCP成功確認とJudgment Hostへ進む境界", "/reference/mcp-tools: 基本toolと取得不能・未確認を成功扱いしない規則"]
+    },
+    "non_overwrite_and_interruption_recovery": {
+      "status": "clear_success",
+      "reason": "dry-run、config.toml/hooks.jsonの別名バックアップ、既存設定を自動マージしない境界、承認なしに正本を書き換えないルールを確認できた。『中断したらここから再開』にbuild→doctor→onboard:demo→新taskのMCP確認→最初に通らない項目だけ直す順序と、設定を元へ戻す手順があるため、頻繁な中断から再開しやすい。",
+      "evidence": ["/guide/quick-start: dry-runとバックアップ", "/guide/quick-start: 既存MCP項目を消さず自動マージしない", "/guide/quick-start: 中断したらここから再開、設定を元へ戻す", "/guide/onboarding-process: 承認なしに正本を書き換えない"]
+    }
+  },
+  "hard_gates": {
+    "no_product_edits": "pass",
+    "existing_config_not_overwritten": "pass",
+    "unverified_or_waiting_not_success": "pass",
+    "human_handoff": "pass",
+    "mcp_and_judgment_host_real_execution": "not_collected",
+    "keyboard_or_assistive_technology": "not_collected",
+    "real_device": "not_collected",
+    "requested_model": "not_collected",
+    "model_binding": "not_collected"
+  },
+  "new_actionable_findings": [
+    {"severity": "medium", "title": "高時間圧の利用者向けに最初の実行範囲を一段絞れない", "evidence": "quick-startは準備からJudgment Hostまで同一ページで追えるが、clone/install/build、MCP、任意Hostのコードが連続するため、確認優先・低技術の利用者は最初に実行する最小セットを再構成する必要がある。"},
+    {"severity": "low", "title": "ページロード時の404コンソールエラーが継続", "evidence": "トップから4ページを実ブラウザで巡回し、Failed to load resource: 404を2件取得。画面操作は継続できたが対象リソースは未特定。"}
+  ],
+  "regressions": [],
+  "improvements_from_round_01": [
+    {"title": "中断復帰と設定復旧がquick-start内で明示された", "evidence": "『5. 中断したらここから再開』『設定を元へ戻す』に確認順序と上書き回避がまとまり、Round 1より現在地の再構成負荷が低い。"}
+  ],
+  "recovery": {"status": "improved_partial", "observed": "中断後の再開順、バックアップ比較、上書きせず判断できない場合の停止条件を確認。", "missing": "実際の失敗復旧、MCP結果、doctor/監査行、実音声入力・実機は未取得。"},
+  "synthetic_browser_evaluation": {"status": "completed", "summary": "トップから10分で試すを起点に、価値・開始条件・非上書き・中断復帰は確認できた。MCP→Judgment Hostの実成功は静的マニュアルの確認に留まり、実tool/監査証跡は未取得。"},
+  "real_device_evidence": "not_collected",
+  "evidence_kind": "actual_ui_browser_evidence",
+  "requested_model": "not_collected",
+  "model_binding": "not_collected",
+  "confidence": "medium"
+}

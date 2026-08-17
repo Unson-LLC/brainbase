@@ -1,0 +1,61 @@
+{
+  "persona_id": "P-307-G0",
+  "round": "round-02",
+  "persona": {
+    "type": "ontology_steward",
+    "experience": "new_domain",
+    "technical_literacy": "high",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "confirmation_preference": "speed_first",
+    "interaction": "voice_and_keyboard",
+    "assistive_technology_viewpoint": "none"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "model_requested": "gpt-5.6-luna",
+  "model_binding": "not_collected",
+  "evidence_kind": "synthetic_browser_evaluation",
+  "human_observation": "not_collected",
+  "real_device_evidence": "not_collected",
+  "browser_evidence": {
+    "browser": "visible Playwright Chromium via system Google Chrome",
+    "viewport": "1440x900",
+    "actions": [
+      {"action":"open","url":"http://127.0.0.1:4176/","result":"トップ表示。『10分で試す』を最初の起点として、価値文、導入の流れ、中断時に同じページから現在地を確認できる案内を確認。HTTP 200。"},
+      {"action":"navigate","url":"http://127.0.0.1:4176/guide/quick-start","result":"準備→最初の価値→MCP→任意のJudgment Host→中断後の再開の順を確認。Node.js 20以上、開始文、onboard:start、実依頼での成功確認、未完了を成功扱いしない契約を確認。HTTP 200。"},
+      {"action":"navigate","url":"http://127.0.0.1:4176/guide/mcp-install","result":"MCP dry-run、既存設定のバックアップ、非上書き、再起動後のtoolと実結果確認、Judgment Hostへ進む順序を確認。HTTP 200。"},
+      {"action":"navigate","url":"http://127.0.0.1:4176/guide/judgment-audit","result":"UserPromptSubmit→PostToolUse→Stop、doctorのready、3 Hook、新しいtaskの監査行と実tool証跡による成功確認を確認。HTTP 200。"},
+      {"action":"navigate","url":"http://127.0.0.1:4176/reference/mcp-tools","result":"get_context、search、onboarding_status、およびerror・空結果・権限待ち・未確認を成功扱いしない契約を確認。HTTP 200。"},
+      {"action":"keyboard_focus","result":"トップでSkip to contentリンクをDOM上で確認。実キーボード操作、音声入力、VoiceOverは未取得。"},
+      {"action":"capture_screenshot","path":"docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-307-G0.png"}
+    ],
+    "browser_console": ["Failed to load resource: the server responded with a status of 404 (Not Found)" ]
+  },
+  "tasks": {
+    "value_sentence": {"status":"clear_success","finding":"Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照しながら作業できるようにし、AIへ仕事を説明し直す負担を減らすPersonal Onboarding Kitだと一文で説明できる。トップの『10分で試す』が時間圧の高い利用者の起点になる。"},
+    "prerequisites_first_prompt_start_command": {"status":"clear_success","finding":"Node.js 20以上、npm、CodexでBrainbaseフォルダを開くこと、npm install/build、最初の依頼と対象プロジェクト、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを同一チェックリストで確認できる。"},
+    "codex_mcp_judgment_order_success": {"status":"success_with_friction","finding":"最初の価値確認後、MCPをdry-run→既存設定を保護→再起動後にtoolとget_context/searchの実結果を確認し、その後に任意のJudgment Hostを登録する順序が明記される。Hostはdoctorの3 Hook ready、新taskの🧠行、実toolに対応する📚行で確認する。quick-startで順序は見えるが、詳細な成功条件はMCP/Judgment Hostの別ページへ往復する。"},
+    "avoid_overwrite_recover": {"status":"success_with_friction","finding":"dry-run、config.toml/hooks.jsonのバックアップ、既存項目を残しBrainbase分だけ手動追加、問題時は現在ファイルを別名保存して確認済みバックアップへ戻す手順が確認できる。中断後はbuild→doctor→onboard:demo→MCP実結果→必要時のみHook監査行の順で復帰できるが、差分確認コマンドは具体化されていない。"}
+  },
+  "hard_gates": {
+    "unfinished_as_success":"pass",
+    "current_or_next_action":"pass",
+    "overwrite_risk":"pass",
+    "recovery_path":"pass",
+    "human_confirmation_handoff":"pass",
+    "keyboard_or_assistive_reachability":"not_collected",
+    "no_product_edits":true,
+    "notes":"可視ブラウザのDOM・画面・リンク・ページ遷移を確認。404リソースを1件記録したが主要導線は利用可能。実MCP/Judgment Host接続、実キーボード、音声入力、実端末、human observationは未取得。"
+  },
+  "findings": {
+    "new_actionable":[
+      {"id":"P307-R2-F01","severity":"medium","finding":"『10分で試す』内に、MCP確認とJudgment Host確認の成功条件を同じ要約表または折りたたみへ集約すると、速度重視の管理担当者が詳細ページを往復せずに順序と完了条件を保持できる。","decision":"adopt"},
+      {"id":"P307-R2-F02","severity":"low","finding":"既存設定を手動統合した後の差分確認（現在設定とバックアップの比較）を具体的な確認例として示すと、非上書き境界から復旧判断までの連続性が上がる。","decision":"adopt"}
+    ],
+    "regressions":[]
+  },
+  "recovery":{"status":"documented","steps":["MCPまたはHookのdry-runへ戻る","npm run build","npm run doctor","onboard:demoで承認済み文脈を確認","新taskでMCPのget_context/searchを確認","Judgment Hostを使う場合のみ3 Hookと監査行を確認"],"gap":"反映済み設定の差分比較コマンドと自動ロールバックはnot_collected"},
+  "screenshot":"docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-307-G0.png",
+  "overall":"adopt",
+  "recommendation":"10分チェックリストへMCP→Judgment Hostの成功確認を集約し、既存設定の差分比較例を追加する。404リソースの原因、支援技術、実端末、実エージェント接続は別途確認する。"
+}

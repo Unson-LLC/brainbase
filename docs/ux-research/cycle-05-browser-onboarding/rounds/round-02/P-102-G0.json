@@ -1,0 +1,58 @@
+{
+  "persona_id": "P-102-G0",
+  "persona": "first_time_individual",
+  "round": "round-02",
+  "viewpoint": {
+    "experience": "experienced",
+    "technical": "high",
+    "time_pressure": "low",
+    "focus": "focused",
+    "confirmation_preference": "confirmation_first",
+    "interaction": "keyboard",
+    "assistive_technology_viewpoint": "screen_reader"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "model_requested": "gpt-5.6-luna",
+  "model_binding": "not_collected",
+  "evidence_kind": "synthetic_browser_evaluation",
+  "real_device_evidence": "not_collected",
+  "human_observation": "not_collected",
+  "browser_evidence": {
+    "browser": "visible Playwright Chromium via system Google Chrome",
+    "viewport": "1440x1000",
+    "actions": [
+      {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップ表示。価値文、10分で試す、導入の流れを見る、途中で中断した場合の再開案内を確認"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "5フェーズ、開始文、承認なしに正本を書き換えないルール、未完了をready扱いしないルールを確認"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/getting-started", "result": "Node.js 20以上、npm、checkout、build、開始文、onboard:start、最初の依頼と対象プロジェクトを確認"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "MCP dry-run、別出力先、非上書き、新しいセッションでのtool確認、Judgment Hostへの次導線を確認"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "UserPromptSubmit→PostToolUse→Stop、doctorのready/events、新しいtaskでの監査行確認、異常時の修復動作を確認"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/reference/mcp-tools", "result": "MCP tool名、検索0件や未確認を不存在・readyと扱わない契約、onboardingのstart/get/ingest/review/first_value順を確認"}
+    ]
+  },
+  "tasks": [
+    {"id": "value_sentence", "status": "clear_success", "finding": "トップの『自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照しながら作業できる』で価値を一文にできる。『10分で試す』が最短導線として目立つ。", "friction": "価値文は明確だが、最初の実用場面の選択は本文を読んで自分で決める。"},
+    {"id": "prerequisites_first_prompt_start_command", "status": "clear_success", "finding": "必要なもの、clone/install/build、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex、最初の依頼と対象プロジェクトが同一ページで確認できる。", "friction": "経験者でもcloneから開始後までの最小手順を再抽出する必要がある。"},
+    {"id": "codex_mcp_judgment_order_success", "status": "success_with_friction", "finding": "MCPの実動作確認後にJudgment Hostへ進む順序が明記され、MCP側はtool結果、Judgment Host側はdoctorと新しいtaskの監査行で成功確認できる。", "friction": "MCPとJudgment Hostは別ページで、10分チェックリストへの戻りを挟んで利用者が一枚の確認表に統合する必要がある。"},
+    {"id": "avoid_overwrite_recover", "status": "success_with_friction", "finding": "MCP/Judgment Hostともdry-run、未作成の別出力先、既存設定を自動マージ・上書きしないことが明記される。障害時はbuild→doctor→正本ディレクトリ→絶対パス→再起動→新taskの確認順がある。", "friction": "設定反映後に差分を戻す具体的なrollback例はなく、復旧は診断と再確認中心。"}
+  ],
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "notes": "表示上のSkip to contentと見出し・リンクは確認したが、実キーボード操作、VoiceOver等の実スクリーンリーダー、human/real device evidenceは未取得。"
+  },
+  "findings": {
+    "new_actionable": [
+      {"id": "P-102-R2-F01", "severity": "medium", "finding": "MCP成功確認とJudgment Host成功確認を、10分チェックリスト上の同一チェック表へ統合すると確認優先の利用者の往復を減らせる", "decision": "adopt"},
+      {"id": "P-102-R2-F02", "severity": "medium", "finding": "既存設定へ反映した後の差分確認・ロールバック例が必要", "decision": "adopt"}
+    ],
+    "regressions": []
+  },
+  "recovery": {"status": "documented", "steps": ["dry-runへ戻る", "npm run build", "npm run doctor", "~/.brainbase/personal-os/の存在確認", "実行ファイルの絶対パス確認", "エージェント再起動", "新しいtaskで監査行確認"], "gap": "反映済み設定の自動ロールバックはnot_collected"},
+  "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-102-G0.png",
+  "overall": "adopt",
+  "recommendation": "10分チェックリストへMCP→Judgment Hostの成功確認を統合し、既存設定の差分確認・復旧例を追加する。"
+}

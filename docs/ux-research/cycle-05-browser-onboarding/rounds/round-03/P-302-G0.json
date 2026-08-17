@@ -1,0 +1,43 @@
+{
+  "persona_id": "P-302-G0",
+  "gate_id": "G0",
+  "round": "round-03",
+  "evaluation_type": "cycle-05-round-03-browser-onboarding",
+  "evaluated_head": "0e1e38530e41fa946af6afefdf3c24817b3e7b70",
+  "model_requested": "not_collected",
+  "model_binding": "not_collected",
+  "persona": {"role":"ontology_steward","domain_experience":"intermediate","technical_literacy":"low","time_pressure":"low","interruption_state":"focused","work_style":"confirmation_first","input_environment":"keyboard","accessibility_need":"reduced_motion"},
+  "environment": {"url":"http://127.0.0.1:4176/","browser":"visible Playwright Chromium","viewport":"1440x900","reduced_motion":"browser prefers-reduced-motion emulation only","screenshot":"docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-302-G0.png","actual_ui_browser_evidence":true,"human_evidence":"not_collected","real_device_evidence":"not_collected"},
+  "tasks": {
+    "value_sentence":{"status":"clear_success","evidence":"トップで、Brainbaseは自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照できるPersonal Onboarding Kitだと一文で説明できた。"},
+    "prerequisites_first_prompt_start_command":{"status":"clear_success","evidence":"10分で試すとフェーズ1でNode.js 20以上、npm、local checkout、開始文、npm run onboard:start -- --target codex、最初の依頼と対象プロジェクトを確認できた。"},
+    "codex_mcp_judgment_host_order_and_success_checks":{"status":"success_with_friction","evidence":"MCPのdry-runと新しいtaskでのget_context/search等の実結果確認後に、任意のJudgment Hostへ進む順序を確認できた。各成功条件は同じ10分ページと詳細ページを往復して再構成する必要がある。"},
+    "avoid_overwrite_and_recover":{"status":"success_with_friction","evidence":"別名バックアップ、dry-run、別出力、既存項目を消さない境界、反映後の再起動と新task確認、問題時の比較・復元依頼を確認できた。差分比較と復元依頼の具体例は未取得。"}
+  },
+  "action_trace":[
+    {"step":1,"action":"トップを表示","result":"価値文と10分で試す導線を確認"},
+    {"step":2,"action":"/guide/quick-startを表示","result":"現在地メモ（完了済み・次にやること・未確認・最後に確認した実結果）と5段階チェックリストを確認"},
+    {"step":3,"action":"導入5フェーズ、準備、MCP、Judgment Host、MCPツールを順に表示","result":"開始条件、コマンド、MCP→Judgment Hostの順序、成功確認、上書き回避、復旧手順を確認"},
+    {"step":4,"action":"スクリーンショット取得","result":"最終表示状態を保存"}
+  ],
+  "hard_gates": {
+    "unfinished_as_success":{"status":"pass","evidence":"ready: true、設定生成、画面表示だけは完了扱いせず、実依頼の有用な出力・実tool呼び出し・error/空/未確認の区別を要求している。"},
+    "current_or_next_action":{"status":"pass","evidence":"quick-startに現在地メモ、5段階、次の確認、未確認の扱い、中断復帰順が表示される。"},
+    "overwrite_risk":{"status":"pass","evidence":"dry-run、別名バックアップ、別出力、既存MCP/Hookを残し承認後に対象項目だけ追加する境界がある。"},
+    "recovery_path":{"status":"pass","evidence":"build、doctor、正本存在、絶対パス、再起動、新task、現在設定と確認済みバックアップの比較・復元依頼が案内される。"},
+    "human_confirmation_handoff":{"status":"pass","evidence":"AIは確認用下書きを作り、承認なしに正本を書き換えないと明記される。"},
+    "keyboard_or_assistive_reachability":{"status":"not_collected","evidence":"Skip to contentとテキストリンクはDOMで確認したが、実キーボード完遂、VoiceOver、音声入力、実端末は未取得。"}
+  },
+  "new_actionable_findings":[
+    {"id":"P302-R3-F01","title":"現在地メモの再開情報を先頭へ固定する","severity":"medium","proposal":"完了済み／次の一手／未確認だけを先に読める短い3行要約を固定表示し、詳細な成功条件との往復を減らす。","decision":"defer","reason":"現在地メモ自体は存在し、今回の安全ゲートは通過している。"},
+    {"id":"P302-R3-F02","title":"設定差分と復元依頼の具体例を追加する","severity":"medium","proposal":"変更前後の差分確認と、確認済みバックアップへ戻す依頼文の最小例を追加する。","decision":"adopt","reason":"低技術利用者が復旧判断を再構成する負荷を直接下げる。"}
+  ],
+  "regressions": [
+    {"id":"P302-R3-R01","title":"トップ初回表示の404 console errorが継続","status":"observed_again","evidence":"固定7ページをvisible Playwright Chromiumで表示した際、console errorを2件観測。対象URLと内容影響はnot_collected。"}
+  ],
+  "uncollected":["実キーボード完遂・VoiceOver・音声入力・実端末","実MCP呼び出しとJudgment Host receipt","404対象URLの特定","反映済み設定の差分比較と復元依頼の具体例"],
+  "recovery":{"status":"documented","steps":["設定追加を続けず現在設定を別名保存","確認済みバックアップと現在設定を比較","npm run build","npm run doctor","正本と絶対パスを確認","エージェント再起動","新しいtaskでMCP実結果を確認","必要なら確認済みバックアップへ戻すよう依頼"],"gap":"自動ロールバックと具体的な復元依頼文はnot_collected"},
+  "overall":"success_with_friction",
+  "confidence":"high",
+  "recommendation":"現在地メモの短い再開要約を先頭固定し、設定差分・復元依頼の具体例を追加する。404回帰は対象URLを特定して別途修正候補とする。支援技術・実接続は別途検証する。"
+}

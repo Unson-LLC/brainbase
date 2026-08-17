@@ -1,0 +1,60 @@
+{
+  "evaluation_type": "cycle-05-round-02-independent-browser-evaluation",
+  "persona_id": "P-305-G1",
+  "round": "round-02",
+  "persona": {
+    "role": "ontology_steward",
+    "cohort": "rotation",
+    "domain_experience": "experienced",
+    "technical_literacy": "medium",
+    "time_pressure": "low",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "confirmation_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {
+    "engine": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1440x900",
+    "reduced_motion": true,
+    "status": 200,
+    "title": "Brainbase"
+  },
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップの価値文と『10分で試す』導線を可視ブラウザで確認。"},
+    {"action": "start_from_quick_start", "url": "http://127.0.0.1:4176/guide/quick-start", "result": "準備、開始文、MCP、任意のJudgment Host、中断復帰の5項目を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "5フェーズ、開始文、承認なしに正本を書き換えない共通ルールを確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/reference/mcp-tools", "result": "MCP toolの順序、receipt/review/first-value、未確認を成功扱いしない契約を確認。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-305-G1.png"}
+  ],
+  "tasks": {
+    "value_sentence": {"status": "clear_success", "finding": "Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照できるようにして、AIへ同じ前提を説明し直す負担を減らすMCPマニュアルだと説明できる。", "evidence": ["/:『自分の仕事文脈をAIに渡すためのMCPマニュアル』", "/:『AIに二度と説明したくない文脈』", "/:『AIの判断根拠を毎回確認できる』"]},
+    "prerequisites_first_prompt_start_command": {"status": "success_with_friction", "finding": "Node.js 20以上、npm、CodexでBrainbaseフォルダを開くこと、build、現実の依頼と対象プロジェクト、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを確認できる。トップから準備ページへの遷移が必要。", "evidence": ["/guide/quick-start: Node.js 20以上、npm、Codex、npm run build", "/guide/quick-start: 開始文とnpm run onboard:start -- --target codex"]},
+    "mcp_judgment_order_success_checks": {"status": "success_with_friction", "finding": "MCPを先にdry-run・登録し、新taskでget_context/search/onboarding_statusの実結果を確認してから任意のJudgment Hostへ進む順序が明示される。Hostは3 Hook、doctor ready、監査行、実tool証跡で確認する。順序と成功条件がquick-startとreference/mcp-toolsに分かれ、確認優先ではページ横断の摩擦が残る。", "evidence": ["/guide/quick-start: MCP確認後にJudgment Hostへ進む", "/guide/quick-start: UserPromptSubmit/PostToolUse/Stop、doctor、新task", "/reference/mcp-tools: get_context/search/onboarding_statusと未確認を成功扱いしない"]},
+    "avoid_overwrite_and_recover": {"status": "clear_success", "finding": "dry-run、configバックアップ、既存MCP項目を消さずBrainbase項目だけ追加、設定自動マージなし、build→doctor→onboard:demo→新taskの順で中断後に再開する手順を確認できる。設定を元へ戻す節もあり、判断不能時は上書きしない。", "evidence": ["/guide/quick-start: ~/.codex/config.toml.before-brainbaseへcp -n", "/guide/quick-start: 既存設定を自動マージしない", "/guide/quick-start: 中断時はbuild、doctor、onboard:demo、MCP確認の順"]}
+  },
+  "hard_gates": {
+    "no_product_edits": "pass",
+    "existing_config_not_overwritten": "pass",
+    "unfinished_or_waiting_not_success": "pass",
+    "human_confirmation_before_canonical_write": "pass",
+    "keyboard_or_assistive_technology": "not_collected",
+    "real_device": "not_collected"
+  },
+  "findings": {
+    "new_actionable": [
+      {"id": "P305G1-F1", "severity": "medium", "title": "MCP成功確認とJudgment Host監査確認がページ横断", "evidence": "quick-start、reference/mcp-tools、Host手順にtool順序・doctor・監査行が分散し、confirmation_firstでも一画面の進行表に統合されていない。", "recommendation": "10分チェックリストにMCP→Hostの成功条件と確認コマンドを集約する。"}
+    ],
+    "regression": []
+  },
+  "recovery": {"status": "documented", "observed": "中断時のbuild、doctor、onboard:demo、新taskでのMCP確認、失敗項目だけを直す順序が同一ページにある。設定を元へ戻す節では現在ファイルを別名保存してから確認済みバックアップを戻すよう案内している。", "gap": "実エージェント設定反映後の自動ロールバックと実機・VoiceOverの操作はnot_collected。"},
+  "actual_ui_browser_evidence": true,
+  "real_device_evidence": "not_collected",
+  "human_evidence": "not_collected",
+  "requested_model": "not_collected",
+  "model_binding": "not_collected",
+  "evidence_kind": "actual_ui_browser_evaluation",
+  "confidence": "medium"
+}

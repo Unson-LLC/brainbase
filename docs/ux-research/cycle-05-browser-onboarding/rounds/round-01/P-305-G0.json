@@ -1,0 +1,62 @@
+{
+  "persona_id": "P-305-G0",
+  "round": "round-01",
+  "persona": {
+    "type": "ontology_steward",
+    "experience": "intermediate",
+    "technical_literacy": "low",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "confirmation_preference": "speed_first",
+    "interaction": "voice_and_keyboard",
+    "assistive_technology_viewpoint": "reduced_motion"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {"engine": "Playwright Chromium", "headless": true, "viewport": "1440x900", "status": 200, "title": "Brainbase"},
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップの価値文、導入導線、Skip to contentを確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "5フェーズと開始文、未承認の正本を書き換えない共通ルールを確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/getting-started", "result": "Node.js 20以上、local checkout、開始文、onboard:startを確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "MCP dry-run、別出力先、絶対パス、新セッション確認、既存設定を消さない境界を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "3 Hook、監査行、doctorと異常時の扱いを確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/reference/mcp-tools", "result": "ontology/list/search/get_contextと未確認・空結果を成功扱いしない契約を確認。"},
+    {"action": "keyboard_focus", "result": "Tab 1回でSkip to contentへ到達。実音声入力・実VoiceOver・実端末は未検証。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-305-G0.png"}
+  ],
+  "task_outcomes": {
+    "explain_value": {"status": "pass", "finding": "Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTとして育て、AIへ参照させて説明のやり直しを減らす仕組みだと一文で説明できる。"},
+    "prerequisites_first_prompt_start_command": {"status": "pass_with_friction", "finding": "Node.js 20以上、npm、MCP対応エージェント、local checkout、npm install/build、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを確認。トップから準備ページへの移動が必要。"},
+    "codex_mcp_judgment_host_order_success_checks": {"status": "pass_with_friction", "finding": "MCPのdry-run・反映・新セッション確認後にJudgment Hostを登録する順序と、MCP tool実結果／doctor ready・3 Hook・監査行の確認方法を見つけられる。別ページを横断するため速度優先では再構成の負荷がある。"},
+    "avoid_config_overwrite_recover": {"status": "pass_with_friction", "finding": "dry-run、別出力先、既存設定へ自動マージしない境界、build→doctor→新task確認の復旧導線を確認。承認後の手動統合と自動ロールバック未確認は低技術・高時間圧では残る。"}
+  },
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass_with_friction",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "no_product_edits": true,
+    "notes": "実ブラウザのDOM・表示をPlaywright Chromiumで確認。reduced-motion設定は評価観点として指定したが、実OS設定・実VoiceOver・音声入力・実端末証拠は未取得。"
+  },
+  "exact_evidence_findings": [
+    "トップ: 『自分の仕事文脈をAIに渡すためのMCPマニュアル』と、ローカルSSOTをCodex/Claude Codeへ渡す説明。",
+    "準備: Node.js 20以上、npm、MCP対応AIエージェント、local checkout、開始文、npm run onboard:start -- --target codex。",
+    "MCP: npm run onboard:install -- --target codex --dry-run。別出力先、既存設定へ自動マージしない、既存設定を消さない。",
+    "Judgment Host: UserPromptSubmit→PostToolUse→Stopの3 Hook、ready/監査行/実tool証跡。",
+    "MCPツール: get_context、list_entities、search、get_ontology等。空結果や未確認を不存在・成功と断定しない。",
+    "トップロード時のHTTPエラーは0件。"
+  ],
+  "findings": [
+    {"id": "P305-F1", "severity": "medium", "type": "friction", "finding": "MCP登録とJudgment Host登録が別ページで、速度優先のオントロジー管理者は順序と成功条件を再構成する必要がある。", "evidence": "/guide/mcp-install と /guide/judgment-audit の別導線。"},
+    {"id": "P305-F2", "severity": "medium", "type": "safety_friction", "finding": "既存設定を守るdry-runと別出力先は明確だが、承認後の手動統合と自動ロールバック手順は未確認。", "evidence": "MCP登録ページの既存設定保護説明。"},
+    {"id": "P305-F3", "severity": "low", "type": "accessibility_evidence_gap", "finding": "Skip to contentへTabで到達できたが、reduced-motion環境での実OS・VoiceOver・音声入力の挙動は未検証。", "evidence": "Playwright ChromiumのDOM/キーボード観測のみ。"}
+  ],
+  "recovery": {"status": "documented", "steps": ["dry-runと別出力へ戻す", "npm run build", "npm run doctor", "正本ディレクトリと絶対パスを確認", "設定反映後にエージェント再起動", "新taskでMCP tool・監査行・実tool証跡を確認"], "gap": "反映済み設定の自動ロールバック手順はnot_collected"},
+  "synthetic_browser_evaluation": {"status": "completed", "summary": "4共通タスクは実ブラウザで確認でき、設定保護と復旧導線も見つかる。速度優先ではページ横断が摩擦。実支援技術・実端末の証拠は未取得。"},
+  "real_device_evidence": "not_collected",
+  "requested_luna": true,
+  "model_requested": "gpt-5.6-luna",
+  "binding": "not_collected",
+  "model_binding": "not_collected"
+}

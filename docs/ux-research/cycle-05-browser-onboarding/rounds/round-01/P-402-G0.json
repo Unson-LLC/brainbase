@@ -1,0 +1,54 @@
+{
+  "persona_id": "P-402-G0",
+  "round": "round-01",
+  "persona": {
+    "type": "recovery_user",
+    "experience": "intermediate_domain",
+    "technical_literacy": "high",
+    "time_pressure": "low",
+    "interruption_state": "frequently_interrupted",
+    "confirmation_preference": "confirmation_first",
+    "interaction": "keyboard",
+    "assistive_technology_viewpoint": "screen_reader"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {
+    "engine": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1440x900",
+    "reduced_motion": "reduce",
+    "status": 200,
+    "title": "Brainbase"
+  },
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "価値、プロジェクト中心の整理、人が確認してから記録、判断根拠の表示を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "導入5フェーズ、順序を守る理由、承認なしに正本を書き換えないこと、readyや設定生成だけを完了扱いしないことを確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/getting-started", "result": "必要条件、開始文、npm run onboard:start -- --target codex、最初の依頼とプロジェクトを完了条件として確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "dry-run、別出力、既存設定を消さない境界、新セッション確認、build/doctor等の復旧手順を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "UserPromptSubmit/PostToolUse/Stopの監査、判断参照と知識参照の分離、異常時は成功に見せない契約を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/reference/mcp-tools", "result": "get_context、search、onboarding_status等の目的、取得不能や未確認を空やreadyにしない境界を確認。"},
+    {"action": "keyboard_a11y_check", "result": "Tab 1回でSkip to contentへ到達。ARIAスナップショットでbanner、Main Navigation、Sidebar Navigation、page navigation、main見出しとコード例を確認。全操作のスクリーンリーダー読み上げはnot_collected。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-402-G0.png"}
+  ],
+  "task_outcomes": {
+    "explain_value": {"status": "pass", "finding": "説明を繰り返したくない仕事をひとつ選び、仕事文脈をローカルSSOTとして育て、確認済みの内容だけをAIに参照させる価値を把握できる。"},
+    "prerequisites_first_prompt_start_command": {"status": "pass", "finding": "Node.js 20以上、npm、MCP対応エージェント、local checkout、開始文、npm run onboard:start -- --target codex、依頼と対象プロジェクトを確認できる。"},
+    "codex_mcp_judgment_host_order_success_checks": {"status": "pass_with_friction", "finding": "MCPをdry-run→承認→新セッションで実tool確認→必要ならJudgment Host登録、という順序とdoctor/監査行/実tool証跡の完了条件を把握できる。ページ横断のため中断後の再開では戻り先を再構成する負荷がある。"},
+    "avoid_config_overwrite_recover": {"status": "pass", "finding": "別出力、既存設定を消さない、絶対パス、build→doctor→存在確認→再起動→新セッションの復旧手順を確認できる。自動ロールバック手順はnot_collected。"}
+  },
+  "hard_gates": {"unfinished_as_success": "pass", "current_or_next_action": "pass", "overwrite_risk": "pass", "recovery_path": "pass_with_friction", "human_confirmation_handoff": "pass", "keyboard_or_assistive_reachability": "partial", "no_product_edits": true, "notes": "visible Playwright Chromium、reducedMotion=reduce。キーボードTab到達とARIAスナップショットは取得したが、VoiceOver等の実支援技術、実Codex接続、実MCP/Hookイベントはnot_collected。"},
+  "exact_evidence_findings": ["トップ見出し: 『Brainbase 自分の仕事文脈をAIに渡すためのMCPマニュアル』。", "導入共通ルール: 承認なしに正本を書き換えず、ready: trueや設定生成だけを導入完了と扱わない。", "準備: Node.js 20以上、npm、MCP対応AIエージェント、local checkout、npm run onboard:start -- --target codex。", "MCP: dry-run、未作成の別出力、既存設定を消さない、新しいセッションでget_context/search等を確認。", "Judgment Host: UserPromptSubmit、PostToolUse、Stopを登録し、🧠/📚/⚠️の監査行と実tool証跡を確認。", "ARIA: Tab 1回目がSkip to content、mainにページ見出し・コード・リストが存在。", "トップロードでFailed to load resource: server responded with status 404 (Not Found)を1件記録。原因は未確認。"],
+  "findings": [
+    {"id": "P402-F1", "severity": "medium", "type": "recovery_friction", "finding": "頻繁に中断される利用者が再開時に、導入順序・MCP設定・Judgment Host・ツール確認の現在地を複数ページから再構成する必要がある。ページ単位の再開地点やチェック状態は表示されない。", "evidence": "/guide/onboarding-process、/guide/getting-started、/guide/mcp-install、/guide/judgment-audit、/reference/mcp-tools"},
+    {"id": "P402-F2", "severity": "low", "type": "accessibility", "finding": "Skip to content、意味のあるnavigation landmark、見出し、リスト、コード例はARIAツリーで到達可能だった。検索ボタン後にテーマ切替・GitHub・サイドバーの折りたたみ要素が続くため、本文へ急ぐキーボード利用者にはTab移動が長い。実スクリーンリーダー読み上げは未検証。", "evidence": "visible Playwright Chromium、Tab 1-12、body.ariaSnapshot()"},
+    {"id": "P402-F3", "severity": "low", "type": "evidence_gap", "finding": "ブラウザ表示・キーボード到達は確認できたが、VoiceOver等の実支援技術、実エージェント接続、実MCP/Hookイベント、実復旧はnot_collected。", "evidence": "ブラウザ観測のみ"},
+    {"id": "P402-F4", "severity": "low", "type": "runtime_observation", "finding": "トップページロード時に404リソースエラーが1件発生したが、利用者影響と原因は未確認。", "evidence": "Playwright console error"}
+  ],
+  "recovery": {"status": "documented", "steps": ["MCPのdry-runと別出力へ戻す", "npm run build", "npm run doctor", "~/.brainbase/personal-os/の存在確認", "実行ファイルとデータの絶対パス確認", "設定反映後にエージェント再起動", "新セッションでMCP tool・監査行・実tool証跡を確認"], "gap": "中断位置の保存・再開用チェックリストと反映済み設定の自動ロールバック手順はnot_collected"},
+  "synthetic_browser_evaluation": {"status": "completed", "summary": "高技術・低圧力でも、価値、開始条件、順序、安全境界、復旧は確認できた。頻繁な中断からの再開にはページ横断の再構成負荷があり、ARIA構造は良好だが実スクリーンリーダー証拠は未取得。"},
+  "real_device_evidence": "not_collected",
+  "requested_luna": true,
+  "model_requested": "gpt-5.6-luna",
+  "binding": "not_collected",
+  "model_binding": "not_collected"
+}

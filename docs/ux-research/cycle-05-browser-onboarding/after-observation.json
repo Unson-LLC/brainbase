@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "evaluated_head": "0e1e38530e41fa946af6afefdf3c24817b3e7b70",
+  "base_url": "http://127.0.0.1:4176/",
+  "browser": "Playwright Chromium visible",
+  "verified_pages": [
+    {
+      "path": "/",
+      "result": "rendered",
+      "failed_responses": 0
+    },
+    {
+      "path": "/guide/quick-start",
+      "result": "rendered",
+      "failed_responses": 0
+    },
+    {
+      "path": "/guide/mcp-install",
+      "status": 200,
+      "title": "MCPを登録する | Brainbase",
+      "main_text_length": 1373,
+      "failed_responses": 0
+    }
+  ],
+  "screenshots": [
+    "screenshots/after/home-desktop.png",
+    "screenshots/after/quick-start-desktop.png",
+    "screenshots/after/quick-start-mobile.png"
+  ],
+  "unconfirmed_observations": [
+    "one persona reported an empty /guide/mcp-install page under concurrent browser load",
+    "some personas reported a console 404 without the resource URL"
+  ],
+  "not_collected": [
+    "human_observation",
+    "real_device_evidence",
+    "VoiceOver",
+    "physical_mobile_device",
+    "actual_MCP_install",
+    "actual_Judgment_Host_install",
+    "runtime_model_binding"
+  ]
+}

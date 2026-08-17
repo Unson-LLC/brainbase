@@ -1,0 +1,63 @@
+{
+  "persona_id": "P-105-G0",
+  "round": "round-01",
+  "persona": {
+    "type": "first_time_individual",
+    "experience": "experienced",
+    "technical_level": "high",
+    "time_pressure": "high",
+    "mode": "focused_speed_first",
+    "interaction": ["voice", "keyboard"],
+    "assistive_technology_viewpoint": "screen_reader"
+  },
+  "target": "http://127.0.0.1:4176/",
+  "evaluation_timestamp": "2026-08-17",
+  "actions": [
+    {"step": 1, "action": "トップをキーボード中心で確認し、Brainbaseの価値を一文で説明", "evidence": "トップ本文に『AIに二度と説明したくない文脈』をローカルSSOTに置き、Codex/Claude Codeへ渡すとある。導入の流れを見るリンクは到達可能。", "result": "pass"},
+    {"step": 2, "action": "導入の5フェーズから最初の依頼文・前提・コマンドを探索", "evidence": "/guide/getting-started に Node.js 20以上、npm、AIエージェント、ローカルcheckout、git clone/npm install/npm run build、依頼文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex が記載。", "result": "pass_with_friction"},
+    {"step": 3, "action": "MCPとJudgment Hostの登録順序と成功確認を探索", "evidence": "/guide/mcp-install は最初の価値確認後にMCPを登録し、MCP動作確認後にJudgment Hostへ進む順序を明記。MCPは新規セッションでサーバー・tool群・onboarding_status・get_context・searchを確認。Judgment Hostは3 Hook、doctor status ready、2つの新規task入力、実tool呼出し対応の📚表示を確認。", "result": "pass_with_friction"},
+    {"step": 4, "action": "既存設定を壊さず問題時に戻れる導線を探索", "evidence": "MCPは--dry-run、/tmpへの別出力、既存設定へ自動マージせず既存設定を消さないと明記。Judgment Hostも--dry-run、未作成出力先、既存Hookを残し自動マージ/上書きしない。失敗時はbuild/doctor/絶対パス/再起動/新規セッションを確認。journal破損や不完全Stopは暗黙置換せず非0終了。", "result": "pass"}
+  ],
+  "task_outcomes": {
+    "value_sentence": {"status": "pass", "finding": "AIに毎回説明する自分・仕事・関係性・決定事項をローカルSSOTに置き、MCP経由でCodex/Claude Codeが参照して説明のやり直しを減らす仕組み、と要約できる。"},
+    "prerequisites_first_prompt_start_command": {"status": "pass_with_friction", "finding": "必要条件、最初の一言、Codex向け開始コマンドはgetting-startedに揃う。ただしトップから導入5フェーズ→フェーズ1へ移動する必要があり、速度優先では探索コストがある。"},
+    "codex_mcp_judgment_order_success": {"status": "pass_with_friction", "finding": "MCPの動作確認後に任意のJudgment Hostを登録する順序と、各々の成功確認は明確。MCP installページとJudgment auditページを横断する必要がある。"},
+    "avoid_overwrite_recover": {"status": "pass", "finding": "dry-run、別出力、非自動マージ、既存Hook保持、doctor、journalの不完全扱い、非0終了まで明記され安全境界が強い。"}
+  },
+  "hard_gates": {
+    "unfinished_reported_as_success": "pass",
+    "current_location_or_next_action": "pass_with_friction",
+    "overwrite_risk": "pass",
+    "recovery_after_failure": "pass",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_technology_access": "not_collected"
+  },
+  "exact_evidence_findings": [
+    {"page": "/guide/onboarding-process", "quote": "ready: true や設定ファイルの生成だけを、導入完了とは扱いません。"},
+    {"page": "/guide/getting-started", "quote": "Brainbaseのオンボーディングを始めたいです。"},
+    {"page": "/guide/getting-started", "quote": "npm run onboard:start -- --target codex"},
+    {"page": "/guide/mcp-install", "quote": "onboard:install は既存のMCP設定へ自動マージしません。既存のMCP設定は消さないでください。"},
+    {"page": "/guide/mcp-install", "quote": "MCPの動作確認後にJudgment Hostを登録"},
+    {"page": "/guide/judgment-audit", "quote": "UserPromptSubmit、PostToolUse、Stop の3つを登録"},
+    {"page": "/guide/judgment-audit", "quote": "judgment_hooks.status が ready、events が UserPromptSubmit、PostToolUse、Stop"},
+    {"page": "/reference/mcp-tools", "quote": "取得不能、権限待ち、error、未確認は空の結果やreadyとして扱いません。"}
+  ],
+  "recovery": {
+    "status": "documented",
+    "steps": ["dry-runで確認", "未作成の/tmp出力先へ保存", "既存設定を残してBrainbase項目だけを人が統合", "npm run build / npm run doctorまたはbrainbase doctor", "設定反映後に再起動し新規セッションで再確認", "不完全なjournal/Stopは暗黙置換せず修復または非0終了"]
+  },
+  "synthetic_browser_evaluation": {
+    "status": "completed",
+    "browser": "Playwright Chromium visible, viewport 1440x900",
+    "observed": "トップ、導入5フェーズ、getting-started、mcp-install、judgment-audit、mcp-toolsを実ブラウザで表示確認。トップの指定スクリーンショットを取得。",
+    "friction": ["初回に必要な情報が複数ページへ分散", "音声/スクリーンリーダー実操作は未検証"],
+    "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-105-G0.png"
+  },
+  "real_device_evidence": "not_collected",
+  "human_observation": "not_collected",
+  "requested_luna_binding": {
+    "decision": "human_decision",
+    "request": "P-105向けに、トップまたは導入5フェーズから『フェーズ1→MCP→Judgment Host』の短い導線と成功確認を束ねるか、現行の分割ページを維持するかをLunaに判断依頼。音声/スクリーンリーダー実機確認もbinding対象。",
+    "recommendation": "adopt"
+  }
+}

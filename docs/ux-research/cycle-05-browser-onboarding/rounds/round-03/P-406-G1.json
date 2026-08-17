@@ -1,0 +1,51 @@
+{
+  "evaluation_type": "cycle-05-round-03-independent-browser-evaluation",
+  "persona_id": "P-406-G1",
+  "round": "round-03",
+  "persona": {
+    "role": "recovery_user",
+    "cohort": "rotation",
+    "domain_experience": "intermediate",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "confirmation_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {
+    "engine": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1280x720",
+    "reduced_motion": true,
+    "status": 200,
+    "title": "Brainbase"
+  },
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップの価値文、10分で試す導線、実用場面から始める説明を可視ブラウザで確認。"},
+    {"action": "start_from_quick_start", "url": "http://127.0.0.1:4176/guide/quick-start", "result": "現在地メモ、準備、開始文、MCP登録、Judgment Host、中断復帰、設定復旧を同一チェックリストで確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "導入の5フェーズ、先にプロジェクトと関係者を整理する順序、承認なしに正本を書き換えない原則を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/reference/mcp-tools", "result": "MCP toolの役割、Connected-world onboardingのstart/get/ingest/review/first-value順序、waiting/error/未確認を成功扱いしない契約を確認。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-406-G1.png"}
+  ],
+  "tasks": {
+    "value_sentence": {"status": "clear_success", "finding": "Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude CodeへMCP経由で渡すPersonal Onboarding Kitだと説明できる。", "evidence": ["/:『自分の仕事文脈をAIに渡すためのMCPマニュアル』", "/:『AIに二度と説明したくない文脈』", "/:『AIの判断根拠を毎回確認できる』"]},
+    "prerequisites_first_prompt_start_command": {"status": "success_with_friction", "finding": "Node.js 20以上、npm、CodexでBrainbaseを開くこと、build、現実の依頼とプロジェクト、開始文、npm run onboard:start -- --target codexを確認できる。トップから10分ページへ一度遷移する必要がある。", "evidence": ["/guide/quick-start: Node.js 20以上、npm、Codex、npm run build", "/guide/quick-start: 開始文とnpm run onboard:start -- --target codex"]},
+    "mcp_judgment_order_success_checks": {"status": "success_with_friction", "finding": "dry-runとバックアップ後にMCPを登録し、新taskでget_context/search/onboarding_statusの実結果を確認してから任意のJudgment Hostへ進む順序が明示される。Connected-world onboardingの詳細なreceipt確認はMCPリファレンスへ分かれている。", "evidence": ["/guide/quick-start: MCP確認後にJudgment Hostへ進む", "/guide/quick-start: UserPromptSubmit/PostToolUse/Stop、doctor、新task", "/reference/mcp-tools: onboarding start/get/ingest/review/first-valueと未確認を成功扱いしない"]},
+    "avoid_overwrite_and_recover": {"status": "clear_success", "finding": "dry-run、config/hooksバックアップ、既存項目を残してBrainbase項目だけ追加、判断不能時は上書きしない、build→doctor→onboard:demo→新taskで復帰する手順を確認できる。", "evidence": ["/guide/quick-start: ~/.codex/config.toml.before-brainbaseへcp -n", "/guide/quick-start: ~/.codex/hooks.json.before-brainbaseへcp -n", "/guide/quick-start: 中断時と設定復旧の手順"]}
+  },
+  "hard_gates": {"no_product_edits": "pass", "existing_config_not_overwritten": "pass", "unfinished_or_waiting_not_success": "pass", "human_confirmation_before_canonical_write": "pass", "keyboard_or_assistive_technology": "not_collected", "real_device": "not_collected"},
+  "findings": {
+    "new_actionable": [{"id": "P406G1-F2", "severity": "medium", "title": "現在地メモが画面を閉じると消える", "evidence": "/guide/quick-start:『このページのチェックは画面を閉じると保存されません』。完了済み・次にやること・未確認・最後に確認した実結果を手元へコピーする必要がある。", "recommendation": "チェック状態または現在地メモをローカル保存し、保存できない場合はページ上で明確に再提示する。"}],
+    "regression": []
+  },
+  "recovery": {"status": "documented", "observed": "中断時は設定を追加し直さず、build、doctor、onboard:demo、新taskでMCPのget_context/searchを確認し、最初に通らない項目だけを直す。設定復旧時は現在ファイルを別名保存してから確認済みバックアップを戻す。", "gap": "実エージェント設定反映後の自動ロールバック、実機、VoiceOver、音声入力はnot_collected。"},
+  "actual_ui_browser_evidence": true,
+  "real_device_evidence": "not_collected",
+  "human_evidence": "not_collected",
+  "requested_model": "not_collected",
+  "model_binding": "not_collected",
+  "evidence_kind": "actual_ui_browser_evaluation",
+  "confidence": "medium"
+}

@@ -1,0 +1,46 @@
+{
+  "persona_id": "P-406-G0",
+  "round": "round-01",
+  "persona": {
+    "type": "recovery_first_operator",
+    "experience": "new_user",
+    "technical_literacy": "low",
+    "time_pressure": "low",
+    "interruption_state": "frequent_interruptions",
+    "confirmation_preference": "minimal_confirmation",
+    "interaction": "keyboard",
+    "assistive_technology_viewpoint": "none"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {"engine": "Playwright Chromium", "headless": false, "viewport": "1440x900", "status": 200, "title": "Brainbase"},
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "価値文、実用場面、仕事文脈をAIへ渡す位置づけを確認。トップから導入の流れへ進める。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "5フェーズの順序、長い手順を覚えず開始できる一言、readyだけでは完了でないことを確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/project-context", "result": "自分・プロジェクト・関係者・関係性・用語・判断基準・決定事項を確認し、承認前は書き込まない流れを確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/first-value", "result": "実依頼を先に試し、説明し直さず役立つ回答・不明点の区別を完了条件として確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "MCP dry-run、別出力、既存設定を消さない境界、新セッションでのtool確認、build/doctorの復旧順序を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "Judgment Hostの3 Hook、🧠📚⚠️の意味、実tool呼び出しと権限承認を分離する説明を確認。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-406-G0.png"}
+  ],
+  "task_outcomes": {
+    "explain_value": {"status": "pass_with_friction", "finding": "トップの『自分の仕事文脈をAIに渡すためのMCPマニュアル』と、説明を繰り返さずに済む価値は理解できる。ただしMCP、ローカルSSOT、Personal Onboarding Kitは低技術者には補足が必要。"},
+    "prerequisites_first_prompt_start_command": {"status": "pass_with_friction", "finding": "導入ページに開始文があり、Node.js/npm/local checkoutと npm run onboard:start -- --target codex が確認できる。一方、前提環境とCLIを自力で判別する必要があり、中断後の再開地点も自動では示されない。"},
+    "codex_mcp_judgment_host_order_success_checks": {"status": "pass_with_friction", "finding": "実価値→MCP→新セッション確認→任意のJudgment Hostという順序、readyだけで完了にしない条件、実tool/監査行を確認できる。複数ページを行き来するため、速度優先の利用者には再構成負荷がある。"},
+    "avoid_config_overwrite_recover": {"status": "pass", "finding": "dry-run、未作成の別出力、既存設定を消さないこと、build→doctor→絶対パス→再起動→新セッションの復旧順序が明記され、誤操作から戻る判断材料はある。"}
+  },
+  "hard_gates": {"unfinished_as_success": "pass", "current_or_next_action": "pass_with_friction", "overwrite_risk": "pass", "recovery_path": "pass", "human_confirmation_handoff": "pass", "keyboard_or_assistive_reachability": "pass", "no_product_edits": true, "notes": "実ブラウザはvisible Playwright Chromium。キーボード利用を前提にページ遷移と本文表示を確認。実CLI、Codex接続、実MCP呼び出し、Hookイベントはnot_collected。"},
+  "exact_evidence_findings": ["トップ見出し: 『自分の仕事文脈をAIに渡すためのMCPマニュアル』。", "導入ページに開始文『Brainbaseのオンボーディングを始めたいです。』と5フェーズの順序がある。", "最初の価値の完了条件は実依頼、説明のやり直し減少、正本と不明点の区別であり、readyやdry-runだけではない。", "MCPページはdry-run、/tmp等の別出力、既存設定を消さない、新セッション確認、build/doctorを明示。", "JudgmentページはUserPromptSubmit/PostToolUse/Stopと🧠📚⚠️を説明し、監査表示は権限・送信・公開・デプロイの許可を証明しないと明記。", "6ページすべてHTTP 200、タイトルはBrainbase系ページとして取得。"],
+  "findings": [
+    {"id": "P406-F1", "severity": "medium", "type": "friction", "finding": "低技術・頻繁な中断・速度優先の利用者は、開始文から実行CLI、価値確認、MCP、Judgment Hostまでを複数ページで再構成する必要がある。中断後に『今どこか／次は何か』を一画面で復帰できない。", "evidence": "/guide/onboarding-process、/guide/project-context、/guide/first-value、/guide/mcp-install、/guide/judgment-audit"},
+    {"id": "P406-F2", "severity": "medium", "type": "clarity", "finding": "Node.js、npm、local checkout、MCP、dry-run、絶対パスなどの前提語が低技術者の最初の一歩に混在する。開始文は平易だが、その後のコマンド実行の意味を短く翻訳する補助が不足。", "evidence": "/guide/onboarding-process、/guide/mcp-install"},
+    {"id": "P406-F3", "severity": "low", "type": "recovery", "finding": "設定を壊さない境界と復旧順序は明確だが、途中状態を保存して再開するチェックポイント、完了済みフェーズの表示、設定反映済みのロールバックはブラウザ上で確認できない。", "evidence": "/guide/mcp-install、/guide/onboarding-process"},
+    {"id": "P406-F4", "severity": "low", "type": "evidence_gap", "finding": "キーボードでのページ到達と本文確認は取得したが、実キーボード操作の全フォーカス順、実CLI、実Codex task、実MCP/Hookイベントはnot_collected。", "evidence": "visible Playwright Chromiumのページ遷移・本文取得のみ"}
+  ],
+  "recovery": {"status": "documented", "steps": ["最後に確認したフェーズへ戻る", "MCPはdry-runから再開", "未作成の別出力を使う", "npm run build", "npm run doctor", "~/.brainbase/personal-os/の存在確認", "絶対パスと新セッションを確認"], "gap": "ブラウザ上の中断再開チェックポイントと設定反映済みの自動ロールバックはnot_collected"},
+  "synthetic_browser_evaluation": {"status": "completed", "summary": "価値、開始条件、実依頼の完了条件、MCP/Judgment Hostの順序、安全境界、復旧は確認できた。低技術・頻繁な中断・速度優先の利用者には、ページ横断とCLI語彙が主な摩擦で、回復可能性は文書上は担保されるが再開導線は弱い。"},
+  "real_device_evidence": "not_collected",
+  "requested_luna": true,
+  "model_requested": "gpt-5.6-luna",
+  "binding": "not_collected",
+  "model_binding": "not_collected"
+}

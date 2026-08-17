@@ -1,0 +1,31 @@
+{
+  "persona_id": "P-203-G0",
+  "gate_id": "G0",
+  "round": "round-03",
+  "evaluation_type": "cycle-05-round-03-browser-onboarding",
+  "evaluated_head": "0e1e38530e41fa946af6afefdf3c24817b3e7b70",
+  "model_requested": "not_collected",
+  "model_binding": "not_collected",
+  "persona": {"role":"team_operator","domain_experience":"intermediate","technical_literacy":"high","time_pressure":"high","interruption_state":"frequently_interrupted","work_style":"confirmation_first","input_environment":"voice_and_keyboard","accessibility_need":"reduced_motion"},
+  "environment": {"url":"http://127.0.0.1:4176/","browser":"visible Playwright Chromium","viewport":"1440x1000","reduced_motion":"browser prefers-reduced-motion emulation only","screenshot":"docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-203-G0.png","actual_ui_browser_evidence":true,"human_evidence":"not_collected","real_device_evidence":"not_collected"},
+  "tasks": {
+    "value_sentence":{"status":"clear_success","evidence":"トップで『自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照できるPersonal Onboarding Kit』と説明され、10分で試す導線を確認した。"},
+    "prerequisites_first_prompt_start_command":{"status":"clear_success","evidence":"10分で試すページでNode.js 20以上、npm、Codexでcheckoutを開く、npm run build、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを確認した。"},
+    "codex_mcp_judgment_host_order_and_success_checks":{"status":"clear_success","evidence":"MCPのdry-run・実結果確認を先に行い、その後に任意のJudgment Hostへ進む順序を確認した。MCPのget_context/search/onboarding_status、Hostの3 Hook・doctor・新task監査行の確認条件も表示された。"},
+    "avoid_overwrite_and_recover":{"status":"success_with_friction","evidence":"config.toml/hooks.jsonの別名バックアップ、dry-run、既存設定を自動マージ・消去しない境界、失敗時のbuild→doctor→再起動→新task→バックアップ比較・復元手順を確認した。安全性は明確だが、時間圧・中断時には本文を再読する負荷が残る。"}
+  },
+  "action_trace":[{"step":1,"action":"トップを表示","result":"価値文と10分で試すCTAを確認"},{"step":2,"action":"10分で試すをクリック","result":"/guide/quick-startへ遷移し、現在地メモと5段階チェックリストを確認"},{"step":3,"action":"本文を上から確認","result":"前提・開始文・コマンド・MCP→Judgment Host順序・成功条件・復旧案内を確認"}],
+  "hard_gates": {
+    "未完了を成功と表示する":{"status":"pass","evidence":"ready: trueや設定生成だけでは完了でなく、実依頼の有用な出力・実tool呼び出し・error/空/未確認の区別を要求している。"},
+    "現在地または次の操作が分からない":{"status":"pass","evidence":"quick-start冒頭に現在地メモ（完了済み／次にやること／未確認／最後に確認した実結果）があり、5段階と中断復帰順が表示される。"},
+    "既存設定を破壊する可能性がある":{"status":"pass","evidence":"dry-run、config.toml/hooks.jsonのバックアップ、別出力、既存MCP/Hookを残す指示がある。"},
+    "失敗後の復旧手段がない":{"status":"pass","evidence":"build、doctor、正本存在、絶対パス、再起動、新task、バックアップ比較・復元の手順がある。"},
+    "AIから人への確認・引き継ぎがない":{"status":"pass","evidence":"生成設定は未登録で、人が承認後にBrainbase項目だけ統合する境界を明記している。"},
+    "主要操作がキーボードまたは支援技術から到達不能":{"status":"not_collected","evidence":"Skip to contentとテキストリンクはブラウザで確認したが、VoiceOver・音声入力・実端末は未取得。"}
+  },
+  "new_actionable_findings":[{"title":"中断復帰時の要約をさらに短くする","severity":"medium","proposal":"現在地メモの3行を固定表示し、完了済み／次の一手／未確認だけを先に読めるようにする。","decision":"defer","reason":"現状でも再開情報は存在し、今回の安全ゲートは通過。"},{"title":"404リソースの原因を特定する","severity":"medium","proposal":"トップ初回表示の404対象URLを特定し、不要なら除去、必要なら静的アセットを復旧する。","decision":"adopt","reason":"Round 2から再現したブラウザ回帰候補。"}],
+  "regressions":[{"title":"トップ初回ロードの404 console errorが継続","status":"observed_again","evidence":"トップ表示時に『Failed to load resource: the server responded with a status of 404 (Not Found)』を1件観測。対象URLはこの評価では未特定。"}],
+  "uncollected":["VoiceOver・音声入力・実端末","実MCP呼び出しとJudgment Host receipt","404対象URLの特定"],
+  "overall":"確認優先・高技術のチーム運用者は、トップから10分チェックリストへ進み、価値、開始条件、MCP→Judgment Hostの順序、成功確認、上書き回避、復旧を実ブラウザで確認できた。現在地メモはRound 2同様に有効だが、短い再開要約と404回帰は残る。",
+  "confidence":"high"
+}

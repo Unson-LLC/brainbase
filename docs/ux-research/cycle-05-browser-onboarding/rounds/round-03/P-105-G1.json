@@ -1,0 +1,100 @@
+{
+  "persona_id": "P-105-G1",
+  "round": "round-03",
+  "role": "first_time_individual",
+  "cohort": "rotation",
+  "task_set_id": "first_time_individual-core",
+  "evaluated_head": "0e1e38530",
+  "fixture": "local VitePress preview at 127.0.0.1:4176",
+  "site": "http://127.0.0.1:4176/",
+  "persona_attributes": {
+    "domain_experience": "new",
+    "technical_literacy": "low",
+    "time_pressure": "low",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "confirmation_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "browser": {
+    "engine": "visible Playwright Chromium (Google Chrome executable)",
+    "headless": false,
+    "viewport": "1440x1000",
+    "title": "Brainbase",
+    "top_status": 200,
+    "screenshot": "screenshots/round-03/P-105-G1.png"
+  },
+  "actions": [
+    "トップを開き、価値説明と『10分で試す』を可視確認",
+    "『10分で試す』をクリックし、/guide/quick-startへ遷移",
+    "現在地メモ、準備、開始依頼文・開始コマンド、最初の価値の条件を確認",
+    "MCP確認後にJudgment Hostへ進む順序、dry-run、バックアップ、非上書き、復旧手順を確認",
+    "チェックボックスが実装されていないことと、ブラウザコンソールの404を記録"
+  ],
+  "tasks": {
+    "value_sentence": {
+      "status": "clear_success",
+      "reason": "トップに『自分の仕事文脈をAIに渡すためのMCPマニュアル』、ローカルSSOT、Codex/Claude Codeへ渡すPersonal Onboarding Kitの説明があり、AIへ前提を繰り返し説明しない価値を把握できた。",
+      "evidence": ["/: 価値説明3ブロック", "/:『AIに二度と説明したくない文脈』"]
+    },
+    "prerequisites_first_request_start_command": {
+      "status": "success_with_friction",
+      "reason": "quick-startでNode.js 20以上、npm、Codex、build、最初の依頼文、npm run onboard:start -- --target codex、現実の依頼と対象プロジェクトを確認できた。CTAから別ページへの遷移が必要で、初心者には一画面で完結しない。",
+      "evidence": ["/guide/quick-start: 1. 準備する", "/guide/quick-start: 開始依頼文と開始コマンド"]
+    },
+    "mcp_then_judgment_host_order_and_success": {
+      "status": "success_with_friction",
+      "reason": "MCPのget_context/search/onboarding_statusを実結果で確認してからJudgment Hostへ進み、3 Hookと監査行を確認する順序が明記されている。ただし成功条件がページ内の複数セクションと別ガイドに分散し、手動で統合する必要がある。",
+      "evidence": ["/guide/quick-start: MCP確認後にJudgment Host", "/guide/quick-start: 3 Hookと監査行", "/guide/quick-start: error・空結果・未確認を成功扱いしない"]
+    },
+    "avoid_overwrite_and_interruption_recovery": {
+      "status": "success_with_friction",
+      "reason": "dry-run、設定バックアップ、既存設定を自動マージしないこと、既存Hookを残すこと、build→doctor→onboard:demo→MCP確認の復旧順を確認できた。現在地メモは表示されるが、画面上のチェックボックスは0個で、進捗保存・自動復元は実行できない。",
+      "evidence": ["/guide/quick-start: 現在地メモ", "/guide/quick-start: dry-runとバックアップ", "/guide/quick-start: 5. 中断したらここから再開", "可視ブラウザ: input[type=checkbox] count=0"]
+    }
+  },
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "real_device": "not_collected",
+    "no_product_edits": "pass",
+    "requested_model": "not_collected",
+    "model_binding": "not_collected"
+  },
+  "workflow_reachability": {
+    "required_rows": 2,
+    "passed_rows": 2,
+    "failed_rows": 0,
+    "unexecuted_rows": 0,
+    "unresolved_dead_ends": 0,
+    "rows": [
+      {"id":"P105-G1-W1","screen":"/","start_state":"landing","primary_action":"10分で試す","enabled":true,"result":"pass","actual_action":"可視クリック","resulting_state":"/guide/quick-start","workflow_dead_end":false},
+      {"id":"P105-G1-W2","screen":"/guide/quick-start","start_state":"first_visit","primary_action":"中断したらここから再開","enabled":true,"result":"pass","actual_action":"ページ内アンカー確認","resulting_state":"現在地メモと復旧手順が表示","workflow_dead_end":false}
+    ]
+  },
+  "findings": {
+    "new_actionable": [
+      {"id":"P105-G1-F1","severity":"medium","title":"現在地メモが表示専用で進捗保存できない","evidence":"現在地メモは完了済み・次にやること・未確認・実結果の記入例を示すが、可視ブラウザでcheckbox要素は0個。画面を閉じると保存されない説明とも一致する。","action":"チェック状態、現在フェーズ、未確認項目を保存し、再訪時に次の一手を先頭表示する。"},
+      {"id":"P105-G1-F2","severity":"medium","title":"初回成功条件がページ横断で再構成を要する","evidence":"準備・MCP・Judgment Host・参照ガイドに成功条件が分かれ、低技術の初回利用者がMCP→Host順序と実結果条件を手動で統合する。","action":"10分ページに順序、成功条件、失敗時の戻り先を一つの進行表として集約する。"}
+    ],
+    "regressions": []
+  },
+  "browser_evidence": {
+    "console_errors": ["Failed to load resource: the server responded with a status of 404 (Not Found)"],
+    "console_error_count": 1,
+    "note": "トップからquick-startへの主要導線は継続できた。404の対象リソースと原因は未確認。"
+  },
+  "synthetic_browser_evaluation": {
+    "status": "completed",
+    "summary": "固定4タスクを可視Playwrightで実行し、価値、準備・開始、MCP→Judgment Host順序、非上書き・復旧を確認した。主要導線は完了可能だが、現在地メモが保存されず、成功条件の情報集約に摩擦が残る。"
+  },
+  "real_device_evidence": "not_collected",
+  "human_review": "not_collected",
+  "requested_model": "not_collected",
+  "model_binding": "not_collected",
+  "confidence": "medium"
+}

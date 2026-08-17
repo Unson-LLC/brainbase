@@ -1,0 +1,90 @@
+{
+  "persona_id": "P-306-G1",
+  "model_condition": "実ブラウザ評価。新規ローテーションのOntology steward（中規模チームの情報設計担当）、技術理解は中程度、確認優先、低い心理的圧力、キーボード中心。実機スクリーンリーダーは未取得。",
+  "url": "http://127.0.0.1:4176/",
+  "evaluated_revision": "codex/oss-persona-ux-cycle-05",
+  "evidence_reviewed": [
+    "実ブラウザ表示のトップ、/guide/onboarding-process、/guide/getting-started、/reference/mcp-tools、/guide/mcp-install、/guide/judgment-audit、/guide/operations",
+    "トップを起点に10分で試す導線、導入5フェーズ、MCP→Judgment Hostの順序と成功確認、dry-run/別出力先/中断案内を確認",
+    "スクリーンショット: screenshots/round-02/P-306-G1.png",
+    "ブラウザコンソール: Failed to load resource: the server responded with a status of 404 (Not Found)（複数ページで発生）"
+  ],
+  "actions": [
+    "トップの『10分で試す』を起点に価値説明、導入の位置づけ、『中断したらここから再開』の案内を確認",
+    "導入5フェーズと準備ページで前提、最初の依頼文、npm run onboard:start -- --target codex、フェーズ完了条件を確認",
+    "MCPリファレンス、MCP登録、Judgment Host登録、運用ページを順に閲覧し、MCPを先に実動作確認してからJudgment Hostを登録する順序と、実tool呼び出し/3 Hook/監査行の成功条件を確認",
+    "dry-run、/tmpへの別出力、既存設定へ自動マージしない境界、doctor、新しいセッション、未完了を成功にしない監査境界、中断復帰案内を確認。設定変更や送信は実行しない"
+  ],
+  "tasks": {
+    "value_sentence": {
+      "outcome": "pass",
+      "reason": "トップの見出しと説明から、Brainbaseは自分・仕事・関係性の文脈をローカルSSOTとして育て、MCP経由でCodex/Claude Codeへ渡すPersonal Onboarding Kitだと一文で説明できた。『人が確認してから記録する』がOntology stewardの承認境界にも直結する。",
+      "evidence": ["/:『自分の仕事文脈をAIに渡すためのMCPマニュアル』", "/:『10分で試す』と『途中で中断しても、同じページの「中断したらここから再開」から現在地を確認』", "/guide/grand-design相当のトップ説明: ローカル正本、プロジェクト中心、人の確認"]
+    },
+    "start_info_and_first_command": {
+      "outcome": "success_with_friction",
+      "reason": "準備ページにNode.js 20以上、npm、ローカルcheckout、build、最初の依頼文、onboard:start、勝手に正本へ書かない境界、完了条件が揃う。トップの10分導線と中断案内でRound 1の『入口から再開地点が分散』は軽減したが、コマンドと完了条件をトップ一画面だけで完結はできない。",
+      "evidence": ["/guide/getting-started: Node.js 20以上、npm、checkout、npm install、npm run build", "/guide/getting-started: 『Brainbaseのオンボーディングを始めたいです。』", "/guide/getting-started: npm run onboard:start -- --target codex", "/guide/onboarding-process: 各フェーズの次へ進む目安"]
+    },
+    "mcp_to_judgment_host_and_checks": {
+      "outcome": "success_with_friction",
+      "reason": "MCPツールページはConnected-world onboardingの順序と、get_context/list_entities/search/search_personal_kg/onboarding_status、未確認を空/ready扱いしない境界を示す。MCP登録ページは先にdry-runと新しいセッションで確認し、Judgment Hostページは3 Hook、実tool呼び出し、返答先頭の🧠/📚/⚠️行、doctorによる成功確認を示す。順序は明確になったが、最短のチェックリストと詳細ページは分かれている。",
+      "evidence": ["/reference/mcp-tools: Connected-world onboardingの5 tool順序と未確認境界", "/guide/mcp-install: dry-run、別出力先、新しいセッション確認、Judgment Hostは別登録", "/guide/judgment-audit: UserPromptSubmit→PostToolUse→Stop、実tool呼び出しと監査行", "/guide/operations: 生成だけでは完了にしない"]
+    },
+    "no_overwrite_and_recovery": {
+      "outcome": "documented_not_browser_executed",
+      "reason": "dry-run、/tmpへの別出力、既存MCP設定へ自動マージしないこと、既存Hook保持、doctor、新しいセッション、監査不完全を成功にしない境界を確認できた。トップとMCPページに中断後の再開案内はあるが、実ファイル変更・中断・復帰状態はブラウザ評価では実行していないため、状態再表示は未確認。",
+      "evidence": ["/guide/mcp-install: npm run onboard:install -- --target codex --dry-run、--output /tmp/brainbase-mcp.toml、自動マージなし", "/guide/judgment-audit: 既存ファイルを上書きせず、doctorと新しいtaskで確認", "/:『中断したらここから再開』", "/reference/mcp-tools: 候補は人がapprove/edit/rejectしてから正本へ"]
+    }
+  },
+  "hard_gates": {
+    "no_product_edits": true,
+    "existing_config_not_overwritten": "documented_safe_boundary_not_executed",
+    "unverified_or_waiting_not_success": "documented",
+    "interrupted_resume_browser_verified": false,
+    "real_device": "not_collected",
+    "human_observation": "not_collected",
+    "model_binding": "not_collected"
+  },
+  "findings": [
+    {
+      "severity": "high",
+      "title": "10分導線で再開位置は見つけやすくなったが、完了判定までの確認表は詳細ページに分散する",
+      "type": "new_finding",
+      "decision": "defer",
+      "evidence": "トップは10分で試す導線と中断後の再開案内を示す一方、最初のコマンド、MCPの実tool確認、Judgment Hostの3 Hook/doctor、運用完了条件は複数ページを横断して統合する必要がある。"
+    },
+    {
+      "severity": "medium",
+      "title": "確認優先のキーボード利用では、導入CTA到達前に検索・補助要素・外部リンクを通過する",
+      "type": "regression_check",
+      "decision": "defer",
+      "evidence": "トップの表示順はSkip to content、ロゴ、検索、主要ナビゲーション、GitHub、複数CTAの順。Skip linkは到達可能だが、開始CTAへ最短ではない。Round 1から解消していない。"
+    },
+    {
+      "severity": "low",
+      "title": "ページロード時の404コンソールエラー",
+      "type": "regression",
+      "decision": "defer",
+      "evidence": "実ブラウザで複数ページを閲覧した際にFailed to load resource: 404を記録。画面操作は継続できたが、原因と利用者影響は未確認。"
+    }
+  ],
+  "regressions": [
+    {"title": "Round 1既知の404コンソールエラーが継続", "status": "observed", "severity": "low"},
+    {"title": "Round 1のキーボード導入CTAまでの余分なフォーカス移動が継続", "status": "observed", "severity": "medium"}
+  ],
+  "recovery": {
+    "status": "partial",
+    "observed": "トップの中断後再開案内、dry-run、別出力先、自動マージなし、既存Hook保持、doctor、新しいセッション、監査不完全を成功にしない境界を確認。",
+    "missing": "実際に中断して再訪し、完了済み/未確認/次の操作が同じ画面または一つのコマンドで復元されることは未取得。"
+  },
+  "synthetic_browser_evaluation": {
+    "status": "completed",
+    "summary": "新規ローテーションの確認優先Ontology stewardとして、トップの価値と10分導線、導入前提・依頼文・開始コマンド、MCP→Judgment Host順序と成功確認、安全な非上書き境界を実ブラウザで確認した。Round 1より再開案内は改善しているが、詳細な完了確認はページ横断が必要。"
+  },
+  "real_device_evidence": "not_collected",
+  "human_observation": "not_collected",
+  "requested_luna": true,
+  "binding": "not_collected",
+  "confidence": "medium"
+}

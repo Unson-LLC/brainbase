@@ -1,0 +1,117 @@
+{
+  "persona_id": "P-203-G0",
+  "gate_id": "G0",
+  "round": "round-01",
+  "evaluation_type": "cycle-05-round-01-browser-onboarding",
+  "model_requested": "Codex GPT-5",
+  "model_binding": "assigned Codex agent; browser-run model binding not configurable",
+  "persona": {
+    "type": "team operator",
+    "experience": "intermediate",
+    "technical_level": "high",
+    "time_pressure": "high",
+    "mode": "frequently interrupted",
+    "confirmation_preference": "confirmation-first",
+    "input": "voice+keyboard",
+    "reduced_motion_viewpoint": true
+  },
+  "environment": {
+    "url": "http://127.0.0.1:4176/",
+    "browser": "visible Playwright Chromium",
+    "viewport": "1440x1000",
+    "reduced_motion": "viewpoint only; no real-device evidence",
+    "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-203-G0.png"
+  },
+  "actions": [
+    {
+      "step": 1,
+      "action": "トップで価値とチーム導入の導線を確認",
+      "outcome": "Brainbaseが自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照できるPersonal Onboarding Kitであると一文で説明できた。導入の流れ、全体像、MCPツールへのリンクを確認した。"
+    },
+    {
+      "step": 2,
+      "action": "導入5フェーズとフェーズ1の開始条件を確認",
+      "outcome": "準備→仕事の前提→最初の価値→必要な情報源→運用開始の順序、Node.js 20以上・npm・対応エージェント・ローカルcheckout、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを確認した。"
+    },
+    {
+      "step": 3,
+      "action": "MCP登録後にJudgment Hostを登録し、成功確認を確認",
+      "outcome": "MCPを先にdry-run・別出力・新セッションで検証し、動作確認後にJudgment HostのUserPromptSubmit→PostToolUse→Stopを登録する順序を確認した。doctorのready、3 Hook、監査行、実tool呼び出しによる確認方法も確認した。"
+    },
+    {
+      "step": 4,
+      "action": "既存設定の上書き回避と失敗時の復旧案内を確認",
+      "outcome": "既存MCP設定やHookを自動マージ・消去せず、未作成の別出力へ保存して人が承認後に統合する案内を確認した。build、doctor、personal-os、絶対パス、再起動、新セッションの復旧順も確認した。"
+    }
+  ],
+  "task_outcomes": {
+    "value_sentence": "pass",
+    "prerequisites_first_prompt_start_command": "pass",
+    "codex_mcp_judgment_host_order_and_success_checks": "pass",
+    "avoid_overwrite_and_recover": "pass_with_caveat"
+  },
+  "hard_gates": [
+    {
+      "gate": "未完了を成功と表示する",
+      "status": "pass",
+      "evidence": "監査行は実tool呼び出し、参照不要の0回、空結果やerrorを区別し、未確認を成功扱いしない。"
+    },
+    {
+      "gate": "現在地または次の操作が分からない",
+      "status": "pass",
+      "evidence": "5フェーズの順序、フェーズ完了条件、MCP動作確認後にJudgment Hostへ進む導線、Pagerの前後リンクがある。"
+    },
+    {
+      "gate": "既存設定を破壊する可能性がある",
+      "status": "pass",
+      "evidence": "dry-run、別出力、絶対パス、既存設定へ自動マージしないこと、既存Hookを残すことが明記されている。"
+    },
+    {
+      "gate": "失敗後の復旧手段がない",
+      "status": "pass",
+      "evidence": "build/doctor/personal-os/絶対パス/再起動/新セッションの確認順と、journal破損・対応episodeなしStop・修復失敗の扱いがある。"
+    },
+    {
+      "gate": "AIから人への確認・引き継ぎがない",
+      "status": "pass",
+      "evidence": "設定断片を人が確認・承認して既存設定へ統合する手順があり、ファイル書き込みや公開の許可とは分離されている。"
+    },
+    {
+      "gate": "主要操作がキーボードまたは支援技術から到達不能",
+      "status": "pass_synthetic_only",
+      "evidence": "Skip to content、見出し、テキストリンク、検索導線をDOMで確認した。VoiceOver・音声入力・実端末は未確認。"
+    }
+  ],
+  "exact_evidence_findings": [
+    {
+      "source": "synthetic_browser_evaluation",
+      "finding": "http://127.0.0.1:4176/ から /guide/getting-started、/guide/mcp-install、/guide/judgment-audit を可視Playwright Chromiumで表示し、各ページの見出し・本文・導線を確認した。"
+    },
+    {
+      "source": "synthetic_browser_evaluation",
+      "finding": "トップの初回ロード時にconsole error『Failed to load resource: the server responded with a status of 404 (Not Found)』を1件観測した。リクエスト失敗イベントはなく、対象リソースと原因は未特定。"
+    },
+    {
+      "source": "source_inspection",
+      "finding": "MCPのdry-run・別出力・新セッション確認後にJudgment Hostを登録し、3 Hookとdoctor・監査行・実tool呼び出しを確認する順序が本文に明記されている。"
+    }
+  ],
+  "recovery": {
+    "status": "documented",
+    "steps": [
+      "npm run build",
+      "npm run doctor",
+      "~/.brainbase/personal-os/ の存在確認",
+      "MCP設定とHookの絶対パス確認",
+      "エージェント再起動",
+      "新しいセッションで確認"
+    ],
+    "safety": "既存設定とHookを残し、journal異常・対応episodeなしStop・必須参照の0回を成功扱いしない。"
+  },
+  "synthetic_browser_evaluation": {
+    "status": "complete",
+    "verdict": "adopt",
+    "summary": "確認-firstで中断の多いチーム運用者でも、価値、導入条件、開始文とコマンド、MCP→Judgment Hostの順序、成功確認、上書き回避、復旧手順まで短い導線で到達できた。トップの404リソースは原因未確認のため要調査。"
+  },
+  "real_device_evidence": "not_collected"
+}

@@ -1,0 +1,109 @@
+{
+  "persona": {
+    "id": "P-207-G0",
+    "type": "team_operator",
+    "domain": "operations",
+    "technical_level": "low",
+    "time_pressure": "high",
+    "focus": "frequently_interrupted",
+    "priority": "confirmation_first",
+    "input_mode": "voice_and_keyboard",
+    "screen_reader_viewpoint": true
+  },
+  "browser": {
+    "url": "http://127.0.0.1:4176/",
+    "engine": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1440x1000",
+    "observed_pages": [
+      "/",
+      "/guide/onboarding-process",
+      "/guide/getting-started",
+      "/guide/mcp-install",
+      "/guide/judgment-audit",
+      "/guide/operations",
+      "/reference/mcp-tools"
+    ]
+  },
+  "browser_actions": [
+    "Opened the home page in a visible Chromium browser and inspected the skip link, landmarks, headings, primary links, and value statement.",
+    "Followed the onboarding process and getting-started pages to locate prerequisites, the exact first request, start command, and fixed first-value task examples.",
+    "Read MCP registration for dry-run, separate output, restart, new-session checks, and the explicit MCP-before-Judgment Host order.",
+    "Read Judgment Host registration for the UserPromptSubmit -> PostToolUse -> Stop sequence, actual tool evidence, doctor checks, and non-destructive hook integration.",
+    "Cross-checked operations completion criteria and MCP reference boundaries for unconfirmed, empty, or permission-waiting results.",
+    "Captured the home page screenshot at the requested path."
+  ],
+  "task_outcomes": {
+    "explain_value_in_one_sentence_from_home": {
+      "status": "pass",
+      "answer": "Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTに置き、CodexやClaude Codeが必要な時に参照できるようにして、AIへ説明し直す負担を減らすPersonal Onboarding Kitです。",
+      "evidence": "ホームの見出し『自分の仕事文脈をAIに渡すためのMCPマニュアル』と本文『自分・仕事・関係性の文脈をローカルSSOTとして育て…参照しながら作業できる』。"
+    },
+    "find_prerequisites_first_prompt_start_command": {
+      "status": "pass",
+      "answer": "必要なのはNode.js 20以上、npm、MCP対応エージェント、Brainbaseのローカルcheckout。最初の依頼文は『Brainbaseのオンボーディングを始めたいです。』、Codexの開始コマンドは npm run onboard:start -- --target codex。最初の価値は現実の依頼と対象プロジェクトを1つ決めること。",
+      "evidence": "/guide/getting-started の『必要なもの』『AIに開始を依頼する』『最初に役立てたい依頼を決める』。例として面談準備、進行中プロジェクトの次の一手、会議メモの決定事項整理、重要な返信の下書きが提示されている。"
+    },
+    "find_codex_mcp_judgment_host_order_and_success_checks": {
+      "status": "pass_with_friction",
+      "answer": "順序は、最初の価値を決める→MCPをdry-run・別出力で確認して反映→新しいセッションでbrainbaseサーバー、tool、onboarding_status/get_context/searchの実結果を確認→必要ならJudgment Hostを登録。Judgment HostはUserPromptSubmitでepisode開始、PostToolUseで実MCP呼び出し記録、Stopで監査行検査。doctorのreadyと3イベント、別taskの実tool証跡を確認する。",
+      "evidence": "/guide/mcp-install は『最初の価値を確認した後』にMCPを設定し、『MCPの動作確認後にJudgment Hostを登録』と明記。/guide/judgment-audit は3 Hook、実呼び出しの📚行、error/空結果の⚠️境界、doctor検証を記載。/guide/operations は新セッションで onboarding_status/get_context/search を使う確認文を記載。"
+    },
+    "find_avoid_overwrite_and_recover": {
+      "status": "pass_with_friction",
+      "answer": "MCPもJudgment Hostもdry-runと未作成の別出力先を使い、既存設定へ自動マージ・上書きしない。承認後にBrainbase項目だけ手動統合し、他の設定・Hookを残して再起動する。問題時はbuild→doctor→~/.brainbase/personal-os→絶対パス→再起動→新セッションで実結果確認へ戻る。",
+      "evidence": "/guide/mcp-install の /tmp/brainbase-mcp.toml 例、既存MCP設定を消さない指示、/guide/judgment-audit の /tmp/brainbase-judgment-hooks.json 例、既存Hookを残す指示、/guide/operations の生成物だけでは完了にしない基準。"
+    }
+  },
+  "hard_gates": [
+    { "id": "home_value_statement", "status": "passed" },
+    { "id": "prerequisites_and_start_command", "status": "passed" },
+    { "id": "fixed_first_value_task", "status": "passed", "note": "Four concrete task examples and a project-selection completion criterion are visible." },
+    { "id": "mcp_then_judgment_host_order", "status": "passed", "note": "The order is explicit, but the success checklist spans multiple pages." },
+    { "id": "non_destructive_config_recovery", "status": "passed", "note": "Dry-run, separate output, preservation, restart, and recovery checks are documented; manual merge remains a low-technicality risk." },
+    { "id": "unconfirmed_not_success", "status": "passed", "note": "Reference and operations pages distinguish actual results from empty, permission-waiting, error, or generated-only states." }
+  ],
+  "findings": [
+    {
+      "id": "P207-F1",
+      "severity": "medium",
+      "type": "friction",
+      "finding": "A confirmation-first operator must reconstruct one end-to-end checklist from onboarding-process, getting-started, mcp-install, judgment-audit, operations, and mcp-tools pages.",
+      "evidence": "The order is stated across /guide/mcp-install and /guide/judgment-audit, while exact completion evidence is split with /guide/operations and /reference/mcp-tools. The sidebar exposes separate pages rather than a single resumable checklist.",
+      "impact": "Frequent interruption increases the chance of losing the current step or stopping after generated configuration without verifying a real new-session result."
+    },
+    {
+      "id": "P207-F2",
+      "severity": "medium",
+      "type": "risk",
+      "finding": "The safe boundary is clear, but a low-technical operator still has to manually merge Brainbase-only settings into existing MCP and hooks files.",
+      "evidence": "/guide/mcp-install says onboard:install does not auto-merge and asks the user to add only the Brainbase entry; /guide/judgment-audit says to integrate only three Brainbase hooks while preserving other hooks.",
+      "impact": "Manual editing under pressure can cause omission or accidental overwrite even though the product guidance says not to overwrite."
+    },
+    {
+      "id": "P207-F3",
+      "severity": "low",
+      "type": "accessibility",
+      "finding": "The pages expose a Skip to content link, headings, navigation, and text-based command examples that are compatible with keyboard and screen-reader review, but no browser-only evidence confirms spoken order or an actual screen reader announcement.",
+      "evidence": "Visible Chromium inspection found the Skip to content link, Main Navigation, page headings, and code blocks. Real-device and assistive-technology evidence was not collected.",
+      "impact": "The viewpoint is synthetic browser evidence only; announcement order and interruption recovery for a real screen-reader user remain unverified."
+    }
+  ],
+  "recovery": {
+    "status": "documented",
+    "steps": [
+      "Return to dry-run and an uncreated separate output file.",
+      "Run npm run build and npm run doctor.",
+      "Check ~/.brainbase/personal-os/ exists and executable/data paths are absolute.",
+      "Confirm the agent was restarted after settings were applied.",
+      "Open a new session and verify actual MCP tools and results, not generated configuration alone.",
+      "If Judgment Host lines are missing, verify doctor judgment hooks, all three hooks, trust state, and a new task; preserve an incomplete or error receipt as ⚠️ rather than treating it as success."
+    ],
+    "gap": "No one-click rollback or automatic backup/restore example was observed; manual merge remains the recovery risk."
+  },
+  "screenshot_path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-01/P-207-G0.png",
+  "evidence_kind": "synthetic_browser_evaluation",
+  "real_device_evidence": "not_collected",
+  "model_requested": "gpt-5.6-luna",
+  "model_binding": "not_collected"
+}

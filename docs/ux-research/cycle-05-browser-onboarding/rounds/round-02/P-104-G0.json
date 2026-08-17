@@ -1,0 +1,78 @@
+{
+  "persona_id": "P-104-G0",
+  "evaluation_type": "cycle-05-round-02-independent-browser-evaluation",
+  "round": "round-02",
+  "cohort": "anchor",
+  "role": "first_time_individual",
+  "task_set_id": "first_time_individual-core",
+  "persona_attributes": {
+    "domain_experience": "intermediate",
+    "technical_literacy": "medium",
+    "time_pressure": "low",
+    "interruption_state": "focused",
+    "work_style": "confirmation_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "evidence": {
+    "kind": "synthetic_browser_evaluation",
+    "browser": "visible Playwright Chromium",
+    "url": "http://127.0.0.1:4176/",
+    "viewport": "1440x1000",
+    "screenshot": "screenshots/round-02/P-104-G0.png",
+    "human_observation": "not_collected",
+    "real_device_evidence": "not_collected",
+    "requested_model": "not_collected",
+    "model_binding": "not_collected",
+    "evaluated_head": "not_collected"
+  },
+  "reaction": "トップの『自分の仕事文脈をAIに渡す』という説明で価値は把握できる。確認しながら進めたいので、10分チェックリストの順序、dry-run、バックアップ、実結果確認が明示されている点は安心できる。",
+  "tasks": {
+    "VALUE-ONE-SENTENCE": {
+      "status": "clear_success",
+      "hard_gate": "pass",
+      "reason": "トップで、Brainbaseは自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照できるようにするものだと一文で説明できた。",
+      "action_trace": ["トップを表示", "見出しと導入説明を確認", "価値を一文に要約"],
+      "positive_evidence": ["『自分の仕事文脈をAIに渡すためのMCPマニュアル』", "『ローカルSSOTとして育て…AIがその文脈を参照』"],
+      "confusions": []
+    },
+    "ONBOARD-START": {
+      "status": "clear_success",
+      "hard_gate": "pass",
+      "reason": "『10分で試す』から、Node.js 20以上、Codexでフォルダを開く、ビルド、最初の依頼文、npm run onboard:start -- --target codex を順に見つけられた。",
+      "action_trace": ["『10分で試す』をクリック", "準備する節を上から確認", "開始依頼文とコマンドを確認"],
+      "positive_evidence": ["Brainbaseのオンボーディングを始めたいです。", "npm run onboard:start -- --target codex"],
+      "confusions": []
+    },
+    "MCP-JUDGMENT-ORDER": {
+      "status": "success_with_friction",
+      "hard_gate": "pass",
+      "reason": "チェックリストでMCPを先に登録し、get_context/search/onboarding_statusの実結果を確認してから、任意のJudgment Hostへ進む順序を確認できた。Host詳細ページへのリンク遷移は同一ガイド内で補足参照が必要だった。",
+      "action_trace": ["MCP登録節を確認", "dry-runコマンドと成功確認を確認", "Judgment HostはMCP確認後の任意設定と確認", "MCP詳細ページを実クリックして確認"],
+      "positive_evidence": ["『MCPの動作確認が終わるまで、Judgment Hostへ進まない』", "MCP: get_context/search/onboarding_statusの確認", "Host: 3つのHookと監査行の確認"],
+      "confusions": ["Judgment Hostの専用ページへ直接進むにはサイドバーまたは詳細リンクを使う必要があり、チェックリスト本文だけでは詳細操作の入口がやや弱い。"]
+    },
+    "SAFE-RECOVERY": {
+      "status": "clear_success",
+      "hard_gate": "pass",
+      "reason": "既存設定をバックアップしてBrainbase項目だけを追加し、設定を書き続けず現在設定・バックアップ・doctor結果を比較して戻す手順が確認できた。中断時も現在地を確認し、最初に通らない一項目だけを直す案内がある。",
+      "action_trace": ["バックアップコマンドを確認", "既存MCP/Hookを消さない注意を確認", "中断再開手順と『設定を元へ戻す』節を確認"],
+      "positive_evidence": ["cp -n ~/.codex/config.toml ~/.codex/config.toml.before-brainbase", "設定を追加し直さず現在地を確認", "現在の設定・バックアップ・doctorの結果を並べて確認"],
+      "confusions": []
+    }
+  },
+  "new_actionable_findings": [
+    {
+      "id": "P104-R2-F01",
+      "title": "Judgment Host詳細への入口をチェックリスト上で強める",
+      "severity": "medium",
+      "evidence": "synthetic_browser_evaluation",
+      "observation": "MCP→Judgment Hostの順序は明確だが、専用詳細ページの操作説明へ進むにはサイドバー/補足リンクを探す必要があった。",
+      "proposal": "4の直下に『詳細手順とdoctor確認を見る』リンクを明示し、MCP確認完了後の遷移先を一つにする。"
+    }
+  ],
+  "regressions": [],
+  "overall": "P-104-G0は4タスクを完了できた。安全な順序と非上書き・復旧案内は明確で、MCP→Judgment Hostの順序も確認できる。Judgment Host詳細への入口だけ軽い摩擦があり、success_with_frictionとした。",
+  "confidence": "medium",
+  "scope_boundary": "実ブラウザの表示・クリック証拠のみ。人による観察、実端末、VoiceOver/Reduced Motion実機、実際のCodex設定反映とtool応答は未確認。"
+}

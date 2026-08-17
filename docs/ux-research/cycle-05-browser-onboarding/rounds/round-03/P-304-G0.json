@@ -1,0 +1,102 @@
+{
+  "persona_id": "P-304-G0",
+  "round": "round-03",
+  "evaluation_type": "cycle-05-round-03-independent-browser-evaluation",
+  "evaluated_head": "0e1e38530",
+  "model_condition": "実ブラウザ評価。初回導入、技術理解は高め、時間圧は低く、確認してから進める、キーボード操作。実支援技術・実機・有効モデル結合は未取得。",
+  "url": "http://127.0.0.1:4176/",
+  "fixture": "browser-onboarding-cycle-05-round-03-fixed-local-site",
+  "task_set_id": "browser-onboarding-common-tasks",
+  "browser": {
+    "engine": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1440x1000",
+    "reduced_motion": "reduce",
+    "pages_visited": ["/", "/guide/quick-start", "/guide/mcp-install", "/guide/judgment-audit", "/reference/mcp-tools"],
+    "http_status": "200_on_visited_pages",
+    "console_errors": ["Failed to load resource: the server responded with a status of 404 (Not Found)"],
+    "console_error_cause": "not_collected",
+    "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-304-G0.png"
+  },
+  "actions": [
+    {"action": "open_value_entry", "result": "トップの『10分で試す』から初回導入の進行表へ到達。"},
+    {"action": "inspect_fixed_tasks", "result": "価値、準備・開始、MCP→Judgment Host順序、非上書き・中断復帰を各ページで確認。"},
+    {"action": "inspect_current_location_note", "result": "完了済み・次にやること・未確認・最後の実結果のメモ欄を確認。画面を閉じると保存されない旨も確認。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-304-G0.png"}
+  ],
+  "tasks": [
+    {
+      "task_id": "value_understanding",
+      "required_task": true,
+      "status": "clear_success",
+      "completion_condition": "Brainbaseの価値を自分の言葉で説明できる",
+      "reason": "トップで、仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照できるPersonal Onboarding Kitだと理解できた。最初から全情報源を接続せず、ひとつの実用場面から始める方針も明確。",
+      "evidence": ["/:『自分の仕事文脈をAIに渡すためのMCPマニュアル』", "/:『ひとつの実用場面から始める』", "/:『AIの判断根拠を毎回確認できる』"]
+    },
+    {
+      "task_id": "prerequisites_first_prompt_start_command",
+      "required_task": true,
+      "status": "clear_success",
+      "completion_condition": "前提、AIへの開始文、開始コマンド、最初に決める対象を確認できる",
+      "reason": "Node.js 20以上、npm、clone/install/build、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex、最初の現実の依頼と対象プロジェクトを確認できた。",
+      "evidence": ["/guide/quick-start:『1. 準備する』", "/guide/quick-start: 開始文と開始コマンド", "/guide/quick-start: 現在地メモと完了条件"]
+    },
+    {
+      "task_id": "codex_mcp_judgment_order_success_checks",
+      "required_task": true,
+      "status": "success_with_friction",
+      "completion_condition": "MCPを先に確認し、Judgment Hostを後に登録する順序と成功確認を説明できる",
+      "reason": "dry-run、MCP起動、get_context/search/onboarding_statusの確認後に、任意のJudgment Hostへ進む順序を確認できた。3 Hook、監査行、実tool呼び出しの成功条件も読めたが、実際のtool結果・doctor・監査行はブラウザ評価では未取得。",
+      "evidence": ["/guide/quick-start: MCP完了後にJudgment Hostへ進む境界", "/guide/mcp-install: 新しいセッションでのMCP確認", "/guide/judgment-audit: UserPromptSubmit→PostToolUse→Stopと監査行"]
+    },
+    {
+      "task_id": "avoid_overwrite_and_recover",
+      "required_task": true,
+      "status": "success_with_friction",
+      "completion_condition": "既存設定を上書きせず、中断後に現在地を確認して再開できる手順を説明できる",
+      "reason": "dry-run、cp -nバックアップ、別出力先、既存設定を自動マージしない境界、build→doctor→onboard:demo→新しいtaskでMCP確認の再開順、バックアップからの復元手順を確認できた。現在地メモは保存されず、手元メモへの転記が必要。",
+      "evidence": ["/guide/quick-start:『現在地メモ』", "/guide/quick-start:『5. 中断したらここから再開』", "/guide/quick-start:『設定を元へ戻す』"]
+    }
+  ],
+  "hard_gates": {
+    "status": "pass_with_boundary",
+    "failures": [],
+    "checks": [
+      {"gate": "未完了を成功と表示する", "status": "pass", "evidence": "ready:true、生成ファイル、dry-runだけでは完了でないこと、実結果がないものは未確認に残すことが明記される。"},
+      {"gate": "現在地または次の操作が分からない", "status": "pass", "evidence": "現在地メモ、5段階、MCP確認後にJudgment Hostへ進む順序、中断時の再開順が表示される。"},
+      {"gate": "既存設定を破壊する可能性がある", "status": "pass", "evidence": "dry-run、cp -nバックアップ、別output、既存設定・Hookを残す、自動マージなしが明記される。"},
+      {"gate": "失敗後の復旧手段がない", "status": "pass", "evidence": "build、doctor、再起動、新しいtask、バックアップ比較と復元の手順がある。"},
+      {"gate": "主要操作がキーボードまたは支援技術から到達不能", "status": "pass_synthetic_only", "evidence": "Skip to content、見出し、リンク、コードブロックを可視Chromiumで確認。実スクリーンリーダーは未取得。"},
+      {"gate": "MCP/Judgment Hostの順序・成功確認が不明", "status": "pass_with_boundary", "evidence": "順序と成功条件は明記されるが、実tool呼び出し・doctor・監査行は未取得。"}
+    ]
+  },
+  "workflow_reachability": {
+    "required_rows": 4,
+    "passed_rows": 4,
+    "failed_rows": 0,
+    "unexecuted_rows": 0,
+    "unresolved_workflow_dead_ends": 0,
+    "rows": [
+      {"row_id": "P-304-value", "screen": "/", "primary_action": "10分で試す", "enabled": true, "result": "pass", "workflow_dead_end": false},
+      {"row_id": "P-304-prereq", "screen": "/guide/quick-start", "primary_action": "1. 準備する", "enabled": true, "result": "pass", "workflow_dead_end": false},
+      {"row_id": "P-304-mcp-host", "screen": "/guide/mcp-install", "primary_action": "Judgment Hostは別に登録する", "enabled": true, "result": "pass", "workflow_dead_end": false},
+      {"row_id": "P-304-recovery", "screen": "/guide/quick-start", "primary_action": "中断したらここから再開/設定を元へ戻す", "enabled": true, "result": "pass", "workflow_dead_end": false}
+    ]
+  },
+  "new_findings": [
+    {"finding_id": "UX-C05-R3-P304-01", "severity": "medium", "title": "現在地メモが画面を閉じると保存されない", "evidence": "/guide/quick-startに保存されない旨と手元メモへの転記が明記され、再開時の再入力・紛失リスクが残る。", "decision": "defer"},
+    {"finding_id": "UX-C05-R3-P304-02", "severity": "low", "title": "MCP実行結果とJudgment Host監査結果はブラウザ内で一画面確認できない", "evidence": "成功条件は静的マニュアルにあるが、実tool呼び出し、doctor、監査行は未取得。", "decision": "defer"},
+    {"finding_id": "UX-C05-R3-P304-03", "severity": "low", "title": "ページロード時の404コンソールエラー", "evidence": "5ページ巡回中にFailed to load resource: 404を1件取得。原因は未特定。", "decision": "investigate"}
+  ],
+  "regressions": [],
+  "improvements_from_round_02": [
+    {"title": "現在地メモと中断復帰が明示された", "evidence": "/guide/quick-startに4項目の現在地メモと5. 中断したらここから再開が存在。Round 2より再開順を見つけやすい。"},
+    {"title": "未確認を成功扱いしない境界が同一ページに集約された", "evidence": "/guide/quick-startにready:true、生成ファイル、dry-run、実結果の境界が明記。"}
+  ],
+  "recovery": {"status": "documented_with_persistence_gap", "observed": "中断後の確認順序、非上書き境界、バックアップ復旧、現在地メモ項目を確認。", "missing": "現在地メモの永続保存、実MCP結果、doctor、監査行、実スクリーンリーダー操作はnot_collected。"},
+  "evidence_boundary": {"human_observation": "not_collected", "real_device_evidence": "not_collected", "assistive_technology": "not_collected", "effective_model_binding": "not_collected", "production_or_authoritative_result": "not_collected"},
+  "evidence_kind": "actual_ui_browser_evidence",
+  "status": "complete_with_boundaries",
+  "verdict": "adopt",
+  "summary": "P-304は可視Chromiumで固定4タスクを完了し、価値、準備・開始、MCP→Judgment Hostの順序、非上書き・中断復帰を確認できた。ハードゲート失敗とworkflow dead endは観測しなかった。Round 2から現在地メモと中断復帰の可視性は改善したが、メモは保存されず、実MCP/監査結果と404原因はnot_collected。"
+}

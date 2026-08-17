@@ -1,0 +1,79 @@
+{
+  "persona_id": "P-305-G1",
+  "round": "round-03",
+  "gate_id": "G1",
+  "evaluated_head": "0e1e38530e41fa946af6afefdf3c24817b3e7b70",
+  "persona": {
+    "role": "ontology_steward",
+    "cohort": "rotation",
+    "domain_experience": "experienced",
+    "technical_literacy": "medium",
+    "time_pressure": "low",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "confirmation_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "evaluation": {
+    "url": "http://127.0.0.1:4176/",
+    "fixture": "public VitePress onboarding fixture",
+    "browser": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1440x900",
+    "reduced_motion": true,
+    "status": 200,
+    "title": "Brainbase",
+    "evidence_kind": "synthetic_browser_evaluation",
+    "human_observation": "not_collected",
+    "real_device_evidence": "not_collected",
+    "assistive_technology_evidence": "not_collected",
+    "effective_model_and_reasoning_effort": "not_collected"
+  },
+  "fixed_tasks": [
+    {
+      "id": "value_sentence",
+      "status": "clear_success",
+      "result": "トップの『自分の仕事文脈をAIに渡すためのMCPマニュアル』『AIに二度と説明したくない文脈』から、Brainbaseは仕事文脈をローカルSSOTとして育て、CodexやClaude Codeが参照できるようにする導入マニュアルだと説明できた。"
+    },
+    {
+      "id": "prerequisites_first_prompt_start_command",
+      "status": "clear_success",
+      "result": "Node.js 20以上/npm、Codexでフォルダを開くこと、build、現実の依頼と対象プロジェクト、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを確認できた。"
+    },
+    {
+      "id": "mcp_then_judgment_host_order_and_success",
+      "status": "success_with_friction",
+      "result": "quick-startでMCPを先に確認し、brainbase MCPの起動、get_context/search/onboarding_statusの実結果を確認してから任意のJudgment Hostへ進む順序を確認できた。Host側は3 Hook、doctor ready、監査行、実tool呼び出しの確認条件まで読めた。実CLI/MCP/Hostイベントはブラウザ評価では実行していない。"
+    },
+    {
+      "id": "non_overwrite_and_interruption_recovery",
+      "status": "success_with_friction",
+      "result": "現在地メモに完了済み・次にやること・未確認・最後に確認した実結果を残し、画面を閉じる前にコードブロックを手元へコピーすることを確認した。dry-run、config.toml/hooks.jsonのcp -nバックアップ、既存設定を自動マージしないこと、build→doctor→onboard:demo→新taskの順も確認できた。メモの自動保存はない。"
+    }
+  ],
+  "browser_actions": [
+    {"action": "open", "url": "/", "result": "title Brainbase、価値文、10分で試す導線、Skip linkを確認"},
+    {"action": "click", "target": "10分で試す", "url": "/guide/quick-start", "result": "現在地メモと4段階のチェックリストを確認"},
+    {"action": "inspect", "url": "/guide/onboarding-process", "result": "5フェーズと承認なしに正本を書き換えない共通ルールを確認"},
+    {"action": "inspect", "url": "/reference/mcp-tools", "result": "MCP tool順序、receipt/review/first-value、未確認を成功扱いしない境界を確認"},
+    {"action": "screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-305-G1.png", "result": "1440x4438のquick-start全体を保存"}
+  ],
+  "hard_gates": {
+    "unfinished_not_success": {"status": "pass", "evidence": "ready: true、設定生成、画面表示だけでは完了にしないと明記"},
+    "current_location_next_action": {"status": "pass", "evidence": "現在地メモに4項目と再開順序がある"},
+    "non_destructive_config": {"status": "pass", "evidence": "dry-run、cp -nバックアップ、既存項目を消さず自動マージしない"},
+    "failure_recovery": {"status": "pass", "evidence": "build→doctor→onboard:demo→MCP実結果確認→未達項目だけ修正の順序"},
+    "human_confirmation_handoff": {"status": "pass", "evidence": "承認済み候補だけを正本へ昇格し、送信・公開・デプロイを表示で証明しない"},
+    "keyboard_assistive_reachability": {"status": "pass_synthetic_only", "evidence": "Skip link、見出し、リンク、コードブロックをDOMで確認。実スクリーンリーダーは未取得"}
+  },
+  "new_findings": [
+    {"id": "P305-R3-F1", "severity": "medium", "type": "friction", "finding": "現在地メモはコードブロックを手動コピーする必要があり、頻繁な中断では実状態との再照合が残る。", "decision": "defer", "reason": "自動保存や実状態連携にはCLI/Host連携が必要", "evidence_kind": "synthetic_browser_evaluation"},
+    {"id": "P305-R3-F2", "severity": "medium", "type": "friction", "finding": "MCP成功条件とJudgment Host監査条件はquick-start・導入ページ・MCPリファレンスに分かれ、確認優先の利用者にはページ横断が必要。", "decision": "defer", "reason": "一枚の進行表への集約は改善候補だが、現ラウンドのハードゲートを満たす", "evidence_kind": "synthetic_browser_evaluation"}
+  ],
+  "regressions": [],
+  "recovery": {"status": "documented_with_friction", "steps": ["設定を追加し直さない", "npm run build", "npm run doctor", "onboard:demoと新taskのMCP実結果確認", "必要なら3 Hookと監査行確認", "最初に通らない一項目だけ直す", "判断不能ならバックアップと現在設定とdoctorを比較"], "gap": "進捗自動保存、MCP/Host runtime receipt、実機・VoiceOverはnot_collected"},
+  "verdict": "success_with_friction",
+  "confidence": "medium",
+  "screenshot_path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-305-G1.png",
+  "status": "complete"
+}
