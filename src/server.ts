@@ -1,13 +1,19 @@
+import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { ConnectedOnboardingRuntime, type ConnectedOnboardingRun } from './connected-onboarding.js';
+import { validateCanonicalGraph } from './canonical-graph.js';
+import { resolveText } from './entity-resolution.js';
 import { resolveDataDir } from './paths.js';
 import { auditPersonalOsDirectory } from './ontology-ssot.js';
 import { getOntologyImpact, inferPersonalOs, portableOntology, resolveOntologyVersion } from './ontology.js';
 import { loadPersonalOs } from './ssot.js';
 import { getContext, listEntities, onboardingStatus, searchAll, searchPersonalKg } from './tools.js';
+import type { CanonicalEntityKind, GraphFileV2 } from './types.js';
 
 const argsSchema = z.object({
   dataDir: z.string().optional(),
@@ -17,6 +23,33 @@ const argsSchema = z.object({
   fromVersion: z.string().optional(),
   ontologyVersion: z.string().optional(),
   asOf: z.string().datetime({ offset: true }).optional()
+});
+
+const mentionSpanSchema = z.object({
+  start: z.number().int().nonnegative(),
+  end: z.number().int().positive()
+}).strict().refine((span) => span.end > span.start, { message: 'mention span end must be after start' });
+
+const resolveEntitySchema = z.object({
+  dataDir: z.string().optional(),
+  text: z.string(),
+  asOf: z.string().datetime({ offset: true }),
+  mentionSpans: z.array(mentionSpanSchema).optional(),
+  projectScope: z.object({
+    projectIds: z.array(z.string().min(1)).min(1),
+    policy: z.enum(['strict', 'prefer_project', 'allow_global_fallback']).optional()
+  }).strict().optional(),
+  entityTypes: z.array(z.enum(['person', 'org', 'project', 'decision'])).min(1).optional()
+}).strict().superRefine((value, context) => {
+  for (const [index, span] of (value.mentionSpans ?? []).entries()) {
+    if (span.end > value.text.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['mentionSpans', index, 'end'],
+        message: 'mention span must be within text'
+      });
+    }
+  }
 });
 
 const sourceInventorySchema = z.object({
@@ -261,12 +294,52 @@ export const toolDefinitions = [
         fromVersion: { type: 'string' }
       }
     }
+  },
+  {
+    name: 'resolve_entity',
+    description: 'Resolve mentions in text to canonical Graph v2 entity IDs and return a privacy-safe evidence receipt.',
+    inputSchema: {
+      type: 'object',
+      required: ['text', 'asOf'],
+      additionalProperties: false,
+      properties: {
+        dataDir: { type: 'string', description: 'Optional Personal OS directory.' },
+        text: { type: 'string', description: 'Text whose entity mentions should be resolved. The text is hashed, not stored in the receipt.' },
+        asOf: { type: 'string', format: 'date-time', description: 'RFC 3339 instant used for temporal entity and edge validity.' },
+        mentionSpans: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['start', 'end'],
+            additionalProperties: false,
+            properties: { start: { type: 'integer', minimum: 0 }, end: { type: 'integer', minimum: 1 } }
+          }
+        },
+        projectScope: {
+          type: 'object',
+          required: ['projectIds'],
+          additionalProperties: false,
+          properties: {
+            projectIds: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 } },
+            policy: { enum: ['strict', 'prefer_project', 'allow_global_fallback'] }
+          }
+        },
+        entityTypes: {
+          type: 'array',
+          minItems: 1,
+          items: { enum: ['person', 'org', 'project', 'decision'] }
+        }
+      }
+    }
   }
 ] as const;
 
 export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Promise<unknown> {
   if (name in connectedSchemas) {
     return callConnectedOnboardingTool(name as keyof typeof connectedSchemas, rawArgs);
+  }
+  if (name === 'resolve_entity') {
+    return callResolveEntityTool(rawArgs);
   }
   const args = argsSchema.parse(rawArgs ?? {});
   const dataDir = resolveDataDir(args.dataDir);
@@ -356,6 +429,79 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
+}
+
+async function callResolveEntityTool(rawArgs: unknown): Promise<unknown> {
+  const args = resolveEntitySchema.parse(rawArgs ?? {});
+  const dataDir = resolveDataDir(args.dataDir);
+  const graphPath = join(dataDir, 'graph.json');
+  let serialized: string;
+  try {
+    serialized = await readFile(graphPath, 'utf8');
+  } catch {
+    return blockedResolution(args, 'unavailable', 'graph_unavailable');
+  }
+
+  let graph: unknown;
+  try {
+    graph = JSON.parse(serialized);
+  } catch {
+    return blockedResolution(args, 'invalid', 'graph_invalid');
+  }
+  try {
+    validateCanonicalGraph(graph);
+  } catch {
+    return blockedResolution(args, 'invalid', 'graph_invalid');
+  }
+  if (isGraphVersion(graph, 1)) {
+    return {
+      status: 'migration_required',
+      graphSchemaVersion: 1,
+      requiredAction: 'migrate_graph_v2'
+    };
+  }
+  if (!isGraphVersion(graph, 2)) {
+    return blockedResolution(args, 'invalid', 'graph_invalid');
+  }
+
+  const receipt = resolveText({
+    text: args.text,
+    ...(args.mentionSpans ? { mentionSpans: args.mentionSpans } : {}),
+    ...(args.projectScope ? { projectScope: args.projectScope } : {}),
+    asOf: args.asOf,
+    ...(args.entityTypes ? { entityTypes: args.entityTypes as CanonicalEntityKind[] } : {}),
+    source: {
+      authority: 'local_graph',
+      status: 'complete',
+      revision: createHash('sha256').update(serialized).digest('hex'),
+      graph: graph as GraphFileV2
+    }
+  }).receipt;
+  return { status: 'verified', receipt };
+}
+
+function blockedResolution(
+  args: z.infer<typeof resolveEntitySchema>,
+  sourceStatus: 'unavailable' | 'invalid',
+  issueCode: 'graph_unavailable' | 'graph_invalid'
+): { status: 'unverified'; receipt: ReturnType<typeof resolveText>['receipt'] } {
+  const receipt = resolveText({
+    text: args.text,
+    ...(args.mentionSpans ? { mentionSpans: args.mentionSpans } : {}),
+    ...(args.projectScope ? { projectScope: args.projectScope } : {}),
+    asOf: args.asOf,
+    ...(args.entityTypes ? { entityTypes: args.entityTypes as CanonicalEntityKind[] } : {}),
+    source: {
+      authority: 'local_graph',
+      status: sourceStatus,
+      issues: [{ code: issueCode, message: issueCode }]
+    }
+  }).receipt;
+  return { status: 'unverified', receipt };
+}
+
+function isGraphVersion(graph: unknown, version: 1 | 2): graph is { version: 1 | 2 } {
+  return Boolean(graph && typeof graph === 'object' && 'version' in graph && (graph as { version?: unknown }).version === version);
 }
 
 async function callConnectedOnboardingTool(name: keyof typeof connectedSchemas, rawArgs: unknown): Promise<unknown> {

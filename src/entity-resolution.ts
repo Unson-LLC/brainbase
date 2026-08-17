@@ -118,7 +118,7 @@ function collectMentions(
   asOf: string,
   scope: { projectIds: string[]; policy: ScopePolicy } | undefined
 ): MentionResolution[] {
-  const bySpan = new Map<string, { start: number; end: number; surface: string; normalized: string; matches: Array<{ entity: CanonicalEntity; evidence: CandidateEvidence[] }> }>();
+  const bySpan = new Map<string, { start: number; end: number; surface: string; normalized: string; requested: boolean; matches: Array<{ entity: CanonicalEntity; evidence: CandidateEvidence[] }> }>();
   for (const span of requestedSpans) {
     if (!Number.isInteger(span.start) || !Number.isInteger(span.end) || span.start < 0 || span.end <= span.start || span.end > text.length) {
       throw new Error(`Invalid mention span: ${span.start}:${span.end}`);
@@ -128,6 +128,7 @@ function collectMentions(
       ...span,
       surface,
       normalized: normalizeResolverText(surface),
+      requested: true,
       matches: []
     });
   }
@@ -136,7 +137,7 @@ function collectMentions(
       for (const variant of resolverVariants(alias)) {
         for (const span of findAll(text, variant.value)) {
           const key = `${span.start}:${span.end}`;
-          const bucket = bySpan.get(key) ?? { ...span, normalized: normalizeResolverText(span.surface), matches: [] };
+          const bucket = bySpan.get(key) ?? { ...span, normalized: normalizeResolverText(span.surface), requested: false, matches: [] };
           const evidence: CandidateEvidence[] = [{ kind: alias === entity.name ? 'name_exact' : 'alias_exact' }];
           if (variant.honorific) evidence.push({ kind: 'honorific_variant' });
           bucket.matches.push({ entity, evidence });
@@ -160,7 +161,7 @@ function collectMentions(
 
   return [...bySpan.values()]
     .sort((left, right) => left.start - right.start || right.end - left.end)
-    .filter((mention, index, all) => !all.some((other, otherIndex) => otherIndex !== index && other.start <= mention.start && other.end >= mention.end && (other.end - other.start) > (mention.end - mention.start)))
+    .filter((mention, index, all) => mention.requested || !all.some((other, otherIndex) => otherIndex !== index && other.start <= mention.start && other.end >= mention.end && (other.end - other.start) > (mention.end - mention.start)))
     .map((mention) => resolveMention(mention, graph, asOf, scope));
 }
 

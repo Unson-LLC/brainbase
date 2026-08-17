@@ -146,6 +146,24 @@ describe('story-brainbase-canonical-entity-resolution contract', () => {
     expect(healthy.receipt).toMatchObject({ resolutionStatus: 'none', summary: { resolved: 0, unresolved: 1 } });
   });
 
+  it('AC-6 preserves an explicitly requested unknown span inside a longer automatic match', () => {
+    const result = resolveText({
+      text: 'Atlas導入',
+      mentionSpans: [{ start: 0, end: 2 }],
+      asOf: '2026-08-17T00:00:00.000Z',
+      source: { authority: 'local_graph', status: 'complete', revision: 'fixture-r1', graph: canonicalResolutionGraph }
+    });
+
+    expect(result.mentions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ span: { start: 0, end: 2 }, status: 'unresolved' }),
+      expect.objectContaining({ span: { start: 0, end: 7 }, status: 'resolved', selectedEntityId: 'project-atlas' })
+    ]));
+    expect(result.receipt).toMatchObject({
+      resolutionStatus: 'partial',
+      summary: { resolved: 1, ambiguous: 0, unresolved: 1 }
+    });
+  });
+
   it('AC-5 applies strict project scope and as_of edge validity', () => {
     const beforeEdge = resolveText({
       text: '田中さん',

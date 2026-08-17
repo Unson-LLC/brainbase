@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { createFixturePersonalOs } from './fixtures.js';
+import { canonicalResolutionGraph } from './canonical-resolution-fixture.js';
 import { callBrainbaseTool, toolDefinitions } from '../src/server.js';
 
 const dirs: string[] = [];
@@ -55,7 +56,8 @@ describe('MCP contract', () => {
       'get_ontology',
       'audit_ontology',
       'infer_decisions',
-      'ontology_impact'
+      'ontology_impact',
+      'resolve_entity'
     ]);
     const firstValue = toolDefinitions.find((tool) => tool.name === 'brainbase_onboarding_first_value');
     expect(firstValue?.inputSchema).toMatchObject({
@@ -71,6 +73,22 @@ describe('MCP contract', () => {
     const review = toolDefinitions.find((tool) => tool.name === 'brainbase_onboarding_review');
     expect((review?.inputSchema as { properties?: { actions?: { minItems?: number } } }).properties?.actions?.minItems).toBe(1);
     expect((review?.inputSchema as { properties?: { actions?: { items?: { oneOf?: unknown[] } } } }).properties?.actions?.items?.oneOf).toHaveLength(4);
+    const resolver = toolDefinitions.at(14);
+    expect(resolver).toMatchObject({
+      name: 'resolve_entity',
+      inputSchema: {
+        type: 'object',
+        required: ['text', 'asOf'],
+        additionalProperties: false,
+        properties: {
+          projectScope: {
+            properties: {
+              policy: { enum: ['strict', 'prefer_project', 'allow_global_fallback'] }
+            }
+          }
+        }
+      }
+    });
   });
 
   it('S-4 lists v1 tools through stdio server startup', async () => {
@@ -93,11 +111,124 @@ describe('MCP contract', () => {
         'get_ontology',
         'audit_ontology',
         'infer_decisions',
-        'ontology_impact'
+        'ontology_impact',
+        'resolve_entity'
       ]);
     } finally {
       await client.close();
     }
+  });
+
+  it('resolves text against Graph v2 over stdio without returning plaintext or local paths', async () => {
+    const dataDir = await fixtureDir();
+    await writeFile(join(dataDir, 'graph.json'), `${JSON.stringify(canonicalResolutionGraph, null, 2)}\n`, 'utf8');
+    const { client, transport } = createClient(dataDir);
+    await client.connect(transport);
+    try {
+      const result = await client.callTool({
+        name: 'resolve_entity',
+        arguments: {
+          text: 'Atlas導入は田中さんが担当する',
+          asOf: '2026-08-17T00:00:00.000Z',
+          projectScope: { projectIds: ['project-atlas'], policy: 'strict' },
+          mentionSpans: [{ start: 8, end: 12 }]
+        }
+      });
+      const text = result.content[0]?.type === 'text' ? result.content[0].text : '{}';
+      const payload = JSON.parse(text);
+      expect(payload).toMatchObject({
+        status: 'verified',
+        receipt: {
+          graphSchemaVersion: 2,
+          resolutionStatus: 'complete',
+          source: { status: 'complete' },
+          request: { projectScope: { policy: 'strict' } },
+          summary: { resolved: 2, ambiguous: 0, unresolved: 0 }
+        }
+      });
+      expect(text).not.toContain('Atlas導入は田中さんが担当する');
+      expect(text).not.toContain(dataDir);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('distinguishes v1 migration, unavailable Graph, and invalid Graph from unresolved mentions', async () => {
+    const v1Dir = await fixtureDir();
+    await expect(callBrainbaseTool('resolve_entity', {
+      dataDir: v1Dir,
+      text: 'Atlas',
+      asOf: '2026-08-17T00:00:00.000Z'
+    })).resolves.toEqual({
+      status: 'migration_required',
+      graphSchemaVersion: 1,
+      requiredAction: 'migrate_graph_v2'
+    });
+
+    const unavailableDir = await mkdtemp(join(tmpdir(), 'brainbase-mcp-unavailable-'));
+    dirs.push(unavailableDir);
+    await expect(callBrainbaseTool('resolve_entity', {
+      dataDir: unavailableDir,
+      text: 'Atlas',
+      asOf: '2026-08-17T00:00:00.000Z'
+    })).resolves.toMatchObject({
+      status: 'unverified',
+      receipt: {
+        resolutionStatus: 'blocked',
+        source: { status: 'unavailable', issueCodes: ['graph_unavailable'] },
+        summary: null,
+        mentions: []
+      }
+    });
+
+    const invalidDir = await mkdtemp(join(tmpdir(), 'brainbase-mcp-invalid-'));
+    dirs.push(invalidDir);
+    await writeFile(join(invalidDir, 'graph.json'), '{"version":2,"secret":"do-not-leak"', 'utf8');
+    const invalid = await callBrainbaseTool('resolve_entity', {
+      dataDir: invalidDir,
+      text: 'Atlas',
+      asOf: '2026-08-17T00:00:00.000Z'
+    });
+    expect(invalid).toMatchObject({
+      status: 'unverified',
+      receipt: {
+        resolutionStatus: 'blocked',
+        source: { status: 'invalid', issueCodes: ['graph_invalid'] },
+        summary: null,
+        mentions: []
+      }
+    });
+    expect(JSON.stringify(invalid)).not.toContain('do-not-leak');
+    expect(JSON.stringify(invalid)).not.toContain(invalidDir);
+
+    const malformedV1Dir = await mkdtemp(join(tmpdir(), 'brainbase-mcp-invalid-v1-'));
+    dirs.push(malformedV1Dir);
+    await writeFile(join(malformedV1Dir, 'graph.json'), '{"version":1,"entities":"not-an-array"}', 'utf8');
+    await expect(callBrainbaseTool('resolve_entity', {
+      dataDir: malformedV1Dir,
+      text: 'Atlas',
+      asOf: '2026-08-17T00:00:00.000Z'
+    })).resolves.toMatchObject({
+      status: 'unverified',
+      receipt: { resolutionStatus: 'blocked', source: { status: 'invalid' } }
+    });
+  });
+
+  it('validates resolver input before Graph availability is evaluated', async () => {
+    const unavailableDir = await mkdtemp(join(tmpdir(), 'brainbase-mcp-input-'));
+    dirs.push(unavailableDir);
+    await expect(callBrainbaseTool('resolve_entity', {
+      dataDir: unavailableDir,
+      text: '短文',
+      asOf: '2026-08-17T00:00:00.000Z',
+      mentionSpans: [{ start: 0, end: 99 }]
+    })).rejects.toThrow(/mention span must be within text/);
+    await expect(callBrainbaseTool('resolve_entity', {
+      dataDir: unavailableDir,
+      text: 'Atlas',
+      asOf: '2026-08-17T00:00:00.000Z',
+      projectScope: { projectIds: ['project-atlas'], policy: 'global' }
+    })).rejects.toThrow();
   });
 
   it('S-4 calls v1 tools through stdio server startup with BRAINBASE_PERSONAL_OS_DIR', async () => {

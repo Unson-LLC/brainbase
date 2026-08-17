@@ -93,7 +93,8 @@ describe('brainbase-mcp-only story acceptance', () => {
       'get_ontology',
       'audit_ontology',
       'infer_decisions',
-      'ontology_impact'
+      'ontology_impact',
+      'resolve_entity'
     ]);
     expect(defaultDataDir(), 'brainbase-mcp-only ac:4 The default local SSOT directory is ~/.brainbase/personal-os/, overridable with BRAINBASE_PERSONAL_OS_DIR.').toContain('.brainbase/personal-os');
     expect(codexOutput.stdout(), 'brainbase-mcp-only ac:4 The default local SSOT directory is ~/.brainbase/personal-os/, overridable with BRAINBASE_PERSONAL_OS_DIR.').toContain('BRAINBASE_PERSONAL_OS_DIR');
