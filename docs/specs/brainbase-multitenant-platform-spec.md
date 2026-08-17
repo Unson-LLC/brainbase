@@ -19,13 +19,16 @@ test_files:
   - tests/server/services/multitenant/protocol-contract.test.js
   - tests/server/services/multitenant/migration-planner.test.js
   - tests/server/routes/tenant-runtime-contract.test.js
+  - tests/conformance/mana-brainbase-tenant-context.adapter.test.js
 ---
 
 # Brainbase Cloud／OSS共通マルチテナント契約
 
 ## 0. 状態と境界
 
-このSpecは実装着手用のfinalである。先行してVibePro draftを生成・検証した後、Storyとaccepted Architectureを具体化し、横断契約の正本入力としてmana-runtime PR #237 HEAD `ba1942e15935e00d1c603f57284439384bc95cac`のD-001〜D-009を採用した。実装開始ゲートはSpecのfingerprintとdriftを記録した時点で開くが、実装・fixture・CI・本番readbackの成功を意味しない。
+このSpecは実装着手用のfinalである。先行してVibePro draftを生成・検証した後、Storyとaccepted Architectureを具体化し、横断契約の正本入力としてmana-runtime PR #237 HEAD `37dd9f5eee783b9b3ba94c31c9c7e32f7afa3351`のD-001〜D-009と`contracts/mana-brainbase-tenant-context/v1`を採用した。共通fixture setのSHA-256は`81c73707578ae42d6ed539aae3ac1e8eb3b0feac906e3856e73d8cdf6629d454`である。実装開始ゲートはSpecのfingerprintとdriftを記録した時点で開くが、adapter fixture、CI、本番readbackの成功を意味しない。
+
+Brainbaseのconformance testは共通manifestの1 positive、16 negative、1 non-applicableを固定HEADから直接読む。fixtureの複製や期待値の再定義はconformance証拠として扱わない。test keyはテスト実行時だけ読み、repository、ログ、PR本文へ秘密値を記録しない。
 
 - Brainbaseが所有する: tenant正本、帰属、connection、credential参照、contract、quota、usage、Receipt、Cloud／OSS接続契約。
 - mana-runtimeが所有する: Slack受信、Queue／Durable Object／Container内のtenant context伝播、返信。
@@ -52,13 +55,13 @@ test_files:
 | 型 | draft形式 | 意味 |
 |---|---|---|
 | `tenant_id` | `ten_<ULID>` | Tenant Authorityが発行するcanonical ID |
-| `tenant_revision` | 正整数 | tenant状態・境界変更ごとに単調増加 |
+| `tenant_revision` | canonical decimal string | `^(0|[1-9][0-9]*)$`。tenant状態・境界変更ごとに数値として単調増加 |
 | `connection_id` | `wsc_<ULID>` | workspace installationの論理接続 |
-| `connection_revision` | 正整数 | reinstall、scope、credential、status変更ごとに増加 |
+| `connection_revision` | canonical decimal string | `^(0|[1-9][0-9]*)$`。reinstall、scope、credential、status変更ごとに数値として増加 |
 | `contract_id` | `ctr_<ULID>` | tenant契約系列 |
-| `contract_revision` | 正整数 | 適用条件のimmutable revision |
-| `usage_event_id` | `use_<ULID>` | 冪等な実消費event |
-| `receipt_id` | `rcp_<ULID>` | 相関ID単位の利用証跡 |
+| `contract_revision` | canonical decimal string | `^(0|[1-9][0-9]*)$`。適用条件のimmutable revision |
+| `usage_event_id` | `usage_<ULID>` | 冪等な実消費event |
+| `receipt_id` | `receipt_<ULID>` | 相関ID単位の利用証跡 |
 | `correlation_id` | `cor_<ULID>` | runtimeをまたぐ実行相関 |
 | `operation_id` | `op_<ULID>` | 論理的な副作用1件 |
 | `idempotency_key` | `ik1_<base64url SHA-256>` | 固定導出式で生成する副作用claim key |
@@ -74,7 +77,7 @@ test_files:
 ```json
 {
   "tenant_id": "ten_<ULID>",
-  "tenant_revision": 1,
+  "tenant_revision": "1",
   "status": "provisioning|active|suspended|deletion_pending|deleted",
   "display_name": "表示用。識別には使わない",
   "created_at": "RFC3339",
@@ -107,7 +110,7 @@ DBの外部キーまたはrepository guardで親子の`tenant_id`一致を保証
 ```json
 {
   "connection_id": "wsc_<ULID>",
-  "connection_revision": 3,
+  "connection_revision": "3",
   "tenant_id": "ten_<ULID>",
   "provider": "slack",
   "installation_id": "provider opaque id",
@@ -118,7 +121,7 @@ DBの外部キーまたはrepository guardで親子の`tenant_id`一致を保証
   "credential_ref": "opaque credential-broker reference",
   "installed_at": "RFC3339",
   "revoked_at": null,
-  "supersedes_connection_revision": 2
+  "supersedes_connection_revision": "2"
 }
 ```
 
@@ -137,11 +140,11 @@ service tokenはcredentialとは別の短命な認証手段で、少なくとも
   "audience": ["mana-runtime", "brainbase-api"],
   "tenant": {
     "tenant_id": "ten_<ULID>",
-    "tenant_revision": 7
+    "tenant_revision": "7"
   },
   "workspace_connection": {
     "connection_id": "wsc_<ULID>",
-    "connection_revision": 3,
+    "connection_revision": "3",
     "status": "active",
     "provider": "slack",
     "installation_id": "provider opaque id",
@@ -172,7 +175,7 @@ service tokenはcredentialとは別の短命な認証手段で、少なくとも
   "correlation_id": "cor_<ULID>",
   "operation_id": "op_<ULID>",
   "idempotency_key": "ik1_<base64url SHA-256>",
-  "contract_revision": "ctr_<ULID>",
+  "contract_revision": "11",
   "credential": {
     "mode": "cloud_standard|customer_oauth|customer_api",
     "credential_ref": "opaque tenant-bound reference",
@@ -189,13 +192,13 @@ service tokenはcredentialとは別の短命な認証手段で、少なくとも
 }
 ```
 
-Envelopeはsnake_caseのimmutable objectとし、`integrity`を除外したRFC 8785 canonical JSONをEdDSA／Ed25519 detached JWSで署名する。TTLは最大300秒、clock skewは最大30秒で、延長・mutationは禁止し、新しい解決と署名で置換する。各境界で署名、公開鍵status、issuer、audience、期限、deployment、tenant／connection revisionを再検証する。秘密値はEnvelopeへ入れない。
+Envelopeはsnake_caseのimmutable objectとし、`integrity`を除外したRFC 8785 canonical JSONをEdDSA／Ed25519 detached JWSで署名する。protected headerは`alg=EdDSA`、`b64=false`、`crit=["b64"]`、`kid=integrity.key_id`、`typ=application/mana-brainbase-tenant-context+jws`の5 fieldだけをRFC 8785でcanonicalizeする。署名入力は`ASCII(protected64 + ".") || UTF-8(JCS(unsigned envelope))`で、compact JWSのpayload segmentは空とし、payloadをbase64url化しない。`expires_at`は必ず`issued_at`より後、TTLは最大300秒、clock skewは最大30秒である。延長・mutationは禁止し、新しい解決と署名で置換する。各境界で署名、公開鍵status、issuer、audience、期限、deployment、tenant／connection revisionを再検証する。秘密値はEnvelopeへ入れない。
 
 Brainbaseは`GET /api/v1/runtime/verification-keys`でcurrentとretiringのEd25519公開鍵だけを公開する。各keyは`key_id`、`algorithm=EdDSA`、`public_key_format=jwk`、`public_key={kty:OKP,crv:Ed25519,x}`、`status=current|retiring`、有効期間を持つ。retiring keyは、そのkeyで署名した全Envelopeが期限切れになるまで公開し、private keyやsecretを返さない。
 
 ### Contract-04a: Credential broker
 
-Brainbaseだけがcredential本文とOAuth refresh stateを所有する。外部runtimeはopaque `credential_ref`だけを保持し、`tenant_id + connection_id + connection_revision + operation_id + audience + credential_mode`に束縛したsingle-use lease／proxy handleを要求する。lease TTLは最大60秒で、再利用、audience違い、revision違い、mode fallbackを拒否する。providerがcredential本文を要求する場合も、trusted injectorの揮発メモリにだけmaterializeし、Queue、Durable Object、model/tool payload、disk、log、fixture、Receiptへ記録しない。
+Brainbaseだけがcredential本文とOAuth refresh stateを所有する。外部runtimeはopaque `credential_ref`だけを保持し、`credential_lease_request`で`tenant_id + connection_id + connection_revision + contract_revision + operation_id + audience + credential_mode + credential_ref`をbindingとして送る。Brainbaseは`credential_lease_response`でopaqueな`lease_id`と`lease_token`、同一binding、canonical string `contract_revision`、`max_uses=1`、`issued_at`、`expires_at`を返す。lease TTLは要求値以下かつ最大60秒で、再利用、binding違い、revision違い、mode fallbackを拒否する。providerがcredential本文を要求する場合も、trusted injectorの揮発メモリにだけmaterializeし、Queue、Durable Object、model/tool payload、disk、log、fixture、Receiptへ記録しない。
 
 OAuth refreshは`credential_ref`と`expected_refresh_revision`によるcompare-and-swapを必須とする。成功時だけrevisionを単調増加させ、競合は`OAUTH_REFRESH_CONFLICT`で拒否し、secretを含まない監査eventを残す。
 
@@ -204,7 +207,7 @@ OAuth refreshは`credential_ref`と`expected_refresh_revision`によるcompare-a
 ```json
 {
   "contract_id": "ctr_<ULID>",
-  "contract_revision": 4,
+  "contract_revision": "4",
   "tenant_id": "ten_<ULID>",
   "status": "draft|active|expired|superseded",
   "effective_from": "RFC3339",
@@ -230,12 +233,12 @@ QuotaDecisionは`allowed|warning|hard_stopped|approval_required|unavailable`の�
 
 ```json
 {
-  "usage_event_id": "use_<ULID>",
+  "usage_event_id": "usage_<ULID>",
   "protocol_version": "1.0",
   "tenant_id": "ten_<ULID>",
   "connection_id": "wsc_<ULID>",
-  "connection_revision": 7,
-  "contract_revision": "ctr_<ULID>",
+  "connection_revision": "7",
+  "contract_revision": "11",
   "deployment_id": "dep_<ULID>",
   "correlation_id": "cor_<ULID>",
   "operation_id": "op_<ULID>",
@@ -256,12 +259,12 @@ QuotaDecisionは`allowed|warning|hard_stopped|approval_required|unavailable`の�
 
 ```json
 {
-  "receipt_id": "rcp_<ULID>",
+  "receipt_id": "receipt_<ULID>",
   "protocol_version": "1.0",
   "tenant_id": "ten_<ULID>",
   "connection_id": "wsc_<ULID>",
-  "connection_revision": 7,
-  "contract_revision": "ctr_<ULID>",
+  "connection_revision": "7",
+  "contract_revision": "11",
   "deployment_id": "dep_<ULID>",
   "correlation_id": "cor_<ULID>",
   "operation_ids": ["op_<ULID>"],
@@ -325,11 +328,11 @@ QuotaDecisionは`allowed|warning|hard_stopped|approval_required|unavailable`の�
 
 | method／path | 入力 | 成功 | 意味 |
 |---|---|---|---|
-| `POST /api/v1/runtime/negotiate` | protocol range、required／optional capabilities、deployment | `200 NegotiationResult` | 共通契約を開始する前のversion交渉 |
+| `POST /api/v1/runtime/negotiate` | `protocol_negotiation_request`（protocol ID、range、versions、required／optional capabilities、deployment） | `200 protocol_negotiation_response` | 共通契約を開始する前のversion交渉 |
 | `GET /api/v1/runtime/verification-keys` | なし | `200 VerificationKeySet` | current／retiring Ed25519公開鍵だけを返す |
 | `POST /api/v1/runtime/tenant-context:resolve` | signed service identity、connection selector、requested scopes | `200 TenantContextEnvelope` | Tenant Authorityで一意解決 |
 | `POST /api/v1/runtime/workspace-connections:validate-revision` | tenant、connection、expected revision、workspace／app | `200 RevisionValidation` | 不可逆副作用直前のauthoritative conditional read |
-| `POST /api/v1/runtime/credential-leases` | Envelope、operation、audience、mode | `201 CredentialLease` | 最大60秒・single-useのopaque lease／proxy handle |
+| `POST /api/v1/runtime/credential-leases` | Envelopeと`credential_lease_request`（binding、requested TTL） | `201 credential_lease_response` | 要求値以下かつ最大60秒、`max_uses=1`のopaque lease |
 | `POST /api/v1/runtime/oauth-refresh:compare-and-swap` | credential ref、expected refresh revision、new opaque ref | `200 RefreshState` | Brainbase所有の競合安全なrefresh |
 | `POST /api/v1/runtime/quota:decide` | Envelope、metric、requested quantity | `200 QuotaDecision` | contract revisionを固定した判断 |
 | `POST /api/v1/runtime/usage-events` | Envelope、UsageEvent | `202 UsageEvent` | 成否に関係なく冪等記録 |
@@ -355,7 +358,7 @@ QuotaDecisionは`allowed|warning|hard_stopped|approval_required|unavailable`の�
 }
 ```
 
-固定codeは`TENANT_UNKNOWN`、`TENANT_AMBIGUOUS`、`TENANT_CONTEXT_SIGNATURE_INVALID`、`TENANT_CONTEXT_EXPIRED`、`WORKSPACE_CONNECTION_REVOKED`、`WORKSPACE_CONNECTION_STALE_REVISION`、`WORKSPACE_CONNECTION_UNAVAILABLE`、`WORKSPACE_OR_APP_MISMATCH`、`ACTOR_SCOPE_MISMATCH`、`PROJECT_SCOPE_MISMATCH`、`CAPABILITY_SCOPE_MISMATCH`、`CROSS_TENANT_CANDIDATE`、`QUOTA_EXCEEDED`、`UPSTREAM_UNAVAILABLE`、`PARTIAL_RESULT`、`TIMEOUT`、`RETRY_EXHAUSTED`、`IDEMPOTENCY_CONFLICT`、`FALLBACK_FORBIDDEN`、`SECRET_ARTIFACT_FORBIDDEN`、`PROTOCOL_VERSION_UNSUPPORTED`、`PROTOCOL_CAPABILITY_UNSUPPORTED`、`NO_DATA`、`OAUTH_REFRESH_CONFLICT`とする。別tenantのresourceは存在有無を漏らさない。内部監査には非公開の判断根拠を相関IDで保存する。
+固定codeは従来のtenant／scope／fallback codeに加え、共通kitの`SCHEMA_INVALID`、`REVISION_INVALID`、`TIME_ORDER_INVALID`、`TTL_EXCEEDED`、`NOT_YET_VALID`、`EXPIRED`、`JWS_MALFORMED`、`JWS_PROTECTED_HEADER_INVALID`、`CREDENTIAL_LEASE_INVALID`、`CREDENTIAL_LEASE_TTL_INVALID`、`CREDENTIAL_LEASE_BINDING_MISMATCH`、`IDEMPOTENCY_OWNER_INVALID`、`IDEMPOTENCY_KEY_INVALID`、`COLLECTION_STATE_INVALID`、`OUTCOME_INVALID`、`USAGE_NOT_COLLECTED_HAS_QUANTITY`、`USAGE_PARTIAL_UNKNOWN_FIELDS_REQUIRED`、`USAGE_COLLECTED_QUANTITY_REQUIRED`、`USAGE_COLLECTED_UNKNOWN_FIELDS_FORBIDDEN`、`USAGE_ZERO_REQUIRES_NO_DATA`、`QUOTA_DECISION_INVALID`、`QUOTA_UNAVAILABLE_VALUE_INVALID`、`QUOTA_VALUE_INVALID`、`REPLY_OWNERSHIP_INVALID`を使う。別tenantのresourceは存在有無を漏らさない。内部監査には非公開の判断根拠を相関IDで保存する。
 
 ## 5. Protocol version negotiation
 
@@ -363,9 +366,11 @@ QuotaDecisionは`allowed|warning|hard_stopped|approval_required|unavailable`の�
 
 ```json
 {
+  "message_type": "protocol_negotiation_response",
   "protocol_id": "mana-brainbase-tenant-context",
   "selected_version": "1.0",
   "supported_range": ">=1.0 <2.0",
+  "supported_versions": ["1.0"],
   "compatibility_until": "RFC3339",
   "required_capabilities": [
     "signed_tenant_context",
@@ -373,20 +378,20 @@ QuotaDecisionは`allowed|warning|hard_stopped|approval_required|unavailable`の�
     "tenant_scoped_authorization",
     "credential_broker_v1",
     "usage_receipt_v1",
-    "idempotent_effects_v1"
+    "idempotent_effects_v1",
+    "container_sanitization_v1"
   ],
-  "optional_capabilities": {
-    "cloud_billing_export": "available|non_applicable",
-    "managed_operations": "available|non_applicable",
-    "shared_cloud_rls_conformance": "available|non_applicable",
-    "cloud_standard_credential": "available|non_applicable"
-  },
-  "deployment_id": "dep_<ULID>",
-  "deployment_profile": "shared_cloud|dedicated_cloud|customer_managed_oss"
+  "optional_capabilities": [
+    {
+      "capability": "cloud_billing_export",
+      "status": "supported|unsupported|non_applicable",
+      "reason": "non_applicableの場合は必須"
+    }
+  ]
 }
 ```
 
-protocol IDは`mana-brainbase-tenant-context`、currentは`1.0`、rangeは`>=1.0 <2.0`で固定する。同一major内で共通の最高minorを選び、required capability不足は`PROTOCOL_CAPABILITY_UNSUPPORTED`、major不一致は`PROTOCOL_VERSION_UNSUPPORTED`で業務処理前に停止する。silent downgradeとfallbackは禁止する。互換性廃止は最低90日前に通知する。optional capabilityだけが理由付き`non_applicable`を返せる。
+requestは`message_type=protocol_negotiation_request`、responseは`message_type=protocol_negotiation_response`とし、両者が`protocol_id`、`supported_range`、`supported_versions`、7つのrequired capabilityを明示する。protocol IDは`mana-brainbase-tenant-context`、currentは`1.0`、rangeは`>=1.0 <2.0`で固定する。同一major内で共通の最高minorを選び、required capability不足は`PROTOCOL_CAPABILITY_UNSUPPORTED`、major不一致は`PROTOCOL_VERSION_UNSUPPORTED`で業務処理前に停止する。silent downgradeとfallbackは禁止する。互換性廃止は最低90日前に通知する。optional capabilityだけが理由付き`non_applicable`を返せる。
 
 ## 6. Event契約
 
@@ -431,7 +436,7 @@ dry-runは書込み0件で、対象ID、推奨tenant、根拠、ambiguityを出�
 
 ## 8. Scenariosとfixture
 
-fixtureは設計／CI証拠であり本番readbackではない。`tests/fixtures/multitenant-contract/v1/`に同じJSONを置き、Cloud adapterとOSS adapterへパラメータ化して適用する計画とする。
+fixtureは設計／CI証拠であり本番readbackではない。Brainbase adapterは環境変数で指定したmana-runtime固定HEADの`contracts/mana-brainbase-tenant-context/v1/fixtures/manifest.json`を直接読み、manifestに列挙された18件だけを実行する。Brainbase repositoryへ共通fixtureやtest keyを複製しない。
 
 ### positive
 
@@ -551,9 +556,10 @@ blocking open decisionは0件である。今後D-001〜D-009の意味を変え�
 | Graphify／codebase graph差分調査 | 確認済み。現行のorganization fallback、tenant ledger不在、Receipt境界不足を確認 |
 | VibePro Spec readiness | ready |
 | 21 AC trace | 本SpecとVibePro機械Specで定義 |
-| positive／negative／non-applicable fixture | `tests/fixtures/multitenant-contract/v1/`へ秘密値なしで固定し、Cloud／OSS contract testはGreen。本番readbackではない |
+| canonical conformance kit | mana-runtime PR #237 HEAD `37dd9f5eee783b9b3ba94c31c9c7e32f7afa3351`、fixture SHA-256 `81c73707578ae42d6ed539aae3ac1e8eb3b0feac906e3856e73d8cdf6629d454`へ固定 |
+| positive／negative／non-applicable fixture | 共通manifestの18件を直接読むBrainbase adapter testで検証する。本番readbackではない |
 | TDD Red | 実行済み。module／schema／route／Envelope境界の欠落を実装前に固定 |
-| 対象unit／schema／repository／route／contract | 12 files、50 tests Green |
+| 対象unit／schema／repository／route／contract | 14 test files、68 tests Green。共通adapterは別途20 tests Green（manifest 18件とsource-lock／冪等式2件） |
 | repository全体のCI | この時点では未取得。PR push後に別途readbackする |
 | Cloud／OSS deployment readback | `not_collected` |
 | 実Slackイベント〜Receipt E2E | `not_collected` |
