@@ -12,7 +12,7 @@
 4. `publish`: proof、package identity、HEAD、ancestry、cleanliness、両digestを再照合する。
 5. registryにversionがなければ、検証済みtarballを`--ignore-scripts`でcommit固有の非consumer staging tagへ公開する。
 6. registry metadataが収束するまでbounded retryする。
-7. `version`、`gitHead`、registry `dist.integrity`を照合し、package単位で直列化されたworkflowと現在tagのSemVer再確認により、対象consumer tagを同系列の最大versionへ前進させてからstaging tagを除去する。
+7. `version`、`gitHead`、registry `dist.integrity`を照合し、package単位で直列化されたworkflowと現在tagのSemVer再確認により、対象consumer tagを同系列の最大versionへ前進させてからstaging tagの除去を試みる。
 8. npm成功後だけGitHub Releaseを作成または照合する。
 
 ## Trust boundaries
@@ -32,6 +32,7 @@
 - registry収束を確認できない場合、GitHub Releaseを作成しない。
 - registry `dist.integrity`が検証済みtarballのSHA-512 integrityと異なる場合、dist-tagを変更せず失敗する。
 - 未検証のpublishはcommit固有staging tagだけを変更し、consumer tagを直接指定しない。CLIはupstream Actionsのpackage単位queue外からのpublishを拒否し、変更直前に現在tagを再取得して同系列のより新しいversionを上書きしない。したがって古いversionの復旧、並行実行、metadata収束失敗でもconsumer tagを巻き戻さない。
+- npmが権限上staging tagの削除だけを403で拒否した場合、検証済みversionとconsumer tagの成功を取り消さず、`registry_permission_denied`として結果へ残す。その他のcleanup errorは失敗させる。
 - 再実行時は既存の正しいnpm versionを再publishせず、検証から継続する。
 - `verify`はregistryを変更せず、metadataまたはdist-tag不一致を非0で報告する。
 

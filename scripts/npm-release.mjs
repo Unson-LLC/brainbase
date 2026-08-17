@@ -184,7 +184,17 @@ export async function reconcileDistTag(packageName, version, root, execute = run
 async function removeReleaseStagingTag(packageName, version, expectedSha, root, execute = run) {
   const tag = releaseStagingTag(expectedSha);
   const currentTags = JSON.parse(execute('npm', ['view', packageName, 'dist-tags', '--json'], root));
-  if (currentTags[tag] === version) execute('npm', ['dist-tag', 'rm', packageName, tag], root);
+  if (currentTags[tag] !== version) return { status: 'not_present', tag };
+  try {
+    execute('npm', ['dist-tag', 'rm', packageName, tag], root);
+    return { status: 'removed', tag };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/\bE403\b|403 Forbidden/iu.test(message)) {
+      return { status: 'blocked', tag, reason: 'registry_permission_denied' };
+    }
+    throw error;
+  }
 }
 
 function expectedDistTag(packageName, version, root, execute = run) {
@@ -372,13 +382,14 @@ export async function reconcileNpmRelease({
     }, 6, delay);
   }
   const distTag = await reconcileTag(packageName, version, root, execute);
-  await cleanupStagingTag(packageName, version, expectedSha, root, execute);
+  const stagingTagCleanup = await cleanupStagingTag(packageName, version, expectedSha, root, execute);
   return {
     packageName,
     version,
     gitHead: published.gitHead,
     integrity: publishedIntegrity(published),
-    distTag
+    distTag,
+    stagingTagCleanup
   };
 }
 
