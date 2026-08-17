@@ -205,7 +205,7 @@ export class CredentialBroker {
             ...REQUIRED_LEASE_BINDING_FIELDS,
             'lease_id', 'lease_token', 'provider_operation'
         ], 'CREDENTIAL_LEASE_INVALID');
-        if (!input.body || typeof input.body !== 'object' || Array.isArray(input.body)) {
+        if (!input.request || typeof input.request !== 'object' || Array.isArray(input.request)) {
             fail('CREDENTIAL_LEASE_INVALID');
         }
         const expectedBinding = Object.fromEntries(
@@ -240,10 +240,11 @@ export class CredentialBroker {
             || (binding.provider && forwarder.provider !== binding.provider)) {
             throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
         }
+        const requiresCredential = forwarder.requiresCredential?.(input.provider_operation) !== false;
         const materialize = typeof this.credentialMaterializer === 'function'
             ? this.credentialMaterializer
             : this.credentialMaterializer?.materialize?.bind(this.credentialMaterializer);
-        if (typeof materialize !== 'function') {
+        if (requiresCredential && typeof materialize !== 'function') {
             throw new ContractError('UPSTREAM_UNAVAILABLE', {
                 status: 503,
                 retryable: true,
@@ -252,21 +253,25 @@ export class CredentialBroker {
         }
         let credential;
         try {
-            const materialized = await materialize(binding.credential_ref, {
-                tenant_id: binding.tenant_id,
-                connection_id: binding.connection_id,
-                connection_revision: binding.connection_revision,
-                credential_mode: binding.credential_mode,
-                provider: forwarder.provider
-            });
-            if (materialized === undefined || materialized === null) {
-                throw new ContractError('CREDENTIAL_REF_UNKNOWN', { status: 403 });
+            if (requiresCredential) {
+                const materialized = await materialize(binding.credential_ref, {
+                    tenant_id: binding.tenant_id,
+                    connection_id: binding.connection_id,
+                    connection_revision: binding.connection_revision,
+                    credential_mode: binding.credential_mode,
+                    provider: forwarder.provider
+                });
+                if (materialized === undefined || materialized === null) {
+                    throw new ContractError('CREDENTIAL_REF_UNKNOWN', { status: 403 });
+                }
+                credential = Buffer.isBuffer(materialized) ? materialized : Buffer.from(String(materialized), 'utf8');
+            } else {
+                credential = Buffer.alloc(0);
             }
-            credential = Buffer.isBuffer(materialized) ? materialized : Buffer.from(String(materialized), 'utf8');
             const providerResult = await forwarder.forward({
                 credential,
                 operation: input.provider_operation,
-                body: structuredClone(input.body),
+                request: structuredClone(input.request),
                 binding: deepFreeze(structuredClone(expectedBinding))
             });
             if (!providerResult || !Number.isInteger(providerResult.status)
@@ -281,7 +286,10 @@ export class CredentialBroker {
             return deepFreeze({
                 provider: forwarder.provider,
                 operation_id: input.operation_id,
+                provider_operation: input.provider_operation,
                 status: providerResult.status,
+                response_encoding: providerResult.response_encoding,
+                content_type: providerResult.content_type ?? null,
                 body: structuredClone(providerResult.body ?? null)
             });
         } finally {

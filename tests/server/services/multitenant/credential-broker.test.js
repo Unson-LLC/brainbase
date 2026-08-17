@@ -125,9 +125,14 @@ describe('CredentialBroker PostgreSQL ownership', () => {
             expect(credentialRef).toBe(binding.credential_ref);
             return Buffer.from(credentialMaterial);
         });
-        const forward = vi.fn(async ({ credential, operation, body }) => {
+        const forward = vi.fn(async ({ credential, operation, request }) => {
             expect(Buffer.compare(credential, credentialMaterial)).toBe(0);
-            return { status: 200, body: { id: 'provider-result', operation, accepted: body.input === 'hello' } };
+            return {
+                status: 200,
+                response_encoding: 'json',
+                content_type: 'application/json',
+                body: { id: 'provider-result', operation, accepted: request.body.input === 'hello' }
+            };
         });
         const broker = new CredentialBroker({
             repository,
@@ -151,13 +156,16 @@ describe('CredentialBroker PostgreSQL ownership', () => {
             lease_id: lease.lease_id,
             lease_token: lease.lease_token,
             provider_operation: 'responses.create',
-            body: { input: 'hello' }
+            request: { body: { input: 'hello' } }
         });
 
         expect(result).toEqual({
             provider: 'openai',
             operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            provider_operation: 'responses.create',
             status: 200,
+            response_encoding: 'json',
+            content_type: 'application/json',
             body: { id: 'provider-result', operation: 'responses.create', accepted: true }
         });
         expect(repository.issueCredentialLease).toHaveBeenCalledWith(expect.objectContaining({

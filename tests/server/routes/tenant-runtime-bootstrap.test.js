@@ -161,9 +161,15 @@ describe('tenant runtime production wiring', () => {
     it('P0-1: mana service bindingからtrusted provider-forward routeへ到達し生credentialを返さない', async () => {
         const credentialMaterial = randomBytes(32);
         const materialize = async () => Buffer.from(credentialMaterial);
-        const forward = async ({ credential, operation }) => {
+        const forward = async ({ credential, operation, request: providerRequest }) => {
             expect(Buffer.compare(credential, credentialMaterial)).toBe(0);
-            return { status: 202, body: { provider_request_id: 'provider-request-a', operation } };
+            expect(providerRequest).toEqual({ body: { input: 'hello' } });
+            return {
+                status: 202,
+                response_encoding: 'json',
+                content_type: 'application/json',
+                body: { provider_request_id: 'provider-request-a', operation }
+            };
         };
         const { services, tenant, connection } = createRuntime({
             credentialBrokerOptions: {
@@ -221,13 +227,16 @@ describe('tenant runtime production wiring', () => {
                 lease_token: leaseResponse.body.lease_token,
                 audience: 'api.openai.com',
                 provider_operation: 'responses.create',
-                body: { input: 'hello' }
+                request: { body: { input: 'hello' } }
             });
         expect(forwarded.status).toBe(202);
         expect(forwarded.body).toEqual({
             provider: 'slack',
             operation_id: operationId,
+            provider_operation: 'responses.create',
             status: 202,
+            response_encoding: 'json',
+            content_type: 'application/json',
             body: { provider_request_id: 'provider-request-a', operation: 'responses.create' }
         });
         expect(JSON.stringify(forwarded.body)).not.toContain(leaseResponse.body.lease_token);
@@ -242,7 +251,7 @@ describe('tenant runtime production wiring', () => {
                 lease_token: leaseResponse.body.lease_token,
                 audience: 'api.openai.com',
                 provider_operation: 'responses.create',
-                body: { input: 'hello' }
+                request: { body: { input: 'hello' } }
             });
         expect(replay.status).toBe(409);
         expect(replay.body.code).toBe('CREDENTIAL_LEASE_ALREADY_USED');

@@ -128,8 +128,16 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
             providerForwarders: {
                 [audienceA]: createTrustedHttpProviderForwarder({
                     provider: 'openai',
-                    endpoint: `http://127.0.0.1:${address.port}/v1/responses`,
-                    allowedOperations: ['responses.create'],
+                    baseUrl: `http://127.0.0.1:${address.port}`,
+                    operations: {
+                        'responses.create': {
+                            method: 'POST',
+                            path: '/v1/responses',
+                            body_encoding: 'json',
+                            response_encoding: 'json',
+                            credential_placement: 'bearer'
+                        }
+                    },
                     allowInsecureLocalhost: true
                 })
             }
@@ -167,12 +175,15 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
                 lease_id: lease.lease_id,
                 lease_token: lease.lease_token,
                 provider_operation: 'responses.create',
-                body: { input: 'hello' }
+                request: { body: { input: 'hello' } }
             });
             expect(forwarded).toEqual({
                 provider: 'openai',
                 operation_id: operationA,
+                provider_operation: 'responses.create',
                 status: 202,
+                response_encoding: 'json',
+                content_type: 'application/json',
                 body: { provider_request_id: 'provider-request-a' }
             });
             expect(observedAuthorization).toBe(`Bearer ${providerCredential}`);
@@ -186,7 +197,7 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
                 lease_id: lease.lease_id,
                 lease_token: lease.lease_token,
                 provider_operation: 'responses.create',
-                body: { input: 'replay' }
+                request: { body: { input: 'replay' } }
             })).rejects.toMatchObject({ code: 'CREDENTIAL_LEASE_ALREADY_USED' });
 
             const stored = await pool.query(

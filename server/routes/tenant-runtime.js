@@ -166,7 +166,7 @@ function idempotencyClaimInput(req) {
 
 function providerForwardInput(req) {
     const input = wireInput(req, [
-        'lease_id', 'lease_token', 'audience', 'provider_operation', 'body'
+        'lease_id', 'lease_token', 'audience', 'provider_operation', 'request'
     ], {
         tenant_id: req.tenantContext.tenant.tenant_id,
         connection_id: req.tenantContext.workspace_connection.connection_id,
@@ -178,7 +178,10 @@ function providerForwardInput(req) {
     });
     if (['lease_id', 'lease_token', 'audience', 'provider_operation'].some((field) => (
         typeof input[field] !== 'string' || input[field].length === 0
-    )) || !input.body || typeof input.body !== 'object' || Array.isArray(input.body)) {
+    )) || !input.request || typeof input.request !== 'object' || Array.isArray(input.request)
+        || Object.keys(input.request).some((field) => ![
+            'path_params', 'query', 'body', 'target_url'
+        ].includes(field))) {
         throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
     }
     return input;
