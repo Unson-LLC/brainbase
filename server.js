@@ -289,6 +289,7 @@ const {
     configParser,
     configService,
     infoSSOTService,
+    tenantRuntimeServices,
     canonicalTaskStoreConfig,
     canonicalTaskReadiness,
     canonicalTaskOperationRepository,
@@ -447,7 +448,8 @@ registerApiRoutes(app, {
     workspaceRoot,
     uploadsDir: UPLOADS_DIR,
     runtimeInfo: RUNTIME_INFO,
-    brainbaseRoot: BRAINBASE_ROOT
+    brainbaseRoot: BRAINBASE_ROOT,
+    tenantRuntimeServices
 });
 
 // ========================================

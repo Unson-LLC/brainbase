@@ -38,6 +38,116 @@ function contextBoundInput(req) {
     return { ...input, ...bindings, expected_connection_revision: bindings.connection_revision };
 }
 
+function credentialLeaseRequest(req) {
+    const context = req.tenantContext;
+    const supplied = req.body?.binding ?? {};
+    const binding = {
+        tenant_id: context.tenant.tenant_id,
+        connection_id: context.workspace_connection.connection_id,
+        connection_revision: context.workspace_connection.connection_revision,
+        contract_revision: context.contract_revision,
+        operation_id: context.operation_id,
+        audience: supplied.audience,
+        credential_mode: context.credential.mode,
+        credential_ref: context.credential.credential_ref
+    };
+    for (const [field, canonical] of Object.entries(binding)) {
+        if (field === 'audience') continue;
+        if (supplied[field] !== undefined && supplied[field] !== canonical) {
+            throw new ContractError(field === 'tenant_id' ? 'CROSS_TENANT_CANDIDATE' : 'CREDENTIAL_LEASE_BINDING_MISMATCH', {
+                status: 403,
+                fault_domain: 'protocol'
+            });
+        }
+    }
+    return {
+        message_type: req.body?.message_type,
+        protocol_version: req.body?.protocol_version,
+        binding,
+        requested_ttl_seconds: req.body?.requested_ttl_seconds
+    };
+}
+
+function wireInput(req, fields, bindings) {
+    const source = req.body ?? {};
+    const allowed = new Set(['tenant_context', ...fields]);
+    if (Object.keys(source).some((field) => !allowed.has(field))) {
+        throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
+    }
+    const result = {};
+    for (const field of fields) {
+        if (source[field] !== undefined) result[field] = source[field];
+    }
+    for (const [field, value] of Object.entries(bindings)) {
+        if (result[field] !== undefined && result[field] !== value) {
+            throw new ContractError(field === 'tenant_id' ? 'CROSS_TENANT_CANDIDATE' : 'FALLBACK_FORBIDDEN', {
+                status: 403,
+                fault_domain: 'protocol'
+            });
+        }
+        result[field] = value;
+    }
+    return result;
+}
+
+function quotaInput(req) {
+    const context = req.tenantContext;
+    return wireInput(req, [
+        'quota_revision', 'metric', 'observed_quantity', 'requested_quantity', 'unit',
+        'window_started_at', 'window_ends_at'
+    ], {
+        tenant_id: context.tenant.tenant_id,
+        contract_revision: context.contract_revision,
+        idempotency_key: context.idempotency_key
+    });
+}
+
+function usageEventInput(req) {
+    const context = req.tenantContext;
+    return wireInput(req, [
+        'message_type', 'usage_event_id', 'protocol_version', 'kind', 'quantity', 'unit',
+        'collection_state', 'outcome', 'failure_code', 'unknown_fields', 'observed_at'
+    ], {
+        tenant_id: context.tenant.tenant_id,
+        connection_id: context.workspace_connection.connection_id,
+        connection_revision: context.workspace_connection.connection_revision,
+        contract_revision: context.contract_revision,
+        deployment_id: context.placement.deployment_id,
+        correlation_id: context.correlation_id,
+        operation_id: context.operation_id,
+        idempotency_key: context.idempotency_key
+    });
+}
+
+function operationReceiptInput(req) {
+    const context = req.tenantContext;
+    return wireInput(req, [
+        'message_type', 'receipt_id', 'protocol_version', 'operation_ids', 'idempotency_keys',
+        'actor_principal_id', 'project_id', 'capability_id', 'quota_decision', 'credential_mode',
+        'collection_state', 'outcome', 'failure_code', 'usage_event_ids', 'reply', 'completed_at'
+    ], {
+        tenant_id: context.tenant.tenant_id,
+        connection_id: context.workspace_connection.connection_id,
+        connection_revision: context.workspace_connection.connection_revision,
+        contract_revision: context.contract_revision,
+        deployment_id: context.placement.deployment_id,
+        correlation_id: context.correlation_id
+    });
+}
+
+function idempotencyClaimInput(req) {
+    const context = req.tenantContext;
+    return wireInput(req, [
+        'message_type', 'owner', 'scope', 'slack_event_id', 'context_hash', 'payload_hash',
+        'state', 'retention_until'
+    ], {
+        tenant_id: context.tenant.tenant_id,
+        connection_id: context.workspace_connection.connection_id,
+        operation_id: context.operation_id,
+        idempotency_key: context.idempotency_key
+    });
+}
+
 export function createTenantRuntimeRouter({
     serviceAuth,
     verificationKeys = () => [],
@@ -87,25 +197,37 @@ export function createTenantRuntimeRouter({
             || current.credential_mode !== input.credential_mode) {
             throw new ContractError('WORKSPACE_CONNECTION_STALE_REVISION', { status: 409 });
         }
-        return input;
+        return { input, current };
     }
     router.post('/workspace-connections:validate-revision', asyncHandler(async (req, res) => {
         res.json(await connectionRegistry.validateRevision(contextBoundInput(req)));
     }));
     router.post('/credential-leases', asyncHandler(async (req, res) => {
-        res.status(201).json(await credentialBroker.issueLease(await revalidateAuthoritativeBinding(req)));
+        const { current } = await revalidateAuthoritativeBinding(req);
+        if (typeof credentialBroker.register === 'function') credentialBroker.register(current);
+        res.status(201).json(await credentialBroker.issueLease(credentialLeaseRequest(req)));
     }));
     router.post('/oauth-refresh:compare-and-swap', asyncHandler(async (req, res) => {
-        res.json(await credentialBroker.compareAndSwapRefresh(await revalidateAuthoritativeBinding(req)));
+        const { input } = await revalidateAuthoritativeBinding(req);
+        res.json(await credentialBroker.compareAndSwapRefresh(input));
     }));
     router.post('/quota:decide', asyncHandler(async (req, res) => {
-        res.json(await usageLedger.decideQuota(await revalidateAuthoritativeBinding(req)));
+        await revalidateAuthoritativeBinding(req);
+        res.json(await usageLedger.decideQuota(quotaInput(req)));
     }));
     router.post('/usage-events', asyncHandler(async (req, res) => {
-        res.status(202).json(await usageLedger.recordUsage(await revalidateAuthoritativeBinding(req)));
+        await revalidateAuthoritativeBinding(req);
+        res.status(202).json(await usageLedger.recordUsage(usageEventInput(req)));
     }));
     router.post('/operation-receipts:finalize', asyncHandler(async (req, res) => {
-        res.status(201).json(await usageLedger.finalizeReceipt(await revalidateAuthoritativeBinding(req)));
+        await revalidateAuthoritativeBinding(req);
+        res.status(201).json(await usageLedger.finalizeReceipt(operationReceiptInput(req)));
+    }));
+    router.post('/idempotency-claims', asyncHandler(async (req, res) => {
+        await revalidateAuthoritativeBinding(req);
+        res.status(201).json(await usageLedger.claimEffect(idempotencyClaimInput(req), {
+            connection_revision: req.tenantContext.workspace_connection.connection_revision
+        }));
     }));
 
     router.use((error, req, res, _next) => {
