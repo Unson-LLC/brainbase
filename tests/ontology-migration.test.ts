@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { canonicalEdgeId } from '../src/canonical-graph.js';
 import { planCanonicalGraphMigration } from '../src/ontology-migration.js';
+import { canonicalGraphOntologyRelease, emptyGraph } from '../src/templates.js';
 import type { GraphFileV1, GraphFileV2, RelationshipsFile } from '../src/types.js';
 
 const legacyGraph: GraphFileV1 = {
@@ -29,6 +31,21 @@ const relationships: RelationshipsFile = {
 };
 
 describe('canonical Graph storage migration', () => {
+  it('binds initialization and migration to the same immutable ontology release including the Relation Registry', () => {
+    const plan = planCanonicalGraphMigration({ graph: legacyGraph });
+
+    expect(plan.graph.ontology).toEqual(emptyGraph.ontology);
+    expect(plan.graph.ontology).toEqual(canonicalGraphOntologyRelease.binding);
+    expect(canonicalGraphOntologyRelease.manifest.relationRegistry).toHaveProperty('participates_in');
+    expect(Object.isFrozen(canonicalGraphOntologyRelease)).toBe(true);
+    expect(Object.isFrozen(canonicalGraphOntologyRelease.manifest)).toBe(true);
+    expect(Object.isFrozen(canonicalGraphOntologyRelease.manifest.relationRegistry)).toBe(true);
+    expect(plan.graph.ontology.releaseDigest).toBe(`sha256:${createHash('sha256')
+      .update(JSON.stringify(canonicalGraphOntologyRelease.manifest))
+      .digest('hex')}`);
+    expect(plan.graph.ontology.releaseDigest).not.toMatch(/migration-/);
+  });
+
   it('plans a deterministic v1 to v2 migration from explicit canonical evidence', () => {
     const input = {
       graph: legacyGraph,

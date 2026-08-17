@@ -299,8 +299,14 @@ describe('atomic onboarding CLI writers', () => {
     await initializePersonalOs(dir);
     const candidateA = join(dir, 'candidate-a.json');
     const candidateB = join(dir, 'candidate-b.json');
-    await writeFile(candidateA, JSON.stringify({ candidates: [{ id: 'person-a', kind: 'person', payload: { name: 'Concurrent person A' } }] }));
-    await writeFile(candidateB, JSON.stringify({ candidates: [{ id: 'person-b', kind: 'person', payload: { name: 'Concurrent person B' } }] }));
+    await writeFile(candidateA, JSON.stringify({ candidates: [
+      { id: 'project-a', kind: 'project', payload: { name: 'Concurrent apply project A' } },
+      { id: 'person-a', kind: 'person', payload: { name: 'Concurrent person A', projectId: 'project-xg1pxd' } }
+    ] }));
+    await writeFile(candidateB, JSON.stringify({ candidates: [
+      { id: 'project-b', kind: 'project', payload: { name: 'Concurrent apply project B' } },
+      { id: 'person-b', kind: 'person', payload: { name: 'Concurrent person B', projectId: 'project-xg1pxc' } }
+    ] }));
 
     const codes = await Promise.all([
       runCli(['onboard:apply', '--dir', dir, '--from', candidateA, '--all', '--write'], capture().io),
@@ -310,6 +316,40 @@ describe('atomic onboarding CLI writers', () => {
     expect(codes).toEqual([0, 0]);
     const people = (await loadPersonalOs(dir)).graph.entities.filter((entity) => entity.type === 'person').map((entity) => entity.name);
     expect(people).toEqual(expect.arrayContaining(['Concurrent person A', 'Concurrent person B']));
+  });
+
+  it('upserts imported decision sidecars and canonical edges on retry', async () => {
+    const dir = await tempDir();
+    await initializePersonalOs(dir);
+    const candidatePath = join(dir, 'candidate-idempotent.json');
+    await writeFile(candidatePath, JSON.stringify({ candidates: [
+      { id: 'project-alpha', kind: 'project', payload: { name: 'Alpha' } },
+      {
+        id: 'decision-alpha',
+        kind: 'decision',
+        payload: {
+          title: 'Alpha policy',
+          decision: 'Use Alpha policy.',
+          projectId: 'project-11pyri',
+          effectiveAt: '2026-08-17T00:00:00.000Z'
+        }
+      }
+    ] }));
+
+    expect(await runCli(['onboard:apply', '--dir', dir, '--from', candidatePath, '--all', '--write'], capture().io)).toBe(0);
+    const first = await loadPersonalOs(dir);
+    expect(await runCli(['onboard:apply', '--dir', dir, '--from', candidatePath, '--all', '--write'], capture().io)).toBe(0);
+    const second = await loadPersonalOs(dir);
+
+    expect(second.personalKg.filter((entry) => entry.text === 'Alpha')).toHaveLength(1);
+    expect(second.decisions.filter((decision) => decision.decision === 'Use Alpha policy.')).toHaveLength(1);
+    expect(second).toEqual(first);
+    expect(second.graph.version).toBe(2);
+    if (second.graph.version === 2) {
+      const decision = second.graph.entities.find((entity) => entity.type === 'decision' && entity.name === 'Alpha policy');
+      expect(decision?.validFrom).toBe('2026-08-17T00:00:00.000Z');
+      expect(second.graph.edges.filter((edge) => edge.fromId === decision?.id && edge.relation === 'governs')).toHaveLength(1);
+    }
   });
 });
 

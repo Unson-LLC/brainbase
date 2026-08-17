@@ -1,4 +1,5 @@
-import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, RelationshipRecord } from './types.js';
+import { buildCanonicalEdge, type CanonicalWriteSet } from './canonical-edge-builder.js';
+import type { CanonicalEdge, CanonicalEntity, DecisionRecord, PersonalKgEntry, RelationshipRecord } from './types.js';
 
 export type SourceProvider = 'gmail' | 'calendar' | 'drive' | 'local';
 
@@ -422,14 +423,18 @@ export function buildExtractedCandidateSet(candidates: ExtractedCandidate[], dat
 
 export interface ApplyInput {
   graphEntities: CanonicalEntity[];
+  graphEdges: CanonicalEdge[];
   relationships: RelationshipRecord[];
   personalKg: PersonalKgEntry[];
   decisions: DecisionRecord[];
   ownerName?: string;
+  provenanceSourceKind?: 'import' | 'onboarding';
 }
 
 export interface ApplyResult {
   graphEntities: CanonicalEntity[];
+  graphEdges: CanonicalEdge[];
+  canonicalWrites: CanonicalWriteSet;
   relationships: RelationshipRecord[];
   personalKgAdditions: PersonalKgEntry[];
   decisionAdditions: DecisionRecord[];
@@ -463,14 +468,35 @@ export function planApply(
   now: string
 ): ApplyResult {
   const graphEntities = [...base.graphEntities];
+  const graphEdges = [...base.graphEdges];
+  const canonicalWrites: CanonicalWriteSet = { entities: [], edges: [] };
   const relationships = [...base.relationships];
   const personalKgAdditions: PersonalKgEntry[] = [];
   const decisionAdditions: DecisionRecord[] = [];
   const applied: ApplyResult['applied'] = [];
   const skipped: ApplyResult['skipped'] = [];
   let ownerName = base.ownerName;
+  const provenanceSourceKind = base.provenanceSourceKind ?? 'import';
 
-  for (const candidate of candidates) {
+  const selectedCandidates = candidates.filter((candidate) => selection.all || selection.ids.has(candidate.id));
+  const availableProjectIds = new Set(
+    graphEntities.filter((entity) => entity.type === 'project').map((entity) => entity.id)
+  );
+  const availableDecisionIds = new Set(
+    graphEntities.filter((entity) => entity.type === 'decision').map((entity) => entity.id)
+  );
+  for (const candidate of selectedCandidates) {
+    if (candidate.kind === 'project') {
+      const name = payloadString(candidate.payload, 'name');
+      if (name) availableProjectIds.add(`project-${stableHash(name)}`);
+    }
+    if (candidate.kind === 'decision') {
+      const text = payloadString(candidate.payload, 'decision') || payloadString(candidate.payload, 'text');
+      if (text) availableDecisionIds.add(`decision-${stableHash(text)}`);
+    }
+  }
+
+  for (const candidate of [...candidates].sort((left, right) => left.id.localeCompare(right.id, 'en'))) {
     if (!selection.all && !selection.ids.has(candidate.id)) {
       skipped.push({ id: candidate.id, reason: 'not selected' });
       continue;
@@ -484,8 +510,8 @@ export function planApply(
           break;
         }
         ownerName = name;
-        upsertEntity(graphEntities, { id: 'self', type: 'person', name, summary: 'Owner of this local Brainbase Personal OS.', tags: ['self'] });
-        personalKgAdditions.push({ id: `self-${stableHash(name)}`, type: 'self', text: `I am ${name}.`, tags: ['self'], source: candidate.id, updatedAt: now });
+        writeEntity(graphEntities, canonicalWrites.entities, { id: 'self', type: 'person', name, summary: 'Owner of this local Brainbase Personal OS.', tags: ['self'] });
+        personalKgAdditions.push(reuseById(base.personalKg, { id: `self-${stableHash(name)}`, type: 'self', text: `I am ${name}.`, tags: ['self'], source: candidate.id, updatedAt: now }));
         applied.push({ id: candidate.id, kind: candidate.kind, summary: name, canonicalIds: ['self', `self-${stableHash(name)}`] });
         break;
       }
@@ -496,19 +522,39 @@ export function planApply(
           skipped.push({ id: candidate.id, reason: 'person candidate missing name' });
           break;
         }
+        const projectId = payloadString(payload, 'projectId');
+        if (!projectId) {
+          skipped.push({ id: candidate.id, reason: 'unresolved_project_reference: explicit payload.projectId is required' });
+          break;
+        }
+        if (!availableProjectIds.has(projectId)) {
+          skipped.push({ id: candidate.id, reason: `unresolved_project_reference: ${projectId} is not a canonical or selected project` });
+          break;
+        }
         const context = payloadString(payload, 'context') || payloadString(payload, 'email') || 'Imported from onboarding sources.';
         const role = payloadString(payload, 'role');
-        upsertEntity(graphEntities, { id: `person-${stableHash(person)}`, type: 'person', name: person, summary: context, tags: ['relationship'] });
+        const personId = `person-${stableHash(person)}`;
+        writeEntity(graphEntities, canonicalWrites.entities, { id: personId, type: 'person', name: person, summary: context, tags: ['relationship'] });
+        const edge = buildCanonicalEdge({
+          fromId: personId,
+          relation: 'participates_in',
+          toId: projectId,
+          role: role || undefined,
+          context,
+          provenance: { sourceKind: provenanceSourceKind, sourceId: candidate.id }
+        });
+        writeEdge(graphEdges, canonicalWrites.edges, edge);
+        const relationshipId = `relationship-${stableHash(`${person}|${context}`)}`;
         if (candidate.kind === 'relationship' && !relationships.some((relationship) => relationship.person === person && relationship.context === context)) {
-          relationships.push({ id: `relationship-${stableHash(`${person}|${context}`)}`, person, role: role || undefined, context, tags: ['relationship'], updatedAt: now });
+          relationships.push({ id: relationshipId, person, role: role || undefined, context, tags: ['relationship'], updatedAt: now });
         }
         applied.push({
           id: candidate.id,
           kind: candidate.kind,
           summary: person,
           canonicalIds: candidate.kind === 'relationship'
-            ? [`person-${stableHash(person)}`, `relationship-${stableHash(`${person}|${context}`)}`]
-            : [`person-${stableHash(person)}`]
+            ? [personId, edge.id, relationshipId]
+            : [personId, edge.id]
         });
         break;
       }
@@ -518,7 +564,7 @@ export function planApply(
           skipped.push({ id: candidate.id, reason: 'org candidate missing name' });
           break;
         }
-        upsertEntity(graphEntities, { id: `org-${stableHash(name)}`, type: 'org', name, summary: 'Imported from onboarding sources.', tags: ['org'] });
+        writeEntity(graphEntities, canonicalWrites.entities, { id: `org-${stableHash(name)}`, type: 'org', name, summary: 'Imported from onboarding sources.', tags: ['org'] });
         applied.push({ id: candidate.id, kind: candidate.kind, summary: name, canonicalIds: [`org-${stableHash(name)}`] });
         break;
       }
@@ -528,8 +574,8 @@ export function planApply(
           skipped.push({ id: candidate.id, reason: 'project candidate missing name' });
           break;
         }
-        upsertEntity(graphEntities, { id: `project-${stableHash(name)}`, type: 'project', name, summary: 'Imported from onboarding sources.', tags: ['work'] });
-        personalKgAdditions.push({ id: `work-${stableHash(name)}`, type: 'work', text: name, tags: ['work'], source: candidate.id, updatedAt: now });
+        writeEntity(graphEntities, canonicalWrites.entities, { id: `project-${stableHash(name)}`, type: 'project', name, summary: 'Imported from onboarding sources.', tags: ['work'] });
+        personalKgAdditions.push(reuseById(base.personalKg, { id: `work-${stableHash(name)}`, type: 'work', text: name, tags: ['work'], source: candidate.id, updatedAt: now }));
         applied.push({ id: candidate.id, kind: candidate.kind, summary: name, canonicalIds: [`project-${stableHash(name)}`, `work-${stableHash(name)}`] });
         break;
       }
@@ -539,7 +585,7 @@ export function planApply(
           skipped.push({ id: candidate.id, reason: 'value candidate missing text' });
           break;
         }
-        personalKgAdditions.push({ id: `value-${stableHash(text)}`, type: 'value', text, tags: ['onboarding'], source: candidate.id, updatedAt: now });
+        personalKgAdditions.push(reuseById(base.personalKg, { id: `value-${stableHash(text)}`, type: 'value', text, tags: ['onboarding'], source: candidate.id, updatedAt: now }));
         applied.push({ id: candidate.id, kind: candidate.kind, summary: text, canonicalIds: [`value-${stableHash(text)}`] });
         break;
       }
@@ -549,7 +595,7 @@ export function planApply(
           skipped.push({ id: candidate.id, reason: 'next_action candidate missing text' });
           break;
         }
-        personalKgAdditions.push({ id: `next-action-${stableHash(text)}`, type: 'work', text, tags: ['next-action'], source: candidate.id, updatedAt: now });
+        personalKgAdditions.push(reuseById(base.personalKg, { id: `next-action-${stableHash(text)}`, type: 'work', text, tags: ['next-action'], source: candidate.id, updatedAt: now }));
         applied.push({ id: candidate.id, kind: candidate.kind, summary: text, canonicalIds: [`next-action-${stableHash(text)}`] });
         break;
       }
@@ -559,14 +605,30 @@ export function planApply(
           skipped.push({ id: candidate.id, reason: 'decision candidate missing decision text' });
           break;
         }
+        const projectId = payloadString(payload, 'projectId');
+        if (!projectId) {
+          skipped.push({ id: candidate.id, reason: 'unresolved_project_reference: explicit payload.projectId is required' });
+          break;
+        }
+        if (!availableProjectIds.has(projectId)) {
+          skipped.push({ id: candidate.id, reason: `unresolved_project_reference: ${projectId} is not a canonical or selected project` });
+          break;
+        }
         const topic = payloadString(payload, 'topic');
         const effectiveAt = payloadString(payload, 'effectiveAt');
         const rationale = payloadString(payload, 'rationale');
         const supersedes = readStringArray(payload, ['supersedes']);
+        const unresolvedSupersedes = supersedes.find((id) => !availableDecisionIds.has(id));
+        if (unresolvedSupersedes) {
+          skipped.push({ id: candidate.id, reason: `unresolved_decision_reference: ${unresolvedSupersedes} is not a canonical or selected decision` });
+          break;
+        }
         const tags = readStringArray(payload, ['tags']);
-        decisionAdditions.push({
-          id: `decision-${stableHash(text)}`,
-          title: payloadString(payload, 'title') || 'Promoted decision principle',
+        const decisionId = `decision-${stableHash(text)}`;
+        const title = payloadString(payload, 'title') || 'Promoted decision principle';
+        decisionAdditions.push(reuseById(base.decisions, {
+          id: decisionId,
+          title,
           decision: text,
           topic: topic || undefined,
           supersedes: supersedes.length > 0 ? supersedes : undefined,
@@ -574,8 +636,37 @@ export function planApply(
           rationale: rationale || undefined,
           tags: tags.length > 0 ? tags : ['principle'],
           updatedAt: now
+        }));
+        writeEntity(graphEntities, canonicalWrites.entities, {
+          id: decisionId,
+          type: 'decision',
+          name: title,
+          summary: text,
+          tags: tags.length > 0 ? tags : ['principle'],
+          validFrom: effectiveAt || undefined
         });
-        applied.push({ id: candidate.id, kind: candidate.kind, summary: text, canonicalIds: [`decision-${stableHash(text)}`] });
+        const governs = buildCanonicalEdge({
+          fromId: decisionId,
+          relation: 'governs',
+          toId: projectId,
+          validFrom: effectiveAt || undefined,
+          provenance: { sourceKind: provenanceSourceKind, sourceId: candidate.id }
+        });
+        writeEdge(graphEdges, canonicalWrites.edges, governs);
+        const canonicalIds = [decisionId, governs.id];
+        for (const supersededId of supersedes) {
+          if (!availableDecisionIds.has(supersededId)) continue;
+          const supersedesEdge = buildCanonicalEdge({
+            fromId: decisionId,
+            relation: 'supersedes',
+            toId: supersededId,
+            validFrom: effectiveAt || undefined,
+            provenance: { sourceKind: provenanceSourceKind, sourceId: candidate.id }
+          });
+          writeEdge(graphEdges, canonicalWrites.edges, supersedesEdge);
+          canonicalIds.push(supersedesEdge.id);
+        }
+        applied.push({ id: candidate.id, kind: candidate.kind, summary: text, canonicalIds });
         break;
       }
       default:
@@ -583,7 +674,7 @@ export function planApply(
     }
   }
 
-  return { graphEntities, relationships, personalKgAdditions, decisionAdditions, ownerName, applied, skipped };
+  return { graphEntities, graphEdges, canonicalWrites, relationships, personalKgAdditions, decisionAdditions, ownerName, applied, skipped };
 }
 
 // ---------------------------------------------------------------------------
@@ -724,6 +815,30 @@ function upsertEntity(entities: CanonicalEntity[], entity: CanonicalEntity): voi
   } else {
     entities.push(entity);
   }
+}
+
+function writeEntity(entities: CanonicalEntity[], writes: CanonicalEntity[], entity: CanonicalEntity): void {
+  upsertEntity(entities, entity);
+  upsertEntity(writes, entity);
+}
+
+function writeEdge(edges: CanonicalEdge[], writes: CanonicalEdge[], edge: CanonicalEdge): void {
+  upsertRecord(edges, edge);
+  upsertRecord(writes, edge);
+}
+
+function upsertRecord<T extends { id: string }>(records: T[], record: T): void {
+  const index = records.findIndex((candidate) => candidate.id === record.id);
+  if (index >= 0) records[index] = record;
+  else records.push(record);
+}
+
+function reuseById<T extends { id: string }>(existing: T[], addition: T): T {
+  const found = existing.find((item) => item.id === addition.id);
+  if (!found) return addition;
+  return JSON.stringify({ ...found, updatedAt: undefined }) === JSON.stringify({ ...addition, updatedAt: undefined })
+    ? found
+    : addition;
 }
 
 function truncate(value: string, max: number): string {

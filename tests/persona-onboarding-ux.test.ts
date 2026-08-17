@@ -7,6 +7,12 @@ import { loadPersonalOs } from '../src/ssot.js';
 
 const dirs: string[] = [];
 
+function stableHash(value: string): string {
+  let hashValue = 0;
+  for (const char of value) hashValue = ((hashValue << 5) - hashValue + char.charCodeAt(0)) | 0;
+  return Math.abs(hashValue).toString(36);
+}
+
 afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
@@ -16,6 +22,8 @@ describe('beginner-safe onboarding output contract', () => {
     for (let index = 1; index <= 32; index += 1) {
       const dataDir = await mkdtemp(join(tmpdir(), `brainbase-persona-${index}-`));
       dirs.push(dataDir);
+      const projectName = `Persona ${index} project`;
+      const projectId = `project-${stableHash(projectName)}`;
 
       const legacyRun = await callBrainbaseTool('brainbase_onboarding_start', {
         dataDir,
@@ -29,17 +37,20 @@ describe('beginner-safe onboarding output contract', () => {
           sourceId: 'doc-legacy', evidencePointer: 'file://legacy.md', contentHash: `sha256:${'a'.repeat(64)}`,
           permissionSnapshot: { scopes: [] }, collectionStatus: 'collected'
         },
-        candidates: [{
-          kind: 'decision',
-          payload: { decision: `Persona ${index} legacy policy`, topic: 'ontology-runtime' },
-          observationClass: 'observed',
-          evidenceId: 'legacy-decision'
-        }]
+        candidates: [
+          { kind: 'project', payload: { name: projectName }, observationClass: 'observed', evidenceId: 'project' },
+          {
+            kind: 'decision',
+            payload: { decision: `Persona ${index} legacy policy`, topic: 'ontology-runtime', projectId },
+            observationClass: 'observed',
+            evidenceId: 'legacy-decision'
+          }
+        ]
       }) as { candidates: Array<{ id: string }> };
       const legacyReviewed = await callBrainbaseTool('brainbase_onboarding_review', {
         dataDir,
         runId: legacyRun.runId,
-        actions: [{ candidateId: legacyIngested.candidates[0].id, decision: 'approve', reason: '文書で確認済み' }]
+        actions: legacyIngested.candidates.map(({ id }) => ({ candidateId: id, decision: 'approve', reason: '文書で確認済み' }))
       }) as { promotedCanonicalIds: string[] };
       const legacyDecisionId = legacyReviewed.promotedCanonicalIds.find((id) => id.startsWith('decision-'))!;
 
@@ -84,6 +95,7 @@ describe('beginner-safe onboarding output contract', () => {
 
       const currentPayload = {
         decision: `Persona ${index} uses Ontology 1.0.0`,
+        projectId,
         topic: 'ontology-runtime',
         supersedes: [legacyDecisionId],
         effectiveAt: '2026-08-05T00:00:00.000Z',
@@ -144,7 +156,14 @@ describe('beginner-safe onboarding output contract', () => {
       expect(reviewed.guide.current).toBe('確認済みの候補を正式な情報として登録しました。');
       const currentDecisionId = reviewed.promotedCanonicalIds.find((id) => id.startsWith('decision-'))!;
       const os = await loadPersonalOs(dataDir);
-      expect(os.decisions.find((decision) => decision.id === currentDecisionId)).toMatchObject(currentPayload);
+      expect(os.decisions.find((decision) => decision.id === currentDecisionId)).toMatchObject({
+        decision: currentPayload.decision,
+        topic: currentPayload.topic,
+        supersedes: currentPayload.supersedes,
+        effectiveAt: currentPayload.effectiveAt,
+        rationale: currentPayload.rationale,
+        tags: currentPayload.tags
+      });
 
       const inference = await callBrainbaseTool('infer_decisions', {
         dataDir, asOf: '2026-08-05T01:00:00.000Z'

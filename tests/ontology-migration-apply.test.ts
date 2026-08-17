@@ -32,10 +32,14 @@ describe('canonical Graph migration apply', () => {
 
     expect(await runCli(['ontology:migrate', '--dir', dir], previewOutput.io)).toBe(0);
     expect(JSON.parse(previewOutput.stdout()).status).toBe('migration_required');
+    const expectedInputDigest = JSON.parse(previewOutput.stdout()).expectedInputDigest as string;
+    expect(expectedInputDigest).toBe(JSON.parse(previewOutput.stdout()).inputDigest);
     await expect(snapshot(dir)).resolves.toEqual(nonGraphBefore);
 
     const writeOutput = capture();
-    expect(await runCli(['ontology:migrate', '--dir', dir, '--write'], writeOutput.io)).toBe(0);
+    expect(await runCli([
+      'ontology:migrate', '--dir', dir, '--write', '--expected-input-digest', expectedInputDigest
+    ], writeOutput.io)).toBe(0);
     expect(JSON.parse(writeOutput.stdout())).toMatchObject({ status: 'migration_required', written: true });
     expect(JSON.parse(await readFile(join(dir, 'graph.json'), 'utf8')).version).toBe(2);
     const afterWrite = await snapshot(dir);
@@ -43,22 +47,51 @@ describe('canonical Graph migration apply', () => {
     expect(afterWrite['personal-kg.jsonl']).toBe(nonGraphBefore['personal-kg.jsonl']);
     expect(afterWrite['decisions.jsonl']).toBe(nonGraphBefore['decisions.jsonl']);
 
-    const second = await migrateCanonicalGraph(dir, { write: true });
+    const secondPreview = await migrateCanonicalGraph(dir);
+    const second = await migrateCanonicalGraph(dir, { write: true, expectedInputDigest: secondPreview.inputDigest });
     expect(second).toMatchObject({ status: 'up_to_date', written: false });
     await expect(snapshot(dir)).resolves.toEqual(afterWrite);
   });
 
-  it('serializes concurrent writers and replans under the SSOT lock', async () => {
+  it('requires the preview digest and blocks a stale concurrent writer after replanning under the SSOT lock', async () => {
     const dir = await fixture();
+    const preview = await migrateCanonicalGraph(dir);
 
     const results = await Promise.all([
-      migrateCanonicalGraph(dir, { write: true }),
-      migrateCanonicalGraph(dir, { write: true })
+      migrateCanonicalGraph(dir, { write: true, expectedInputDigest: preview.inputDigest }),
+      migrateCanonicalGraph(dir, { write: true, expectedInputDigest: preview.inputDigest })
     ]);
 
     expect(results.filter((result) => result.written)).toHaveLength(1);
-    expect(results.map((result) => result.status).sort()).toEqual(['migration_required', 'up_to_date']);
+    expect(results.map((result) => result.status).sort()).toEqual(['blocked', 'migration_required']);
+    expect(results.find((result) => result.status === 'blocked')?.issues).toContainEqual(expect.objectContaining({
+      code: 'input_digest_mismatch'
+    }));
     expect(JSON.parse(await readFile(join(dir, 'graph.json'), 'utf8')).version).toBe(2);
+  });
+
+  it('does not write without the exact input digest returned by preview', async () => {
+    const dir = await fixture();
+    const before = await snapshot(dir);
+
+    const missing = await migrateCanonicalGraph(dir, { write: true });
+    const stale = await migrateCanonicalGraph(dir, { write: true, expectedInputDigest: '0'.repeat(64) });
+
+    expect(missing).toMatchObject({ status: 'blocked', written: false });
+    expect(missing.issues).toContainEqual(expect.objectContaining({ code: 'expected_input_digest_required' }));
+    expect(stale).toMatchObject({ status: 'blocked', written: false });
+    expect(stale.issues).toContainEqual(expect.objectContaining({ code: 'input_digest_mismatch' }));
+    await expect(snapshot(dir)).resolves.toEqual(before);
+  });
+
+  it('exposes the preview digest as a required CLI write argument', async () => {
+    const dir = await fixture();
+    const before = await snapshot(dir);
+    const output = capture();
+
+    expect(await runCli(['ontology:migrate', '--dir', dir, '--write'], output.io)).toBe(1);
+    expect(JSON.parse(output.stdout())).toMatchObject({ status: 'blocked', written: false });
+    await expect(snapshot(dir)).resolves.toEqual(before);
   });
 
   it('does not write a blocked plan and returns a failing CLI status', async () => {
@@ -66,7 +99,10 @@ describe('canonical Graph migration apply', () => {
     const before = await snapshot(dir);
     const output = capture();
 
-    const code = await runCli(['ontology:migrate', '--dir', dir, '--write'], output.io);
+    const preview = await migrateCanonicalGraph(dir);
+    const code = await runCli([
+      'ontology:migrate', '--dir', dir, '--write', '--expected-input-digest', preview.inputDigest
+    ], output.io);
 
     expect(code).toBe(1);
     expect(JSON.parse(output.stdout())).toMatchObject({ status: 'blocked', written: false });
@@ -78,7 +114,11 @@ describe('canonical Graph migration apply', () => {
     const before = await snapshot(dir);
     process.env.BRAINBASE_SSOT_FAIL_AFTER_PUBLISH = '2';
 
-    await expect(migrateCanonicalGraph(dir, { write: true })).rejects.toThrow(/Injected SSOT publish failure/);
+    const preview = await migrateCanonicalGraph(dir);
+    await expect(migrateCanonicalGraph(dir, {
+      write: true,
+      expectedInputDigest: preview.inputDigest
+    })).rejects.toThrow(/Injected SSOT publish failure/);
 
     delete process.env.BRAINBASE_SSOT_FAIL_AFTER_PUBLISH;
     await migrateCanonicalGraph(dir);

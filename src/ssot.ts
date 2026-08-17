@@ -135,6 +135,7 @@ export async function mutatePersonalOsWithSidecar<T>(
 }
 
 export type CanonicalGraphMigrationExecution = CanonicalGraphMigrationPlan & {
+  expectedInputDigest: string;
   written: boolean;
 };
 
@@ -147,7 +148,7 @@ export type CanonicalGraphMigrationExecution = CanonicalGraphMigrationPlan & {
  */
 export async function migrateCanonicalGraph(
   dataDir: string,
-  options: { write?: boolean } = {}
+  options: { write?: boolean; expectedInputDigest?: string } = {}
 ): Promise<CanonicalGraphMigrationExecution> {
   return withSsotLock(dataDir, async () => {
     await recoverTransactions(dataDir);
@@ -158,14 +159,43 @@ export async function migrateCanonicalGraph(
       relationships: current.relationships,
       decisions: current.decisions
     });
+    if (options.write && options.expectedInputDigest === undefined) {
+      return blockMigrationWrite(plan, {
+        code: 'expected_input_digest_required',
+        recordId: 'canonical-aggregate',
+        detail: 'MIGRATION-EXPECTED-INPUT-DIGEST-REQUIRED: preview first and pass its inputDigest before writing'
+      });
+    }
+    if (options.write && options.expectedInputDigest !== plan.inputDigest) {
+      return blockMigrationWrite(plan, {
+        code: 'input_digest_mismatch',
+        recordId: 'canonical-aggregate',
+        detail: `MIGRATION-INPUT-DIGEST-MISMATCH: expected ${options.expectedInputDigest}, replanned ${plan.inputDigest}`
+      });
+    }
     if (!options.write || plan.status !== 'migration_required') {
-      return { ...plan, written: false };
+      return { ...plan, expectedInputDigest: plan.inputDigest, written: false };
     }
 
     const next = { ...current, graph: plan.graph };
     await commitAggregate(dataDir, next, 'mutation');
-    return { ...plan, written: true };
+    return { ...plan, expectedInputDigest: plan.inputDigest, written: true };
   });
+}
+
+function blockMigrationWrite(
+  plan: CanonicalGraphMigrationPlan,
+  issue: CanonicalGraphMigrationPlan['issues'][number]
+): CanonicalGraphMigrationExecution {
+  return {
+    ...plan,
+    status: 'blocked',
+    issues: [...plan.issues, issue].sort((left, right) => (
+      `${left.recordId}\u0000${left.code}`.localeCompare(`${right.recordId}\u0000${right.code}`, 'en')
+    )),
+    expectedInputDigest: plan.inputDigest,
+    written: false
+  };
 }
 
 async function loadPersonalOsUnlocked(dataDir: string): Promise<PersonalOs> {
@@ -322,6 +352,7 @@ function parseGraph(value: unknown): GraphFile {
     if (!(error instanceof Error) || !error.message.startsWith('GRAPH-ENTITY-ID-UNIQUE')) {
       throw error;
     }
+    validateCanonicalGraph(value, { allowDuplicateEntityIds: true });
   }
   return value as GraphFile;
 }

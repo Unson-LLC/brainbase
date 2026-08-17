@@ -51,7 +51,7 @@ const calendarRaw = {
 };
 
 function emptyBase(): ApplyInput {
-  return { graphEntities: [], relationships: [], personalKg: [], decisions: [] };
+  return { graphEntities: [], graphEdges: [], relationships: [], personalKg: [], decisions: [] };
 }
 
 describe('parseProvider', () => {
@@ -154,17 +154,19 @@ describe('planApply (INV-4/INV-5 selection + dry-run)', () => {
   ];
   const candidates = loadApplyCandidates({ candidates: extractCandidates(records, { selfEmails: ['k.sato.unson@gmail.com'] }) });
 
-  it('promotes only explicitly selected candidates', () => {
+  it('does not invent a project edge for an extracted person without an explicit project id', () => {
     const personId = candidates.find((candidate) => candidate.kind === 'person')!.id;
     const result = planApply(candidates, { ids: new Set([personId]), all: false }, emptyBase(), '2026-06-05T00:00:00.000Z');
-    expect(result.applied.map((item) => item.id)).toEqual([personId]);
-    expect(result.skipped.length).toBe(candidates.length - 1);
-    expect(result.graphEntities).toHaveLength(1);
+    expect(result.applied).toEqual([]);
+    expect(result.skipped).toContainEqual({ id: personId, reason: 'unresolved_project_reference: explicit payload.projectId is required' });
+    expect(result.graphEntities).toHaveLength(0);
+    expect(result.graphEdges).toHaveLength(0);
   });
 
-  it('promotes everything with all=true and builds relationship records', () => {
+  it('promotes standalone org/project candidates and leaves unscoped relationships unresolved', () => {
     const result = planApply(candidates, { ids: new Set(), all: true }, emptyBase(), '2026-06-05T00:00:00.000Z');
-    expect(result.relationships.length).toBeGreaterThanOrEqual(1);
+    expect(result.relationships).toHaveLength(0);
+    expect(result.skipped.some((item) => item.reason.startsWith('unresolved_project_reference:'))).toBe(true);
     expect(result.graphEntities.some((entity) => entity.type === 'org')).toBe(true);
     expect(result.graphEntities.some((entity) => entity.type === 'project')).toBe(true);
   });
@@ -175,12 +177,46 @@ describe('planApply (INV-4/INV-5 selection + dry-run)', () => {
     expect(first.applied.map((item) => item.id)).toEqual(second.applied.map((item) => item.id));
   });
 
+  it('connects selected project and person by stable ids independent of candidate order', () => {
+    const project = { id: 'project-candidate', kind: 'project', payload: { name: 'Alpha' } };
+    const projectId = 'project-11pyri';
+    const person = { id: 'person-candidate', kind: 'person', payload: { name: 'Aki', projectId, role: 'owner' } };
+
+    const first = planApply([person, project], { ids: new Set(), all: true }, emptyBase(), '2026-08-05T01:00:00.000Z');
+    const second = planApply([project, person], { ids: new Set(), all: true }, emptyBase(), '2026-08-05T01:00:00.000Z');
+
+    expect(first.graphEdges).toEqual(second.graphEdges);
+    expect(first.graphEdges).toEqual([
+      expect.objectContaining({ fromId: expect.stringMatching(/^person-/), relation: 'participates_in', toId: projectId, role: 'owner' })
+    ]);
+    const personReceipt = first.applied.find((item) => item.id === person.id)!;
+    expect(personReceipt.canonicalIds).toContain(first.graphEdges[0].id);
+    expect(first.canonicalWrites.edges).toEqual(first.graphEdges);
+  });
+
+  it('is idempotent when the same canonical writes are planned again', () => {
+    const project = { id: 'project-candidate', kind: 'project', payload: { name: 'Alpha' } };
+    const projectId = 'project-11pyri';
+    const person = { id: 'person-candidate', kind: 'person', payload: { name: 'Aki', projectId } };
+    const first = planApply([project, person], { ids: new Set(), all: true }, emptyBase(), '2026-08-05T01:00:00.000Z');
+    const second = planApply([project, person], { ids: new Set(), all: true }, {
+      graphEntities: first.graphEntities,
+      graphEdges: first.graphEdges,
+      relationships: first.relationships,
+      personalKg: first.personalKgAdditions,
+      decisions: first.decisionAdditions
+    }, '2026-08-05T01:00:00.000Z');
+    expect(second.graphEntities).toEqual(first.graphEntities);
+    expect(second.graphEdges).toEqual(first.graphEdges);
+  });
+
   it('preserves ontology semantics when promoting a decision candidate', () => {
     const decision = {
       id: 'decision-candidate',
       kind: 'decision',
       payload: {
         decision: 'Use the reviewed ontology kernel for current answers.',
+        projectId: 'project-brainbase',
         topic: 'ontology-runtime',
         supersedes: ['decision-legacy'],
         effectiveAt: '2026-08-05T00:00:00.000Z',
@@ -191,7 +227,13 @@ describe('planApply (INV-4/INV-5 selection + dry-run)', () => {
     const result = planApply(
       [decision],
       { ids: new Set([decision.id]), all: false },
-      emptyBase(),
+      {
+        ...emptyBase(),
+        graphEntities: [
+          { id: 'project-brainbase', type: 'project', name: 'Brainbase' },
+          { id: 'decision-legacy', type: 'decision', name: 'Legacy decision' }
+        ]
+      },
       '2026-08-05T01:00:00.000Z'
     );
 
@@ -205,6 +247,15 @@ describe('planApply (INV-4/INV-5 selection + dry-run)', () => {
         tags: ['ontology', 'reviewed']
       })
     ]);
+    expect(result.graphEntities).toContainEqual(expect.objectContaining({
+      id: result.decisionAdditions[0].id,
+      type: 'decision',
+      validFrom: '2026-08-05T00:00:00.000Z'
+    }));
+    expect(result.graphEdges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ fromId: result.decisionAdditions[0].id, relation: 'governs', toId: 'project-brainbase' }),
+      expect.objectContaining({ fromId: result.decisionAdditions[0].id, relation: 'supersedes', toId: 'decision-legacy' })
+    ]));
   });
 });
 

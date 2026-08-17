@@ -46,6 +46,53 @@ describe('local SSOT loader', () => {
   });
 
   it.each([
+    [
+      'the Graph v2 ontology binding is missing',
+      {
+        version: 2,
+        entities: [
+          { id: 'duplicate', type: 'person', name: 'First' },
+          { id: 'duplicate', type: 'person', name: 'Second' }
+        ],
+        edges: []
+      },
+      /GRAPH-ONTOLOGY-REQUIRED/
+    ],
+    [
+      'the Graph v2 edges array is missing',
+      {
+        version: 2,
+        ontology: { id: 'brainbase-personal-os', version: '1.0.0', releaseDigest: 'test' },
+        entities: [
+          { id: 'duplicate', type: 'person', name: 'First' },
+          { id: 'duplicate', type: 'person', name: 'Second' }
+        ]
+      },
+      /Graph v2 edges must be an array/
+    ],
+    [
+      'an entity after the duplicate is malformed',
+      {
+        version: 2,
+        ontology: { id: 'brainbase-personal-os', version: '1.0.0', releaseDigest: 'test' },
+        entities: [
+          { id: 'duplicate', type: 'person', name: 'First' },
+          { id: 'duplicate', type: 'person', name: 'Second' },
+          { id: 'missing-name', type: 'person' }
+        ],
+        edges: []
+      },
+      /entities\[2\]\.name/
+    ]
+  ])('INV-3 duplicate audit tolerance still rejects malformed input when %s', async (_case, graph, errorPattern) => {
+    const dir = await tempDir();
+    await initializePersonalOs(dir);
+    await writeFile(join(dir, 'graph.json'), `${JSON.stringify(graph)}\n`);
+
+    await expect(loadPersonalOs(dir)).rejects.toThrow(errorPattern);
+  });
+
+  it.each([
     ['personal-kg.jsonl', '{"id":"","type":"self","text":"missing id"}\n', /Invalid personal-kg\.jsonl line 1/],
     ['relationships.json', '{"version":1,"relationships":[{"id":"r1","person":"","context":"missing person"}]}', /String must contain at least 1 character|expected string to have >=1 characters/],
     ['decisions.jsonl', '{"id":"d1","title":"","decision":"missing title"}\n', /Invalid decisions\.jsonl line 1/]

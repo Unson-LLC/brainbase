@@ -707,16 +707,22 @@ async function onboardApply(parsed: ParsedArgs, io: CliIo): Promise<number> {
       }
       result = planApply(candidates, { ids: selectedIds, all }, {
         graphEntities: [...os.graph.entities],
+        graphEdges: [...os.graph.edges],
         relationships: [...os.relationships.relationships],
         personalKg: os.personalKg,
         decisions: os.decisions,
         ownerName: os.graph.owner?.name
       }, now);
+      const personalKg = [...os.personalKg];
+      for (const entry of result.personalKgAdditions) upsertById(personalKg, entry);
+      const decisions = [...os.decisions];
+      for (const decision of result.decisionAdditions) upsertById(decisions, decision);
+      const graph = applyCanonicalWrites(os.graph, result.canonicalWrites);
       return proposedPersonalOs(os, {
-        graph: { ...os.graph, owner: result.ownerName ? { ...os.graph.owner, name: result.ownerName } : os.graph.owner, entities: result.graphEntities },
+        graph: { ...graph, owner: result.ownerName ? { ...graph.owner, name: result.ownerName } : graph.owner },
         relationships: { version: 1, relationships: result.relationships },
-        personalKg: [...os.personalKg, ...result.personalKgAdditions],
-        decisions: [...os.decisions, ...result.decisionAdditions]
+        personalKg,
+        decisions
       });
     });
   } else {
@@ -726,6 +732,7 @@ async function onboardApply(parsed: ParsedArgs, io: CliIo): Promise<number> {
     }
     result = planApply(candidates, { ids: selectedIds, all }, {
       graphEntities: [...os.graph.entities],
+      graphEdges: [...os.graph.edges],
       relationships: [...os.relationships.relationships],
       personalKg: os.personalKg,
       decisions: os.decisions,
@@ -1109,7 +1116,10 @@ async function ontologyAudit(parsed: ParsedArgs, io: CliIo): Promise<number> {
 
 async function ontologyMigrate(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const dataDir = resolveDataDir(first(parsed, 'dir'));
-  const result = await migrateCanonicalGraph(dataDir, { write: parsed.flags.has('write') });
+  const result = await migrateCanonicalGraph(dataDir, {
+    write: parsed.flags.has('write'),
+    expectedInputDigest: first(parsed, 'expected-input-digest')
+  });
   write(io, `${JSON.stringify(result, null, 2)}\n`);
   return result.status === 'blocked' ? 1 : 0;
 }
@@ -1150,7 +1160,7 @@ function usage(): string {
   brainbase onboard:skills --target codex|claude|portable [--skills id,id] [--out dir] [--format markdown|json]
   brainbase ontology:show
   brainbase ontology:audit [--dir path] [--ontology-version 0.0.0|1.0.0]
-  brainbase ontology:migrate [--dir path] [--write]
+  brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
   brainbase judgment:install --target codex [--dry-run] [--output path]
   brainbase judgment:hook
   brainbase doctor [--dir path] [--judgment-hooks path]

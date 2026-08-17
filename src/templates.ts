@@ -1,18 +1,31 @@
 import { createHash } from 'node:crypto';
 import { portableOntology } from './ontology.js';
+import { canonicalRelationRegistry } from './relation-registry.js';
 import type { GraphFileV2, RelationshipsFile } from './types.js';
 
+const ontologyReleaseManifest = deepFreeze({
+  id: 'brainbase-personal-os' as const,
+  version: portableOntology.version,
+  ontology: portableOntology,
+  relationRegistry: canonicalRelationRegistry
+});
+
 const ontologyReleaseDigest = `sha256:${createHash('sha256')
-  .update(JSON.stringify(portableOntology))
+  .update(JSON.stringify(ontologyReleaseManifest))
   .digest('hex')}`;
+
+export const canonicalGraphOntologyRelease = deepFreeze({
+  manifest: ontologyReleaseManifest,
+  binding: {
+    id: ontologyReleaseManifest.id,
+    version: ontologyReleaseManifest.version,
+    releaseDigest: ontologyReleaseDigest
+  }
+});
 
 export const emptyGraph: GraphFileV2 = {
   version: 2,
-  ontology: {
-    id: 'brainbase-personal-os',
-    version: portableOntology.version,
-    releaseDigest: ontologyReleaseDigest
-  },
+  ontology: canonicalGraphOntologyRelease.binding,
   owner: {},
   entities: [],
   edges: []
@@ -22,6 +35,14 @@ export const emptyRelationships: RelationshipsFile = {
   version: 1,
   relationships: []
 };
+
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const nested of Object.values(value as Record<string, unknown>)) deepFreeze(nested);
+  }
+  return value;
+}
 
 export const schemaTemplates: Record<string, unknown> = {
   'graph.schema.json': {

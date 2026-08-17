@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { planApply, type ApplyCandidate } from './import-extract.js';
+import { applyCanonicalWrites } from './canonical-edge-builder.js';
 import { initializePersonalOs, loadPersonalOs, mutatePersonalOsWithSidecar } from './ssot.js';
 
 const LEDGER_SCHEMA_VERSION = 'connected_onboarding.v1';
@@ -259,10 +260,12 @@ export class ConnectedOnboardingRuntime {
         }
         const result = planApply(prepared.promotions, { ids: new Set(), all: true }, {
           graphEntities: [...os.graph.entities],
+          graphEdges: [...os.graph.edges],
           relationships: [...os.relationships.relationships],
           personalKg: os.personalKg,
           decisions: os.decisions,
-          ownerName: os.graph.owner?.name
+          ownerName: os.graph.owner?.name,
+          provenanceSourceKind: 'onboarding'
         }, this.timestamp());
         if (result.skipped.length > 0 || result.applied.length !== prepared.promotions.length) {
           throw new ConnectedOnboardingError('candidate_not_promotable', result.skipped[0]?.reason ?? 'candidate was not promoted');
@@ -280,13 +283,13 @@ export class ConnectedOnboardingRuntime {
         run.state = advanceState(run.state, 'promotion_reviewed');
         run.updatedAt = this.timestamp();
         const sidecarContent = serializeLedger(ledger);
+        const graph = applyCanonicalWrites(os.graph, result.canonicalWrites);
         return {
           next: {
             ...os,
             graph: {
-              ...os.graph,
-              owner: result.ownerName ? { ...os.graph.owner, name: result.ownerName } : os.graph.owner,
-              entities: result.graphEntities
+              ...graph,
+              owner: result.ownerName ? { ...graph.owner, name: result.ownerName } : graph.owner
             },
             relationships: { version: 1, relationships: result.relationships },
             personalKg: mergeById(os.personalKg, result.personalKgAdditions),
@@ -623,9 +626,8 @@ function isSameTerminalReview(candidate: ConnectedCandidate, action: ReviewActio
 }
 
 function assertPromotable(candidate: Pick<ConnectedCandidate, 'id' | 'kind' | 'payload'>): void {
-  const result = planApply([toApplyCandidate(candidate)], { ids: new Set(), all: true }, {
-    graphEntities: [], relationships: [], personalKg: [], decisions: []
-  }, '2000-01-01T00:00:00.000Z');
+  const validation = candidateValidationContext(candidate, true);
+  const result = planApply([validation.candidate], { ids: new Set(), all: true }, validation.base, '2000-01-01T00:00:00.000Z');
   if (result.skipped.length > 0 || result.applied.length !== 1) {
     throw new ConnectedOnboardingError('candidate_not_promotable', result.skipped[0]?.reason ?? 'candidate is not promotable');
   }
@@ -887,14 +889,45 @@ function isValidLedgerCandidate(value: unknown, runId: string, sourceIds: Set<st
     || !['approve', 'edit', 'merge'].includes(String(value.reviewDecision))
     || value.mergedIntoCandidateId !== undefined
     || value.promotedCanonicalIds.length === 0) return false;
-  return stableJson(value.promotedCanonicalIds) === stableJson(expectedCanonicalIds(value as unknown as ConnectedCandidate));
+  return stableJson(value.promotedCanonicalIds) === stableJson(expectedCanonicalIds({
+    id: String(value.id),
+    kind: String(value.kind),
+    payload: value.payload
+  }));
 }
 
 function expectedCanonicalIds(candidate: Pick<ConnectedCandidate, 'id' | 'kind' | 'payload'>): string[] {
-  const result = planApply([toApplyCandidate(candidate)], { ids: new Set(), all: true }, {
-    graphEntities: [], relationships: [], personalKg: [], decisions: []
-  }, '2000-01-01T00:00:00.000Z');
+  const validation = candidateValidationContext(candidate, false);
+  const result = planApply([validation.candidate], { ids: new Set(), all: true }, validation.base, '2000-01-01T00:00:00.000Z');
   return result.skipped.length === 0 && result.applied.length === 1 ? result.applied[0].canonicalIds : [];
+}
+
+function candidateValidationContext(
+  candidate: Pick<ConnectedCandidate, 'id' | 'kind' | 'payload'>,
+  fillMissingProject: boolean
+): { candidate: ApplyCandidate; base: Parameters<typeof planApply>[2] } {
+  const payload = { ...candidate.payload };
+  const requiresProject = ['person', 'relationship', 'decision'].includes(candidate.kind);
+  const explicitProjectId = typeof payload.projectId === 'string' ? payload.projectId.trim() : '';
+  const projectId = explicitProjectId || (requiresProject && fillMissingProject ? 'project-validation-only' : '');
+  if (projectId && !explicitProjectId) payload.projectId = projectId;
+  const supersedes = Array.isArray(payload.supersedes)
+    ? payload.supersedes.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+    : [];
+  return {
+    candidate: { id: candidate.id, kind: candidate.kind, payload },
+    base: {
+      graphEntities: [
+        ...(projectId ? [{ id: projectId, type: 'project' as const, name: projectId }] : []),
+        ...supersedes.map((id) => ({ id, type: 'decision' as const, name: id }))
+      ],
+      graphEdges: [],
+      relationships: [],
+      personalKg: [],
+      decisions: [],
+      provenanceSourceKind: 'onboarding'
+    }
+  };
 }
 
 function isValidFirstValueReceipt(value: unknown, promoted: Set<string>): boolean {
@@ -922,6 +955,7 @@ function isValidFirstValueReview(value: unknown, hasReceipt: boolean): boolean {
 function assertCanonicalReferences(run: ConnectedOnboardingRun, os: Awaited<ReturnType<typeof loadPersonalOs>>): void {
   const canonicalIds = new Set([
     ...os.graph.entities.map((item) => item.id),
+    ...(os.graph.version === 2 ? os.graph.edges.map((item) => item.id) : []),
     ...os.relationships.relationships.map((item) => item.id),
     ...os.personalKg.map((item) => item.id),
     ...os.decisions.map((item) => item.id)
