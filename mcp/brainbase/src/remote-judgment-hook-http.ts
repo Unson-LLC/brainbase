@@ -26,6 +26,7 @@ export interface RemoteJudgmentHookRequest {
     reason: string;
     errorName: string;
     errorCode?: string;
+    causeReasonCode?: string;
   }) => void;
 }
 
@@ -37,6 +38,18 @@ export interface RemoteJudgmentHookResponse {
 
 const PROJECT_CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const SUPPORTED_HOOK_EVENTS = new Set(['UserPromptSubmit', 'PostToolUse', 'Stop']);
+const SAFE_REASON_CODE = /^[a-z][a-z0-9_]{1,80}$/;
+
+function safeCauseReasonCode(error: unknown): string | undefined {
+  let current = typeof error === 'object' && error && 'cause' in error ? error.cause : undefined;
+  const visited = new Set<unknown>();
+  for (let depth = 0; depth < 6 && current && !visited.has(current); depth += 1) {
+    visited.add(current);
+    if (current instanceof Error && SAFE_REASON_CODE.test(current.message)) return current.message;
+    current = typeof current === 'object' && 'cause' in current ? current.cause : undefined;
+  }
+  return undefined;
+}
 
 export async function handleRemoteJudgmentHookRequest(
   request: RemoteJudgmentHookRequest,
@@ -115,11 +128,13 @@ export async function handleRemoteJudgmentHookRequest(
       && /^[A-Z0-9_]{1,80}$/.test(error.code)
       ? error.code
       : undefined;
+    const causeReasonCode = safeCauseReasonCode(error);
     request.onDispatchError?.({
       eventName,
       reason,
       errorName: error instanceof Error ? error.name : 'UnknownError',
       ...(errorCode ? { errorCode } : {}),
+      ...(causeReasonCode && causeReasonCode !== reason ? { causeReasonCode } : {}),
     });
     return { status: 503, body: { error: reason } };
   }

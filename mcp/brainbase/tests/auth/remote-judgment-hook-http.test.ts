@@ -228,4 +228,32 @@ describe('remote judgment Hook HTTP boundary', () => {
       body: { error: 'judgment_hook_unavailable' },
     });
   });
+
+  it('records only a bounded snake-case cause reason code', async () => {
+    const diagnostics: unknown[] = [];
+    const safeCause = new Error('brainbase_api_response_invalid');
+    const wrapped = new Error('judgment_episode_route_resolve_failed', { cause: safeCause });
+    await handleRemoteJudgmentHookRequest(request({
+      dispatch: async () => { throw wrapped; },
+      onDispatchError: (details: unknown) => diagnostics.push(details),
+    }));
+    assert.deepEqual(diagnostics, [{
+      eventName: 'UserPromptSubmit',
+      reason: 'judgment_episode_route_resolve_failed',
+      errorName: 'Error',
+      causeReasonCode: 'brainbase_api_response_invalid',
+    }]);
+
+    const secretDiagnostics: unknown[] = [];
+    await handleRemoteJudgmentHookRequest(request({
+      dispatch: async () => {
+        throw new Error('judgment_episode_route_resolve_failed', {
+          cause: new Error('Bearer secret-must-not-escape'),
+        });
+      },
+      onDispatchError: (details: unknown) => secretDiagnostics.push(details),
+    }));
+    assert.equal(JSON.stringify(secretDiagnostics).includes('secret-must-not-escape'), false);
+    assert.equal('causeReasonCode' in (secretDiagnostics[0] as Record<string, unknown>), false);
+  });
 });
