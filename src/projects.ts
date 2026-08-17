@@ -1,4 +1,5 @@
-import type { DecisionRecord, GraphEntity, PersonalKgEntry, RelationshipRecord } from './types.js';
+import { buildCanonicalEdge } from './canonical-edge-builder.js';
+import type { CanonicalEdge, CanonicalEntity, DecisionRecord, GraphEntity, PersonalKgEntry, RelationshipRecord } from './types.js';
 
 export type ProjectSourceArea = 'mail' | 'calendar' | 'drive' | 'tasks' | 'local' | 'other';
 
@@ -43,6 +44,8 @@ export interface ProjectRegistrationPlan {
   stakeholders: ProjectStakeholder[];
   writes: {
     graphEntities: GraphEntity[];
+    canonicalEntities: CanonicalEntity[];
+    canonicalEdges: CanonicalEdge[];
     relationships: RelationshipRecord[];
     personalKg: PersonalKgEntry[];
     decisions: DecisionRecord[];
@@ -135,6 +138,44 @@ export function buildProjectRegistrationPlan(input: ProjectRegistrationInput): P
     updatedAt: now
   }));
 
+  const decisionEntities: CanonicalEntity[] = decisions.map((decision) => ({
+    id: decision.id,
+    type: 'decision',
+    name: decision.title,
+    summary: decision.decision,
+    tags: decision.tags,
+    metadata: {
+      rationale: decision.rationale,
+      projectId
+    }
+  }));
+  const canonicalEntities: CanonicalEntity[] = [
+    { ...projectEntity, type: 'project' },
+    ...stakeholderEntities.map((entity) => ({ ...entity, type: 'person' as const })),
+    ...decisionEntities
+  ];
+  const participationEdges = stakeholders.map((stakeholder) => {
+    const personId = `person-${stableHash(stakeholder.person)}`;
+    return buildCanonicalEdge({
+      fromId: personId,
+      relation: 'participates_in',
+      toId: projectId,
+      role: stakeholder.role,
+      context: stakeholder.context,
+      provenance: {
+        sourceKind: 'onboarding',
+        sourceId: `relationship-${stableHash(`${name}|${stakeholder.person}|${stakeholder.context}`)}`
+      }
+    });
+  });
+  const governanceEdges = decisions.map((decision) => buildCanonicalEdge({
+    fromId: decision.id,
+    relation: 'governs',
+    toId: projectId,
+    context: decision.decision,
+    provenance: { sourceKind: 'onboarding', sourceId: decision.id }
+  }));
+
   return {
     goal: 'Review project registration before promoting it into canonical Brainbase SSOT.',
     canonicalWrites: false,
@@ -152,6 +193,8 @@ export function buildProjectRegistrationPlan(input: ProjectRegistrationInput): P
     stakeholders,
     writes: {
       graphEntities: [projectEntity, ...stakeholderEntities],
+      canonicalEntities,
+      canonicalEdges: [...participationEdges, ...governanceEdges],
       relationships,
       personalKg,
       decisions

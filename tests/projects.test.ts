@@ -80,6 +80,27 @@ describe('buildProjectRegistrationPlan', () => {
     expect(plan.writes.graphEntities.some((entity) => entity.type === 'project')).toBe(true);
     expect(plan.writes.relationships[0].person).toBe('大田原さん');
     expect(plan.writes.decisions[0].decision).toBe('ソース由来の推測は候補に留める');
+    expect(plan.writes.canonicalEdges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ relation: 'participates_in' }),
+      expect.objectContaining({ relation: 'governs' })
+    ]));
+    expect(plan.writes.canonicalEdges.find((edge) => edge.fromId.startsWith('person-'))).toMatchObject({
+      relation: 'participates_in',
+      role: 'user'
+    });
+    expect(plan.writes.canonicalEdges.every((edge) => edge.relation === 'participates_in' || edge.relation === 'governs')).toBe(true);
+
+    const repeated = buildProjectRegistrationPlan({
+      name: '大田原さんBrainbase導入',
+      goal: '個人ローカルMCPで仕事文脈を渡せるようにする',
+      status: 'オンボーディング設計中',
+      role: '導入支援',
+      stakeholders: [parseProjectStakeholder('大田原さん|user|個人利用から開始する')],
+      sources: [parseProjectSource('drive|提案フォルダ|folder-123')],
+      taskSources: ['Calendar follow-ups'],
+      decisionPrinciples: ['ソース由来の推測は候補に留める']
+    });
+    expect(repeated.writes.canonicalEdges).toEqual(plan.writes.canonicalEdges);
   });
 
   it('INV-5 renders deterministic dry-run markdown for identical inputs', () => {
@@ -115,7 +136,7 @@ describe('onboard:projects CLI', () => {
     expect(os.personalKg).toHaveLength(0);
   });
 
-  it('S-2/S-4 writes project, stakeholders, task sources, and decision principles only with --write', async () => {
+  it('fails loudly on Graph v1 instead of writing disconnected project data', async () => {
     const dir = await tempDir();
     const output = capture();
     const code = await runCli([
@@ -133,13 +154,12 @@ describe('onboard:projects CLI', () => {
       '--format', 'json'
     ], output.io);
 
-    expect(code).toBe(0);
+    expect(code).toBe(1);
+    expect(output.stderr()).toMatch(/migration_required.*Graph v1/i);
     const os = await loadPersonalOs(dir);
-    const project = os.graph.entities.find((entity) => entity.type === 'project');
-    expect(project?.name).toBe('Write Project');
-    expect(project?.metadata?.taskSources).toEqual(['Linear']);
-    expect(os.relationships.relationships[0].person).toBe('Partner');
-    expect(os.decisions[0].decision).toBe('Prefer reviewed project facts');
-    expect(await readFile(join(dir, 'personal-kg.jsonl'), 'utf8')).toContain('Canonical project context');
+    expect(os.graph.entities).toHaveLength(0);
+    expect(os.relationships.relationships).toHaveLength(0);
+    expect(os.decisions).toHaveLength(0);
+    expect(await readFile(join(dir, 'personal-kg.jsonl'), 'utf8')).toBe('');
   });
 });

@@ -47,7 +47,8 @@ import {
 } from './projects.js';
 import { renderGuidedFirstRun, type GuidedTarget } from './guided-onboarding.js';
 import { blockedJudgmentOutput, processJudgmentHook, type JudgmentHookPayload } from './judgment-host.js';
-import type { DecisionRecord, GraphEntity, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
+import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-builder.js';
+import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
 interface CliIo {
   stdin?: AsyncIterable<string | Uint8Array>;
@@ -217,11 +218,10 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
     const personalEntries: PersonalKgEntry[] = [...os.personalKg];
     const decisions: DecisionRecord[] = [...os.decisions];
     const relationships: RelationshipRecord[] = [...os.relationships.relationships];
-    const graphEntities: GraphEntity[] = [...os.graph.entities];
+    const canonicalEntities: CanonicalEntity[] = [];
 
     if (name) {
-      os.graph.owner = { ...os.graph.owner, name };
-      upsertGraphEntity(graphEntities, {
+      canonicalEntities.push({
         id: 'self',
         type: 'person',
         name,
@@ -248,7 +248,7 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
     }
 
     for (const project of parsed.values.get('project') ?? []) {
-      upsertGraphEntity(graphEntities, {
+      canonicalEntities.push({
         id: `project-${hash(project)}`,
         type: 'project',
         name: project,
@@ -265,12 +265,20 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
     }
 
     for (const value of parsed.values.get('decision-principle') ?? []) {
-      upsertById(decisions, {
+      const decision = {
         id: `decision-${hash(value)}`,
         title: 'オンボーディングで登録した判断基準',
         decision: value,
         tags: ['principle', 'onboarding'],
         updatedAt: now
+      };
+      upsertById(decisions, decision);
+      canonicalEntities.push({
+        id: decision.id,
+        type: 'decision',
+        name: decision.title,
+        summary: decision.decision,
+        tags: decision.tags
       });
     }
 
@@ -284,7 +292,7 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
         tags: ['relationship'],
         updatedAt: now
       });
-      upsertGraphEntity(graphEntities, {
+      canonicalEntities.push({
         id: `person-${hash(person)}`,
         type: 'person',
         name: person,
@@ -293,8 +301,54 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
       });
     }
 
+    const projects = (parsed.values.get('project') ?? []).map((project) => ({
+      id: `project-${hash(project)}`,
+      name: project
+    }));
+    const people = encodedRelationships.map((encoded) => {
+      const [person, role, context] = encoded.split('|').map((part) => part.trim());
+      return {
+        id: `person-${hash(person)}`,
+        relationshipId: `relationship-${hash(encoded)}`,
+        role: role || undefined,
+        context
+      };
+    });
+    const seedDecisions = (parsed.values.get('decision-principle') ?? []).map((decision) => ({
+      id: `decision-${hash(decision)}`,
+      decision
+    }));
+    const canonicalEdges = projects.flatMap((project) => [
+      ...(name ? [buildCanonicalEdge({
+        fromId: 'self',
+        relation: 'participates_in',
+        toId: project.id,
+        context: 'Registered together during onboarding.',
+        provenance: { sourceKind: 'onboarding' as const, sourceId: project.id }
+      })] : []),
+      ...people.map((person) => buildCanonicalEdge({
+        fromId: person.id,
+        relation: 'participates_in',
+        toId: project.id,
+        role: person.role,
+        context: person.context,
+        provenance: { sourceKind: 'onboarding' as const, sourceId: person.relationshipId }
+      })),
+      ...seedDecisions.map((decision) => buildCanonicalEdge({
+        fromId: decision.id,
+        relation: 'governs',
+        toId: project.id,
+        context: decision.decision,
+        provenance: { sourceKind: 'onboarding' as const, sourceId: decision.id }
+      }))
+    ]);
+    const graph = applyCanonicalWrites(os.graph, { entities: canonicalEntities, edges: canonicalEdges });
+
     return proposedPersonalOs(os, {
-      graph: { ...os.graph, entities: graphEntities },
+      graph: {
+        ...graph,
+        owner: { ...graph.owner, ...(name ? { id: 'self', name } : {}) }
+      } as unknown as PersonalOs['graph'],
       relationships: { version: 1, relationships },
       personalKg: personalEntries,
       decisions
@@ -536,21 +590,27 @@ async function onboardProjects(parsed: ParsedArgs, io: CliIo): Promise<number> {
 
 async function applyProjectRegistrationPlan(dataDir: string, plan: ProjectRegistrationPlan): Promise<void> {
   await mutatePersonalOs(dataDir, (os) => {
-    const graphEntities = [...os.graph.entities];
-    for (const entity of plan.writes.graphEntities) {
-      upsertGraphEntity(graphEntities, entity);
-    }
+    const graph = applyCanonicalWrites(os.graph, {
+      entities: plan.writes.canonicalEntities,
+      edges: plan.writes.canonicalEdges
+    });
     const relationships = [...os.relationships.relationships];
     for (const relationship of plan.writes.relationships) {
-      if (!relationships.some((existing) => existing.id === relationship.id)) {
-        relationships.push(relationship);
-      }
+      upsertById(relationships, relationship);
+    }
+    const personalKg = [...os.personalKg];
+    for (const entry of plan.writes.personalKg) {
+      upsertById(personalKg, entry);
+    }
+    const decisions = [...os.decisions];
+    for (const decision of plan.writes.decisions) {
+      upsertById(decisions, decision);
     }
     return proposedPersonalOs(os, {
-      graph: { ...os.graph, entities: graphEntities },
+      graph: graph as unknown as PersonalOs['graph'],
       relationships: { version: 1, relationships },
-      personalKg: [...os.personalKg, ...plan.writes.personalKg],
-      decisions: [...os.decisions, ...plan.writes.decisions]
+      personalKg,
+      decisions
     });
   });
 }
@@ -1010,10 +1070,6 @@ function upsertById<T extends { id: string }>(entries: T[], entry: T): void {
   } else {
     entries.push(entry);
   }
-}
-
-function upsertGraphEntity(entities: GraphEntity[], entity: GraphEntity): void {
-  upsertById(entities, entity);
 }
 
 function hash(value: string): string {

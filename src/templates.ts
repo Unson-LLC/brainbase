@@ -1,9 +1,21 @@
-import type { GraphFileV1, RelationshipsFile } from './types.js';
+import { createHash } from 'node:crypto';
+import { portableOntology } from './ontology.js';
+import type { GraphFileV2, RelationshipsFile } from './types.js';
 
-export const emptyGraph: GraphFileV1 = {
-  version: 1,
+const ontologyReleaseDigest = `sha256:${createHash('sha256')
+  .update(JSON.stringify(portableOntology))
+  .digest('hex')}`;
+
+export const emptyGraph: GraphFileV2 = {
+  version: 2,
+  ontology: {
+    id: 'brainbase-personal-os',
+    version: portableOntology.version,
+    releaseDigest: ontologyReleaseDigest
+  },
   owner: {},
-  entities: []
+  entities: [],
+  edges: []
 };
 
 export const emptyRelationships: RelationshipsFile = {
@@ -14,12 +26,22 @@ export const emptyRelationships: RelationshipsFile = {
 export const schemaTemplates: Record<string, unknown> = {
   'graph.schema.json': {
     type: 'object',
-    required: ['version', 'entities'],
+    required: ['version', 'ontology', 'entities', 'edges'],
     properties: {
-      version: { const: 1 },
+      version: { const: 2 },
+      ontology: {
+        type: 'object',
+        required: ['id', 'version', 'releaseDigest'],
+        properties: {
+          id: { const: 'brainbase-personal-os' },
+          version: { type: 'string', minLength: 1 },
+          releaseDigest: { type: 'string', minLength: 1 }
+        }
+      },
       owner: {
         type: 'object',
         properties: {
+          id: { type: 'string' },
           name: { type: 'string' },
           summary: { type: 'string' }
         }
@@ -31,11 +53,40 @@ export const schemaTemplates: Record<string, unknown> = {
           required: ['id', 'type', 'name'],
           properties: {
             id: { type: 'string', minLength: 1 },
-            type: { enum: ['person', 'org', 'project', 'relationship'] },
+            type: { enum: ['person', 'org', 'project', 'decision'] },
             name: { type: 'string', minLength: 1 },
+            aliases: { type: 'array', items: { type: 'string', minLength: 1 } },
             summary: { type: 'string' },
             tags: { type: 'array', items: { type: 'string' } },
             metadata: { type: 'object' }
+          }
+        }
+      },
+      edges: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['id', 'fromId', 'relation', 'toId'],
+          properties: {
+            id: { type: 'string', minLength: 1 },
+            fromId: { type: 'string', minLength: 1 },
+            relation: {
+              enum: ['member_of', 'participates_in', 'accountable_for', 'owned_by', 'governs', 'supersedes']
+            },
+            toId: { type: 'string', minLength: 1 },
+            role: { type: 'string' },
+            context: { type: 'string' },
+            validFrom: { type: 'string', format: 'date-time' },
+            validTo: { type: 'string', format: 'date-time' },
+            provenance: {
+              type: 'object',
+              required: ['sourceKind'],
+              properties: {
+                sourceKind: { enum: ['user_approved', 'migration', 'import', 'onboarding'] },
+                sourceId: { type: 'string' },
+                evidenceHash: { type: 'string' }
+              }
+            }
           }
         }
       }
