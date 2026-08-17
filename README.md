@@ -1,14 +1,14 @@
-# Brainbase Personal Onboarding Kit
+# Brainbase 個人オンボーディングキット
 
-Brainbase is a local-first MCP server for handing your personal source of truth to AI coding tools.
+Brainbaseは、自分が承認した仕事の前提をCodex、Claude Code、CodeCodeへ渡すための、ローカル優先のMCPサーバーです。
 
-The v1 value is narrow by design: create a canonical local SSOT for yourself, your work, relationships, and decisions, then expose it through MCP tools that Codex, Claude, and CodeCode can call.
+最初の目標は情報源をすべて接続することではありません。自分、仕事、関係者、判断基準の最小文脈を保存し、10分以内に「同じ前提を説明し直さず役立つ出力」を確認することです。
 
-Ontology 1.0.0 adds a portable semantic contract on top of those local files. It defines types, relation vocabulary, validation constraints, deterministic decision inference, and version-evolution guidance without requiring a hosted Brainbase service.
+Ontology 1.0.0は、ローカルファイルへ持ち運べる意味契約を追加します。ホスト型Brainbaseを必要とせず、型、関係語彙、検証制約、決定論的な判断推論、バージョン移行を定義します。
 
-This repository does not include the internal Brainbase UI, session runtime, xterm transport, workflow mission control, social operations, hosted backend, Infisical setup, or Unson internal data. Those belong in the internal `brainbase-unson` system.
+このリポジトリに、社内BrainbaseのUI、セッション実行基盤、xterm転送、ワークフロー管制、SNS運用、ホスト型バックエンド、Infisical設定、雲孫の社内データは含みません。それらは社内版`brainbase-unson`の範囲です。
 
-## Manual
+## マニュアル
 
 Read the public onboarding manual at [brainbase.pages.dev](https://brainbase.pages.dev/). It guides users through five phases: choose one real use case, register approved work context, prove the first value, add only necessary sources, and operationalize Skills, routines, and MCP.
 
@@ -16,9 +16,9 @@ For the shortest safe path, open [10分で試す](https://brainbase.pages.dev/gu
 
 The manual is the best starting point for first-time users. It explains Brainbase concepts, the first onboarding flow, MCP registration, project context setup, source onboarding, daily routines, and CLI reference.
 
-## Agent-assisted Onboarding
+## エージェントと始める
 
-Brainbase is designed to be adopted from Codex, Claude Code, or CodeCode. The first onboarding goal is a useful answer from your own context, not connector setup.
+BrainbaseはCodex、Claude Code、CodeCodeから導入できます。最初に目指すのは接続設定ではなく、自分の文脈を使った役立つ出力です。
 
 ```bash
 npm install
@@ -26,9 +26,19 @@ npm run build
 npm run onboard:start -- --target codex
 ```
 
-`onboard:start` is the Japanese first-run entrypoint for agent-assisted onboarding. It creates the minimum Personal OS directory, but it does not save self, project, relationship, decision, mail, calendar, drive, or task facts until the user approves them. It asks Codex or Claude Code what context you do not want to explain repeatedly, then shows the first prompt to try, the expected value, the minimum seed command, `onboard:demo`, project registration, optional source diagnosis, candidate review, MCP install, and `doctor`. The demo command appears before source diagnosis.
+`onboard:start`は日本語の初回導入コマンドです。最小ディレクトリだけを作り、本人、プロジェクト、関係者、判断、メール、カレンダー、ドライブ、タスクの事実は、利用者が承認するまで保存しません。通常表示は次の一手だけに絞り、全項目は`--details`で確認できます。
 
-If the user says "I want to onboard Brainbase", the agent should run this flow instead of returning a checklist. The expected sequence is: build if needed, run `onboard:start`, ask for the smallest context the user wants Brainbase to remember, seed only approved facts, then run `onboard:demo` with a real request. The agent must show the prompt, sample result, what the user no longer had to explain, and the still-unfinished operationalization work. `ready: true`, `first_value_demo_ready`, generated skills, generated routines, and `onboard:install --dry-run` are not completion signals by themselves.
+公開CLIをインストール済みなら、次の3ステップです。
+
+```bash
+brainbase onboard:start --target codex
+# 表示された onboard:seed を確認して実行
+brainbase onboard:demo --scenario "実際に試す依頼"
+```
+
+リポジトリをcloneした場合は、同じ流れを`npm run onboard:start -- --target codex`、表示された`npm run`コマンド、`npm run onboard:demo -- --scenario "実際に試す依頼"`で進めます。
+
+利用者がBrainbaseの導入を依頼したら、エージェントはチェックリストを返すだけでなく、この公開CLIを実行します。最小文脈を確認し、承認された事実だけを`onboard:seed`で保存し、現実の依頼で`onboard:demo`を実行します。プロンプト、出力、説明し直さずに済んだ前提、まだ終わっていない運用化を分けて示します。`ready: true`、`first_value_demo_ready`、Skillsやルーティンの生成、`onboard:install --dry-run`だけでは導入完了ではありません。
 
 For a Google Workspace / Google Drive / local-notes setup, pass the known answers and let the command surface what still needs approval:
 

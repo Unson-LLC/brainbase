@@ -1,0 +1,12 @@
+{
+  "id": "recovery-02-invalid-seed",
+  "invocation": "child_process.spawn",
+  "command": "npm run onboard:seed -- --dir <isolated-run-root>/invalid-personal-os --name 高橋葵 --value 結論を先に示す --project Atlas導入 --relationship 区切りのない不正入力",
+  "cwd": "<repo>",
+  "duration_ms": 597,
+  "timeout_ms": 120000,
+  "timed_out": false,
+  "exit_code": 1,
+  "stdout": "\n> @unson/brainbase-mcp@0.2.0 onboard:seed\n> node dist/cli.js onboard:seed --dir <isolated-run-root>/invalid-personal-os --name 高橋葵 --value 結論を先に示す --project Atlas導入 --relationship 区切りのない不正入力\n\n",
+  "stderr": "関係者の形式が正しくありません。\n形式: \"人|役割|覚えておく文脈\"\n例: \"田中|責任者|Atlas導入の最終判断を担当\"\n保存内容は変更していません。\n再実行: brainbase onboard:seed --dir <isolated-run-root>/invalid-personal-os --name \"高橋葵\" --value \"結論を先に示す\" --project \"Atlas導入\" --relationship \"田中|責任者|Atlas導入の最終判断を担当\"\n"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "recovery-01-demo-before-seed",
+  "invocation": "child_process.spawn",
+  "command": "npm run onboard:demo -- --dir <isolated-run-root>/empty-personal-os --scenario 保存した文脈を使って相談メモを作って",
+  "cwd": "<repo>",
+  "duration_ms": 614,
+  "timeout_ms": 120000,
+  "timed_out": false,
+  "exit_code": 1,
+  "stdout": "\n> @unson/brainbase-mcp@0.2.0 onboard:demo\n> node dist/cli.js onboard:demo --dir <isolated-run-root>/empty-personal-os --scenario 保存した文脈を使って相談メモを作って\n\n# Brainbase 初回価値デモ\n\n追加設定へ進む前に、保存した文脈が役立つ回答を一つ確認する。\n\n- 状態: 要設定\n- 完了シグナル: needs_seed\n- 不足: あなた自身の前提, 今の仕事, 相談相手や関係者\n\n## 今すぐ試す\n保存した文脈を使って相談メモを作って\n\n## サンプル結果\nこれはCLIが保存済み文脈から組み立てたサンプルです。実際のエージェント応答ではありません。\n- 実エージェント接続: 未確認\n- 実応答の確認方法: MCP設定を実際のエージェントへ反映した後、同じ依頼をCodex / Claude Codeへ送って実際の応答を確認します。\n\nまだ最初の価値体験はできません。\n足りない最小メモ: あなた自身の前提, 今の仕事, 相談相手や関係者。\nまず、あなたが毎回説明したくないことを一つだけ保存してから、同じプロンプトをもう一度試します。\n\n## 反映された文脈\nまだ最初の価値を見せるための最小メモが足りません: あなた自身の前提, 今の仕事, 相談相手や関係者。\n\n## 次に実行\n`brainbase onboard:start --dir <isolated-run-root>/empty-personal-os --target codex`\nまず最小文脈を保存します: あなた自身の前提, 今の仕事, 相談相手や関係者。\n",
+  "stderr": ""
+}

@@ -76,8 +76,14 @@ describe('MCP tool functions', () => {
     const status = onboardingStatus(os);
 
     expect(status).toMatchObject({
-      connected: true,
-      backend: 'local',
+      localBackend: {
+        connected: true,
+        backend: 'local'
+      },
+      agentMcp: {
+        status: 'not_verified'
+      },
+      operationallyReady: false,
       seeded: {
         self: true,
         work: true,

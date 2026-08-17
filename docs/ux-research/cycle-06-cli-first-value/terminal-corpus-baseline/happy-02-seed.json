@@ -1,0 +1,12 @@
+{
+  "id": "happy-02-seed",
+  "invocation": "child_process.spawn",
+  "command": "npm run onboard:seed -- --dir <isolated-run-root>/happy-personal-os --name 高橋葵 --value 結論と次の行動を先に示す --project Atlas導入 --decision-principle 推測を事実として扱わない --relationship 田中|責任者|Atlas導入の最終判断を担当",
+  "cwd": "<repo>",
+  "duration_ms": 893,
+  "timeout_ms": 120000,
+  "timed_out": false,
+  "exit_code": 0,
+  "stdout": "\n> @unson/brainbase-mcp@0.2.0 onboard:seed\n> node dist/cli.js onboard:seed --dir <isolated-run-root>/happy-personal-os --name 高橋葵 --value 結論と次の行動を先に示す --project Atlas導入 --decision-principle 推測を事実として扱わない --relationship 田中|責任者|Atlas導入の最終判断を担当\n\nBrainbaseへ保存しました: <isolated-run-root>/happy-personal-os\n- 本人: 高橋葵\n- 価値観: 結論と次の行動を先に示す\n- プロジェクト: Atlas導入\n- 関係者: 田中（責任者）\n- 判断基準: 推測を事実として扱わない\n- 既存データは削除していません。\n\n次に実行:\nbrainbase onboard:demo --dir <isolated-run-root>/happy-personal-os --scenario \"保存した文脈を使って、次に進めるメモを作って\"\n",
+  "stderr": ""
+}

@@ -1,0 +1,34 @@
+{
+  "round": 4,
+  "persona_interpretations": 32,
+  "evidence_kind": "synthetic_cli_evaluation",
+  "result": "converged_for_cli_scope",
+  "hard_gates": {
+    "failure_not_reported_as_success": "pass",
+    "next_or_recovery_action_present": "pass",
+    "displayed_command_executable": "pass",
+    "no_implicit_overwrite_or_delete": "pass",
+    "cli_first_value_not_replaced_by_exit_or_internal_state": "pass",
+    "primary_user_guidance_is_understandable_japanese": "pass"
+  },
+  "new_trace_backed_major_findings": 0,
+  "minor_friction": [
+    "低習熟者や音声入力では、引数の多いseedコマンドが長く感じられる",
+    "低習熟者やスクリーンリーダー利用者では、help全文とdoctor JSONが長く感じられる"
+  ],
+  "time_to_value_ms": 2078,
+  "time_to_value_budget_ms": 600000,
+  "installed_evidence": {
+    "kind": "local_tarball_install_cli_execution",
+    "tarball_sha256": "e7b72fd91b1c74dca1ef0cd9968213847cdd36c0d6c5d9697089abbebd72115a",
+    "displayed_happy_path_commands_executed": true,
+    "existing_data_preserved_after_reseed": true
+  },
+  "boundaries": {
+    "real_agent_response": "not_collected",
+    "production_registry_install": "not_collected",
+    "human_observation": "not_collected",
+    "real_device_evidence": "not_collected",
+    "assistive_technology_evidence": "not_collected"
+  }
+}

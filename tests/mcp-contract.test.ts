@@ -136,7 +136,11 @@ describe('MCP contract', () => {
         arguments: {}
       });
       const statusText = status.content[0]?.type === 'text' ? status.content[0].text : '{}';
-      expect(JSON.parse(statusText)).toMatchObject({ backend: 'local' });
+      expect(JSON.parse(statusText)).toMatchObject({
+        localBackend: { connected: true, backend: 'local' },
+        agentMcp: { status: 'not_verified' },
+        operationallyReady: false
+      });
     } finally {
       await client.close();
     }
@@ -219,8 +223,9 @@ describe('MCP contract', () => {
       ])
     });
     await expect(callBrainbaseTool('onboarding_status', { dataDir })).resolves.toMatchObject({
-      connected: true,
-      backend: 'local'
+      localBackend: { connected: true, backend: 'local' },
+      agentMcp: { status: 'not_verified' },
+      operationallyReady: false
     });
     await expect(callBrainbaseTool('get_ontology')).resolves.toMatchObject({ version: '1.0.0' });
     await expect(callBrainbaseTool('audit_ontology', { dataDir })).resolves.toMatchObject({

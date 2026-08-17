@@ -173,6 +173,9 @@ export interface ValueDemo {
   };
   answer: string;
   sampleResult: string;
+  resultKind: 'local_context_sample';
+  agentConnection: 'not_verified';
+  realVerification: string;
   valueExplanation: string;
   operationalization: OperationalizationPlan;
   nextStep: string;
@@ -272,7 +275,7 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
 }
 
 export function buildValueDemo(input: ValueDemoInput): ValueDemo {
-  const scenario = input.scenario?.trim() || 'Draft the first message or working note that should use my saved Brainbase context.';
+  const scenario = input.scenario?.trim() || '保存した文脈を使って、次に進めるメモを作って';
   const seeded = seededAreas(input.os);
   const missing = Object.entries(seeded)
     .filter(([, value]) => !value)
@@ -302,7 +305,7 @@ export function buildValueDemo(input: ValueDemoInput): ValueDemo {
   });
 
   return {
-    goal: 'Show one useful answer from the context the user just saved before any setup follow-up.',
+    goal: '追加設定へ進む前に、保存した文脈が役立つ回答を一つ確認する。',
     ready,
     missing,
     scenario,
@@ -321,11 +324,14 @@ export function buildValueDemo(input: ValueDemoInput): ValueDemo {
     },
     answer: sampleResult,
     sampleResult,
+    resultKind: 'local_context_sample',
+    agentConnection: 'not_verified',
+    realVerification: 'MCP設定を実際のエージェントへ反映した後、同じ依頼をCodex / Claude Codeへ送って実際の応答を確認します。',
     valueExplanation,
     operationalization,
     nextStep: ready
-      ? 'Do not stop here. Use the operationalization checklist below to install skills, register routines with confirmation, merge MCP config, decide source allowlists, and verify MCP get_context/search.'
-      : `First save the minimum missing memo: ${missing.map(missingLabel).join(', ')}.`,
+      ? '必要なら --details で、スキル、ルーティン、MCP設定、参照許可、動作確認の残作業を確認します。'
+      : `まず最小文脈を保存します: ${missing.map(missingLabel).join(', ')}。`,
     completionSignal: ready ? 'first_value_demo_ready' : 'needs_seed'
   };
 }
@@ -696,46 +702,58 @@ export function renderSourceDiagnosis(input: SourceDiagnosisInput, format: Onboa
   ].join('\n');
 }
 
-export function renderValueDemo(input: ValueDemoInput, format: OnboardingFormat): string {
+export function renderValueDemo(input: ValueDemoInput, format: OnboardingFormat, details = false): string {
   const demo = buildValueDemo(input);
   if (format === 'json') {
     return `${JSON.stringify(demo, null, 2)}\n`;
   }
 
-  return [
-    '# Brainbase First Value Demo',
+  const lines = [
+    '# Brainbase 初回価値デモ',
     '',
     demo.goal,
     '',
-    `- Ready: ${String(demo.ready)}`,
-    `- Completion signal: ${demo.completionSignal}`,
-    `- Missing: ${demo.missing.length === 0 ? 'none' : demo.missing.map(missingLabel).join(', ')}`,
+    `- 状態: ${demo.ready ? '準備済み' : '要設定'}`,
+    `- 完了シグナル: ${demo.completionSignal}`,
+    `- 不足: ${demo.missing.length === 0 ? 'なし' : demo.missing.map(missingLabel).join(', ')}`,
     '',
-    '## Try This Now',
+    '## 今すぐ試す',
     demo.tryPrompt,
     '',
-    '## Sample Result',
+    '## サンプル結果',
+    'これはCLIが保存済み文脈から組み立てたサンプルです。実際のエージェント応答ではありません。',
+    '- 実エージェント接続: 未確認',
+    `- 実応答の確認方法: ${demo.realVerification}`,
+    '',
     demo.sampleResult,
     '',
-    '## What Changed',
+    '## 反映された文脈',
     demo.valueExplanation,
     '',
-    '## Operationalization Still Pending',
-    demo.operationalization.goal,
-    '',
-    '### Completed',
-    ...demo.operationalization.completed.map((item) => `- ${item}`),
-    '',
-    '### Next Actions',
-    ...demo.operationalization.pending.map((item) => `- ${item.title}: \`${item.command}\` (${item.safety})`),
-    '',
-    '### Recommended Order',
-    ...demo.operationalization.recommendedOrder.map((item, index) => `${index + 1}. ${item}`),
-    '',
-    '## Next Step',
+    '## 次に実行',
+    demo.ready
+      ? `\`brainbase onboard:demo --dir ${shellArg(input.os.dataDir)} --scenario ${shellArg(demo.scenario)} --details\``
+      : `\`brainbase onboard:start --dir ${shellArg(input.os.dataDir)} --target codex\``,
     demo.nextStep,
     ''
-  ].join('\n');
+  ];
+  if (details) {
+    lines.push(
+      '## まだ残っている運用化',
+      demo.operationalization.goal,
+      '',
+      '### 完了済み',
+      ...demo.operationalization.completed.map((item) => `- ${item}`),
+      '',
+      '### 次の操作',
+      ...demo.operationalization.pending.map((item) => `- ${item.title}: \`${item.command}\` (${item.safety})`),
+      '',
+      '### 推奨順序',
+      ...demo.operationalization.recommendedOrder.map((item, index) => `${index + 1}. ${item}`),
+      ''
+    );
+  }
+  return lines.join('\n');
 }
 
 export function renderCandidateDrafts(input: CandidateInput, format: OnboardingFormat): string {
@@ -897,7 +915,7 @@ function seededAreas(os: PersonalOs): Record<'self' | 'work' | 'relationships', 
 
 function selfContext(os: PersonalOs): string[] {
   return [
-    ...(os.graph.owner?.name ? [`Owner: ${os.graph.owner.name}`] : []),
+    ...(os.graph.owner?.name ? [`本人: ${os.graph.owner.name}`] : []),
     ...(os.graph.owner?.summary ? [os.graph.owner.summary] : []),
     ...os.personalKg
       .filter((entry) => entry.type === 'self' || entry.type === 'value' || entry.type === 'judgment')
@@ -909,7 +927,7 @@ function workContext(os: PersonalOs): string[] {
   return [
     ...os.graph.entities
       .filter((entity) => entity.type === 'project')
-      .map((entity) => entity.summary ? `${entity.name}: ${entity.summary}` : entity.name),
+      .map((entity) => entity.name),
     ...os.personalKg
       .filter((entry) => entry.type === 'work' || entry.type === 'experience')
       .map((entry) => entry.text)
@@ -940,6 +958,10 @@ function normalizeForMatch(value: string): string {
   return value.toLowerCase().replace(/\s+/g, '');
 }
 
+function shellArg(value: string): string {
+  return /^[A-Za-z0-9_./:@%+=,-]+$/.test(value) ? value : JSON.stringify(value);
+}
+
 function buildReadySampleResult(input: {
   scenario: string;
   self: string[];
@@ -950,24 +972,37 @@ function buildReadySampleResult(input: {
   const projectLine = input.work[0] ?? '保存済みの仕事メモ';
   const ownerLine = input.self[0] ?? 'あなたの進め方';
   const relationshipLine = input.selectedRelationship
-    ? `${input.selectedRelationship.person}${input.selectedRelationship.role ? `（${input.selectedRelationship.role}）` : ''}には、${input.selectedRelationship.context}を前提に相談します。`
+    ? `${input.selectedRelationship.person}${input.selectedRelationship.role ? `（${input.selectedRelationship.role}）` : ''}には、「${input.selectedRelationship.context}」という関係を前提に相談します。`
     : '特定の相談相手が未指定なので、まず保存済みの仕事メモから次の一手を整理します。';
   const decisionLine = input.decisions[0]
     ? `判断基準: ${input.decisions[0].decision}`
     : '追加の判断基準はまだないので、次に動ける形へ絞ります。';
+  const decisionCriterion = input.decisions[0]?.decision ?? '保存済みの前提を崩さず、次の一手を小さく決める';
+  const recipient = input.selectedRelationship
+    ? `${input.selectedRelationship.person}さん`
+    : '次の判断者';
 
   return [
     `「${input.scenario}」への回答例:`,
     '',
     `次に進める作業は、${projectLine}を前提に一つのメモへ整理することです。`,
-    `進め方は、${ownerLine}を崩さず、説明を足しすぎない形にします。`,
+    `進め方は、${ownerLine.replace(/^本人: /u, '')}さんの前提を崩さず、説明を足しすぎない形にします。`,
     relationshipLine,
     decisionLine,
     '',
     'そのまま送れる最初のアウトプット:',
-    input.selectedRelationship
-      ? `${input.selectedRelationship.person}さんに確認したい論点を、背景説明ではなく「次に判断したいこと」と「相談したいこと」に分けて出します。`
-      : '保存済みの仕事メモから、今日進める作業と追加で確認したい一点だけを出します。'
+    '',
+    '次に判断したいこと:',
+    `- ${projectLine}について、「${decisionCriterion}」を満たす進め方を一つ選ぶ。`,
+    '',
+    '相談したいこと:',
+    `- ${recipient}に、${projectLine}を進める条件、懸念、判断期限を確認する。`,
+    '',
+    '未確認事項:',
+    '- 期限、最終承認者、判断前に追加で必要な情報。',
+    '',
+    '次の行動:',
+    `- ${recipient}へこのメモを送り、回答後に実行案を一つへ絞る。`
   ].join('\n');
 }
 

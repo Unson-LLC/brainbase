@@ -163,6 +163,7 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
     '--name', input.name || '<あなたの名前>',
     ...values.flatMap((value) => ['--value', value]),
     '--project', input.project?.name || '<最初に登録するプロジェクト>',
+    ...(input.project?.decisionPrinciples ?? []).flatMap((value) => ['--decision-principle', value]),
     '--relationship', firstRelationshipArg
   ]);
   const demoCommand = command([
@@ -307,10 +308,33 @@ export function buildGuidedFirstRun(input: GuidedFirstRunInput): GuidedFirstRun 
   };
 }
 
-export function renderGuidedFirstRun(input: GuidedFirstRunInput, format: GuidedFormat): string {
+export function renderGuidedFirstRun(input: GuidedFirstRunInput, format: GuidedFormat, details = false): string {
   const guide = buildGuidedFirstRun(input);
   if (format === 'json') {
     return `${JSON.stringify(guide, null, 2)}\n`;
+  }
+
+  if (!details) {
+    const next = guide.currentStatus.missing.length > 0
+      ? guide.nextCommands.find((item) => item.id === 'self-seed')
+      : guide.nextCommands.find((item) => item.id === 'first-value-demo');
+    return [
+      '# Brainbase 初回オンボーディング',
+      '',
+      `- 状態: ${guide.currentStatus.missing.length > 0 ? '最小文脈の保存待ち' : '初回価値を確認できます'}`,
+      `- データ: \`${guide.dataDir}\``,
+      `- 不足: ${guide.currentStatus.missing.length > 0 ? guide.currentStatus.missing.map(canonicalAreaLabel).join('、') : 'なし'}`,
+      '',
+      '## 次に実行',
+      next ? `\`${next.command}\`` : '次の操作はありません。',
+      '',
+      '## 確認できる価値',
+      guide.firstValueExperience.expectedValue,
+      '',
+      '- この案内だけではデータを書き込みません。seed実行時も既存データは削除しません。',
+      `- 詳細を見る: \`${command(['brainbase', 'onboard:start', '--target', guide.target, '--dir', guide.dataDir, '--details'])}\``,
+      ''
+    ].join('\n');
   }
 
   const lines: string[] = [
@@ -321,7 +345,7 @@ export function renderGuidedFirstRun(input: GuidedFirstRunInput, format: GuidedF
     `- 対象エージェント: ${targetLabel(guide.target)}`,
     `- データディレクトリ: \`${guide.dataDir}\``,
     `- 正本ファクト書き込み: ${guide.initialized.canonicalFactWrites ? 'あり' : 'なし'}`,
-    `- 現在の不足: ${guide.currentStatus.missing.length > 0 ? guide.currentStatus.missing.join(', ') : 'なし'}`,
+    `- 現在の不足: ${guide.currentStatus.missing.length > 0 ? guide.currentStatus.missing.map(canonicalAreaLabel).join('、') : 'なし'}`,
     '',
     '## まず試すこと',
     guide.firstValueExperience.title,
@@ -573,6 +597,13 @@ function statusLabel(status: SourceDiagnosis['status']): string {
   if (status === 'needs_setup') return 'ローカル設定が必要';
   if (status === 'needs_input') return '追加の許可範囲が必要';
   return '未設定';
+}
+
+function canonicalAreaLabel(area: string): string {
+  if (area === 'self') return '本人の前提';
+  if (area === 'work') return '今の仕事';
+  if (area === 'relationships') return '関係者';
+  return area;
 }
 
 function translateRequiredInput(value: string): string {

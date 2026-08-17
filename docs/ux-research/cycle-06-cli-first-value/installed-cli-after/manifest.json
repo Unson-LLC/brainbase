@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "evidence_kind": "local_tarball_install_cli_execution",
+  "package": "@unson/brainbase-mcp@0.2.0",
+  "source_snapshot": "working-tree",
+  "base_revision": "4294e44851f0a60f113533fa107254b926065f1d",
+  "tarball": {
+    "filename": "unson-brainbase-mcp-0.2.0.tgz",
+    "sha256": "e7b72fd91b1c74dca1ef0cd9968213847cdd36c0d6c5d9697089abbebd72115a"
+  },
+  "production_registry_install": "not_collected",
+  "displayed_happy_path_commands_executed": true,
+  "doctor_verified": true,
+  "existing_data_preserved_after_reseed": true,
+  "useful_outcome": true,
+  "outcome_scope": "local_cli_sample",
+  "real_agent_outcome": "not_collected",
+  "markers": [
+    "Atlas導入",
+    "田中",
+    "推測を事実として扱わない",
+    "次に判断したいこと:",
+    "相談したいこと:",
+    "未確認事項:",
+    "次の行動:"
+  ],
+  "traces": [
+    {
+      "id": "installed-01-help",
+      "sha256": "9e680a43ca3be7b53515e690d5d505092e5c3e1b69b3ce526a27c543e7e84197",
+      "exit_code": 0,
+      "duration_ms": 706
+    },
+    {
+      "id": "installed-02-start",
+      "sha256": "a3920fbdd61a4fb2b3576d3f5dcd38575633490ee741b6aad0525cb2d243acf7",
+      "exit_code": 0,
+      "duration_ms": 632
+    },
+    {
+      "id": "installed-03-displayed-seed",
+      "sha256": "dceb206e9e249d82847250144d2349126a6e090160e92686a7d89bf90e7e8141",
+      "exit_code": 0,
+      "duration_ms": 628
+    },
+    {
+      "id": "installed-04-displayed-demo",
+      "sha256": "b149a6db766b9bf6e2d068ee1f739915d0f7cde6ddf6828d55d54036b3ea117a",
+      "exit_code": 0,
+      "duration_ms": 508
+    },
+    {
+      "id": "installed-05-doctor",
+      "sha256": "758560d9be51c382a603e4542f8e33a06846a31cb852be043e3cada8b5920246",
+      "exit_code": 0,
+      "duration_ms": 476
+    },
+    {
+      "id": "installed-06-doctor-displayed-demo",
+      "sha256": "7132ac2a198d1863b810a73c554483fb1bb532d3d30216b3f39d95cc1a0f0bad",
+      "exit_code": 0,
+      "duration_ms": 531
+    },
+    {
+      "id": "installed-07-reseed-existing",
+      "sha256": "4dcf3a058a6d6e95f6cab14141df681658e7afc1647ca1e1bf58fb37e683b899",
+      "exit_code": 0,
+      "duration_ms": 612
+    },
+    {
+      "id": "installed-08-doctor-after-reseed",
+      "sha256": "2f92807e3958d1671f231dc68a23347d4a38118217f95b6cac6577a26c0afecf",
+      "exit_code": 0,
+      "duration_ms": 503
+    }
+  ]
+}

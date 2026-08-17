@@ -1,0 +1,13 @@
+{
+  "round": 1,
+  "persona_interpretations": 32,
+  "evidence_kind": "synthetic_cli_evaluation",
+  "result": "changes_required",
+  "adopted_findings": [
+    "onboard:startの既定出力が長く、最初の操作を見つけにくい",
+    "利用者向け主要説明に英語が残る",
+    "seedの保存確認と不正入力からの復旧が弱い",
+    "helpの無書き込み性と公開CLIバイナリの実行証拠がない"
+  ],
+  "decision": "既定出力を短くし、日本語化、復旧案内、helpの副作用防止、実CLI証拠を追加する"
+}
