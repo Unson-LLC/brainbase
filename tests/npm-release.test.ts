@@ -550,6 +550,7 @@ describe('npm release CLI', () => {
         tarballIntegrity: `sha512-${createHash('sha512').update(bytes).digest('base64')}`
       };
     });
+    const consumerSmoke = vi.fn().mockResolvedValue({ status: 'passed' });
     const proof = await validateReleaseCandidate({
       root,
       packageName: '@unson/brainbase-mcp',
@@ -558,7 +559,8 @@ describe('npm release CLI', () => {
       trustedRef: 'trusted/develop',
       proofFile,
       execute,
-      createArtifact
+      createArtifact,
+      consumerSmoke
     });
     expect(calls).toEqual([
       'git merge-base --is-ancestor ' + sha + ' trusted/develop',
@@ -569,6 +571,7 @@ describe('npm release CLI', () => {
       'git status --porcelain=v1 --untracked-files=all'
     ]);
     expect(createArtifact).toHaveBeenCalledWith(root, proofDirectory, '0.1.0', sha, execute);
+    expect(consumerSmoke).toHaveBeenCalledWith(path.join(proofDirectory, 'package.tgz'));
     expect(proof.expectedSha).toBe(sha);
     expect(proof.tarballSha256).toMatch(/^[a-f0-9]{64}$/u);
     expect(proof.tarballIntegrity).toMatch(/^sha512-/u);
@@ -624,6 +627,7 @@ describe('npm release CLI', () => {
     await chmod(fakeNpm, 0o755);
     await mkdir(path.join(cliRoot, 'scripts'));
     await copyFile(path.join(process.cwd(), 'scripts/npm-release.mjs'), path.join(cliRoot, 'scripts/npm-release.mjs'));
+    await copyFile(path.join(process.cwd(), 'scripts/npm-consumer-smoke.mjs'), path.join(cliRoot, 'scripts/npm-consumer-smoke.mjs'));
     await writeFile(path.join(cliRoot, 'package.json'), JSON.stringify({
       name: '@unson/brainbase-mcp',
       version: '0.1.0'
@@ -631,7 +635,7 @@ describe('npm release CLI', () => {
     execFileSync('git', ['init', '-q'], { cwd: cliRoot });
     execFileSync('git', ['config', 'user.email', 'release-test@example.com'], { cwd: cliRoot });
     execFileSync('git', ['config', 'user.name', 'Release Test'], { cwd: cliRoot });
-    execFileSync('git', ['add', 'package.json', 'scripts/npm-release.mjs'], { cwd: cliRoot });
+    execFileSync('git', ['add', 'package.json', 'scripts/npm-release.mjs', 'scripts/npm-consumer-smoke.mjs'], { cwd: cliRoot });
     execFileSync('git', ['commit', '-qm', 'fixture'], { cwd: cliRoot });
     const sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: cliRoot, encoding: 'utf8' }).trim();
 

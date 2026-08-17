@@ -4,6 +4,7 @@ import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/pro
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runConsumerSmoke } from './npm-consumer-smoke.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const rootDefault = path.resolve(path.dirname(scriptPath), '..');
@@ -285,12 +286,22 @@ export async function createReleaseArtifact(root, artifactDirectory, expectedVer
   }
 }
 
-export async function validateRelease(root, proofFile, expectedVersion, expectedSha, execute = run, createArtifact = createReleaseArtifact) {
+export async function validateRelease(
+  root,
+  proofFile,
+  expectedVersion,
+  expectedSha,
+  execute = run,
+  createArtifact = createReleaseArtifact,
+  consumerSmoke = runConsumerSmoke
+) {
   execute('npm', ['run', 'build'], root);
   execute('npm', ['test'], root);
   execute('npm', ['audit', '--omit=dev'], root);
   const artifactDirectory = path.resolve(path.dirname(proofFile));
-  return createArtifact(root, artifactDirectory, expectedVersion, expectedSha, execute);
+  const artifact = await createArtifact(root, artifactDirectory, expectedVersion, expectedSha, execute);
+  await consumerSmoke(artifact.tarballPath);
+  return artifact;
 }
 
 export async function validateReleaseCandidate({
@@ -302,7 +313,8 @@ export async function validateReleaseCandidate({
   proofFile,
   execute = run,
   validate = validateRelease,
-  createArtifact = createReleaseArtifact
+  createArtifact = createReleaseArtifact,
+  consumerSmoke = runConsumerSmoke
 }) {
   if (packageName !== EXPECTED_PACKAGE_NAME) {
     throw new Error(`publication authority is fixed to ${EXPECTED_PACKAGE_NAME}`);
@@ -316,7 +328,7 @@ export async function validateReleaseCandidate({
   assertCleanCheckout(root, execute);
   if (!proofFile) throw new Error('validation requires an external proof file path');
   assertProofOutsideRepository(root, proofFile);
-  const artifact = await validate(root, proofFile, version, expectedSha, execute, createArtifact);
+  const artifact = await validate(root, proofFile, version, expectedSha, execute, createArtifact, consumerSmoke);
   assertCleanCheckout(root, execute);
   return { packageName, version, expectedSha, trustedRef, ...artifact };
 }
