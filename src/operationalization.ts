@@ -79,21 +79,21 @@ export function buildOperationalizationPlan(input: OperationalizationPlanInput =
       },
       {
         id: 'verification',
-        title: 'doctorとMCP get_context / searchで確認する',
+        title: 'doctorとMCP resolve_entity / get_context / searchで確認する',
         status: 'pending',
         command: `brainbase doctor --dir ${commandArg(dataDir)}`,
         why: '新しいエージェントセッションでdoctorとMCPツールが承認済み文脈を示して初めて運用可能です。',
-        safety: 'コマンド生成だけで完了扱いせず、設定反映後にget_context/searchを確認します。'
+        safety: 'コマンド生成だけで完了扱いせず、設定反映後にresolve_entity/get_context/searchを確認します。'
       }
     ],
     recommendedOrder: [
       'Brainbase MCP設定を実際のCodex / Claude / CodeCode設定へ反映し、エージェントを再起動する。',
-      '新しいエージェントで現実の依頼を送り、MCP get_contextとsearchを使った実回答を確認する。',
+      '新しいエージェントで現実の依頼を送り、MCP resolve_entity、get_context、searchを使った実回答を確認する。',
       '利用者本人に役立ったかを確認する。役立たなければ不足文脈だけを追加して再試行する。',
       '対象エージェントへ公開スキルを配置する。',
       '必要になった時だけohayo / oyasumi / retroを確認付きで登録する。',
       '追加文脈が必要な場合だけ参照許可範囲を決め、取込と候補レビューを行う。',
-      'doctorを実行し、新しいエージェントセッションでMCP get_contextとsearchを確認する。'
+      'doctorを実行し、新しいエージェントセッションでMCP resolve_entity、get_context、searchを確認する。'
     ],
     safetyRules: [
       '利用者の承認なしに実設定、スケジュール、正本ファクトを書き込みません。',
@@ -102,10 +102,10 @@ export function buildOperationalizationPlan(input: OperationalizationPlanInput =
       '参照元の取込はローカル優先とし、正本化前にレビューします。'
     ],
     completionCheck: [
-      '実際のエージェントがBrainbase MCP get_context/searchを使って現実の依頼へ回答済み。',
+      '実際のエージェントがBrainbase MCP resolve_entity/get_context/searchを使って現実の依頼へ回答済み。',
       '利用者本人がその回答を役立つと確認済み。',
       '完了報告に残っている運用設定をすべて記載済み。',
-      '実設定反映後、対象エージェントからBrainbase MCP get_context/searchを呼び出せる。',
+      '実設定反映後、対象エージェントからBrainbase MCP resolve_entity/get_context/searchを呼び出せる。',
       '参照許可範囲と候補レビューを完了、または明示的に延期済み。'
     ]
   };

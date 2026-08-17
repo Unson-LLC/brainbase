@@ -28,12 +28,12 @@ npm run onboard:install -- --target codex --output /tmp/brainbase-mcp.toml
 ## 新しいセッションで確認する
 
 1. MCPサーバー `brainbase` が起動している
-2. `get_context`、`list_entities`、`search`、`search_personal_kg`、`onboarding_status` と、必要に応じて5つの `brainbase_onboarding_*` toolが見える
+2. `resolve_entity`、`get_context`、`list_entities`、`search`、`search_personal_kg`、`onboarding_status` と、必要に応じて5つの `brainbase_onboarding_*` toolが見える
 3. `onboarding_status` が登録済みと未設定の項目を返す
 4. `get_context` が自分、仕事、関係性の文脈を返す
-5. `search` が登録した人物とプロジェクトを見つける
+5. `resolve_entity`が文章中の人物やプロジェクトを正規IDへ接続し、`search`が登録した人物とプロジェクトを見つける
 
-確認できたら、[フェーズ3: 最初の価値](/guide/first-value)の現実の依頼を送り、実回答を見た本人が役立ったかを判断します。`get_context`や`search`が見えることだけでは初回価値の達成ではありません。
+確認できたら、[フェーズ3: 最初の価値](/guide/first-value)の現実の依頼を送り、実回答を見た本人が役立ったかを判断します。toolが見えることや正規IDが返ることだけでは初回価値の達成ではありません。
 
 ## うまく動かない時
 
@@ -43,6 +43,8 @@ npm run onboard:install -- --target codex --output /tmp/brainbase-mcp.toml
 npm run build
 npm run doctor
 ```
+
+`doctor`はGraphを`healthy`、`issues`、`migration_required`、`invalid`、`unavailable`に分けます。`migration_required`、`invalid`、`unavailable`は非0で終了するため、CIやエージェントが正常と誤認しません。`localBackend.connected`はローカル正本へ接続できた状態であり、`agentMcp.status: not_verified`や`operationallyReady: false`を実エージェント接続済みへ読み替えないでください。
 
 - `~/.brainbase/personal-os/` が存在するか
 - MCP設定の実行ファイルが絶対パスか

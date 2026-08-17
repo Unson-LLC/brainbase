@@ -231,7 +231,7 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
         questions: [
           'Optionally run brainbase onboard:demo to preview which saved context should be used.',
           'Install the MCP config after user approval and restart the selected agent.',
-          'Send the real request through that agent and require get_context/search evidence.',
+          'Send the real request through that agent and require resolve_entity/get_context/search evidence.',
           'Ask the user whether the actual answer was useful. A CLI sample or synthetic evaluator is not onboarding completion.'
         ]
       },
@@ -259,7 +259,7 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
       'brainbase onboard:seed --name "<name>" --value "<what should not be re-explained>" --project "<current project>" --relationship "<person>|<role>|<context>"',
       'brainbase onboard:projects --name "<project>" --goal "<goal>" --status "<status>" --role "<your role>"',
       'brainbase onboard:install --target codex --dry-run',
-      'Restart the selected agent, then send the real request and require Brainbase get_context/search.',
+      'Restart the selected agent, then send the real request and require Brainbase resolve_entity/get_context/search.',
       'Ask the user whether the actual answer was useful.',
       'brainbase onboard:demo --scenario "<optional local preview>"',
       'brainbase onboard:skills --target codex',
@@ -272,9 +272,9 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
       'Personal OS directory exists.',
       'The approved self, work, and person context are saved locally.',
       'The CLI sample, if used, is labeled as a preview rather than an onboarding completion signal.',
-      'The completion report lists public skills, ohayo/oyasumi/retro routines, real MCP config merge, source allowlists, and MCP get_context/search verification as unfinished operationalization work.',
+      'The completion report lists public skills, ohayo/oyasumi/retro routines, real MCP config merge, source allowlists, and MCP resolve_entity/get_context/search verification as unfinished operationalization work.',
       'The selected MCP client has a Brainbase config snippet merged into its real config after user approval.',
-      'A fresh agent session used Brainbase get_context/search for the real request.',
+      'A fresh agent session used Brainbase resolve_entity/get_context/search for the real request.',
       'The user personally confirmed that the actual agent answer was useful.',
       'Source diagnosis is optional follow-up work, but source allowlist/import/candidate review must be explicitly completed or deferred.'
     ]
@@ -310,7 +310,7 @@ export function buildValueDemo(input: ValueDemoInput): ValueDemo {
     dataDir: input.os.dataDir,
     firstValueReady: ready
   });
-  const actualAgentPrompt = `Brainbaseのget_contextとsearchを使い、保存済み文脈を根拠に「${scenario}」へ回答してください。使った前提と未確認事項を分けてください。`;
+  const actualAgentPrompt = `Brainbaseのresolve_entity、get_context、searchを使い、保存済み文脈を根拠に「${scenario}」へ回答してください。使った正規ID、関係、前提、未確認事項を分けてください。`;
 
   return {
     goal: '実エージェント接続前に、保存した文脈から作れる出力をプレビューする。',

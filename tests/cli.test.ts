@@ -187,7 +187,7 @@ describe('onboarding CLI', () => {
     expect(protocol.nextCommands.join('\n'), 'onboarding-operationalization-next-actions C-5 onboard:agent JSON includes operationalization commands').toContain('brainbase onboard:skills --target codex');
     expect(protocol.nextCommands.join('\n')).toContain('brainbase onboard:routines --target codex');
     expect(protocol.completionCheck.join('\n')).toContain('unfinished operationalization');
-    expect(protocol.completionCheck.join('\n')).toContain('MCP get_context/search verification');
+    expect(protocol.completionCheck.join('\n')).toContain('MCP resolve_entity/get_context/search verification');
     expect(protocol.nextCommands.indexOf('brainbase onboard:demo --scenario "<real request that should now work>"')).toBeLessThan(
       protocol.nextCommands.indexOf('brainbase onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion')
     );
@@ -203,7 +203,7 @@ describe('onboarding CLI', () => {
     expect(markdown).toContain('brainbase onboard:skills --target codex');
     expect(markdown).toContain('brainbase onboard:routines --target codex');
     expect(markdown).toContain('unfinished operationalization');
-    expect(markdown).toContain('MCP get_context/search verification');
+    expect(markdown).toContain('MCP resolve_entity/get_context/search verification');
   });
 
   it('value-first-onboarding S-2 C-5 onboard:demo reports missing canonical areas before seed', async () => {
@@ -544,7 +544,7 @@ describe('onboarding CLI', () => {
     expect(output.stdout()).toContain('関係者: 田中（責任者）');
     expect(output.stdout()).toContain('判断基準: 推測を事実として扱わない');
     expect(output.stdout()).toContain(`brainbase onboard:install --target codex --dir ${dir} --dry-run`);
-    expect(output.stdout()).toContain('実際の依頼でBrainbaseのget_contextとsearchを使います');
+    expect(output.stdout()).toContain('実際の依頼でBrainbaseのresolve_entity、get_context、searchを使います');
   });
 
   it('CLI-UX-05 start translates missing canonical areas in the primary Japanese output', async () => {

@@ -89,9 +89,10 @@ cp -n ~/.codex/config.toml ~/.codex/config.toml.before-brainbase
 Codexを再起動して新しいtaskを開き、次を確認します。
 
 - [ ] MCPサーバー`brainbase`が起動した
-- [ ] `get_context`、`search`、`onboarding_status`が見える
+- [ ] `get_context`、`search`、`resolve_entity`、`onboarding_status`が見える
 - [ ] `get_context`が承認済みの文脈を返した
 - [ ] `search`が登録した人物またはプロジェクトを見つけた
+- [ ] `resolve_entity`が文章中の人物またはプロジェクトを正規IDへ接続した
 
 error、空の結果、権限待ち、未確認を成功扱いしないでください。MCPの動作確認が終わるまで、Judgment Hostへ進まないでください。
 
@@ -102,10 +103,10 @@ error、空の結果、権限待ち、未確認を成功扱いしないでくだ
 MCP設定を反映して再起動した新しいCodexへ、最初に決めた現実の依頼を送ります。
 
 ```text
-Brainbaseのget_contextとsearchを使い、保存済み文脈を根拠に「実際に試す依頼」へ回答してください。使った前提と未確認事項を分けてください。
+Brainbaseのresolve_entity、get_context、searchを使い、保存済み文脈を根拠に「実際に試す依頼」へ回答してください。使った正規ID、関係、前提、未確認事項を分けてください。
 ```
 
-- [ ] 実エージェントが`get_context`と`search`を呼んだ
+- [ ] 実エージェントが`resolve_entity`、`get_context`、`search`を呼んだ
 - [ ] 保存したプロジェクト、関係者、判断基準が実回答に使われた
 - [ ] 回答の未確認事項が区別された
 - [ ] 回答を見た本人が「Brainbaseが役立った」と判断した
@@ -146,7 +147,7 @@ npm run doctor
 ```
 
 1. `doctor`でローカル状態とMCP未確認状態を分ける。
-2. 新しいtaskでMCPの`get_context`と`search`を使って現実の依頼を試す。
+2. 新しいtaskでMCPの`resolve_entity`、`get_context`、`search`を使って現実の依頼を試す。
 3. 本人が実回答を役立つと判断したか確認する。
 4. Judgment Hostを使う場合だけ、3つのHookと監査行を確認する。
 5. 最初に通らない項目へ戻り、その一項目だけを直す。

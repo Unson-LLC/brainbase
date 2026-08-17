@@ -371,7 +371,7 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
     '',
     '次に実行:',
     `brainbase onboard:install --target codex --dir ${shellArg(dataDir)} --dry-run`,
-    '設定を承認・反映してエージェントを再起動した後、実際の依頼でBrainbaseのget_contextとsearchを使います。',
+    '設定を承認・反映してエージェントを再起動した後、実際の依頼でBrainbaseのresolve_entity、get_context、searchを使います。',
     ''
   ];
   write(io, summary.join('\n'));

@@ -4,7 +4,7 @@
 
 - INV-1: First value demo readiness is not an onboarding completion signal unless the remaining operationalization actions are shown to the user.
 - INV-2: Operationalization actions remain local-first and do not write live MCP config, scheduler entries, or canonical source facts by default.
-- INV-3: The required unfinished actions are public skills placement, ohayo / oyasumi / retro routine registration, real MCP config merge, source allowlist / import / candidate review decision, and doctor plus MCP `get_context` / `search` verification.
+- INV-3: The required unfinished actions are public skills placement, ohayo / oyasumi / retro routine registration, real MCP config merge, source allowlist / import / candidate review decision, and doctor plus MCP `resolve_entity` / `get_context` / `search` verification.
 - INV-4: Source setup remains optional follow-up after first value, but it must be explicitly completed or deferred.
 
 ## Contracts

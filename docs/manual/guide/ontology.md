@@ -1,20 +1,29 @@
-# Ontology 1.0.0
+# Ontology 2.0.0と正規Graph
 
-BrainbaseのOntologyは、ローカルPersonal OSに保存した事実を「どういう意味として扱うか」を定める公開契約です。データそのものではなく、AIやCLIが同じ意味と検証規則を共有するためのKernelです。
+BrainbaseのOntologyは、ローカルPersonal OSに保存した事実を「どういう意味として扱うか」を定める公開契約です。2.0.0では、正規エンティティ同士を安定IDのエッジで接続します。人物名などの表示文字列ではなくIDをたどるため、表記が変わっても同じ人物、プロジェクト、判断を区別できます。
+
+## 正本と投影を分ける
+
+`graph.json`のGraph v2が、正規エンティティと正規エッジの正本です。`personal-kg.jsonl`、`relationships.json`、`decisions.jsonl`は用途別の情報を保持しますが、正規Graphの代わりではありません。
+
+正規エッジはRelation Registryに登録された関係だけを使います。代表例は次のとおりです。
+
+- 人物からプロジェクトへの参加: `participates_in`
+- 判断からプロジェクトへの適用: `governs`
+- 新しい判断から古い判断への置換: `supersedes`
+- 組織とプロジェクトの所有関係: `owned_by`
+
+存在しないID、型が合わない接続、未知の関係、重複した接続は保存前に拒否します。自由文の役割から関係を推測して正規エッジへ昇格しません。
 
 ## 5つの領域
 
-| 領域 | 1.0.0で定めること |
+| 領域 | 2.0.0で定めること |
 | --- | --- |
-| 型 | `person`、`org`、`project`、`relationship`、`decision` の意味 |
-| 関係語彙 | 人との関係、Decisionの `supersedes`、Decisionの `topic` |
-| 制約 | ID重複、参照不整合、自己置換、循環などの監査rule |
-| 推論 | 明示的な置換だけを根拠に有効Decisionを導出し、曖昧さは競合として返すrule |
-| 変更管理 | version間の互換性、migration、rollback |
-
-## データとOntologyの違い
-
-`graph.json`や`decisions.jsonl`は、あなたが承認したローカルの事実です。Ontology 1.0.0は、それらの事実に対して「IDは重複してはいけない」「明示的に置換されたDecisionだけを過去扱いする」といった共通ルールを与えます。
+| 型 | `person`、`org`、`project`、`decision`の意味 |
+| 関係語彙 | Relation Registryに登録されたIDエッジと接続可能な型 |
+| 制約 | ID重複、参照不整合、自己置換、循環などの監査規則 |
+| 推論 | 明示された有効時点とエッジだけを根拠に判断し、曖昧さを残す規則 |
+| 変更管理 | version間の互換性、移行、ロールバック |
 
 Ontologyを有効にしても、データが外部へ送信されたり、自動修復されたりはしません。正本は引き続き `~/.brainbase/personal-os/` にあり、error違反があれば新しい正本書込みを開始前に拒否します。
 
@@ -23,40 +32,47 @@ Ontologyを有効にしても、データが外部へ送信されたり、自動
 ```bash
 brainbase ontology:show
 brainbase ontology:audit
+brainbase ontology:audit --ontology-version 1.0.0
 brainbase ontology:audit --ontology-version 0.0.0
 ```
 
 監査結果の読み方:
 
-- `complete` + `violationCount: 0`: 対象の正本を全件読めて、検出rule上の違反は0件
+- `complete` + `violationCount: 0`: 対象の正本を全件読めて、検出規則上の違反は0件
 - `complete` + warning: 読取は完了したが、確認すべき意味上の不整合がある
 - `complete` + error: 読取は完了したが、書込みを止める制約違反がある
 - `unverified` + `violationCount: null`: ファイル欠損や破損で監査できない。0件ではない
 
-`--ontology-version`を省略すると1.0.0で監査します。`0.0.0`はOntology Kernel導入前のlegacy解釈を表し、canonical fileの形式は検証しますが、1.0.0で追加された`effectiveAt`、supersession、conflict、意味制約を過去へ遡及適用しません。これにより、監査・推論結果に「どのversionの意味で読んだか」が必ず残ります。未対応versionは推測せず拒否します。
+Graph v2では、記録されたOntology bindingを使います。legacy Graphでversion指定を省略した場合は、現行の2.0.0を使います。`1.0.0`は最初のportable release、`0.0.0`はKernel導入前の履歴解釈です。未対応versionは推測せず拒否します。
 
-## 0.0.0から1.0.0へ更新する
+## Graph v1からv2へ移行する
 
-1. `~/.brainbase/personal-os/`を別の場所へバックアップする。
-2. 書込みを伴わない`brainbase ontology:audit --ontology-version 1.0.0`を実行する。
-3. `error`があればupgrade後の書込みを始めず、rule IDとpathを確認する。重複IDや不正なsupersessionは、自動修復せず、バックアップを残したまま利用者が正しいrecordを選んで修正する。
-4. `complete`かつerrorが0件になってから、`onboard:seed`、`onboard:projects --write`、`onboard:apply --write`を使う。
+最初にPersonal OSをバックアップし、書き込まないpreviewを実行します。
 
-互換性は「既存recordを読める」という意味では保たれますが、1.0.0のcanonical writeは1.0.0監査がerrorなしであることを条件にします。既存の意味違反を黙って温存して書き足すことはしません。
+```bash
+brainbase ontology:migrate --dir ~/.brainbase/personal-os
+```
 
-### 初回公開時のrollback
+結果が`blocked`なら書き込まず、`issues`にある重複ID、曖昧な人物、未解決参照などを確認します。Brainbaseは複数候補から正規IDを推測しません。
 
-`@unson/brainbase-mcp`の初回npm公開には、再インストールできる旧package versionがありません。導入前に、現在利用しているMCP client設定ファイルをコピーし、Brainbaseを起動しているcommandも記録してください。問題が起きた場合は次の順に戻します。
+`migration_required`なら、previewが返した`expectedInputDigest`をそのまま指定して適用します。
 
-1. `npm uninstall -g @unson/brainbase-mcp`で初回公開packageを取り除く。
-2. 退避したMCP client設定と従来の起動commandを復元する。
-3. MCP clientを再起動し、従来のBrainbase接続を確認する。
+```bash
+brainbase ontology:migrate \
+  --dir ~/.brainbase/personal-os \
+  --write \
+  --expected-input-digest "<previewで返った値>"
+```
 
-既存packageからupgradeする将来のreleaseでは、upgrade前に記録した直前のversionを再インストールします。いずれも、監査後に利用者がcanonical fileを修正した場合だけ、必要に応じてupgrade前の`~/.brainbase/personal-os/`バックアップも復元します。Ontology commandを使わないだけでは、1.0.0で追加されたpre-write guardは無効になりません。
+書込み直前に4つの正本をlock内で再読込します。preview後に内容が変わっていればdigest不一致で拒否し、古い計画を適用しません。書込みは4ファイルを一括で行い、途中失敗時は元の状態へ戻します。再実行済みのGraph v2は`up_to_date`となり、内容を書き換えません。
+
+### 戻すとき
+
+移行前に作成したPersonal OSのバックアップと、導入前のpackage versionを記録してください。問題が起きた場合は、Brainbaseを停止してからバックアップを復元し、記録したpackage versionを再インストールします。`graph.json`だけを単独で戻すと4ファイルの整合性が崩れるため、Personal OS全体を同じ時点へ戻します。
 
 ## Decisionの変更を表す
 
-既存のDecision形式はそのまま読めます。明示的な変更関係が必要な場合だけ、追加fieldを使います。
+既存のDecision形式はそのまま読めます。明示的な変更関係が必要な場合だけ、`supersedes`と`effectiveAt`を使います。移行時には同じIDの正規Decision entityと、必要な`governs`・`supersedes`エッジが作られます。
 
 ```json
 {
@@ -69,6 +85,4 @@ brainbase ontology:audit --ontology-version 0.0.0
 }
 ```
 
-`effectiveAt`と推論の`asOf`はRFC 3339 date-timeです。`Z`だけでなく`+09:00`などのUTC offsetも利用でき、比較は表記上の文字列順ではなく実際の時刻で行われます。
-
-同じ `topic` のDecisionが複数あっても、`supersedes` がなければBrainbaseは勝手に一方を採用しません。競合として返し、人が関係を確定できる状態を保ちます。
+`effectiveAt`と検索・解決時の`asOf`はRFC 3339 date-timeです。同じtopicのDecisionが複数あっても、`supersedes`がなければBrainbaseは勝手に一方を採用しません。競合として返し、人が関係を確定できる状態を保ちます。
