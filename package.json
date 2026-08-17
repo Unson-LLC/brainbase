@@ -26,7 +26,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "test:integration": "vitest run tests/mcp-contract.test.ts tests/ontology-cli.test.ts tests/npm-release-validation.integration.test.ts",
+    "test:integration": "vitest run tests/mcp-contract.test.ts tests/ontology-cli.test.ts tests/npm-release-validation.integration.test.ts tests/npm-consumer-smoke.integration.test.ts",
+    "test:consumer-smoke": "vitest run tests/npm-consumer-smoke.integration.test.ts",
     "test:integration:release-evidence": "vitest run tests/npm-release-validation.integration.test.ts tests/npm-prepublication-evidence.integration.test.ts",
     "test:e2e": "vitest run tests/e2e/brainbase-mcp-only-acceptance.spec.ts tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
     "docs:dev": "vitepress dev docs",
