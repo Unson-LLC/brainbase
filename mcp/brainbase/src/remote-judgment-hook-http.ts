@@ -99,7 +99,11 @@ export async function handleRemoteJudgmentHookRequest(
         output,
       },
     };
-  } catch {
-    return { status: 503, body: { error: 'judgment_hook_unavailable' } };
+  } catch (error) {
+    const reason = error instanceof Error
+      && /^judgment_[a-z0-9_]{1,80}$/.test(error.message)
+      ? error.message
+      : 'judgment_hook_unavailable';
+    return { status: 503, body: { error: reason } };
   }
 }

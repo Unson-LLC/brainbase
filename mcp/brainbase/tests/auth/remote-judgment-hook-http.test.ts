@@ -151,7 +151,7 @@ describe('remote judgment Hook HTTP boundary', () => {
           }),
         }),
       }));
-      assert.deepEqual(result, { status: 503, body: { error: 'judgment_hook_unavailable' } });
+      assert.deepEqual(result, { status: 503, body: { error: 'judgment_episode_not_found' } });
     } finally {
       await rm(journalRoot, { recursive: true, force: true });
     }
@@ -197,5 +197,23 @@ describe('remote judgment Hook HTTP boundary', () => {
       dispatch: async () => { throw new Error('offline'); },
     }));
     assert.deepEqual(result, { status: 503, body: { error: 'judgment_hook_unavailable' } });
+  });
+
+  it('returns only bounded canonical judgment failure codes', async () => {
+    const canonical = await handleRemoteJudgmentHookRequest(request({
+      dispatch: async () => { throw new Error('judgment_receipt_context_mismatch'); },
+    }));
+    const arbitrary = await handleRemoteJudgmentHookRequest(request({
+      dispatch: async () => { throw new Error('Bearer secret-must-not-escape'); },
+    }));
+
+    assert.deepEqual(canonical, {
+      status: 503,
+      body: { error: 'judgment_receipt_context_mismatch' },
+    });
+    assert.deepEqual(arbitrary, {
+      status: 503,
+      body: { error: 'judgment_hook_unavailable' },
+    });
   });
 });
