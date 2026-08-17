@@ -2,7 +2,7 @@
 
 このページでは、公開マニュアルに関係する履歴だけを記録します。
 
-## 次期0.3.0候補
+## 0.3.0
 
 - Graph v2で人物、組織、プロジェクト、判断を安定IDのエッジで接続
 - Relation Registryにより、関係名、接続可能な型、探索方向を一元管理
@@ -13,7 +13,7 @@
 - 候補tarballの取得から実CLI、実MCP、実Codexによる相談メモまでを51,069msで完了し、32の合成ペルソナすべてが初回価値と再利用意向を認識
 - Cycle 09で既知の知識構造Major 0件、新規Major 0件を確認
 
-この項目は公開前の候補です。Cycle 09はローカル候補tarballと合成ペルソナによる証拠であり、人間の利用観察、実機・支援技術評価、npm registry版での価値確認は未収集です。npm registryへの公開とfresh installの再確認が終わるまでは、公開済みversionとして扱いません。
+Cycle 09はローカル候補tarballと合成ペルソナによる証拠です。人間の利用観察、実機・支援技術評価、npm registry版を使った利用者価値の確認は含みません。公開完了は、Actionsの成功だけでなくnpm registryのversion、`gitHead`、integrity、dist-tag、fresh install、GitHub Releaseを照合して判定します。
 
 ## 0.2.0
 
