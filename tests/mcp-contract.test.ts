@@ -160,6 +160,11 @@ describe('MCP contract', () => {
 
   it('distinguishes v1 migration, unavailable Graph, and invalid Graph from unresolved mentions', async () => {
     const v1Dir = await fixtureDir();
+    await writeFile(join(v1Dir, 'graph.json'), `${JSON.stringify({
+      version: 1,
+      owner: { name: 'Owner' },
+      entities: []
+    }, null, 2)}\n`, 'utf8');
     await expect(callBrainbaseTool('resolve_entity', {
       dataDir: v1Dir,
       text: 'Atlas',
