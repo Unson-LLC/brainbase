@@ -1,7 +1,9 @@
 import type { DecisionRecord, PersonalOs } from './types.js';
+import { canonicalRelationRegistry } from './relation-registry.js';
 
-export const ONTOLOGY_VERSION = '1.0.0' as const;
-export const SUPPORTED_ONTOLOGY_VERSIONS = ['0.0.0', ONTOLOGY_VERSION] as const;
+export const ONTOLOGY_V1_VERSION = '1.0.0' as const;
+export const ONTOLOGY_VERSION = '2.0.0' as const;
+export const SUPPORTED_ONTOLOGY_VERSIONS = ['0.0.0', ONTOLOGY_V1_VERSION, ONTOLOGY_VERSION] as const;
 export type OntologyVersion = typeof SUPPORTED_ONTOLOGY_VERSIONS[number];
 
 export type OntologySeverity = 'error' | 'warning';
@@ -46,8 +48,8 @@ export interface UnverifiedOntologyAuditResult {
 
 export type PersonalOsOntologyAudit = OntologyAuditResult | UnverifiedOntologyAuditResult;
 
-const release = {
-  version: ONTOLOGY_VERSION,
+const releaseV1 = {
+  version: ONTOLOGY_V1_VERSION,
   effectiveAt: '2026-08-03T00:00:00.000Z',
   compatibility: 'read-compatible-write-gated',
   name: 'Brainbase Portable Ontology Kernel',
@@ -116,7 +118,7 @@ const release = {
       compatibility: [
         {
           fromVersion: '0.0.0',
-          toVersion: ONTOLOGY_VERSION,
+          toVersion: ONTOLOGY_V1_VERSION,
           level: 'read-compatible-write-gated',
           changes: [
             'Adds a versioned public semantic contract.',
@@ -130,13 +132,62 @@ const release = {
   }
 } as const;
 
-export const portableOntology = deepFreeze(release);
+/** Historical public release. Never derive it from the active release. */
+export const portableOntologyV1 = deepFreeze(releaseV1);
+
+const releaseV2 = {
+  version: ONTOLOGY_VERSION,
+  effectiveAt: '2026-08-17T00:00:00.000Z',
+  compatibility: 'read-compatible-write-gated',
+  name: 'Brainbase Portable Ontology Kernel',
+  description: 'A local-first semantic contract for canonical Graph entities and ID-based edges.',
+  domains: {
+    types: portableOntologyV1.domains.types,
+    relations: {
+      vocabulary: Object.values(canonicalRelationRegistry).map((definition) => ({
+        id: definition.id,
+        source: definition.from,
+        target: definition.to
+      }))
+    },
+    constraints: portableOntologyV1.domains.constraints,
+    inference: portableOntologyV1.domains.inference,
+    evolution: {
+      compatibility: [
+        {
+          fromVersion: '0.0.0',
+          toVersion: ONTOLOGY_VERSION,
+          level: 'read-compatible-write-gated',
+          changes: [
+            'Adds a versioned public semantic contract.',
+            'Adds canonical Graph v2 entities and ID-based edges governed by the Relation Registry.'
+          ],
+          migration: 'Before enabling 2.0.0 writes, back up the Personal OS directory, run ontology:audit, preview ontology:migrate, then write using the preview expectedInputDigest.',
+          rollback: 'For an installation without a prior package, run npm uninstall -g @unson/brainbase-mcp, restore the captured MCP client configuration, and restart the client. Otherwise restore the pre-migration Personal OS backup and reinstall the recorded last known working package version.'
+        },
+        {
+          fromVersion: ONTOLOGY_V1_VERSION,
+          toVersion: ONTOLOGY_VERSION,
+          level: 'read-compatible-write-gated',
+          changes: [
+            'Adds canonical Graph v2 entities and ID-based edges.',
+            'Binds the portable ontology release to the canonical Relation Registry.'
+          ],
+          migration: 'Run ontology:audit --ontology-version 1.0.0, preview ontology:migrate, then write using the preview expectedInputDigest.',
+          rollback: 'Restore the pre-migration Personal OS backup; the immutable 1.0.0 interpretation remains available for historical reads.'
+        }
+      ]
+    }
+  }
+} as const;
+
+export const portableOntology = deepFreeze(releaseV2);
 
 export function auditOntology(
   os: PersonalOs,
   options: { ontologyVersion?: OntologyVersion } = {}
 ): OntologyAuditResult {
-  const ontologyVersion = resolveOntologyVersion(options.ontologyVersion);
+  const ontologyVersion = resolvePersonalOsOntologyVersion(os, options.ontologyVersion);
   const violations: OntologyViolation[] = [];
 
   // 0.0.0 names the pre-kernel legacy semantics. Canonical shape validation is
@@ -219,7 +270,7 @@ export function inferPersonalOs(
   os: PersonalOs,
   options: { asOf?: string; ontologyVersion?: OntologyVersion } = {}
 ): DecisionInferenceResult {
-  const ontologyVersion = resolveOntologyVersion(options.ontologyVersion);
+  const ontologyVersion = resolvePersonalOsOntologyVersion(os, options.ontologyVersion);
   const audit = auditOntology(os, { ontologyVersion });
   const errors = audit.violations.filter((violation) => violation.severity === 'error');
   if (errors.length > 0) {
@@ -448,6 +499,15 @@ export function resolveOntologyVersion(version: string | undefined): OntologyVer
     );
   }
   return requested as OntologyVersion;
+}
+
+function resolvePersonalOsOntologyVersion(
+  os: PersonalOs,
+  requestedVersion: OntologyVersion | undefined
+): OntologyVersion {
+  if (requestedVersion !== undefined) return resolveOntologyVersion(requestedVersion);
+  if (os.graph.version === 2) return resolveOntologyVersion(os.graph.ontology.version);
+  return resolveOntologyVersion(undefined);
 }
 
 function auditDecisionSupersession(decisions: DecisionRecord[], violations: OntologyViolation[]): void {

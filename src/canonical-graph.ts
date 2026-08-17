@@ -9,7 +9,10 @@ export function canonicalEdgeId(edge: Pick<CanonicalEdge, 'fromId' | 'relation' 
 const v1EntityKinds = new Set<EntityKind>(['person', 'org', 'project', 'relationship']);
 const canonicalEntityKinds = new Set<CanonicalEntityKind>(['person', 'org', 'project', 'decision']);
 
-export function validateCanonicalGraph(graph: unknown): asserts graph is CanonicalGraphFile {
+export function validateCanonicalGraph(
+  graph: unknown,
+  options: { allowDuplicateEntityIds?: boolean } = {}
+): asserts graph is CanonicalGraphFile {
   if (!graph || typeof graph !== 'object' || !('version' in graph) || !('entities' in graph)) {
     throw new Error('GRAPH-SHAPE-VALID: graph must be an object with version and entities');
   }
@@ -40,7 +43,9 @@ export function validateCanonicalGraph(graph: unknown): asserts graph is Canonic
     assertOptionalStringArray(entity.tags, `entities[${index}].tags`);
     assertOptionalRecord(entity.metadata, `entities[${index}].metadata`);
     if (entityIds.has(entity.id)) {
-      throw new Error(`GRAPH-ENTITY-ID-UNIQUE at entities[${index}].id: duplicate canonical entity ID ${entity.id}`);
+      if (!options.allowDuplicateEntityIds) {
+        throw new Error(`GRAPH-ENTITY-ID-UNIQUE at entities[${index}].id: duplicate canonical entity ID ${entity.id}`);
+      }
     }
     entityIds.add(entity.id as string);
   }

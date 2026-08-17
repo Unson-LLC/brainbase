@@ -89,6 +89,11 @@ describe('MCP contract', () => {
         }
       }
     });
+    for (const toolName of ['audit_ontology', 'infer_decisions']) {
+      const tool = toolDefinitions.find((candidate) => candidate.name === toolName);
+      expect((tool?.inputSchema as { properties?: { ontologyVersion?: { enum?: string[] } } })
+        .properties?.ontologyVersion?.enum).toEqual(['0.0.0', '1.0.0', '2.0.0']);
+    }
   });
 
   it('S-4 lists v1 tools through stdio server startup', async () => {
@@ -155,6 +160,11 @@ describe('MCP contract', () => {
 
   it('distinguishes v1 migration, unavailable Graph, and invalid Graph from unresolved mentions', async () => {
     const v1Dir = await fixtureDir();
+    await writeFile(join(v1Dir, 'graph.json'), `${JSON.stringify({
+      version: 1,
+      owner: { name: 'Owner' },
+      entities: []
+    }, null, 2)}\n`, 'utf8');
     await expect(callBrainbaseTool('resolve_entity', {
       dataDir: v1Dir,
       text: 'Atlas',
@@ -358,21 +368,21 @@ describe('MCP contract', () => {
       agentMcp: { status: 'not_verified' },
       operationallyReady: false
     });
-    await expect(callBrainbaseTool('get_ontology')).resolves.toMatchObject({ version: '1.0.0' });
+    await expect(callBrainbaseTool('get_ontology')).resolves.toMatchObject({ version: '2.0.0' });
     await expect(callBrainbaseTool('audit_ontology', { dataDir })).resolves.toMatchObject({
       status: 'complete',
-      ontologyVersion: '1.0.0',
+      ontologyVersion: '2.0.0',
       violationCount: 0
     });
     await expect(callBrainbaseTool('infer_decisions', { dataDir, asOf: '2026-08-03T00:00:00.000Z' })).resolves.toMatchObject({
-      ontologyVersion: '1.0.0',
+      ontologyVersion: '2.0.0',
       activeDecisionIds: ['decision-local-only']
     });
     await expect(callBrainbaseTool('infer_decisions', {
       dataDir,
       asOf: '2026-08-03T09:00:00+09:00'
     })).resolves.toMatchObject({
-      ontologyVersion: '1.0.0',
+      ontologyVersion: '2.0.0',
       asOf: '2026-08-03T09:00:00+09:00'
     });
     await expect(callBrainbaseTool('audit_ontology', {
@@ -381,6 +391,13 @@ describe('MCP contract', () => {
     })).resolves.toMatchObject({
       status: 'complete',
       ontologyVersion: '0.0.0'
+    });
+    await expect(callBrainbaseTool('audit_ontology', {
+      dataDir,
+      ontologyVersion: '1.0.0'
+    })).resolves.toMatchObject({
+      status: 'complete',
+      ontologyVersion: '1.0.0'
     });
     await expect(callBrainbaseTool('infer_decisions', {
       dataDir,
@@ -395,8 +412,23 @@ describe('MCP contract', () => {
       ontologyVersion: '9.9.9'
     })).rejects.toThrow(/Unsupported ontology version/);
     await expect(callBrainbaseTool('ontology_impact', { fromVersion: '0.0.0' })).resolves.toMatchObject({
-      toVersion: '1.0.0',
+      toVersion: '2.0.0',
       supported: true
+    });
+  });
+
+  it('uses the Graph v2 release binding by default through ontology MCP tools', async () => {
+    const dataDir = await fixtureDir();
+    const graphPath = join(dataDir, 'graph.json');
+    const graph = JSON.parse(await readFile(graphPath, 'utf8'));
+    graph.ontology.version = '1.0.0';
+    await writeFile(graphPath, `${JSON.stringify(graph, null, 2)}\n`);
+
+    await expect(callBrainbaseTool('audit_ontology', { dataDir })).resolves.toMatchObject({
+      ontologyVersion: '1.0.0'
+    });
+    await expect(callBrainbaseTool('infer_decisions', { dataDir })).resolves.toMatchObject({
+      ontologyVersion: '1.0.0'
     });
   });
 

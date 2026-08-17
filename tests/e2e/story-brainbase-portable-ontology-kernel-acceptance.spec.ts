@@ -50,7 +50,7 @@ describe('story-brainbase-portable-ontology-kernel acceptance', () => {
       '--project', 'Portable ontology'
     ], seedOutput.io)).resolves.toBe(0);
 
-    expect(portableOntology.version, 'story-brainbase-portable-ontology-kernel ac:1 publishes one immutable semantic release').toBe('1.0.0');
+    expect(portableOntology.version, 'story-brainbase-portable-ontology-kernel ac:1 publishes one immutable semantic release').toBe('2.0.0');
     expect(Object.keys(portableOntology.domains), 'story-brainbase-portable-ontology-kernel ac:1 covers all five ontology domains').toEqual([
       'types',
       'relations',
@@ -101,7 +101,7 @@ describe('story-brainbase-portable-ontology-kernel acceptance', () => {
     ], { asOf: '2026-08-03T00:00:00.000Z' });
     expect(inference.supersededDecisionIds, 'story-brainbase-portable-ontology-kernel ac:5 applies only explicit supersedes edges').toEqual(['old']);
     expect(inference, 'story-brainbase-portable-ontology-kernel ac:6 returns version, as-of, evidence, and explanations with every inference').toMatchObject({
-      ontologyVersion: '1.0.0',
+      ontologyVersion: '2.0.0',
       asOf: '2026-08-03T00:00:00.000Z',
       evidence: [expect.objectContaining({ ruleId: 'ONT-INFER-EXPLICIT-SUPERSESSION' })]
     });

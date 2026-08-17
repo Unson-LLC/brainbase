@@ -1,15 +1,40 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { canonicalEdgeId } from '../src/canonical-graph.js';
+
+const participation = {
+  fromId: 'person-otawara',
+  relation: 'participates_in' as const,
+  toId: 'project-personal-os'
+};
+const governance = {
+  fromId: 'decision-local-only',
+  relation: 'governs' as const,
+  toId: 'project-personal-os'
+};
 
 export async function createFixturePersonalOs(dataDir: string): Promise<void> {
   await mkdir(join(dataDir, 'sources'), { recursive: true });
   await writeFile(join(dataDir, 'graph.json'), `${JSON.stringify({
-    version: 1,
+    version: 2,
+    ontology: {
+      id: 'brainbase-personal-os',
+      version: '2.0.0',
+      releaseDigest: 'fixture-ontology-digest'
+    },
     owner: {
+      id: 'person-owner',
       name: 'Owner',
       summary: 'Local-first AI operator'
     },
     entities: [
+      {
+        id: 'person-owner',
+        type: 'person',
+        name: 'Owner',
+        summary: 'Local-first AI operator',
+        tags: ['self']
+      },
       {
         id: 'person-otawara',
         type: 'person',
@@ -23,6 +48,28 @@ export async function createFixturePersonalOs(dataDir: string): Promise<void> {
         name: 'Personal OS',
         summary: 'Local SSOT exposed through MCP',
         tags: ['work']
+      },
+      {
+        id: 'decision-local-only',
+        type: 'decision',
+        name: 'v1 backend scope',
+        summary: 'Use local personal SSOT only for v1.',
+        tags: ['scope']
+      }
+    ],
+    edges: [
+      {
+        id: canonicalEdgeId(participation),
+        ...participation,
+        role: 'partner',
+        context: 'Needs local MCP access from Codex and Claude',
+        provenance: { sourceKind: 'import', sourceId: 'relationship-otawara' }
+      },
+      {
+        id: canonicalEdgeId(governance),
+        ...governance,
+        context: 'Use local personal SSOT only for v1.',
+        provenance: { sourceKind: 'import', sourceId: 'decision-local-only' }
       }
     ]
   }, null, 2)}\n`);

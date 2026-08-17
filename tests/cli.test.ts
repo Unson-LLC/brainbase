@@ -1,4 +1,4 @@
-import { access, mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -58,7 +58,7 @@ describe('onboarding CLI', () => {
     const code = await runCli(['onboard:init', '--dir', dir], output.io);
 
     expect(code).toBe(0);
-    await expect(readFile(join(dir, 'graph.json'), 'utf8')).resolves.toContain('"version": 1');
+    await expect(readFile(join(dir, 'graph.json'), 'utf8')).resolves.toContain('"version": 2');
     await expect(readFile(join(dir, 'personal-kg.jsonl'), 'utf8')).resolves.toBe('');
     await expect(access(join(dir, 'sources', 'gmail'))).resolves.toBeUndefined();
     await expect(access(join(dir, 'sources', 'calendar'))).resolves.toBeUndefined();
@@ -783,6 +783,45 @@ describe('onboarding CLI', () => {
     const doctorCode = await runCli(['doctor', '--dir', dir], doctorOutput.io);
     expect(doctorCode).toBe(0);
     expect(JSON.parse(doctorOutput.stdout()).missing).toEqual(['self', 'work', 'relationships']);
+  });
+
+  it.each([
+    ['forward', ['Aa', 'BB']],
+    ['reverse', ['BB', 'Aa']]
+  ])('onboard:apply blocks legacy stable-id collisions atomically (%s)', async (_label, names) => {
+    const dir = await tempDir();
+    await runCli(['onboard:init', '--dir', dir], capture().io);
+    const candidatePath = join(dir, 'candidates.json');
+    await writeFile(candidatePath, JSON.stringify({
+      candidates: names.map((name) => ({ id: `candidate-${name}`, kind: 'project', payload: { name } }))
+    }));
+    const canonicalPaths = ['graph.json', 'personal-kg.jsonl', 'relationships.json', 'decisions.jsonl'];
+    const before = await Promise.all(canonicalPaths.map((path) => readFile(join(dir, path), 'utf8')));
+    const output = capture();
+
+    const code = await runCli(['onboard:apply', '--dir', dir, '--from', candidatePath, '--all', '--write'], output.io);
+
+    expect(code).toBe(1);
+    expect(output.stderr()).toMatch(/canonical_id_collision: project-1mo.*Aa.*BB/);
+    expect(await Promise.all(canonicalPaths.map((path) => readFile(join(dir, path), 'utf8')))).toEqual(before);
+  });
+
+  it('onboard:apply blocks a collision with an existing Graph entity without changing canonical files', async () => {
+    const dir = await tempDir();
+    await runCli(['onboard:init', '--dir', dir], capture().io);
+    const candidatePath = join(dir, 'candidates.json');
+    await writeFile(candidatePath, JSON.stringify({ candidates: [{ id: 'candidate-Aa', kind: 'project', payload: { name: 'Aa' } }] }));
+    expect(await runCli(['onboard:apply', '--dir', dir, '--from', candidatePath, '--all', '--write'], capture().io)).toBe(0);
+    await writeFile(candidatePath, JSON.stringify({ candidates: [{ id: 'candidate-BB', kind: 'project', payload: { name: 'BB' } }] }));
+    const canonicalPaths = ['graph.json', 'personal-kg.jsonl', 'relationships.json', 'decisions.jsonl'];
+    const before = await Promise.all(canonicalPaths.map((path) => readFile(join(dir, path), 'utf8')));
+    const output = capture();
+
+    const code = await runCli(['onboard:apply', '--dir', dir, '--from', candidatePath, '--all', '--write'], output.io);
+
+    expect(code).toBe(1);
+    expect(output.stderr()).toMatch(/canonical_id_collision: project-1mo.*Aa.*BB/);
+    expect(await Promise.all(canonicalPaths.map((path) => readFile(join(dir, path), 'utf8')))).toEqual(before);
   });
 
   it('S-16 onboard:plan maps Google Workspace local answers into a no-write setup plan', async () => {

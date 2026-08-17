@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { canonicalEdgeId, validateCanonicalGraph } from './canonical-graph.js';
+import { canonicalGraphOntologyRelease } from './templates.js';
 import type {
   CanonicalEdge,
   CanonicalEntity,
@@ -20,7 +21,9 @@ export type MigrationIssueCode =
   | 'missing_decision_endpoint'
   | 'decision_supersedes_self'
   | 'decision_supersedes_cycle'
-  | 'unsupported_relationship_entity';
+  | 'unsupported_relationship_entity'
+  | 'expected_input_digest_required'
+  | 'input_digest_mismatch';
 
 export interface MigrationIssue {
   code: MigrationIssueCode;
@@ -32,10 +35,6 @@ export interface CanonicalGraphMigrationInput {
   graph: GraphFile;
   relationships?: RelationshipsFile;
   decisions?: DecisionRecord[];
-  ontology?: {
-    version: string;
-    releaseDigest: string;
-  };
 }
 
 export interface CanonicalGraphMigrationPlan {
@@ -89,11 +88,7 @@ export function planCanonicalGraphMigration(input: CanonicalGraphMigrationInput)
   const owner = migrateOwner(input.graph, entities);
   const graph: GraphFileV2 = {
     version: 2,
-    ontology: {
-      id: 'brainbase-personal-os',
-      version: input.ontology?.version ?? '2.0.0',
-      releaseDigest: input.ontology?.releaseDigest ?? `migration-${inputDigest}`
-    },
+    ontology: { ...canonicalGraphOntologyRelease.binding },
     ...(owner ? { owner } : {}),
     entities: [...entities].sort((left, right) => left.id.localeCompare(right.id, 'en')),
     edges: [...edges.values()].sort((left, right) => left.id.localeCompare(right.id, 'en'))

@@ -27,10 +27,24 @@ describe('local SSOT loader', () => {
     await initializePersonalOs(dir);
     const os = await loadPersonalOs(dir);
 
-    expect(os.graph.version).toBe(1);
+    expect(os.graph.version).toBe(2);
+    if (os.graph.version === 2) {
+      expect(os.graph.edges).toEqual([]);
+      expect(os.graph.ontology).toMatchObject({ id: 'brainbase-personal-os', version: '2.0.0' });
+    }
     expect(os.personalKg).toEqual([]);
     expect(os.relationships.relationships).toEqual([]);
     expect(os.decisions).toEqual([]);
+  });
+
+  it('audits a fresh Graph with its 2.0.0 release binding by default', async () => {
+    const dir = await tempDir();
+    await initializePersonalOs(dir);
+
+    await expect(auditPersonalOsDirectory(dir)).resolves.toMatchObject({
+      status: 'complete',
+      ontologyVersion: '2.0.0'
+    });
   });
 
   it('INV-3 fails loudly when a canonical file is malformed', async () => {
@@ -38,12 +52,59 @@ describe('local SSOT loader', () => {
     await initializePersonalOs(dir);
     await writeFile(join(dir, 'graph.json'), '{"version":2,"entities":[]}');
 
-    await expect(loadPersonalOs(dir)).rejects.toThrow(/Failed to read canonical SSOT file|Invalid literal value/);
+    await expect(loadPersonalOs(dir)).rejects.toThrow(/GRAPH-ONTOLOGY-REQUIRED/);
+  });
+
+  it.each([
+    [
+      'the Graph v2 ontology binding is missing',
+      {
+        version: 2,
+        entities: [
+          { id: 'duplicate', type: 'person', name: 'First' },
+          { id: 'duplicate', type: 'person', name: 'Second' }
+        ],
+        edges: []
+      },
+      /GRAPH-ONTOLOGY-REQUIRED/
+    ],
+    [
+      'the Graph v2 edges array is missing',
+      {
+        version: 2,
+        ontology: { id: 'brainbase-personal-os', version: '1.0.0', releaseDigest: 'test' },
+        entities: [
+          { id: 'duplicate', type: 'person', name: 'First' },
+          { id: 'duplicate', type: 'person', name: 'Second' }
+        ]
+      },
+      /Graph v2 edges must be an array/
+    ],
+    [
+      'an entity after the duplicate is malformed',
+      {
+        version: 2,
+        ontology: { id: 'brainbase-personal-os', version: '1.0.0', releaseDigest: 'test' },
+        entities: [
+          { id: 'duplicate', type: 'person', name: 'First' },
+          { id: 'duplicate', type: 'person', name: 'Second' },
+          { id: 'missing-name', type: 'person' }
+        ],
+        edges: []
+      },
+      /entities\[2\]\.name/
+    ]
+  ])('INV-3 duplicate audit tolerance still rejects malformed input when %s', async (_case, graph, errorPattern) => {
+    const dir = await tempDir();
+    await initializePersonalOs(dir);
+    await writeFile(join(dir, 'graph.json'), `${JSON.stringify(graph)}\n`);
+
+    await expect(loadPersonalOs(dir)).rejects.toThrow(errorPattern);
   });
 
   it.each([
     ['personal-kg.jsonl', '{"id":"","type":"self","text":"missing id"}\n', /Invalid personal-kg\.jsonl line 1/],
-    ['relationships.json', '{"version":1,"relationships":[{"id":"r1","person":"","context":"missing person"}]}', /String must contain at least 1 character/],
+    ['relationships.json', '{"version":1,"relationships":[{"id":"r1","person":"","context":"missing person"}]}', /String must contain at least 1 character|expected string to have >=1 characters/],
     ['decisions.jsonl', '{"id":"d1","title":"","decision":"missing title"}\n', /Invalid decisions\.jsonl line 1/]
   ])('INV-3 fails loudly when %s violates the runtime schema', async (fileName, content, errorPattern) => {
     const dir = await tempDir();
@@ -198,7 +259,7 @@ describe('local SSOT loader', () => {
     await rm(lock, { recursive: true, force: true });
     await mkdir(lock);
     await writeFile(join(lock, 'owner.json'), JSON.stringify({ token: 'dead', pid: 999999, hostname: hostname() }));
-    await expect(loadPersonalOs(dir)).resolves.toMatchObject({ graph: { version: 1 } });
+    await expect(loadPersonalOs(dir)).resolves.toMatchObject({ graph: { version: 2 } });
   });
 
   it('propagates lock failure to normal MCP reads while ontology audit reports unverified', async () => {

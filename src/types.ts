@@ -110,8 +110,7 @@ export interface DecisionRecord {
 
 export interface PersonalOs {
   dataDir: string;
-  // The storage lane remains v1 until explicit dual-read/write migration lands.
-  graph: GraphFileV1;
+  graph: GraphFile;
   personalKg: PersonalKgEntry[];
   relationships: RelationshipsFile;
   decisions: DecisionRecord[];

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runCli } from '../../src/cli.js';
+import { stableHash } from '../../src/import-extract.js';
 import { loadPersonalOs } from '../../src/ssot.js';
 import { getContext, searchAll } from '../../src/tools.js';
 
@@ -127,11 +128,22 @@ describe('Onboarding source import and candidate extraction acceptance', () => {
     const extractedAgain = JSON.parse(await cli(['onboard:extract', '--dir', dataDir, '--self-email', 'k.sato.unson@gmail.com', '--format', 'json']));
     expect(JSON.stringify(extractedAgain.candidates), 'onboarding-source-import-extract ac:4 Extraction is deterministic: the same sources/ input always yields the same candidate set using code heuristics rather than model judgment.').toBe(JSON.stringify(extracted.candidates));
 
+    // Review explicitly binds people/relationships to the selected canonical project; free text is never used to infer edges.
+    const projectCandidate = extracted.candidates.find((candidate: { kind: string }) => candidate.kind === 'project');
+    const canonicalProjectId = `project-${stableHash(projectCandidate.payload.name)}`;
+    for (const candidate of extracted.candidates) {
+      if (candidate.kind === 'person' || candidate.kind === 'relationship') candidate.payload.projectId = canonicalProjectId;
+    }
+    await writeFile(extracted.candidatePath, `${JSON.stringify(extracted, null, 2)}\n`);
+
     // ac:6 apply refuses unselected and supports --select allowlist; ac:5 dry-run by default
     const personId = extracted.candidates.find((candidate: { kind: string }) => candidate.kind === 'person').id;
-    const dryRun = JSON.parse(await cli(['onboard:apply', '--from', extracted.candidatePath, '--dir', dataDir, '--select', personId, '--format', 'json']));
+    const dryRun = JSON.parse(await cli([
+      'onboard:apply', '--from', extracted.candidatePath, '--dir', dataDir,
+      '--select', projectCandidate.id, '--select', personId, '--format', 'json'
+    ]));
     expect(dryRun.canonicalWrites, 'onboarding-source-import-extract ac:5 onboard:apply is dry-run by default; canonical files change only with --write.').toBe(false);
-    expect(dryRun.applied.map((item: { id: string }) => item.id), 'onboarding-source-import-extract ac:6 onboard:apply supports --select allowlists and refuses to promote anything that is not explicitly selected.').toEqual([personId]);
+    expect(dryRun.applied.map((item: { id: string }) => item.id), 'onboarding-source-import-extract ac:6 onboard:apply supports --select allowlists and refuses to promote anything that is not explicitly selected.').toEqual([personId, projectCandidate.id]);
     const afterDryRun = await loadPersonalOs(dataDir);
     expect(afterDryRun.graph.entities.length, 'onboarding-source-import-extract ac:5 without --write the command is a dry-run that changes no canonical file.').toBe(0);
 
@@ -140,6 +152,10 @@ describe('Onboarding source import and candidate extraction acceptance', () => {
     const os = await loadPersonalOs(dataDir);
     expect(os.graph.entities.some((entity) => entity.name === '大田原正幸'), 'onboarding-source-import-extract ac:5 onboard:apply promotes selected candidates into graph.json, personal-kg.jsonl, relationships.json, and decisions.jsonl with --write.').toBe(true);
     expect(os.relationships.relationships.length, 'onboarding-source-import-extract ac:5 onboard:apply promotes relationship candidates into relationships.json.').toBeGreaterThanOrEqual(1);
+    expect(os.graph.version).toBe(2);
+    if (os.graph.version === 2) {
+      expect(os.graph.edges.some((edge) => edge.relation === 'participates_in' && edge.toId === canonicalProjectId)).toBe(true);
+    }
 
     // ac:7 doctor reflects imported sources and applied canonical entities
     const doctor = JSON.parse(await cli(['doctor', '--dir', dataDir]));

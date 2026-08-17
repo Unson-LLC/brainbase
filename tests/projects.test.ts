@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -80,6 +80,27 @@ describe('buildProjectRegistrationPlan', () => {
     expect(plan.writes.graphEntities.some((entity) => entity.type === 'project')).toBe(true);
     expect(plan.writes.relationships[0].person).toBe('大田原さん');
     expect(plan.writes.decisions[0].decision).toBe('ソース由来の推測は候補に留める');
+    expect(plan.writes.canonicalEdges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ relation: 'participates_in' }),
+      expect.objectContaining({ relation: 'governs' })
+    ]));
+    expect(plan.writes.canonicalEdges.find((edge) => edge.fromId.startsWith('person-'))).toMatchObject({
+      relation: 'participates_in',
+      role: 'user'
+    });
+    expect(plan.writes.canonicalEdges.every((edge) => edge.relation === 'participates_in' || edge.relation === 'governs')).toBe(true);
+
+    const repeated = buildProjectRegistrationPlan({
+      name: '大田原さんBrainbase導入',
+      goal: '個人ローカルMCPで仕事文脈を渡せるようにする',
+      status: 'オンボーディング設計中',
+      role: '導入支援',
+      stakeholders: [parseProjectStakeholder('大田原さん|user|個人利用から開始する')],
+      sources: [parseProjectSource('drive|提案フォルダ|folder-123')],
+      taskSources: ['Calendar follow-ups'],
+      decisionPrinciples: ['ソース由来の推測は候補に留める']
+    });
+    expect(repeated.writes.canonicalEdges).toEqual(plan.writes.canonicalEdges);
   });
 
   it('INV-5 renders deterministic dry-run markdown for identical inputs', () => {
@@ -115,10 +136,10 @@ describe('onboard:projects CLI', () => {
     expect(os.personalKg).toHaveLength(0);
   });
 
-  it('S-2/S-4 writes project, stakeholders, task sources, and decision principles only with --write', async () => {
+  it('writes stable project ID edges idempotently on Graph v2', async () => {
     const dir = await tempDir();
     const output = capture();
-    const code = await runCli([
+    const args = [
       'onboard:projects',
       '--dir', dir,
       '--name', 'Write Project',
@@ -131,15 +152,48 @@ describe('onboard:projects CLI', () => {
       '--decision-principle', 'Prefer reviewed project facts',
       '--write',
       '--format', 'json'
-    ], output.io);
+    ];
+    const code = await runCli(args, output.io);
 
     expect(code).toBe(0);
+    const first = await loadPersonalOs(dir);
+    expect(first.graph.version).toBe(2);
+    if (first.graph.version === 2) {
+      expect(first.graph.edges).toHaveLength(2);
+      expect(first.graph.edges).toEqual(expect.arrayContaining([
+        expect.objectContaining({ relation: 'participates_in', role: 'reviewer' }),
+        expect.objectContaining({ relation: 'governs' })
+      ]));
+    }
+    expect(first.relationships.relationships).toHaveLength(1);
+    expect(first.decisions).toHaveLength(1);
+
+    expect(await runCli(args, capture().io)).toBe(0);
+    const repeated = await loadPersonalOs(dir);
+    expect(repeated.graph).toEqual(first.graph);
+    expect(repeated.relationships.relationships).toHaveLength(1);
+    expect(repeated.decisions).toHaveLength(1);
+    expect(repeated.personalKg).toHaveLength(1);
+  });
+
+  it('fails loudly on a legacy Graph v1 fixture without partial writes', async () => {
+    const dir = await tempDir();
+    await runCli(['onboard:init', '--dir', dir], capture().io);
+    await writeFile(join(dir, 'graph.json'), `${JSON.stringify({ version: 1, owner: {}, entities: [] }, null, 2)}\n`);
+    const output = capture();
+
+    const code = await runCli([
+      'onboard:projects', '--dir', dir, '--name', 'Legacy Project',
+      '--stakeholder', 'Partner|reviewer|Reviews project decisions',
+      '--decision-principle', 'Prefer reviewed project facts', '--write'
+    ], output.io);
+
+    expect(code).toBe(1);
+    expect(output.stderr()).toMatch(/migration_required.*Graph v1/i);
     const os = await loadPersonalOs(dir);
-    const project = os.graph.entities.find((entity) => entity.type === 'project');
-    expect(project?.name).toBe('Write Project');
-    expect(project?.metadata?.taskSources).toEqual(['Linear']);
-    expect(os.relationships.relationships[0].person).toBe('Partner');
-    expect(os.decisions[0].decision).toBe('Prefer reviewed project facts');
-    expect(await readFile(join(dir, 'personal-kg.jsonl'), 'utf8')).toContain('Canonical project context');
+    expect(os.graph).toMatchObject({ version: 1, entities: [] });
+    expect(os.relationships.relationships).toEqual([]);
+    expect(os.decisions).toEqual([]);
+    expect(await readFile(join(dir, 'personal-kg.jsonl'), 'utf8')).toBe('');
   });
 });

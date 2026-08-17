@@ -3,7 +3,7 @@ import { constants, realpathSync } from 'node:fs';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { delimiter, dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { initializePersonalOs, loadPersonalOs, mutatePersonalOs } from './ssot.js';
+import { initializePersonalOs, loadPersonalOs, migrateCanonicalGraph, mutatePersonalOs } from './ssot.js';
 import { resolveDataDir } from './paths.js';
 import { auditPersonalOsDirectory } from './ontology-ssot.js';
 import { portableOntology, resolveOntologyVersion } from './ontology.js';
@@ -47,7 +47,8 @@ import {
 } from './projects.js';
 import { renderGuidedFirstRun, type GuidedTarget } from './guided-onboarding.js';
 import { blockedJudgmentOutput, processJudgmentHook, type JudgmentHookPayload } from './judgment-host.js';
-import type { DecisionRecord, GraphEntity, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
+import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-builder.js';
+import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
 interface CliIo {
   stdin?: AsyncIterable<string | Uint8Array>;
@@ -109,6 +110,8 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return 0;
       case 'ontology:audit':
         return await ontologyAudit(parsed, io);
+      case 'ontology:migrate':
+        return await ontologyMigrate(parsed, io);
       case 'judgment:hook':
         return await judgmentHook(io);
       case 'judgment:install':
@@ -217,11 +220,10 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
     const personalEntries: PersonalKgEntry[] = [...os.personalKg];
     const decisions: DecisionRecord[] = [...os.decisions];
     const relationships: RelationshipRecord[] = [...os.relationships.relationships];
-    const graphEntities: GraphEntity[] = [...os.graph.entities];
+    const canonicalEntities: CanonicalEntity[] = [];
 
     if (name) {
-      os.graph.owner = { ...os.graph.owner, name };
-      upsertGraphEntity(graphEntities, {
+      canonicalEntities.push({
         id: 'self',
         type: 'person',
         name,
@@ -248,7 +250,7 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
     }
 
     for (const project of parsed.values.get('project') ?? []) {
-      upsertGraphEntity(graphEntities, {
+      canonicalEntities.push({
         id: `project-${hash(project)}`,
         type: 'project',
         name: project,
@@ -265,12 +267,20 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
     }
 
     for (const value of parsed.values.get('decision-principle') ?? []) {
-      upsertById(decisions, {
+      const decision = {
         id: `decision-${hash(value)}`,
         title: 'オンボーディングで登録した判断基準',
         decision: value,
         tags: ['principle', 'onboarding'],
         updatedAt: now
+      };
+      upsertById(decisions, decision);
+      canonicalEntities.push({
+        id: decision.id,
+        type: 'decision',
+        name: decision.title,
+        summary: decision.decision,
+        tags: decision.tags
       });
     }
 
@@ -284,7 +294,7 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
         tags: ['relationship'],
         updatedAt: now
       });
-      upsertGraphEntity(graphEntities, {
+      canonicalEntities.push({
         id: `person-${hash(person)}`,
         type: 'person',
         name: person,
@@ -293,8 +303,54 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
       });
     }
 
+    const projects = (parsed.values.get('project') ?? []).map((project) => ({
+      id: `project-${hash(project)}`,
+      name: project
+    }));
+    const people = encodedRelationships.map((encoded) => {
+      const [person, role, context] = encoded.split('|').map((part) => part.trim());
+      return {
+        id: `person-${hash(person)}`,
+        relationshipId: `relationship-${hash(encoded)}`,
+        role: role || undefined,
+        context
+      };
+    });
+    const seedDecisions = (parsed.values.get('decision-principle') ?? []).map((decision) => ({
+      id: `decision-${hash(decision)}`,
+      decision
+    }));
+    const canonicalEdges = projects.flatMap((project) => [
+      ...(name ? [buildCanonicalEdge({
+        fromId: 'self',
+        relation: 'participates_in',
+        toId: project.id,
+        context: 'Registered together during onboarding.',
+        provenance: { sourceKind: 'onboarding' as const, sourceId: project.id }
+      })] : []),
+      ...people.map((person) => buildCanonicalEdge({
+        fromId: person.id,
+        relation: 'participates_in',
+        toId: project.id,
+        role: person.role,
+        context: person.context,
+        provenance: { sourceKind: 'onboarding' as const, sourceId: person.relationshipId }
+      })),
+      ...seedDecisions.map((decision) => buildCanonicalEdge({
+        fromId: decision.id,
+        relation: 'governs',
+        toId: project.id,
+        context: decision.decision,
+        provenance: { sourceKind: 'onboarding' as const, sourceId: decision.id }
+      }))
+    ]);
+    const graph = applyCanonicalWrites(os.graph, { entities: canonicalEntities, edges: canonicalEdges });
+
     return proposedPersonalOs(os, {
-      graph: { ...os.graph, entities: graphEntities },
+      graph: {
+        ...graph,
+        owner: { ...graph.owner, ...(name ? { id: 'self', name } : {}) }
+      },
       relationships: { version: 1, relationships },
       personalKg: personalEntries,
       decisions
@@ -536,21 +592,27 @@ async function onboardProjects(parsed: ParsedArgs, io: CliIo): Promise<number> {
 
 async function applyProjectRegistrationPlan(dataDir: string, plan: ProjectRegistrationPlan): Promise<void> {
   await mutatePersonalOs(dataDir, (os) => {
-    const graphEntities = [...os.graph.entities];
-    for (const entity of plan.writes.graphEntities) {
-      upsertGraphEntity(graphEntities, entity);
-    }
+    const graph = applyCanonicalWrites(os.graph, {
+      entities: plan.writes.canonicalEntities,
+      edges: plan.writes.canonicalEdges
+    });
     const relationships = [...os.relationships.relationships];
     for (const relationship of plan.writes.relationships) {
-      if (!relationships.some((existing) => existing.id === relationship.id)) {
-        relationships.push(relationship);
-      }
+      upsertById(relationships, relationship);
+    }
+    const personalKg = [...os.personalKg];
+    for (const entry of plan.writes.personalKg) {
+      upsertById(personalKg, entry);
+    }
+    const decisions = [...os.decisions];
+    for (const decision of plan.writes.decisions) {
+      upsertById(decisions, decision);
     }
     return proposedPersonalOs(os, {
-      graph: { ...os.graph, entities: graphEntities },
+      graph,
       relationships: { version: 1, relationships },
-      personalKg: [...os.personalKg, ...plan.writes.personalKg],
-      decisions: [...os.decisions, ...plan.writes.decisions]
+      personalKg,
+      decisions
     });
   });
 }
@@ -640,24 +702,37 @@ async function onboardApply(parsed: ParsedArgs, io: CliIo): Promise<number> {
   let result: ApplyResult | undefined;
   if (willWrite) {
     await mutatePersonalOs(dataDir, (os) => {
+      if (os.graph.version !== 2) {
+        throw new Error('migration_required: Graph v1 cannot store canonical ID edges; migrate graph.json to Graph v2 before writing');
+      }
       result = planApply(candidates, { ids: selectedIds, all }, {
         graphEntities: [...os.graph.entities],
+        graphEdges: [...os.graph.edges],
         relationships: [...os.relationships.relationships],
         personalKg: os.personalKg,
         decisions: os.decisions,
         ownerName: os.graph.owner?.name
       }, now);
+      const personalKg = [...os.personalKg];
+      for (const entry of result.personalKgAdditions) upsertById(personalKg, entry);
+      const decisions = [...os.decisions];
+      for (const decision of result.decisionAdditions) upsertById(decisions, decision);
+      const graph = applyCanonicalWrites(os.graph, result.canonicalWrites);
       return proposedPersonalOs(os, {
-        graph: { ...os.graph, owner: result.ownerName ? { ...os.graph.owner, name: result.ownerName } : os.graph.owner, entities: result.graphEntities },
+        graph: { ...graph, owner: result.ownerName ? { ...graph.owner, name: result.ownerName } : graph.owner },
         relationships: { version: 1, relationships: result.relationships },
-        personalKg: [...os.personalKg, ...result.personalKgAdditions],
-        decisions: [...os.decisions, ...result.decisionAdditions]
+        personalKg,
+        decisions
       });
     });
   } else {
     const os = await loadPersonalOs(dataDir);
+    if (os.graph.version !== 2) {
+      throw new Error('migration_required: Graph v1 cannot store canonical ID edges; migrate graph.json to Graph v2 before writing');
+    }
     result = planApply(candidates, { ids: selectedIds, all }, {
       graphEntities: [...os.graph.entities],
+      graphEdges: [...os.graph.edges],
       relationships: [...os.relationships.relationships],
       personalKg: os.personalKg,
       decisions: os.decisions,
@@ -1012,10 +1087,6 @@ function upsertById<T extends { id: string }>(entries: T[], entry: T): void {
   }
 }
 
-function upsertGraphEntity(entities: GraphEntity[], entity: GraphEntity): void {
-  upsertById(entities, entity);
-}
-
 function hash(value: string): string {
   let hashValue = 0;
   for (const char of value) {
@@ -1034,13 +1105,26 @@ function writeError(io: CliIo, text: string): void {
 
 async function ontologyAudit(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const dataDir = resolveDataDir(first(parsed, 'dir'));
-  const ontologyVersion = resolveOntologyVersion(first(parsed, 'ontology-version'));
+  const requestedVersion = first(parsed, 'ontology-version');
+  const ontologyVersion = requestedVersion === undefined
+    ? undefined
+    : resolveOntologyVersion(requestedVersion);
   const result = await auditPersonalOsDirectory(dataDir, { ontologyVersion });
   write(io, `${JSON.stringify(result, null, 2)}\n`);
   if (result.status === 'unverified') {
     return 1;
   }
   return result.violations.some((violation) => violation.severity === 'error') ? 1 : 0;
+}
+
+async function ontologyMigrate(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const dataDir = resolveDataDir(first(parsed, 'dir'));
+  const result = await migrateCanonicalGraph(dataDir, {
+    write: parsed.flags.has('write'),
+    expectedInputDigest: first(parsed, 'expected-input-digest')
+  });
+  write(io, `${JSON.stringify(result, null, 2)}\n`);
+  return result.status === 'blocked' ? 1 : 0;
 }
 
 function proposedPersonalOs(
@@ -1078,7 +1162,8 @@ function usage(): string {
   brainbase onboard:routines --target codex|claude [--routines ohayo,oyasumi,retro] [--ohayo-hour n] [--oyasumi-hour n] [--retro-dow MON-SUN] [--retro-hour n] [--cwd path] [--out path] [--format markdown|json]
   brainbase onboard:skills --target codex|claude|portable [--skills id,id] [--out dir] [--format markdown|json]
   brainbase ontology:show
-  brainbase ontology:audit [--dir path] [--ontology-version 0.0.0|1.0.0]
+  brainbase ontology:audit [--dir path] [--ontology-version 0.0.0|1.0.0|2.0.0]
+  brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
   brainbase judgment:install --target codex [--dry-run] [--output path]
   brainbase judgment:hook
   brainbase doctor [--dir path] [--judgment-hooks path]

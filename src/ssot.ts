@@ -4,9 +4,11 @@ import { access, copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile
 import { hostname } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, win32 } from 'node:path';
 import { z } from 'zod';
+import { validateCanonicalGraph } from './canonical-graph.js';
 import { assertOntologyValid } from './ontology.js';
+import { planCanonicalGraphMigration, type CanonicalGraphMigrationPlan } from './ontology-migration.js';
 import { emptyGraph, emptyRelationships, schemaTemplates } from './templates.js';
-import type { DecisionRecord, GraphFileV1, PersonalKgEntry, PersonalOs, RelationshipsFile } from './types.js';
+import type { DecisionRecord, GraphFile, PersonalKgEntry, PersonalOs, RelationshipsFile } from './types.js';
 
 const canonicalFiles = ['graph.json', 'relationships.json', 'personal-kg.jsonl', 'decisions.jsonl'] as const;
 const lockName = '.brainbase-ssot.lock';
@@ -29,24 +31,6 @@ interface TransactionSidecar {
   relativePath: string;
   content: string;
 }
-
-const graphEntitySchema = z.object({
-  id: z.string().min(1),
-  type: z.enum(['person', 'org', 'project', 'relationship']),
-  name: z.string().min(1),
-  summary: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  metadata: z.record(z.unknown()).optional()
-});
-
-const graphSchema: z.ZodType<GraphFileV1> = z.object({
-  version: z.literal(1),
-  owner: z.object({
-    name: z.string().optional(),
-    summary: z.string().optional()
-  }).optional(),
-  entities: z.array(graphEntitySchema)
-});
 
 const personalKgSchema: z.ZodType<PersonalKgEntry> = z.object({
   id: z.string().min(1),
@@ -150,8 +134,72 @@ export async function mutatePersonalOsWithSidecar<T>(
   });
 }
 
+export type CanonicalGraphMigrationExecution = CanonicalGraphMigrationPlan & {
+  expectedInputDigest: string;
+  written: boolean;
+};
+
+/**
+ * Plans or atomically applies the canonical Graph migration.
+ *
+ * The input is always recovered, read, and planned while holding the same
+ * lock used by every canonical SSOT writer. Omitting `write` is a byte-safe
+ * preview; a blocked or already-current plan is never committed.
+ */
+export async function migrateCanonicalGraph(
+  dataDir: string,
+  options: { write?: boolean; expectedInputDigest?: string } = {}
+): Promise<CanonicalGraphMigrationExecution> {
+  return withSsotLock(dataDir, async () => {
+    await recoverTransactions(dataDir);
+    assertCompleteCanonicalSet(dataDir, await canonicalPresence(dataDir));
+    const current = await loadPersonalOsUnlocked(dataDir);
+    const plan = planCanonicalGraphMigration({
+      graph: current.graph,
+      relationships: current.relationships,
+      decisions: current.decisions
+    });
+    if (options.write && options.expectedInputDigest === undefined) {
+      return blockMigrationWrite(plan, {
+        code: 'expected_input_digest_required',
+        recordId: 'canonical-aggregate',
+        detail: 'MIGRATION-EXPECTED-INPUT-DIGEST-REQUIRED: preview first and pass its inputDigest before writing'
+      });
+    }
+    if (options.write && options.expectedInputDigest !== plan.inputDigest) {
+      return blockMigrationWrite(plan, {
+        code: 'input_digest_mismatch',
+        recordId: 'canonical-aggregate',
+        detail: `MIGRATION-INPUT-DIGEST-MISMATCH: expected ${options.expectedInputDigest}, replanned ${plan.inputDigest}`
+      });
+    }
+    if (!options.write || plan.status !== 'migration_required') {
+      return { ...plan, expectedInputDigest: plan.inputDigest, written: false };
+    }
+
+    const next = { ...current, graph: plan.graph };
+    await commitAggregate(dataDir, next, 'mutation');
+    return { ...plan, expectedInputDigest: plan.inputDigest, written: true };
+  });
+}
+
+function blockMigrationWrite(
+  plan: CanonicalGraphMigrationPlan,
+  issue: CanonicalGraphMigrationPlan['issues'][number]
+): CanonicalGraphMigrationExecution {
+  return {
+    ...plan,
+    status: 'blocked',
+    issues: [...plan.issues, issue].sort((left, right) => (
+      `${left.recordId}\u0000${left.code}`.localeCompare(`${right.recordId}\u0000${right.code}`, 'en')
+    )),
+    expectedInputDigest: plan.inputDigest,
+    written: false
+  };
+}
+
 async function loadPersonalOsUnlocked(dataDir: string): Promise<PersonalOs> {
-  const graph = graphSchema.parse(await readJson(join(dataDir, 'graph.json')));
+  const graph = parseGraph(await readJson(join(dataDir, 'graph.json')));
   const relationships = relationshipsSchema.parse(await readJson(join(dataDir, 'relationships.json')));
   const personalKg = await readJsonl(join(dataDir, 'personal-kg.jsonl'), personalKgSchema, 'personal-kg.jsonl');
   const decisions = await readJsonl(join(dataDir, 'decisions.jsonl'), decisionSchema, 'decisions.jsonl');
@@ -286,11 +334,27 @@ async function writeAggregate(targetDir: string, os: PersonalOs): Promise<void> 
 }
 
 function validateAggregate(os: PersonalOs): void {
-  graphSchema.parse(os.graph);
   relationshipsSchema.parse(os.relationships);
   os.personalKg.forEach((entry) => personalKgSchema.parse(entry));
   os.decisions.forEach((decision) => decisionSchema.parse(decision));
   assertOntologyValid(os);
+  validateCanonicalGraph(os.graph);
+}
+
+function parseGraph(value: unknown): GraphFile {
+  try {
+    validateCanonicalGraph(value);
+  } catch (error) {
+    // Duplicate entity IDs are a complete, readable snapshot whose ontology
+    // violation must remain available to audit/inference instead of being
+    // collapsed into a source-unavailable result. Writers still validate the
+    // aggregate strictly before commit.
+    if (!(error instanceof Error) || !error.message.startsWith('GRAPH-ENTITY-ID-UNIQUE')) {
+      throw error;
+    }
+    validateCanonicalGraph(value, { allowDuplicateEntityIds: true });
+  }
+  return value as GraphFile;
 }
 
 function serializeJsonl(values: unknown[]): string {
