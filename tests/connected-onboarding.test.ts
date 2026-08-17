@@ -204,6 +204,59 @@ describe('ConnectedOnboardingRuntime', () => {
     expect(ledger).not.toContain('secret-value');
   });
 
+  it.each([
+    ['forward', ['Aa', 'BB']],
+    ['reverse', ['BB', 'Aa']]
+  ])('blocks candidate stable-id collisions without changing canonical files or the ledger (%s)', async (_label, names) => {
+    const dataDir = await fixture();
+    const runtime = new ConnectedOnboardingRuntime(dataDir);
+    const run = await runtime.start({ valueTarget: '案件を知る', sources: [readyDrive()] });
+    const ingested = await runtime.ingest(run.id, {
+      source: {
+        sourceId: 'drive-project-a', evidencePointer: 'drive://folder/project-a', contentHash: `sha256:${'4'.repeat(64)}`,
+        permissionSnapshot: { scopes: ['folder:project-a'] }, collectionStatus: 'collected'
+      },
+      candidates: names.map((name) => ({ kind: 'project', payload: { name }, observationClass: 'observed' as const, evidenceId: `collision-${name}` }))
+    });
+    const paths = ['graph.json', 'personal-kg.jsonl', 'relationships.json', 'decisions.jsonl', 'runs/connected-onboarding.json'];
+    const before = await Promise.all(paths.map((path) => readFile(join(dataDir, path), 'utf8')));
+
+    await expect(runtime.review(run.id, ingested.candidates.map((candidate) => ({
+      candidateId: candidate.id, decision: 'approve' as const, reason: '確認済み'
+    })))).rejects.toThrow(/canonical_id_collision: project-1mo.*Aa.*BB/);
+
+    expect(await Promise.all(paths.map((path) => readFile(join(dataDir, path), 'utf8')))).toEqual(before);
+  });
+
+  it('blocks an existing Graph collision without changing canonical files or the ledger', async () => {
+    const dataDir = await fixture();
+    const runtime = new ConnectedOnboardingRuntime(dataDir);
+    const firstRun = await runtime.start({ valueTarget: '案件を知る', sources: [readyDrive()] });
+    const first = await runtime.ingest(firstRun.id, {
+      source: {
+        sourceId: 'drive-project-a', evidencePointer: 'drive://folder/project-a', contentHash: `sha256:${'5'.repeat(64)}`,
+        permissionSnapshot: { scopes: ['folder:project-a'] }, collectionStatus: 'collected'
+      },
+      candidates: [{ kind: 'project', payload: { name: 'Aa' }, observationClass: 'observed', evidenceId: 'collision-existing-Aa' }]
+    });
+    await runtime.review(firstRun.id, [{ candidateId: first.candidates[0].id, decision: 'approve', reason: '確認済み' }]);
+    const secondRun = await runtime.start({ valueTarget: '別案件を知る', sources: [readyDrive()] });
+    const second = await runtime.ingest(secondRun.id, {
+      source: {
+        sourceId: 'drive-project-a', evidencePointer: 'drive://folder/project-a', contentHash: `sha256:${'6'.repeat(64)}`,
+        permissionSnapshot: { scopes: ['folder:project-a'] }, collectionStatus: 'collected'
+      },
+      candidates: [{ kind: 'project', payload: { name: 'BB' }, observationClass: 'observed', evidenceId: 'collision-existing-BB' }]
+    });
+    const paths = ['graph.json', 'personal-kg.jsonl', 'relationships.json', 'decisions.jsonl', 'runs/connected-onboarding.json'];
+    const before = await Promise.all(paths.map((path) => readFile(join(dataDir, path), 'utf8')));
+
+    await expect(runtime.review(secondRun.id, [{ candidateId: second.candidates[0].id, decision: 'approve', reason: '確認済み' }]))
+      .rejects.toThrow(/canonical_id_collision: project-1mo.*Aa.*BB/);
+
+    expect(await Promise.all(paths.map((path) => readFile(join(dataDir, path), 'utf8')))).toEqual(before);
+  });
+
   it('keeps an unscoped person unresolved instead of inventing a project edge', async () => {
     const dataDir = await fixture();
     const runtime = new ConnectedOnboardingRuntime(dataDir);

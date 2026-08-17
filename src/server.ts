@@ -269,7 +269,7 @@ export const toolDefinitions = [
       type: 'object',
       properties: {
         dataDir: { type: 'string' },
-        ontologyVersion: { enum: ['0.0.0', '1.0.0'] }
+        ontologyVersion: { enum: ['0.0.0', '1.0.0', '2.0.0'] }
       }
     }
   },
@@ -281,7 +281,7 @@ export const toolDefinitions = [
       properties: {
         dataDir: { type: 'string' },
         asOf: { type: 'string', format: 'date-time' },
-        ontologyVersion: { enum: ['0.0.0', '1.0.0'] }
+        ontologyVersion: { enum: ['0.0.0', '1.0.0', '2.0.0'] }
       }
     }
   },
@@ -397,7 +397,11 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
         ...portableOntology
       };
     case 'audit_ontology':
-      return auditPersonalOsDirectory(dataDir, { ontologyVersion: resolveOntologyVersion(args.ontologyVersion) });
+      return auditPersonalOsDirectory(dataDir, {
+        ontologyVersion: args.ontologyVersion === undefined
+          ? undefined
+          : resolveOntologyVersion(args.ontologyVersion)
+      });
     case 'ontology_impact':
       return getOntologyImpact(args.fromVersion);
   }
@@ -424,7 +428,9 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
     case 'infer_decisions':
       return inferPersonalOs(os, {
         asOf: args.asOf,
-        ontologyVersion: resolveOntologyVersion(args.ontologyVersion)
+        ontologyVersion: args.ontologyVersion === undefined
+          ? undefined
+          : resolveOntologyVersion(args.ontologyVersion)
       });
     default:
       throw new Error(`Unknown tool: ${name}`);

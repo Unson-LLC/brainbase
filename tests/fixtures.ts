@@ -19,7 +19,7 @@ export async function createFixturePersonalOs(dataDir: string): Promise<void> {
     version: 2,
     ontology: {
       id: 'brainbase-personal-os',
-      version: '1.0.0',
+      version: '2.0.0',
       releaseDigest: 'fixture-ontology-digest'
     },
     owner: {

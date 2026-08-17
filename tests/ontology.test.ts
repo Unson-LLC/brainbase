@@ -4,7 +4,9 @@ import {
   auditOntology,
   getOntologyImpact,
   inferDecisions,
-  portableOntology
+  portableOntology,
+  portableOntologyV1,
+  SUPPORTED_ONTOLOGY_VERSIONS
 } from '../src/ontology.js';
 import type { DecisionRecord, PersonalOs } from '../src/types.js';
 
@@ -32,9 +34,9 @@ function personalOs(overrides: Partial<PersonalOs> = {}): PersonalOs {
 }
 
 describe('portable ontology kernel', () => {
-  it('O-1 exposes the immutable 1.0.0 release with all five domains', () => {
-    expect(portableOntology.version).toBe('1.0.0');
-    expect(portableOntology.effectiveAt).toBe('2026-08-03T00:00:00.000Z');
+  it('O-1 exposes Ontology 2.0.0 while preserving the immutable historical 1.0.0 release', () => {
+    expect(portableOntology.version).toBe('2.0.0');
+    expect(portableOntology.effectiveAt).toBe('2026-08-17T00:00:00.000Z');
     expect(portableOntology.compatibility).toBe('read-compatible-write-gated');
     expect(Object.keys(portableOntology.domains)).toEqual([
       'types',
@@ -68,6 +70,38 @@ describe('portable ontology kernel', () => {
     expect(portableOntology.domains.inference.rules.length).toBeGreaterThan(0);
     expect(portableOntology.domains.evolution.compatibility.length).toBeGreaterThan(0);
     expect(Object.isFrozen(portableOntology)).toBe(true);
+    expect(portableOntologyV1.version).toBe('1.0.0');
+    expect(portableOntologyV1.effectiveAt).toBe('2026-08-03T00:00:00.000Z');
+    expect(portableOntologyV1.domains.relations.vocabulary).toEqual([
+      { id: 'relates_to', source: 'relationship', target: 'person' },
+      { id: 'supersedes', source: 'decision', target: 'decision' },
+      { id: 'about', source: 'decision', target: 'topic' }
+    ]);
+    expect(Object.isFrozen(portableOntologyV1)).toBe(true);
+    expect(SUPPORTED_ONTOLOGY_VERSIONS).toEqual(['0.0.0', '1.0.0', '2.0.0']);
+  });
+
+  it('selects Graph v2 ontology binding by default and never reports a 2.0.0 Graph as 1.0.0', () => {
+    const graphV2 = personalOs({
+      graph: {
+        version: 2,
+        ontology: { id: 'brainbase-personal-os', version: '2.0.0', releaseDigest: 'sha256:test' },
+        entities: [],
+        edges: []
+      }
+    });
+    const historicalGraph = personalOs({
+      graph: {
+        version: 2,
+        ontology: { id: 'brainbase-personal-os', version: '1.0.0', releaseDigest: 'sha256:historical' },
+        entities: [],
+        edges: []
+      }
+    });
+
+    expect(auditOntology(graphV2).ontologyVersion).toBe('2.0.0');
+    expect(auditOntology(historicalGraph).ontologyVersion).toBe('1.0.0');
+    expect(auditOntology(graphV2, { ontologyVersion: '1.0.0' }).ontologyVersion).toBe('1.0.0');
   });
 
   it('O-2 audits duplicate IDs and unresolved relationships with stable rule IDs', () => {
@@ -88,7 +122,7 @@ describe('portable ontology kernel', () => {
     const result = auditOntology(os);
 
     expect(result.status).toBe('complete');
-    expect(result.ontologyVersion).toBe('1.0.0');
+    expect(result.ontologyVersion).toBe('2.0.0');
     expect(result.violationCount).toBe(2);
     expect(result.violations).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -151,7 +185,7 @@ describe('portable ontology kernel', () => {
 
     expect(result).toMatchObject({
       status: 'resolved',
-      ontologyVersion: '1.0.0',
+      ontologyVersion: '2.0.0',
       asOf: '2026-08-03T00:00:00.000Z',
       activeDecisionIds: ['decision-new'],
       supersededDecisionIds: ['decision-old'],
@@ -241,7 +275,7 @@ describe('portable ontology kernel', () => {
     });
     const currentInference = inferDecisions(decisions, {
       asOf: '2026-08-03T00:00:00.000Z',
-      ontologyVersion: '1.0.0'
+      ontologyVersion: '2.0.0'
     });
 
     expect(historicalAudit.ontologyVersion).toBe('0.0.0');
@@ -253,7 +287,7 @@ describe('portable ontology kernel', () => {
     });
     expect(historicalInference.explanations.join(' ')).toContain('0.0.0');
     expect(currentInference).toMatchObject({
-      ontologyVersion: '1.0.0',
+      ontologyVersion: '2.0.0',
       activeDecisionIds: ['decision-new'],
       supersededDecisionIds: ['decision-old']
     });

@@ -10,10 +10,10 @@ export async function auditPersonalOsDirectory(
   dataDir: string,
   options: { ontologyVersion?: OntologyVersion } = {}
 ): Promise<PersonalOsOntologyAudit> {
-  const ontologyVersion = resolveOntologyVersion(options.ontologyVersion);
   try {
-    return auditOntology(await loadPersonalOs(dataDir), { ontologyVersion });
+    return auditOntology(await loadPersonalOs(dataDir), options);
   } catch (error) {
+    const ontologyVersion = resolveOntologyVersion(options.ontologyVersion);
     const message = error instanceof Error ? error.message : String(error);
     return {
       status: 'unverified',

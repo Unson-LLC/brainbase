@@ -4,7 +4,7 @@ Brainbaseは、自分が承認した仕事の前提をCodex、Claude Code、Code
 
 最初の目標は情報源をすべて接続することではありません。自分、仕事、関係者、判断基準の最小文脈を保存し、10分以内に「同じ前提を説明し直さず役立つ出力」を確認することです。
 
-Ontology 1.0.0は、ローカルファイルへ持ち運べる意味契約を追加します。ホスト型Brainbaseを必要とせず、型、関係語彙、検証制約、決定論的な判断推論、バージョン移行を定義します。
+Ontology 2.0.0は、ローカルファイルへ持ち運べる意味契約に、Relation Registryで管理する正規エンティティ間のIDエッジを追加します。ホスト型Brainbaseを必要とせず、型、関係語彙、検証制約、決定論的な判断推論、バージョン移行を定義します。履歴解釈として0.0.0と1.0.0も選択できます。
 
 このリポジトリに、社内BrainbaseのUI、セッション実行基盤、xterm転送、ワークフロー管制、SNS運用、ホスト型バックエンド、Infisical設定、雲孫の社内データは含みません。それらは社内版`brainbase-unson`の範囲です。
 
@@ -321,12 +321,12 @@ BRAINBASE_PERSONAL_OS_DIR=/path/to/personal-os brainbase-mcp
 - `search`: searches canonical Graph and Personal KG data.
 - `search_personal_kg`: searches owner-local Personal KG only.
 - `onboarding_status`: reports seeded areas, first value demo readiness, missing setup, and local connection status.
-- `get_ontology`: returns the immutable bundled Ontology 1.0.0 release without reading Personal OS files.
+- `get_ontology`: returns the immutable bundled active Ontology 2.0.0 release without reading Personal OS files.
 - `audit_ontology`: audits canonical local files and distinguishes verified violations from unavailable input.
 - `infer_decisions`: derives active, superseded, and conflicting decisions from explicit rules.
 - `ontology_impact`: explains compatibility, migration, and rollback from an earlier ontology version.
 
-## Portable Ontology 1.0.0
+## Portable Ontology 2.0.0
 
 Inspect the semantic contract and audit your local canonical files:
 
@@ -334,14 +334,15 @@ Inspect the semantic contract and audit your local canonical files:
 brainbase ontology:show
 brainbase ontology:audit
 brainbase ontology:audit --ontology-version 0.0.0
+brainbase ontology:audit --ontology-version 1.0.0
 ```
 
 `ontology:audit` exits non-zero when an error-level violation exists or when a canonical file cannot be verified. It never reports an unavailable or malformed source as zero violations. Warnings, such as a relationship whose person is not yet present in the Graph, remain visible but do not block approved writes.
-Use `--ontology-version 0.0.0` to interpret a pre-kernel snapshot without retroactively applying the 1.0.0 `effectiveAt`, supersession, conflict, or validation rules. The selected version is included in audit and inference results; unsupported versions fail explicitly.
+Use `--ontology-version 0.0.0` to interpret a pre-kernel snapshot without retroactively applying the later `effectiveAt`, supersession, conflict, or validation rules. Use `--ontology-version 1.0.0` for the immutable first portable release. When the flag is omitted, Graph v2 uses its recorded ontology binding; legacy Graph data uses the active 2.0.0 release. The selected version is included in audit and inference results; unsupported versions fail explicitly.
 
 Decision evolution is opt-in, read-compatible, and write-gated. Existing decision rows remain readable. New rows may add `topic`, `supersedes`, and `effectiveAt`; only an explicit `supersedes` reference makes an older decision inactive. Multiple active decisions with the same explicit `topic` are reported as a conflict instead of being silently resolved.
 
-Before enabling 1.0.0 writes, back up the Personal OS directory, capture the current MCP client configuration and launch command, and run the read-only `brainbase ontology:audit --ontology-version 1.0.0`. Existing rows remain readable, but error-level semantic violations must be reviewed before `onboard:seed`, `onboard:projects --write`, or `onboard:apply --write` can change canonical files. For the first npm release, rollback means running `npm uninstall -g @unson/brainbase-mcp`, restoring the captured MCP client configuration and launch command, and restarting the client. For later upgrades, reinstall the last known working package version instead. Restore the pre-upgrade Personal OS backup only if reviewed repairs changed canonical files.
+Before enabling 2.0.0 writes, back up the Personal OS directory, run the read-only historical audit when upgrading from 1.0.0, and preview `brainbase ontology:migrate`. Apply the migration only with the preview's `expectedInputDigest`; a concurrent input change blocks the write. Existing rows remain readable, but error-level semantic violations must be reviewed before a canonical write. Roll back by restoring the pre-migration backup and reinstalling the recorded last known working package version.
 
 ## CLI
 
@@ -505,7 +506,7 @@ Keep or pin the internal `brainbase-unson` system when you need:
 - Legacy Graph API MCP tools such as `get_entity`.
 - VibePro runtime or internal 31013 operation surfaces.
 
-The v1 MCP surface contains the five original context/onboarding tools plus the additive Ontology 1.0.0 tools: `get_ontology`, `audit_ontology`, `infer_decisions`, and `ontology_impact`.
+The v1 MCP surface contains the five original context/onboarding tools plus the additive Ontology tools: `get_ontology`, `audit_ontology`, `infer_decisions`, and `ontology_impact`. The active release is 2.0.0; 0.0.0 and 1.0.0 remain available for historical interpretation.
 
 ## Hosted Backends
 

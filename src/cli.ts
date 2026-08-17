@@ -1105,7 +1105,10 @@ function writeError(io: CliIo, text: string): void {
 
 async function ontologyAudit(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const dataDir = resolveDataDir(first(parsed, 'dir'));
-  const ontologyVersion = resolveOntologyVersion(first(parsed, 'ontology-version'));
+  const requestedVersion = first(parsed, 'ontology-version');
+  const ontologyVersion = requestedVersion === undefined
+    ? undefined
+    : resolveOntologyVersion(requestedVersion);
   const result = await auditPersonalOsDirectory(dataDir, { ontologyVersion });
   write(io, `${JSON.stringify(result, null, 2)}\n`);
   if (result.status === 'unverified') {
@@ -1159,7 +1162,7 @@ function usage(): string {
   brainbase onboard:routines --target codex|claude [--routines ohayo,oyasumi,retro] [--ohayo-hour n] [--oyasumi-hour n] [--retro-dow MON-SUN] [--retro-hour n] [--cwd path] [--out path] [--format markdown|json]
   brainbase onboard:skills --target codex|claude|portable [--skills id,id] [--out dir] [--format markdown|json]
   brainbase ontology:show
-  brainbase ontology:audit [--dir path] [--ontology-version 0.0.0|1.0.0]
+  brainbase ontology:audit [--dir path] [--ontology-version 0.0.0|1.0.0|2.0.0]
   brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
   brainbase judgment:install --target codex [--dry-run] [--output path]
   brainbase judgment:hook

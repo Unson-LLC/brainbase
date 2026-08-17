@@ -240,6 +240,6 @@ describe('beginner-safe onboarding output contract', () => {
     expect(result.beginnerGuide.changeChecklist.join(' ')).toContain('実行結果');
     expect(result.beginnerGuide.detailsNotice).toContain('正式契約');
     expect(result.beginnerGuide.suggestedNextTools).toEqual(['audit_ontology', 'infer_decisions', 'ontology_impact']);
-    expect(result.version).toBe('1.0.0');
+    expect(result.version).toBe('2.0.0');
   });
 });

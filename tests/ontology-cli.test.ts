@@ -37,7 +37,7 @@ describe('ontology CLI', () => {
     const code = await runCli(['ontology:show'], output.io);
 
     expect(code).toBe(0);
-    expect(JSON.parse(output.stdout())).toMatchObject({ version: '1.0.0' });
+    expect(JSON.parse(output.stdout())).toMatchObject({ version: '2.0.0' });
   });
 
   it('O-3 ontology:audit reports malformed canonical input as unverified, never zero', async () => {
@@ -52,7 +52,7 @@ describe('ontology CLI', () => {
     expect(output.stderr()).toBe('');
     expect(result).toMatchObject({
       status: 'unverified',
-      ontologyVersion: '1.0.0',
+      ontologyVersion: '2.0.0',
       violationCount: null,
       coverage: {
         complete: false,
@@ -62,6 +62,31 @@ describe('ontology CLI', () => {
     expect(result.issues).toContainEqual(expect.objectContaining({
       ruleId: 'ONT-AUDIT-SOURCE-UNAVAILABLE'
     }));
+  });
+
+  it('documents and accepts all supported ontology interpretation versions', async () => {
+    const help = capture();
+    expect(await runCli(['--help'], help.io)).toBe(0);
+    expect(help.stdout()).toContain('--ontology-version 0.0.0|1.0.0|2.0.0');
+
+    const dir = await fixtureDir();
+    for (const ontologyVersion of ['0.0.0', '1.0.0', '2.0.0']) {
+      const output = capture();
+      expect(await runCli(['ontology:audit', '--dir', dir, '--ontology-version', ontologyVersion], output.io)).toBe(0);
+      expect(JSON.parse(output.stdout())).toMatchObject({ ontologyVersion });
+    }
+  });
+
+  it('uses the Graph v2 release binding when no CLI override is provided', async () => {
+    const dir = await fixtureDir();
+    const graphPath = join(dir, 'graph.json');
+    const graph = JSON.parse(await readFile(graphPath, 'utf8'));
+    graph.ontology.version = '1.0.0';
+    await writeFile(graphPath, `${JSON.stringify(graph, null, 2)}\n`);
+    const output = capture();
+
+    expect(await runCli(['ontology:audit', '--dir', dir], output.io)).toBe(0);
+    expect(JSON.parse(output.stdout())).toMatchObject({ ontologyVersion: '1.0.0' });
   });
 
   it('O-7 ontology:audit records the requested historical interpretation version', async () => {

@@ -811,10 +811,29 @@ function payloadString(payload: Record<string, unknown>, key: string): string {
 function upsertEntity(entities: CanonicalEntity[], entity: CanonicalEntity): void {
   const index = entities.findIndex((candidate) => candidate.id === entity.id);
   if (index >= 0) {
+    assertCompatibleCanonicalIdentity(entities[index], entity);
     entities[index] = { ...entities[index], ...entity };
   } else {
     entities.push(entity);
   }
+}
+
+function assertCompatibleCanonicalIdentity(existing: CanonicalEntity, proposed: CanonicalEntity): void {
+  const existingIdentity = canonicalIdentity(existing);
+  const proposedIdentity = canonicalIdentity(proposed);
+  if (existingIdentity === proposedIdentity) return;
+  const labels = [canonicalIdentityLabel(existing), canonicalIdentityLabel(proposed)].sort((left, right) => left.localeCompare(right, 'en'));
+  throw new Error(`canonical_id_collision: ${proposed.id} maps to distinct semantic identities: ${labels.join(' / ')}`);
+}
+
+function canonicalIdentity(entity: CanonicalEntity): string {
+  return JSON.stringify(entity.type === 'decision'
+    ? { type: entity.type, decision: entity.summary ?? entity.name }
+    : { type: entity.type, name: entity.name });
+}
+
+function canonicalIdentityLabel(entity: CanonicalEntity): string {
+  return entity.type === 'decision' ? entity.summary ?? entity.name : entity.name;
 }
 
 function writeEntity(entities: CanonicalEntity[], writes: CanonicalEntity[], entity: CanonicalEntity): void {

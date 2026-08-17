@@ -210,6 +210,29 @@ describe('planApply (INV-4/INV-5 selection + dry-run)', () => {
     expect(second.graphEdges).toEqual(first.graphEdges);
   });
 
+  it.each([
+    ['forward', ['Aa', 'BB']],
+    ['reverse', ['BB', 'Aa']]
+  ])('blocks distinct candidate identities that collide on a legacy stable id (%s)', (_label, names) => {
+    const colliding = names.map((name) => ({
+      id: `candidate-${name}`,
+      kind: 'project',
+      payload: { name }
+    }));
+
+    expect(() => planApply(colliding, { ids: new Set(), all: true }, emptyBase(), '2026-08-05T01:00:00.000Z'))
+      .toThrow(/canonical_id_collision: project-1mo.*Aa.*BB/);
+  });
+
+  it('blocks a generated id collision with an existing canonical entity', () => {
+    expect(() => planApply(
+      [{ id: 'candidate-BB', kind: 'project', payload: { name: 'BB' } }],
+      { ids: new Set(), all: true },
+      { ...emptyBase(), graphEntities: [{ id: 'project-1mo', type: 'project', name: 'Aa' }] },
+      '2026-08-05T01:00:00.000Z'
+    )).toThrow(/canonical_id_collision: project-1mo.*Aa.*BB/);
+  });
+
   it('preserves ontology semantics when promoting a decision candidate', () => {
     const decision = {
       id: 'decision-candidate',

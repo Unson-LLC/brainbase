@@ -36,6 +36,9 @@ describe('canonical Graph storage migration', () => {
 
     expect(plan.graph.ontology).toEqual(emptyGraph.ontology);
     expect(plan.graph.ontology).toEqual(canonicalGraphOntologyRelease.binding);
+    expect(plan.graph.ontology.version).toBe('2.0.0');
+    expect(emptyGraph.ontology.version).toBe('2.0.0');
+    expect(canonicalGraphOntologyRelease.manifest.version).toBe('2.0.0');
     expect(canonicalGraphOntologyRelease.manifest.relationRegistry).toHaveProperty('participates_in');
     expect(Object.isFrozen(canonicalGraphOntologyRelease)).toBe(true);
     expect(Object.isFrozen(canonicalGraphOntologyRelease.manifest)).toBe(true);

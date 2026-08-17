@@ -30,11 +30,21 @@ describe('local SSOT loader', () => {
     expect(os.graph.version).toBe(2);
     if (os.graph.version === 2) {
       expect(os.graph.edges).toEqual([]);
-      expect(os.graph.ontology).toMatchObject({ id: 'brainbase-personal-os', version: '1.0.0' });
+      expect(os.graph.ontology).toMatchObject({ id: 'brainbase-personal-os', version: '2.0.0' });
     }
     expect(os.personalKg).toEqual([]);
     expect(os.relationships.relationships).toEqual([]);
     expect(os.decisions).toEqual([]);
+  });
+
+  it('audits a fresh Graph with its 2.0.0 release binding by default', async () => {
+    const dir = await tempDir();
+    await initializePersonalOs(dir);
+
+    await expect(auditPersonalOsDirectory(dir)).resolves.toMatchObject({
+      status: 'complete',
+      ontologyVersion: '2.0.0'
+    });
   });
 
   it('INV-3 fails loudly when a canonical file is malformed', async () => {
