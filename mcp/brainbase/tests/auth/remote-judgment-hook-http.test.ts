@@ -22,7 +22,11 @@ function request(overrides: Record<string, unknown> = {}) {
     bearerToken: 'expected',
     projectCode: 'mana-runtime',
     isAuthorized: authorize,
-    dispatch: async () => ({ decision: 'allow' }),
+    dispatch: async () => ({
+      output: { decision: 'allow' },
+      receiptId: 'resolution-default',
+      routeResolutionSha256: 'b'.repeat(64),
+    }),
     ...overrides,
   };
 }
@@ -33,13 +37,18 @@ describe('remote judgment Hook HTTP boundary', () => {
     const result = await handleRemoteJudgmentHookRequest(request({
       dispatch: async (payload: unknown, projectCode: string) => {
         calls.push({ payload, projectCode });
-        return { decision: 'block', reason: 'audit_required' };
+        return {
+          output: { decision: 'block', reason: 'audit_required' },
+          receiptId: 'resolution-1',
+          routeResolutionSha256: 'c'.repeat(64),
+        };
       },
     }));
     assert.equal(result?.status, 200);
     assert.deepEqual(result?.body, {
       schema_version: '1', accepted: true,
       hook_event_name: 'UserPromptSubmit', session_id: 'session-1', turn_id: 'turn-1',
+      receipt_id: 'resolution-1', route_resolution_sha256: 'c'.repeat(64),
       output: { decision: 'block', reason: 'audit_required' },
     });
     assert.deepEqual(calls, [{
@@ -48,9 +57,65 @@ describe('remote judgment Hook HTTP boundary', () => {
     }]);
   });
 
+  it('returns the canonical UserPrompt route receipt identity and digest to remote runtimes', async () => {
+    const routeResolutionSha256 = 'a'.repeat(64);
+    const result = await handleRemoteJudgmentHookRequest(request({
+      dispatch: async () => ({
+        output: {
+          continue: true,
+          suppressOutput: true,
+          hookSpecificOutput: {
+            hookEventName: 'UserPromptSubmit',
+            additionalContext: 'Judgment route resolved',
+          },
+        },
+        receiptId: 'resolution-1',
+        routeResolutionSha256,
+      }),
+    }));
+    assert.deepEqual(result, {
+      status: 200,
+      body: {
+        schema_version: '1', accepted: true,
+        hook_event_name: 'UserPromptSubmit', session_id: 'session-1', turn_id: 'turn-1',
+        receipt_id: 'resolution-1', route_resolution_sha256: routeResolutionSha256,
+        output: {
+          continue: true,
+          suppressOutput: true,
+          hookSpecificOutput: {
+            hookEventName: 'UserPromptSubmit',
+            additionalContext: 'Judgment route resolved',
+          },
+        },
+      },
+    });
+  });
+
+  for (const metadata of [
+    { receiptId: undefined, routeResolutionSha256: 'a'.repeat(64) },
+    { receiptId: 'resolution-1', routeResolutionSha256: 'not-a-digest' },
+  ]) {
+    it('fails closed when canonical UserPrompt route metadata is missing or invalid', async () => {
+      const result = await handleRemoteJudgmentHookRequest(request({
+        dispatch: async () => ({
+          output: {
+            hookSpecificOutput: {
+              hookEventName: 'UserPromptSubmit',
+              additionalContext: 'Judgment route resolved',
+            },
+          },
+          ...metadata,
+        }),
+      }));
+      assert.deepEqual(result, {
+        status: 503, body: { error: 'judgment_hook_route_receipt_missing' },
+      });
+    });
+  }
+
   it('story-remote-judgment-hook:ac:3 rejects unauthenticated, malformed, and oversized requests before dispatch', async () => {
     let calls = 0;
-    const dispatch = async () => { calls += 1; return {}; };
+    const dispatch = async () => { calls += 1; return { output: {} }; };
     const unauthorized = await handleRemoteJudgmentHookRequest(request({ authorization: undefined, dispatch }));
     const invalid = await handleRemoteJudgmentHookRequest(request({ body: Buffer.from('{'), dispatch }));
     const unsupported = await handleRemoteJudgmentHookRequest(request({
@@ -80,8 +145,10 @@ describe('remote judgment Hook HTTP boundary', () => {
           hook_event_name: 'Stop', session_id: 'remote-session', turn_id: 'remote-turn',
           stop_hook_active: false, last_assistant_message: '監査前の回答',
         })),
-        dispatch: (payload: Record<string, unknown>) => processHookPayload(payload, {
-          env: { ...process.env, BRAINBASE_JUDGMENT_JOURNAL_DIR: journalRoot },
+        dispatch: async (payload: Record<string, unknown>) => ({
+          output: await processHookPayload(payload, {
+            env: { ...process.env, BRAINBASE_JUDGMENT_JOURNAL_DIR: journalRoot },
+          }),
         }),
       }));
       assert.deepEqual(result, { status: 503, body: { error: 'judgment_hook_unavailable' } });
@@ -99,8 +166,10 @@ describe('remote judgment Hook HTTP boundary', () => {
           hook_event_name: 'PostToolUse', session_id: 'remote-session', turn_id: 'remote-turn',
           tool_name: 'mcp__brainbase__brainbase_knowledge_resolve',
         })),
-        dispatch: (payload: Record<string, unknown>) => processHookPayload(payload, {
-          env: { ...process.env, BRAINBASE_JUDGMENT_JOURNAL_DIR: journalRoot },
+        dispatch: async (payload: Record<string, unknown>) => ({
+          output: await processHookPayload(payload, {
+            env: { ...process.env, BRAINBASE_JUDGMENT_JOURNAL_DIR: journalRoot },
+          }),
         }),
       }));
       assert.deepEqual(result, {
@@ -116,7 +185,7 @@ describe('remote judgment Hook HTTP boundary', () => {
       body: Buffer.from(JSON.stringify({
         hook_event_name: 'PostToolUse', session_id: 'session-1', turn_id: 'turn-1',
       })),
-      dispatch: async () => ({}),
+      dispatch: async () => ({ output: {} }),
     }));
     assert.deepEqual(result, {
       status: 503, body: { error: 'judgment_hook_audit_not_recorded' },

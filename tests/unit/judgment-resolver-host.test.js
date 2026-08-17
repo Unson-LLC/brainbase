@@ -9,6 +9,7 @@ import {
     buildJudgmentRequest,
     canonicalJson,
     finalizeEpisode,
+    processHookPayload,
     recordBrainbaseToolUse,
     resolveAndAdopt,
     startEpisode,
@@ -496,6 +497,35 @@ describe('Codex Judgment Resolver Host', () => {
             `${hash(payload.turn_id)}.transition.sqlite`
         ]);
         expect(existsSync(join(journalDirectory, `${hash(payload.turn_id)}.final.json`))).toBe(false);
+    });
+
+    it('UserPromptSubmitのcanonical episode metadataをremote adapterへ渡す', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-remote', turn_id: 'turn-remote',
+            prompt: 'Brainbaseの設計を確認して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = validReceipt(args);
+        const episodes = [];
+        const output = await processHookPayload(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            }),
+            onEpisodeStarted: (episode) => episodes.push(episode)
+        });
+
+        expect(output.hookSpecificOutput).toMatchObject({
+            hookEventName: 'UserPromptSubmit'
+        });
+        expect(episodes).toHaveLength(1);
+        expect(episodes[0]).toMatchObject({
+            initial_route_receipt: { resolution_id: 'jr_host_test' },
+            initial_route_receipt_digest: hash(canonicalJson(receipt))
+        });
     });
 
     it('knowledge routeは採用・除外した参照先と理由を表示する', async () => {
