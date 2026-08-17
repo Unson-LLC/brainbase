@@ -40,7 +40,7 @@ export class WorkspaceConnectionRegistry {
         const installedAt = this.now().toISOString();
         return this.#save({
             connection_id: generateCanonicalId('wsc'),
-            connection_revision: 1,
+            connection_revision: '1',
             tenant_id: input.tenant_id,
             provider: input.provider,
             installation_id: input.installation_id,
@@ -67,7 +67,7 @@ export class WorkspaceConnectionRegistry {
         if (current.status === 'revoked') throw new ContractError('WORKSPACE_CONNECTION_REVOKED', { status: 403 });
         return this.#save({
             ...current,
-            connection_revision: current.connection_revision + 1,
+            connection_revision: String(Number(current.connection_revision) + 1),
             installation_id: input.installation_id,
             granted_scopes: [...new Set(input.granted_scopes)].sort(),
             credential_ref: input.credential_ref,
@@ -85,7 +85,7 @@ export class WorkspaceConnectionRegistry {
         }
         return this.#save({
             ...current,
-            connection_revision: current.connection_revision + 1,
+            connection_revision: String(Number(current.connection_revision) + 1),
             status: 'revoked',
             revoked_at: this.now().toISOString(),
             revocation_reason: reason ?? 'unspecified',
@@ -114,8 +114,11 @@ export class WorkspaceConnectionRegistry {
             connection_id: current.connection_id,
             connection_revision: current.connection_revision,
             status: current.status,
+            provider: current.provider,
+            installation_id: current.installation_id,
             workspace_id: current.workspace_id,
             app_id: current.app_id,
+            granted_scopes: current.granted_scopes,
             credential_ref: current.credential_ref,
             credential_mode: current.credential_mode
         });

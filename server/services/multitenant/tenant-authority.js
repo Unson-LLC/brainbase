@@ -24,7 +24,7 @@ export class TenantAuthority {
         const now = this.now().toISOString();
         const tenant = {
             tenant_id: generateCanonicalId('ten'),
-            tenant_revision: 1,
+            tenant_revision: '1',
             status: 'provisioning',
             display_name: displayName,
             created_at: now,
@@ -47,7 +47,7 @@ export class TenantAuthority {
         }
         const updated = {
             ...current,
-            tenant_revision: current.tenant_revision + 1,
+            tenant_revision: String(Number(current.tenant_revision) + 1),
             status: nextStatus,
             updated_at: this.now().toISOString(),
             suspension_reason_code: nextStatus === 'suspended' ? (details.reason_code ?? 'unspecified') : null,

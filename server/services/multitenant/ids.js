@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { ContractError } from './errors.js';
 
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-const PREFIXES = new Set(['ten', 'wsc', 'ctr', 'use', 'rcp', 'cor', 'op', 'dep', 'mig']);
+const PREFIXES = new Set(['ten', 'wsc', 'ctr', 'usage', 'receipt', 'cor', 'op', 'dep', 'lease', 'mig']);
 
 function encodeUlid(timestampMs, randomness) {
     if (!Number.isSafeInteger(timestampMs) || timestampMs < 0 || timestampMs > 0xffffffffffff) {

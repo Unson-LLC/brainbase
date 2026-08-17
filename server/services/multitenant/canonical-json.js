@@ -1,27 +1,53 @@
-function normalize(value) {
-    if (value === null || typeof value === 'boolean' || typeof value === 'string') return value;
-    if (typeof value === 'number') {
-        if (!Number.isFinite(value)) throw new TypeError('Canonical JSON does not allow non-finite numbers');
-        return value;
+function assertNoLoneSurrogate(value) {
+    for (let index = 0; index < value.length; index += 1) {
+        const code = value.charCodeAt(index);
+        if (code >= 0xd800 && code <= 0xdbff) {
+            const next = value.charCodeAt(index + 1);
+            if (!(next >= 0xdc00 && next <= 0xdfff)) {
+                throw new TypeError('RFC 8785 forbids lone UTF-16 surrogates');
+            }
+            index += 1;
+        } else if (code >= 0xdc00 && code <= 0xdfff) {
+            throw new TypeError('RFC 8785 forbids lone UTF-16 surrogates');
+        }
     }
-    if (Array.isArray(value)) return value.map((item) => normalize(item));
-    if (typeof value === 'object') {
-        return Object.keys(value)
-            .sort()
-            .reduce((result, key) => {
-                const item = value[key];
-                if (item === undefined || typeof item === 'function' || typeof item === 'symbol') {
-                    throw new TypeError(`Canonical JSON does not allow ${typeof item} at ${key}`);
-                }
-                result[key] = normalize(item);
-                return result;
-            }, {});
-    }
-    throw new TypeError(`Canonical JSON does not allow ${typeof value}`);
 }
 
+/** RFC 8785 JSON Canonicalization Scheme for I-JSON values. */
 export function canonicalJson(value) {
-    return JSON.stringify(normalize(value));
+    const seen = new Set();
+
+    function serialize(input) {
+        if (input === null) return 'null';
+        if (typeof input === 'boolean') return input ? 'true' : 'false';
+        if (typeof input === 'number') {
+            if (!Number.isFinite(input)) throw new TypeError('RFC 8785 requires finite numbers');
+            return JSON.stringify(input);
+        }
+        if (typeof input === 'string') {
+            assertNoLoneSurrogate(input);
+            return JSON.stringify(input);
+        }
+        if (!input || typeof input !== 'object') {
+            throw new TypeError(`RFC 8785 cannot encode ${typeof input}`);
+        }
+        if (seen.has(input)) throw new TypeError('RFC 8785 cannot encode cyclic values');
+        seen.add(input);
+        let result;
+        if (Array.isArray(input)) {
+            result = `[${input.map((item) => serialize(item)).join(',')}]`;
+        } else {
+            const entries = Object.keys(input).sort().map((key) => {
+                assertNoLoneSurrogate(key);
+                return `${JSON.stringify(key)}:${serialize(input[key])}`;
+            });
+            result = `{${entries.join(',')}}`;
+        }
+        seen.delete(input);
+        return result;
+    }
+
+    return serialize(value);
 }
 
 export function deepFreeze(value) {

@@ -11,72 +11,64 @@ export const REQUIRED_CAPABILITIES = Object.freeze([
     'tenant_scoped_authorization',
     'credential_broker_v1',
     'usage_receipt_v1',
-    'idempotent_effects_v1'
+    'idempotent_effects_v1',
+    'container_sanitization_v1'
 ]);
 
 const OPTIONAL_CAPABILITIES = new Set([
     'cloud_billing_export', 'managed_operations', 'shared_cloud_rls_conformance', 'cloud_standard_credential'
 ]);
 
-function parseVersion(value) {
-    const match = /^(\d+)\.(\d+)(?:\.(\d+))?$/.exec(value);
-    return match ? match.slice(1).map((part) => Number(part ?? 0)) : null;
-}
+const COMPATIBILITY_UNTIL = '2027-08-16T00:00:00Z';
 
-function compareVersion(left, right) {
-    for (let index = 0; index < 3; index += 1) {
-        if (left[index] !== right[index]) return left[index] - right[index];
+function optionalCapability(capability, deploymentProfile) {
+    if (deploymentProfile === 'customer_managed_oss') {
+        const reasons = {
+            cloud_billing_export: 'Brainbase Cloud billing export is not present in a customer-managed deployment.',
+            managed_operations: 'Deployment operations are customer-owned.',
+            shared_cloud_rls_conformance: 'The deployment is not a shared Cloud database.'
+        };
+        return {
+            capability,
+            status: 'non_applicable',
+            reason: reasons[capability] ?? 'The optional Cloud capability is not present in a customer-managed deployment.'
+        };
     }
-    return 0;
+    return { capability, status: OPTIONAL_CAPABILITIES.has(capability) ? 'supported' : 'non_applicable',
+        ...(OPTIONAL_CAPABILITIES.has(capability) ? {} : { reason: 'capability_not_advertised_by_brainbase_v1' }) };
 }
 
-function supportsV1(range) {
-    if (typeof range !== 'string') return false;
-    const tokens = range.trim().split(/\s+/);
-    if (tokens.length !== 2) return false;
-    const constraints = tokens.map((token) => /^(>=|>|<=|<)(\d+\.\d+(?:\.\d+)?)$/.exec(token));
-    if (constraints.some((constraint) => !constraint)) return false;
-    const version = [1, 0, 0];
-    return constraints.every(([, operator, raw]) => {
-        const candidate = parseVersion(raw);
-        const comparison = compareVersion(version, candidate);
-        return operator === '>=' ? comparison >= 0
-            : operator === '>' ? comparison > 0
-                : operator === '<=' ? comparison <= 0
-                    : comparison < 0;
-    });
-}
-
-export function negotiateProtocol(input, { now = new Date() } = {}) {
-    if (!supportsV1(input.supported_range)) {
+export function negotiateProtocol(input) {
+    if (input?.message_type !== 'protocol_negotiation_request' || input.protocol_id !== PROTOCOL_ID
+        || input.supported_range !== SUPPORTED_PROTOCOL_RANGE || !Array.isArray(input.supported_versions)
+        || !input.supported_versions.includes(CURRENT_PROTOCOL_VERSION)) {
         throw new ContractError('PROTOCOL_VERSION_UNSUPPORTED', { status: 409, fault_domain: 'protocol' });
     }
-    const unsupported = (input.required_capabilities ?? []).filter((capability) => !REQUIRED_CAPABILITIES.includes(capability));
-    if (unsupported.length > 0) {
-        throw new ContractError('PROTOCOL_CAPABILITY_UNSUPPORTED', { status: 409, fault_domain: 'protocol', details: { capabilities: unsupported } });
+    if (!Array.isArray(input.required_capabilities)) {
+        throw new ContractError('PROTOCOL_CAPABILITY_UNSUPPORTED', { status: 409, fault_domain: 'protocol' });
+    }
+    const unsupported = input.required_capabilities.filter((capability) => !REQUIRED_CAPABILITIES.includes(capability));
+    const missing = REQUIRED_CAPABILITIES.filter((capability) => !input.required_capabilities.includes(capability));
+    if (unsupported.length > 0 || missing.length > 0) {
+        throw new ContractError('PROTOCOL_CAPABILITY_UNSUPPORTED', {
+            status: 409,
+            fault_domain: 'protocol',
+            details: { capabilities: [...unsupported, ...missing] }
+        });
     }
     if (!['shared_cloud', 'dedicated_cloud', 'customer_managed_oss'].includes(input.deployment_profile)) {
         throw new ContractError('PROTOCOL_CAPABILITY_UNSUPPORTED', { status: 409, fault_domain: 'protocol' });
     }
-    const optional = {};
-    for (const capability of input.optional_capabilities ?? []) {
-        if (!OPTIONAL_CAPABILITIES.has(capability)) {
-            optional[capability] = { status: 'non_applicable', reason: 'capability_not_advertised_by_brainbase_v1' };
-        } else if (input.deployment_profile === 'customer_managed_oss') {
-            optional[capability] = { status: 'non_applicable', reason: 'cloud_only_optional_capability' };
-        } else {
-            optional[capability] = { status: 'available' };
-        }
-    }
     return deepFreeze({
+        message_type: 'protocol_negotiation_response',
         protocol_id: PROTOCOL_ID,
         selected_version: CURRENT_PROTOCOL_VERSION,
         supported_range: SUPPORTED_PROTOCOL_RANGE,
-        compatibility_until: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+        supported_versions: [CURRENT_PROTOCOL_VERSION],
         required_capabilities: [...REQUIRED_CAPABILITIES],
-        optional_capabilities: optional,
-        deployment_id: input.deployment_id,
-        deployment_profile: input.deployment_profile
+        optional_capabilities: (input.optional_capabilities ?? [])
+            .map((capability) => optionalCapability(capability, input.deployment_profile)),
+        compatibility_until: COMPATIBILITY_UNTIL
     });
 }
 

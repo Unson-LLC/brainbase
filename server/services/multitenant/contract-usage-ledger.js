@@ -2,9 +2,22 @@ import { createHash } from 'node:crypto';
 import { canonicalJson, deepFreeze } from './canonical-json.js';
 import { ContractError } from './errors.js';
 import { generateCanonicalId } from './ids.js';
+import { assertCanonicalRevision } from './tenant-context.js';
 
 const OUTCOMES = new Set(['succeeded', 'failed', 'cancelled', 'timed_out']);
 const COLLECTION_STATES = new Set(['collected', 'partial', 'not_collected']);
+const IDEMPOTENCY_OWNER_BY_SCOPE = Object.freeze({
+    credential_lease: 'brainbase',
+    quota_decision: 'brainbase',
+    business_effect: 'brainbase',
+    usage_receipt: 'brainbase',
+    queue_execution: 'mana_runtime',
+    slack_delivery: 'mana_runtime'
+});
+
+function fail(code, options = {}) {
+    throw new ContractError(code, { status: 400, fault_domain: 'protocol', ...options });
+}
 
 function lengthPrefix(value) {
     const bytes = Buffer.from(String(value), 'utf8');
@@ -25,42 +38,88 @@ export function computeBusinessIdempotencyKey(input) {
     return `ik1_${hash.digest('base64url')}`;
 }
 
-function decimalString(value) {
-    if (value === null) return null;
-    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return String(value);
-    if (typeof value === 'string' && /^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value)) return value;
-    throw new ContractError('USAGE_COLLECTION_INVALID', { status: 400 });
+export function validateUsageEvent(event) {
+    assertCanonicalRevision(event?.connection_revision, 'connection_revision');
+    assertCanonicalRevision(event?.contract_revision, 'contract_revision');
+    if (event?.message_type !== 'usage_event' || event.protocol_version !== '1.0') fail('SCHEMA_INVALID');
+    if (!COLLECTION_STATES.has(event.collection_state)) fail('COLLECTION_STATE_INVALID');
+    if (!OUTCOMES.has(event.outcome)) fail('OUTCOME_INVALID');
+    if (event.collection_state === 'not_collected' && event.quantity !== null) {
+        fail('USAGE_NOT_COLLECTED_HAS_QUANTITY');
+    }
+    if (event.collection_state === 'partial'
+        && (!Array.isArray(event.unknown_fields) || event.unknown_fields.length === 0)) {
+        fail('USAGE_PARTIAL_UNKNOWN_FIELDS_REQUIRED');
+    }
+    if (event.collection_state === 'collected') {
+        if (typeof event.quantity !== 'number' || !Number.isFinite(event.quantity) || event.quantity < 0) {
+            fail('USAGE_COLLECTED_QUANTITY_REQUIRED');
+        }
+        if (!Array.isArray(event.unknown_fields) || event.unknown_fields.length !== 0) {
+            fail('USAGE_COLLECTED_UNKNOWN_FIELDS_FORBIDDEN');
+        }
+        if (event.quantity === 0 && event.failure_code !== 'NO_DATA') fail('USAGE_ZERO_REQUIRES_NO_DATA');
+    }
+    return true;
 }
 
 export function normalizeUsageEvent(input) {
-    if (!OUTCOMES.has(input.outcome) || !COLLECTION_STATES.has(input.collection_state)) {
-        throw new ContractError('USAGE_COLLECTION_INVALID', { status: 400 });
-    }
-    if (input.collection_state === 'not_collected' && input.quantity !== null) {
-        throw new ContractError('USAGE_COLLECTION_INVALID', { status: 400 });
-    }
-    if (input.collection_state === 'collected' && input.quantity === null) {
-        throw new ContractError('USAGE_COLLECTION_INVALID', { status: 400 });
-    }
-    if (input.collection_state === 'partial'
-        && (!Array.isArray(input.unknown_fields) || input.unknown_fields.length === 0)) {
-        throw new ContractError('USAGE_COLLECTION_INVALID', { status: 400 });
-    }
-    for (const field of ['tenant_id', 'tenant_revision_at_write', 'connection_id', 'connection_revision', 'deployment_id', 'correlation_id', 'operation_id', 'idempotency_key', 'contract_revision', 'kind', 'unit']) {
-        if (input[field] === undefined || input[field] === null || input[field] === '') {
-            throw new ContractError('USAGE_COLLECTION_INVALID', { status: 400, details: { field } });
-        }
-    }
-    if (input.failure_code === 'NO_DATA'
-        && !(input.collection_state === 'collected' && Number(input.quantity) === 0 && input.outcome === 'succeeded')) {
-        throw new ContractError('USAGE_COLLECTION_INVALID', { status: 400 });
-    }
-    return deepFreeze({
-        usage_event_id: input.usage_event_id ?? generateCanonicalId('use'),
+    const event = {
+        message_type: input.message_type ?? 'usage_event',
+        usage_event_id: input.usage_event_id ?? generateCanonicalId('usage'),
         protocol_version: input.protocol_version ?? '1.0',
         ...input,
-        quantity: decimalString(input.quantity)
+        unknown_fields: input.unknown_fields ?? []
+    };
+    validateUsageEvent(event);
+    return deepFreeze(structuredClone(event));
+}
+
+export function validateQuotaDecision(decision) {
+    if (decision?.message_type !== 'quota_decision') fail('SCHEMA_INVALID');
+    assertCanonicalRevision(decision.contract_revision, 'contract_revision');
+    assertCanonicalRevision(decision.quota_revision, 'quota_revision');
+    if (!new Set(['allowed', 'warning', 'hard_stopped', 'approval_required', 'unavailable']).has(decision.decision)) {
+        fail('QUOTA_DECISION_INVALID');
+    }
+    if (decision.decision === 'unavailable') {
+        if (decision.limit !== null || decision.used !== null || decision.remaining !== null) {
+            fail('QUOTA_UNAVAILABLE_VALUE_INVALID');
+        }
+    } else if ([decision.limit, decision.used, decision.remaining]
+        .some((value) => typeof value !== 'number' || !Number.isFinite(value) || value < 0)) {
+        fail('QUOTA_VALUE_INVALID');
+    }
+    return true;
+}
+
+export function validateOperationReceipt(receipt) {
+    if (receipt?.message_type !== 'operation_receipt') fail('SCHEMA_INVALID');
+    assertCanonicalRevision(receipt.connection_revision, 'connection_revision');
+    assertCanonicalRevision(receipt.contract_revision, 'contract_revision');
+    if (!COLLECTION_STATES.has(receipt.collection_state)) fail('COLLECTION_STATE_INVALID');
+    if (!OUTCOMES.has(receipt.outcome)) fail('OUTCOME_INVALID');
+    if (!receipt.reply || !Number.isInteger(receipt.reply.reply_count)
+        || receipt.reply.reply_count < 0 || receipt.reply.reply_count > 1
+        || receipt.reply.legacy_reply_count !== 0) {
+        fail('REPLY_OWNERSHIP_INVALID');
+    }
+    return true;
+}
+
+export function validateIdempotencyClaim(claim) {
+    const expectedOwner = IDEMPOTENCY_OWNER_BY_SCOPE[claim?.scope];
+    if (!expectedOwner || claim.owner !== expectedOwner) fail('IDEMPOTENCY_OWNER_INVALID');
+    const expectedKey = computeBusinessIdempotencyKey({
+        protocol_id: 'mana-brainbase-tenant-context',
+        protocol_major: '1',
+        tenant_id: claim.tenant_id,
+        connection_id: claim.connection_id,
+        slack_event_id: claim.slack_event_id,
+        operation_id: claim.operation_id
     });
+    if (claim.idempotency_key !== expectedKey) fail('IDEMPOTENCY_KEY_INVALID');
+    return true;
 }
 
 export class ContractUsageLedger {
@@ -68,7 +127,6 @@ export class ContractUsageLedger {
     #claims = new Map();
     #usageEvents = new Map();
     #receipts = new Map();
-    #usageByIdempotency = new Map();
     #receiptHashes = new Map();
 
     constructor({ now = () => new Date() } = {}) {
@@ -87,6 +145,7 @@ export class ContractUsageLedger {
     }
 
     decideQuota(input) {
+        assertCanonicalRevision(input.contract_revision, 'contract_revision');
         const contract = this.#contracts.get(`${input.tenant_id}:${input.contract_revision}`);
         if (!contract) throw new ContractError('UPSTREAM_UNAVAILABLE', { status: 503, retryable: true, fault_domain: 'brainbase_cloud' });
         const allowance = Number(contract.allowances[input.metric]);
@@ -102,16 +161,23 @@ export class ContractUsageLedger {
         if (basisPoints >= contract.hard_stop_basis_points && contract.overage_policy === 'deny') decision = 'hard_stopped';
         else if (contract.overage_policy === 'allow_with_approval' && basisPoints >= contract.hard_stop_basis_points) decision = 'approval_required';
         else if (contract.thresholds_basis_points.some((threshold) => basisPoints >= threshold)) decision = 'warning';
-        return deepFreeze({
+        const decisionRecord = {
+            message_type: 'quota_decision',
             tenant_id: input.tenant_id,
             contract_revision: input.contract_revision,
-            metric: input.metric,
-            observed_quantity: String(input.observed_quantity),
-            requested_quantity: String(input.requested_quantity),
-            threshold_basis_points: basisPoints,
+            quota_revision: String(input.quota_revision ?? contract.quota_revision ?? contract.contract_revision_number ?? '0'),
+            limit: allowance,
+            used: observed,
+            remaining: Math.max(0, allowance - resulting),
+            unit: input.unit ?? input.metric,
+            window_started_at: input.window_started_at ?? contract.window_started_at,
+            window_ends_at: input.window_ends_at ?? contract.window_ends_at,
             decision,
-            decided_at: this.now().toISOString()
-        });
+            decided_at: this.now().toISOString(),
+            failure_code: null
+        };
+        validateQuotaDecision(decisionRecord);
+        return deepFreeze(decisionRecord);
     }
 
     claimEffect(input) {
@@ -145,49 +211,33 @@ export class ContractUsageLedger {
     }
 
     recordUsage(input) {
-        const idempotencyKey = `${input.tenant_id}:${input.idempotency_key}`;
-        const inputHash = createHash('sha256').update(canonicalJson(input)).digest('base64url');
-        const replay = this.#usageByIdempotency.get(idempotencyKey);
-        if (replay) {
-            if (replay.input_hash !== inputHash) throw new ContractError('IDEMPOTENCY_CONFLICT', { status: 409 });
-            return replay.event;
-        }
         const event = normalizeUsageEvent(input);
         const existing = this.#usageEvents.get(event.usage_event_id);
-        if (existing && JSON.stringify(existing) !== JSON.stringify(event)) {
-            throw new ContractError('IDEMPOTENCY_CONFLICT', { status: 409 });
+        if (existing) {
+            if (canonicalJson(existing) !== canonicalJson(event)) {
+                throw new ContractError('IDEMPOTENCY_CONFLICT', { status: 409 });
+            }
+            return existing;
         }
         this.#usageEvents.set(event.usage_event_id, event);
-        this.#usageByIdempotency.set(idempotencyKey, { input_hash: inputHash, event });
         return event;
     }
 
     finalizeReceipt(input) {
-        const collectionState = input.usage?.collection_state;
-        if (!COLLECTION_STATES.has(collectionState) || !OUTCOMES.has(input.outcome)) {
-            throw new ContractError('RECEIPT_INVALID', { status: 400 });
-        }
-        if (collectionState === 'not_collected' && input.usage.observed_units !== null) {
-            throw new ContractError('RECEIPT_INVALID', { status: 400 });
-        }
-        if (collectionState === 'partial'
-            && (!Array.isArray(input.usage.unknown_fields) || input.usage.unknown_fields.length === 0)) {
-            throw new ContractError('RECEIPT_INVALID', { status: 400 });
-        }
-        for (const field of ['tenant_id', 'tenant_revision_at_write', 'connection_id', 'connection_revision', 'contract_revision', 'deployment_id', 'correlation_id', 'actor_principal_id', 'capability_id', 'quota_decision', 'credential_mode', 'pricing_snapshot']) {
-            if (input[field] === undefined || input[field] === null || input[field] === '') {
-                throw new ContractError('RECEIPT_INVALID', { status: 400, details: { field } });
-            }
-        }
-        const receiptId = input.receipt_id ?? generateCanonicalId('rcp');
-        const receiptCandidate = {
-            receipt_id: receiptId,
+        const receiptCandidate = input.message_type === 'operation_receipt' ? structuredClone(input) : {
+            message_type: 'operation_receipt',
+            receipt_id: input.receipt_id ?? generateCanonicalId('receipt'),
             protocol_version: input.protocol_version ?? '1.0',
             ...input,
+            collection_state: input.collection_state ?? input.usage?.collection_state,
             operation_ids: input.operation_ids ?? [input.operation_id],
             idempotency_keys: input.idempotency_keys ?? (input.idempotency_key ? [input.idempotency_key] : []),
-            finalized_at: input.finalized_at ?? this.now().toISOString()
+            completed_at: input.completed_at ?? input.finalized_at ?? this.now().toISOString(),
+            reply: input.reply ?? { state: input.outcome, reply_count: 0, legacy_reply_count: 0 }
         };
+        receiptCandidate.receipt_id ??= generateCanonicalId('receipt');
+        validateOperationReceipt(receiptCandidate);
+        const receiptId = receiptCandidate.receipt_id;
         const inputHash = createHash('sha256').update(canonicalJson(receiptCandidate)).digest('base64url');
         const existingHash = this.#receiptHashes.get(receiptId);
         if (existingHash) {
