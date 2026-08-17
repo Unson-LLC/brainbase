@@ -118,11 +118,34 @@ CREATE TABLE IF NOT EXISTS tenant_contract_revisions (
     rate_card_revision BIGINT NOT NULL,
     fx_table_revision BIGINT NOT NULL,
     PRIMARY KEY (tenant_id, contract_id, contract_revision),
+    UNIQUE (tenant_id, contract_revision),
     FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision)
 );
 
+CREATE TABLE IF NOT EXISTS tenant_quota_decisions (
+    tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
+    contract_revision TEXT NOT NULL,
+    quota_revision TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL CHECK (idempotency_key ~ '^ik1_[A-Za-z0-9_-]{43}$'),
+    metric TEXT NOT NULL,
+    decision TEXT NOT NULL CHECK (decision IN ('allowed', 'warning', 'hard_stopped', 'approval_required', 'unavailable')),
+    limit_value NUMERIC,
+    used_value NUMERIC,
+    remaining_value NUMERIC,
+    unit TEXT NOT NULL,
+    window_started_at TIMESTAMPTZ NOT NULL,
+    window_ends_at TIMESTAMPTZ NOT NULL,
+    decided_at TIMESTAMPTZ NOT NULL,
+    failure_code TEXT,
+    decision_payload JSONB NOT NULL,
+    PRIMARY KEY (tenant_id, idempotency_key),
+    CHECK (window_ends_at > window_started_at),
+    CHECK ((decision = 'unavailable' AND limit_value IS NULL AND used_value IS NULL AND remaining_value IS NULL)
+        OR (decision <> 'unavailable' AND limit_value >= 0 AND used_value >= 0 AND remaining_value >= 0))
+);
+
 CREATE TABLE IF NOT EXISTS tenant_usage_events (
-    usage_event_id TEXT PRIMARY KEY CHECK (usage_event_id ~ '^use_[0-9A-HJKMNP-TV-Z]{26}$'),
+    usage_event_id TEXT PRIMARY KEY CHECK (usage_event_id ~ '^usage_[0-9A-HJKMNP-TV-Z]{26}$'),
     protocol_version TEXT NOT NULL,
     tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
     tenant_revision_at_write BIGINT NOT NULL,
@@ -133,21 +156,25 @@ CREATE TABLE IF NOT EXISTS tenant_usage_events (
     correlation_id TEXT NOT NULL,
     operation_id TEXT NOT NULL,
     idempotency_key TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('ai', 'tool', 'container', 'storage', 'retry', 'external_api')),
+    kind TEXT NOT NULL,
     quantity NUMERIC,
     unit TEXT NOT NULL,
     outcome TEXT NOT NULL CHECK (outcome IN ('succeeded', 'failed', 'cancelled', 'timed_out')),
     collection_state TEXT NOT NULL CHECK (collection_state IN ('collected', 'partial', 'not_collected')),
     failure_code TEXT,
+    unknown_fields TEXT[] NOT NULL DEFAULT '{}',
     observed_at TIMESTAMPTZ NOT NULL,
+    event_payload JSONB NOT NULL,
     FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision),
     FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision),
-    UNIQUE (tenant_id, idempotency_key),
     CHECK ((collection_state = 'not_collected' AND quantity IS NULL) OR collection_state <> 'not_collected')
 );
 
+CREATE INDEX IF NOT EXISTS tenant_usage_events_business_effect_idx
+    ON tenant_usage_events (tenant_id, idempotency_key);
+
 CREATE TABLE IF NOT EXISTS tenant_operation_receipts (
-    receipt_id TEXT PRIMARY KEY CHECK (receipt_id ~ '^rcp_[0-9A-HJKMNP-TV-Z]{26}$'),
+    receipt_id TEXT PRIMARY KEY CHECK (receipt_id ~ '^receipt_[0-9A-HJKMNP-TV-Z]{26}$'),
     protocol_version TEXT NOT NULL,
     tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
     tenant_revision_at_write BIGINT NOT NULL,
@@ -165,17 +192,14 @@ CREATE TABLE IF NOT EXISTS tenant_operation_receipts (
     credential_mode TEXT NOT NULL,
     outcome TEXT NOT NULL CHECK (outcome IN ('succeeded', 'failed', 'cancelled', 'timed_out')),
     collection_state TEXT NOT NULL CHECK (collection_state IN ('collected', 'partial', 'not_collected')),
-    observed_units NUMERIC,
-    unknown_fields TEXT[] NOT NULL DEFAULT '{}',
     failure_code TEXT,
-    pricing_snapshot JSONB NOT NULL,
-    finalized_at TIMESTAMPTZ NOT NULL,
-    corrects_receipt_id TEXT,
+    usage_event_ids TEXT[] NOT NULL DEFAULT '{}',
+    reply JSONB NOT NULL,
+    completed_at TIMESTAMPTZ NOT NULL,
+    receipt_payload JSONB NOT NULL,
     FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision),
     FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision),
-    FOREIGN KEY (tenant_id, corrects_receipt_id) REFERENCES tenant_operation_receipts(tenant_id, receipt_id),
-    UNIQUE (tenant_id, receipt_id),
-    CHECK ((collection_state = 'not_collected' AND observed_units IS NULL) OR collection_state <> 'not_collected')
+    UNIQUE (tenant_id, receipt_id)
 );
 
 CREATE TABLE IF NOT EXISTS tenant_business_effect_claims (
@@ -184,11 +208,16 @@ CREATE TABLE IF NOT EXISTS tenant_business_effect_claims (
     connection_id TEXT NOT NULL,
     connection_revision BIGINT NOT NULL,
     operation_id TEXT NOT NULL,
+    message_type TEXT NOT NULL CHECK (message_type = 'idempotency_claim'),
+    owner TEXT NOT NULL CHECK (owner IN ('brainbase', 'mana_runtime')),
+    scope TEXT NOT NULL CHECK (scope IN ('credential_lease', 'quota_decision', 'business_effect', 'usage_receipt', 'queue_execution', 'slack_delivery')),
+    slack_event_id TEXT NOT NULL,
     payload_hash TEXT NOT NULL,
     context_hash TEXT NOT NULL,
     claim_state TEXT NOT NULL CHECK (claim_state IN ('pending', 'claimed', 'succeeded', 'failed_terminal')),
     claimed_at TIMESTAMPTZ NOT NULL,
     retain_until TIMESTAMPTZ NOT NULL,
+    claim_payload JSONB NOT NULL,
     CHECK (retain_until >= claimed_at + INTERVAL '30 days'),
     FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision)
 );
@@ -225,6 +254,7 @@ ALTER TABLE workspace_connections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_connection_revisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE credential_broker_refs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_contract_revisions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_quota_decisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_usage_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_operation_receipts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_business_effect_claims ENABLE ROW LEVEL SECURITY;
@@ -240,6 +270,7 @@ ALTER TABLE workspace_connections FORCE ROW LEVEL SECURITY;
 ALTER TABLE workspace_connection_revisions FORCE ROW LEVEL SECURITY;
 ALTER TABLE credential_broker_refs FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_contract_revisions FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_quota_decisions FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_usage_events FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_operation_receipts FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_business_effect_claims FORCE ROW LEVEL SECURITY;
@@ -259,7 +290,7 @@ BEGIN
     FOREACH table_name IN ARRAY ARRAY[
         'tenant_organizations', 'tenant_memberships', 'tenant_projects',
         'tenant_graph_entities', 'tenant_graph_relations', 'workspace_connections',
-        'workspace_connection_revisions', 'credential_broker_refs', 'tenant_contract_revisions',
+        'workspace_connection_revisions', 'credential_broker_refs', 'tenant_contract_revisions', 'tenant_quota_decisions',
         'tenant_usage_events', 'tenant_operation_receipts', 'tenant_business_effect_claims',
         'tenant_migrations', 'tenant_migration_quarantine'
     ] LOOP
