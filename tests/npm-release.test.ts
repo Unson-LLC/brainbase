@@ -355,6 +355,64 @@ describe('npm release CLI', () => {
     expect(result.gitHead).toBe(sha);
   });
 
+  it('keeps a verified release successful when npm denies only staging-tag cleanup', async () => {
+    const { root, sha } = await releaseRoot();
+    const proof = await releaseProof(sha);
+    const stagingTag = `release-${sha.slice(0, 12)}`;
+    const execute = vi.fn((command: string, args: string[]) => {
+      if (command === 'git' && (args[0] === 'merge-base' || args[0] === 'status')) return '';
+      if (command === 'npm' && args.includes('dist-tags')) return JSON.stringify({ [stagingTag]: '0.1.0' });
+      if (command === 'npm' && args[0] === 'dist-tag' && args[1] === 'rm') {
+        throw new Error('npm error code E403\n403 Forbidden - DELETE dist-tags');
+      }
+      throw new Error(`unexpected command: ${command} ${args.join(' ')}`);
+    });
+
+    const result = await reconcileNpmRelease({
+      root,
+      packageName: '@unson/brainbase-mcp',
+      version: '0.1.0',
+      expectedSha: sha,
+      trustedRef: 'trusted/develop',
+      metadata: vi.fn().mockResolvedValue({
+        version: '0.1.0',
+        gitHead: sha,
+        'dist.integrity': proof.tarballIntegrity
+      }),
+      execute,
+      validationProof: proof,
+      reconcileTag: vi.fn().mockResolvedValue({ tag: 'latest', version: '0.1.0' })
+    });
+
+    expect(result.stagingTagCleanup).toEqual({
+      status: 'blocked',
+      tag: stagingTag,
+      reason: 'registry_permission_denied'
+    });
+  });
+
+  it('still fails a release for an unknown staging-tag cleanup error', async () => {
+    const { root, sha } = await releaseRoot();
+    const proof = await releaseProof(sha);
+
+    await expect(reconcileNpmRelease({
+      root,
+      packageName: '@unson/brainbase-mcp',
+      version: '0.1.0',
+      expectedSha: sha,
+      trustedRef: 'trusted/develop',
+      metadata: vi.fn().mockResolvedValue({
+        version: '0.1.0',
+        gitHead: sha,
+        'dist.integrity': proof.tarballIntegrity
+      }),
+      execute: vi.fn((command: string, args: string[]) => command === 'git' && (args[0] === 'merge-base' || args[0] === 'status') ? '' : ''),
+      validationProof: proof,
+      reconcileTag: vi.fn().mockResolvedValue({ tag: 'latest', version: '0.1.0' }),
+      cleanupStagingTag: vi.fn().mockRejectedValue(new Error('unexpected filesystem failure'))
+    })).rejects.toThrow(/unexpected filesystem failure/u);
+  });
+
   it('retries partial registry metadata until identity and integrity converge', async () => {
     const { root, sha } = await releaseRoot();
     const proof = await releaseProof(sha);
