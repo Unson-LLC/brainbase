@@ -102,6 +102,29 @@ CREATE TABLE IF NOT EXISTS credential_broker_refs (
     FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision)
 );
 
+CREATE TABLE IF NOT EXISTS tenant_credential_leases (
+    lease_id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
+    connection_id TEXT NOT NULL,
+    connection_revision BIGINT NOT NULL CHECK (connection_revision > 0),
+    credential_ref TEXT NOT NULL REFERENCES credential_broker_refs(credential_ref),
+    credential_mode TEXT NOT NULL CHECK (credential_mode IN ('cloud_standard', 'customer_oauth', 'customer_api')),
+    contract_revision TEXT NOT NULL CHECK (contract_revision ~ '^(0|[1-9][0-9]*)$'),
+    operation_id TEXT NOT NULL,
+    audience TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    lease_token_digest TEXT NOT NULL CHECK (lease_token_digest ~ '^sha256:[a-f0-9]{64}$'),
+    issued_at TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    max_uses SMALLINT NOT NULL CHECK (max_uses = 1),
+    consumed_at TIMESTAMPTZ,
+    UNIQUE (tenant_id, lease_id),
+    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision),
+    CHECK (expires_at > issued_at),
+    CHECK (expires_at <= issued_at + INTERVAL '60 seconds'),
+    CHECK (consumed_at IS NULL OR consumed_at >= issued_at)
+);
+
 CREATE TABLE IF NOT EXISTS tenant_contract_revisions (
     contract_id TEXT NOT NULL CHECK (contract_id ~ '^ctr_[0-9A-HJKMNP-TV-Z]{26}$'),
     contract_revision BIGINT NOT NULL CHECK (contract_revision > 0),
@@ -285,6 +308,7 @@ ALTER TABLE tenant_graph_relations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_connections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_connection_revisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE credential_broker_refs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_credential_leases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_contract_revisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_quota_decisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_usage_events ENABLE ROW LEVEL SECURITY;
@@ -303,6 +327,7 @@ ALTER TABLE tenant_graph_relations FORCE ROW LEVEL SECURITY;
 ALTER TABLE workspace_connections FORCE ROW LEVEL SECURITY;
 ALTER TABLE workspace_connection_revisions FORCE ROW LEVEL SECURITY;
 ALTER TABLE credential_broker_refs FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_credential_leases FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_contract_revisions FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_quota_decisions FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_usage_events FORCE ROW LEVEL SECURITY;
@@ -326,7 +351,8 @@ BEGIN
     FOREACH table_name IN ARRAY ARRAY[
         'tenant_organizations', 'tenant_memberships', 'tenant_projects',
         'tenant_graph_entities', 'tenant_graph_relations', 'workspace_connections',
-        'workspace_connection_revisions', 'credential_broker_refs', 'tenant_contract_revisions', 'tenant_quota_decisions',
+        'workspace_connection_revisions', 'credential_broker_refs', 'tenant_credential_leases',
+        'tenant_contract_revisions', 'tenant_quota_decisions',
         'tenant_usage_events', 'tenant_operation_receipts', 'tenant_receipt_pricing_snapshots', 'tenant_business_effect_claims',
         'tenant_migrations', 'tenant_migration_quarantine'
     ] LOOP

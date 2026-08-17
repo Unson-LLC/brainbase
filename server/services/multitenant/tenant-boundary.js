@@ -3,6 +3,7 @@ import { ContractError } from './errors.js';
 const REVISION = /^(0|[1-9][0-9]*)$/;
 
 export const OWNED_OBJECT_TYPES = Object.freeze([
+    'tenant',
     'organization',
     'membership',
     'project',

@@ -109,4 +109,69 @@ describe('CredentialBroker PostgreSQL ownership', () => {
         await expect(broker.compareAndSwapRefresh(input)).resolves.toEqual({ credential_ref: 'credref:new', refresh_revision: '8' });
         expect(repository.compareAndSwapRefresh).toHaveBeenCalledWith(input);
     });
+
+    it('P0-1/AC-104: trusted provider-forwarderだけがopaque refをmaterializeしleaseをglobal single-useにする', async () => {
+        const credentialMaterial = randomBytes(32);
+        const repository = {
+            issueCredentialLease: vi.fn(async () => undefined),
+            consumeCredentialLease: vi.fn(async () => ({
+                ...binding,
+                operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+                audience: 'api.openai.com',
+                provider: 'openai'
+            }))
+        };
+        const materialize = vi.fn(async (credentialRef) => {
+            expect(credentialRef).toBe(binding.credential_ref);
+            return Buffer.from(credentialMaterial);
+        });
+        const forward = vi.fn(async ({ credential, operation, body }) => {
+            expect(Buffer.compare(credential, credentialMaterial)).toBe(0);
+            return { status: 200, body: { id: 'provider-result', operation, accepted: body.input === 'hello' } };
+        });
+        const broker = new CredentialBroker({
+            repository,
+            credentialMaterializer: { materialize },
+            providerForwarders: { 'api.openai.com': { provider: 'openai', forward } },
+            leaseId: () => 'lease_01ARZ3NDEKTSV4RRFFQ69G5FB1',
+            leaseToken: () => 'opaque-test-capability'
+        });
+        broker.register({ ...binding, provider: 'openai' });
+        const lease = await broker.issueLease(leaseRequest({ binding: { audience: 'api.openai.com' } }));
+
+        const result = await broker.forwardProviderRequest({
+            tenant_id: binding.tenant_id,
+            connection_id: binding.connection_id,
+            connection_revision: binding.connection_revision,
+            credential_ref: binding.credential_ref,
+            credential_mode: binding.credential_mode,
+            contract_revision: binding.contract_revision,
+            operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            audience: 'api.openai.com',
+            lease_id: lease.lease_id,
+            lease_token: lease.lease_token,
+            provider_operation: 'responses.create',
+            body: { input: 'hello' }
+        });
+
+        expect(result).toEqual({
+            provider: 'openai',
+            operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            status: 200,
+            body: { id: 'provider-result', operation: 'responses.create', accepted: true }
+        });
+        expect(repository.issueCredentialLease).toHaveBeenCalledWith(expect.objectContaining({
+            lease_token_digest: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+            max_uses: 1
+        }));
+        expect(repository.consumeCredentialLease).toHaveBeenCalledWith(expect.objectContaining({
+            lease_token_digest: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+            tenant_id: binding.tenant_id,
+            audience: 'api.openai.com'
+        }));
+        expect(materialize).toHaveBeenCalledOnce();
+        expect(forward).toHaveBeenCalledOnce();
+        expect(JSON.stringify(result)).not.toContain(lease.lease_token);
+        expect(JSON.stringify(result)).not.toContain(credentialMaterial.toString('base64'));
+    });
 });

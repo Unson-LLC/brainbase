@@ -164,6 +164,56 @@ function idempotencyClaimInput(req) {
     });
 }
 
+function providerForwardInput(req) {
+    const input = wireInput(req, [
+        'lease_id', 'lease_token', 'audience', 'provider_operation', 'body'
+    ], {
+        tenant_id: req.tenantContext.tenant.tenant_id,
+        connection_id: req.tenantContext.workspace_connection.connection_id,
+        connection_revision: req.tenantContext.workspace_connection.connection_revision,
+        credential_ref: req.tenantContext.credential.credential_ref,
+        credential_mode: req.tenantContext.credential.mode,
+        contract_revision: req.tenantContext.contract_revision,
+        operation_id: req.tenantContext.operation_id
+    });
+    if (['lease_id', 'lease_token', 'audience', 'provider_operation'].some((field) => (
+        typeof input[field] !== 'string' || input[field].length === 0
+    )) || !input.body || typeof input.body !== 'object' || Array.isArray(input.body)) {
+        throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
+    }
+    return input;
+}
+
+function assertMigrationTarget(req, suppliedTenantId) {
+    const tenantId = req.tenantContext.tenant.tenant_id;
+    if (suppliedTenantId !== undefined && suppliedTenantId !== tenantId) {
+        throw new ContractError('CROSS_TENANT_CANDIDATE', { status: 403, fault_domain: 'protocol' });
+    }
+    return tenantId;
+}
+
+function migrationDryRunInput(req) {
+    const input = wireInput(req, [
+        'target_tenant_id', 'source_snapshot', 'mapping_rule_revision', 'rows'
+    ], {});
+    input.target_tenant_id = assertMigrationTarget(req, input.target_tenant_id);
+    if (typeof input.source_snapshot !== 'string' || !input.source_snapshot
+        || !Number.isInteger(input.mapping_rule_revision) || input.mapping_rule_revision < 1
+        || !Array.isArray(input.rows)) {
+        throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
+    }
+    return input;
+}
+
+function migrationPlanInput(req, fields = []) {
+    const input = wireInput(req, ['plan', ...fields], {});
+    if (!input.plan || typeof input.plan !== 'object' || Array.isArray(input.plan)) {
+        throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
+    }
+    assertMigrationTarget(req, input.plan.target_tenant_id);
+    return input;
+}
+
 export function createTenantRuntimeRouter({
     serviceAuth,
     verificationKeys = () => [],
@@ -172,6 +222,7 @@ export function createTenantRuntimeRouter({
     credentialBroker,
     usageLedger,
     tenantBoundaryGateway,
+    migrationAdapter,
     tenantContextVerifier,
     now = () => new Date()
 }) {
@@ -243,6 +294,18 @@ export function createTenantRuntimeRouter({
         if (typeof credentialBroker.register === 'function') credentialBroker.register(current);
         res.status(201).json(await credentialBroker.issueLease(credentialLeaseRequest(req)));
     }));
+    router.post('/provider-requests:forward', asyncHandler(async (req, res) => {
+        await revalidateAuthoritativeBinding(req);
+        if (typeof credentialBroker?.forwardProviderRequest !== 'function') {
+            throw new ContractError('UPSTREAM_UNAVAILABLE', {
+                status: 503,
+                retryable: true,
+                fault_domain: 'brainbase_cloud'
+            });
+        }
+        const result = await credentialBroker.forwardProviderRequest(providerForwardInput(req));
+        res.status(result.status).json(result);
+    }));
     router.post('/oauth-refresh:compare-and-swap', asyncHandler(async (req, res) => {
         const { input } = await revalidateAuthoritativeBinding(req);
         res.json(await credentialBroker.compareAndSwapRefresh(input));
@@ -278,6 +341,48 @@ export function createTenantRuntimeRouter({
         await revalidateAuthoritativeBinding(req);
         res.status(201).json(await usageLedger.claimEffect(idempotencyClaimInput(req), {
             connection_revision: req.tenantContext.workspace_connection.connection_revision
+        }));
+    }));
+    async function authorizeMigration(req) {
+        if (!tenantBoundaryGateway?.authorize || !migrationAdapter) {
+            throw new ContractError('UPSTREAM_UNAVAILABLE', {
+                status: 503,
+                retryable: true,
+                fault_domain: 'brainbase_cloud'
+            });
+        }
+        await tenantBoundaryGateway.authorize({
+            tenant_context: req.tenantContext,
+            entry_point: 'migration',
+            resource_ref: {
+                object_type: 'tenant',
+                resource_id: req.tenantContext.tenant.tenant_id
+            }
+        });
+    }
+    router.post('/migrations:dry-run', asyncHandler(async (req, res) => {
+        await authorizeMigration(req);
+        res.json(await migrationAdapter.dryRun(migrationDryRunInput(req)));
+    }));
+    router.post('/migrations:apply', asyncHandler(async (req, res) => {
+        await authorizeMigration(req);
+        const input = migrationPlanInput(req, ['fail_on_conflict']);
+        res.json(await migrationAdapter.apply(input.plan, { fail_on_conflict: input.fail_on_conflict === true }));
+    }));
+    router.post('/migrations:rollback', asyncHandler(async (req, res) => {
+        await authorizeMigration(req);
+        const input = migrationPlanInput(req);
+        res.json(await migrationAdapter.rollback(input.plan));
+    }));
+    router.post('/migrations:readback', asyncHandler(async (req, res) => {
+        await authorizeMigration(req);
+        const input = wireInput(req, ['migration_id'], {});
+        if (typeof input.migration_id !== 'string' || !input.migration_id) {
+            throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
+        }
+        res.json(await migrationAdapter.readback({
+            tenant_id: req.tenantContext.tenant.tenant_id,
+            migration_id: input.migration_id
         }));
     }));
 

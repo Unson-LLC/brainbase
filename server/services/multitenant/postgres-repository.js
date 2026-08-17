@@ -2,6 +2,7 @@ import { ContractError } from './errors.js';
 import { canonicalJson } from './canonical-json.js';
 
 const OWNED_RESOURCE_TABLES = Object.freeze({
+    tenant: { table: 'brainbase_tenants', id: 'tenant_id', revision: 'tenant_revision' },
     organization: { table: 'tenant_organizations', id: 'organization_id' },
     membership: { table: 'tenant_memberships', id: 'membership_id' },
     project: { table: 'tenant_projects', id: 'project_id' },
@@ -154,11 +155,12 @@ export class MultitenantPostgresRepository {
             throw new ContractError('TENANT_BOUNDARY_INVALID', { status: 400 });
         }
         return this.withTenant(tenantId, async (client) => {
+            const revisionColumn = descriptor.revision ?? 'tenant_revision_at_write';
             const result = await client.query(
-                `SELECT tenant_id, tenant_revision_at_write
+                `SELECT tenant_id, ${revisionColumn} AS tenant_revision_at_write
                  FROM ${descriptor.table}
                  WHERE tenant_id = $1 AND ${descriptor.id} = $2
-                 ORDER BY tenant_revision_at_write DESC
+                 ORDER BY ${revisionColumn} DESC
                  LIMIT 1
                  FOR SHARE`,
                 [tenantId, resourceId]
@@ -245,6 +247,111 @@ export class MultitenantPostgresRepository {
             return {
                 credential_ref: result.rows[0].credential_ref,
                 refresh_revision: String(result.rows[0].refresh_revision)
+            };
+        });
+    }
+
+    async issueCredentialLease(lease) {
+        return this.withTenant(lease.tenant_id, async (client) => {
+            const result = await client.query(
+                `INSERT INTO tenant_credential_leases (
+                    lease_id, tenant_id, connection_id, connection_revision,
+                    credential_ref, credential_mode, contract_revision, operation_id,
+                    audience, provider, lease_token_digest, issued_at, expires_at,
+                    max_uses
+                 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                 RETURNING lease_id, tenant_id, connection_id, connection_revision,
+                           credential_ref, credential_mode, contract_revision, operation_id,
+                           audience, provider, issued_at, expires_at, max_uses`,
+                [
+                    lease.lease_id, lease.tenant_id, lease.connection_id,
+                    lease.connection_revision, lease.credential_ref, lease.credential_mode,
+                    lease.contract_revision, lease.operation_id, lease.audience, lease.provider,
+                    lease.lease_token_digest, lease.issued_at, lease.expires_at, lease.max_uses
+                ]
+            );
+            if (!result.rows[0]) {
+                throw new ContractError('CREDENTIAL_LEASE_INVALID', { status: 400 });
+            }
+            return { ...result.rows[0], connection_revision: String(result.rows[0].connection_revision) };
+        });
+    }
+
+    async consumeCredentialLease(input) {
+        return this.withTenant(input.tenant_id, async (client) => {
+            const result = await client.query(
+                `SELECT lease.lease_id, lease.tenant_id, lease.connection_id,
+                        lease.connection_revision, lease.credential_ref,
+                        lease.credential_mode, lease.contract_revision,
+                        lease.operation_id, lease.audience, lease.provider,
+                        lease.lease_token_digest, lease.issued_at, lease.expires_at,
+                        lease.max_uses, lease.consumed_at,
+                        connection.connection_revision AS current_connection_revision,
+                        connection.status AS current_connection_status,
+                        connection.provider AS current_provider,
+                        credential.credential_ref AS current_credential_ref,
+                        credential.credential_mode AS current_credential_mode
+                   FROM tenant_credential_leases AS lease
+                   JOIN workspace_connections AS connection
+                     ON connection.tenant_id = lease.tenant_id
+                    AND connection.connection_id = lease.connection_id
+                   JOIN credential_broker_refs AS credential
+                     ON credential.tenant_id = connection.tenant_id
+                    AND credential.connection_id = connection.connection_id
+                    AND credential.connection_revision = connection.connection_revision
+                  WHERE lease.tenant_id = $1 AND lease.lease_id = $2
+                  FOR UPDATE OF lease`,
+                [input.tenant_id, input.lease_id]
+            );
+            const lease = result.rows[0];
+            if (!lease || lease.lease_token_digest !== input.lease_token_digest) {
+                throw new ContractError('CREDENTIAL_LEASE_UNKNOWN', { status: 403 });
+            }
+            if (lease.consumed_at) {
+                throw new ContractError('CREDENTIAL_LEASE_ALREADY_USED', { status: 409 });
+            }
+            const consumedAt = new Date(input.consumed_at);
+            if (!Number.isFinite(consumedAt.getTime()) || consumedAt >= new Date(lease.expires_at)) {
+                throw new ContractError('CREDENTIAL_LEASE_EXPIRED', { status: 409 });
+            }
+            const expected = [
+                'tenant_id', 'connection_id', 'credential_ref', 'credential_mode',
+                'contract_revision', 'operation_id', 'audience'
+            ];
+            if (Number(lease.max_uses) !== 1
+                || expected.some((field) => String(lease[field]) !== String(input[field]))
+                || String(lease.connection_revision) !== String(input.connection_revision)) {
+                throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
+            }
+            if (lease.current_connection_status !== undefined
+                && (lease.current_connection_status !== 'active'
+                    || String(lease.current_connection_revision) !== String(lease.connection_revision)
+                    || lease.current_provider !== lease.provider
+                    || lease.current_credential_ref !== lease.credential_ref
+                    || lease.current_credential_mode !== lease.credential_mode)) {
+                throw new ContractError('CREDENTIAL_BINDING_STALE', { status: 409 });
+            }
+            const consumed = await client.query(
+                `UPDATE tenant_credential_leases
+                    SET consumed_at = $3
+                  WHERE tenant_id = $1 AND lease_id = $2 AND consumed_at IS NULL
+                  RETURNING lease_id`,
+                [input.tenant_id, input.lease_id, input.consumed_at]
+            );
+            if (!consumed.rows[0]) {
+                throw new ContractError('CREDENTIAL_LEASE_ALREADY_USED', { status: 409 });
+            }
+            return {
+                lease_id: lease.lease_id,
+                tenant_id: lease.tenant_id,
+                connection_id: lease.connection_id,
+                connection_revision: String(lease.connection_revision),
+                credential_ref: lease.credential_ref,
+                credential_mode: lease.credential_mode,
+                contract_revision: lease.contract_revision,
+                operation_id: lease.operation_id,
+                audience: lease.audience,
+                provider: lease.provider
             };
         });
     }

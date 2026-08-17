@@ -28,6 +28,7 @@ import { createMiscRouter } from '../routes/misc.js';
 import { createUsageRouter } from '../routes/usage.js';
 import { createSnsGrowthRouter } from '../routes/sns-growth.js';
 import { createTenantRuntimeRouter } from '../routes/tenant-runtime.js';
+import { createTenantEntrypointGuard } from '../middleware/tenant-entrypoint.js';
 import {
     createWorkflowHumanStepRouter,
     createWorkflowRouter,
@@ -211,7 +212,12 @@ export function registerApiRoutes(app, {
     brainbaseRoot,
     tenantRuntimeServices
 }) {
-    if (tenantRuntimeServices) registerTenantRuntimeApiRoute(app, tenantRuntimeServices);
+    const adminTenantGuard = tenantRuntimeServices
+        ? createTenantEntrypointGuard(tenantRuntimeServices, 'admin_api')
+        : (_req, _res, next) => next();
+    const auditTenantGuard = tenantRuntimeServices
+        ? createTenantEntrypointGuard(tenantRuntimeServices, 'audit_log')
+        : (_req, _res, next) => next();
     app.use('/api/state', createRetiredCapabilityRouter({
         capability: 'brainbase.session-state',
         owner: 'Codex app and CLI',
@@ -246,7 +252,7 @@ export function registerApiRoutes(app, {
     app.use(
         '/api/info',
         requireAuth(authService, { allowInsecureHeaders: false }),
-        createInfoSSOTRouter(infoSSOTService)
+        createInfoSSOTRouter(infoSSOTService, { auditTenantGuard })
     );
     const personalKnowledgeAuthGuard = requireAuth(authService, { allowInsecureHeaders: false });
     const auditPersonalAccess = personalKnowledgeService
@@ -285,7 +291,7 @@ export function registerApiRoutes(app, {
             ownerAliasIds: canonicalTaskStoreConfig?.ownerAliasIds
         }
     }));
-    app.use('/api/admin', adminNoCacheMiddleware, requireAuth(authService), createAdminVisualizationRouter(new AdminVisualizationService({
+    app.use('/api/admin', adminNoCacheMiddleware, requireAuth(authService), adminTenantGuard, createAdminVisualizationRouter(new AdminVisualizationService({
         infoSSOTService,
         candidateRepository
     })));

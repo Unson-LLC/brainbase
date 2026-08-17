@@ -6,6 +6,11 @@ import { PostgresContractUsageLedger } from './postgres-contract-usage-ledger.js
 import { TenantContextProducer } from './tenant-context-producer.js';
 import { verifyTenantContext } from './tenant-context.js';
 import { TenantBoundaryGateway } from './tenant-boundary.js';
+import { PostgresTenantMigrationAdapter } from './postgres-migration-adapter.js';
+import {
+    createEnvCredentialMaterializer,
+    createTrustedProviderForwardersFromEnv
+} from './trusted-provider-forwarder.js';
 
 function tokenDigest(value) {
     return createHash('sha256').update(String(value), 'utf8').digest();
@@ -36,6 +41,7 @@ export function createTenantRuntimeServices({
     credentialBroker = new CredentialBroker(),
     usageLedger = new ContractUsageLedger(),
     tenantBoundaryGateway,
+    migrationAdapter,
     resolveContractRevision,
     resolveCanonicalContext,
     signingKey,
@@ -76,6 +82,7 @@ export function createTenantRuntimeServices({
         credentialBroker,
         usageLedger,
         tenantBoundaryGateway,
+        migrationAdapter,
         tenantContextVerifier: (envelope) => verifyTenantContext(envelope, {
             keys: verificationKeys(),
             audience,
@@ -92,12 +99,23 @@ function requiredEnv(env, name) {
     return value;
 }
 
-export function createTenantRuntimeServicesFromEnv({ env = process.env, pool, now } = {}) {
+export function createTenantRuntimeServicesFromEnv({
+    env = process.env,
+    pool,
+    now,
+    credentialMaterializer,
+    providerForwarders = {}
+} = {}) {
     if (env.BRAINBASE_TENANT_RUNTIME_ENABLED !== '1') return null;
     if (!pool) throw new Error('Tenant runtime PostgreSQL pool is required');
     const privateJwk = JSON.parse(requiredEnv(env, 'BRAINBASE_TENANT_CONTEXT_SIGNING_KEY_JWK'));
     const privateKey = createPrivateKey({ key: privateJwk, format: 'jwk' });
     const repository = new MultitenantPostgresRepository({ pool, now });
+    const resolvedCredentialMaterializer = credentialMaterializer
+        ?? createEnvCredentialMaterializer({ env });
+    const resolvedProviderForwarders = Object.keys(providerForwarders).length > 0
+        ? providerForwarders
+        : createTrustedProviderForwardersFromEnv({ env });
     const usageLedger = new PostgresContractUsageLedger({ repository, now });
     const tenantBoundaryGateway = new TenantBoundaryGateway({
         resolveResource: (input) => repository.resolveOwnedResource(input)
@@ -109,10 +127,13 @@ export function createTenantRuntimeServicesFromEnv({ env = process.env, pool, no
         },
         credentialBroker: new CredentialBroker({
             repository,
-            now
+            now,
+            credentialMaterializer: resolvedCredentialMaterializer,
+            providerForwarders: resolvedProviderForwarders
         }),
         usageLedger,
         tenantBoundaryGateway,
+        migrationAdapter: new PostgresTenantMigrationAdapter({ pool, now }),
         resolveCanonicalContext: (input) => repository.resolveRuntimeContext(input),
         signingKey: {
             key_id: requiredEnv(env, 'BRAINBASE_TENANT_CONTEXT_SIGNING_KEY_ID'),

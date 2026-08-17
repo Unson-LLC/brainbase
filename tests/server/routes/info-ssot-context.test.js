@@ -10,6 +10,19 @@ const buildHeaders = () => ({
 });
 
 describe('Info SSOT context route', () => {
+    it('AC-005: ontology audit actual call siteでtenant audit guardを実行する', async () => {
+        const service = { auditOntology: vi.fn(async () => ({ valid: true })) };
+        const auditTenantGuard = vi.fn((_req, _res, next) => next());
+        const app = express();
+        app.use(express.json());
+        app.use('/api/info', createInfoSSOTRouter(service, { auditTenantGuard }));
+
+        await request(app).post('/api/info/ontology/audit').set(buildHeaders()).send({}).expect(200);
+
+        expect(auditTenantGuard).toHaveBeenCalledOnce();
+        expect(service.auditOntology).toHaveBeenCalledOnce();
+    });
+
     it('POST /api/info/ontology/infer/decisions exposes the canonical decision inference route', async () => {
         const service = {
             inferOntology: vi.fn(() => ({ ontology_version: '1.0.0', decisions: {}, evidence: [] }))

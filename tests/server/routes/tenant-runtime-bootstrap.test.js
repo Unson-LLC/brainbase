@@ -1,4 +1,4 @@
-import { generateKeyPairSync } from 'node:crypto';
+import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import express from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
@@ -14,7 +14,7 @@ import { WorkspaceConnectionRegistry } from '../../../server/services/multitenan
 const now = new Date('2026-08-16T13:00:30Z');
 const serviceToken = 'runtime-test-token-not-a-production-secret';
 
-function createRuntime() {
+function createRuntime({ credentialBrokerOptions = {}, migrationAdapter = undefined } = {}) {
     const tenantAuthority = new TenantAuthority({ now: () => now });
     const created = tenantAuthority.createTenant({ displayName: 'Tenant A' });
     const tenant = tenantAuthority.transitionTenant(created.tenant_id, '1', 'active');
@@ -33,7 +33,8 @@ function createRuntime() {
     const credentialBroker = new CredentialBroker({
         now: () => now,
         leaseId: () => 'lease_01ARZ3NDEKTSV4RRFFQ69G5FB1',
-        leaseToken: () => 'opaque-test-lease-handle-not-credential-material'
+        leaseToken: () => 'opaque-test-lease-handle-not-credential-material',
+        ...credentialBrokerOptions
     });
     credentialBroker.register(connection);
     const usageLedger = new ContractUsageLedger({ now: () => now });
@@ -55,6 +56,16 @@ function createRuntime() {
         connectionRegistry,
         credentialBroker,
         usageLedger,
+        migrationAdapter,
+        tenantBoundaryGateway: {
+            authorize: async ({ tenant_context, entry_point, resource_ref }) => ({
+                authorized: true,
+                entry_point,
+                resource_ref,
+                tenant_id: tenant_context.tenant.tenant_id,
+                tenant_revision_at_write: tenant_context.tenant.tenant_revision
+            })
+        },
         resolveContractRevision: async () => '11',
         signingKey: {
             key_id: 'brainbase-test-key-1',
@@ -145,6 +156,158 @@ describe('tenant runtime production wiring', () => {
         });
         expect(leaseResponse.body).not.toHaveProperty('credential');
         expect(leaseResponse.body).not.toHaveProperty('secret');
+    });
+
+    it('P0-1: mana service bindingからtrusted provider-forward routeへ到達し生credentialを返さない', async () => {
+        const credentialMaterial = randomBytes(32);
+        const materialize = async () => Buffer.from(credentialMaterial);
+        const forward = async ({ credential, operation }) => {
+            expect(Buffer.compare(credential, credentialMaterial)).toBe(0);
+            return { status: 202, body: { provider_request_id: 'provider-request-a', operation } };
+        };
+        const { services, tenant, connection } = createRuntime({
+            credentialBrokerOptions: {
+                credentialMaterializer: { materialize },
+                providerForwarders: { 'api.openai.com': { provider: 'slack', forward } }
+            }
+        });
+        const app = express();
+        app.use(express.json());
+        registerTenantRuntimeApiRoute(app, services);
+        const operationId = 'op_01ARZ3NDEKTSV4RRFFQ69G5FAZ';
+        const headers = {
+            authorization: `Bearer ${serviceToken}`,
+            'Brainbase-Protocol-Version': '1.0',
+            'Brainbase-Deployment-Id': 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAX'
+        };
+        const contextResponse = await request(app)
+            .post('/api/v1/runtime/tenant-context:resolve')
+            .set('authorization', `Bearer ${serviceToken}`)
+            .send({
+                tenant_id: tenant.tenant_id,
+                expected_tenant_revision: tenant.tenant_revision,
+                connection_id: connection.connection_id,
+                expected_connection_revision: connection.connection_revision,
+                actor: { principal_id: 'person-a', principal_type: 'person', authenticated_subject_id: 'subject-a' },
+                authorization: { organization_ids: ['org-a'], project_ids: ['project-a'], data_scopes: ['task'], capability_ids: ['task.read'] },
+                slack: { event_id: 'Ev-A-002', channel_id: 'C-A', thread_ts: '1.0', requester_id: 'person-a' },
+                correlation_id: 'cor_01ARZ3NDEKTSV4RRFFQ69G5FAY',
+                operation_id: operationId
+            });
+        const tenant_context = contextResponse.body;
+        const leaseResponse = await request(app).post('/api/v1/runtime/credential-leases').set(headers).send({
+            tenant_context,
+            message_type: 'credential_lease_request',
+            protocol_version: '1.0',
+            binding: {
+                tenant_id: tenant.tenant_id,
+                connection_id: connection.connection_id,
+                connection_revision: connection.connection_revision,
+                contract_revision: '11',
+                operation_id: operationId,
+                audience: 'api.openai.com',
+                credential_mode: 'customer_oauth',
+                credential_ref: 'credential-ref-a'
+            },
+            requested_ttl_seconds: 60
+        });
+
+        const forwarded = await request(app)
+            .post('/api/v1/runtime/provider-requests:forward')
+            .set(headers)
+            .send({
+                tenant_context,
+                lease_id: leaseResponse.body.lease_id,
+                lease_token: leaseResponse.body.lease_token,
+                audience: 'api.openai.com',
+                provider_operation: 'responses.create',
+                body: { input: 'hello' }
+            });
+        expect(forwarded.status).toBe(202);
+        expect(forwarded.body).toEqual({
+            provider: 'slack',
+            operation_id: operationId,
+            status: 202,
+            body: { provider_request_id: 'provider-request-a', operation: 'responses.create' }
+        });
+        expect(JSON.stringify(forwarded.body)).not.toContain(leaseResponse.body.lease_token);
+        expect(JSON.stringify(forwarded.body)).not.toContain(credentialMaterial.toString('base64'));
+
+        const replay = await request(app)
+            .post('/api/v1/runtime/provider-requests:forward')
+            .set(headers)
+            .send({
+                tenant_context,
+                lease_id: leaseResponse.body.lease_id,
+                lease_token: leaseResponse.body.lease_token,
+                audience: 'api.openai.com',
+                provider_operation: 'responses.create',
+                body: { input: 'hello' }
+            });
+        expect(replay.status).toBe(409);
+        expect(replay.body.code).toBe('CREDENTIAL_LEASE_ALREADY_USED');
+    });
+
+    it('P0-2/AC-006: signed migration routeをbootstrapされたadapterへ配線しtenantを上書きできない', async () => {
+        const migrationAdapter = {
+            dryRun: async (input) => ({
+                migration_id: 'mig_01ARZ3NDEKTSV4RRFFQ69G5FB4',
+                target_tenant_id: input.target_tenant_id,
+                source_snapshot: input.source_snapshot,
+                mapping_rule_revision: input.mapping_rule_revision,
+                mode: 'dry_run',
+                counts: { scanned: 1, eligible: 1, ambiguous: 0, unowned: 0 },
+                collection_state: 'collected',
+                write_count: 0,
+                candidates: input.rows,
+                quarantine: []
+            }),
+            apply: async (plan) => ({ ...plan, mode: 'apply', write_count: 1, applied_rows: [], quarantine: [] }),
+            rollback: async (plan) => ({ ...plan, mode: 'rollback', write_count: 1, quarantine: [] }),
+            readback: async ({ tenant_id }) => [{ source_id: 'source-a', tenant_id }]
+        };
+        const { services, tenant, connection } = createRuntime({ migrationAdapter });
+        const app = express();
+        app.use(express.json());
+        registerTenantRuntimeApiRoute(app, services);
+        const headers = {
+            authorization: `Bearer ${serviceToken}`,
+            'Brainbase-Protocol-Version': '1.0',
+            'Brainbase-Deployment-Id': 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAX'
+        };
+        const contextResponse = await request(app)
+            .post('/api/v1/runtime/tenant-context:resolve')
+            .set('authorization', `Bearer ${serviceToken}`)
+            .send({
+                tenant_id: tenant.tenant_id,
+                expected_tenant_revision: tenant.tenant_revision,
+                connection_id: connection.connection_id,
+                expected_connection_revision: connection.connection_revision,
+                actor: { principal_id: 'person-a', principal_type: 'person', authenticated_subject_id: 'subject-a' },
+                authorization: { organization_ids: ['org-a'], project_ids: ['project-a'], data_scopes: ['task'], capability_ids: ['task.read'] },
+                slack: { event_id: 'Ev-A-003', channel_id: 'C-A', thread_ts: '1.0', requester_id: 'person-a' },
+                correlation_id: 'cor_01ARZ3NDEKTSV4RRFFQ69G5FAY',
+                operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAZ'
+            });
+        const tenant_context = contextResponse.body;
+        const dryRun = await request(app).post('/api/v1/runtime/migrations:dry-run').set(headers).send({
+            tenant_context,
+            source_snapshot: 'sha256:snapshot-a',
+            mapping_rule_revision: 1,
+            rows: [{ id: 'source-a', revision: 1, candidates: [tenant.tenant_id] }]
+        });
+        expect(dryRun.status).toBe(200);
+        expect(dryRun.body).toMatchObject({ target_tenant_id: tenant.tenant_id, write_count: 0 });
+
+        const crossTenant = await request(app).post('/api/v1/runtime/migrations:dry-run').set(headers).send({
+            tenant_context,
+            target_tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAW',
+            source_snapshot: 'sha256:snapshot-a',
+            mapping_rule_revision: 1,
+            rows: [{ id: 'source-a', revision: 1, candidates: [tenant.tenant_id] }]
+        });
+        expect(crossTenant.status).toBe(403);
+        expect(crossTenant.body.code).toBe('CROSS_TENANT_CANDIDATE');
     });
 
     it('service bootstrapからquota・UsageEvent・OperationReceipt・idempotency claimへ到達する', async () => {

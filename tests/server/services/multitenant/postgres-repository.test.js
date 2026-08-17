@@ -62,6 +62,41 @@ describe('MultitenantPostgresRepository', () => {
         );
     });
 
+    it('P0-1/D-005: lease token digestと全bindingを保存しglobal single-useで消費する', async () => {
+        const binding = {
+            lease_id: 'lease_a', tenant_id: 'ten_a', connection_id: 'wsc_a', connection_revision: '3',
+            credential_ref: 'credref:a', credential_mode: 'customer_oauth', contract_revision: '11',
+            operation_id: 'op_a', audience: 'api.openai.com', provider: 'openai',
+            lease_token_digest: `sha256:${'a'.repeat(64)}`, issued_at: '2026-08-18T00:00:00Z',
+            expires_at: '2026-08-18T00:01:00Z', max_uses: 1
+        };
+        const { pool, client } = poolWithRows({
+            'INSERT INTO tenant_credential_leases': [{ lease_id: 'lease_a' }],
+            'FROM tenant_credential_leases AS lease': [{ ...binding, consumed_at: null }],
+            'UPDATE tenant_credential_leases': [{ lease_id: 'lease_a' }]
+        });
+        const repository = new MultitenantPostgresRepository({
+            pool,
+            now: () => new Date('2026-08-18T00:00:30Z')
+        });
+
+        await expect(repository.issueCredentialLease(binding)).resolves.toMatchObject({ lease_id: 'lease_a' });
+        await expect(repository.consumeCredentialLease({
+            ...binding,
+            provider: undefined,
+            issued_at: undefined,
+            expires_at: undefined,
+            max_uses: undefined,
+            consumed_at: '2026-08-18T00:00:30Z'
+        })).resolves.toMatchObject({ lease_id: 'lease_a', provider: 'openai' });
+        expect(client.query.mock.calls.some(([sql]) => sql.includes('FOR UPDATE OF lease'))).toBe(true);
+        expect(client.query.mock.calls.some(([sql]) => sql.includes('lease_token_digest'))).toBe(true);
+        expect(client.query.mock.calls.some(([sql]) => sql.includes('consumed_at IS NULL'))).toBe(true);
+        expect(client.query.mock.calls.every(([, params = []]) => (
+            !params.includes('opaque-token-must-not-be-stored')
+        ))).toBe(true);
+    });
+
     it('D-006/AC-202: claim conflict時はpayload/context hash差分を追加副作用なしで拒否する', async () => {
         const { pool } = poolWithRows({
             'INSERT INTO tenant_business_effect_claims': [],

@@ -10,6 +10,7 @@ describe('multitenant persistence schema', () => {
         for (const table of [
             'brainbase_tenants', 'tenant_organizations', 'tenant_memberships', 'tenant_projects',
             'tenant_graph_entities', 'tenant_graph_relations', 'workspace_connections',
+            'tenant_credential_leases',
             'tenant_contract_revisions', 'tenant_quota_decisions', 'tenant_usage_events',
             'tenant_operation_receipts', 'tenant_receipt_pricing_snapshots',
             'tenant_migrations', 'tenant_migration_quarantine', 'tenant_migration_source_rows'
@@ -18,7 +19,7 @@ describe('multitenant persistence schema', () => {
         }
         expect(sql).toContain('tenant_revision_at_write');
         expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/);
-        expect((sql.match(/FORCE ROW LEVEL SECURITY/g) ?? [])).toHaveLength(17);
+        expect((sql.match(/FORCE ROW LEVEL SECURITY/g) ?? [])).toHaveLength(18);
         expect(sql).toContain("current_setting('brainbase.tenant_id', true)");
         expect(sql).toContain('FOREIGN KEY (tenant_id, organization_id) REFERENCES tenant_organizations(tenant_id, organization_id)');
         expect(sql).toContain('FOREIGN KEY (tenant_id, source_entity_id) REFERENCES tenant_graph_entities(tenant_id, entity_id)');
@@ -30,6 +31,10 @@ describe('multitenant persistence schema', () => {
         const sql = await readFile(schemaPath, 'utf8');
         expect(sql).toContain('credential_ref TEXT NOT NULL');
         expect(sql).toContain('refresh_revision BIGINT NOT NULL');
+        expect(sql).toContain('lease_token_digest TEXT NOT NULL');
+        expect(sql).toContain("max_uses SMALLINT NOT NULL CHECK (max_uses = 1)");
+        expect(sql).toContain("expires_at <= issued_at + INTERVAL '60 seconds'");
+        expect(sql).toContain('UNIQUE (tenant_id, lease_id)');
         expect(sql).not.toMatch(/\b(access_token|refresh_token|client_secret|oauth_token)\b/i);
     });
 

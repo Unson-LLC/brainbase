@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { canonicalJson, deepFreeze } from './canonical-json.js';
 import { validateCanonicalWire } from './canonical-wire-validator.js';
 import { ContractError } from './errors.js';
@@ -58,6 +58,30 @@ function wireTimestamp(value) {
     return value.toISOString().replace('.000Z', 'Z');
 }
 
+function leaseTokenDigest(value) {
+    return `sha256:${createHash('sha256').update(String(value), 'utf8').digest('hex')}`;
+}
+
+function credentialEncodings(credential) {
+    if (!Buffer.isBuffer(credential) || credential.length === 0) return [];
+    return [...new Set([
+        credential.toString('utf8'),
+        credential.toString('base64'),
+        credential.toString('base64url'),
+        credential.toString('hex')
+    ].filter((candidate) => candidate.length >= 8))];
+}
+
+function containsCredentialMaterial(value, encodings = []) {
+    if (typeof value === 'string') return encodings.some((candidate) => value.includes(candidate));
+    if (!value || typeof value !== 'object') return false;
+    if (Array.isArray(value)) return value.some((child) => containsCredentialMaterial(child, encodings));
+    return Object.entries(value).some(([key, child]) => (
+        /^(authorization|credential|credential_value|secret|token|api_key)$/i.test(key)
+        || containsCredentialMaterial(child, encodings)
+    ));
+}
+
 export function validateCredentialLease(request, response, { now = new Date() } = {}) {
     assertLeaseRequest(request);
     if (!response || response.message_type !== 'credential_lease_response'
@@ -84,12 +108,19 @@ export class CredentialBroker {
     #currentByConnection = new Map();
 
     constructor({
-        now = () => new Date(), leaseId = defaultLeaseId, leaseToken = defaultLeaseToken, repository = null
+        now = () => new Date(),
+        leaseId = defaultLeaseId,
+        leaseToken = defaultLeaseToken,
+        repository = null,
+        credentialMaterializer = null,
+        providerForwarders = {}
     } = {}) {
         this.now = now;
         this.leaseId = leaseId;
         this.leaseToken = leaseToken;
         this.repository = repository;
+        this.credentialMaterializer = credentialMaterializer;
+        this.providerForwarders = Object.freeze({ ...providerForwarders });
         this.auditEvents = [];
     }
 
@@ -101,6 +132,7 @@ export class CredentialBroker {
             connection_revision: input.connection_revision,
             credential_ref: input.credential_ref,
             credential_mode: input.credential_mode,
+            provider: input.provider ?? null,
             refresh_revision: String(input.refresh_revision ?? '0')
         });
         assertCanonicalRevision(record.refresh_revision, 'refresh_revision');
@@ -132,6 +164,18 @@ export class CredentialBroker {
             lease_token: this.leaseToken()
         };
         validateCredentialLease(request, response, { now: issuedAt });
+        if (typeof this.repository?.issueCredentialLease === 'function') {
+            const credentialRecord = this.#credentials.get(binding.credential_ref);
+            return Promise.resolve(this.repository.issueCredentialLease({
+                ...structuredClone(binding),
+                provider: credentialRecord?.provider ?? null,
+                lease_id: response.lease_id,
+                lease_token_digest: leaseTokenDigest(response.lease_token),
+                issued_at: response.issued_at,
+                expires_at: response.expires_at,
+                max_uses: response.max_uses
+            })).then(() => deepFreeze(response));
+        }
         this.#leases.set(response.lease_id, { ...structuredClone(response), used: false });
         return deepFreeze(response);
     }
@@ -153,7 +197,96 @@ export class CredentialBroker {
             throw new ContractError('CREDENTIAL_BINDING_STALE', { status: 409 });
         }
         lease.used = true;
-        return materialize(lease.binding.credential_ref);
+        return materialize(lease.binding.credential_ref, structuredClone(lease.binding));
+    }
+
+    async forwardProviderRequest(input) {
+        assertFields(input, [
+            ...REQUIRED_LEASE_BINDING_FIELDS,
+            'lease_id', 'lease_token', 'provider_operation'
+        ], 'CREDENTIAL_LEASE_INVALID');
+        if (!input.body || typeof input.body !== 'object' || Array.isArray(input.body)) {
+            fail('CREDENTIAL_LEASE_INVALID');
+        }
+        const expectedBinding = Object.fromEntries(
+            REQUIRED_LEASE_BINDING_FIELDS.map((field) => [field, input[field]])
+        );
+        let binding;
+        if (typeof this.repository?.consumeCredentialLease === 'function') {
+            binding = await this.repository.consumeCredentialLease({
+                ...expectedBinding,
+                lease_id: input.lease_id,
+                lease_token_digest: leaseTokenDigest(input.lease_token),
+                consumed_at: wireTimestamp(this.now())
+            });
+        } else {
+            binding = this.consumeLease({
+                lease_id: input.lease_id,
+                lease_token: input.lease_token,
+                operation_id: input.operation_id,
+                audience: input.audience,
+                materialize: (_credentialRef, leaseBinding) => leaseBinding
+            });
+            if (REQUIRED_LEASE_BINDING_FIELDS.some((field) => binding[field] !== expectedBinding[field])) {
+                throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
+            }
+            binding = {
+                ...binding,
+                provider: this.#credentials.get(binding.credential_ref)?.provider ?? null
+            };
+        }
+        const forwarder = this.providerForwarders[binding.audience];
+        if (!forwarder || typeof forwarder.forward !== 'function'
+            || (binding.provider && forwarder.provider !== binding.provider)) {
+            throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
+        }
+        const materialize = typeof this.credentialMaterializer === 'function'
+            ? this.credentialMaterializer
+            : this.credentialMaterializer?.materialize?.bind(this.credentialMaterializer);
+        if (typeof materialize !== 'function') {
+            throw new ContractError('UPSTREAM_UNAVAILABLE', {
+                status: 503,
+                retryable: true,
+                fault_domain: 'brainbase_cloud'
+            });
+        }
+        let credential;
+        try {
+            const materialized = await materialize(binding.credential_ref, {
+                tenant_id: binding.tenant_id,
+                connection_id: binding.connection_id,
+                connection_revision: binding.connection_revision,
+                credential_mode: binding.credential_mode,
+                provider: forwarder.provider
+            });
+            if (materialized === undefined || materialized === null) {
+                throw new ContractError('CREDENTIAL_REF_UNKNOWN', { status: 403 });
+            }
+            credential = Buffer.isBuffer(materialized) ? materialized : Buffer.from(String(materialized), 'utf8');
+            const providerResult = await forwarder.forward({
+                credential,
+                operation: input.provider_operation,
+                body: structuredClone(input.body),
+                binding: deepFreeze(structuredClone(expectedBinding))
+            });
+            if (!providerResult || !Number.isInteger(providerResult.status)
+                || providerResult.status < 100 || providerResult.status > 599
+                || containsCredentialMaterial(providerResult.body, credentialEncodings(credential))) {
+                throw new ContractError('UPSTREAM_INVALID_RESPONSE', {
+                    status: 502,
+                    retryable: false,
+                    fault_domain: 'external_provider'
+                });
+            }
+            return deepFreeze({
+                provider: forwarder.provider,
+                operation_id: input.operation_id,
+                status: providerResult.status,
+                body: structuredClone(providerResult.body ?? null)
+            });
+        } finally {
+            credential?.fill(0);
+        }
     }
 
     compareAndSwapRefresh(input) {
