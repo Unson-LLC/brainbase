@@ -1,0 +1,14 @@
+{
+  "id": "installed-03-displayed-seed",
+  "invocation": "child_process.spawn",
+  "executable": "/bin/sh",
+  "args": [
+    "-c",
+    "brainbase onboard:seed --dir <isolated-run-root>/personal-os --name \"高橋葵\" --value \"結論を先に示す\" --project \"Atlas導入\" --decision-principle \"推測を事実として扱わない\" --relationship \"田中|責任者|Atlas導入の最終判断を担当\""
+  ],
+  "cwd": "<isolated-run-root>/consumer",
+  "exit_code": 0,
+  "duration_ms": 628,
+  "stdout": "Brainbaseへ保存しました: <isolated-run-root>/personal-os\n- 本人: 高橋葵\n- 価値観: 結論を先に示す\n- プロジェクト: Atlas導入\n- 関係者: 田中（責任者）\n- 判断基準: 推測を事実として扱わない\n- 同じ文脈は更新しました。既存の別データは削除していません。\n\n次に実行:\nbrainbase onboard:demo --dir <isolated-run-root>/personal-os --scenario \"保存した文脈を使って、次に進めるメモを作って\"\n",
+  "stderr": ""
+}

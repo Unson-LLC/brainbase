@@ -61,7 +61,10 @@ describe('agent-assisted source onboarding acceptance', () => {
     expect(agentJson.nextCommands.join('\n'), 'agent-assisted-source-onboarding ac:2 project registration is part of the structured onboarding flow.').toContain('brainbase onboard:projects');
 
     const missingDir = await tempDir();
-    const missingDemo = JSON.parse(await cli(['onboard:demo', '--dir', missingDir, '--format', 'json']));
+    const missingOutput = capture();
+    const missingCode = await runCli(['onboard:demo', '--dir', missingDir, '--format', 'json'], missingOutput.io);
+    expect(missingCode).toBe(1);
+    const missingDemo = JSON.parse(missingOutput.stdout());
     expect(missingDemo, 'value-first-onboarding ac:3 `brainbase onboard:demo --format json` reports `ready: false` with missing canonical areas when self, work, or relationships are absent.').toMatchObject({
       ready: false,
       missing: ['self', 'work', 'relationships'],
@@ -168,8 +171,8 @@ describe('agent-assisted source onboarding acceptance', () => {
     expect((await loadPersonalOs(dir)).sourceCount, 'agent-assisted-source-onboarding ac:7 `onboard:init` creates `sources/gmail`, `sources/calendar`, `sources/drive`, `sources/tasks`, and `candidates` without increasing raw source counts before files exist.').toBe(0);
 
     const readme = await readFile('README.md', 'utf8');
-    expect(readme.indexOf('## Agent-assisted Onboarding'), 'agent-assisted-source-onboarding ac:8 README explains the agent-assisted onboarding path before the manual seed path.').toBeGreaterThanOrEqual(0);
-    expect(readme.indexOf('## Agent-assisted Onboarding'), 'agent-assisted-source-onboarding ac:8 README explains the agent-assisted onboarding path before the manual seed path.').toBeLessThan(readme.indexOf('## 30 Minute Setup'));
+    expect(readme.indexOf('## エージェントと始める'), 'agent-assisted-source-onboarding ac:8 README explains the agent-assisted onboarding path before the manual seed path.').toBeGreaterThanOrEqual(0);
+    expect(readme.indexOf('## エージェントと始める'), 'agent-assisted-source-onboarding ac:8 README explains the agent-assisted onboarding path before the manual seed path.').toBeLessThan(readme.indexOf('## 30 Minute Setup'));
     expect(readme.indexOf('brainbase onboard:demo'), 'value-first-onboarding ac:6 README presents the first value demo before source diagnosis or candidate files.').toBeLessThan(readme.indexOf('brainbase onboard:diagnose-sources'));
   });
 });

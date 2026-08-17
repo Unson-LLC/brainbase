@@ -120,14 +120,23 @@ export function onboardingStatus(os: PersonalOs): Record<string, unknown> {
   });
 
   return {
-    connected: true,
     dataDir: os.dataDir,
+    localBackend: {
+      connected: true,
+      backend: 'local'
+    },
+    agentMcp: {
+      status: 'not_verified',
+      verification: 'MCP設定を反映した新しいエージェントセッションで get_context / search を確認してください。'
+    },
+    operationallyReady: false,
     seeded,
     missing,
     valueDemo: {
+      scope: 'local_cli_sample',
       ready: valueDemoReady,
       missing,
-      command: 'brainbase onboard:demo --scenario "<real request>"',
+      command: `brainbase onboard:demo --dir ${shellArg(os.dataDir)} --scenario "<real request>"`,
       completionSignal: valueDemoReady ? 'first_value_demo_ready' : 'needs_seed'
     },
     operationalization,
@@ -137,9 +146,12 @@ export function onboardingStatus(os: PersonalOs): Record<string, unknown> {
       relationships: os.relationships.relationships.length,
       decisions: os.decisions.length,
       rawSources: os.sourceCount
-    },
-    backend: 'local'
+    }
   };
+}
+
+function shellArg(value: string): string {
+  return /^[A-Za-z0-9_./:@%+=,-]+$/.test(value) ? value : JSON.stringify(value);
 }
 
 function rank(results: SearchResult[], limit: number): SearchResult[] {

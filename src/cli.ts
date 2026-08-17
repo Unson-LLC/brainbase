@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { constants } from 'node:fs';
+import { constants, realpathSync } from 'node:fs';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { delimiter, dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +8,7 @@ import { resolveDataDir } from './paths.js';
 import { auditPersonalOsDirectory } from './ontology-ssot.js';
 import { portableOntology, resolveOntologyVersion } from './ontology.js';
 import { onboardingStatus } from './tools.js';
-import { buildCandidateDrafts, parseOnboardingFormat, renderAgentProtocol, renderCandidateDrafts, renderConnectorRecommendations, renderLocalOnboardingPlan, renderSourceDiagnosis, renderValueDemo } from './onboarding.js';
+import { buildCandidateDrafts, buildValueDemo, parseOnboardingFormat, renderAgentProtocol, renderCandidateDrafts, renderConnectorRecommendations, renderLocalOnboardingPlan, renderSourceDiagnosis, renderValueDemo } from './onboarding.js';
 import {
   buildExtractedCandidateSet,
   extractCandidates,
@@ -67,6 +67,10 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
   const parsed = parseArgs(argv);
 
   try {
+    if (parsed.flags.has('help')) {
+      write(io, usage());
+      return 0;
+    }
     switch (parsed.command) {
       case 'onboard:init':
         return await onboardInit(parsed, io);
@@ -186,8 +190,21 @@ async function onboardInit(parsed: ParsedArgs, io: CliIo): Promise<number> {
 
 async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const dataDir = resolveDataDir(first(parsed, 'dir'));
-  await initializePersonalOs(dataDir);
   const name = first(parsed, 'name');
+  const encodedRelationships = parsed.values.get('relationship') ?? [];
+  for (const encoded of encodedRelationships) {
+    const [person, , context] = encoded.split('|').map((part) => part.trim());
+    if (!person || !context) {
+      throw new Error([
+        '関係者の形式が正しくありません。',
+        '形式: "人|役割|覚えておく文脈"',
+        '例: "田中|責任者|Atlas導入の最終判断を担当"',
+        '保存内容は変更していません。',
+        `再実行: ${seedRetryCommand(parsed, dataDir, encoded)}`
+      ].join('\n'));
+    }
+  }
+  await initializePersonalOs(dataDir);
   const hasSeedValues = Boolean(name)
     || ['value', 'project', 'decision-principle', 'relationship'].some((key) => (parsed.values.get(key)?.length ?? 0) > 0);
   if (!parsed.flags.has('non-interactive') && !hasSeedValues) {
@@ -197,8 +214,8 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
 
   await mutatePersonalOs(dataDir, (os) => {
     const now = new Date().toISOString();
-    const personalEntries: PersonalKgEntry[] = [];
-    const decisions: DecisionRecord[] = [];
+    const personalEntries: PersonalKgEntry[] = [...os.personalKg];
+    const decisions: DecisionRecord[] = [...os.decisions];
     const relationships: RelationshipRecord[] = [...os.relationships.relationships];
     const graphEntities: GraphEntity[] = [...os.graph.entities];
 
@@ -208,20 +225,20 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
         id: 'self',
         type: 'person',
         name,
-        summary: 'Owner of this local Brainbase Personal OS.',
+        summary: 'このPersonal OSの本人。',
         tags: ['self']
       });
-      personalEntries.push({
-        id: `self-${Date.now()}`,
+      upsertById(personalEntries, {
+        id: `self-${hash(name)}`,
         type: 'self',
-        text: `I am ${name}.`,
+        text: `私は${name}です。`,
         tags: ['self'],
         updatedAt: now
       });
     }
 
     for (const value of parsed.values.get('value') ?? []) {
-      personalEntries.push({
+      upsertById(personalEntries, {
         id: `value-${hash(value)}`,
         type: 'value',
         text: value,
@@ -235,10 +252,10 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
         id: `project-${hash(project)}`,
         type: 'project',
         name: project,
-        summary: 'Seeded during Brainbase onboarding.',
+        summary: '現在取り組んでいるプロジェクト。',
         tags: ['work']
       });
-      personalEntries.push({
+      upsertById(personalEntries, {
         id: `work-${hash(project)}`,
         type: 'work',
         text: project,
@@ -248,21 +265,18 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
     }
 
     for (const value of parsed.values.get('decision-principle') ?? []) {
-      decisions.push({
+      upsertById(decisions, {
         id: `decision-${hash(value)}`,
-        title: 'Seeded decision principle',
+        title: 'オンボーディングで登録した判断基準',
         decision: value,
         tags: ['principle', 'onboarding'],
         updatedAt: now
       });
     }
 
-    for (const encoded of parsed.values.get('relationship') ?? []) {
+    for (const encoded of encodedRelationships) {
       const [person, role, context] = encoded.split('|').map((part) => part.trim());
-      if (!person || !context) {
-        throw new Error('relationship must be "person|role|context" or "person||context"');
-      }
-      relationships.push({
+      upsertById(relationships, {
         id: `relationship-${hash(encoded)}`,
         person,
         role: role || undefined,
@@ -282,12 +296,44 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
     return proposedPersonalOs(os, {
       graph: { ...os.graph, entities: graphEntities },
       relationships: { version: 1, relationships },
-      personalKg: [...os.personalKg, ...personalEntries],
-      decisions: [...os.decisions, ...decisions]
+      personalKg: personalEntries,
+      decisions
     });
   });
-  write(io, `Seeded Brainbase Personal OS at ${dataDir}\n`);
+  const summary = [
+    `Brainbaseへ保存しました: ${dataDir}`,
+    ...(name ? [`- 本人: ${name}`] : []),
+    ...(parsed.values.get('value') ?? []).map((value) => `- 価値観: ${value}`),
+    ...(parsed.values.get('project') ?? []).map((project) => `- プロジェクト: ${project}`),
+    ...encodedRelationships.map((encoded) => {
+      const [person, role] = encoded.split('|').map((part) => part.trim());
+      return `- 関係者: ${person}${role ? `（${role}）` : ''}`;
+    }),
+    ...(parsed.values.get('decision-principle') ?? []).map((value) => `- 判断基準: ${value}`),
+    '- 同じ文脈は更新しました。既存の別データは削除していません。',
+    '',
+    '次に実行:',
+    `brainbase onboard:demo --dir ${shellArg(dataDir)} --scenario "保存した文脈を使って、次に進めるメモを作って"`,
+    ''
+  ];
+  write(io, summary.join('\n'));
   return 0;
+}
+
+function seedRetryCommand(parsed: ParsedArgs, dataDir: string, invalidRelationship: string): string {
+  const args = ['brainbase', 'onboard:seed', '--dir', dataDir];
+  const append = (flag: string, value: string | undefined): void => {
+    if (value) args.push(flag, value);
+  };
+  append('--name', first(parsed, 'name'));
+  append('--value', first(parsed, 'value'));
+  append('--project', first(parsed, 'project'));
+  append('--decision-principle', first(parsed, 'decision-principle'));
+  for (const relationship of parsed.values.get('relationship') ?? []) {
+    if (relationship !== invalidRelationship) append('--relationship', relationship);
+  }
+  append('--relationship', '田中|責任者|Atlas導入の最終判断を担当');
+  return args.map(shellArg).join(' ');
 }
 
 async function onboardInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
@@ -361,9 +407,9 @@ async function onboardStart(parsed: ParsedArgs, io: CliIo): Promise<number> {
     assumeGog: parsed.flags.has('assume-gog'),
     gogAvailable,
     project,
-    connected: status.connected === true,
+    connected: readLocalBackendConnected(status),
     missing
-  }, format));
+  }, format, parsed.flags.has('details')));
   return 0;
 }
 
@@ -372,8 +418,9 @@ async function onboardDemo(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const dataDir = resolveDataDir(first(parsed, 'dir'));
   await initializePersonalOs(dataDir);
   const os = await loadPersonalOs(dataDir);
-  write(io, renderValueDemo({ os, scenario: first(parsed, 'scenario') }, format));
-  return 0;
+  const demo = buildValueDemo({ os, scenario: first(parsed, 'scenario') });
+  write(io, renderValueDemo({ os, scenario: first(parsed, 'scenario') }, format, parsed.flags.has('details')));
+  return demo.ready ? 0 : 1;
 }
 
 async function onboardRecommend(parsed: ParsedArgs, io: CliIo): Promise<number> {
@@ -899,7 +946,9 @@ async function doctor(parsed: ParsedArgs, io: CliIo): Promise<number> {
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
-  const [command, ...rest] = argv;
+  const [firstToken, ...remaining] = argv;
+  const command = firstToken?.startsWith('--') ? undefined : firstToken;
+  const rest = command ? remaining : argv;
   const values = new Map<string, string[]>();
   const flags = new Set<string>();
 
@@ -929,6 +978,14 @@ function first(parsed: ParsedArgs, key: string): string | undefined {
   return parsed.values.get(key)?.[0];
 }
 
+function readLocalBackendConnected(status: Record<string, unknown>): boolean {
+  const localBackend = status.localBackend;
+  return typeof localBackend === 'object'
+    && localBackend !== null
+    && 'connected' in localBackend
+    && localBackend.connected === true;
+}
+
 async function commandExists(command: string): Promise<boolean> {
   const candidates = isAbsolute(command)
     ? [command]
@@ -945,13 +1002,17 @@ async function commandExists(command: string): Promise<boolean> {
   return false;
 }
 
-function upsertGraphEntity(entities: GraphEntity[], entity: GraphEntity): void {
-  const index = entities.findIndex((candidate) => candidate.id === entity.id);
+function upsertById<T extends { id: string }>(entries: T[], entry: T): void {
+  const index = entries.findIndex((candidate) => candidate.id === entry.id);
   if (index >= 0) {
-    entities[index] = entity;
+    entries[index] = entry;
   } else {
-    entities.push(entity);
+    entries.push(entry);
   }
+}
+
+function upsertGraphEntity(entities: GraphEntity[], entity: GraphEntity): void {
+  upsertById(entities, entity);
 }
 
 function hash(value: string): string {
@@ -989,15 +1050,20 @@ function proposedPersonalOs(
 }
 
 function usage(): string {
-  return `Usage:
+  return `最短で試す（3ステップ）:
+  1. brainbase onboard:start --target codex
+  2. 表示された brainbase onboard:seed を確認して実行
+  3. brainbase onboard:demo --scenario "実際に試す依頼"
+
+使い方:
   brainbase-mcp
   brainbase mcp
   brainbase onboard:init [--dir path]
   brainbase onboard:seed [--dir path] [--name value] [--value value] [--project value] [--decision-principle value] [--relationship "person|role|context"]
   brainbase onboard:install --target codex|claude|codecode [--dir path] [--dry-run] [--output path]
   brainbase onboard:agent [--format markdown|json]
-  brainbase onboard:start [--target codex|claude|codecode] [--dir path] [--name value] [--project value] [--goal value] [--status value] [--role value] [--email value] [--calendar value] [--drive value] [--drive-folder id] [--local-folder path] [--tasks value] [--format markdown|json]
-  brainbase onboard:demo [--dir path] [--scenario value] [--format markdown|json]
+  brainbase onboard:start [--target codex|claude|codecode] [--dir path] [--name value] [--value value] [--project value] [--decision-principle value] [--goal value] [--status value] [--role value] [--email value] [--calendar value] [--drive value] [--drive-folder id] [--local-folder path] [--tasks value] [--format markdown|json] [--details]
+  brainbase onboard:demo [--dir path] [--scenario value] [--format markdown|json] [--details]
   brainbase onboard:recommend [--email value] [--calendar value] [--drive value] [--tasks value] [--format markdown|json]
   brainbase onboard:diagnose-sources [--dir path] [--email value] [--calendar value] [--drive value] [--drive-folder id] [--tasks value] [--assume-gog] [--gog-command command] [--format markdown|json]
   brainbase onboard:plan [--profile google-workspace-local] [--host value] [--email value] [--secondary-email value] [--calendar value] [--drive value] [--drive-folder id] [--local-folder path] [--tasks value] [--inactive-task-tool value] [--format markdown|json]
@@ -1016,7 +1082,20 @@ function usage(): string {
 `;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+function shellArg(value: string): string {
+  return /^[A-Za-z0-9_./:@%+=,-]+$/.test(value) ? value : JSON.stringify(value);
+}
+
+export function isCliEntrypoint(moduleUrl: string, invokedPath: string | undefined): boolean {
+  if (!invokedPath) return false;
+  try {
+    return realpathSync(fileURLToPath(moduleUrl)) === realpathSync(invokedPath);
+  } catch {
+    return false;
+  }
+}
+
+if (isCliEntrypoint(import.meta.url, process.argv[1])) {
   const code = await runCli();
   process.exit(code);
 }

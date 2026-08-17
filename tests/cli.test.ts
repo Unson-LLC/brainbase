@@ -1,8 +1,8 @@
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
-import { runCli } from '../src/cli.js';
+import { isCliEntrypoint, runCli } from '../src/cli.js';
 import { loadPersonalOs } from '../src/ssot.js';
 
 const dirs: string[] = [];
@@ -31,6 +31,26 @@ function capture() {
 }
 
 describe('onboarding CLI', () => {
+  it('CLI-UX-04 help leads with the shortest three-step first-value flow', async () => {
+    const output = capture();
+    const code = await runCli(['--help'], output.io);
+
+    expect(code).toBe(0);
+    expect(output.stdout()).toContain('最短で試す（3ステップ）');
+    expect(output.stdout()).toContain('1. brainbase onboard:start --target codex');
+    expect(output.stdout()).toContain('2. 表示された brainbase onboard:seed を確認して実行');
+    expect(output.stdout()).toContain('3. brainbase onboard:demo --scenario "実際に試す依頼"');
+    expect(output.stdout().indexOf('最短で試す（3ステップ）')).toBeLessThan(output.stdout().indexOf('使い方:'));
+  });
+
+  it('CLI-UX-00 recognizes an npm-style symlink as the public CLI entrypoint', async () => {
+    const dir = await tempDir();
+    const target = new URL('../src/cli.ts', import.meta.url);
+    const link = join(dir, 'brainbase');
+    await symlink(target, link);
+    expect(isCliEntrypoint(target.href, link)).toBe(true);
+  });
+
   it('S-1 onboard:init creates the minimum files', async () => {
     const dir = await tempDir();
     const output = capture();
@@ -66,6 +86,32 @@ describe('onboarding CLI', () => {
     expect(os.graph.entities.some((entity) => entity.name === 'MCP Onboarding')).toBe(true);
     expect(os.relationships.relationships[0]?.person).toBe('Otawara');
     expect(os.personalKg.some((entry) => entry.text === 'Local facts first')).toBe(true);
+  });
+
+  it('CLI-UX-07 repeating the same seed is idempotent', async () => {
+    const dir = await tempDir();
+    const args = [
+      'onboard:seed',
+      '--dir', dir,
+      '--name', 'Owner',
+      '--value', 'Local facts first',
+      '--project', 'MCP Onboarding',
+      '--relationship', 'Otawara|partner|Needs local MCP from Codex',
+      '--decision-principle', 'Verify before claiming success.'
+    ];
+
+    expect(await runCli(args, capture().io)).toBe(0);
+    const output = capture();
+    expect(await runCli(args, output.io)).toBe(0);
+
+    const os = await loadPersonalOs(dir);
+    expect(os.personalKg.filter((entry) => entry.type === 'self')).toHaveLength(1);
+    expect(os.personalKg.filter((entry) => entry.text === 'Local facts first')).toHaveLength(1);
+    expect(os.personalKg.filter((entry) => entry.text === 'MCP Onboarding')).toHaveLength(1);
+    expect(os.relationships.relationships.filter((entry) => entry.person === 'Otawara')).toHaveLength(1);
+    expect(os.decisions.filter((entry) => entry.decision === 'Verify before claiming success.')).toHaveLength(1);
+    expect(output.stdout()).toContain('同じ文脈は更新しました');
+    expect(output.stdout()).toContain('既存の別データは削除していません');
   });
 
   it('S-3 onboard:install --target codex --dry-run prints valid Codex TOML config', async () => {
@@ -164,7 +210,7 @@ describe('onboarding CLI', () => {
     const output = capture();
     const code = await runCli(['onboard:demo', '--dir', dir, '--format', 'json'], output.io);
 
-    expect(code).toBe(0);
+    expect(code).toBe(1);
     const demo = JSON.parse(output.stdout());
     expect(demo.ready).toBe(false);
     expect(demo.completionSignal).toBe('needs_seed');
@@ -207,6 +253,11 @@ describe('onboarding CLI', () => {
     expect(demo.tryPrompt).toBe('Draft the first note to Yamamoto about AI Dojo.');
     expect(demo.sampleResult).toContain('Yamamoto Rikiya');
     expect(demo.sampleResult).toContain('AI Dojo');
+    expect(demo.sampleResult).toContain('次に判断したいこと:');
+    expect(demo.sampleResult).toContain('相談したいこと:');
+    expect(demo.sampleResult).toContain('未確認事項:');
+    expect(demo.sampleResult).toContain('次の行動:');
+    expect(demo.sampleResult).not.toContain('分けて出します');
     expect(demo.valueExplanation).toContain('もう一度説明しなくても');
     expect(demo.operationalization.pending.map((item: { id: string }) => item.id), 'onboarding-operationalization-next-actions S-1 C-1 onboard:demo reports unfinished operationalization actions').toEqual([
       'public-skills',
@@ -218,7 +269,7 @@ describe('onboarding CLI', () => {
     expect(demo.operationalization.pending.find((item: { id: string }) => item.id === 'mcp-config').command).toContain(`--dir ${dir}`);
     expect(demo.operationalization.pending.find((item: { id: string }) => item.id === 'verification').command).toContain(`--dir ${dir}`);
     expect(demo.operationalization.recommendedOrder.join('\n')).toContain('ohayo / oyasumi / retro');
-    expect(demo.operationalization.safetyRules.join('\n')).toContain('Do not write live config');
+    expect(demo.operationalization.safetyRules.join('\n')).toContain('実設定');
     expect(demo.answer).toContain('Yamamoto Rikiya');
     expect(demo.answer).toContain('AI Dojo');
     expect(demo.answer).not.toMatch(/Graph|Personal KG|SSOT|relationship record/iu);
@@ -227,6 +278,24 @@ describe('onboarding CLI', () => {
     const doctorCode = await runCli(['doctor', '--dir', dir], doctorOutput.io);
     expect(doctorCode).toBe(0);
     const status = JSON.parse(doctorOutput.stdout());
+    expect(status).toMatchObject({
+      localBackend: {
+        connected: true,
+        backend: 'local'
+      },
+      agentMcp: {
+        status: 'not_verified'
+      },
+      operationallyReady: false,
+      valueDemo: {
+        scope: 'local_cli_sample',
+        ready: true,
+        missing: [],
+        completionSignal: 'first_value_demo_ready'
+      }
+    });
+    expect(status).not.toHaveProperty('connected');
+    expect(status.valueDemo.command).toContain(`--dir ${dir}`);
     expect(status.valueDemo).toMatchObject({
       ready: true,
       missing: [],
@@ -264,21 +333,22 @@ describe('onboarding CLI', () => {
 
     expect(code).toBe(0);
     const markdown = output.stdout();
-    expect(markdown).toContain('## Try This Now');
+    expect(markdown).toContain('## 今すぐ試す');
     expect(markdown).toContain('Draft the first note to Yamamoto about AI Dojo.');
-    expect(markdown).toContain('## Sample Result');
+    expect(markdown).toContain('## サンプル結果');
+    expect(markdown).toContain('これはCLIが保存済み文脈から組み立てたサンプルです');
+    expect(markdown).toContain('実エージェント接続: 未確認');
+    expect(markdown).toContain('同じ依頼をCodex / Claude Codeへ送って実際の応答を確認');
     expect(markdown).toContain('Yamamoto Rikiya');
     expect(markdown).toContain('AI Dojo');
-    expect(markdown).toContain('## What Changed');
+    expect(markdown).toContain('## 反映された文脈');
     expect(markdown).toContain('もう一度説明しなくても');
-    expect(markdown, 'onboarding-operationalization-next-actions S-2 C-2 markdown shows unfinished operationalization').toContain('## Operationalization Still Pending');
-    expect(markdown).toContain('brainbase onboard:skills --target');
-    expect(markdown).toContain('brainbase onboard:routines --target');
-    expect(markdown).toContain('brainbase onboard:install --target');
-    expect(markdown).toContain('MCP get_context');
-    expect(markdown.indexOf('## Try This Now')).toBeLessThan(markdown.indexOf('## Sample Result'));
-    expect(markdown.indexOf('## Sample Result')).toBeLessThan(markdown.indexOf('## What Changed'));
-    expect(markdown.indexOf('## What Changed')).toBeLessThan(markdown.indexOf('## Operationalization Still Pending'));
+    expect(markdown).toContain('## 次に実行');
+    expect(markdown).toContain('brainbase onboard:demo');
+    expect(markdown).toContain('--details');
+    expect(markdown).not.toContain('## まだ残っている運用化');
+    expect(markdown.indexOf('## 今すぐ試す')).toBeLessThan(markdown.indexOf('## サンプル結果'));
+    expect(markdown.indexOf('## サンプル結果')).toBeLessThan(markdown.indexOf('## 反映された文脈'));
     expect(markdown).not.toMatch(/Graph|Personal KG|SSOT|relationship record/iu);
   });
 
@@ -328,7 +398,7 @@ describe('onboarding CLI', () => {
       'source-allowlist',
       'verification'
     ]);
-    expect(guide.operationalization.recommendedOrder.join('\n')).toContain('confirmation-gated');
+    expect(guide.operationalization.recommendedOrder.join('\n')).toContain('確認付き');
     expect(JSON.stringify(guide.interview)).toContain('メール');
     expect(JSON.stringify(guide.interview)).toContain('Google Drive');
     expect(guide.interview.map((section: { id: string }) => section.id)).toEqual([
@@ -392,7 +462,8 @@ describe('onboarding CLI', () => {
       '--email', 'gmail',
       '--calendar', 'google-calendar',
       '--drive', 'google-drive',
-      '--gog-command', '__missing_brainbase_gog__'
+      '--gog-command', '__missing_brainbase_gog__',
+      '--details'
     ], output.io);
 
     expect(code).toBe(0);
@@ -413,6 +484,72 @@ describe('onboarding CLI', () => {
     expect(output.stdout()).toContain('プロジェクト名の聞き取り待ち');
     expect(output.stdout()).toContain('--gog-command __missing_brainbase_gog__');
     expect(output.stdout()).toContain('brainbase onboard:install --target claude');
+  });
+
+  it('CLI-UX-01 onboard:start shows one concise next command by default and preserves details on request', async () => {
+    const dir = await tempDir();
+    const concise = capture();
+    const args = [
+      'onboard:start', '--dir', dir, '--target', 'codex', '--name', '高橋葵',
+      '--value', '結論を先に示す', '--project', 'Atlas導入',
+      '--decision-principle', '推測を事実として扱わない',
+      '--stakeholder', '田中|責任者|最終判断を担当'
+    ];
+    expect(await runCli(args, concise.io)).toBe(0);
+    expect(concise.stdout()).toContain('## 次に実行');
+    expect(concise.stdout()).toContain('--decision-principle');
+    expect(concise.stdout()).toContain('推測を事実として扱わない');
+    expect(concise.stdout()).toContain('詳細を見る');
+    expect(concise.stdout()).not.toContain('## エージェントの聞き取り');
+    expect(concise.stdout()).not.toContain('## まだ残っている運用化');
+
+    const detailed = capture();
+    expect(await runCli([...args, '--details'], detailed.io)).toBe(0);
+    expect(detailed.stdout()).toContain('## エージェントの聞き取り');
+    expect(detailed.stdout()).toContain('## まだ残っている運用化');
+  });
+
+  it('CLI-UX-02 onboard:demo --help prints help without creating user data or running the demo', async () => {
+    const dir = join(await tempDir(), 'not-created');
+    const output = capture();
+    const code = await runCli(['onboard:demo', '--dir', dir, '--help'], output.io);
+
+    expect(code).toBe(0);
+    expect(output.stdout()).toContain('brainbase onboard:demo');
+    expect(output.stdout()).toContain('--scenario');
+    expect(output.stdout()).not.toContain('初回価値デモ');
+    expect(output.stdout()).toContain('onboard:start');
+    expect(output.stdout()).toContain('[--value value]');
+    await expect(access(dir)).rejects.toThrow();
+  });
+
+  it('CLI-UX-03 seed confirmation lists saved context and the next copyable demo command', async () => {
+    const dir = await tempDir();
+    const output = capture();
+    const code = await runCli([
+      'onboard:seed', '--dir', dir, '--name', '高橋葵', '--value', '結論を先に示す',
+      '--project', 'Atlas導入', '--decision-principle', '推測を事実として扱わない',
+      '--relationship', '田中|責任者|最終判断を担当'
+    ], output.io);
+
+    expect(code).toBe(0);
+    expect(output.stdout()).toContain('保存しました');
+    expect(output.stdout()).toContain('本人: 高橋葵');
+    expect(output.stdout()).toContain('プロジェクト: Atlas導入');
+    expect(output.stdout()).toContain('関係者: 田中（責任者）');
+    expect(output.stdout()).toContain('判断基準: 推測を事実として扱わない');
+    expect(output.stdout()).toContain(`brainbase onboard:demo --dir ${dir}`);
+  });
+
+  it('CLI-UX-05 start translates missing canonical areas in the primary Japanese output', async () => {
+    const dir = await tempDir();
+    const output = capture();
+
+    const code = await runCli(['onboard:start', '--dir', dir, '--target', 'codex'], output.io);
+
+    expect(code).toBe(0);
+    expect(output.stdout()).toContain('不足: 本人の前提、今の仕事、関係者');
+    expect(output.stdout()).not.toContain('不足: self, work, relationships');
   });
 
   it('S-10 onboard:recommend maps Google tools to metadata-first GoG source staging', async () => {
@@ -724,9 +861,25 @@ describe('onboarding CLI', () => {
   it('S-2 fails loudly for malformed relationship seeds', async () => {
     const dir = await tempDir();
     const output = capture();
-    const code = await runCli(['onboard:seed', '--dir', dir, '--relationship', 'Otawara||'], output.io);
+    const code = await runCli([
+      'onboard:seed', '--dir', dir,
+      '--name', '高橋葵', '--value', '結論を先に示す', '--project', 'Atlas導入',
+      '--decision-principle', '推測を事実として扱わない',
+      '--relationship', 'Otawara||'
+    ], output.io);
 
     expect(code).toBe(1);
-    expect(output.stderr()).toContain('relationship must be');
+    expect(output.stderr()).toContain('関係者の形式が正しくありません');
+    expect(output.stderr()).toContain('田中|責任者|Atlas導入の最終判断を担当');
+    expect(output.stderr()).toContain('保存内容は変更していません');
+    expect(output.stderr()).toContain(`brainbase onboard:seed --dir ${dir}`);
+    expect(output.stderr()).toContain('--name');
+    expect(output.stderr()).toContain('高橋葵');
+    expect(output.stderr()).toContain('--value');
+    expect(output.stderr()).toContain('結論を先に示す');
+    expect(output.stderr()).toContain('--project');
+    expect(output.stderr()).toContain('Atlas導入');
+    expect(output.stderr()).toContain('--decision-principle');
+    expect(output.stderr()).toContain('推測を事実として扱わない');
   });
 });

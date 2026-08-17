@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "phase": "baseline",
+  "evidence_kind": "synthetic_cli_evaluation",
+  "evaluated_revision": "4294e44851f0a60f113533fa107254b926065f1d",
+  "package": "@unson/brainbase-mcp@0.2.0",
+  "runtime": "v26.3.1",
+  "platform": "darwin-x64",
+  "isolated_environment": {
+    "data_root": "<isolated-run-root>",
+    "xdg_config_home": "<isolated-run-root>/xdg-config",
+    "xdg_data_home": "<isolated-run-root>/xdg-data",
+    "production_credentials": false,
+    "external_side_effects": false
+  },
+  "time_to_value": {
+    "start_marker": "happy-01-start child process spawn immediately before execution",
+    "value_marker": "happy-03-demo stdout contains saved project, relationship, and decision principle in useful answer",
+    "duration_ms": 2673,
+    "budget_ms": 600000,
+    "useful_outcome": true,
+    "met_budget": true,
+    "value_markers": [
+      "Atlas導入",
+      "田中",
+      "推測を事実として扱わない"
+    ]
+  },
+  "traces": [
+    {
+      "id": "happy-01-start",
+      "sha256": "744dfd16479e653aecde7e232a1d5c68ddbd39aef7900dee54bec7c3a93a5f8e",
+      "exit_code": 0,
+      "duration_ms": 918,
+      "timed_out": false
+    },
+    {
+      "id": "happy-02-seed",
+      "sha256": "1bb3641cfdcc579c4f56bbacfa221b9c0d8ecf273a0f8c00ceaac44d4e2095e9",
+      "exit_code": 0,
+      "duration_ms": 893,
+      "timed_out": false
+    },
+    {
+      "id": "happy-03-demo",
+      "sha256": "cbc2885c38c9e3cac00d6966ca9c06cebdfbdbd75439ecfa1502d4cc8f44c4dd",
+      "exit_code": 0,
+      "duration_ms": 859,
+      "timed_out": false
+    },
+    {
+      "id": "happy-04-doctor",
+      "sha256": "51d073d10e09778b073a4a7eee2bf858da74d545bf38ee0ec4f415f826e2b238",
+      "exit_code": 0,
+      "duration_ms": 848,
+      "timed_out": false
+    },
+    {
+      "id": "recovery-01-demo-before-seed",
+      "sha256": "88a4e2b137f94441aa3925afcb8a20fe046ab85a7311832f339d1ce42e86cf88",
+      "exit_code": 0,
+      "duration_ms": 1013,
+      "timed_out": false
+    },
+    {
+      "id": "recovery-02-invalid-seed",
+      "sha256": "fe196c9b627f0173ffabe6b64edd5fea97bfe95feb509fed9d4ab6be817a4c6e",
+      "exit_code": 1,
+      "duration_ms": 1097,
+      "timed_out": false
+    },
+    {
+      "id": "resume-01-start-existing",
+      "sha256": "dbb9429b72dc5f03d42eb2a337efbbf3a4742c3d64bc154c9125426400edb248",
+      "exit_code": 0,
+      "duration_ms": 1024,
+      "timed_out": false
+    },
+    {
+      "id": "resume-02-demo-again",
+      "sha256": "0c6e1236e1c9fe5af7b4b3c47f3c2ff8d3fdfed2ace916923e9df68f904385c1",
+      "exit_code": 0,
+      "duration_ms": 916,
+      "timed_out": false
+    },
+    {
+      "id": "help-01-demo-help",
+      "sha256": "8ada7798bad1ba5b84f4322298ce44c7d93447bb9d6dde7199b8d4a54d7c9b88",
+      "exit_code": 0,
+      "duration_ms": 921,
+      "timed_out": false
+    }
+  ]
+}

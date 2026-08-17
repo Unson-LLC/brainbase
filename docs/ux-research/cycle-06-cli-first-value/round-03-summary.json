@@ -1,0 +1,15 @@
+{
+  "round": 3,
+  "persona_interpretations": 32,
+  "evidence_kind": "synthetic_cli_evaluation",
+  "result": "changes_required",
+  "adopted_findings": [
+    "CLIサンプルを実エージェント応答と誤認し得る",
+    "ローカルtarball導入後のdoctor実行証拠がない"
+  ],
+  "excluded_findings": [
+    "最新コーパスに存在しない英語説明の指摘",
+    "実トレースにexecutableとargsがあるのに欠落とした指摘"
+  ],
+  "decision": "サンプルと実接続未確認を近接表示し、同じtarballからdoctorまで実行する"
+}

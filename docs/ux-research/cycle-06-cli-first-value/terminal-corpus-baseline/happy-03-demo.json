@@ -1,0 +1,12 @@
+{
+  "id": "happy-03-demo",
+  "invocation": "child_process.spawn",
+  "command": "npm run onboard:demo -- --dir <isolated-run-root>/happy-personal-os --scenario 田中さんにAtlas導入の相談を投げるための論点メモを作って",
+  "cwd": "<repo>",
+  "duration_ms": 859,
+  "timeout_ms": 120000,
+  "timed_out": false,
+  "exit_code": 0,
+  "stdout": "\n> @unson/brainbase-mcp@0.2.0 onboard:demo\n> node dist/cli.js onboard:demo --dir <isolated-run-root>/happy-personal-os --scenario 田中さんにAtlas導入の相談を投げるための論点メモを作って\n\n# Brainbase 初回価値デモ\n\n追加設定へ進む前に、保存した文脈が役立つ回答を一つ確認する。\n\n- 状態: 準備済み\n- 完了シグナル: first_value_demo_ready\n- 不足: なし\n\n## 今すぐ試す\n田中さんにAtlas導入の相談を投げるための論点メモを作って\n\n## サンプル結果\n「田中さんにAtlas導入の相談を投げるための論点メモを作って」への回答例:\n\n次に進める作業は、Atlas導入を前提に一つのメモへ整理することです。\n進め方は、高橋葵さんの前提を崩さず、説明を足しすぎない形にします。\n田中（責任者）には、「Atlas導入の最終判断を担当」という関係を前提に相談します。\n判断基準: 推測を事実として扱わない\n\nそのまま送れる最初のアウトプット:\n田中さんに確認したい論点を、背景説明ではなく「次に判断したいこと」と「相談したいこと」に分けて出します。\n\n## 反映された文脈\nあなたの前提、今の仕事、田中さんの文脈、判断基準をもう一度説明しなくても、回答がそこから始まります。\n\n## 次に実行\n`brainbase onboard:demo --dir <isolated-run-root>/happy-personal-os --scenario \"田中さんにAtlas導入の相談を投げるための論点メモを作って\" --details`\n必要なら --details で、スキル、ルーティン、MCP設定、参照許可、動作確認の残作業を確認します。\n",
+  "stderr": ""
+}

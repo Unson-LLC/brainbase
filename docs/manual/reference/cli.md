@@ -8,6 +8,14 @@ BrainbaseのCLIは、オンボーディング、情報源の整理、Skillsと�
 
 パッケージとしてインストールした場合は、すべて `brainbase <command>` で実行できます。
 
+`brainbase --help`はデータを書き込まず、最短の3ステップを先頭に表示します。
+
+```bash
+brainbase onboard:start --target codex
+# 表示された onboard:seed を確認して実行
+brainbase onboard:demo --scenario "実際に試す依頼"
+```
+
 ## 導入
 
 | コマンド | 役割 | 正本への書き込み |
@@ -25,6 +33,10 @@ npm run onboard:seed -- --name "名前" --project "プロジェクト"
 node dist/cli.js onboard:projects --name "プロジェクト" --goal "目的"
 npm run onboard:demo -- --scenario "実際に試す依頼"
 ```
+
+`onboard:start`と`onboard:demo`は、通常は現在地と次の一手だけを表示します。保存候補、情報源、運用化を含む全項目は`--details`で表示できます。
+
+`onboard:seed`の関係者は`"人|役割|覚えておく文脈"`形式です。不正な入力は保存前に拒否され、既に入力した名前、価値観、プロジェクト、判断基準、正しい関係者を保持した再実行コマンドが表示されます。
 
 ## 情報源
 
