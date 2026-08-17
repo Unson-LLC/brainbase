@@ -4,7 +4,7 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { delimiter, dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializePersonalOs, loadPersonalOs, migrateCanonicalGraph, mutatePersonalOs } from './ssot.js';
-import { diagnoseGraph } from './graph-diagnosis.js';
+import { diagnoseGraph, type GraphDiagnosis } from './graph-diagnosis.js';
 import { resolveDataDir } from './paths.js';
 import { auditPersonalOsDirectory } from './ontology-ssot.js';
 import { portableOntology, resolveOntologyVersion } from './ontology.js';
@@ -1004,12 +1004,12 @@ async function doctor(parsed: ParsedArgs, io: CliIo): Promise<number> {
       localBackend: { connected: false, backend: 'local' },
       issue: error instanceof Error ? error.message : String(error)
     }, null, 2)}\n`);
-    return 0;
+    return graphDiagnosisExitCode(graphDiagnosis.status) || 1;
   }
   const judgmentHooksPath = first(parsed, 'judgment-hooks');
   if (!judgmentHooksPath) {
     write(io, `${JSON.stringify({ ...status, graphDiagnosis }, null, 2)}\n`);
-    return 0;
+    return graphDiagnosisExitCode(graphDiagnosis.status);
   }
   const config = JSON.parse(await readFile(judgmentHooksPath, 'utf8')) as Record<string, unknown>;
   const hooks = config.hooks as Record<string, unknown> | undefined;
@@ -1030,7 +1030,11 @@ async function doctor(parsed: ParsedArgs, io: CliIo): Promise<number> {
     graphDiagnosis,
     judgment_hooks: { status: 'ready', events: requiredEvents, source: judgmentHooksPath }
   }, null, 2)}\n`);
-  return 0;
+  return graphDiagnosisExitCode(graphDiagnosis.status);
+}
+
+function graphDiagnosisExitCode(status: GraphDiagnosis['status']): number {
+  return status === 'invalid' || status === 'unavailable' || status === 'migration_required' ? 1 : 0;
 }
 
 function parseArgs(argv: string[]): ParsedArgs {

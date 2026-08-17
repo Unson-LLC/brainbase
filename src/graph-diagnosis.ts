@@ -72,7 +72,7 @@ export async function diagnoseGraph(dataDir: string, asOf = new Date().toISOStri
   if (unresolvedRecords > 0) issues.push({ class: 'unresolved', detail: `${unresolvedRecords} legacy records do not resolve to a canonical entity ID.` });
   let structurallyInvalid = false;
   try { validateCanonicalGraph(graph); }
-  catch { structurallyInvalid = schemaVersion !== 2 || (danglingEdges === 0 && invalidEdges === 0 && duplicateEdges === 0 && duplicateEntities === 0); }
+  catch { structurallyInvalid = true; }
   const status: GraphDiagnosis['status'] = schemaVersion === 1 ? 'migration_required' : structurallyInvalid ? 'invalid' : issues.length > 0 ? 'issues' : 'healthy';
   return { status, schemaVersion, ontology: graph?.ontology ?? null, asOf, migrationRequired: schemaVersion === 1,
     counts: { entities: entities.length, edges: edges.length, activeEdges, danglingEdges, invalidEdges, duplicateEdges, duplicateEntities, unresolvedRecords, projections }, issues };
@@ -97,7 +97,17 @@ async function diagnoseLegacyViews(dataDir: string, entities: any[]): Promise<{ 
 }
 
 function canonicalKeys(entities: any[]): Set<string> {
-  return new Set(entities.flatMap((entity) => [String(entity.id ?? ''), normalize(String(entity.name ?? '')), ...(Array.isArray(entity.aliases) ? entity.aliases.map((alias: unknown) => normalize(String(alias))) : [])]));
+  const candidates = new Map<string, Set<string>>();
+  for (const entity of entities) {
+    const id = String(entity.id ?? '');
+    for (const key of [id, normalize(String(entity.name ?? '')), ...(Array.isArray(entity.aliases) ? entity.aliases.map((alias: unknown) => normalize(String(alias))) : [])]) {
+      if (!key) continue;
+      const matches = candidates.get(key) ?? new Set<string>();
+      matches.add(id);
+      candidates.set(key, matches);
+    }
+  }
+  return new Set([...candidates].filter(([, matches]) => matches.size === 1).map(([key]) => key));
 }
 function normalize(value: string): string { return value.normalize('NFKC').replace(/\s+/g, '').toLowerCase() }
 function emptyDiagnosis(status: GraphDiagnosis['status'], asOf: string, issues: GraphDiagnosis['issues']): GraphDiagnosis {

@@ -116,10 +116,10 @@ describe('doctor Graph diagnosis', () => {
     await writeFile(join(dir, 'decisions.jsonl'), '');
     const output = capture();
 
-    expect(await runCli(['doctor', '--dir', dir], output.io)).toBe(0);
+    expect(await runCli(['doctor', '--dir', dir], output.io)).not.toBe(0);
     expect(JSON.parse(output.stdout()).graphDiagnosis).toMatchObject({
-      status: 'issues',
-      counts: { danglingEdges: 1, invalidEdges: 1, duplicateEdges: 1, unresolvedRecords: 1, projections: 1 }
+      status: 'invalid',
+      counts: { danglingEdges: 1, invalidEdges: 1, duplicateEdges: 1, unresolvedRecords: 2, projections: 0 }
     });
   });
 
@@ -136,17 +136,26 @@ describe('doctor Graph diagnosis', () => {
     }
 
     const migration = capture();
-    expect(await runCli(['doctor', '--dir', migrationDir], migration.io)).toBe(0);
+    expect(await runCli(['doctor', '--dir', migrationDir], migration.io)).not.toBe(0);
     expect(JSON.parse(migration.stdout()).graphDiagnosis).toMatchObject({
       status: 'migration_required', schemaVersion: 1, migrationRequired: true,
       issues: expect.arrayContaining([expect.objectContaining({ class: 'migration' })])
     });
 
     const invalid = capture();
-    expect(await runCli(['doctor', '--dir', invalidDir], invalid.io)).toBe(0);
+    expect(await runCli(['doctor', '--dir', invalidDir], invalid.io)).not.toBe(0);
     expect(JSON.parse(invalid.stdout()).graphDiagnosis).toMatchObject({
       status: 'invalid', schemaVersion: null, migrationRequired: false,
       issues: expect.arrayContaining([expect.objectContaining({ class: 'invalid' })])
+    });
+
+    const unavailableDir = await mkdtemp(join(tmpdir(), 'brainbase-doctor-unavailable-'));
+    dirs.push(unavailableDir);
+    const unavailable = capture();
+    expect(await runCli(['doctor', '--dir', unavailableDir], unavailable.io)).not.toBe(0);
+    expect(JSON.parse(unavailable.stdout()).graphDiagnosis).toMatchObject({
+      status: 'unavailable',
+      issues: expect.arrayContaining([expect.objectContaining({ class: 'unavailable' })])
     });
   });
 });
