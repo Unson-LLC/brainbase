@@ -245,6 +245,12 @@ export class ConnectedOnboardingRuntime {
     return withLedgerLock(this.dataDir, async () => {
       const ledger = await loadLedger(this.dataDir);
       return mutatePersonalOsWithSidecar(this.dataDir, 'runs/connected-onboarding.json', (os) => {
+        if (os.graph.version !== 2) {
+          throw new ConnectedOnboardingError(
+            'migration_required',
+            'Graph v1 cannot store canonical ID edges; migrate graph.json to Graph v2 before writing'
+          );
+        }
         assertLedgerCanonicalReferences(ledger, os);
         const run = requireRun(ledger, runId);
         const prepared = prepareReview(run, actions);

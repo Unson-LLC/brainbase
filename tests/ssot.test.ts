@@ -27,7 +27,11 @@ describe('local SSOT loader', () => {
     await initializePersonalOs(dir);
     const os = await loadPersonalOs(dir);
 
-    expect(os.graph.version).toBe(1);
+    expect(os.graph.version).toBe(2);
+    if (os.graph.version === 2) {
+      expect(os.graph.edges).toEqual([]);
+      expect(os.graph.ontology).toMatchObject({ id: 'brainbase-personal-os', version: '1.0.0' });
+    }
     expect(os.personalKg).toEqual([]);
     expect(os.relationships.relationships).toEqual([]);
     expect(os.decisions).toEqual([]);
@@ -198,7 +202,7 @@ describe('local SSOT loader', () => {
     await rm(lock, { recursive: true, force: true });
     await mkdir(lock);
     await writeFile(join(lock, 'owner.json'), JSON.stringify({ token: 'dead', pid: 999999, hostname: hostname() }));
-    await expect(loadPersonalOs(dir)).resolves.toMatchObject({ graph: { version: 1 } });
+    await expect(loadPersonalOs(dir)).resolves.toMatchObject({ graph: { version: 2 } });
   });
 
   it('propagates lock failure to normal MCP reads while ontology audit reports unverified', async () => {

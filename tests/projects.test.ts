@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -136,10 +136,10 @@ describe('onboard:projects CLI', () => {
     expect(os.personalKg).toHaveLength(0);
   });
 
-  it('fails loudly on Graph v1 instead of writing disconnected project data', async () => {
+  it('writes stable project ID edges idempotently on Graph v2', async () => {
     const dir = await tempDir();
     const output = capture();
-    const code = await runCli([
+    const args = [
       'onboard:projects',
       '--dir', dir,
       '--name', 'Write Project',
@@ -152,14 +152,48 @@ describe('onboard:projects CLI', () => {
       '--decision-principle', 'Prefer reviewed project facts',
       '--write',
       '--format', 'json'
+    ];
+    const code = await runCli(args, output.io);
+
+    expect(code).toBe(0);
+    const first = await loadPersonalOs(dir);
+    expect(first.graph.version).toBe(2);
+    if (first.graph.version === 2) {
+      expect(first.graph.edges).toHaveLength(2);
+      expect(first.graph.edges).toEqual(expect.arrayContaining([
+        expect.objectContaining({ relation: 'participates_in', role: 'reviewer' }),
+        expect.objectContaining({ relation: 'governs' })
+      ]));
+    }
+    expect(first.relationships.relationships).toHaveLength(1);
+    expect(first.decisions).toHaveLength(1);
+
+    expect(await runCli(args, capture().io)).toBe(0);
+    const repeated = await loadPersonalOs(dir);
+    expect(repeated.graph).toEqual(first.graph);
+    expect(repeated.relationships.relationships).toHaveLength(1);
+    expect(repeated.decisions).toHaveLength(1);
+    expect(repeated.personalKg).toHaveLength(1);
+  });
+
+  it('fails loudly on a legacy Graph v1 fixture without partial writes', async () => {
+    const dir = await tempDir();
+    await runCli(['onboard:init', '--dir', dir], capture().io);
+    await writeFile(join(dir, 'graph.json'), `${JSON.stringify({ version: 1, owner: {}, entities: [] }, null, 2)}\n`);
+    const output = capture();
+
+    const code = await runCli([
+      'onboard:projects', '--dir', dir, '--name', 'Legacy Project',
+      '--stakeholder', 'Partner|reviewer|Reviews project decisions',
+      '--decision-principle', 'Prefer reviewed project facts', '--write'
     ], output.io);
 
     expect(code).toBe(1);
     expect(output.stderr()).toMatch(/migration_required.*Graph v1/i);
     const os = await loadPersonalOs(dir);
-    expect(os.graph.entities).toHaveLength(0);
-    expect(os.relationships.relationships).toHaveLength(0);
-    expect(os.decisions).toHaveLength(0);
+    expect(os.graph).toMatchObject({ version: 1, entities: [] });
+    expect(os.relationships.relationships).toEqual([]);
+    expect(os.decisions).toEqual([]);
     expect(await readFile(join(dir, 'personal-kg.jsonl'), 'utf8')).toBe('');
   });
 });

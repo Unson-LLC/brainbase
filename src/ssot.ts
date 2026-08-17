@@ -8,7 +8,7 @@ import { validateCanonicalGraph } from './canonical-graph.js';
 import { assertOntologyValid } from './ontology.js';
 import { planCanonicalGraphMigration, type CanonicalGraphMigrationPlan } from './ontology-migration.js';
 import { emptyGraph, emptyRelationships, schemaTemplates } from './templates.js';
-import type { DecisionRecord, GraphFile, GraphFileV1, PersonalKgEntry, PersonalOs, RelationshipsFile } from './types.js';
+import type { DecisionRecord, GraphFile, PersonalKgEntry, PersonalOs, RelationshipsFile } from './types.js';
 
 const canonicalFiles = ['graph.json', 'relationships.json', 'personal-kg.jsonl', 'decisions.jsonl'] as const;
 const lockName = '.brainbase-ssot.lock';
@@ -154,7 +154,7 @@ export async function migrateCanonicalGraph(
     assertCompleteCanonicalSet(dataDir, await canonicalPresence(dataDir));
     const current = await loadPersonalOsUnlocked(dataDir);
     const plan = planCanonicalGraphMigration({
-      graph: current.graph as GraphFile,
+      graph: current.graph,
       relationships: current.relationships,
       decisions: current.decisions
     });
@@ -162,7 +162,7 @@ export async function migrateCanonicalGraph(
       return { ...plan, written: false };
     }
 
-    const next = { ...current, graph: plan.graph as unknown as GraphFileV1 };
+    const next = { ...current, graph: plan.graph };
     await commitAggregate(dataDir, next, 'mutation');
     return { ...plan, written: true };
   });
@@ -311,9 +311,19 @@ function validateAggregate(os: PersonalOs): void {
   validateCanonicalGraph(os.graph);
 }
 
-function parseGraph(value: unknown): GraphFileV1 {
-  validateCanonicalGraph(value);
-  return value as GraphFileV1;
+function parseGraph(value: unknown): GraphFile {
+  try {
+    validateCanonicalGraph(value);
+  } catch (error) {
+    // Duplicate entity IDs are a complete, readable snapshot whose ontology
+    // violation must remain available to audit/inference instead of being
+    // collapsed into a source-unavailable result. Writers still validate the
+    // aggregate strictly before commit.
+    if (!(error instanceof Error) || !error.message.startsWith('GRAPH-ENTITY-ID-UNIQUE')) {
+      throw error;
+    }
+  }
+  return value as GraphFile;
 }
 
 function serializeJsonl(values: unknown[]): string {

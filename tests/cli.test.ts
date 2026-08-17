@@ -58,7 +58,7 @@ describe('onboarding CLI', () => {
     const code = await runCli(['onboard:init', '--dir', dir], output.io);
 
     expect(code).toBe(0);
-    await expect(readFile(join(dir, 'graph.json'), 'utf8')).resolves.toContain('"version": 1');
+    await expect(readFile(join(dir, 'graph.json'), 'utf8')).resolves.toContain('"version": 2');
     await expect(readFile(join(dir, 'personal-kg.jsonl'), 'utf8')).resolves.toBe('');
     await expect(access(join(dir, 'sources', 'gmail'))).resolves.toBeUndefined();
     await expect(access(join(dir, 'sources', 'calendar'))).resolves.toBeUndefined();

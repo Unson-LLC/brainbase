@@ -350,7 +350,7 @@ async function onboardSeed(parsed: ParsedArgs, io: CliIo): Promise<number> {
       graph: {
         ...graph,
         owner: { ...graph.owner, ...(name ? { id: 'self', name } : {}) }
-      } as unknown as PersonalOs['graph'],
+      },
       relationships: { version: 1, relationships },
       personalKg: personalEntries,
       decisions
@@ -609,7 +609,7 @@ async function applyProjectRegistrationPlan(dataDir: string, plan: ProjectRegist
       upsertById(decisions, decision);
     }
     return proposedPersonalOs(os, {
-      graph: graph as unknown as PersonalOs['graph'],
+      graph,
       relationships: { version: 1, relationships },
       personalKg,
       decisions
@@ -702,6 +702,9 @@ async function onboardApply(parsed: ParsedArgs, io: CliIo): Promise<number> {
   let result: ApplyResult | undefined;
   if (willWrite) {
     await mutatePersonalOs(dataDir, (os) => {
+      if (os.graph.version !== 2) {
+        throw new Error('migration_required: Graph v1 cannot store canonical ID edges; migrate graph.json to Graph v2 before writing');
+      }
       result = planApply(candidates, { ids: selectedIds, all }, {
         graphEntities: [...os.graph.entities],
         relationships: [...os.relationships.relationships],
@@ -718,6 +721,9 @@ async function onboardApply(parsed: ParsedArgs, io: CliIo): Promise<number> {
     });
   } else {
     const os = await loadPersonalOs(dataDir);
+    if (os.graph.version !== 2) {
+      throw new Error('migration_required: Graph v1 cannot store canonical ID edges; migrate graph.json to Graph v2 before writing');
+    }
     result = planApply(candidates, { ids: selectedIds, all }, {
       graphEntities: [...os.graph.entities],
       relationships: [...os.relationships.relationships],

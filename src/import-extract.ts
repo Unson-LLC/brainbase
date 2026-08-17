@@ -1,4 +1,4 @@
-import type { DecisionRecord, GraphEntity, PersonalKgEntry, RelationshipRecord } from './types.js';
+import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, RelationshipRecord } from './types.js';
 
 export type SourceProvider = 'gmail' | 'calendar' | 'drive' | 'local';
 
@@ -421,7 +421,7 @@ export function buildExtractedCandidateSet(candidates: ExtractedCandidate[], dat
 // ---------------------------------------------------------------------------
 
 export interface ApplyInput {
-  graphEntities: GraphEntity[];
+  graphEntities: CanonicalEntity[];
   relationships: RelationshipRecord[];
   personalKg: PersonalKgEntry[];
   decisions: DecisionRecord[];
@@ -429,7 +429,7 @@ export interface ApplyInput {
 }
 
 export interface ApplyResult {
-  graphEntities: GraphEntity[];
+  graphEntities: CanonicalEntity[];
   relationships: RelationshipRecord[];
   personalKgAdditions: PersonalKgEntry[];
   decisionAdditions: DecisionRecord[];
@@ -717,7 +717,7 @@ function payloadString(payload: Record<string, unknown>, key: string): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function upsertEntity(entities: GraphEntity[], entity: GraphEntity): void {
+function upsertEntity(entities: CanonicalEntity[], entity: CanonicalEntity): void {
   const index = entities.findIndex((candidate) => candidate.id === entity.id);
   if (index >= 0) {
     entities[index] = { ...entities[index], ...entity };

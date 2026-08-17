@@ -195,7 +195,7 @@ describe('local SSOT atomic recovery', () => {
     await Promise.all([initializePersonalOs(dir), initializePersonalOs(dir), initializePersonalOs(dir)]);
 
     await expect(loadPersonalOs(dir)).resolves.toMatchObject({
-      graph: { version: 1 },
+      graph: { version: 2 },
       relationships: { version: 1 },
       personalKg: [],
       decisions: []
@@ -218,7 +218,7 @@ describe('local SSOT atomic recovery', () => {
     const [readState, writtenState] = await Promise.all([reader, writer, initialization]);
 
     expect(readState).toMatchObject({
-      graph: { version: 1 },
+      graph: { version: 2 },
       relationships: { version: 1 },
       decisions: []
     });
