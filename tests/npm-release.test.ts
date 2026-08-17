@@ -363,7 +363,9 @@ describe('npm release CLI', () => {
       if (command === 'git' && (args[0] === 'merge-base' || args[0] === 'status')) return '';
       if (command === 'npm' && args.includes('dist-tags')) return JSON.stringify({ [stagingTag]: '0.1.0' });
       if (command === 'npm' && args[0] === 'dist-tag' && args[1] === 'rm') {
-        throw new Error('npm error code E403\n403 Forbidden - DELETE dist-tags');
+        const error = new Error('Command failed: npm (exit 1)');
+        Object.assign(error, { stderr: 'npm error code E403\n403 Forbidden - DELETE dist-tags' });
+        throw error;
       }
       throw new Error(`unexpected command: ${command} ${args.join(' ')}`);
     });
