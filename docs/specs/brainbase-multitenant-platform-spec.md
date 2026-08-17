@@ -26,9 +26,9 @@ test_files:
 
 ## 0. 状態と境界
 
-このSpecは実装着手用のfinalである。先行してVibePro draftを生成・検証した後、Storyとaccepted Architectureを具体化し、横断契約の正本入力としてmana-runtime PR #237 HEAD `37dd9f5eee783b9b3ba94c31c9c7e32f7afa3351`のD-001〜D-009と`contracts/mana-brainbase-tenant-context/v1`を採用した。共通fixture setのSHA-256は`81c73707578ae42d6ed539aae3ac1e8eb3b0feac906e3856e73d8cdf6629d454`である。実装開始ゲートはSpecのfingerprintとdriftを記録した時点で開くが、adapter fixture、CI、本番readbackの成功を意味しない。
+このSpecは実装着手用のfinalである。先行してVibePro draftを生成・検証した後、Storyとaccepted Architectureを具体化し、横断契約の正本入力としてmana-runtime PR #237 remote HEAD `2bcb70e1b6c7a65c44cc9fa303a3fb64a98b8589`のD-001〜D-009と`contracts/mana-brainbase-tenant-context/v1`を採用した。共通fixture setのSHA-256は`9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833`である。実装開始ゲートはSpecのfingerprintとdriftを記録した時点で開くが、adapter fixture、CI、本番readbackの成功を意味しない。
 
-Brainbaseのconformance testは共通manifestの1 positive、16 negative、1 non-applicableを固定HEADから直接読む。fixtureの複製や期待値の再定義はconformance証拠として扱わない。test keyはテスト実行時だけ読み、repository、ログ、PR本文へ秘密値を記録しない。
+Brainbaseのconformance testは共通manifestの1 positive、21 negative、1 non-applicableを固定HEADから直接読む。fixtureの複製や期待値の再定義はconformance証拠として扱わない。test keyはテスト実行時だけ読み、repository、ログ、PR本文へ秘密値を記録しない。
 
 - Brainbaseが所有する: tenant正本、帰属、connection、credential参照、contract、quota、usage、Receipt、Cloud／OSS接続契約。
 - mana-runtimeが所有する: Slack受信、Queue／Durable Object／Container内のtenant context伝播、返信。
@@ -44,7 +44,7 @@ Brainbaseのconformance testは共通manifestの1 positive、16 negative、1 non
 - **INV-005 Non-disclosure**: 別tenant resourceへのアクセスは存在有無を漏らさず`scope_mismatch`として同じ外形で拒否する。
 - **INV-006 Opaque credential**: Brainbaseの通常DB、Graph、ログ、event、Receiptはcredential本文を保持しない。Secret Storeのtenant限定opaque handleだけを保持する。
 - **INV-007 Collection and outcome**: `collection_state=collected|partial|not_collected`と`outcome=succeeded|failed|cancelled|timed_out`を独立に保持し、未計測・取得不能・部分取得を0件、0円、成功へ変換しない。取得済み空結果だけは`collected`、`observed_units=0`、`failure_code=NO_DATA`とする。
-- **INV-008 Immutable accounting**: 確定Receiptは追記訂正だけを許し、当時のcontract、rate、FX revisionを保持する。
+- **INV-008 Immutable accounting**: canonical OperationReceipt wireは共通Schemaのまま確定後immutableとし、Brainbase価格台帳は同じ`receipt_id`へ当時のcontract、rate、FX、sales price revisionを別snapshotとして同一transactionで保持する。
 - **INV-009 Deployment isolation**: tenant、deployment、connection、credentialのいずれかが一致しない場合、別の組み合わせへfallbackしない。
 - **INV-010 Uniform boundary**: 管理API、MCP、background job、migration、監査ログで同じtenant解決・照合規則を使う。
 
@@ -274,32 +274,43 @@ QuotaDecisionは`allowed|warning|hard_stopped|approval_required|unavailable`の�
   "capability_id": "task.write",
   "quota_decision": "allowed|warning|hard_stopped|approval_required|unavailable",
   "credential_mode": "cloud_standard|customer_oauth|customer_api",
+  "collection_state": "collected|partial|not_collected",
   "outcome": "succeeded|failed|cancelled|timed_out",
   "failure_code": null,
-  "usage": {
-    "collection_state": "collected|partial|not_collected",
-    "observed_units": "decimal string or null",
-    "unknown_fields": []
-  },
+  "usage_event_ids": ["usage_<ULID>"],
   "reply": {
-    "state": "not_requested|pending|succeeded|failed"
+    "state": "not_requested|pending|succeeded|failed",
+    "reply_count": 0,
+    "legacy_reply_count": 0
   },
-  "pricing_snapshot": {
-    "rate_card_revision": 8,
-    "fx_table_revision": 5,
-    "sales_price_revision": 3,
-    "purchase_currency": "USD",
-    "purchase_minor_units": 123,
-    "billing_currency": "JPY",
-    "billing_minor_units": 190,
-    "fx_rate_decimal": "150.1234",
-    "effective_at": "RFC3339"
-  },
-  "finalized_at": "RFC3339"
+  "completed_at": "RFC3339"
 }
 ```
 
-`partial|not_collected`では未知の金額を`0`にせず、未知フィールドを`null`、既知部分だけを保存する。Receiptはfinalize後immutableで、訂正Receiptだけが既存Receiptを参照できる。terminal claimとReceiptは最低30日保持する。
+canonical OperationReceiptはmana-runtime PR #237のSchemaと同値で、`pricing_snapshot`を含む追加propertyを拒否する。`partial|not_collected`では未知の金額を`0`にせず、既知部分と未知部分は紐づくUsageEventで保持する。Receiptはfinalize後immutableで、訂正Receiptだけが既存Receiptを参照できる。terminal claimとReceiptは最低30日保持する。
+
+#### Brainbase価格台帳extension
+
+価格情報はcanonical wireへ混ぜず、同じ`receipt_id`を主キーにBrainbase所有の別tableへ保存する。Receipt確定と価格snapshot保存は同一transactionで行い、tenant限定history APIだけが読み出せる。
+
+```json
+{
+  "receipt_id": "receipt_<ULID>",
+  "tenant_id": "ten_<ULID>",
+  "contract_revision": "11",
+  "rate_card_revision": "8",
+  "fx_table_revision": "5",
+  "sales_price_revision": "3",
+  "purchase_currency": "USD",
+  "purchase_minor_units": 123,
+  "billing_currency": "JPY",
+  "billing_minor_units": 190,
+  "fx_rate_decimal": "150.1234",
+  "effective_at": "RFC3339"
+}
+```
+
+3つの価格revisionは確定時にContract Authorityのauthoritative revisionと一致しなければ拒否する。canonical Receiptと価格snapshotは追記訂正以外で更新しない。共通契約へこのextensionを追加する必要はなく、外部runtimeへ送るOperationReceiptは常にcanonical Schemaだけに従う。
 
 ### Contract-08: Business-effect idempotency ledger
 
@@ -337,7 +348,8 @@ QuotaDecisionは`allowed|warning|hard_stopped|approval_required|unavailable`の�
 | `POST /api/v1/runtime/quota:decide` | Envelope、metric、requested quantity | `200 QuotaDecision` | contract revisionを固定した判断 |
 | `POST /api/v1/runtime/usage-events` | Envelope、UsageEvent | `202 UsageEvent` | 成否に関係なく冪等記録 |
 | `POST /api/v1/runtime/operation-receipts:finalize` | Envelope、correlation、operation／usage set | `201 OperationReceipt` | outcomeとcollection stateを分離して保存 |
-| `GET /api/v1/runtime/operation-receipts/{receipt_id}` | Envelope | `200 OperationReceipt` | tenant／deployment／correlationを照合 |
+| `POST /api/v1/runtime/operation-receipts:finalize-with-pricing` | Envelope、canonical OperationReceipt、Brainbase価格snapshot | `201 { receipt, pricing_snapshot }` | Receiptと価格revisionを同一transactionで保存 |
+| `POST /api/v1/runtime/operation-receipts/{receipt_id}/history:read` | Envelope | `200 [{ receipt, pricing_snapshot }]` | tenantを照合しimmutable historyを返す |
 
 `tenant-context:resolve`のselectorは`connection_id + connection_revision`、または管理面で事前登録したexternal mapping keyだけを許す。workspace ID単体から曖昧候補を選ばない。
 
@@ -436,7 +448,7 @@ dry-runは書込み0件で、対象ID、推奨tenant、根拠、ambiguityを出�
 
 ## 8. Scenariosとfixture
 
-fixtureは設計／CI証拠であり本番readbackではない。Brainbase adapterは環境変数で指定したmana-runtime固定HEADの`contracts/mana-brainbase-tenant-context/v1/fixtures/manifest.json`を直接読み、manifestに列挙された18件だけを実行する。Brainbase repositoryへ共通fixtureやtest keyを複製しない。
+fixtureは設計／CI証拠であり本番readbackではない。Brainbase adapterは環境変数で指定したmana-runtime固定HEADの`contracts/mana-brainbase-tenant-context/v1/fixtures/manifest.json`を直接読み、manifestに列挙された23件だけを実行する。Brainbase repositoryへ共通fixtureやtest keyを複製しない。
 
 ### positive
 
@@ -501,6 +513,9 @@ tenant context、署名／時刻、revision、認可、credential scope、isolat
 | `tests/server/services/multitenant/postgres-repository.test.js` | PostgreSQL repository moduleがなくimport不能 | transaction-local RLS、authoritative revision、refresh CAS、idempotency claim |
 | `tests/server/services/multitenant/service-auth.test.js` | service auth moduleがなくimport不能 | issuer、subject、audience、deployment、expiry、capability |
 | `tests/server/routes/tenant-runtime-contract.test.js`（Envelope境界） | tenant不一致bodyを`403`で拒否できず`200`になり失敗 | 検証済みEnvelopeへの業務入力束縛 |
+| `tests/server/services/multitenant/canonical-wire-strictness.test.js` | required欠落、unknown property、ID／enum／時刻／hash／revision／数量違反を旧validatorが受理して失敗 | canonical Schema同値のstrict rejection |
+| `tests/server/services/multitenant/tenant-boundary-entrypoints.test.js` | 5 entrypoint共通gatewayがなく永続resource ownerを照合できず失敗 | 管理API、MCP、background job、migration、audit log |
+| `tests/server/services/multitenant/postgres-migration-adapter.integration.test.js` | PostgreSQL adapterが存在せずtransactional apply／rollback／tenant readback不能 | 実PostgreSQL migration境界、rollback、tenant isolation |
 
 Redの成立条件は「新contractがないため期待した箇所で失敗する」ことであり、環境変数不足、外部サービス停止、秘密値不足による失敗はRed証拠にしない。各Redを確認後、slice単位で最小実装し、Green、既存回帰、Refactorへ進む。
 
@@ -523,7 +538,7 @@ Redの成立条件は「新contractがないため期待した箇所で失敗す
 | `AC-202` | Contract-06、BBMT-P-004 | `tenant-usage-receipt: attributes every consumer by correlation` | token集計はあるがtenant ledgerがない |
 | `AC-203` | Contract-05、quota event | `tenant-usage-receipt: 50 80 100 and overage decisions` | quota policy／decisionがない |
 | `AC-204` | INV-007、Contract-06／07、BBMT-N-008 | `tenant-usage-receipt: failed cost and not_collected are distinct` | OperationReceiptにcollection state分離がない |
-| `AC-205` | INV-008、Contract-05／07 | `tenant-usage-receipt: historical rate fx sales revisions` | rate／FX／販売価格revisionがない |
+| `AC-205` | INV-008、Contract-05／07、Brainbase価格台帳extension | `tenant-usage-receipt: canonical receipt plus historical rate fx sales revisions` | canonical wireと価格履歴の永続境界が分離されていない |
 | `AC-301` | Contract-04〜08、BBMT-P-005／006 | `tenant-runtime-contract: cloud and oss fixture parity` | 共通runtime APIがない |
 | `AC-302` | Protocol negotiation、BBMT-N-009 | `tenant-runtime-contract: version range required optional compatibility` | negotiation endpoint／capability schemaがない |
 | `AC-303` | Protocol negotiation、BBMT-NA-001／003 | `tenant-runtime-contract: cloud optional features are non-applicable` | Cloud／OSS capability分類がない |
@@ -556,10 +571,10 @@ blocking open decisionは0件である。今後D-001〜D-009の意味を変え�
 | Graphify／codebase graph差分調査 | 確認済み。現行のorganization fallback、tenant ledger不在、Receipt境界不足を確認 |
 | VibePro Spec readiness | ready |
 | 21 AC trace | 本SpecとVibePro機械Specで定義 |
-| canonical conformance kit | mana-runtime PR #237 HEAD `37dd9f5eee783b9b3ba94c31c9c7e32f7afa3351`、fixture SHA-256 `81c73707578ae42d6ed539aae3ac1e8eb3b0feac906e3856e73d8cdf6629d454`へ固定 |
-| positive／negative／non-applicable fixture | 共通manifestの18件を直接読むBrainbase adapter testで検証する。本番readbackではない |
-| TDD Red | 実行済み。module／schema／route／Envelope境界の欠落を実装前に固定 |
-| 対象unit／schema／repository／route／contract | 14 test files、68 tests Green。共通adapterは別途20 tests Green（manifest 18件とsource-lock／冪等式2件） |
+| canonical conformance kit | mana-runtime PR #237 remote HEAD `2bcb70e1b6c7a65c44cc9fa303a3fb64a98b8589`、fixture SHA-256 `9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833`へ固定 |
+| positive／negative／non-applicable fixture | 共通manifestの23件を直接読むBrainbase adapter testで検証する。本番readbackではない |
+| TDD Red | 実行済み。strictnessは19失敗、更新kitはsource lockとOperationReceipt dispatchの2失敗を実装前に固定 |
+| 対象unit／schema／repository／route／contract | 17 test files、98 tests Green（実PostgreSQL Testcontainersを含む）。共通adapterは別途25 tests Green（manifest 23件とsource-lock／冪等式2件） |
 | repository全体のCI | この時点では未取得。PR push後に別途readbackする |
 | Cloud／OSS deployment readback | `not_collected` |
 | 実Slackイベント〜Receipt E2E | `not_collected` |

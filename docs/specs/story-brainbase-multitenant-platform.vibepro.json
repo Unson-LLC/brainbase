@@ -8,9 +8,9 @@
   "lifecycle": "final",
   "cross_lane_contract_source": {
     "pull_request": "https://github.com/Unson-LLC/mana-runtime/pull/237",
-    "head": "37dd9f5eee783b9b3ba94c31c9c7e32f7afa3351",
+    "head": "2bcb70e1b6c7a65c44cc9fa303a3fb64a98b8589",
     "kit_path": "contracts/mana-brainbase-tenant-context/v1",
-    "fixture_set_sha256": "81c73707578ae42d6ed539aae3ac1e8eb3b0feac906e3856e73d8cdf6629d454",
+    "fixture_set_sha256": "9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833",
     "decision_ids": [
       "D-001",
       "D-002",
@@ -250,11 +250,11 @@
     }
   },
   "fixtures": {
-    "canonical_source": "mana-runtime PR #237 HEAD 37dd9f5eee783b9b3ba94c31c9c7e32f7afa3351 contracts/mana-brainbase-tenant-context/v1/fixtures/manifest.json",
-    "fixture_set_sha256": "81c73707578ae42d6ed539aae3ac1e8eb3b0feac906e3856e73d8cdf6629d454",
+    "canonical_source": "mana-runtime PR #237 remote HEAD 2bcb70e1b6c7a65c44cc9fa303a3fb64a98b8589 contracts/mana-brainbase-tenant-context/v1/fixtures/manifest.json",
+    "fixture_set_sha256": "9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833",
     "adapter_test": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
     "positive_count": 1,
-    "negative_count": 16,
+    "negative_count": 21,
     "non_applicable_count": 1,
     "duplication_policy": "Brainbase adapter reads the shared manifest and fixture files directly; copied fixtures or independently restated expected results are not conformance evidence",
     "execution_evidence": "adapter_and_route_tests_green_not_production_readback"
@@ -970,7 +970,7 @@
     {
       "id": "BBMT-AC-205",
       "type": "contract",
-      "statement": "OperationReceiptはpurchase rate、FX、sales priceのrevision、currency、minor units、effective timestampをpricing_snapshotとして固定し、確定後は元Receiptを参照する訂正Receiptだけで変更する",
+      "statement": "canonical OperationReceipt wireは共通Schemaのまま確定し、Brainbase価格台帳は同じreceipt_idへpurchase rate、FX、sales priceのrevision、currency、minor units、effective timestampを別immutable snapshotとして同一transactionで固定する",
       "origin": {
         "story_refs": [
           {
@@ -989,13 +989,30 @@
             "file": "server/services/multitenant/contract-usage-ledger.js"
           },
           {
+            "file": "server/services/multitenant/postgres-contract-usage-ledger.js"
+          },
+          {
+            "file": "server/services/multitenant/postgres-repository.js"
+          },
+          {
+            "file": "server/routes/tenant-runtime.js"
+          },
+          {
             "file": "server/sql/multitenant-platform-schema.sql"
           }
         ],
         "test_refs": [
           {
         "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
-        "case": "AC-205: Receiptへ当時のrate・FX・販売価格revisionをimmutable snapshotとして固定する"
+        "case": "AC-205: canonical Receiptを変えずBrainbase価格revisionをimmutable snapshotとして固定する"
+          },
+          {
+        "file": "tests/server/services/multitenant/postgres-repository.test.js",
+        "case": "AC-205: canonical Receiptと価格snapshotを同一transactionで保存しtenant限定historyを返す"
+          },
+          {
+        "file": "tests/server/routes/tenant-runtime-contract.test.js",
+        "case": "AC-205: HTTP finalize-with-pricingからledger保存とtenant限定history readbackへ接続する"
           }
         ]
       },
@@ -1003,6 +1020,14 @@
         "test_pattern": [
           {
             "file_glob": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "must_cover": "AC-205"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/postgres-repository.test.js",
+            "must_cover": "AC-205"
+          },
+          {
+            "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
             "must_cover": "AC-205"
           }
         ]

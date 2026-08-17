@@ -3,7 +3,7 @@ story_id: story-brainbase-multitenant-platform
 title: BrainbaseをCloud／OSS共通のマルチテナント基盤にする
 status: active
 created_at: 2026-08-16
-updated_at: 2026-08-16
+updated_at: 2026-08-17
 horizon: quarter
 view: product
 source:
@@ -81,7 +81,7 @@ Slackイベントの受信、Cloudflare Worker／Queue／Durable Object／Contai
 - [ ] `AC-202`: 実行相関IDからAI、tool、Container、retry、外部APIの消費をtenantへ帰属させる。
 - [ ] `AC-203`: 50%、80%、100%等の警告、hard stop、超過許可をplanとして表現できる。
 - [ ] `AC-204`: 失敗した実行の消費原価も記録し、未計測を0円に丸めない。
-- [ ] `AC-205`: 為替、仕入単価、販売価格、適用開始日、改定履歴をReceipt集計から追跡できる。
+- [ ] `AC-205`: canonical OperationReceipt wireを変更せず、同じ`receipt_id`に紐づくBrainbase価格台帳から為替、仕入単価、販売価格、適用開始日、改定履歴を追跡できる。
 
 **Cloud／OSS共通接続契約**
 

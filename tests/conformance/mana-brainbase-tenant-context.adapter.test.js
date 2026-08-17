@@ -107,6 +107,7 @@ async function validateNegative(fixture, base, key) {
     if (fixture.target === 'quota_decision') return validateQuotaDecision(mutated);
     if (fixture.target.startsWith('usage_events/')) return normalizeUsageEvent(mutated);
     if (fixture.target.startsWith('idempotency_claims/')) return validateIdempotencyClaim(mutated);
+    if (fixture.target === 'operation_receipt') return validateOperationReceipt(mutated);
     assert.fail(`Unknown fixture target: ${fixture.target}`);
 }
 
@@ -120,13 +121,13 @@ const fixtureCases = [
 ];
 
 describe('Brainbase producer adapter reads the canonical PR #237 manifest', () => {
-    it('locks the fixed commit, manifest digest, and all 18 shared fixtures', async () => {
+    it('locks the fixed commit, manifest digest, and all 23 shared fixtures', async () => {
         expect(configuredCommit).toBe(sourceLock.commit);
         expect(manifest.fixture_set_sha256).toBe(sourceLock.fixture_set_sha256);
         expect(await fixtureSetDigest(manifest)).toBe(sourceLock.fixture_set_sha256);
         expect(fixtureCases).toHaveLength(sourceLock.fixture_count);
         expect(manifest.positive).toHaveLength(1);
-        expect(manifest.negative).toHaveLength(16);
+        expect(manifest.negative).toHaveLength(21);
         expect(manifest.non_applicable).toHaveLength(1);
         expect(sourceLock.evidence_boundary).toBe('shared_contract_fixture_not_production_readback');
     });
