@@ -1,6 +1,18 @@
 import { ContractError } from './errors.js';
 import { canonicalJson } from './canonical-json.js';
 
+const OWNED_RESOURCE_TABLES = Object.freeze({
+    organization: { table: 'tenant_organizations', id: 'organization_id' },
+    membership: { table: 'tenant_memberships', id: 'membership_id' },
+    project: { table: 'tenant_projects', id: 'project_id' },
+    graph_entity: { table: 'tenant_graph_entities', id: 'entity_id' },
+    graph_relation: { table: 'tenant_graph_relations', id: 'relation_id' },
+    workspace_connection: { table: 'workspace_connections', id: 'connection_id' },
+    contract: { table: 'tenant_contract_revisions', id: 'contract_id' },
+    usage_event: { table: 'tenant_usage_events', id: 'usage_event_id' },
+    operation_receipt: { table: 'tenant_operation_receipts', id: 'receipt_id' }
+});
+
 function unavailable(error) {
     if (error instanceof ContractError) return error;
     return new ContractError('UPSTREAM_UNAVAILABLE', {
@@ -64,6 +76,38 @@ async function readConnectionRevision(client, {
     };
 }
 
+async function insertReceipt(client, receipt) {
+    const result = await client.query(
+        `INSERT INTO tenant_operation_receipts (
+            receipt_id, protocol_version, tenant_id, tenant_revision_at_write,
+            connection_id, connection_revision, contract_revision, deployment_id,
+            correlation_id, operation_ids, idempotency_keys, actor_principal_id,
+            project_id, capability_id, quota_decision, credential_mode, outcome,
+            collection_state, failure_code, usage_event_ids, reply, completed_at,
+            receipt_payload
+         ) SELECT $1,$2,$3,t.tenant_revision,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21,$22::jsonb
+           FROM brainbase_tenants t
+          WHERE t.tenant_id = $3
+         ON CONFLICT (receipt_id) DO UPDATE
+         SET receipt_payload = tenant_operation_receipts.receipt_payload
+         RETURNING receipt_payload`,
+        [
+            receipt.receipt_id, receipt.protocol_version, receipt.tenant_id, receipt.connection_id,
+            receipt.connection_revision, receipt.contract_revision, receipt.deployment_id,
+            receipt.correlation_id, receipt.operation_ids, receipt.idempotency_keys,
+            receipt.actor_principal_id, receipt.project_id, receipt.capability_id,
+            receipt.quota_decision, receipt.credential_mode, receipt.outcome,
+            receipt.collection_state, receipt.failure_code, receipt.usage_event_ids,
+            canonicalJson(receipt.reply), receipt.completed_at, canonicalJson(receipt)
+        ]
+    );
+    const stored = result.rows[0]?.receipt_payload;
+    if (!stored || canonicalJson(stored) !== canonicalJson(receipt)) {
+        throw new ContractError('IDEMPOTENCY_CONFLICT', { status: 409 });
+    }
+    return stored;
+}
+
 export class MultitenantPostgresRepository {
     constructor({ pool, now = () => new Date() } = {}) {
         if (!pool) throw new Error('Multitenant PostgreSQL pool is required');
@@ -102,6 +146,31 @@ export class MultitenantPostgresRepository {
             app_id,
             required_scopes
         }));
+    }
+
+    async resolveOwnedResource({ tenant_id: tenantId, object_type: objectType, resource_id: resourceId }) {
+        const descriptor = OWNED_RESOURCE_TABLES[objectType];
+        if (!descriptor || typeof resourceId !== 'string' || resourceId.length === 0) {
+            throw new ContractError('TENANT_BOUNDARY_INVALID', { status: 400 });
+        }
+        return this.withTenant(tenantId, async (client) => {
+            const result = await client.query(
+                `SELECT tenant_id, tenant_revision_at_write
+                 FROM ${descriptor.table}
+                 WHERE tenant_id = $1 AND ${descriptor.id} = $2
+                 ORDER BY tenant_revision_at_write DESC
+                 LIMIT 1
+                 FOR SHARE`,
+                [tenantId, resourceId]
+            );
+            const row = result.rows[0];
+            return row ? {
+                object_type: objectType,
+                resource_id: resourceId,
+                tenant_id: row.tenant_id,
+                tenant_revision_at_write: String(row.tenant_revision_at_write)
+            } : null;
+        });
     }
 
     async resolveRuntimeContext({
@@ -185,7 +254,7 @@ export class MultitenantPostgresRepository {
             const result = await client.query(
                 `SELECT tenant_id, contract_id, contract_revision, allowances,
                         thresholds_basis_points, overage_policy, hard_stop_basis_points,
-                        rate_card_revision, fx_table_revision
+                        rate_card_revision, fx_table_revision, sales_price_revision
                  FROM tenant_contract_revisions
                  WHERE tenant_id = $1
                    AND contract_revision = $2
@@ -208,6 +277,7 @@ export class MultitenantPostgresRepository {
                 contract_revision: String(contract.contract_revision),
                 rate_card_revision: Number(contract.rate_card_revision),
                 fx_table_revision: Number(contract.fx_table_revision),
+                sales_price_revision: Number(contract.sales_price_revision),
                 hard_stop_basis_points: Number(contract.hard_stop_basis_points)
             };
         });
@@ -306,36 +376,54 @@ export class MultitenantPostgresRepository {
     }
 
     async finalizeReceipt(receipt) {
+        return this.withTenant(receipt.tenant_id, (client) => insertReceipt(client, receipt));
+    }
+
+    async finalizeReceiptWithPricing({ receipt, pricing_snapshot: pricingSnapshot }) {
         return this.withTenant(receipt.tenant_id, async (client) => {
+            const storedReceipt = await insertReceipt(client, receipt);
             const result = await client.query(
-                `INSERT INTO tenant_operation_receipts (
-                    receipt_id, protocol_version, tenant_id, tenant_revision_at_write,
-                    connection_id, connection_revision, contract_revision, deployment_id,
-                    correlation_id, operation_ids, idempotency_keys, actor_principal_id,
-                    project_id, capability_id, quota_decision, credential_mode, outcome,
-                    collection_state, failure_code, usage_event_ids, reply, completed_at,
-                    receipt_payload
-                 ) SELECT $1,$2,$3,t.tenant_revision,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21,$22::jsonb
-                   FROM brainbase_tenants t
-                  WHERE t.tenant_id = $3
+                `INSERT INTO tenant_receipt_pricing_snapshots (
+                    receipt_id, tenant_id, rate_card_revision, fx_table_revision,
+                    sales_price_revision, purchase_currency, purchase_minor_units,
+                    billing_currency, billing_minor_units, fx_rate_decimal, effective_at,
+                    pricing_payload
+                 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)
                  ON CONFLICT (receipt_id) DO UPDATE
-                 SET receipt_payload = tenant_operation_receipts.receipt_payload
-                 RETURNING receipt_payload`,
+                 SET pricing_payload = tenant_receipt_pricing_snapshots.pricing_payload
+                 RETURNING pricing_payload`,
                 [
-                    receipt.receipt_id, receipt.protocol_version, receipt.tenant_id, receipt.connection_id,
-                    receipt.connection_revision, receipt.contract_revision, receipt.deployment_id,
-                    receipt.correlation_id, receipt.operation_ids, receipt.idempotency_keys,
-                    receipt.actor_principal_id, receipt.project_id, receipt.capability_id,
-                    receipt.quota_decision, receipt.credential_mode, receipt.outcome,
-                    receipt.collection_state, receipt.failure_code, receipt.usage_event_ids,
-                    canonicalJson(receipt.reply), receipt.completed_at, canonicalJson(receipt)
+                    receipt.receipt_id, receipt.tenant_id, pricingSnapshot.rate_card_revision,
+                    pricingSnapshot.fx_table_revision, pricingSnapshot.sales_price_revision,
+                    pricingSnapshot.purchase_currency, pricingSnapshot.purchase_minor_units,
+                    pricingSnapshot.billing_currency, pricingSnapshot.billing_minor_units,
+                    pricingSnapshot.fx_rate_decimal, pricingSnapshot.effective_at,
+                    canonicalJson(pricingSnapshot)
                 ]
             );
-            const stored = result.rows[0]?.receipt_payload;
-            if (!stored || canonicalJson(stored) !== canonicalJson(receipt)) {
+            const storedPricing = result.rows[0]?.pricing_payload;
+            if (!storedPricing || canonicalJson(storedPricing) !== canonicalJson(pricingSnapshot)) {
                 throw new ContractError('IDEMPOTENCY_CONFLICT', { status: 409 });
             }
-            return stored;
+            return { receipt: storedReceipt, pricing_snapshot: storedPricing };
+        });
+    }
+
+    async readReceiptHistory({ tenant_id: tenantId, receipt_id: receiptId }) {
+        return this.withTenant(tenantId, async (client) => {
+            const result = await client.query(
+                `SELECT r.receipt_payload, p.pricing_payload
+                   FROM tenant_operation_receipts r
+                   JOIN tenant_receipt_pricing_snapshots p
+                     ON p.tenant_id = r.tenant_id AND p.receipt_id = r.receipt_id
+                  WHERE r.tenant_id = $1 AND r.receipt_id = $2
+                  ORDER BY p.effective_at ASC`,
+                [tenantId, receiptId]
+            );
+            return result.rows.map((row) => ({
+                receipt: row.receipt_payload,
+                pricing_snapshot: row.pricing_payload
+            }));
         });
     }
 }

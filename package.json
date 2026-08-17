@@ -132,6 +132,7 @@
     "@assistant-ui/react-markdown": "^0.14.1",
     "@assistant-ui/react-ui": "^0.2.1",
     "@playwright/test": "^1.48.0",
+    "@testcontainers/postgresql": "^11.14.0",
     "@vitest/coverage-v8": "^4.0.16",
     "@xterm/headless": "^5.5.0",
     "esbuild": "^0.28.0",

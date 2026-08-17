@@ -87,13 +87,13 @@ describe('MultitenantPostgresRepository', () => {
                 tenant_id: 'ten_a', contract_id: 'ctr_a', contract_revision: 11,
                 allowances: { model_tokens: 1000 }, thresholds_basis_points: [8000, 10000],
                 overage_policy: 'deny', hard_stop_basis_points: 10000,
-                rate_card_revision: 8, fx_table_revision: 5
+                rate_card_revision: 8, fx_table_revision: 5, sales_price_revision: 3
             }]
         });
         const repository = new MultitenantPostgresRepository({ pool });
 
         await expect(repository.loadContractRevision({ tenant_id: 'ten_a', contract_revision: '11' }))
-            .resolves.toMatchObject({ contract_revision: '11', rate_card_revision: 8, fx_table_revision: 5 });
+            .resolves.toMatchObject({ contract_revision: '11', rate_card_revision: 8, fx_table_revision: 5, sales_price_revision: 3 });
         expect(client.query.mock.calls.some(([sql]) => sql.includes('FOR SHARE'))).toBe(true);
     });
 
@@ -134,5 +134,40 @@ describe('MultitenantPostgresRepository', () => {
             const indexes = [...sql.matchAll(/\$(\d+)/g)].map((match) => Number(match[1]));
             expect(Math.max(...indexes), sql).toBe(params.length);
         }
+    });
+
+    it('AC-205: canonical Receiptと価格snapshotを同一transactionで保存しtenant限定historyを返す', async () => {
+        const receipt = {
+            receipt_id: 'receipt_a', tenant_id: 'ten_a', protocol_version: '1.0', connection_id: 'wsc_a',
+            connection_revision: '7', contract_revision: '11', deployment_id: 'dep_a', correlation_id: 'cor_a',
+            operation_ids: ['op_a'], idempotency_keys: ['ik1_a'], actor_principal_id: 'person-a', project_id: null,
+            capability_id: 'task.read', quota_decision: 'allowed', credential_mode: 'customer_oauth', outcome: 'failed',
+            collection_state: 'partial', failure_code: 'UPSTREAM_PARTIAL', usage_event_ids: [],
+            reply: { state: 'failed', reply_count: 0, legacy_reply_count: 0 }, completed_at: '2026-08-16T00:00:01Z'
+        };
+        const pricingSnapshot = {
+            rate_card_revision: '8', fx_table_revision: '5', sales_price_revision: '3', purchase_currency: 'USD',
+            purchase_minor_units: null, billing_currency: 'JPY', billing_minor_units: null,
+            fx_rate_decimal: '150.1234', effective_at: '2026-08-16T00:00:01Z'
+        };
+        const { pool, client } = poolWithRows({
+            'INSERT INTO tenant_operation_receipts': [{ receipt_payload: receipt }],
+            'INSERT INTO tenant_receipt_pricing_snapshots': [{ pricing_payload: pricingSnapshot }],
+            'SELECT r.receipt_payload': [{ receipt_payload: receipt, pricing_payload: pricingSnapshot }]
+        });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.finalizeReceiptWithPricing({ receipt, pricing_snapshot: pricingSnapshot }))
+            .resolves.toEqual({ receipt, pricing_snapshot: pricingSnapshot });
+        await expect(repository.readReceiptHistory({ tenant_id: 'ten_a', receipt_id: 'receipt_a' }))
+            .resolves.toEqual([{ receipt, pricing_snapshot: pricingSnapshot }]);
+        expect(client.query.mock.calls.filter(([sql]) => sql === 'BEGIN')).toHaveLength(2);
+        const finalizeBegin = client.query.mock.calls.findIndex(([sql]) => sql === 'BEGIN');
+        const receiptInsert = client.query.mock.calls.findIndex(([sql]) => sql.includes('INSERT INTO tenant_operation_receipts'));
+        const pricingInsert = client.query.mock.calls.findIndex(([sql]) => sql.includes('INSERT INTO tenant_receipt_pricing_snapshots'));
+        const finalizeCommit = client.query.mock.calls.findIndex(([sql]) => sql === 'COMMIT');
+        expect(finalizeBegin).toBeLessThan(receiptInsert);
+        expect(receiptInsert).toBeLessThan(pricingInsert);
+        expect(pricingInsert).toBeLessThan(finalizeCommit);
     });
 });

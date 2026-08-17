@@ -33,11 +33,14 @@ function createRepository() {
             overage_policy: 'deny',
             hard_stop_basis_points: 10000,
             rate_card_revision: 8,
-            fx_table_revision: 5
+            fx_table_revision: 5,
+            sales_price_revision: 3
         })),
         recordQuotaDecision: vi.fn(async (decision) => decision),
         recordUsage: vi.fn(async (event) => event),
         finalizeReceipt: vi.fn(async (receipt) => receipt),
+        finalizeReceiptWithPricing: vi.fn(async (input) => input),
+        readReceiptHistory: vi.fn(async () => []),
         claimBusinessEffect: vi.fn(async ({ claim }) => claim)
     };
 }
@@ -152,5 +155,37 @@ describe('PostgresContractUsageLedger', () => {
 
         await expect(ledger.claimEffect(claim, { connection_revision: ids.connection_revision })).resolves.toEqual(claim);
         expect(repository.claimBusinessEffect).toHaveBeenCalledWith({ claim, connection_revision: '7' });
+    });
+
+    it('AC-205: authoritative価格revision一致時だけReceiptとsnapshotを同一永続境界へ渡す', async () => {
+        const repository = createRepository();
+        const ledger = new PostgresContractUsageLedger({ repository, now: () => now });
+        const receipt = {
+            message_type: 'operation_receipt', receipt_id: 'receipt_01ARZ3NDEKTSV4RRFFQ69G5FB6',
+            protocol_version: '1.0', tenant_id: ids.tenant_id, connection_id: ids.connection_id,
+            connection_revision: ids.connection_revision, contract_revision: ids.contract_revision,
+            deployment_id: ids.deployment_id, correlation_id: ids.correlation_id,
+            operation_ids: [ids.operation_id], idempotency_keys: [idempotencyKey],
+            actor_principal_id: 'person-a', project_id: 'project-a', capability_id: 'task.read',
+            quota_decision: 'allowed', credential_mode: 'customer_oauth', collection_state: 'partial',
+            outcome: 'failed', failure_code: 'UPSTREAM_PARTIAL', usage_event_ids: [],
+            reply: { state: 'failed', reply_count: 0, legacy_reply_count: 0 },
+            completed_at: '2026-08-16T13:01:35Z'
+        };
+        const pricingSnapshot = {
+            rate_card_revision: '8', fx_table_revision: '5', sales_price_revision: '3',
+            purchase_currency: 'USD', purchase_minor_units: null,
+            billing_currency: 'JPY', billing_minor_units: null,
+            fx_rate_decimal: '150.1234', effective_at: '2026-08-16T13:01:35Z'
+        };
+
+        await expect(ledger.finalizeReceiptWithPricing({ receipt, pricing_snapshot: pricingSnapshot }))
+            .resolves.toEqual({ receipt, pricing_snapshot: pricingSnapshot });
+        expect(repository.finalizeReceiptWithPricing).toHaveBeenCalledWith({ receipt, pricing_snapshot: pricingSnapshot });
+        await expect(ledger.finalizeReceiptWithPricing({
+            receipt,
+            pricing_snapshot: { ...pricingSnapshot, fx_table_revision: '6' }
+        })).rejects.toMatchObject({ code: 'PRICING_REVISION_MISMATCH' });
+        expect(repository.finalizeReceiptWithPricing).toHaveBeenCalledTimes(1);
     });
 });

@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS tenant_contract_revisions (
     hard_stop_basis_points INTEGER NOT NULL,
     rate_card_revision BIGINT NOT NULL,
     fx_table_revision BIGINT NOT NULL,
+    sales_price_revision BIGINT NOT NULL,
     PRIMARY KEY (tenant_id, contract_id, contract_revision),
     UNIQUE (tenant_id, contract_revision),
     FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision)
@@ -202,6 +203,23 @@ CREATE TABLE IF NOT EXISTS tenant_operation_receipts (
     UNIQUE (tenant_id, receipt_id)
 );
 
+CREATE TABLE IF NOT EXISTS tenant_receipt_pricing_snapshots (
+    receipt_id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
+    rate_card_revision TEXT NOT NULL CHECK (rate_card_revision ~ '^(0|[1-9][0-9]*)$'),
+    fx_table_revision TEXT NOT NULL CHECK (fx_table_revision ~ '^(0|[1-9][0-9]*)$'),
+    sales_price_revision TEXT NOT NULL CHECK (sales_price_revision ~ '^(0|[1-9][0-9]*)$'),
+    purchase_currency TEXT NOT NULL CHECK (purchase_currency ~ '^[A-Z]{3}$'),
+    purchase_minor_units BIGINT CHECK (purchase_minor_units >= 0),
+    billing_currency TEXT NOT NULL CHECK (billing_currency ~ '^[A-Z]{3}$'),
+    billing_minor_units BIGINT CHECK (billing_minor_units >= 0),
+    fx_rate_decimal NUMERIC NOT NULL CHECK (fx_rate_decimal > 0),
+    effective_at TIMESTAMPTZ NOT NULL,
+    pricing_payload JSONB NOT NULL,
+    FOREIGN KEY (tenant_id, receipt_id) REFERENCES tenant_operation_receipts(tenant_id, receipt_id),
+    UNIQUE (tenant_id, receipt_id)
+);
+
 CREATE TABLE IF NOT EXISTS tenant_business_effect_claims (
     idempotency_key TEXT PRIMARY KEY CHECK (idempotency_key ~ '^ik1_[A-Za-z0-9_-]{43}$'),
     tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
@@ -245,6 +263,20 @@ CREATE TABLE IF NOT EXISTS tenant_migration_quarantine (
     FOREIGN KEY (tenant_id, migration_id) REFERENCES tenant_migrations(tenant_id, migration_id)
 );
 
+CREATE TABLE IF NOT EXISTS tenant_migration_source_rows (
+    source_id TEXT PRIMARY KEY,
+    source_revision BIGINT NOT NULL CHECK (source_revision > 0),
+    tenant_id TEXT,
+    tenant_revision_at_write BIGINT,
+    source_payload JSONB NOT NULL,
+    applied_migration_id TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK ((tenant_id IS NULL AND tenant_revision_at_write IS NULL AND applied_migration_id IS NULL)
+        OR (tenant_id IS NOT NULL AND tenant_revision_at_write IS NOT NULL AND applied_migration_id IS NOT NULL)),
+    FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision),
+    FOREIGN KEY (tenant_id, applied_migration_id) REFERENCES tenant_migrations(tenant_id, migration_id)
+);
+
 ALTER TABLE tenant_organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_memberships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_projects ENABLE ROW LEVEL SECURITY;
@@ -257,9 +289,11 @@ ALTER TABLE tenant_contract_revisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_quota_decisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_usage_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_operation_receipts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_receipt_pricing_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_business_effect_claims ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_migrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_migration_quarantine ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_migration_source_rows ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE tenant_organizations FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_memberships FORCE ROW LEVEL SECURITY;
@@ -273,9 +307,11 @@ ALTER TABLE tenant_contract_revisions FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_quota_decisions FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_usage_events FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_operation_receipts FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_receipt_pricing_snapshots FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_business_effect_claims FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_migrations FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_migration_quarantine FORCE ROW LEVEL SECURITY;
+ALTER TABLE tenant_migration_source_rows FORCE ROW LEVEL SECURITY;
 
 CREATE OR REPLACE FUNCTION brainbase_current_tenant_id()
 RETURNS TEXT
@@ -291,7 +327,7 @@ BEGIN
         'tenant_organizations', 'tenant_memberships', 'tenant_projects',
         'tenant_graph_entities', 'tenant_graph_relations', 'workspace_connections',
         'workspace_connection_revisions', 'credential_broker_refs', 'tenant_contract_revisions', 'tenant_quota_decisions',
-        'tenant_usage_events', 'tenant_operation_receipts', 'tenant_business_effect_claims',
+        'tenant_usage_events', 'tenant_operation_receipts', 'tenant_receipt_pricing_snapshots', 'tenant_business_effect_claims',
         'tenant_migrations', 'tenant_migration_quarantine'
     ] LOOP
         EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', table_name);
@@ -302,3 +338,14 @@ BEGIN
     END LOOP;
 END
 $brainbase_multitenant_rls$;
+
+DROP POLICY IF EXISTS tenant_migration_source_isolation ON tenant_migration_source_rows;
+CREATE POLICY tenant_migration_source_isolation ON tenant_migration_source_rows
+    USING (
+        tenant_id = current_setting('brainbase.tenant_id', true)
+        OR (current_setting('brainbase.migration_mode', true) = 'on' AND tenant_id IS NULL)
+    )
+    WITH CHECK (
+        tenant_id = current_setting('brainbase.tenant_id', true)
+        OR (current_setting('brainbase.migration_mode', true) = 'on' AND tenant_id IS NULL)
+    );

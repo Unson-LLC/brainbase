@@ -11,13 +11,14 @@ describe('multitenant persistence schema', () => {
             'brainbase_tenants', 'tenant_organizations', 'tenant_memberships', 'tenant_projects',
             'tenant_graph_entities', 'tenant_graph_relations', 'workspace_connections',
             'tenant_contract_revisions', 'tenant_quota_decisions', 'tenant_usage_events',
-            'tenant_operation_receipts'
+            'tenant_operation_receipts', 'tenant_receipt_pricing_snapshots',
+            'tenant_migrations', 'tenant_migration_quarantine', 'tenant_migration_source_rows'
         ]) {
             expect(sql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS\\s+${table}\\b`, 'i'));
         }
         expect(sql).toContain('tenant_revision_at_write');
         expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/);
-        expect((sql.match(/FORCE ROW LEVEL SECURITY/g) ?? [])).toHaveLength(15);
+        expect((sql.match(/FORCE ROW LEVEL SECURITY/g) ?? [])).toHaveLength(17);
         expect(sql).toContain("current_setting('brainbase.tenant_id', true)");
         expect(sql).toContain('FOREIGN KEY (tenant_id, organization_id) REFERENCES tenant_organizations(tenant_id, organization_id)');
         expect(sql).toContain('FOREIGN KEY (tenant_id, source_entity_id) REFERENCES tenant_graph_entities(tenant_id, entity_id)');
@@ -41,6 +42,8 @@ describe('multitenant persistence schema', () => {
         expect(sql).toContain('decision_payload JSONB NOT NULL');
         expect(sql).toContain('event_payload JSONB NOT NULL');
         expect(sql).toContain('receipt_payload JSONB NOT NULL');
+        expect(sql).toContain('pricing_payload JSONB NOT NULL');
+        expect(sql).toContain('sales_price_revision BIGINT NOT NULL');
         expect(sql).toContain('claim_payload JSONB NOT NULL');
         expect(sql).toContain('UNIQUE (tenant_id, contract_revision)');
         expect(sql).not.toMatch(/tenant_usage_events[\s\S]*?UNIQUE \(tenant_id, idempotency_key\)[\s\S]*?CREATE TABLE IF NOT EXISTS tenant_operation_receipts/);
