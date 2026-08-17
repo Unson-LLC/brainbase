@@ -1,0 +1,19 @@
+{
+  "schema_version": "brainbase.persona-value-round-summary.v1",
+  "round": 2,
+  "evaluation_kind": "independent_synthetic_persona_evaluation",
+  "persona_count": 32,
+  "recognized": 31,
+  "uncertain": 1,
+  "not_recognized": 0,
+  "not_executed": 0,
+  "new_product_major_count": 1,
+  "finding": {
+    "persona_id": "P-402-G0",
+    "status": "uncertain",
+    "reason": "中断後のrecovery_userが前提を再入力せず価値へ戻れる実MCP証拠が不足していた。"
+  },
+  "decision": "not_converged",
+  "next_action": "中断後の実Codex再開経路を追加し、保存文脈の復元と次の相談文までを再取得する。",
+  "human_observation": "not_collected"
+}

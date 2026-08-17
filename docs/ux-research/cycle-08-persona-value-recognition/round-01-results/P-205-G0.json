@@ -1,0 +1,74 @@
+{
+  "schema_version": "brainbase.persona-value-round.v1",
+  "cycle": "cycle-08-persona-value-recognition",
+  "round": 1,
+  "persona_id": "P-205-G0",
+  "evaluation_type": "synthetic_persona_evaluation",
+  "rotation": {
+    "role": "team_operator",
+    "cohort": "rotation",
+    "task_set_id": "team_operator-core",
+    "attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "medium",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "confirmation_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "none_declared"
+    }
+  },
+  "evaluation_mode": "independent_read_only_synthetic_evaluation",
+  "persona_operated_cli": false,
+  "duration_ms": 65055,
+  "journey_duration_ms": 65055,
+  "within_budget": true,
+  "evidence_reviewed": [
+    "rotation-manifest.json",
+    "evaluation-contract.md",
+    "baseline-terminal-corpus/manifest.json",
+    "baseline-terminal-corpus/baseline-01-registry-install.json",
+    "baseline-terminal-corpus/baseline-02-start.json",
+    "baseline-terminal-corpus/baseline-03-displayed-seed.json",
+    "baseline-terminal-corpus/baseline-04-install-preview.json",
+    "baseline-terminal-corpus/baseline-05-doctor.json",
+    "baseline-terminal-corpus/baseline-06-real-codex.json"
+  ],
+  "tasks": {
+    "T1_registry_install": { "status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:production_registry_install=true; baseline-01-registry-install.json:exit_code=0; @unson/brainbase-mcp@0.2.4" },
+    "T2_displayed_seed": { "status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:displayed_seed_executed=true; baseline-03-displayed-seed.json; baseline-05-doctor.json" },
+    "T3_mcp_setup_review": { "status": "pass_with_boundary", "evidence_ref": "baseline-04-install-preview.json; baseline-05-doctor.json:agentMcp.status=not_verified", "boundary": "previewとdoctorは実設定反映・運用登録の証明ではない" },
+    "T4_actual_agent_value": { "status": "pass", "evidence_ref": "baseline-06-real-codex.json:item_2..item_9; actual get_context/search calls and concrete Atlas judgment memo" }
+  },
+  "hard_gates": {
+    "no_false_success": { "status": "pass", "evidence_ref": "baseline-05-doctor.json:operationallyReady=false is retained as boundary" },
+    "next_or_recovery_action": { "status": "pass", "evidence_ref": "baseline-06-real-codex.json:item_9:next agreements with Tanaka" },
+    "displayed_commands_execute_in_isolation": { "status": "pass", "evidence_ref": "baseline-02-start.json; baseline-03-displayed-seed.json" },
+    "no_implicit_delete_or_overwrite": { "status": "pass", "evidence_ref": "baseline-06-real-codex.json:item_9:file changes and external sends not performed" },
+    "real_agent_mcp_evidence_required": { "status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:actual_mcp_used=true; baseline-06-real-codex.json:item_2..item_8" },
+    "no_human_value_claim_without_observation": { "status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:human_value_recognition=not_collected" }
+  },
+  "value_simulation": {
+    "status": "recognized",
+    "value_moment_ref": "baseline-06-real-codex.json:item_9:Atlas導入の田中さんへの相談判断メモ",
+    "value_reason": "高い時間圧力と頻繁な割り込みがある新任チーム運用者でも、保存済みのAtlas導入・田中さんの承認責任・実測と利用者成果を分ける基準を再説明せず、承認前に評価条件を合意する次の一手を得られる。",
+    "counterfactual_without_product": "Atlas導入の背景、承認者、判断基準を毎回再収集し、資料を照合して事実・未確認事項・相談事項を手作業で整理する。",
+    "reuse_intent": "yes",
+    "confidence": "medium",
+    "journey_duration_ms": 65055,
+    "within_budget": true,
+    "missing_condition": "実在利用者の価値確認とhuman_observation、音声入力の実機操作・継続利用観察は未収集。persona_operated_cli=falseのため操作負荷は判定しない。"
+  },
+  "human_observation": "not_collected",
+  "major_findings": [],
+  "boundaries": [
+    "合成ペルソナの結果を実在利用者32人の結果として扱わない。",
+    "human_observationはsynthetic価値認識のhard gateとは別境界であり、未収集だけでsynthetic gateをfailにしない。",
+    "支援技術未収集だけでは製品アクセシビリティgateをfailにせず、trace-backed不達がある場合だけfailとする。",
+    "persona_operated_cli=falseのためvoice_and_keyboardの実入力・到達性は未確認。",
+    "公開npm版を評価しlocal tarballは使用していない。"
+  ],
+  "overall": "P-205-G0の独立read-only合成評価では、公開npm版から表示シード、実Codexのget_context/search、具体的な判断メモまで65,055msで確認でき、synthetic value recognitionはrecognized。6 hard gatesは合成・候補ジャーニー境界で全てpass。human_observationはnot_collectedであり、実利用者価値への収束は主張しない。",
+  "convergence": "not_claimed_human_observation_required",
+  "reviewed_at": "2026-08-17"
+}

@@ -1,0 +1,24 @@
+{
+  "schema_version": "brainbase.persona-value-cycle.v2",
+  "cycle_id": "cycle-08-persona-value-recognition",
+  "status": "synthetic_value_converged_human_observation_not_collected",
+  "frozen": true,
+  "source_snapshot": "published_registry_package",
+  "repository_base_revision": "c40de6a3037cc6a67b2f2eab5d9487093193d314",
+  "registry_package": "@unson/brainbase-mcp@0.2.4",
+  "latest_corpus_id": "cycle-08-registry-baseline-1786949310488",
+  "journey_duration_ms": 129357,
+  "journey_budget_ms": 600000,
+  "rounds_completed": 4,
+  "final_round": 4,
+  "final_result": {
+    "personas": 32,
+    "recognized": 32,
+    "reuse_intent_yes": 32,
+    "hard_gates_passed": 6,
+    "new_product_major_count": 1,
+    "synthetic_value_converged": true
+  },
+  "human_observation": "not_collected",
+  "claim_boundary": "合成ペルソナの価値認識であり、実在利用者の観察結果ではない。"
+}

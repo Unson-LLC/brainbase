@@ -1,0 +1,83 @@
+{
+  "persona_id": "P-108-G0",
+  "round": 1,
+  "rotation": "round1",
+  "role": "first_time_individual",
+  "cohort": "rotation",
+  "task_set_id": "first_time_individual-core",
+  "attributes": {
+    "domain_experience": "experienced",
+    "technical_literacy": "high",
+    "time_pressure": "low",
+    "interruption_state": "focused",
+    "work_style": "confirmation_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "evaluation_mode": "synthetic_persona_read_only",
+  "duration_ms": 65055,
+  "persona_operated_cli": false,
+  "evidence_reviewed": [
+    "rotation-manifest.json",
+    "evaluation-contract.md",
+    "baseline-terminal-corpus/manifest.json",
+    "baseline-terminal-corpus/baseline-01-registry-install.json",
+    "baseline-terminal-corpus/baseline-02-start.json",
+    "baseline-terminal-corpus/baseline-03-displayed-seed.json",
+    "baseline-terminal-corpus/baseline-04-install-preview.json",
+    "baseline-terminal-corpus/baseline-05-doctor.json",
+    "baseline-terminal-corpus/baseline-06-real-codex.json"
+  ],
+  "tasks": {
+    "REGISTRY_INSTALL": { "outcome": "pass", "evidence": "baseline-01-registry-install: exit_code=0; public @unson/brainbase-mcp@0.2.4 installed" },
+    "CONTEXT_SEED": { "outcome": "pass", "evidence": "baseline-02-start and baseline-03-displayed-seed: displayed seed executed; owner/project/relationship/principle saved" },
+    "MCP_JOURNEY": { "outcome": "pass_with_boundary", "evidence": "baseline-06-real-codex: actual get_context and search calls completed; returned Atlas導入, 田中, and decision principle" },
+    "VALUE_RECOGNITION": { "outcome": "pass_with_boundary", "evidence": "baseline-06-real-codex: concrete answer states final decision owner and separates measurement from user outcome; no human observation" }
+  },
+  "gates": {
+    "G1_public_registry": "pass",
+    "G2_displayed_seed": "pass",
+    "G3_actual_codex": "pass",
+    "G4_actual_mcp_get_context_search": "pass",
+    "G5_concrete_useful_answer": "pass",
+    "G6_ten_minute_budget": "pass"
+  },
+  "gate_evidence": {
+    "journey_duration_ms": 65055,
+    "within_budget": true,
+    "production_registry_install": true,
+    "actual_codex_exit_code": 0,
+    "actual_mcp_used": true,
+    "useful_body_present": true,
+    "candidate_journey_passed": true,
+    "human_value_recognition": "not_collected"
+  },
+  "value_simulation": {
+    "status": "recognized",
+    "value_moment_ref": "baseline-06-real-codex: agent_message after get_context/search, '田中さんがAtlas導入の最終判断者' and '実測と利用者成果を分ける判断基準'",
+    "value_reason": "既知のAtlas導入の状況と承認者を再説明せず、保存済み文脈を使って判断メモの前提をすぐ確認できる。検索結果とget_contextの差分も確認しやすく、確認先を絞れる。",
+    "counterfactual_without_product": "Atlas導入の背景、田中さんの役割、判断基準を毎回手入力し、過去メモや関係者情報を別途検索して回答の前提を照合する。",
+    "reuse_intent": "yes",
+    "confidence": "medium",
+    "journey_duration_ms": 65055,
+    "within_budget": true,
+    "missing_condition": "実在利用者による価値認識インタビューと、screen_reader実機操作は未収集。persona_operated_cli=falseのため、操作負荷・読み上げ順序は判定しない。"
+  },
+  "synthetic_human_boundary": {
+    "synthetic_persona_result": "recognized",
+    "human_observation": "not_collected",
+    "simulation_boundary": "公開npm版と実Codex/MCPの固定baselineを読む合成評価。screen_readerは実機証拠でなく、personaはCLIを操作していない。"
+  },
+  "major_findings": [
+    { "id": "M-01", "severity": "Major", "title": "実利用者の価値認識が未収集", "evidence": "baseline manifest human_value_recognition=not_collected", "proposal": "同一候補ジャーニーを実利用者で観察し、回答本文が本人の依頼に役立ったかを記録する。" },
+    { "id": "M-02", "severity": "Major", "title": "スクリーンリーダー実機境界", "evidence": "evaluation-contract evidence boundary; persona_operated_cli=false", "proposal": "キーボード操作と読み上げでseed、設定確認、回答到達までを実機検証する。" }
+  ],
+  "boundary_conditions": [
+    "終了コード・成功表示だけでは価値認識としない。",
+    "合成評価を32人の実利用者の結果として表現しない。",
+    "音声、スクリーンリーダー、実機支援技術の操作性は未確認。",
+    "doctorのoperationallyReady=falseは、実Codex/MCPの固定baseline成功とは別の未完了運用項目として扱う。"
+  ],
+  "overall": "合成ペルソナとしては10分以内に実MCPを通じた具体的な文脈差分を確認でき、価値認識はrecognized。ただし実利用者観察とスクリーンリーダー実機操作は未収集のため、human valueとしての収束判定は不可。",
+  "confidence": "medium"
+}

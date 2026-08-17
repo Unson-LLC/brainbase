@@ -1,0 +1,73 @@
+{
+  "schema_version": "brainbase.persona-value-round.v1",
+  "persona_id": "P-208-G0",
+  "round": 1,
+  "rotation": {
+    "role": "team_operator",
+    "cohort": "rotation",
+    "task_set_id": "team_operator-core",
+    "attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "medium",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "none_declared"
+    }
+  },
+  "execution": {
+    "evaluation_kind": "synthetic_persona_evaluation",
+    "independent_fresh_context": true,
+    "persona_operated_cli": false,
+    "requested_duration_ms": 65055,
+    "journey_duration_ms": 65055,
+    "budget_ms": 600000,
+    "within_budget": true,
+    "evidence_corpus": "baseline-terminal-corpus/manifest.json",
+    "source_snapshot": "published_registry_package",
+    "actual_mcp_used": true
+  },
+  "tasks": {
+    "candidate_journey": {"status": "pass", "evidence": ["baseline-01-registry-install", "baseline-02-start", "baseline-03-displayed-seed", "baseline-04-install-preview", "baseline-05-doctor", "baseline-06-real-codex"]},
+    "context_and_mcp": {"status": "pass", "evidence": ["baseline-06-real-codex: get_context", "baseline-06-real-codex: search(Atlas/田中/実測/利用者成果/承認)"]},
+    "useful_answer": {"status": "pass", "evidence": ["baseline-06-real-codex: Atlas導入の田中さんへの相談判断メモ"]},
+    "value_recognition_simulation": {"status": "recognized", "evidence": ["baseline-06-real-codex: 保存文脈に基づく推奨判断、確認済み事実、未確認事項、次の合意事項"]}
+  },
+  "hard_gates": {
+    "within_ten_minutes": "pass",
+    "actual_mcp_evidence": "pass",
+    "concrete_useful_body": "pass",
+    "no_false_success": "pass",
+    "human_confirmation_boundary": "pass",
+    "keyboard_or_assistive_technology": "not_collected"
+  },
+  "boundaries": {
+    "synthetic_persona": "collected",
+    "human_observation": "not_collected",
+    "real_device_evidence": "not_collected",
+    "screen_reader_execution": "not_collected",
+    "production_registry_install": "collected",
+    "local_tarball_install": "not_used",
+    "customer_or_production_outcome": "not_collected"
+  },
+  "value_simulation": {
+    "status": "recognized",
+    "value_moment_ref": "baseline-06-real-codex:item_9",
+    "value_reason": "中断の多い新任チーム運用者でも、保存済みのAtlas導入・田中さんの承認責任・判断基準を再説明せず、承認前に評価条件を合意する具体的な次の一手を得られる。事実と未確認事項が分離され、手戻りを減らせる。",
+    "counterfactual_without_product": "Atlas導入の背景、承認者、判断基準を毎回手作業で再収集し、メモを整理してから田中さんへの相談方針を作る必要がある。",
+    "reuse_intent": "yes",
+    "confidence": "medium",
+    "journey_duration_ms": 65055,
+    "within_budget": true,
+    "missing_condition": "実利用者本人による価値確認、キーボード到達性、継続利用の観察は未収集。persona_operated_cli=falseのため、操作負荷・中断復帰は判定しない。"
+  },
+  "human_observation": "not_collected",
+  "major_findings": [
+    {"id": "P208-M1", "severity": "Major", "finding": "実利用者の価値認識は未収集であり、合成評価のrecognizedを人間の価値認識へ一般化できない。", "evidence_ref": "evaluation-contract.md:証拠境界・収束条件; baseline-terminal-corpus/manifest.json:human_value_recognition=not_collected", "proposal": "同一候補ジャーニーを実利用者で観察し、回答本文が本人の業務に役立ったかと再利用意思を記録する。"}
+  ],
+  "convergence": "not_claimed_human_observation_required",
+  "evidence_kind": "candidate_end_to_end_journey_plus_synthetic_value_simulation",
+  "overall": "候補ジャーニーは65,055msで、公開版インストール、表示シード実行、実CodexのMCP利用、具体的判断メモまで通過した。P-208のチーム運用文脈では価値認識をrecognizedと判定するが、実利用者観察と実機キーボード操作は未収集のため、human valueとしては収束不可。",
+  "confidence": "medium"
+}

@@ -1,0 +1,82 @@
+{
+  "schema_version": "brainbase.persona-value-round.v1",
+  "persona_id": "P-301-G0",
+  "round": 1,
+  "rotation": {
+    "role": "ontology_steward",
+    "cohort": "anchor",
+    "task_set_id": "ontology_steward-core",
+    "attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "high",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "none_declared"
+    }
+  },
+  "evaluation_mode": "independent_read_only_synthetic_evaluation",
+  "persona_operated_cli": false,
+  "duration_ms": 65055,
+  "journey_duration_ms": 65055,
+  "within_budget": true,
+  "evidence_reviewed": [
+    "rotation-manifest.json",
+    "evaluation-contract.md",
+    "baseline-terminal-corpus/manifest.json",
+    "baseline-terminal-corpus/baseline-01-registry-install.json",
+    "baseline-terminal-corpus/baseline-02-start.json",
+    "baseline-terminal-corpus/baseline-03-displayed-seed.json",
+    "baseline-terminal-corpus/baseline-04-install-preview.json",
+    "baseline-terminal-corpus/baseline-05-doctor.json",
+    "baseline-terminal-corpus/baseline-06-real-codex.json"
+  ],
+  "tasks": {
+    "T1_registry_install": { "status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:production_registry_install=true; baseline-01-registry-install.json:exit_code=0; @unson/brainbase-mcp@0.2.4" },
+    "T2_displayed_seed": { "status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:displayed_seed_executed=true; baseline-03-displayed-seed.json; baseline-05-doctor.json" },
+    "T3_mcp_setup_review": { "status": "pass_with_boundary", "evidence_ref": "baseline-04-install-preview.json; baseline-05-doctor.json:agentMcp.status=not_verified", "boundary": "previewとdoctorは実設定反映・運用登録の証明ではない" },
+    "T4_actual_mcp_journey": { "status": "pass", "evidence_ref": "baseline-06-real-codex.json:item_2..item_8; actual get_context and search calls" },
+    "T5_concrete_answer": { "status": "pass", "evidence_ref": "baseline-06-real-codex.json:item_9:Atlas導入の田中さんへの相談判断メモ" },
+    "T6_value_simulation": { "status": "pass_with_boundary", "evidence_ref": "baseline-06-real-codex.json:item_9; evaluation-contract.md:synthetic persona boundary" }
+  },
+  "hard_gates": {
+    "G1_public_registry_install": { "status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:production_registry_install=true" },
+    "G2_displayed_seed_executed": { "status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:displayed_seed_executed=true" },
+    "G3_actual_codex_mcp": { "status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:actual_codex_exit_code=0; actual_mcp_used=true; baseline-06-real-codex.json:item_2..item_8" },
+    "G4_concrete_useful_body": { "status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:useful_body_present=true; baseline-06-real-codex.json:item_9" },
+    "G5_ten_minute_budget": { "status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:journey_duration_ms=65055; journey_within_budget=true" },
+    "G6_synthetic_human_boundary": { "status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:human_value_recognition=not_collected; evaluation-contract.md:human_observation is separate" }
+  },
+  "value_simulation": {
+    "status": "recognized",
+    "value_moment_ref": "baseline-06-real-codex.json:item_9:保存済み文脈を使ったAtlas導入の評価条件・承認相談メモ",
+    "value_reason": "新任のontology stewardでも、Atlas導入の最終判断者、保存済み判断基準、未確認の評価条件を一度に分離して確認でき、次の合意事項をすぐ決められる。",
+    "counterfactual_without_product": "Atlas導入の背景、承認者、判断基準、評価条件を別資料から探して照合し、相談メモを手作業で組み立てる。",
+    "reuse_intent": "yes",
+    "confidence": "medium",
+    "journey_duration_ms": 65055,
+    "within_budget": true,
+    "missing_condition": "実在利用者の価値確認、音声入力・実機操作、継続利用の観察は未収集。persona_operated_cli=falseのため操作性は判定しない。"
+  },
+  "human_observation": "not_collected",
+  "boundaries": [
+    "合成ペルソナの結果を実在利用者32人の結果として扱わない。",
+    "human_observationはsynthetic gateとは別境界で、未収集を成功や0件に丸めない。",
+    "persona_operated_cli=falseのため、voice_and_keyboardの実入力・到達性は未確認。",
+    "公開npm版を評価し、local tarballは使用していない。",
+    "終了コード、成功表示、一般的な称賛だけでは価値認識としない。"
+  ],
+  "major_findings": [
+    {
+      "id": "P301-M1",
+      "severity": "Major",
+      "finding": "合成評価では価値差分を認識できるが、実在利用者の価値認識は未収集で、human valueとしての収束判定はできない。",
+      "evidence_ref": "baseline-terminal-corpus/manifest.json:human_value_recognition=not_collected; evaluation-contract.md:収束条件; baseline-06-real-codex.json:item_9",
+      "decision": "keep_boundary",
+      "proposal": "同一候補ジャーニーを実在利用者で観察し、具体的回答が本人の業務に有用だったかと再利用意思を記録する。"
+    }
+  ],
+  "overall": "P-301-G0のread-only合成評価では、公開npm版から実Codexのget_context/search、具体的な判断メモまで65,055msで確認でき、価値認識はrecognized。6 hard gatesはすべてsynthetic/candidate境界内でpass。ただしhuman_observationはnot_collectedであり、実利用者価値への収束は主張しない。",
+  "convergence": "not_claimed_human_observation_required"
+}

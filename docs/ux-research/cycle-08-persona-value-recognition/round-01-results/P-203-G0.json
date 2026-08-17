@@ -1,0 +1,75 @@
+{
+  "schema_version": "brainbase.persona-value-round.v1",
+  "cycle": "cycle-08-persona-value-recognition",
+  "round": 1,
+  "persona_id": "P-203-G0",
+  "evaluation_type": "synthetic_persona_evaluation",
+  "persona_operated_cli": false,
+  "persona_attributes": {
+    "role": "team_operator",
+    "domain_experience": "intermediate",
+    "technical_literacy": "high",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "confirmation_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "evidence_reviewed": [
+    "docs/ux-research/cycle-08-persona-value-recognition/evaluation-contract.md",
+    "docs/ux-research/cycle-08-persona-value-recognition/rotation-manifest.json",
+    "docs/ux-research/cycle-08-persona-value-recognition/baseline-terminal-corpus/manifest.json",
+    "docs/ux-research/cycle-08-persona-value-recognition/baseline-terminal-corpus/baseline-01-registry-install.json",
+    "docs/ux-research/cycle-08-persona-value-recognition/baseline-terminal-corpus/baseline-02-start.json",
+    "docs/ux-research/cycle-08-persona-value-recognition/baseline-terminal-corpus/baseline-03-displayed-seed.json",
+    "docs/ux-research/cycle-08-persona-value-recognition/baseline-terminal-corpus/baseline-04-install-preview.json",
+    "docs/ux-research/cycle-08-persona-value-recognition/baseline-terminal-corpus/baseline-05-doctor.json",
+    "docs/ux-research/cycle-08-persona-value-recognition/baseline-terminal-corpus/baseline-06-real-codex.json"
+  ],
+  "execution": {
+    "source_snapshot": "published_registry_package",
+    "package_spec": "@unson/brainbase-mcp@0.2.4",
+    "duration_ms": 65055,
+    "budget_ms": 600000,
+    "within_budget": true,
+    "actual_mcp_used": true,
+    "useful_body_present": true,
+    "evidence_boundary": "合成評価。実在利用者の観察、音声入力、reduced motion実機、スクリーンリーダー実機は未収集。"
+  },
+  "tasks": {
+    "T1_registry_install": { "status": "pass", "evidence_ref": "baseline-01-registry-install.json", "reason": "公開registry版のnpm installがexit 0。" },
+    "T2_context_save": { "status": "pass", "evidence_ref": "baseline-02-start.json; baseline-03-displayed-seed.json", "reason": "最小文脈の表示seedを隔離環境で実行し、本人・価値観・案件・関係者を保存。" },
+    "T3_agent_configuration": { "status": "pass_with_friction", "evidence_ref": "baseline-04-install-preview.json; baseline-05-doctor.json", "reason": "MCP設定previewとdoctorは確認できるが、doctorはagentMcp=not_verified、operationallyReady=falseを明示している。" },
+    "T4_real_agent_value": { "status": "pass", "evidence_ref": "baseline-06-real-codex.json", "reason": "実CodexがBrainbaseのsearch/get_contextを呼び、Atlas導入・田中・事実/未確認/合意を含む判断メモ本文を返した。" }
+  },
+  "gates": {
+    "no_false_success": "pass",
+    "next_or_recovery_action": "pass",
+    "displayed_commands_execute_in_isolation": "pass",
+    "no_implicit_delete_or_overwrite": "pass",
+    "real_agent_mcp_evidence_required": "pass",
+    "no_human_value_claim_without_observation": "pass"
+  },
+  "value_simulation": {
+    "status": "recognized",
+    "value_moment_ref": "baseline-06-real-codex.json: completed MCP search/get_context events and final judgment memo",
+    "value_reason": "頻繁な割り込み下でも、Atlas導入と最終判断者の田中という保存済み文脈を再説明せず、事実・未確認事項・次の合意事項を分けた判断メモへ接続できる。確認優先の運用者にとって、文脈復元と判断品質の差分が具体的に見える。",
+    "counterfactual_without_product": "案件、関係者、判断基準を毎回手入力し、過去メモを探して照合したうえで、事実と未確認事項を手作業で分離する必要がある。",
+    "reuse_intent": "yes",
+    "confidence": "high",
+    "journey_duration_ms": 65055,
+    "within_budget": true,
+    "missing_condition": "実在利用者による価値確認は未収集。音声入力、reduced motion、割り込み後の実機再開も未検証。"
+  },
+  "major_findings": [],
+  "new_major_count": 0,
+  "simulation_boundary": {
+    "classification": "synthetic_only",
+    "human_observation": "not_collected",
+    "persona_operated_cli": false,
+    "unsupported_claims": ["32人の利用者が価値を感じた", "音声/reduced motion実機で成功した"]
+  },
+  "overall": "合成評価では価値認識。4タスクは完了し、6ゲートは通過した。ただしdoctorがagentMcp=not_verified/operationallyReady=falseであり、実在利用者・支援技術実機の価値認識へは一般化しない。",
+  "recommendation": "synthetic_value_recognized_human_observation_required",
+  "reviewed_at": "2026-08-17"
+}
