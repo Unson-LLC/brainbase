@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { isActiveAt, validateCanonicalGraph } from './canonical-graph.js';
+import { getCanonicalRelation } from './relation-registry.js';
 import type { CanonicalEntity, CanonicalEntityKind, GraphFileV2 } from './types.js';
 
 export type SourceStatus = 'complete' | 'partial' | 'unavailable' | 'invalid';
@@ -212,29 +213,46 @@ function projectPaths(
   asOf: string,
   projectIds: string[]
 ): Array<{ projectId: string; edgeIds: string[] }> {
+  const activeEntities = new Set(graph.entities
+    .filter((candidate) => isActiveAt(candidate, asOf))
+    .map((candidate) => candidate.id));
   const activeProjectIds = new Set(graph.entities
-    .filter((candidate) => candidate.type === 'project' && isActiveAt(candidate, asOf))
+    .filter((candidate) => candidate.type === 'project' && activeEntities.has(candidate.id))
     .map((candidate) => candidate.id));
   const scopedProjectIds = projectIds.filter((projectId) => activeProjectIds.has(projectId));
   if (entity.type === 'project') {
     return scopedProjectIds.includes(entity.id) ? [{ projectId: entity.id, edgeIds: [] }] : [];
   }
-  const activeEdges = graph.edges.filter((edge) => isActiveAt(edge, asOf));
-  if (entity.type === 'person') {
-    return activeEdges
-      .filter((edge) => edge.fromId === entity.id
-        && (edge.relation === 'participates_in' || edge.relation === 'accountable_for')
-        && scopedProjectIds.includes(edge.toId))
-      .map((edge) => ({ projectId: edge.toId, edgeIds: [edge.id] }));
+  const activeEdges = graph.edges
+    .filter((edge) => isActiveAt(edge, asOf) && activeEntities.has(edge.fromId) && activeEntities.has(edge.toId))
+    .sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+  const queue: Array<{ entityId: string; edgeIds: string[] }> = [{ entityId: entity.id, edgeIds: [] }];
+  const visited = new Set([entity.id]);
+  const paths: Array<{ projectId: string; edgeIds: string[] }> = [];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const edge of activeEdges) {
+      const relation = getCanonicalRelation(edge.relation);
+      if (relation.scopeTraversal === 'none' || relation.traversalDirection === 'none') continue;
+      const nextEntityId = relation.traversalDirection === 'forward'
+        ? edge.fromId === current.entityId ? edge.toId : undefined
+        : edge.toId === current.entityId ? edge.fromId : undefined;
+      if (!nextEntityId) continue;
+      const edgeIds = [...current.edgeIds, edge.id];
+      if (scopedProjectIds.includes(nextEntityId)) {
+        paths.push({ projectId: nextEntityId, edgeIds });
+      }
+      if (relation.scopeTraversal === 'project_transitive' && !visited.has(nextEntityId)) {
+        visited.add(nextEntityId);
+        queue.push({ entityId: nextEntityId, edgeIds });
+      }
+    }
   }
-  if (entity.type === 'decision') {
-    return activeEdges
-      .filter((edge) => edge.fromId === entity.id && edge.relation === 'governs' && scopedProjectIds.includes(edge.toId))
-      .map((edge) => ({ projectId: edge.toId, edgeIds: [edge.id] }));
-  }
-  return activeEdges
-    .filter((edge) => edge.toId === entity.id && edge.relation === 'owned_by' && scopedProjectIds.includes(edge.fromId))
-    .map((edge) => ({ projectId: edge.fromId, edgeIds: [edge.id] }));
+
+  return [...new Map(paths.map((path) => [stableJson(path), path])).entries()]
+    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+    .map(([, path]) => path);
 }
 
 function isScopeEvidence(evidence: CandidateEvidence): boolean {
