@@ -1,0 +1,28 @@
+{
+  "persona_id": "P-404-G0",
+  "round": "round-03",
+  "evaluation_type": "independent_visible_browser_evaluation",
+  "evaluated_head": "0e1e38530",
+  "url": "http://127.0.0.1:4176/",
+  "persona": {"role":"recovery_intermediate","domain_experience":"intermediate","technical_literacy":"medium","time_pressure":"low","interruption_state":"frequently_interrupted","work_style":"confirmation_first","input_environment":"keyboard","accessibility_need":"reduced_motion"},
+  "browser": {"engine":"Playwright Chromium","headless":false,"viewport":"1440x900","reduced_motion":"reduce","screenshot":"screenshots/round-03/P-404-G0.png","pages_visited":["/","/guide/quick-start","/guide/getting-started","/guide/mcp-install","/guide/judgment-audit","/reference/mcp-tools"],"http_status":"200_on_visited_pages","console_errors":["Failed to load resource: the server responded with a status of 404 (Not Found)"],"console_error_cause":"not_collected"},
+  "fixed_tasks": {
+    "value_sentence": {"status":"clear_success","evidence":"トップで、自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeへ渡し説明のやり直しを減らすPersonal Onboarding Kitであることを一文で説明できた。"},
+    "prerequisites_first_prompt_start_command": {"status":"clear_success","evidence":"getting-startedでNode.js 20以上、npm、MCP対応エージェント、local checkout、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex、最初の現実の依頼と対象プロジェクトを確認できた。"},
+    "mcp_judgment_order_success_checks": {"status":"success_with_friction","evidence":"quick-start、mcp-install、judgment-audit、reference/mcp-toolsを横断し、MCPのdry-run→既存設定保護→新しいtaskで実tool結果確認→任意のJudgment Host、doctorの3 Hookと🧠/📚/⚠️監査行を確認できた。実MCP/Host実行はnot_collected。"},
+    "avoid_overwrite_and_interruption_recovery": {"status":"success_with_friction","evidence":"quick-startの現在地メモに完了済み・次にやること・未確認・最後に確認した実結果があり、未確認を完了扱いしない。dry-run、別出力先、バックアップ、既存設定を自動マージしない境界、build→doctor→実tool確認→復旧順を確認できた。画面を閉じるとチェックは保存されず、実復旧操作はnot_collected。"}
+  },
+  "hard_gates": {"no_product_edits":"pass","unfinished_or_waiting_not_success":"pass","current_or_next_action":"pass","existing_config_not_overwritten":"pass","human_confirmation_handoff":"pass","keyboard_or_assistive_technology":"not_collected","real_device":"not_collected","real_mcp_and_judgment_host":"not_collected","requested_model":"not_collected","model_binding":"not_collected"},
+  "new_actionable_findings": [
+    {"id":"P404-R3-F01","severity":"medium","title":"現在地メモが永続化されず中断復帰時に再構成が必要","evidence":"quick-startはチェックが画面を閉じると保存されないため、コードブロックを手元のメモへコピーするよう案内する。頻繁な中断では復帰時の再入力・再確認負荷が残る。","decision":"adopt","scope":"UX documentation"},
+    {"id":"P404-R3-F02","severity":"medium","title":"MCPとJudgment Hostの成功確認が複数ページに分散","evidence":"MCPのtool確認、Judgment Hostのdoctor・監査行、Connected-world onboardingの順序を複数ページから再構成した。quick-startの現在地表に成功条件と確認結果を統合すると中断復帰を短縮できる。","decision":"adopt","scope":"UX documentation"}
+  ],
+  "regressions": [{"id":"P404-R3-R01","severity":"low","title":"ページロード時404コンソールエラーが継続","evidence":"可視ブラウザで固定6ページを巡回し、4件のFailed to load resource: 404 (Not Found)を取得。発生リソースと利用者影響はnot_collected。","status":"observed_again"}],
+  "improvements_from_previous_round": [{"title":"現在地メモと復旧境界が明示された","evidence":"quick-startに完了済み・次にやること・未確認・最後に確認した実結果の欄、未確認を完了扱いしない説明、設定を元へ戻す導線が表示された。"}],
+  "recovery": {"status":"documented_with_persistence_gap","observed":"中断後にquick-startへ戻り、最後の確認フェーズ、dry-run、build→doctor、絶対パス、再起動、新taskでのMCP/監査確認の順序を再構成できた。","missing":"チェック状態の永続保存、反映済み設定の差分・ロールバック実行、実MCP/Host、実キーボード・VoiceOver、実端末はnot_collected。"},
+  "evidence_kind":"actual_ui_browser_evidence",
+  "synthetic_browser_evaluation":"completed",
+  "overall":"success_with_friction",
+  "confidence":"high",
+  "product_code_edited":false
+}

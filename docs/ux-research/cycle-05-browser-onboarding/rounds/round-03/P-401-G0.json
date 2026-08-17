@@ -1,0 +1,64 @@
+{
+  "persona_id": "P-401-G0",
+  "round": "round-03",
+  "persona": {
+    "type": "recovery_user",
+    "experience": "intermediate",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "confirmation_preference": "confirmation_first",
+    "interaction": "voice_and_keyboard",
+    "assistive_technology_viewpoint": "reduced_motion"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "head": "0e1e38530",
+  "model_requested": "gpt-5.6-luna",
+  "model_binding": "not_collected",
+  "evidence_kind": "synthetic_browser_evaluation",
+  "human_observation": "not_collected",
+  "real_device_evidence": "not_collected",
+  "browser_evidence": {
+    "browser": "Playwright Chromium (headless; visible-browser runtime not available)",
+    "viewport": "1440x900",
+    "reduced_motion": "configured viewpoint; real assistive technology not executed",
+    "actions": [
+      {"action": "open", "url": "http://127.0.0.1:4176/", "result": "HTTP 200。価値文、10分で試す導線、仕事をひとつ選ぶ→整理→人が確認して記録する流れ、中断時に同じページへ戻る案内を確認。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "HTTP 200。5フェーズ、開始文、完了条件、未完了を導入完了と扱わない境界を確認。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/getting-started", "result": "HTTP 200。Node.js 20以上、npm、local checkout、開始文、npm run onboard:start -- --target codex、最初の依頼を確認。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "HTTP 200。dry-run、絶対パス、別出力先、非自動マージ、承認後反映、新しいセッションでの確認を確認。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "HTTP 200。UserPromptSubmit→PostToolUse→Stop、判断と知識参照の分離、doctor/eventsと新しいtaskでの検証、異常時の動作を確認。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/reference/mcp-tools", "result": "HTTP 200。MCP toolsとConnected-world onboarding、未確認や権限待ちをready扱いしない契約を確認。"},
+      {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-401-G0.png"}
+    ],
+    "console_errors": ["Failed to load resource: 404 (2 occurrences); page navigation and content remained available"]
+  },
+  "tasks": {
+    "value_sentence": {"status": "clear_success", "finding": "自分・仕事・関係性の文脈をローカルSSOTとして育て、AIへ説明し直す負担を減らす仕組みだと説明できる。"},
+    "prerequisites_first_prompt_start_command": {"status": "clear_success", "finding": "必要環境、開始文、onboard:startコマンド、最初に役立てたい依頼を一続きで確認できる。"},
+    "codex_mcp_judgment_order_success": {"status": "success_with_friction", "finding": "MCPのdry-run・実動作確認後にJudgment Hostを登録し、監査行とeventsを確認する順序が確認できる。複数ページの往復は残る。"},
+    "avoid_overwrite_recover": {"status": "success_with_friction", "finding": "dry-run、別出力、非自動マージ、承認後反映、復旧確認順により安全策は分かる。実環境の復旧操作はnot_collected。"}
+  },
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass_with_caveat",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "no_product_edits": true,
+    "notes": "DOM上のSkip to content、見出し、リンク、次操作を確認。実キーボード、音声入力、VoiceOver、CLI/MCP/Hook実行は未取得。"
+  },
+  "findings": {
+    "new_actionable": [
+      {"id": "P401-G0-R3-F01", "severity": "medium", "finding": "中断復帰時に確認すべきCLI/設定/新taskの順を、10分チェックリスト上でMCP→Judgment Hostの成功表と一体化すると再構成負荷を下げられる。", "decision": "adopt"},
+      {"id": "P401-G0-R3-F02", "severity": "low", "finding": "複数ページを往復せずに、現在地と次の確認ページを一枚で追えるリンク表があると高時間圧の復帰が速い。", "decision": "defer"}
+    ],
+    "regressions": []
+  },
+  "workflow_reachability": {"status": "not_executed", "evidence": "ブラウザからCLI実行、設定反映、doctor、実MCP呼び出し、新taskは実行していない。"},
+  "recovery": {"status": "documented_not_executed", "steps": ["dry-runへ戻る", "npm run build", "npm run doctor", "~/.brainbase/personal-os/の存在確認", "絶対パス確認", "エージェント再起動", "新しいtaskで監査行と実tool証跡を確認"], "gap": "実環境の復旧操作と差分復元はnot_collected"},
+  "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-401-G0.png",
+  "overall": "adopt",
+  "recommendation": "10分チェックリストへ中断復帰とMCP→Judgment Hostの成功確認を統合する。404リソースは内容影響を確認して別途修正候補にする。実機・CLI/MCP/Hook検証は未取得。"
+}

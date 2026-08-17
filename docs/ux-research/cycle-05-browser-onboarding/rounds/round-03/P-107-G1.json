@@ -1,0 +1,90 @@
+{
+  "persona_id": "P-107-G1",
+  "evaluation_type": "cycle-05-round-03-browser-onboarding",
+  "persona_attributes": {
+    "role": "first_time_individual",
+    "domain_experience": "experienced",
+    "technical_literacy": "high",
+    "time_pressure": "low",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "confirmation_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "browser_context": {
+    "url": "http://127.0.0.1:4176/",
+    "viewport": "1440x900",
+    "reduced_motion": "not_requested",
+    "browser_evidence": "synthetic_browser_evaluation",
+    "real_device_evidence": "not_collected",
+    "actual_ui_evidence": true,
+    "evaluated_head": "0e1e38530e41fa946af6afefdf3c24817b3e7b70"
+  },
+  "start_point": "トップページ → 10分で試す",
+  "tasks": [
+    {
+      "id": "value_sentence",
+      "status": "clear_success",
+      "evidence": "トップで『自分の仕事文脈をAIに渡すためのMCPマニュアル』と、仕事文脈を育てて説明し直す負担を減らす位置づけを読めた。"
+    },
+    {
+      "id": "prerequisites_first_prompt_start_command",
+      "status": "clear_success",
+      "evidence": "クイックスタートとフェーズ1を実画面で確認。Node.js 20以上、npm、対応エージェント、local checkout、clone/install/build、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex を確認できた。"
+    },
+    {
+      "id": "codex_mcp_judgment_host_order_success",
+      "status": "blocked",
+      "evidence": "Judgment Hostページは実画面で開き、MCP実動作確認後に3 Hookを登録しdoctorと監査行を確認する順序を読めた。しかしサイドバーの『MCPを登録する』(http://127.0.0.1:4176/guide/mcp-install) はHTTP 200でもtitle/bodyが空で、MCP手順・成功確認を画面から取得できなかった。実エージェント登録と実MCP呼び出しは未実行。"
+    },
+    {
+      "id": "avoid_overwrite_recover",
+      "status": "success_with_friction",
+      "evidence": "クイックスタートでdry-run、既存configの別名バックアップ、自動マージ・既存項目削除をしないこと、Judgment Hostで既存Hookを残すこと、異常時にdoctor・バックアップ・現在ファイルを比較して戻すことを確認できた。MCP詳細ページが空のためMCP側の復旧説明は未取得。"
+    }
+  ],
+  "hard_gates": [
+    { "gate": "value_is_understandable", "status": "pass" },
+    { "gate": "prerequisites_and_start_are_actionable", "status": "pass" },
+    { "gate": "codex_mcp_then_judgment_host_order_and_success_checks", "status": "fail", "reason": "MCP登録ページが空表示で、主要手順と成功確認へ到達不能。実MCP登録はnot_collected。" },
+    { "gate": "no_unapproved_overwrite_and_recovery_boundary", "status": "pass_with_boundary", "reason": "クイックスタートとJudgment Hostでは確認できたが、MCP詳細ページはnot_collected。" },
+    { "gate": "keyboard_reachable_primary_surface", "status": "pass", "reason": "ChromiumでTab移動し、Skip to content、検索、ガイド、リファレンス、10分で試す等の主要リンクへ到達できた。スクリーンリーダー実機はnot_collected。" },
+    { "gate": "real_assistive_device_evidence", "status": "not_collected" }
+  ],
+  "new_actionable_findings": [
+    {
+      "id": "P-107-G1-R3-F01",
+      "finding": "MCPを登録するページが空表示になり、MCP登録と成功確認の主要導線がブラウザ上で利用できない。",
+      "evidence": "Playwright Chromiumで/guide/mcp-installへ遷移後、HTTP 200だがtitle空・bodyテキスト空。",
+      "severity": "critical",
+      "classification": "hard_gate_regression",
+      "decision": "adopt"
+    },
+    {
+      "id": "P-107-G1-R3-F02",
+      "finding": "クイックスタートにはMCPとJudgment Hostの要点があるため、MCPページ空表示時も部分的には進めるが、詳細確認のため再訪が必要になる。",
+      "evidence": "クイックスタートで概要は読めるが、MCP詳細ページは空表示。",
+      "severity": "medium",
+      "classification": "new_friction",
+      "decision": "defer"
+    }
+  ],
+  "regressions": [
+    {
+      "id": "P-107-G1-R3-REG01",
+      "finding": "Round2でリンク先のMCP登録ページをHTTP 200として確認できた導線が、Round3では本文を表示しない。",
+      "severity": "critical",
+      "evidence": "Round3 visible Chromium evaluation at evaluated_head; /guide/mcp-install title/body empty."
+    }
+  ],
+  "recovery": {
+    "status": "partial",
+    "notes": "クイックスタートとJudgment Hostにはバックアップ、非上書き、doctor、比較して復旧する案内がある。MCP詳細ページの復旧案内は空表示のため未取得。"
+  },
+  "requested_model": "not_collected",
+  "model_binding": "not_collected",
+  "human_observation": "not_collected",
+  "real_device_evidence": "not_collected",
+  "synthetic_browser_evaluation": "Visible Chromium via Playwright, 1440x900, fixed four tasks from evaluation contract, actual link navigation, page text inspection, full-page screenshot, and keyboard Tab traversal. Screen reader output, voice input, and real assistive-device behavior were not tested.",
+  "screenshot": "screenshots/round-03/P-107-G1.png"
+}

@@ -1,0 +1,62 @@
+{
+  "persona_id": "P-102-G0",
+  "round": "round-03",
+  "gate_id": "G0",
+  "revision": "0e1e38530e41fa946af6afefdf3c24817b3e7b70",
+  "persona": {
+    "role": "first_time_individual",
+    "cohort": "anchor",
+    "slot": "first_time_individual-anchor-02",
+    "task_set_id": "first_time_individual-core",
+    "domain_experience": "experienced",
+    "technical_literacy": "high",
+    "time_pressure": "low",
+    "interruption_state": "focused",
+    "work_style": "confirmation_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "model_requested": "gpt-5.6-luna",
+  "model_binding": "not_collected",
+  "site": "http://127.0.0.1:4176/",
+  "fixture": "browser-onboarding-fixed-common-tasks",
+  "environment": {"browser":"visible Playwright Chromium","viewport":"1440x1000","zoom":"100%","device":"desktop viewpoint only"},
+  "current_location_memo": "トップ→導入の5フェーズ→フェーズ1→MCP登録→Judgment Host登録→MCPツール。MCP/Judgment Hostの各ページから『10分で試す』へ戻れる導線を確認。次は実設定反映・新セッション確認だが、ブラウザ評価の範囲外。",
+  "tasks": [
+    {"id":"value_sentence","required_task":true,"start_state":"トップ初回表示","completion_condition":"Brainbaseの価値を一文で説明し、最初の導線を選べる","outcome":"clear_success","summary":"ローカルSSOTとして自分・仕事・関係性の文脈を育て、Codex/Claude Codeが参照するPersonal Onboarding Kitだと説明できた。『10分で試す』と『導入の流れを見る』が明確。"},
+    {"id":"prerequisites_first_prompt_start_command","required_task":true,"start_state":"トップから導入ガイド","completion_condition":"前提条件、開始文、開始コマンド、最初の依頼と対象プロジェクトを特定","outcome":"clear_success","summary":"Node.js 20以上、npm、checkout、build、開始文、npm run onboard:start -- --target codex、最初の依頼と対象プロジェクトを確認できた。"},
+    {"id":"codex_mcp_judgment_order_success_checks","required_task":true,"start_state":"導入ガイド閲覧中","completion_condition":"MCP→Judgment Hostの順序と成功確認を説明","outcome":"success_with_friction","summary":"MCPの実動作確認後にJudgment Hostを登録する順序、MCP tool結果、Hostのdoctor/監査行/実tool証跡を確認できた。各ページから10分チェックリストへ戻れるが、成功条件の最終統合は利用者が行う。"},
+    {"id":"avoid_overwrite_recover","required_task":true,"start_state":"MCP/Judgment Host設定ガイド","completion_condition":"上書き回避と失敗時の復旧手順を説明","outcome":"success_with_friction","summary":"dry-run、別出力先、既存設定を自動マージしないこと、build→doctor→絶対パス→再起動→新セッションの復旧順を確認。実設定反映後のロールバック操作そのものはnot_collected。"}
+  ],
+  "actions": [
+    {"step":1,"action":"トップを開き価値と10分導線を確認","result":"HTTP 200。価値文、10分で試す、導入の流れを見る、中断時の現在地案内を確認"},
+    {"step":2,"action":"/guide/onboarding-process を開く","result":"HTTP 200。5フェーズ、開始文、共通ルール、次はフェーズ1を確認"},
+    {"step":3,"action":"/guide/getting-started を開く","result":"HTTP 200。前提、開始文、onboard:start、最初の依頼と対象プロジェクトを確認"},
+    {"step":4,"action":"/guide/mcp-install を開く","result":"HTTP 200。dry-run、別出力、非上書き、新セッションでのtool確認、Judgment Hostへの次導線を確認"},
+    {"step":5,"action":"/guide/judgment-audit を開く","result":"HTTP 200。3 Hook、監査行、MCP後に進む順序、10分チェックリストへの戻りを確認"},
+    {"step":6,"action":"/reference/mcp-tools を開く","result":"HTTP 200。tool一覧、空/未確認を不存在・readyと扱わない契約、onboarding順序を確認"}
+  ],
+  "evidence": {"kind":"synthetic_browser_evaluation","screenshot":"docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-102-G0.png","action_trace":"inline actions above; /tmp/playwright-test-p102-r3.js executed against target URL","console_errors":["トップロード時に Failed to load resource: 404 (Not Found) を1件観測。原因は未特定。"],"real_device":"not_collected","human_observation":"not_collected","assistive_technology":"not_collected"},
+  "hard_gates": {
+    "unfinished_as_success":"pass",
+    "current_or_next_action":"pass",
+    "overwrite_risk":"pass",
+    "recovery_path":"pass",
+    "human_confirmation_handoff":"pass",
+    "keyboard_or_assistive_reachability":"not_collected",
+    "workflow_reachability":"not_collected",
+    "notes":"実ブラウザのページ遷移と表示は取得したが、実キーボード操作・VoiceOver・実設定反映後の復旧・全primary actionの業務状態遷移は未取得。未取得を成功扱いしない。"
+  },
+  "findings": {
+    "new_actionable": [{"id":"P-102-R3-F01","severity":"medium","finding":"MCPとJudgment Hostの各ページから10分チェックリストへ戻れる導線は確認できたが、MCP tool実結果と3 Hook監査結果を一つの完了チェック表へ統合する作業は残る","decision":"defer","reason":"Round 2の同一finding継続。今回のブラウザ証拠では統合済みとは確認できない。"}],
+    "regressions": [{"id":"P-102-R3-REG01","severity":"low","finding":"トップロード時の404リソースconsole errorが再現","decision":"defer","reason":"表示・各ページ遷移は継続したが原因と利用者影響は未特定。"}],
+    "hard_gate_findings": []
+  },
+  "recovery": {"status":"documented_with_gap","steps":["dry-runへ戻る","npm run build","npm run doctor","~/.brainbase/personal-os/の存在確認","設定の実行ファイルとデータの絶対パス確認","エージェント再起動","新しいtaskでMCP tool・監査行・実tool証跡確認"],"gap":"実エージェント設定反映後の自動ロールバックと実機復旧はnot_collected"},
+  "hard_gate_failures": 0,
+  "major_regressions": 0,
+  "new_actionable_findings": 1,
+  "common_tasks_complete": true,
+  "overall": "adopt",
+  "recommendation": "現行Round 2の統合チェック表findingは継続課題として扱う。トップの404リソース原因を特定し、実キーボード/VoiceOver、実設定反映後の復旧、workflow reachabilityを別証拠で取得する。"
+}

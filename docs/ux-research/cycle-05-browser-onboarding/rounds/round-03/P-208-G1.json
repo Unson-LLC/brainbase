@@ -1,0 +1,65 @@
+{
+  "persona_id": "P-208-G1",
+  "round": "round-03",
+  "persona": {
+    "role": "team_operator",
+    "domain_experience": "new",
+    "technical_literacy": "medium",
+    "time_pressure": "low",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "speed_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "evaluated_head": "0e1e38530e41fa946af6afefdf3c24817b3e7b70",
+  "browser": {
+    "engine": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1440x900",
+    "title": "Brainbase",
+    "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-208-G1.png",
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ]
+  },
+  "start_point": "トップ → 10分で試す",
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "可視ブラウザで価値文、10分で試す、ローカルSSOT、人の確認後に記録する境界を確認。"},
+    {"action": "follow", "target": "10分で試す", "result": "/guide/quick-startへ遷移し、現在地メモ、5項目の進行表、設定を元へ戻す案内を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/getting-started", "result": "Node.js 20以上、npm、MCP対応エージェント、local checkout、開始依頼、npm run onboard:start -- --target codexを確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "dry-run→別出力先→既存設定へ自動マージ・上書きしない→新セッション確認の順序を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "MCP実動作確認後に任意のJudgment Hostを登録し、3 Hook、doctor ready、新task監査行を確認する案内を確認。"},
+    {"action": "keyboard_tab", "result": "quick-startでSkip to content、検索、ガイド、リファレンス等へDOMフォーカス到達を確認。支援技術・実端末は未取得。"}
+  ],
+  "task_outcomes": {
+    "value_sentence": {"status": "clear_success", "finding": "Brainbaseを、仕事の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照できるようにするMCPマニュアルとして一文で説明できる。"},
+    "prerequisites_first_prompt_start_command": {"status": "clear_success", "finding": "getting-startedでNode.js 20以上・npm・local checkout、開始依頼『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを確認できる。"},
+    "codex_mcp_judgment_host_order_success_checks": {"status": "success_with_friction", "finding": "MCPのdry-run、別出力、新セッション確認後にJudgment Hostへ進み、3 Hookとdoctor ready・新task監査行を確認する順序は把握できる。詳細は複数ページを横断する必要がある。"},
+    "avoid_overwrite_recover": {"status": "success_with_friction", "finding": "dry-run、別出力、既存設定を自動マージ・上書きしないこと、問題時のbuild・doctor・再起動・新task確認を確認できる。チェック状態は保存されず、具体的な差分復元操作は見つからない。"}
+  },
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "no_product_edits": true,
+    "notes": "実ブラウザDOMと可視操作で確認。MCP/Judgment Hostの実登録・VoiceOver・実端末・人手観察は未取得。"
+  },
+  "findings": {
+    "hard_gates": [],
+    "new_actionable": [
+      {"id": "P208-G1-F1", "severity": "medium", "type": "recovery_gap", "finding": "現在地メモは再開時の記録欄を示すが、画面を閉じるとチェックは保存されず、頻繁に中断される担当者は手動コピーを忘れると現在地を再構成する必要がある。", "evidence": "/guide/quick-startの可視文言『このページのチェックは画面を閉じると保存されません』と、完了済み・次にやること・未確認の手入力欄。", "recommendation": "既存設定を変更せず、現在地メモを安全に保存・再表示する導線またはコピー確認を追加する。"},
+      {"id": "P208-G1-F2", "severity": "medium", "type": "recovery_gap", "finding": "設定を元へ戻す案内は存在するが、反映済み設定との差分確認とBrainbase部分だけを戻す具体操作はページ上で確認できず、失敗後の判断が残る。", "evidence": "quick-startの『設定を元へ戻す』案内と、MCPページのdry-run・別出力説明を確認したが、差分復元コマンドは未確認。", "recommendation": "バックアップ・差分確認・限定復元の手順をチェックリストへ追加する。"}
+    ],
+    "regressions": [
+      {"id": "P208-G1-R1", "severity": "low", "type": "console_error", "finding": "ページ遷移中に404リソースエラーが2件記録された。画面操作は継続できたが対象リソースと影響は未確認。", "evidence": "Playwright可視ブラウザのconsole error収集。"}
+    ]
+  },
+  "recovery": {"status": "documented_with_gap", "steps": ["dry-runと別出力へ戻す", "npm run build", "npm run doctor", "絶対パス確認", "エージェント再起動", "新taskでMCP・監査行を確認"], "gap": "チェック状態の永続化と反映済み設定の具体的限定復元は未確認"},
+  "evidence": {"synthetic_browser_evaluation": "completed", "actual_ui_browser_evidence": "collected", "human_observation": "not_collected", "real_device_evidence": "not_collected", "requested_model": "not_collected", "model_binding": "not_collected"},
+  "completion": "P-208-G1 Round 3 evaluation completed; product code unchanged."
+}

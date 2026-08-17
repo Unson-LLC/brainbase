@@ -1,0 +1,56 @@
+{
+  "persona_id": "P-101",
+  "gate_id": "G0",
+  "round": "round-03",
+  "evaluated_head": "0e1e38530",
+  "model_requested": "Codex GPT-5",
+  "model_binding": "not_collected",
+  "persona": {
+    "type": "first-time individual",
+    "experience": "beginner",
+    "technical_level": "medium",
+    "time_pressure": "high",
+    "mode": "task-focused",
+    "confirmation_preference": "confirmation-first",
+    "input": "keyboard",
+    "reduced_motion_viewpoint": true
+  },
+  "environment": {
+    "url": "http://127.0.0.1:4176/",
+    "browser": "visible Google Chrome via DevTools Protocol",
+    "viewport": "1440x1000",
+    "screenshot": "screenshots/round-03/P-101-G0.png",
+    "human_observation": "not_collected",
+    "real_device_evidence": "not_collected"
+  },
+  "actions": [
+    {"step": 1, "action": "トップから『10分で試す』を選ぶ", "result": "quick-startへ遷移。導入の目的と5フェーズが見える"},
+    {"step": 2, "action": "価値・前提・開始文・開始コマンドを確認する", "result": "『AIに二度と説明したくない文脈』、Node.js 20以上/npm、開始文、npm run onboard:start -- --target codexを確認"},
+    {"step": 3, "action": "中断した想定で現在地メモと再開手順を確認する", "result": "現在地メモの記入項目と、build→doctor→onboard:demo→MCP確認→最初の未達項目へ戻る順序を確認"},
+    {"step": 4, "action": "MCPからJudgment Hostへ進む順序と成功条件を確認する", "result": "MCPを先に確認し、MCP server/tools/onboarding_status/get_context/searchの実結果後にJudgment Hostへ進む明記を確認"},
+    {"step": 5, "action": "設定変更の安全策と失敗時の復帰を確認する", "result": "dry-run、既存設定の別名バックアップ、自動マージなし、設定を戻す前に比較する手順を確認"}
+  ],
+  "task_outcomes": {
+    "value": {"status": "pass", "evidence": "トップとquick-startに、承認した仕事の前提を使いAIが一度役立つ回答を返すこと、AIへ説明し直したくない文脈をローカルSSOTとして育てることがある。"},
+    "prerequisites_and_start": {"status": "pass", "evidence": "Node.js 20以上/npm、Codexでフォルダを開く、build、現実の依頼とプロジェクトを決める、開始文、npm run onboard:start -- --target codexが同一ページにある。"},
+    "mcp_to_host_order_and_success": {"status": "pass", "evidence": "MCP動作確認が終わるまでJudgment Hostへ進まないと明記。MCPは実際のserver起動、tools表示、get_context/search結果を要求し、Hostは3 Hookのready、監査行、実tool呼び出しを要求する。"},
+    "safety_and_resume": {"status": "success_with_friction", "evidence": "dry-run、バックアップ、既存設定を消さない、自動マージしない、比較してから復帰という安全策は具体的。中断時の現在地メモは画面保存されず、コードブロックを手元へコピーする手作業が残る。"}
+  },
+  "hard_gates": [
+    {"gate": "未完了を成功と表示する", "status": "pass", "evidence": "ready: true、設定生成、画面表示だけでは完了にしない。実結果なしは未確認に残すと明記。"},
+    {"gate": "現在地または次の操作が分からない", "status": "pass", "evidence": "現在地メモに完了済み/次にやること/未確認/最後に確認した実結果があり、再開順序も記載。"},
+    {"gate": "MCPとJudgment Hostの順序が曖昧", "status": "pass", "evidence": "MCPの動作確認後にJudgment Hostへ進む順序が明示。"},
+    {"gate": "既存設定を破壊する可能性がある", "status": "pass", "evidence": "dry-run、config.toml/hooks.jsonのバックアップ、自動マージなし、既存項目を残す指示がある。"},
+    {"gate": "失敗後の復旧手段がない", "status": "pass", "evidence": "build、doctor、demo、MCP確認、最初の未達項目への復帰と、設定比較後の復元手順がある。"},
+    {"gate": "主要操作が支援技術から到達不能", "status": "pass_synthetic_only", "evidence": "可視ブラウザで主要リンクと見出しを到達確認。実機・VoiceOverは未取得。"}
+  ],
+  "new_findings": [
+    {"id": "R3-P101-01", "finding": "現在地メモは手動コピーが必要で、画面を閉じると消える。10分・高時間圧では中断復帰時に記録漏れが起きうる。", "severity": "medium", "decision": "defer", "evidence_kind": "synthetic_browser_evaluation"},
+    {"id": "R3-P101-02", "finding": "quick-startは価値から設定・復旧まで一ページで網羅するため、10分で試す起点としては情報量が多い。見出しリンクで移動できるが、最初の必須3項目と後段の任意Hostの差が弱い。", "severity": "low", "decision": "defer", "evidence_kind": "synthetic_browser_evaluation"}
+  ],
+  "regressions": [],
+  "recovery": {"status": "documented", "steps": ["npm run build", "npm run doctor", "onboard:demoで承認済み文脈確認", "新しいtaskでMCP確認", "最初に通らない項目だけを直す", "設定・バックアップ・doctor結果を比較してから復元"], "safety": "設定変更前のバックアップと比較を要求し、判断不能時は上書きしない。"},
+  "synthetic_browser_evaluation": {"status": "complete", "verdict": "success_with_friction", "summary": "高時間圧の初回利用者でも、トップから10分起点、価値、開始条件、MCP→Judgment Host順序、成功条件、安全策、現在地メモと復旧順を可視ブラウザで確認できた。中断復帰の記録が手動で、quick-startの情報量が多い点に摩擦がある。"},
+  "uncollected": ["human_observation", "real_device_evidence", "assistive_technology_evidence", "effective_model_and_reasoning_effort"],
+  "status": "success_with_friction"
+}

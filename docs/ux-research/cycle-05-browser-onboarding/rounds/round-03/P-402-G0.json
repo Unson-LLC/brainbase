@@ -1,0 +1,65 @@
+{
+  "persona_id": "P-402-G0",
+  "round": "round-03",
+  "persona": {
+    "type": "recovery_user",
+    "experience": "experienced",
+    "technical_literacy": "high",
+    "time_pressure": "low",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "speed_first",
+    "input_environment": "keyboard",
+    "assistive_technology_viewpoint": "screen_reader"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {
+    "engine": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1440x1000",
+    "reduced_motion": "reduce",
+    "headless_requested": false,
+    "title": "Brainbase",
+    "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-402-G0.png"
+  },
+  "actions": [
+    {"action":"open","url":"http://127.0.0.1:4176/","result":"HTTP 200。価値文、10分で試す導線、ローカルSSOT、人の確認、AIの判断根拠を確認。"},
+    {"action":"follow","target":"10分で試す","url":"http://127.0.0.1:4176/guide/quick-start","result":"現在地メモ、5段階の固定4タスク、未確認を完了扱いしない境界、設定復旧手順を確認。"},
+    {"action":"inspect","target":"導入の5フェーズ","url":"http://127.0.0.1:4176/guide/onboarding-process","result":"準備→仕事の前提→最初の価値→必要な情報源→運用開始の順序、承認なしに正本を書き換えないルールを確認。"},
+    {"action":"inspect","target":"MCPツール","url":"http://127.0.0.1:4176/reference/mcp-tools","result":"get_context/search/onboarding_status、Connected-world onboardingのreceipt・権限待ち・未確認境界を確認。"},
+    {"action":"keyboard_a11y_check","result":"Tab 1回でSkip to contentへ到達。ARIA snapshotでbanner、Main Navigation、Sidebar Navigation、ページ内navigation、main見出し・リスト・コード例を確認。実スクリーンリーダー読み上げはnot_collected。"},
+    {"action":"capture_screenshot","path":"docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-402-G0.png"}
+  ],
+  "task_outcomes": {
+    "explain_value":{"status":"pass","finding":"仕事の文脈をローカルSSOTとして育て、確認済みの内容だけをCodexやClaude Codeへ渡し、判断根拠を確認できる価値を一文で説明できる。"},
+    "prerequisites_first_prompt_start_command":{"status":"pass","finding":"Node.js 20以上/npm、clone/install/build、開始文、npm run onboard:start -- --target codex、最初に試す依頼と対象プロジェクトを確認できる。"},
+    "codex_mcp_judgment_host_order_success_checks":{"status":"pass_with_friction","finding":"MCPをdry-run→バックアップ→新しいtaskでget_context/search/onboarding_status実結果確認→必要時のみJudgment Host、という順序と未確認を成功扱いしない境界を確認できる。実tool・doctor・監査行はnot_collected。"},
+    "avoid_config_overwrite_recover":{"status":"pass","finding":"既存設定を自動マージせず、dry-run・別名バックアップ・設定比較・build→doctor→demo→MCP確認→最初の未達項目の順で復旧する手順を確認できる。"}
+  },
+  "hard_gates": {
+    "no_product_edits":"pass",
+    "unfinished_or_waiting_not_success":"pass",
+    "current_or_next_action":"pass",
+    "existing_config_not_overwritten":"pass",
+    "human_confirmation_handoff":"pass",
+    "keyboard_or_assistive_technology":"partial",
+    "real_device":"not_collected",
+    "real_mcp_and_judgment_host":"not_collected",
+    "requested_model":"not_collected",
+    "model_binding":"not_collected"
+  },
+  "new_actionable_findings": [],
+  "regressions": [
+    {"id":"P402-R3-01","severity":"low","type":"runtime_observation","title":"巡回ページで404コンソールエラーが継続","evidence":"トップ、quick-start、onboarding-process、mcp-toolsをvisible Chromiumで巡回し、console errorを2件取得。画面操作は継続できたが対象URLと原因はnot_collected。","decision":"track"}
+  ],
+  "improvements_from_round_02": [
+    {"title":"現在地メモと中断復帰順が維持されている","evidence":"quick-start冒頭に完了済み／次にやること／未確認／最後に確認した実結果、build→doctor→demo→MCP→最初の未達項目の順序が表示されている。"}
+  ],
+  "recovery": {"status":"documented","observed":"現在地メモ、未確認を成功扱いしない注意、非上書き、バックアップ、復旧順を同一ページで確認できた。","missing":"画面を閉じた後のメモ保存、実MCP結果、doctor、監査行、実スクリーンリーダー操作、実機はnot_collected。"},
+  "synthetic_browser_evaluation": {"status":"completed","verdict":"success_with_friction","summary":"高技術・低圧力で頻繁に中断される利用者として、固定4タスクを可視ブラウザで完了。価値、開始条件、MCP→Judgment Host順、安全境界、現在地メモと復旧順を確認できた。実運用証拠はnot_collectedで、404コンソールエラー2件が継続。"},
+  "real_device_evidence":"not_collected",
+  "human_observation":"not_collected",
+  "evidence_kind":"actual_ui_browser_evidence",
+  "requested_model":"not_collected",
+  "model_binding":"not_collected",
+  "confidence":"medium"
+}

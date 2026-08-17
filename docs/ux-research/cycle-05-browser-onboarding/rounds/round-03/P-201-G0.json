@@ -1,0 +1,62 @@
+{
+  "persona_id": "P-201-G0",
+  "round": "round-03",
+  "persona": {
+    "type": "team_operator",
+    "experience": "experienced_domain",
+    "technical_literacy": "low",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "confirmation_preference": "confirmation_first",
+    "interaction": "voice_and_keyboard",
+    "assistive_technology_viewpoint": "screen_reader"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "head": "0e1e38530",
+  "model_requested": "gpt-5.6-luna",
+  "model_binding": "not_collected",
+  "evidence_kind": "synthetic_browser_evaluation",
+  "human_observation": "not_collected",
+  "real_device_evidence": "not_collected",
+  "browser_evidence": {
+    "browser": "visible Playwright Chromium",
+    "viewport": "1440x900",
+    "actions": [
+      {"action":"open","url":"http://127.0.0.1:4176/","result":"HTTP 200。Brainbaseの価値文、10分で試す導線、仕事をひとつ選ぶ→プロジェクト中心に整理→人が確認して記録する流れ、中断時の再開案内を確認。"},
+      {"action":"navigate","url":"http://127.0.0.1:4176/guide/onboarding-process","result":"HTTP 200。5フェーズ、開始文、プロジェクトと関係者を先に整理する順序、未完了を導入完了と扱わない境界を確認。"},
+      {"action":"navigate","url":"http://127.0.0.1:4176/guide/getting-started","result":"HTTP 200。Node.js 20以上、npm、local checkout、開始文、npm run onboard:start -- --target codex、最初の依頼を確認。"},
+      {"action":"navigate","url":"http://127.0.0.1:4176/guide/mcp-install","result":"HTTP 200。MCP dry-run、絶対パス、別出力先、非自動マージ、承認後の反映、新しいセッションでの確認を確認。"},
+      {"action":"navigate","url":"http://127.0.0.1:4176/guide/judgment-audit","result":"HTTP 200。UserPromptSubmit→PostToolUse→Stop、判断と知識参照の分離、doctor/eventsと新しいtaskでの検証、異常時の動作を確認。"},
+      {"action":"navigate","url":"http://127.0.0.1:4176/reference/mcp-tools","result":"HTTP 200。get_context、list_entities、search等とConnected-world onboardingの順序、未確認や権限待ちをready扱いしない契約を確認。"},
+      {"action":"capture_screenshot","path":"docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-201-G0.png"}
+    ],
+    "console_errors": ["Failed to load resource: 404 (2 occurrences); page navigation and content remained available"]
+  },
+  "tasks": {
+    "value_sentence": {"status":"clear_success","finding":"トップの価値文から、自分・仕事・関係性の文脈をローカルSSOTとして育て、Codex/Claude Codeが参照し説明のやり直しを減らす仕組みだと説明できる。"},
+    "prerequisites_first_prompt_start_command": {"status":"clear_success","finding":"必要環境、local checkout、開始文、onboard:startコマンド、最初に役立てたい依頼を一続きで確認できる。"},
+    "codex_mcp_judgment_order_success": {"status":"success_with_friction","finding":"MCPのdry-run・実動作確認を先に行い、その後Judgment Hostを登録して監査行とeventsを確認する順序が明記される。複数ページを往復して成功条件を再構成する摩擦は残る。"},
+    "avoid_overwrite_recover": {"status":"success_with_friction","finding":"dry-run、別出力先、非自動マージ、承認後反映、新セッション確認と障害時の確認順により安全に進められる。反映済み設定の差分確認・ロールバック具体例はnot_collected。"}
+  },
+  "hard_gates": {
+    "unfinished_as_success":"pass",
+    "current_or_next_action":"pass",
+    "overwrite_risk":"pass",
+    "recovery_path":"pass",
+    "human_confirmation_handoff":"pass",
+    "keyboard_or_assistive_reachability":"not_collected",
+    "no_product_edits":true,
+    "notes":"DOM上のSkip to content、見出し、リンク、導線と次操作は確認。実キーボード、音声入力、VoiceOver、実MCP接続、実Judgment Host接続は未取得。"
+  },
+  "findings": {
+    "new_actionable": [
+      {"id":"P201-R3-F01","severity":"medium","finding":"MCP成功確認とJudgment Host成功確認を同じ10分チェックリストの成功表へ並べると、頻繁な中断時にページ往復と判断の再構成を減らせる。","decision":"adopt"},
+      {"id":"P201-R3-F02","severity":"medium","finding":"既存設定へ反映した後の差分確認と、問題時の元設定への復元例を追加すると、低技術・高時間圧でも復旧判断を短縮できる。","decision":"adopt"}
+    ],
+    "regressions": []
+  },
+  "recovery": {"status":"documented","steps":["dry-runへ戻る","npm run build","npm run doctor","~/.brainbase/personal-os/の存在確認","実行ファイルと設定の絶対パス確認","エージェント再起動","新しいtaskで監査行と実tool証跡を確認"],"gap":"反映済み設定の自動ロールバックと差分復元例はnot_collected"},
+  "screenshot":"docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-201-G0.png",
+  "overall":"adopt",
+  "recommendation":"10分チェックリストへMCP→Judgment Hostの成功確認を統合し、既存設定の差分確認・復旧例を追加する。404リソースは内容影響を確認して別途修正候補にする。支援技術の実機検証は別途実施する。"
+}

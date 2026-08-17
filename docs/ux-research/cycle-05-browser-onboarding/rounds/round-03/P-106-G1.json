@@ -1,0 +1,188 @@
+{
+  "round": "round-03",
+  "persona": {
+    "id": "P-106-G1",
+    "slot": "first_time_individual-rotation-06",
+    "cohort": "rotation",
+    "role": "first_time_individual",
+    "task_set_id": "first_time_individual-core",
+    "attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "medium",
+      "time_pressure": "high",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "reduced_motion"
+    }
+  },
+  "evaluation": {
+    "url": "http://127.0.0.1:4176/",
+    "engine": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1440x900",
+    "evaluated_head": "0e1e38530e41fa946af6afefdf3c24817b3e7b70",
+    "fixture": "public VitePress onboarding fixture",
+    "evidence_kind": "synthetic_browser_evaluation",
+    "requested_model": "gpt-5.6-luna",
+    "model_binding": "not_collected",
+    "human_observation": "not_collected",
+    "real_device_evidence": "not_collected",
+    "screen_reader_or_voice_runtime": "not_collected"
+  },
+  "browser_actions": [
+    {
+      "action": "open",
+      "url": "/",
+      "result": "可視Playwright Chromiumでトップを開き、Brainbaseの価値と「10分で試す」導線を確認（title: Brainbase, viewport: 1440x900）"
+    },
+    {
+      "action": "click",
+      "target": "10分で試す",
+      "url": "/guide/quick-start",
+      "result": "一枚のチェックリスト、MCP→Judgment Host順、再開、元へ戻すを確認"
+    },
+    {
+      "action": "inspect",
+      "url": "/guide/getting-started",
+      "result": "前提、開始依頼文、Codex開始コマンドを確認"
+    },
+    {
+      "action": "inspect",
+      "url": "/guide/mcp-install",
+      "result": "dry-run、別出力、再起動、新task、MCP実結果確認を確認"
+    },
+    {
+      "action": "inspect",
+      "url": "/guide/judgment-audit",
+      "result": "UserPromptSubmit→PostToolUse→Stop、doctor、監査行を確認"
+    },
+    {
+      "action": "inspect",
+      "url": "/guide/operations",
+      "result": "生成物だけでは完了でない基準を確認"
+    },
+    {
+      "action": "inspect",
+      "url": "/reference/mcp-tools",
+      "result": "tool順序、承認、未確認・空結果の境界を確認"
+    },
+    {
+      "action": "screenshot",
+      "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-106-G1.png",
+      "result": "可視Playwright Chromiumでトップ画面キャプチャを保存"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "value_sentence",
+      "required_task": true,
+      "status": "clear_success",
+      "hard_gate": "pass",
+      "answer": "Brainbaseは、自分の仕事文脈をローカルの正本として整え、CodexやClaude Codeが必要な時に参照できるようにして、AIへ説明し直す手間を減らす仕組みです。",
+      "evidence": [
+        "/: Brainbase 自分の仕事文脈をAIに渡すためのMCPマニュアル",
+        "/: ローカルSSOT、AIエージェント参照"
+      ]
+    },
+    {
+      "id": "prerequisites_first_request_start_command",
+      "required_task": true,
+      "status": "clear_success",
+      "hard_gate": "pass",
+      "answer": "前提はNode.js 20以上、npm、MCP対応エージェント、Brainbaseのローカルcheckout。最初の依頼は『Brainbaseのオンボーディングを始めたいです。』、Codexの開始コマンドは npm run onboard:start -- --target codex。",
+      "evidence": [
+        "/guide/quick-start: 準備する、開始依頼文、開始コマンド",
+        "/guide/getting-started: 必要なもの"
+      ]
+    },
+    {
+      "id": "mcp_then_judgment_host_order_and_success",
+      "required_task": true,
+      "status": "success_with_friction",
+      "hard_gate": "pass",
+      "answer": "最初の価値を確認し、MCPをdry-run・バックアップ・Brainbase項目だけ追加・再起動・新taskで実結果確認。その後、任意でJudgment Hostを登録し、UserPromptSubmit→PostToolUse→Stopの3 Hook、doctorのready、新taskの監査行と実tool呼び出しを確認する。",
+      "evidence": [
+        "/guide/quick-start: 3. MCP→4. Judgment Hostの順",
+        "/guide/mcp-install: MCP確認項目",
+        "/guide/judgment-audit: 3 Hook、doctor、監査行"
+      ],
+      "friction": "実際のCLI・MCP・Hostイベントはブラウザ評価では実行せず、利用者の手動確認が残る"
+    },
+    {
+      "id": "non_overwrite_and_interruption_recovery",
+      "required_task": true,
+      "status": "success_with_friction",
+      "hard_gate": "pass",
+      "answer": "既存config.toml/hooks.jsonをcp -nでバックアップし、dry-runを確認してBrainbase項目と3 Hookだけ追加する。中断時は追加し直さず、build→doctor→承認済み文脈→新taskの実MCP結果→必要ならHost監査へ戻り、判断不能なら上書きせず比較する。",
+      "evidence": [
+        "/guide/quick-start: 中断したらここから再開",
+        "/guide/quick-start: 設定を元へ戻す、非上書き"
+      ],
+      "friction": "チェック状態は自動保存されず、実状態との再照合が必要"
+    }
+  ],
+  "hard_gates": [
+    {
+      "id": "unfinished_not_success",
+      "status": "pass"
+    },
+    {
+      "id": "current_location_next_action",
+      "status": "pass"
+    },
+    {
+      "id": "non_destructive_config",
+      "status": "pass"
+    },
+    {
+      "id": "failure_recovery",
+      "status": "pass"
+    },
+    {
+      "id": "human_confirmation_handoff",
+      "status": "pass"
+    },
+    {
+      "id": "keyboard_assistive_reachability",
+      "status": "pass",
+      "note": "DOMでSkip link・見出し・リンク・Copyを確認。音声・実支援技術は未取得"
+    }
+  ],
+  "findings": {
+    "new_actionable": [
+      {
+        "id": "P106-R2-F1",
+        "severity": "medium",
+        "type": "friction",
+        "finding": "一枚の再開チェックリストは改善したが、チェック状態は利用者記入で実MCP/Host証跡と結び付かない。頻繁な中断・速度優先ではチェック済みと実状態の再照合が残る。",
+        "evidence": "/guide/quick-start の自分でチェック、実結果を取れない項目は未確認のまま",
+        "decision": "defer",
+        "reason": "実行状態保存にはCLI/Host連携が必要"
+      }
+    ],
+    "regressions": []
+  },
+  "recovery": {
+    "status": "documented_with_friction",
+    "steps": [
+      "設定を追加し直さない",
+      "npm run build",
+      "npm run doctor",
+      "onboard:demoと新taskのget_context/searchで実結果確認",
+      "必要なら3 Hookと監査行確認",
+      "最初に通らない一項目だけ直す",
+      "判断不能ならバックアップと現在設定とdoctorを比較"
+    ],
+    "gap": "CLI/MCP/Host runtime receipt、進捗自動保存、実機・VoiceOver・音声入力はnot_collected"
+  },
+  "evidence_boundaries": {
+    "actual_ui_browser_evidence": "collected",
+    "human_observation": "not_collected",
+    "real_device_evidence": "not_collected",
+    "mcp_runtime_receipt": "not_collected",
+    "judgment_host_runtime_receipt": "not_collected",
+    "customer_or_production_outcome": "not_collected"
+  },
+  "screenshot_path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-106-G1.png"
+}

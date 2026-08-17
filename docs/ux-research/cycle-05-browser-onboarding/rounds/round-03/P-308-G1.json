@@ -1,0 +1,89 @@
+{
+  "evaluation_type": "cycle-05-round-03-independent-browser-evaluation",
+  "round": "round-03",
+  "persona_id": "P-308-G1",
+  "slot": "ontology_steward-rotation-08",
+  "cohort": "rotation",
+  "role": "ontology_steward",
+  "task_set_id": "ontology_steward-core",
+  "persona_attributes": {
+    "domain_experience": "experienced",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "speed_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "evidence": {
+    "kind": "synthetic_browser_evaluation",
+    "browser": "visible Google Chrome controlled by Playwright",
+    "url": "http://127.0.0.1:4176/",
+    "viewport": "1440x1000; full-page screenshot",
+    "screenshot": "screenshots/round-03/P-308-G1.png",
+    "observed_pages": ["/", "/guide/quick-start"],
+    "human_observation": "not_collected",
+    "real_device_evidence": "not_collected",
+    "assistive_technology": "not_collected",
+    "requested_model": "not_collected",
+    "model_binding": "not_collected",
+    "evaluated_head": "0e1e38530e41fa946af6afefdf3c24817b3e7b70"
+  },
+  "start_point": "トップ → 10分で試す",
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "HTTP 200。価値説明、10分で試す、導入の流れを見るを確認。"},
+    {"action": "click", "target": "10分で試す", "result": "/guide/quick-startへ遷移。"},
+    {"action": "inspect", "target": "クイックスタート", "result": "現在地メモ、準備、最初の価値、MCP、任意のJudgment Host、中断復帰、設定を元へ戻す節を確認。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-03/P-308-G1.png"}
+  ],
+  "tasks": {
+    "value_sentence": {
+      "status": "clear_success",
+      "reason": "Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照できるようにするPersonal Onboarding Kitだと説明できた。",
+      "action_trace": ["トップを表示", "見出しと3つの価値説明を確認", "一文に要約"],
+      "evidence": ["/: 自分の仕事文脈をAIに渡すためのMCPマニュアル", "/: AIに二度と説明したくない文脈", "/: AIの判断根拠を毎回確認できる"]
+    },
+    "prerequisites_first_prompt_start_command": {
+      "status": "clear_success",
+      "reason": "Node.js 20以上、npm、Codexでフォルダを開くこと、clone/install/build、最初の依頼文、npm run onboard:start -- --target codex、最初に試す依頼と対象プロジェクトを確認できた。",
+      "action_trace": ["10分で試すを開く", "1.準備するを確認", "依頼文と開始コマンドを確認"],
+      "evidence": ["/guide/quick-start: 1.準備する", "Brainbaseのオンボーディングを始めたいです。", "npm run onboard:start -- --target codex"]
+    },
+    "mcp_judgment_host_order_success_checks": {
+      "status": "success_with_friction",
+      "reason": "MCPを先にdry-run・登録・新しいtaskで実結果確認し、その後に任意のJudgment Hostへ進む順序と、MCPの3確認項目、Hostの3 Hook・doctor・監査行を読めた。詳細は別ページへの遷移が必要で、実tool結果と監査行は未取得。",
+      "action_trace": ["MCP節を確認", "get_context/search/onboarding_statusの成功条件を確認", "MCP確認後にHostへ進む順序を確認", "実結果は未実行"],
+      "evidence": ["/guide/quick-start: MCPの動作確認が終わるまでJudgment Hostへ進まない", "get_context、search、onboarding_status", "UserPromptSubmit/PostToolUse/Stop、doctor、監査行"],
+      "friction": "急いでいる利用者にはMCPとHostの詳細ページ横断が残る。"
+    },
+    "safe_non_overwrite_and_interruption_recovery": {
+      "status": "clear_success",
+      "reason": "現在地メモは画面を閉じると保存されないこと、実結果だけを手元へ残すこと、dry-run・バックアップ・既存設定を自動マージしない境界、中断後のbuild→doctor→demo→新task確認、設定を元へ戻す手順を確認できた。",
+      "action_trace": ["現在地メモを確認", "dry-runとバックアップを確認", "中断時の再開順を確認", "復旧時に上書きせず比較する案内を確認"],
+      "evidence": ["/guide/quick-start: 現在地メモ", "画面を閉じると保存されません", "npm run onboard:install -- --target codex --dry-run", "設定を元へ戻す"],
+      "gap": "実設定変更、実復旧、実MCP、実Hostはnot_collected。"
+    }
+  },
+  "hard_gates": {
+    "no_product_edits": "pass",
+    "existing_config_not_overwritten": "pass_documented_boundary_not_executed",
+    "unverified_or_waiting_not_success": "pass",
+    "human_confirmation_before_canonical_write": "pass_documented",
+    "workflow_dead_end": "pass_documented_recovery_path",
+    "keyboard_or_assistive_technology": "not_collected",
+    "real_device": "not_collected",
+    "requested_model": "not_collected",
+    "model_binding": "not_collected"
+  },
+  "new_actionable_findings": [
+    {"id": "P308-R3-F01", "severity": "medium", "title": "現在地メモは手動コピーで、再訪時に復元されない", "evidence": "クイックスタートに『画面を閉じると保存されません』とあり、完了済み・次にやること・未確認を手元のメモへ残す運用になっている。", "recommendation": "保存先を明示したローカルメモ雛形または再訪時に貼り戻せる導線を追加する。", "decision": "defer", "reason": "安全な未確認境界は改善したが、公開マニュアルの文書境界を越える状態保存機能は今回の対象外。"}
+  ],
+  "regressions": [],
+  "improvements_from_round_02": [
+    {"title": "現在地メモと未確認を成功にしない境界が可視化", "evidence": "quick-start冒頭に完了済み・次にやること・未確認・最後に確認した実結果の雛形と、ready: trueや生成だけでは完了でない注意がある。"},
+    {"title": "復旧時の比較・上書き回避が明文化", "evidence": "設定を元へ戻す節で、現在ファイルを別名保存し、バックアップ・doctor結果を並べ、判断できなければ上書きしないと案内される。"}
+  ],
+  "recovery": {"status": "documented_with_execution_gap", "observed": "現在地メモ、未確認境界、バックアップ、中断後の確認順、復旧時の非上書き判断を確認。", "missing": "実設定・実MCP・実Host・実機支援技術の復旧確認はnot_collected。"},
+  "synthetic_browser_evaluation": {"status": "completed", "summary": "トップから価値と開始条件を短時間で把握でき、quick-startの現在地メモと未確認境界により中断時の判断材料が増えた。MCP→Judgment Hostの詳細ページ横断と手動メモ保存は残る。"},
+  "completion": "P-308-G1 Round 3 evaluation completed; product code unchanged."
+}

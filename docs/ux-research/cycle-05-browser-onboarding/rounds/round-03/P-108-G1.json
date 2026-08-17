@@ -1,0 +1,49 @@
+{
+  "persona_id": "P-108-G1",
+  "round": 3,
+  "evaluated_head": "0e1e38530",
+  "model_condition": "実ブラウザ評価。チーム運用者、経験あり、技術理解は低い、速度優先、割り込みあり。実支援技術・実機は未取得。",
+  "url": "http://127.0.0.1:4176/",
+  "fixture_version": "portable-onboarding-v1",
+  "viewport": "1440x1100",
+  "evidence_reviewed": [
+    "トップページ /",
+    "クイックスタート /guide/quick-start",
+    "オンボーディング工程 /guide/onboarding-process",
+    "MCPツール /reference/mcp-tools",
+    "screenshots/round-03/P-108-G1.png",
+    "Playwright可視Chromium実行ログ: 4ページ巡回、各h1/body取得、console 404を4件"
+  ],
+  "actions": [
+    "トップから価値を一文で説明できるか確認",
+    "前提条件・開始依頼・開始コマンド・完了条件を確認",
+    "MCP登録後のtool順序、成功確認、Judgment Host境界を確認",
+    "dry-run、バックアップ、上書き禁止、中断後の再開手順を確認"
+  ],
+  "tasks": {
+    "value_sentence": {"status": "clear_success", "reason": "トップで、自分の仕事文脈をAIへ渡すMCPマニュアルであり、判断根拠を確認できる価値を一文で把握できた。", "evidence": ["/: 自分の仕事文脈をAIに渡すためのMCPマニュアル", "/: AIに二度と説明したくない文脈"]},
+    "prerequisites_first_prompt_start_command": {"status": "success_with_friction", "reason": "Node.js/npm/Codex、開始依頼、npm run onboard:start -- --target codex、最初の依頼と完了条件を確認できた。クイックスタートと5フェーズの往復は残る。", "evidence": ["/guide/quick-start", "/guide/onboarding-process"]},
+    "codex_mcp_judgment_order_success_recovery": {"status": "success_with_friction", "reason": "get_context、list_entities、search、search_personal_kg、onboarding_statusの順序と、MCP成功確認後にJudgment Hostへ進む境界を確認できた。実tool結果と監査行はブラウザ外。", "evidence": ["/reference/mcp-tools", "/guide/quick-start"]},
+    "non_overwrite_and_interruption_recovery": {"status": "clear_success", "reason": "dry-run、config/hooksバックアップ、既存設定を自動マージしない境界、中断後のbuild→doctor→demo→MCP確認の再開手順を同一ページで確認できた。", "evidence": ["/guide/quick-start: 中断したらここから再開", "/guide/quick-start: 設定を元へ戻す"]}
+  },
+  "hard_gates": {
+    "no_product_edits": "pass",
+    "existing_config_not_overwritten": "pass",
+    "unverified_or_waiting_not_success": "pass",
+    "human_handoff": "pass",
+    "keyboard_or_assistive_technology": "not_collected",
+    "real_device": "not_collected",
+    "requested_model": "not_collected",
+    "model_binding": "not_collected"
+  },
+  "new_actionable_findings": [
+    {"severity": "medium", "title": "MCP実行結果とJudgment Host監査結果を一画面で確認できない", "evidence": "手順は確認できるが、実tool呼び出し・doctor結果・監査行のブラウザ内証跡は取得できない。", "decision": "defer", "evidence_status": "not_collected"},
+    {"severity": "low", "title": "ページロード時の404コンソールエラーの原因が未特定", "evidence": "可視Chromiumで4ページを巡回し、各ページ1件の404コンソールエラーを取得。画面操作は継続可能だが原因は未特定。", "decision": "defer", "evidence_status": "observed"}
+  ],
+  "regressions": [],
+  "improvements_from_round_02": [{"title": "中断復帰手順が同一ページに維持", "evidence": "/guide/quick-startの再開節で確認"}],
+  "synthetic_browser_evaluation": {"status": "completed", "summary": "固定4タスクを可視Chromiumで完了。価値・開始・安全境界・中断復帰を実ブラウザ表示で確認した。巡回4ページで404コンソールエラーを各1件取得。MCP実結果、支援技術、実機は未取得。"},
+  "evidence_kind": "actual_ui_browser_evidence",
+  "real_device_evidence": "not_collected",
+  "confidence": "medium"
+}

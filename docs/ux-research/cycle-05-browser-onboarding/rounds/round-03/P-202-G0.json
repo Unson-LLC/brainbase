@@ -1,0 +1,23 @@
+{
+  "schema_version": "ux-browser-evidence.v1",
+  "cycle": "cycle-05",
+  "round": "round-03",
+  "persona_id": "P-202-G0",
+  "revision": "0e1e38530",
+  "url": "http://127.0.0.1:4176/",
+  "method": "visible_playwright",
+  "viewport": { "width": 1440, "height": 1000 },
+  "tasks": [
+    { "id": "T1", "goal": "最短導入ページを見つけ、開始地点を特定する", "path": "/guide/quick-start", "status": "pass", "evidence": ["10分で試す", "現在地メモ", "1. 準備する"] },
+    { "id": "T2", "goal": "中断後の再開方法と現在地メモの扱いを理解する", "path": "/guide/quick-start", "status": "pass", "evidence": ["中断したらここから再開", "設定を元へ戻す", "画面を閉じると保存されません"] },
+    { "id": "T3", "goal": "最初の価値の完了条件を理解する", "path": "/guide/onboarding-process", "status": "pass", "evidence": ["最初の価値", "説明し直さずに役立つ回答が出た", "ready: true"] },
+    { "id": "T4", "goal": "MCPツールと接続済みオンボーディングの入口を探す", "path": "/reference/mcp-tools", "status": "pass", "evidence": ["get_context", "search", "brainbase_onboarding_start", "selectedSourceIds"] }
+  ],
+  "hard_gates": { "status": "pass", "failed": [] },
+  "new_findings": [
+    { "id": "N-001", "severity": "major", "status": "observed", "description": "チェックリストの[ ]は表示テキストで、input[type=checkbox]は0件。『自分でチェックを付ける』説明に対して、ブラウザ上でチェック状態を保持する操作は提供されていない。", "evidence": "quick-start: input count=0, checkbox count=0" }
+  ],
+  "regressions": { "status": "not_collected", "items": [], "reason": "比較可能なRound 2ブラウザ証拠がこの評価入力に含まれていない" },
+  "not_collected": ["human completion time", "real device", "assistive technology", "persistence after browser close", "Round 2 comparable baseline"],
+  "artifact": "screenshots/round-03/P-202-G0.png"
+}

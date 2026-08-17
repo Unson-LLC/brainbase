@@ -1,0 +1,58 @@
+{
+  "persona_id": "P-407-G1",
+  "round": "round-03",
+  "evaluated_head": "0e1e38530",
+  "model_requested": "Codex GPT-5",
+  "model_binding": "not_collected",
+  "persona": {
+    "role": "recovery_user",
+    "domain_experience": "experienced",
+    "technical_literacy": "high",
+    "time_pressure": "low",
+    "interruption_state": "focused",
+    "work_style": "speed_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "environment": {
+    "url": "http://127.0.0.1:4176/",
+    "browser": "visible Google Chrome via Playwright",
+    "viewport": "1440x900",
+    "reduced_motion": true,
+    "screenshot": "screenshots/round-03/P-407-G1.png",
+    "human_observation": "not_collected",
+    "real_device_evidence": "not_collected",
+    "assistive_technology_evidence": "not_collected"
+  },
+  "actions": [
+    {"step": 1, "action": "トップから10分で試すを開く", "result": "HTTP 200。価値文と導入の起点を確認。"},
+    {"step": 2, "action": "現在地メモと4項目の再開導線を確認する", "result": "完了済み・次にやること・未確認・最後に確認した実結果の4項目、画面を閉じる前の手動コピー、実結果なしを完了にしない契約を確認。"},
+    {"step": 3, "action": "MCP登録からJudgment Hostまでの順序と成功条件を確認する", "result": "dry-run→既存設定をバックアップ→Brainbase項目のみ追加→新taskでMCP実結果→任意でHost、の順序を確認。"},
+    {"step": 4, "action": "中断復帰、安全策、失敗時の確認手順を確認する", "result": "build→doctor→personal-os存在→絶対パス→再起動→新taskの順、および非上書き・未確認を成功にしない境界を確認。"}
+  ],
+  "task_outcomes": {
+    "value_sentence": {"status": "clear_success", "evidence": "トップで『自分の仕事文脈をAIに渡すためのMCPマニュアル』『AIに二度と説明したくない文脈』を確認し、一文で価値を説明できる。"},
+    "current_location_and_resume": {"status": "success_with_friction", "evidence": "quick-startに現在地メモの4項目と中断後の再開順序がある。ただし画面を閉じると保存されず、手動コピーが必要。"},
+    "mcp_to_host_order_and_success": {"status": "clear_success", "evidence": "MCP登録後にbrainbase起動、tool表示、get_context/search/onboarding_statusの実結果を確認し、その後に任意のJudgment Hostへ進む順序がquick-start、mcp-install、judgment-auditで一貫している。"},
+    "non_overwrite_and_recovery": {"status": "clear_success", "evidence": "dry-run、config.tomlバックアップ、自動マージなし、既存MCP項目を消さない、build/doctor/新task確認の復帰手順を確認。"}
+  },
+  "hard_gates": [
+    {"gate": "未完了・未確認を成功扱いしない", "status": "pass", "evidence": "ready: true、設定生成、画面表示だけでは完了にせず、error・空結果・権限待ち・未確認を残す明記。"},
+    {"gate": "現在地または次の操作が分からない", "status": "pass_with_friction", "evidence": "現在地メモと5段階の再開順序が見えるが、メモは画面終了で保存されない。"},
+    {"gate": "MCPとJudgment Hostの順序が曖昧", "status": "pass", "evidence": "MCPの実動作確認後に任意のJudgment Hostへ進む境界を確認。"},
+    {"gate": "既存設定を破壊する可能性がある", "status": "pass", "evidence": "dry-run、別名バックアップ、自動マージなし、既存項目を消さない手順。"},
+    {"gate": "主要操作が支援技術から到達不能", "status": "not_collected", "evidence": "DOM上のSkip to contentと見出しは確認したが、実スクリーンリーダー操作は未取得。"},
+    {"gate": "評価対象外のプロダクト編集", "status": "pass", "evidence": "ブラウザ閲覧とスクリーンショットのみ。プロダクトコード・設定は編集していない。"}
+  ],
+  "new_findings": [
+    {"id": "R3-P407-G1-01", "severity": "medium", "finding": "中断復帰の現在地メモは手動コピーで、画面を閉じると消える。", "decision": "adopt", "evidence_kind": "synthetic_browser_evaluation"},
+    {"id": "R3-P407-G1-02", "severity": "low", "finding": "MCPとJudgment Hostの詳細成功条件は複数ページに分散し、速度優先では往復が残る。", "decision": "defer", "evidence_kind": "synthetic_browser_evaluation"}
+  ],
+  "regressions": [
+    {"id": "R3-P407-G1-R01", "severity": "low", "finding": "6ページ巡回中、ブラウザコンソールに404リソースエラーを2件取得。主要画面はHTTP 200で利用継続できたが、原因と対象リソースは未確認。", "status": "needs_investigation", "evidence_kind": "browser_console"}
+  ],
+  "recovery": {"status": "documented", "steps": ["npm run build", "npm run doctor", "~/.brainbase/personal-os/の存在確認", "MCP設定の絶対パス確認", "設定反映後に再起動", "新しいtaskでget_context/search/onboarding_statusを確認", "必要な場合のみJudgment Hostの3 Hookと監査行を確認"], "safety": "既存設定のバックアップと非上書き境界を確認し、未確認時は完了にしない。"},
+  "synthetic_browser_evaluation": {"status": "complete", "verdict": "success_with_friction", "summary": "経験豊富な復帰利用者は、現在地メモ、MCP→Judgment Host順序、安全な再開手順を可視ブラウザで確認できた。メモの手動保存とページ横断、404コンソールエラーが残る。"},
+  "uncollected": ["human_observation", "real_device_evidence", "assistive_technology_evidence", "effective_model_and_reasoning_effort", "404_resource_identity"],
+  "status": "success_with_friction"
+}
