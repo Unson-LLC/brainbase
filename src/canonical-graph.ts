@@ -1,14 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { CanonicalEdge, CanonicalEntityKind, CanonicalGraphFile, CoreRelation, EntityKind, GraphFileV2 } from './types.js';
-
-const relationEndpoints: Record<CoreRelation, readonly [CanonicalEntityKind, CanonicalEntityKind]> = {
-  member_of: ['person', 'org'],
-  participates_in: ['person', 'project'],
-  accountable_for: ['person', 'project'],
-  owned_by: ['project', 'org'],
-  governs: ['decision', 'project'],
-  supersedes: ['decision', 'decision']
-};
+import { getCanonicalRelation } from './relation-registry.js';
 
 export function canonicalEdgeId(edge: Pick<CanonicalEdge, 'fromId' | 'relation' | 'toId'>): string {
   return `edge-${createHash('sha256').update(JSON.stringify([edge.fromId, edge.relation, edge.toId])).digest('hex').slice(0, 24)}`;
@@ -116,9 +108,9 @@ export function validateCanonicalGraph(graph: unknown): asserts graph is Canonic
     if (!from || !to) {
       throw new Error(`GRAPH-EDGE-ENDPOINT-EXISTS at edges[${index}]: missing endpoint for ${tuple}`);
     }
-    const expected = relationEndpoints[edge.relation];
-    if (!expected || from.type !== expected[0] || to.type !== expected[1]) {
-      throw new Error(`GRAPH-EDGE-ENDPOINT-TYPE at edges[${index}]: ${edge.relation} requires ${expected?.join(' -> ') ?? 'a known relation'}`);
+    const expected = getCanonicalRelation(edge.relation);
+    if (from.type !== expected.from || to.type !== expected.to) {
+      throw new Error(`GRAPH-EDGE-ENDPOINT-TYPE at edges[${index}]: ${edge.relation} requires ${expected.from} -> ${expected.to}`);
     }
     if (edge.id !== canonicalEdgeId(edge)) {
       throw new Error(`GRAPH-EDGE-ID-STABLE at edges[${index}].id: expected ${canonicalEdgeId(edge)}`);
