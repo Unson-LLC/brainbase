@@ -1,0 +1,60 @@
+{
+  "persona_id": "P-201-G0",
+  "round": "round-02",
+  "persona": {
+    "type": "team_operator",
+    "experience": "experienced_domain",
+    "technical_literacy": "low",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "confirmation_preference": "confirmation_first",
+    "interaction": "voice_and_keyboard",
+    "assistive_technology_viewpoint": "screen_reader"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "model_requested": "gpt-5.6-luna",
+  "model_binding": "not_collected",
+  "evidence_kind": "synthetic_browser_evaluation",
+  "human_observation": "not_collected",
+  "real_device_evidence": "not_collected",
+  "browser_evidence": {
+    "browser": "visible Playwright Chromium via system Google Chrome",
+    "viewport": "1440x900",
+    "actions": [
+      {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップ表示。価値文、『10分で試す』、導入の流れ、中断時に同じページから現在地を確認できる案内を確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "5フェーズ、開始文、承認なしに正本を書き換えないルール、未完了を導入完了と扱わないルールを確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/getting-started", "result": "Node.js 20以上、npm、local checkout、開始文、npm run onboard:start -- --target codex、最初の依頼と対象プロジェクトを確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "MCP dry-run、別出力先、非上書き、新しいセッションでのtool確認、Judgment Hostへ進む順序を確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "UserPromptSubmit→PostToolUse→Stop、doctorのready/events、新しいtaskの監査行、異常時の修復動作を確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/reference/mcp-tools", "result": "MCP tool、Connected-world onboardingのstart→get→ingest→review→first_value順、未確認や権限待ちをready扱いしない契約を確認。HTTP 200。"},
+      {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-201-G0.png"}
+    ]
+  },
+  "tasks": {
+    "value_sentence": {"status": "clear_success", "finding": "Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照しながら作業できるようにし、説明のやり直しを減らす仕組みだと一文で説明できる。トップの『10分で試す』が時間圧の高い利用者の起点になる。"},
+    "prerequisites_first_prompt_start_command": {"status": "clear_success", "finding": "Node.js 20以上、npm、MCP対応エージェント、local checkout、npm install/build、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex、最初の依頼と対象プロジェクトを確認できる。"},
+    "codex_mcp_judgment_order_success": {"status": "success_with_friction", "finding": "MCPを先に実動作確認し、その後Judgment Hostを登録する順序が明記される。MCPはserver/toolとget_context・search等の実結果、Judgment Hostはdoctorのready/eventsと新しいtaskの監査行で成功確認できる。別ページを往復して確認表を再構成する摩擦がある。"},
+    "avoid_overwrite_recover": {"status": "success_with_friction", "finding": "両方ともdry-run、未作成の別出力先、既存設定を自動マージ・上書きしない境界が明記される。障害時はbuild→doctor→正本ディレクトリ→絶対パス→再起動→新taskの確認順があり中断後に復帰できる。ただし反映済み設定の差分確認・ロールバック例は見つからない。"}
+  },
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "no_product_edits": true,
+    "notes": "DOM上のSkip to content、見出し、リンク、順序と次操作は確認。実キーボード、音声入力、VoiceOver、実MCP接続、実Judgment Host接続は未取得。"
+  },
+  "findings": {
+    "new_actionable": [
+      {"id": "P201-R2-F01", "severity": "medium", "finding": "MCP成功確認とJudgment Host成功確認を『10分で試す』チェックリスト上の同一表へ統合すると、頻繁に中断される確認優先の利用者の往復を減らせる。", "decision": "adopt"},
+      {"id": "P201-R2-F02", "severity": "medium", "finding": "既存設定へ手動統合した後の差分確認と、問題時に元へ戻す具体例を追加すると、低技術・高時間圧でも復旧判断を短縮できる。", "decision": "adopt"}
+    ],
+    "regressions": []
+  },
+  "recovery": {"status": "documented", "steps": ["dry-runへ戻る", "npm run build", "npm run doctor", "~/.brainbase/personal-os/の存在確認", "実行ファイルと設定の絶対パス確認", "エージェント再起動", "新しいtaskで監査行と実tool証跡を確認"], "gap": "反映済み設定の自動ロールバックと差分復元例はnot_collected"},
+  "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-201-G0.png",
+  "overall": "adopt",
+  "recommendation": "10分チェックリストへMCP→Judgment Hostの成功確認を統合し、既存設定の差分確認・復旧例を追加する。支援技術の実機検証は別途実施する。"
+}

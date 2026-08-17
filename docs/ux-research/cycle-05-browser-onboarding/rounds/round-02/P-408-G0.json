@@ -1,0 +1,59 @@
+{
+  "evaluation_type": "cycle-05-round-02-independent-browser-evaluation",
+  "persona_id": "P-408-G0",
+  "round": "round-02",
+  "persona": {
+    "role": "recovery_user",
+    "cohort": "rotation",
+    "domain_experience": "experienced",
+    "technical_literacy": "high",
+    "time_pressure": "low",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "speed_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {
+    "engine": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1440x900",
+    "reduced_motion": true,
+    "status": 200,
+    "title": "Brainbase"
+  },
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップの価値説明と『10分で試す』導線を可視ブラウザで確認。"},
+    {"action": "start_from_quick_start", "url": "http://127.0.0.1:4176/guide/quick-start", "result": "準備、開始文、MCP→Judgment Hostの順序、中断復帰、設定を元へ戻す手順を確認。"},
+    {"action": "inspect_visible_tasks", "result": "4つの固定タスクをquick-startの可視文言・コード例・チェック項目に照合。チェック項目は本文中の静的な[ ]表記で、入力可能なチェックボックスではない。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-408-G0.png"}
+  ],
+  "tasks": {
+    "value_sentence": {"status": "clear_success", "finding": "Brainbaseは、仕事の文脈をローカルSSOTとして育て、CodexやClaude Codeへ渡し、AIへ同じ前提を説明し直す負担を減らすMCPマニュアルだと説明できる。", "evidence": ["/:『自分の仕事文脈をAIに渡すためのMCPマニュアル』", "/:『AIに二度と説明したくない文脈』", "/:『人が確認してから記録する』"]},
+    "prerequisites_first_prompt_start_command": {"status": "success_with_friction", "finding": "Node.js 20以上、npm、clone/build、現実の依頼とプロジェクト、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを確認できる。トップからquick-startへ移動する必要がある。", "evidence": ["/guide/quick-start: Node.js 20以上、npm、Codex、npm run build", "/guide/quick-start: 開始文とnpm run onboard:start -- --target codex"]},
+    "mcp_judgment_order_success_checks": {"status": "success_with_friction", "finding": "MCPをdry-run・登録し、新taskでbrainbase MCPのget_context/search/onboarding_statusの実結果を確認してから任意のJudgment Hostへ進む順序が、quick-start内で明示される。Hostは3 Hook、doctor ready、🧠/📚監査行、実tool証跡で確認する。詳細仕様はreferenceへ分散している。", "evidence": ["/guide/quick-start: MCP確認後にJudgment Hostへ進む", "/guide/quick-start: UserPromptSubmit/PostToolUse/Stop、doctor、新task", "/reference/mcp-tools: 未確認を成功扱いしない契約"]},
+    "avoid_overwrite_and_recover": {"status": "clear_success", "finding": "dry-run、cp -nによるconfigバックアップ、既存設定を自動マージしない境界、Brainbase項目だけの追加、build→doctor→onboard:demo→新taskの中断復帰順序、設定を元へ戻す際の別名保存と上書き回避を確認できる。", "evidence": ["/guide/quick-start: ~/.codex/config.toml.before-brainbaseへcp -n", "/guide/quick-start: 既存設定を自動マージしない", "/guide/quick-start: 中断したらここから再開／設定を元へ戻す"]}
+  },
+  "hard_gates": {
+    "no_product_edits": "pass",
+    "existing_config_not_overwritten": "pass",
+    "unfinished_or_waiting_not_success": "pass",
+    "human_confirmation_before_canonical_write": "pass",
+    "keyboard_or_assistive_technology": "not_collected",
+    "real_device": "not_collected"
+  },
+  "findings": {
+    "new_actionable": [
+      {"id": "P408G0-R2-F1", "severity": "medium", "title": "『自分でチェック』と書かれているがチェック項目が操作できない", "evidence": "/guide/quick-startの準備・価値・MCP・Hostの各[ ]は静的なlistitem/textで、可視ブラウザ上にcheckbox roleや入力状態がない。中断後に完了済み項目を再確認しやすい。", "recommendation": "完了状態を保存する意図があるなら実チェックボックスと再開位置を提供し、保存しないなら『確認項目』など誤解のない表現にする。"}
+    ],
+    "regression": []
+  },
+  "recovery": {"status": "documented", "observed": "中断時はnpm run build、npm run doctor、onboard:demo、新taskでMCP確認、最初に通らない一項目だけを直す順序が同一ページにある。設定を戻す場合も現在ファイルを別名保存して確認済みバックアップを戻す。", "gap": "実エージェント設定、MCP、Hook、journal、VoiceOver、実機での復帰はnot_collected。"},
+  "actual_ui_browser_evidence": true,
+  "real_device_evidence": "not_collected",
+  "human_evidence": "not_collected",
+  "requested_model": "not_collected",
+  "model_binding": "not_collected",
+  "evidence_kind": "actual_ui_browser_evaluation",
+  "confidence": "medium"
+}

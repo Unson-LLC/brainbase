@@ -1,0 +1,99 @@
+{
+  "persona_id": "P-105-G1",
+  "round": "round-02",
+  "role": "first_time_individual",
+  "cohort": "rotation",
+  "task_set_id": "first_time_individual-core",
+  "persona_attributes": {
+    "domain_experience": "new",
+    "technical_literacy": "low",
+    "time_pressure": "low",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "confirmation_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {
+    "engine": "visible Playwright Chromium (Google Chrome executable)",
+    "headless": false,
+    "viewport": "1440x1000",
+    "title": "Brainbase",
+    "top_status": 200,
+    "screenshot": "screenshots/round-02/P-105-G1.png"
+  },
+  "actions": [
+    "トップを開き、価値説明と『10分で試す』導線を可視確認",
+    "『10分で試す』をクリックし、/guide/quick-startで4タスクに必要な前提・依頼文・開始コマンド・復旧案内を確認",
+    "MCP確認後にJudgment Hostへ進む順序、各成功条件、未確認を成功扱いしない境界を確認",
+    "dry-run、既存設定を自動マージ／上書きしない手順、承認境界、中断後の再開手掛かりを確認",
+    "製品コードは変更せず、ブラウザコンソールの404を記録"
+  ],
+  "tasks": {
+    "value_sentence": {
+      "status": "clear_success",
+      "reason": "トップの『自分の仕事文脈をAIに渡すためのMCPマニュアル』と、ローカルSSOTとして育てた文脈をCodexやClaude Codeへ渡すPersonal Onboarding Kitという説明から、AIへ仕事の前提を毎回説明し直さずに済む価値を一文で把握できた。",
+      "evidence": ["/:『自分の仕事文脈をAIに渡すためのMCPマニュアル』", "/:『AIに二度と説明したくない文脈』", "/: 人が確認してから記録し、AIの判断根拠を確認できる"]
+    },
+    "prerequisites_first_request_start_command": {
+      "status": "success_with_friction",
+      "reason": "quick-startでNode.js 20以上、npm、CodexでBrainbaseフォルダを開くこと、git clone/npm install/npm run build、最初の依頼文『Brainbaseのオンボーディングを始めたいです。』、開始コマンド『npm run onboard:start -- --target codex』、最初に試す現実の依頼と対象プロジェクトを決める完了条件を確認できた。トップのCTAから前提情報まで遷移する必要があり、低技術の初回利用者には一画面で完結しない。",
+      "evidence": ["/guide/quick-start: Node.js 20以上、npm、Codex、git clone/npm install/npm run build", "/guide/quick-start: 開始依頼文とnpm run onboard:start -- --target codex", "/guide/quick-start: 最初の現実の依頼と対象プロジェクトを決める"]
+    },
+    "mcp_then_judgment_host_order_and_success": {
+      "status": "success_with_friction",
+      "reason": "MCP登録後にbrainbase serverを起動し、get_context、search、onboarding_statusの実結果を確認してから、任意のJudgment Hostを登録する順序が明記されている。HostはUserPromptSubmit→PostToolUse→Stopの3 Hook、doctorのready、実tool呼び出しに対応する監査行を確認する。MCP、MCPリファレンス、Judgment Hostの成功条件がページ横断で、初心者が順序を再構成する摩擦が残る。",
+      "evidence": ["/guide/quick-start: MCP確認後にJudgment Hostへ進む", "/guide/quick-start: get_context/search/onboarding_statusを実結果で確認", "/guide/quick-start: 3 Hookと新しいtaskの監査行を確認", "/reference/mcp-tools: error・空結果・未確認・権限待ちを成功扱いしない"]
+    },
+    "avoid_overwrite_and_interruption_recovery": {
+      "status": "success_with_friction",
+      "reason": "dry-run、設定バックアップ、既存MCP設定へ自動マージしないこと、既存Hookを残してBrainbase項目だけ追加すること、設定を元へ戻せない場合は現在とバックアップを比較して上書きしないことが確認できた。中断後は同じquick-startページの『中断したらここから再開』と、build→doctor→onboard:demo→MCP確認の順に戻れる。一方、完了済みチェックの保存や現在地の自動復元はブラウザで確認できず、利用者が手動で判断する。",
+      "evidence": ["/guide/quick-start: dry-run、バックアップ、既存設定を自動マージしない", "/guide/quick-start: 中断したらここから再開", "/guide/quick-start: npm run build→npm run doctor→onboard:demo→MCP確認", "/guide/quick-start: 不明な場合は上書きせず比較する"]
+    }
+  },
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "real_device": "not_collected",
+    "no_product_edits": "pass",
+    "requested_model": "not_collected",
+    "model_binding": "not_collected"
+  },
+  "findings": {
+    "new_actionable": [
+      {
+        "id": "P105-G1-F1",
+        "severity": "medium",
+        "title": "10分導線に進捗保存と次の一手の状態表示がない",
+        "evidence": "quick-startには手動チェックボックスと『中断したらここから再開』の説明はあるが、可視ブラウザでチェック状態の永続化や前回位置の復元は確認できなかった。",
+        "action": "チェック状態・現在フェーズ・未確認項目を保存し、再訪時に次の一手を先頭へ表示する。"
+      },
+      {
+        "id": "P105-G1-F2",
+        "severity": "medium",
+        "title": "低技術の初回利用者には成功確認がページ横断になる",
+        "evidence": "前提／開始コマンドはquick-start、toolの意味はreference、Judgment Hostの監査条件はquick-startや別ガイドに分散し、MCP→Host順序を手動で統合する必要がある。",
+        "action": "10分ページにMCP→Judgment Hostの順序、実結果での成功判定、失敗時の戻り先を集約する。"
+      }
+    ],
+    "regressions": []
+  },
+  "browser_evidence": {
+    "console_errors": ["Failed to load resource: the server responded with a status of 404 (Not Found)"],
+    "console_error_count": 1,
+    "note": "画面の主要操作は継続できたが、404の対象リソースと原因は未確認。"
+  },
+  "synthetic_browser_evaluation": {
+    "status": "completed",
+    "summary": "トップから10分導線を起点に、価値、前提、開始依頼・コマンド、MCP→Judgment Host順序、成功境界、非上書き、中断復旧を可視ブラウザで確認できた。初回低技術・中断ありでは、進捗保存と情報集約に摩擦が残る。"
+  },
+  "real_device_evidence": "not_collected",
+  "human_review": "not_collected",
+  "requested_model": "not_collected",
+  "model_binding": "not_collected",
+  "confidence": "medium"
+}

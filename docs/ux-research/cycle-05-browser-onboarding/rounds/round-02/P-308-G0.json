@@ -1,0 +1,112 @@
+{
+  "evaluation_type": "cycle-05-round-02-independent-browser-evaluation",
+  "round": "round-02",
+  "persona_id": "P-308-G0",
+  "slot": "ontology_steward-rotation-08",
+  "cohort": "rotation",
+  "role": "ontology_steward",
+  "task_set_id": "ontology_steward-core",
+  "persona_attributes": {
+    "domain_experience": "intermediate",
+    "technical_literacy": "low",
+    "time_pressure": "low",
+    "interruption_state": "focused",
+    "work_style": "confirmation_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "evidence": {
+    "kind": "synthetic_browser_evaluation",
+    "browser": "visible Playwright Chromium",
+    "url": "http://127.0.0.1:4176/",
+    "viewport": "browser default; full-page screenshot",
+    "screenshot": "screenshots/round-02/P-308-G0.png",
+    "observed_pages": ["/", "/guide/quick-start"],
+    "human_observation": "not_collected",
+    "real_device_evidence": "not_collected",
+    "assistive_technology": "not_collected",
+    "requested_model": "not_collected",
+    "model_binding": "not_collected",
+    "evaluated_head": "not_collected"
+  },
+  "start_point": "トップ → 10分で試す",
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップの価値説明、10分で試す、確認してから記録する境界を確認。"},
+    {"action": "click", "target": "10分で試す", "result": "/guide/quick-startへ遷移。"},
+    {"action": "inspect", "target": "クイックスタート", "result": "準備、最初の価値、MCP、任意のJudgment Host、中断復帰、設定を元へ戻す節を確認。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-308-G0.png"}
+  ],
+  "tasks": {
+    "value_sentence": {
+      "status": "clear_success",
+      "reason": "Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeへ渡し、AIへ同じ前提を説明し直す負担を減らす入口だと一文で説明できた。",
+      "action_trace": ["トップを表示", "見出しと導入説明を確認", "価値を一文に要約"],
+      "evidence": ["/: 自分の仕事文脈をAIに渡すためのMCPマニュアル", "/: AIに二度と説明したくない文脈", "/: AIの判断根拠を毎回確認できる"]
+    },
+    "prerequisites_first_prompt_start_command": {
+      "status": "clear_success",
+      "reason": "Node.js 20以上、npm、Codexでフォルダを開くこと、clone/install/build、最初の依頼文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex、最初の現実の依頼と対象プロジェクトを確認できた。",
+      "action_trace": ["10分で試すを開く", "1.準備するを確認", "開始依頼文と開始コマンドを確認"],
+      "evidence": ["/guide/quick-start: 1.準備する", "/guide/quick-start: Brainbaseのオンボーディングを始めたいです。", "/guide/quick-start: npm run onboard:start -- --target codex"]
+    },
+    "mcp_judgment_host_order_success_checks": {
+      "status": "success_with_friction",
+      "reason": "MCPをdry-run・登録・新しいtaskでbrainbase/get_context/search/onboarding_statusの実結果確認まで行い、その後に任意のJudgment Hostへ進む順序、Hostの3 Hook・doctor ready・監査行確認を理解できる。ただし詳細tool順序とHostの説明は別ページへ移動する必要があり、実tool結果と監査行は未取得。",
+      "action_trace": ["MCP登録節を確認", "MCP成功条件を確認", "Judgment HostはMCP確認後と確認", "実結果確認は未実行として保持"],
+      "evidence": ["/guide/quick-start: MCP確認後にJudgment Hostへ進む", "/guide/quick-start: get_context/search/onboarding_status", "/guide/quick-start: UserPromptSubmit/PostToolUse/Stop、doctor、監査行"],
+      "friction": "MCP、Judgment Host、toolリファレンスの詳細が一画面に統合されていない。"
+    },
+    "safe_non_overwrite_and_interruption_recovery": {
+      "status": "clear_success",
+      "reason": "dry-run、config.toml/hooks.jsonのバックアップ、既存設定を自動マージしない境界、承認後にBrainbase項目だけ追加する方針、中断時のbuild→doctor→onboard:demo→新しいtaskでMCP確認、設定を元へ戻す判断を確認できた。",
+      "action_trace": ["dry-runとバックアップを確認", "既存設定を消さない注意を確認", "中断したらここから再開を確認", "設定を元へ戻す節を確認"],
+      "evidence": ["/guide/quick-start: npm run onboard:install -- --target codex --dry-run", "/guide/quick-start: cp -n ~/.codex/config.toml ~/.codex/config.toml.before-brainbase", "/guide/quick-start: 中断したらここから再開", "/guide/quick-start: 設定を元へ戻す"],
+      "gap": "実際の設定変更・doctor・MCP結果・復旧操作はブラウザ評価の範囲外で未取得。"
+    }
+  },
+  "hard_gates": {
+    "no_product_edits": "pass",
+    "existing_config_not_overwritten": "pass_documented_boundary_not_executed",
+    "unverified_or_waiting_not_success": "pass",
+    "human_confirmation_before_canonical_write": "pass_documented",
+    "workflow_dead_end": "not_collected",
+    "keyboard_or_assistive_technology": "not_collected",
+    "real_device": "not_collected",
+    "requested_model": "not_collected",
+    "model_binding": "not_collected"
+  },
+  "new_actionable_findings": [
+    {
+      "id": "P308-R2-F01",
+      "severity": "medium",
+      "title": "MCP成功確認とJudgment Host監査確認が10分導線内で分散",
+      "evidence": "quick-startで順序は確認できるが、toolの詳細とHostのdoctor・監査行は別ページを参照する必要がある。",
+      "recommendation": "10分チェックリストにMCP→Judgment Hostの順序、実結果の成功条件、詳細ページへの単一リンクを集約する。",
+      "decision": "defer",
+      "reason": "Round 2では既存導線で安全な順序と未確認境界を理解できたため、実MCP/Host検証後に優先度を再判定する。"
+    },
+    {
+      "id": "P308-R2-F02",
+      "severity": "low",
+      "title": "中断後の完了チェック状態は手動で再構成する",
+      "evidence": "中断時の確認順序は同一ページにあるが、完了項目・現在地の保存や自動再表示は可視ブラウザで確認できない。",
+      "recommendation": "現在地と未確認項目を再訪時に表示する仕組みを検討する。",
+      "decision": "defer",
+      "reason": "今回の評価では文書上の再開手順が機能し、状態保存の製品機能までは要求範囲外。"
+    }
+  ],
+  "regressions": [],
+  "improvements_from_round_01": [
+    {"title": "中断復帰の案内がクイックスタートに集約", "evidence": "『中断したらここから再開』にbuild、doctor、onboard:demo、新しいtaskでの確認順序が明示されている。"}
+  ],
+  "recovery": {
+    "status": "documented_with_execution_gap",
+    "observed": "非上書き境界、バックアップ、中断後の確認順序、設定を元へ戻す判断を同一ページで確認。",
+    "missing": "実設定・実MCP・実Host・実機支援技術の復旧確認はnot_collected。"
+  },
+  "synthetic_browser_evaluation": {
+    "status": "completed",
+    "summary": "価値と開始情報はトップから10分で試す導線で把握できる。確認優先の安全境界と中断復帰は明確。MCP→Judgment Hostの詳細成功確認だけページ横断の摩擦が残る。"
+  },
+  "completion": "P-308-G0 Round 2 evaluation completed; product code unchanged."
+}

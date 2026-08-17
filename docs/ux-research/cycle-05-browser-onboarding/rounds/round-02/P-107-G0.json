@@ -1,0 +1,72 @@
+{
+  "persona_id": "P-107-G0",
+  "evaluation_type": "cycle-05-round-02-browser-onboarding",
+  "persona_attributes": {
+    "role": "first_time_individual",
+    "domain_experience": "intermediate",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "speed_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "browser_context": {
+    "url": "http://127.0.0.1:4176/",
+    "viewport": "1440x900",
+    "reduced_motion": "prefers-reduced-motion: reduce",
+    "browser_evidence": "synthetic_browser_evaluation",
+    "real_device_evidence": "not_collected",
+    "actual_ui_evidence": true
+  },
+  "start_point": "トップページ → 10分で試す",
+  "tasks": [
+    {
+      "id": "value_sentence",
+      "status": "clear_success",
+      "evidence": "トップページの主文『自分の仕事文脈をAIに渡すためのMCPマニュアル』と、説明し直さずに済む仕事文脈を育てる説明を読めた。"
+    },
+    {
+      "id": "prerequisites_first_prompt_start_command",
+      "status": "success_with_friction",
+      "evidence": "導入の5フェーズとgetting-startedを実画面で確認。Node.js 20以上、npm、対応エージェント、local checkout、clone/install/build、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex（Claudeは--target claude）が明記されている。速度優先では、10分で試すから詳細ページへ移動して複数ページを読む摩擦が残る。"
+    },
+    {
+      "id": "codex_mcp_judgment_host_order_success",
+      "status": "success_with_friction",
+      "evidence": "MCP登録ページとJudgment Host登録ページを実ブラウザで開けた（双方HTTP 200）。MCPはdry-run→別出力→新しいセッションでget_context/list_entities/search/search_personal_kg/onboarding_statusを確認。MCP動作確認後にJudgment Hostを登録し、UserPromptSubmit→PostToolUse→Stopの3 Hook、judgment_hooks.status=ready、2つの監査行と実MCP呼び出し由来の📚行を確認する順序が明示されている。実際のCodex登録・MCP呼び出し・Hook receiptは未実行。"
+    },
+    {
+      "id": "avoid_overwrite_recover",
+      "status": "clear_success",
+      "evidence": "MCPページでdry-run、別出力先、既存設定へ自動マージしない、既存MCP設定を消さない、承認後にBrainbase項目だけ追加、再起動を確認。Judgment Hostページでも既存Hookを上書きせず、異常時はdoctor・3 Hook・信頼状態・新taskを順に確認し、対応するepisodeのないStopを成功にしないと明記されている。"
+    }
+  ],
+  "hard_gates": [
+    { "gate": "value_is_understandable", "status": "pass" },
+    { "gate": "prerequisites_and_start_are_actionable", "status": "pass" },
+    { "gate": "codex_mcp_then_judgment_host_order_and_success_checks", "status": "not_collected", "reason": "実エージェントへの登録と実呼び出しはブラウザ評価範囲外。文書上の順序・成功確認は実画面で確認できた。" },
+    { "gate": "no_unapproved_overwrite_and_recovery_boundary", "status": "pass" },
+    { "gate": "real_assistive_device_evidence", "status": "not_collected" }
+  ],
+  "new_actionable_findings": [
+    {
+      "id": "P-107-G0-R2-F01",
+      "finding": "速度優先の初回利用者には、トップの『10分で試す』から、MCP登録・Judgment Host登録・成功確認までを一枚で追う導線がまだ長い。",
+      "evidence": "トップ→10分で試す→導入の5フェーズ→getting-started→MCP/Judgment Hostの複数ページ遷移。",
+      "severity": "medium",
+      "decision": "defer"
+    }
+  ],
+  "regressions": [],
+  "recovery": {
+    "status": "supported",
+    "notes": "実画面上でdry-run、別出力、非上書き、Hook異常時のdoctor確認、episodeなしStopを成功扱いしない境界を確認できた。"
+  },
+  "requested_model": "not_collected",
+  "model_binding": "not_collected",
+  "human_observation": "not_collected",
+  "real_device_evidence": "not_collected",
+  "synthetic_browser_evaluation": "visible Chromium、Playwright、1440x900、prefers-reduced-motion: reduceでトップ起点の4タスクとリンク遷移、キーボードTabフォーカスを確認。音声入力そのもの、OSのreduced-motion実機品質、実エージェント接続は評価していない。",
+  "screenshot": "screenshots/round-02/P-107-G0.png"
+}

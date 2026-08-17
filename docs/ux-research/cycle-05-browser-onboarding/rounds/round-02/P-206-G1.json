@@ -1,0 +1,71 @@
+{
+  "persona_id": "P-206-G1",
+  "evaluation_type": "cycle-05-round-02-independent-browser-evaluation",
+  "round": "round-02",
+  "cohort": "rotation",
+  "role": "team_operator",
+  "task_set_id": "team_operator-core",
+  "persona_attributes": {
+    "domain_experience": "experienced",
+    "technical_literacy": "low",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "confirmation_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "evidence": {
+    "kind": "synthetic_browser_evaluation",
+    "browser": "visible Playwright Chromium",
+    "url": "http://127.0.0.1:4176/",
+    "viewport": "1440x900",
+    "screenshot": "screenshots/round-02/P-206-G1.png",
+    "actual_ui_browser_evidence": true,
+    "human_observation": "not_collected",
+    "real_device_evidence": "not_collected",
+    "assistive_technology": "not_collected",
+    "requested_model": "not_collected",
+    "model_binding": "not_collected",
+    "evaluated_head": "not_collected"
+  },
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップの価値文と『10分で試す』導線を可視ブラウザで確認。"},
+    {"action": "click", "target": "10分で試す", "url": "http://127.0.0.1:4176/guide/quick-start", "result": "4タスク、成功条件、MCP→Judgment Host順、非上書き、復旧、中断再開を同一チェックリストで確認。"},
+    {"action": "inspect", "target": "準備する／最初の価値を確認する／MCPを登録する／任意でJudgment Hostを登録する／中断したらここから再開", "result": "開始依頼文、開始コマンド、実結果確認、doctor、監査行、設定復旧手順を確認。"}
+  ],
+  "tasks": {
+    "value_sentence": {
+      "status": "clear_success",
+      "hard_gate": "pass",
+      "reason": "トップの『自分の仕事文脈をAIに渡すためのMCPマニュアル』と、ローカルSSOTの文脈をCodexやClaude Codeへ渡す説明から、AIへ同じ仕事の前提を説明し直す負担を減らす導入キットだと一文で説明できた。"
+    },
+    "prerequisites_first_prompt_start_command": {
+      "status": "clear_success",
+      "hard_gate": "pass",
+      "reason": "『10分で試す』の準備節でNode.js 20以上、npm、Codexでフォルダを開くこと、clone/install/build、最初の依頼文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを確認できた。"
+    },
+    "codex_mcp_judgment_host_order_success_checks": {
+      "status": "success_with_friction",
+      "hard_gate": "pass",
+      "reason": "MCPのdry-runとバックアップ後、再起動・新しいtaskでget_context/search/onboarding_statusの実結果を確認し、MCP確認後に任意のJudgment Hostへ進む順序、3 Hook ready・🧠・📚の成功確認を読めた。詳細操作はサイドバーや別ページへ移る必要があり、音声／キーボードでの一続きの実操作は未確認。"
+    },
+    "avoid_overwrite_recover": {
+      "status": "clear_success",
+      "hard_gate": "pass",
+      "reason": "config.tomlとhooks.jsonの別名バックアップ、既存項目を残す手動追加、未確認を成功扱いしない境界、build→doctor→実結果確認、問題時に現在設定を別名保存して確認済みバックアップと比較・復旧する手順を確認できた。中断時は同ページの『中断したらここから再開』から最初に通らない項目へ戻れる。"
+    }
+  },
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "no_product_edits": true
+  },
+  "new_actionable_findings": [],
+  "regressions": [],
+  "summary": "P-206-G1はトップから『10分で試す』を起点に4タスクを完了できた。Round 1で確認されたページ横断の中断復帰摩擦は、同一チェックリストの中断再開・復旧案内により本実査では再現しなかった。MCP→Judgment Hostの詳細操作はページ横断の軽い摩擦が残るが、新規actionable findingとしては起票しない。",
+  "confidence": "medium"
+}

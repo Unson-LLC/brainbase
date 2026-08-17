@@ -1,0 +1,74 @@
+{
+  "round": 2,
+  "persona": {
+    "id": "P-101-G0",
+    "role": "first_time_individual",
+    "cohort": "anchor",
+    "attributes": {
+      "domain_experience": "intermediate",
+      "technical_literacy": "medium",
+      "time_pressure": "high",
+      "interruption_state": "focused",
+      "work_style": "speed_first",
+      "input_environment": "voice_and_keyboard",
+      "accessibility_need": "reduced_motion"
+    }
+  },
+  "browser": {
+    "url": "http://127.0.0.1:4176/",
+    "engine": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1440x1000",
+    "reduced_motion": "reduce",
+    "observed_pages": ["/", "/guide/getting-started", "/guide/mcp-install", "/guide/judgment-audit", "/guide/operations"]
+  },
+  "tasks": [
+    {
+      "id": "value_one_sentence",
+      "goal": "トップからBrainbaseの価値を一文で説明する",
+      "status": "clear_success",
+      "result": "自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照できるようにし、AIへの説明のやり直しを減らすPersonal Onboarding Kit。",
+      "evidence": "トップの見出し・本文に価値と対象が一文で表示され、10分で試すCTAも直下にある。"
+    },
+    {
+      "id": "first_request_and_start_command",
+      "goal": "前提、最初の依頼、開始コマンドを見つける",
+      "status": "clear_success",
+      "result": "必要なものはNode.js 20以上、npm、MCP対応エージェント、ローカルcheckout。最初の依頼は『Brainbaseのオンボーディングを始めたいです。』、開始コマンドはnpm run onboard:start -- --target codex。",
+      "evidence": "/guide/getting-started の『必要なもの』『AIに開始を依頼する』を実操作で確認。"
+    },
+    {
+      "id": "mcp_then_judgment_host_success",
+      "goal": "MCP→Judgment Hostの順序と成功確認を理解する",
+      "status": "success_with_friction",
+      "result": "MCPをdry-run、別出力先、再起動、新セッションで確認した後、任意のJudgment Hostを登録する。HostはUserPromptSubmit→PostToolUse→Stopで、doctorのready/3 events、新taskの監査行と実MCP tool証跡を確認する。",
+      "evidence": "/guide/mcp-install は『最初の価値→MCP→Judgment Host』を示し、/guide/judgment-audit と /guide/operations に成功確認がある。ただし一枚のチェックリストではなくページをまたぐ。"
+    },
+    {
+      "id": "non_overwrite_and_recovery",
+      "goal": "既存設定を上書きせず中断から復旧する",
+      "status": "success_with_friction",
+      "result": "dry-runと/tmp等の未作成出力先を使い、既存設定へ自動マージ・上書きしない。承認後にBrainbase項目だけ手動追加し、再起動。失敗時はbuild→doctor→personal-os→絶対パス→再起動→新セッションの順で確認する。",
+      "evidence": "/guide/mcp-install と /guide/judgment-audit の安全策・復旧順を実操作で確認。手動統合は時間圧高・中技術習熟度では負荷が残る。"
+    }
+  ],
+  "hard_gates": [
+    {"id": "home_value_statement", "status": "pass"},
+    {"id": "prerequisites_and_start_command", "status": "pass"},
+    {"id": "mcp_then_judgment_host_order", "status": "pass"},
+    {"id": "non_destructive_config_recovery", "status": "pass"}
+  ],
+  "findings": {
+    "new_actionable": [
+      {"id": "P101-R2-F1", "severity": "medium", "type": "friction", "finding": "10分で試す起点は明確になったが、MCP→Judgment Hostの実行順と成功確認は詳細ページに分散しており、速度優先の初回利用者はページ遷移して再構成する必要がある。", "decision": "defer", "evidence": "synthetic_browser_evaluation: /guide/mcp-install, /guide/judgment-audit, /guide/operations"}
+    ],
+    "regressions": []
+  },
+  "evidence_kind": "synthetic_browser_evaluation",
+  "actual_ui_browser_evidence": "collected: visible Playwright Chromium at http://127.0.0.1:4176/",
+  "human_observation": "not_collected",
+  "real_device_evidence": "not_collected",
+  "requested_model": "gpt-5.6-luna",
+  "model_binding": "not_collected",
+  "screenshot_path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-101-G0.png"
+}

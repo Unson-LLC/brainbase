@@ -1,0 +1,72 @@
+{
+  "persona_id": "P-202-G0",
+  "round": "round-02",
+  "persona": {
+    "role": "team_operator",
+    "cohort": "anchor",
+    "task_set_id": "team_operator-core",
+    "attributes": {
+      "domain_experience": "new",
+      "technical_literacy": "medium",
+      "time_pressure": "low",
+      "interruption_state": "frequently_interrupted",
+      "work_style": "speed_first",
+      "input_environment": "keyboard",
+      "accessibility_need": "none_declared"
+    }
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {
+    "engine": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1440x1000",
+    "status": 200,
+    "title": "Brainbase",
+    "actual_ui_browser_evidence": true,
+    "screenshot": "screenshots/round-02/P-202-G0.png"
+  },
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップの価値文、10分で試す導線、導入の流れを可視ブラウザで確認。"},
+    {"action": "click", "target": "10分で試す", "url": "http://127.0.0.1:4176/guide/quick-start", "result": "4タスク、成功条件、未確認を成功扱いしない境界、中断再開、復旧案内を同一ページで確認。"},
+    {"action": "keyboard", "result": "TabでSkip to contentへ到達。実際の支援技術・実機キーボード網羅は未取得。"}
+  ],
+  "task_outcomes": {
+    "value_sentence": {
+      "status": "clear_success",
+      "finding": "Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTとして育て、AIに同じ説明を繰り返す負担を減らす導入キットだと一文で説明できる。"
+    },
+    "prerequisites_first_prompt_start_command": {
+      "status": "clear_success",
+      "finding": "Node.js 20以上、npm、CodexでBrainbaseフォルダを開くこと、clone/install/build、最初の依頼文『Brainbaseのオンボーディングを始めたいです。』、開始コマンド npm run onboard:start -- --target codex を確認できる。"
+    },
+    "codex_mcp_judgment_host_order_success_checks": {
+      "status": "clear_success",
+      "finding": "MCPのdry-run→既存設定バックアップ→Brainbase項目追加→再起動・新taskでget_context/search/onboarding_status実結果確認→必要時のみJudgment Host、という順序と、3 Hook ready・🧠・📚の確認条件が読める。"
+    },
+    "avoid_overwrite_recover": {
+      "status": "clear_success",
+      "finding": "dry-run、config.toml/hooks.jsonの別名バックアップ、既存項目を残す手動追加、未確認を成功扱いしないこと、build→doctor→実結果確認→問題時は現在ファイルを別名保存して確認済みバックアップへ戻す復旧導線を確認できる。"
+    }
+  },
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "no_product_edits": true
+  },
+  "new_actionable_findings": [],
+  "regressions": [],
+  "evidence_boundaries": {
+    "synthetic_browser_evaluation": "completed",
+    "human_observation": "not_collected",
+    "real_device_evidence": "not_collected",
+    "requested_model": "gpt-5.6-luna",
+    "model_binding": "not_collected",
+    "effective_model": "not_collected",
+    "assistive_technology": "not_collected"
+  },
+  "summary": "Round 1で確認されたページ横断の摩擦は、10分で試すページの目次・中断再開・復旧案内により本実査では再現しなかった。新規actionable findingとregressionはなし。未確認境界は人・実機・支援技術・モデルbinding。"
+}

@@ -1,0 +1,27 @@
+{
+  "persona_id": "P-103-G0",
+  "gate_id": "G0",
+  "round": "round-02",
+  "model_requested": "not_collected",
+  "model_binding": "not_collected",
+  "persona": {"type":"first-time individual","experience":"new","technical_level":"low","time_pressure":"high","mode":"focused","work_style":"speed-first","input":"voice and keyboard","accessibility_need":"none_declared"},
+  "environment": {"url":"http://127.0.0.1:4176/","browser":"visible Playwright Chromium","viewport":"1440x900","screenshot":"docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-103-G0.png","actual_ui_browser_evidence":"collected","human_evidence":"not_collected","real_device_evidence":"not_collected"},
+  "actions": [
+    {"step":1,"task":"トップ→10分で試すで価値を一文で理解する","status":"clear_success","outcome":"トップで自分の仕事文脈をAIに渡すためのMCPマニュアル、ローカルSSOTとして育てるPersonal Onboarding Kitと説明。10分で試すリンクからチェックリストへ到達。"},
+    {"step":2,"task":"前提・最初の依頼・開始コマンドを確認する","status":"success_with_friction","outcome":"Node.js 20以上/npm、Codexでフォルダを開く、build、現実の依頼と対象プロジェクトを決める前提、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを確認。低技術・時間圧では本文が長く、実行前に読む量が多い。"},
+    {"step":3,"task":"MCP→Judgment Hostの順序と成功確認を確認する","status":"clear_success","outcome":"MCPを先にdry-run、バックアップ後にbrainbaseだけを追加し、新しいtaskで起動・get_context/search/onboarding_status・承認済み文脈と検索結果を確認。その後任意のJudgment Hostをdry-runし、3 Hookのready、🧠行、実tool呼び出しに対応する📚行を確認。error・空結果・権限待ち・未確認・ready: trueを成功扱いしない。"},
+    {"step":4,"task":"非上書きと中断後の復旧を確認する","status":"clear_success","outcome":"既存config.toml/hooks.jsonをcp -nでバックアップし、自動マージせず既存項目を残す指示を確認。中断時は追加し直さず、build、doctor、onboard:demo、新しいtaskでMCP確認、最初に通らない項目だけを直す。壊れた場合は現行・バックアップ・doctor結果を比較してから戻す。"}
+  ],
+  "task_outcomes": {"value_sentence":"clear_success","prerequisites_first_prompt_start_command":"success_with_friction","codex_mcp_judgment_host_order_and_success_checks":"clear_success","avoid_overwrite_and_recover":"clear_success"},
+  "hard_gates": [
+    {"gate":"未確認を成功と表示する","status":"pass","evidence":"error、空の結果、権限待ち、未確認、ready: trueを成功扱いしないと明記。"},
+    {"gate":"現在地または次の操作が分からない","status":"pass","evidence":"10分チェックリストに5項目、完了目安、MCP後にJudgment Hostへ進む順序、中断後の再開手順がある。"},
+    {"gate":"既存設定を破壊する可能性がある","status":"pass","evidence":"dry-run、cp -nバックアップ、自動マージなし、既存MCP項目を消さない指示がある。"},
+    {"gate":"失敗後の復旧手段がない","status":"pass","evidence":"build、doctor、実結果確認、現行とバックアップの比較、上書き回避の復旧手順がある。"},
+    {"gate":"AIから人への確認・引き継ぎがない","status":"pass","evidence":"確認用下書き、承認した事実だけの登録、設定断片を人が確認して追加する手順がある。"},
+    {"gate":"主要操作がキーボードまたは支援技術から到達不能","status":"not_collected","evidence":"DOM上のSkip to contentとテキストリンクは確認したが、キーボード実操作、音声入力、支援技術、実端末は未取得。"}
+  ],
+  "new_actionable_findings": [{"id":"P103-R2-F01","severity":"medium","finding":"低技術・時間圧の初回利用者には、価値理解後に読むチェックリストとコマンドが長く、最初の一手が埋もれやすい。","evidence":"10分で試すページは準備、価値、MCP、Judgment Host、復旧を一続きの長文で表示。開始文と開始コマンドは中盤以降にある。","suggested_action":"ページ冒頭に『最初の一手』として開始文とコマンド、次に確認する成功条件を短く固定表示する。"}],
+  "regressions": [{"id":"P103-R2-REG01","severity":"low","finding":"トップロード時に404リソースのconsole errorを1件観測。","evidence":"visible Playwright Chromiumでトップを開いた際、Failed to load resource: 404 (Not Found)。Round 1のP-104-G0でも同じ観測が記録されており、今回新規発生とは断定しない。","status":"needs_triage"}],
+  "synthetic_browser_evaluation": {"status":"complete","verdict":"adopt_with_friction","summary":"P-103-G0はトップから10分チェックリストへ到達し、価値、開始条件、開始文、コマンド、MCP→Judgment Host順、成功確認、非上書き、復旧を確認できた。最初の一手の視認性は時間圧・低技術利用者向けに改善余地がある。"}
+}

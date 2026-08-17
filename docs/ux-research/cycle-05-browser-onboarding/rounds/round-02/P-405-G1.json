@@ -1,0 +1,55 @@
+{
+  "persona_id": "P-405-G1",
+  "round": "round-02",
+  "persona": {
+    "role": "first_time_individual",
+    "cohort": "rotation",
+    "domain_experience": "beginner",
+    "technical_literacy": "medium",
+    "time_pressure": "medium",
+    "interruption_state": "focused",
+    "work_style": "confirmation_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {"engine": "Playwright Chromium via visible Google Chrome", "headless": false, "viewport": "1440x900", "reduced_motion": true, "status": 200, "title": "not_collected"},
+  "actions": [
+    {"action": "open_top", "result": "トップでBrainbaseの価値文、10分で試す、導入の流れを見るを確認。価値は自分の仕事文脈をAIへ渡すMCPマニュアルと理解した。"},
+    {"action": "value_understanding", "result": "『AIに二度と説明したくない文脈』『自分・仕事・関係性・決定事項』『AIの判断根拠を毎回確認』を読み、価値を一文で説明できた。"},
+    {"action": "prerequisites_prompt_start", "result": "10分で試すからNode.js 20以上、npm、CodexでBrainbaseフォルダを開く、npm run build、開始文、npm run onboard:start -- --target codexを確認した。"},
+    {"action": "mcp_judgment_order_success", "result": "MCPのdry-run→新しいtaskでserver/tools/onboarding_status/get_context/searchの実結果確認→任意のJudgment Host、3 Hook、doctor、監査行の順序を確認した。"},
+    {"action": "avoid_overwrite_recover", "result": "config.toml/hooks.jsonのcp -nバックアップ、既存項目を消さず自動マージしない契約、build→doctor→onboard:demo→新taskで再確認する中断復帰を確認した。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-405-G1.png"}
+  ],
+  "tasks": {
+    "value_sentence": {"status": "clear_success", "finding": "Brainbaseは、仕事の前提をローカルSSOTとして育て、AIへ同じ説明を繰り返さず、判断根拠も確認できるMCPマニュアルだと説明できる。", "evidence": ["トップ見出し・本文", "トップの4つの価値見出し"]},
+    "prerequisites_first_prompt_start_command": {"status": "success_with_friction", "finding": "前提・開始文・コマンドは見つかるが、トップから10分チェックリストへ1クリック必要。", "evidence": ["/guide/quick-start の1.準備する"]},
+    "mcp_judgment_order_success_checks": {"status": "success_with_friction", "finding": "MCPを先に確認しJudgment Hostへ進む順序と成功条件は明確。ただし詳細がquick-start、MCP登録、リファレンスに分散している。", "evidence": ["/guide/quick-start の3・4", "実ブラウザ本文"]},
+    "avoid_overwrite_and_recover": {"status": "clear_success", "finding": "dry-run、バックアップ、既存設定を消さない、自動マージしない、失敗項目だけ直す復帰手順を確認できる。", "evidence": ["/guide/quick-start の設定を元へ戻す・5.中断したらここから再開"]}
+  },
+  "hard_gates": {
+    "no_product_edits": "pass",
+    "existing_config_not_overwritten": "pass",
+    "unfinished_or_waiting_not_success": "pass",
+    "human_confirmation_before_canonical_write": "pass",
+    "keyboard_or_assistive_technology": "not_collected",
+    "real_device": "not_collected"
+  },
+  "findings": {
+    "new_actionable": [
+      {"id": "P405G1-F1", "severity": "medium", "title": "10分チェックリストの進行状態を保存できない", "evidence": "ページは『終わった項目に自分でチェック』と案内するが、可視ブラウザではチェックボックス入力や保存された進行状態を確認できず、中断復帰時に現在地を手動で覚える必要がある。", "recommendation": "実際に操作できるローカルチェック状態、または現在地を記録する明示的な手段を追加する。"},
+      {"id": "P405G1-F2", "severity": "low", "title": "成功確認が複数ページに分散", "evidence": "MCPのtool確認、Judgment Hostのdoctorと監査行、詳細リファレンスがページ横断。", "recommendation": "10分ページにMCP→Hostの成功条件を集約する。"}
+    ],
+    "regression": []
+  },
+  "recovery": {"status": "documented", "observed": "build、doctor、onboard:demo、新taskでのMCP確認、最初に通らない一項目だけを直す順序を確認。", "gap": "チェック状態の保存、実エージェント設定反映後の自動ロールバック、実機支援技術操作はnot_collected。"},
+  "actual_ui_browser_evidence": true,
+  "real_device_evidence": "not_collected",
+  "human_evidence": "not_collected",
+  "requested_model": "not_collected",
+  "model_binding": "not_collected",
+  "evidence_kind": "actual_ui_browser_evaluation",
+  "console_errors": ["Failed to load resource: server responded with 404 (resource identity not collected)"],
+  "confidence": "medium"
+}

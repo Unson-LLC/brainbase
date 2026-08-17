@@ -1,0 +1,41 @@
+{
+  "evaluation_type": "cycle-05-round-02-independent-browser-evaluation",
+  "persona_id": "P-406-G1",
+  "round": "round-02",
+  "persona": {
+    "role": "recovery_user",
+    "cohort": "rotation",
+    "domain_experience": "intermediate",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "confirmation_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "reduced_motion"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {"engine": "Playwright Chromium", "headless": false, "viewport": "1280x720", "reduced_motion": true, "status": 200, "title": "Brainbase"},
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップの価値文と『10分で試す』導線を可視ブラウザで確認。"},
+    {"action": "start_from_quick_start", "url": "http://127.0.0.1:4176/guide/quick-start", "result": "準備、開始文、MCP、任意のJudgment Host、中断復帰、設定復旧の案内を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "導入の5フェーズと承認前に正本へ保存しない原則を確認。"},
+    {"action": "navigate", "url": "http://127.0.0.1:4176/reference/mcp-tools", "result": "MCP tool順序、receipt/review/first-value、未確認を成功扱いしない契約を確認。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-406-G1.png"}
+  ],
+  "tasks": {
+    "value_sentence": {"status": "clear_success", "finding": "Brainbaseは、自分の仕事文脈をローカルSSOTとして整理し、CodexやClaude CodeへMCP経由で渡すマニュアルだと説明できる。", "evidence": ["/:『自分の仕事文脈をAIに渡すためのMCPマニュアル』", "/:『AIに二度と説明したくない文脈』", "/:『AIの判断根拠を毎回確認できる』"]},
+    "prerequisites_first_prompt_start_command": {"status": "success_with_friction", "finding": "Node.js 20以上、npm、CodexでBrainbaseを開くこと、build、現実の依頼とプロジェクト、開始文、npm run onboard:start -- --target codexを確認できる。トップから一度遷移する必要がある。", "evidence": ["/guide/quick-start: Node.js 20以上、npm、Codex、npm run build", "/guide/quick-start: 開始文とnpm run onboard:start -- --target codex"]},
+    "mcp_judgment_order_success_checks": {"status": "success_with_friction", "finding": "dry-runとバックアップ後にMCPを登録し、新taskでget_context/search/onboarding_statusの実結果を確認してから任意のJudgment Hostへ進む順序が明示される。MCP、Host、referenceページに成功条件が分散している。", "evidence": ["/guide/quick-start: MCP確認後にJudgment Hostへ進む", "/guide/quick-start: UserPromptSubmit/PostToolUse/Stop、doctor、新task", "/reference/mcp-tools: get_context/search/onboarding_statusと未確認を成功扱いしない"]},
+    "avoid_overwrite_and_recover": {"status": "clear_success", "finding": "dry-run、config/hooksバックアップ、既存項目を残してBrainbase項目だけ追加、判断不能時は上書きしない、build→doctor→onboard:demo→新taskで復帰する手順を確認できる。", "evidence": ["/guide/quick-start: ~/.codex/config.toml.before-brainbaseへcp -n", "/guide/quick-start: ~/.codex/hooks.json.before-brainbaseへcp -n", "/guide/quick-start: 中断時と設定復旧の手順"]}
+  },
+  "hard_gates": {"no_product_edits": "pass", "existing_config_not_overwritten": "pass", "unfinished_or_waiting_not_success": "pass", "human_confirmation_before_canonical_write": "pass", "keyboard_or_assistive_technology": "not_collected", "real_device": "not_collected"},
+  "findings": {"new_actionable": [{"id": "P406G1-F1", "severity": "medium", "title": "MCPからJudgment Hostまでの成功条件がページ横断", "evidence": "10分ページ、MCPリファレンス、Host手順を往復してtool実結果・doctor・監査行を照合する必要がある。", "recommendation": "10分チェックリストにMCP→Hostの順序、確認コマンド、未確認時の停止条件を集約する。"}], "regression": []},
+  "recovery": {"status": "documented", "observed": "中断時は設定を追加し直さず、build、doctor、onboard:demo、新taskでMCPを確認し、最初に通らない項目だけを直す。復旧時は現在ファイルを別名保存してから確認済みバックアップを戻す。", "gap": "実エージェント設定反映後の自動ロールバック、実機、VoiceOver、音声入力はnot_collected。"},
+  "actual_ui_browser_evidence": true,
+  "real_device_evidence": "not_collected",
+  "human_evidence": "not_collected",
+  "requested_model": "not_collected",
+  "model_binding": "not_collected",
+  "evidence_kind": "actual_ui_browser_evaluation",
+  "confidence": "medium"
+}

@@ -1,0 +1,138 @@
+{
+  "persona_id": "P-304",
+  "gate_id": "G0",
+  "round": "round-02",
+  "model_requested": "Codex GPT-5.6 Luna low",
+  "model_binding": "not_collected: effective model and reasoning effort were not exposed by the browser-run surface",
+  "persona": {
+    "type": "first-time individual",
+    "experience": "beginner",
+    "technical_level": "medium",
+    "time_pressure": "medium",
+    "mode": "task-focused",
+    "confirmation_preference": "confirmation-first",
+    "input": "mouse and keyboard",
+    "reduced_motion_viewpoint": false
+  },
+  "revision": "not_collected: worktree HEAD was not resolved to a 40-character commit in this evaluation artifact",
+  "fixture": "browser-onboarding-cycle-05-round-02-fixed-local-site",
+  "task_set_id": "browser-onboarding-common-tasks",
+  "environment": {
+    "url": "http://127.0.0.1:4176/",
+    "browser": "Playwright Chromium visible browser using installed Google Chrome executable",
+    "viewport": "1440x1000",
+    "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-304-G0.png",
+    "human_observation": "not_collected",
+    "real_device_evidence": "not_collected"
+  },
+  "tasks": [
+    {
+      "task_id": "value_understanding",
+      "required_task": true,
+      "start_state": "トップページの初回表示",
+      "completion_condition": "Brainbaseの価値を自分の言葉で説明できる",
+      "outcome": "clear_success",
+      "evidence_kind": "synthetic_browser_evaluation",
+      "action_trace": [
+        "トップを開く",
+        "見出し『自分の仕事文脈をAIに渡すためのMCPマニュアル』と本文を読む",
+        "『10分で試す』をクリックする",
+        "最初の目標と5フェーズの説明を読む"
+      ],
+      "evidence_references": ["docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-304-G0.png"],
+      "result": "自分・仕事・関係性の文脈をローカルSSOTとして育て、Codex/Claude Codeが参照するPersonal Onboarding Kitだと理解できた。最初から全情報源を接続せず、承認した前提でAIが一度役立つ回答を返すことが最初の目標と分かった。",
+      "confusion": "トップの主要CTAが3つあり、最初にどれを押すか一瞬選択が必要",
+      "proposal": "10分で試すを初回利用者向けの第一CTAとして視覚的にさらに固定する"
+    },
+    {
+      "task_id": "prerequisites_first_prompt_start_command",
+      "required_task": true,
+      "start_state": "10分で試すページ",
+      "completion_condition": "前提、AIへの開始文、開始コマンド、最初に決める対象を確認できる",
+      "outcome": "clear_success",
+      "evidence_kind": "synthetic_browser_evaluation",
+      "action_trace": [
+        "10分で試すの『1. 準備する』を読む",
+        "1. 準備と目的へ進む",
+        "Node.js 20以上、npm、対応エージェント、ローカルcheckout、clone/install/buildを確認する",
+        "開始文『Brainbaseのオンボーディングを始めたいです。』と npm run onboard:start -- --target codex を確認する"
+      ],
+      "evidence_references": ["docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-304-G0.png"],
+      "result": "必要条件、開始文、Codex向けコマンド、最初に試す現実の依頼とプロジェクトを決める完了条件が見つかった。",
+      "confusion": "10分で試すページと詳細ページの情報が重複するため、読む量はやや多い",
+      "proposal": "チェックリストから詳細ページへ進む場合に、現在の確認項目を引き継ぐ表示を検討する"
+    },
+    {
+      "task_id": "codex_mcp_judgment_host_order_and_success_checks",
+      "required_task": true,
+      "start_state": "10分で試すページのMCP登録項目",
+      "completion_condition": "MCPを先に確認し、Judgment Hostを後に登録する順序と成功確認を説明できる",
+      "outcome": "clear_success",
+      "evidence_kind": "synthetic_browser_evaluation",
+      "action_trace": [
+        "MCPを登録するページを開く",
+        "dry-runと新しいセッションでの確認項目を読む",
+        "MCP動作確認後にJudgment Hostへ進む記述を確認する",
+        "Judgment Hostページで UserPromptSubmit→PostToolUse→Stop、doctor、監査行、実tool呼び出し確認を読む"
+      ],
+      "evidence_references": ["docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-304-G0.png"],
+      "result": "MCPのbrainbase起動、get_context/search/onboarding_status確認を先に行い、その後に任意のJudgment Hostを登録する順序が明記されている。doctorの3 Hook ready、新しいtaskの監査行、実際のBrainbase tool呼び出しに対応する📚行が成功確認になる。",
+      "confusion": "Judgment Hostが任意設定であることは明記されるが、初回利用者には設定範囲が広く見える",
+      "proposal": "10分で試すではJudgment Hostを『後から追加できる任意項目』として折りたたむ"
+    },
+    {
+      "task_id": "avoid_overwrite_and_recover",
+      "required_task": true,
+      "start_state": "10分で試すページのMCP/Judgment Host設定項目",
+      "completion_condition": "既存設定を上書きせず、中断後に現在地を確認して再開できる手順を説明できる",
+      "outcome": "success_with_friction",
+      "evidence_kind": "synthetic_browser_evaluation",
+      "action_trace": [
+        "MCPのdry-run、別output、既存MCP設定を自動マージしない記述を読む",
+        "config.tomlとhooks.jsonのバックアップ例を読む",
+        "設定反映後は再起動して新しいtaskで確認する手順を読む",
+        "『中断したらここから再開』でbuild→doctor→承認済み文脈→MCP→Judgment Hostの順を読む",
+        "設定を元へ戻す節で現在ファイルを別名保存し、確認済みバックアップへ戻す手順を読む"
+      ],
+      "evidence_references": ["docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-304-G0.png"],
+      "result": "dry-run、cp -nによるバックアップ、別出力先、既存設定を消さない/自動マージしない、失敗時に上書きせずdoctorと新しいtaskで再確認する手順を確認できた。本文量が多く、復旧手順の要点を保持するのに摩擦がある。",
+      "confusion": "安全策と復旧策が複数ページに分散し、忙しい利用者は戻り先を探す必要がある",
+      "proposal": "10分で試すに『上書きしないための3原則』と『中断時の最初の一手』を短く固定表示する"
+    }
+  ],
+  "hard_gates": {
+    "status": "pass_with_boundary",
+    "failures": [],
+    "checks": [
+      {"gate": "未完了を成功と表示する", "status": "pass", "evidence": "ready:true、生成ファイル、dry-runだけでは完了でないこと、実結果を取れない項目は未確認のまま残すことが明記される。"},
+      {"gate": "現在地または次の操作が分からない", "status": "pass", "evidence": "10分で試すに5段階、各完了項目、MCP確認後にJudgment Hostへ進む順序、中断時の再開順が表示される。"},
+      {"gate": "既存設定を破壊する可能性がある", "status": "pass", "evidence": "dry-run、cp -nバックアップ、別output、既存設定/Hookを残す、自動マージ・上書きなしが明記される。"},
+      {"gate": "失敗後の復旧手段がない", "status": "pass", "evidence": "build、doctor、パス、再起動、新しいtask、バックアップ比較と復元の手順がある。"},
+      {"gate": "主要操作がキーボードまたは支援技術から到達不能", "status": "pass_synthetic_only", "evidence": "Skip to content、見出し、テキストリンクを可視Chromiumで確認。VoiceOver等は未取得。"},
+      {"gate": "MCP/Judgment Hostの順序・成功確認が不明", "status": "pass", "evidence": "MCPの実動作確認後にJudgment Host、doctorの3 Hook、監査行、実tool呼び出しの確認が明記される。"}
+    ]
+  },
+  "workflow_reachability": {
+    "required_rows": 4,
+    "passed_rows": 4,
+    "failed_rows": 0,
+    "unexecuted_rows": 0,
+    "unresolved_workflow_dead_ends": 0,
+    "rows": [
+      {"row_id": "P-304-value", "screen": "/", "primary_action": "10分で試す", "enabled": true, "result": "pass", "workflow_dead_end": false, "evidence_references": ["docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-304-G0.png"]},
+      {"row_id": "P-304-prereq", "screen": "/guide/quick-start", "primary_action": "1. 準備する/1. 準備と目的", "enabled": true, "result": "pass", "workflow_dead_end": false, "evidence_references": ["docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-304-G0.png"]},
+      {"row_id": "P-304-mcp-host", "screen": "/guide/mcp-install", "primary_action": "Judgment Hostを登録する", "enabled": true, "result": "pass", "workflow_dead_end": false, "evidence_references": ["docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-304-G0.png"]},
+      {"row_id": "P-304-recovery", "screen": "/guide/quick-start", "primary_action": "中断したらここから再開/設定を元へ戻す", "enabled": true, "result": "pass", "workflow_dead_end": false, "evidence_references": ["docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-304-G0.png"]}
+    ]
+  },
+  "new_findings": [
+    {"finding_id": "UX-C05-R2-P304-01", "title": "初回導線の選択肢が3つあり最初の一手に軽い迷い", "priority": {"frequency": 1, "severity": 2, "persona_breadth": 1, "product_impact": 2, "evidence_confidence": 3, "score": 12}, "decision": "defer", "reason": "完了を阻害せず、10分で試すが到達可能。複数ペルソナで再確認する。"},
+    {"finding_id": "UX-C05-R2-P304-02", "title": "安全策・復旧策が複数ページに分散", "priority": {"frequency": 1, "severity": 2, "persona_breadth": 1, "product_impact": 2, "evidence_confidence": 3, "score": 12}, "decision": "defer", "reason": "非上書きと復旧は確認できるが、短時間利用者向けの要約余地がある。"}
+  ],
+  "regressions": [],
+  "recovery": {"status": "documented", "steps": ["npm run build", "npm run doctor", "承認済み文脈をonboard:demoで確認", "新しいtaskでMCP確認", "必要時のみJudgment Host確認", "バックアップと現在設定を比較し上書きせず復元"], "safety": "既存設定とHookを残し、dry-runと別outputで確認してから人が追加する。"},
+  "status": "complete_with_boundaries",
+  "verdict": "adopt",
+  "summary": "P-304は可視Chromiumでトップから10分で試すを起点に、価値、前提/開始文/コマンド、MCP→Judgment Hostの順序と成功確認、安全な非上書き・中断復帰を確認できた。4タスクは完了し、復旧タスクのみ情報分散による摩擦があった。ハードゲート失敗と回帰は観測しなかった。人観察、実機、支援技術、実際のCodexモデル結合は未取得。",
+  "evidence_boundary": {"human_observation": "not_collected", "real_device_evidence": "not_collected", "effective_model_binding": "not_collected", "production_or_authoritative_result": "not_collected"}
+}

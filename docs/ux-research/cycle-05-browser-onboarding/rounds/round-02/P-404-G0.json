@@ -1,0 +1,61 @@
+{
+  "persona_id": "P-404-G0",
+  "round": "round-02",
+  "persona": {
+    "type": "recovery_intermediate",
+    "experience": "intermediate",
+    "technical_literacy": "medium",
+    "time_pressure": "low",
+    "interruption_state": "frequently_interrupted",
+    "confirmation_preference": "confirmation_first",
+    "interaction": "keyboard",
+    "assistive_technology_viewpoint": "reduced_motion"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "model_requested": "gpt-5.6-luna",
+  "model_binding": "not_collected",
+  "evidence_kind": "synthetic_browser_evaluation",
+  "human_observation": "not_collected",
+  "real_device_evidence": "not_collected",
+  "browser_evidence": {
+    "browser": "visible Playwright Chromium via system Google Chrome",
+    "viewport": "1440x900",
+    "prefers_reduced_motion": "reduce",
+    "actions": [
+      {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップ表示。仕事文脈をAIに渡す価値、10分で試す導線、実用場面・プロジェクト整理・人の確認・判断根拠を確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/onboarding-process", "result": "5フェーズ、開始文、順序、承認なしに正本を書き換えないルール、未完了を導入完了と扱わないルールを確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/getting-started", "result": "Node.js 20以上、npm、local checkout、開始文、npm run onboard:start -- --target codex、最初の依頼と対象プロジェクトを確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/mcp-install", "result": "MCP dry-run、別出力先、絶対パス、既存設定を自動マージ・上書きしない境界、新しいセッションでのtool確認、Judgment Hostへ進む順序を確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/guide/judgment-audit", "result": "UserPromptSubmit→PostToolUse→Stop、doctorのready/events、新しいtaskの監査行、実tool証跡、異常時の修復動作を確認。HTTP 200。"},
+      {"action": "navigate", "url": "http://127.0.0.1:4176/reference/mcp-tools", "result": "MCP toolとConnected-world onboardingのstart→get→ingest→review→first_value順、未確認・権限待ちをreadyや0件と扱わない契約を確認。HTTP 200。"},
+      {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-404-G0.png"}
+    ]
+  },
+  "tasks": {
+    "value_sentence": {"status": "clear_success", "finding": "Brainbaseは、自分・仕事・関係性の文脈をローカルSSOTとして育て、CodexやClaude Codeが参照できるようにし、説明のやり直しを減らすPersonal Onboarding Kitだと一文で説明できる。トップの『10分で試す』が起点になる。"},
+    "prerequisites_first_prompt_start_command": {"status": "clear_success", "finding": "Node.js 20以上、npm、MCP対応エージェント、local checkout、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codex、最初の依頼と対象プロジェクトを確認できる。"},
+    "codex_mcp_judgment_order_success": {"status": "success_with_friction", "finding": "MCPの実動作確認後にJudgment Hostを登録する順序が明記され、MCPはserver/toolと実結果、Judgment Hostはdoctorのready/events・新しいtaskの監査行・実tool証跡で成功確認できる。中断後に確認表をページ横断で再構成する摩擦がある。"},
+    "avoid_overwrite_recover": {"status": "success_with_friction", "finding": "dry-run、未作成の別出力先、既存設定を自動マージ・上書きしない境界、承認後反映、再起動、新task確認、build→doctor→絶対パスの復旧順を確認できる。反映済み設定の差分確認・ロールバック例は見つからない。"}
+  },
+  "hard_gates": {
+    "unfinished_as_success": "pass",
+    "current_or_next_action": "pass_with_friction",
+    "overwrite_risk": "pass",
+    "recovery_path": "pass_with_friction",
+    "human_confirmation_handoff": "pass",
+    "keyboard_or_assistive_reachability": "not_collected",
+    "no_product_edits": true,
+    "notes": "DOM上のSkip to content、見出し、リンク、順序と次操作は確認。reduced-motion文脈は設定済みだがアニメーション差分、実キーボード、VoiceOver、実MCP接続、実Judgment Host接続、実端末は未取得。"
+  },
+  "findings": {
+    "new_actionable": [
+      {"id": "P404-R2-F01", "severity": "medium", "finding": "10分で試すチェックリストに、MCP実動作確認とJudgment Hostのdoctor・新task監査確認を同じ現在地表として統合すると、頻繁な中断後のページ往復と再構成を減らせる。", "decision": "adopt"},
+      {"id": "P404-R2-F02", "severity": "medium", "finding": "既存設定へ手動統合した後の差分確認、直前状態の保存、問題時の復元例を追加すると、復旧時の判断を短縮できる。", "decision": "adopt"}
+    ],
+    "regressions": []
+  },
+  "recovery": {"status": "documented", "steps": ["最後に確認したフェーズへ戻る", "dry-runと別出力へ戻す", "npm run build", "npm run doctor", "~/.brainbase/personal-os/の存在確認", "実行ファイルと設定の絶対パス確認", "エージェント再起動", "新しいtaskでMCP tool・監査行・実tool証跡を確認"], "gap": "前回の完了フェーズを保存して再開する導線、反映済み設定の自動ロールバックと差分復元例はnot_collected"},
+  "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-404-G0.png",
+  "overall": "adopt",
+  "recommendation": "10分チェックリストへMCP→Judgment Hostの成功確認を統合し、既存設定の差分確認・復旧例を追加する。reduced-motionの実差分、支援技術、実接続、実機検証は別途実施する。"
+}

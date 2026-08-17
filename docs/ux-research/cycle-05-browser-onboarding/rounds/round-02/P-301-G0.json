@@ -1,0 +1,84 @@
+{
+  "persona_id": "P-301-G0",
+  "round": "round-02",
+  "persona": {
+    "role": "individual_operator",
+    "experience": "intermediate",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "likely",
+    "work_style": "speed_first",
+    "input_environment": "keyboard",
+    "accessibility_need": "none_declared"
+  },
+  "site": "http://127.0.0.1:4176/",
+  "browser": {
+    "engine": "Playwright Chromium",
+    "headless": false,
+    "viewport": "1440x900",
+    "status": 200,
+    "title": ""
+  },
+  "start_point": "トップ → 10分で試す",
+  "actions": [
+    {"action": "open", "url": "http://127.0.0.1:4176/", "result": "トップの価値文と『10分で試す』導線を可視ブラウザで確認。"},
+    {"action": "follow", "target": "10分で試す", "url": "http://127.0.0.1:4176/guide/quick-start", "result": "準備、最初の価値、MCP、任意のJudgment Host、中断復帰の5項目を確認。"},
+    {"action": "inspect", "target": "固定4タスク", "result": "クイックスタート本文、コード例、成功条件、復旧手順を実操作で確認。"},
+    {"action": "capture_screenshot", "path": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-301-G0.png"}
+  ],
+  "tasks": {
+    "value_understanding": {
+      "status": "clear_success",
+      "reason": "トップで、仕事の文脈をローカルSSOTとして育てCodexやClaude Codeへ渡し、AIへ同じ前提を説明し直さず判断根拠も確認できる製品だと一文で説明できた。",
+      "evidence": ["/:『自分の仕事文脈をAIに渡すためのMCPマニュアル』", "/:『AIに二度と説明したくない文脈』", "/:『AIの判断根拠を毎回確認できる』"]
+    },
+    "prerequisites_first_prompt_start_command": {
+      "status": "success_with_friction",
+      "reason": "Node.js 20以上、npm、Codexでフォルダを開くこと、build、最初の現実の依頼と対象プロジェクト、開始文、npm run onboard:start -- --target codexを確認できた。開始前提と価値確認が同じページではなく、速度優先では情報量が多い。",
+      "evidence": ["/guide/quick-start:『1. 準備する』", "開始文:『Brainbaseのオンボーディングを始めたいです。』", "開始コマンド:『npm run onboard:start -- --target codex』"]
+    },
+    "mcp_judgment_order_success_checks": {
+      "status": "success_with_friction",
+      "reason": "MCPのdry-run・登録・新しいtaskで起動とget_context/search/onboarding_status確認を先に行い、その後に任意のJudgment Hostへ進む順序は理解できた。一方、実tool結果、doctor、監査行はブラウザ内で取得できず、MCP・Host・tool説明もページ横断になる。",
+      "evidence": ["/guide/quick-start: MCP確認後にJudgment Hostへ進む", "/guide/quick-start: 3 Hook、doctor、新task、監査行", "/guide/quick-start: 未確認・空結果・権限待ちを成功扱いしない"]
+    },
+    "non_overwrite_and_interruption_recovery": {
+      "status": "clear_success",
+      "reason": "dry-run、config.toml/hooks.jsonのバックアップ、既存設定を自動マージしない境界、承認なしに正本を書き換えない方針、中断時のbuild→doctor→onboard:demo→新taskのMCP確認→最初に通らない項目だけ直す順序を確認できた。",
+      "evidence": ["/guide/quick-start: dry-runとバックアップ", "/guide/quick-start: 既存設定を自動マージしない", "/guide/quick-start:『5. 中断したらここから再開』", "/guide/quick-start:『設定を元へ戻す』"]
+    }
+  },
+  "hard_gates": {
+    "no_product_edits": "pass",
+    "existing_config_not_overwritten": "pass",
+    "unfinished_or_waiting_not_success": "pass",
+    "human_confirmation_before_canonical_write": "pass",
+    "keyboard_or_assistive_technology": "not_collected",
+    "human_observation": "not_collected",
+    "real_device": "not_collected",
+    "requested_model": "not_collected",
+    "model_binding": "not_collected"
+  },
+  "new_actionable_findings": [
+    {"id": "P301-R2-F1", "severity": "medium", "type": "friction", "title": "MCP成功確認とJudgment Host監査確認が一画面にまとまっていない", "evidence": "クイックスタート上で順序は読めるが、実tool結果・doctor・監査行の確認場所はページ外で、関連説明も複数ページに分散。", "recommendation": "10分チェックリストにMCP→Hostの順序、実行コマンド、成功確認、未確認時の戻り先を集約する。"},
+    {"id": "P301-R2-F2", "severity": "low", "type": "recovery_gap", "title": "チェック項目が表示上の文言で、進捗を画面に保持できない", "evidence": "『自分でチェックを付けてください』と案内されるが、可視ページ上で操作可能なチェックボックスは確認できず、再訪時の現在地は自己管理になる。", "recommendation": "任意で状態を保持できるチェックUIまたは現在地の記録方法を明示する。"}
+  ],
+  "regressions": [],
+  "improvements_from_round_01": [
+    {"title": "中断復帰の導線が同一ページに明示された", "evidence": "/guide/quick-startにbuild、doctor、onboard:demo、MCP確認、最初に通らない項目へ戻る順序がある。"}
+  ],
+  "recovery": {
+    "status": "documented_partial",
+    "observed": "中断後の確認順序、上書きしない境界、バックアップからの復旧方針を同一ページで確認できた。",
+    "missing": "実MCP結果、doctor、監査行、実キーボード操作、支援技術、実機、反映後ロールバックの実行結果はnot_collected。"
+  },
+  "synthetic_browser_evaluation": {
+    "status": "completed",
+    "summary": "トップから10分で試す導線で価値と開始手順は理解できた。安全な非上書きと中断復帰も明確。一方、MCP→Judgment Hostの実成功証拠はブラウザ評価の範囲外で、確認手順がページ横断になる。"
+  },
+  "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-301-G0.png",
+  "task_status": "success_with_friction",
+  "evidence_kind": "actual_ui_browser_evidence",
+  "confidence": "medium",
+  "product_code_changed": false
+}

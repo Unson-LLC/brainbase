@@ -1,0 +1,64 @@
+{
+  "persona_id": "P-303-G0",
+  "gate_id": "G0",
+  "round": "round-02",
+  "evaluation_type": "cycle-05-round-02-browser-onboarding",
+  "model_requested": "not_collected",
+  "model_binding": "not_collected",
+  "persona": {
+    "role": "ontology_steward",
+    "domain_experience": "intermediate",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "frequently_interrupted",
+    "work_style": "speed_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "screen_reader_observation"
+  },
+  "environment": {
+    "url": "http://127.0.0.1:4176/",
+    "browser": "visible Playwright Chromium",
+    "viewport": "1440x1000",
+    "screenshot": "docs/ux-research/cycle-05-browser-onboarding/screenshots/round-02/P-303-G0.png",
+    "actual_ui_browser_evidence": true,
+    "human_evidence": "not_collected",
+    "real_device_evidence": "not_collected",
+    "assistive_technology_evidence": "not_collected"
+  },
+  "tasks": {
+    "value_sentence": {
+      "status": "clear_success",
+      "evidence": "トップに『自分の仕事文脈をAIに渡すためのMCPマニュアル』とあり、ローカルSSOT、MCP経由の参照、AIの判断根拠の確認までを一画面で理解でき、『10分で試す』へ到達できた。"
+    },
+    "prerequisites_first_prompt_start_command": {
+      "status": "success_with_friction",
+      "evidence": "quick-startでNode.js 20以上、npm、Codexでフォルダを開く、npm run build、最初の依頼と対象プロジェクト、開始文『Brainbaseのオンボーディングを始めたいです。』、npm run onboard:start -- --target codexを確認できた。複数手順を読み直す必要があり、中断後の短い再開要約はない。"
+    },
+    "codex_mcp_judgment_host_order_and_success_checks": {
+      "status": "clear_success",
+      "evidence": "MCPをdry-run・バックアップ・新セッションで確認し、get_context、search、onboarding_status等の実結果を確認してから任意のJudgment Hostへ進む順序、3 Hook、doctorのready、🧠/📚監査行、実tool呼び出しの確認条件が明記されている。"
+    },
+    "avoid_overwrite_and_recover": {
+      "status": "success_with_friction",
+      "evidence": "config.tomlとhooks.jsonを別名へコピーし、既存設定を自動マージ・消去せずBrainbase項目だけを追加する境界、失敗時のbuild→doctor→新task→バックアップ比較・復元が明記されている。一方、5の見出しは再開先を示すが、チェックリストは実入力欄ではなく表示上の[ ]で、完了状態を保持できない。"
+    }
+  },
+  "hard_gates": {
+    "未完了を成功と表示する": {"status": "pass", "evidence": "ready: true、設定生成、空結果、error、権限待ち、未確認を完了扱いしない注意書きを確認。"},
+    "現在地または次の操作が分からない": {"status": "fail", "evidence": "5フェーズと再開手順は読めるが、完了状態を保存するチェック入力がなく、中断後に現在地を再構成する必要がある。"},
+    "既存設定を破壊する可能性がある": {"status": "pass", "evidence": "dry-run、別名バックアップ、自動マージなし、既存MCP/Hookを残す手順を確認。"},
+    "失敗後の復旧手段がない": {"status": "pass", "evidence": "build、doctor、新しいtask、バックアップ比較・復元の手順を確認。"},
+    "AIから人への確認・引き継ぎがない": {"status": "pass", "evidence": "候補を確認し、承認した事実だけを正本へ残す境界が明記されている。"},
+    "主要操作がキーボードまたは支援技術から到達不能": {"status": "not_collected", "evidence": "Skip linkと見出し・リンクはブラウザで確認したが、VoiceOver等の実支援技術、人、実機は未取得。"}
+  },
+  "new_actionable_findings": [
+    {"title": "再開チェックリストを実状態として保持できない", "severity": "high", "proposal": "quick-startの[ ]を実際に操作できるチェック項目へ変更し、完了済み・次の一手・未確認を同一画面で保持表示する。"},
+    {"title": "中断復帰時の要約を短く固定表示する", "severity": "medium", "proposal": "『完了済み／次の一手／未確認』の3行をquick-start冒頭に固定し、長い手順の読み直しを減らす。"},
+    {"title": "404リソースの原因を特定する", "severity": "medium", "proposal": "トップとquick-startの初回表示で取得した404の対象URLを特定し、不要なら除去、必要なら静的アセットを復旧する。"}
+  ],
+  "regressions": [
+    {"title": "トップ初回ロードの404コンソールエラーが継続", "status": "observed_again", "evidence": "Round 1と同じく、トップおよびquick-startでFailed to load resource: 404 (Not Found)を1件取得。対象リソースは未特定。"}
+  ],
+  "overall": "Ontology stewardはトップから10分チェックリストへ進み、価値、導入条件、MCP→Judgment Hostの順序、成功確認、上書き回避、復旧をブラウザ上で理解できる。ただし、チェックリストが実状態を保持せず、頻繁な中断時に現在地と次の操作を再構成するため、G0の現在地ハードゲートは未達。支援技術・人・実機・モデル結合は未取得。",
+  "confidence": "high"
+}
