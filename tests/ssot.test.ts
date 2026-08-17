@@ -38,12 +38,12 @@ describe('local SSOT loader', () => {
     await initializePersonalOs(dir);
     await writeFile(join(dir, 'graph.json'), '{"version":2,"entities":[]}');
 
-    await expect(loadPersonalOs(dir)).rejects.toThrow(/Failed to read canonical SSOT file|Invalid literal value/);
+    await expect(loadPersonalOs(dir)).rejects.toThrow(/GRAPH-ONTOLOGY-REQUIRED/);
   });
 
   it.each([
     ['personal-kg.jsonl', '{"id":"","type":"self","text":"missing id"}\n', /Invalid personal-kg\.jsonl line 1/],
-    ['relationships.json', '{"version":1,"relationships":[{"id":"r1","person":"","context":"missing person"}]}', /String must contain at least 1 character/],
+    ['relationships.json', '{"version":1,"relationships":[{"id":"r1","person":"","context":"missing person"}]}', /String must contain at least 1 character|expected string to have >=1 characters/],
     ['decisions.jsonl', '{"id":"d1","title":"","decision":"missing title"}\n', /Invalid decisions\.jsonl line 1/]
   ])('INV-3 fails loudly when %s violates the runtime schema', async (fileName, content, errorPattern) => {
     const dir = await tempDir();

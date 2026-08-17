@@ -3,7 +3,7 @@ import { constants, realpathSync } from 'node:fs';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { delimiter, dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { initializePersonalOs, loadPersonalOs, mutatePersonalOs } from './ssot.js';
+import { initializePersonalOs, loadPersonalOs, migrateCanonicalGraph, mutatePersonalOs } from './ssot.js';
 import { resolveDataDir } from './paths.js';
 import { auditPersonalOsDirectory } from './ontology-ssot.js';
 import { portableOntology, resolveOntologyVersion } from './ontology.js';
@@ -110,6 +110,8 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return 0;
       case 'ontology:audit':
         return await ontologyAudit(parsed, io);
+      case 'ontology:migrate':
+        return await ontologyMigrate(parsed, io);
       case 'judgment:hook':
         return await judgmentHook(io);
       case 'judgment:install':
@@ -1099,6 +1101,13 @@ async function ontologyAudit(parsed: ParsedArgs, io: CliIo): Promise<number> {
   return result.violations.some((violation) => violation.severity === 'error') ? 1 : 0;
 }
 
+async function ontologyMigrate(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const dataDir = resolveDataDir(first(parsed, 'dir'));
+  const result = await migrateCanonicalGraph(dataDir, { write: parsed.flags.has('write') });
+  write(io, `${JSON.stringify(result, null, 2)}\n`);
+  return result.status === 'blocked' ? 1 : 0;
+}
+
 function proposedPersonalOs(
   os: PersonalOs,
   proposed: Pick<PersonalOs, 'graph' | 'relationships' | 'personalKg' | 'decisions'>
@@ -1135,6 +1144,7 @@ function usage(): string {
   brainbase onboard:skills --target codex|claude|portable [--skills id,id] [--out dir] [--format markdown|json]
   brainbase ontology:show
   brainbase ontology:audit [--dir path] [--ontology-version 0.0.0|1.0.0]
+  brainbase ontology:migrate [--dir path] [--write]
   brainbase judgment:install --target codex [--dry-run] [--output path]
   brainbase judgment:hook
   brainbase doctor [--dir path] [--judgment-hooks path]
