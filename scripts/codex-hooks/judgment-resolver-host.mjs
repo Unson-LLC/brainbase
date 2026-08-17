@@ -533,6 +533,19 @@ export async function resolveAndAdopt(args, dependencies = {}) {
     return (await resolveAndAdoptEntry(args, dependencies)).receipt;
 }
 
+function withJudgmentStage(reason, callback) {
+    const wrap = (error) => {
+        if (error instanceof Error && /^judgment_[a-z0-9_]{1,80}$/u.test(error.message)) throw error;
+        throw new Error(reason, { cause: error });
+    };
+    try {
+        const result = callback();
+        return result && typeof result.then === 'function' ? result.catch(wrap) : result;
+    } catch (error) {
+        return wrap(error);
+    }
+}
+
 function payloadIdentity(payload) {
     const sessionId = typeof payload?.session_id === 'string' ? payload.session_id : '';
     const turnId = typeof payload?.turn_id === 'string' ? payload.turn_id.trim() : '';
@@ -589,15 +602,27 @@ async function resolveInitialRoute(args, { env, fetchImpl }) {
 export async function startEpisode(payload, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
     const identity = payloadIdentity(payload);
     if (!identity) throw new TypeError('UserPromptSubmit requires session_id and turn_id');
-    const existing = existingEpisode(payload, env);
+    const existing = withJudgmentStage(
+        'judgment_episode_existing_read_failed',
+        () => existingEpisode(payload, env)
+    );
     if (existing) return existing;
     const paths = journalPaths(identity.sessionRef, identity.turnId, env);
-    return withEpisodeTransitionLock(paths, async () => {
-        const afterLock = existingEpisode(payload, env);
+    return withJudgmentStage('judgment_episode_transition_failed', () => withEpisodeTransitionLock(paths, async () => {
+        const afterLock = withJudgmentStage(
+            'judgment_episode_existing_read_failed',
+            () => existingEpisode(payload, env)
+        );
         if (afterLock) return afterLock;
-        const args = buildJudgmentRequest(payload, { env });
-        const initialRouteReceipt = await resolveInitialRoute(args, { env, fetchImpl });
-        const entry = {
+        const args = withJudgmentStage(
+            'judgment_episode_request_build_failed',
+            () => buildJudgmentRequest(payload, { env })
+        );
+        const initialRouteReceipt = await withJudgmentStage(
+            'judgment_episode_route_resolve_failed',
+            () => resolveInitialRoute(args, { env, fetchImpl })
+        );
+        const entry = withJudgmentStage('judgment_episode_audit_build_failed', () => ({
             schema_version: 'brainbase-judgment-episode-v1',
             state: 'open',
             started_at: new Date().toISOString(),
@@ -606,9 +631,12 @@ export async function startEpisode(payload, { env = process.env, fetchImpl = glo
             initial_route_receipt: initialRouteReceipt,
             owner_audit: buildOwnerAudit(args, initialRouteReceipt),
             audit_contract: buildAuditContract(initialRouteReceipt)
-        };
-        return verifyEpisode(createImmutableJson(paths.episode, entry, 'judgment_episode_start_conflict'));
-    }, env, 'judgment_episode_start_timeout');
+        }));
+        return withJudgmentStage(
+            'judgment_episode_persist_failed',
+            () => verifyEpisode(createImmutableJson(paths.episode, entry, 'judgment_episode_start_conflict'))
+        );
+    }, env, 'judgment_episode_start_timeout'));
 }
 
 const TOOL_EXCERPT_LIMIT = 40;
