@@ -223,8 +223,15 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
         const finalStop = await run('bash', [wrapper], { env, input: finalStopPayload });
         const finalStopReplay = await run('bash', [wrapper], { env, input: finalStopPayload });
-        expect(JSON.parse(finalStop.stdout)).toEqual({});
-        expect(JSON.parse(finalStopReplay.stdout)).toEqual({});
+        const expectedAuditBlock = [
+            '🧠 判断参照: 「Resolverを実行して」を参照 → Brainbase参照先の判断が必要 ✓',
+            unrelatedLine,
+            genericLine,
+            routeLine,
+            searchLine
+        ].join('\n');
+        expect(JSON.parse(finalStop.stdout)).toEqual({ systemMessage: expectedAuditBlock });
+        expect(JSON.parse(finalStopReplay.stdout)).toEqual({ systemMessage: expectedAuditBlock });
 
         const journalDirectory = join(journal, hash('session-symlink-entrypoint'));
         const journalFiles = readdirSync(journalDirectory);
@@ -632,7 +639,10 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                 last_assistant_message: `${ownerLine}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\n回答`
             })
         });
-        expect(recovered).toMatchObject({ code: 0, stderr: '', stdout: '{}\n' });
+        expect(recovered).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(recovered.stdout)).toEqual({
+            systemMessage: `${ownerLine}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓`
+        });
         expect(JSON.parse(readFileSync(join(journalDirectory, `${turnRef}.final.json`), 'utf8')))
             .toMatchObject({ completion_status: 'complete' });
     }, 20_000);

@@ -1122,6 +1122,9 @@ export function finalizeEpisode(payload, { env = process.env } = {}) {
 
 function finalizeEpisodeLocked(payload, episode, paths, env) {
     const events = episodeEvents(paths);
+    const completedAuditOutput = () => ({
+        systemMessage: requiredAuditLines(episode, events).join('\n')
+    });
     const finalized = existingFinal(paths, episode);
     if (finalized) {
         const qualifyingCount = events.filter((entry) => entry.success && entry.satisfies.includes('knowledge.resolve')).length;
@@ -1134,7 +1137,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             throw new Error('judgment_episode_final_event_set_mismatch');
         }
         enqueueFinalKnowledgeEvent(payload, finalized, env);
-        return { output: {}, final: finalized };
+        return { output: completedAuditOutput(), final: finalized };
     }
     const requiredKnowledge = requiredKnowledgeResolution(episode.initial_route_receipt);
     const qualifyingEvents = events.filter((entry) => entry.success && entry.satisfies.includes('knowledge.resolve'));
@@ -1214,7 +1217,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     };
     const final = createImmutableJson(paths.final, entry, 'judgment_episode_final_conflict');
     enqueueFinalKnowledgeEvent(payload, final, env);
-    return { output: {}, final };
+    return { output: completedAuditOutput(), final };
 }
 
 function enqueueFinalKnowledgeEvent(payload, final, env) {

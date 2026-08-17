@@ -945,7 +945,12 @@ describe('Codex Judgment Resolver Host', () => {
             last_assistant_message: `${episode.owner_audit.display_line}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\n回答`
         }, { env });
 
-        expect(result.output).toEqual({});
+        expect(result.output).toEqual({
+            systemMessage: [
+                episode.owner_audit.display_line,
+                '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'
+            ].join('\n')
+        });
         expect(result.final).toMatchObject({
             completion_status: 'complete',
             protocol_status: 'audit_protocol_complete',
@@ -998,7 +1003,10 @@ describe('Codex Judgment Resolver Host', () => {
                 '参照先が未確定だと説明'
             ].join('\n')
         }, { env });
-        expect(result.output).toEqual({});
+        expect(result.output.systemMessage).toBe([
+            episode.owner_audit.display_line,
+            routed.display_line
+        ].join('\n'));
         expect(result.final).toMatchObject({
             schema_version: 'brainbase-judgment-episode-final-v2',
             completion_status: 'complete', event_count: 1, qualifying_event_count: 1
@@ -1156,7 +1164,10 @@ describe('Codex Judgment Resolver Host', () => {
             stop_hook_active: true,
             last_assistant_message: `${episode.owner_audit.display_line}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\nこんにちは`
         }, { env });
-        expect(result.output).toEqual({});
+        expect(result.output.systemMessage).toBe([
+            episode.owner_audit.display_line,
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'
+        ].join('\n'));
         expect(result.final).toMatchObject({
             completion_status: 'complete', event_count: 0, qualifying_event_count: 0,
             owner_audit_complete: true, owner_audit_line_count: 2
@@ -1224,7 +1235,7 @@ describe('Codex Judgment Resolver Host', () => {
             last_assistant_message: `${episode.owner_audit.display_line}\n修正内容の詳しい説明`
         }, { env });
 
-        expect(result.output).toEqual({});
+        expect(result.output.systemMessage).toBe(episode.owner_audit.display_line);
         expect(result.final).toMatchObject({
             completion_status: 'complete', owner_audit_line_count: 1
         });
@@ -1303,7 +1314,10 @@ describe('Codex Judgment Resolver Host', () => {
             ].join('\n')
         }, { env });
 
-        expect(preserved.output).toEqual({});
+        expect(preserved.output.systemMessage).toBe([
+            episode.owner_audit.display_line,
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'
+        ].join('\n'));
         expect(preserved.final).toMatchObject({
             completion_status: 'complete', owner_audit_line_count: 2
         });
@@ -1350,7 +1364,10 @@ describe('Codex Judgment Resolver Host', () => {
                 answerBody
             ].join('\n')
         }, { env });
-        expect(repaired.output).toEqual({});
+        expect(repaired.output.systemMessage).toBe([
+            episode.owner_audit.display_line,
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'
+        ].join('\n'));
         expect(repaired.final).toMatchObject({ completion_status: 'complete', owner_audit_line_count: 2 });
     });
 
@@ -1411,7 +1428,10 @@ describe('Codex Judgment Resolver Host', () => {
                 answerBody
             ].join('\n')
         }, { env });
-        expect(preserved.output).toEqual({});
+        expect(preserved.output.systemMessage).toBe([
+            episode.owner_audit.display_line,
+            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'
+        ].join('\n'));
         expect(preserved.final).toMatchObject({ completion_status: 'complete' });
     });
 
