@@ -1,0 +1,16 @@
+{
+  "id": "journey-01-install",
+  "invocation_kind": "child_process.spawn",
+  "executable": "npm",
+  "args": [
+    "install",
+    "--ignore-scripts",
+    "<candidate-local-tarball>"
+  ],
+  "cwd": "<isolated-run-root>/consumer",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_ms": 2488,
+  "stdout": "\nadded 94 packages, and audited 95 packages in 2s\n\n32 packages are looking for funding\n  run `npm fund` for details\n\nfound 0 vulnerabilities\n",
+  "stderr": ""
+}

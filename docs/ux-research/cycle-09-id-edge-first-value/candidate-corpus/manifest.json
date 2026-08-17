@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "corpus_id": "cycle-09-candidate_local_tarball-1786969405151",
+  "evidence_kind": "first_value_end_to_end_journey",
+  "execution_surface": "actual_cli_actual_mcp_actual_codex",
+  "source_snapshot": "candidate_local_tarball",
+  "evaluated_repository_head": "094b098205f6736aa715088bf20e8ab715cae67e",
+  "package_spec": "<candidate-local-tarball>",
+  "installed_package_version": "0.2.4",
+  "package_lock_sha256": "5f6b48d6cc9f7fde6272f0bc56a1fcabed69edd4762d4673781ab3fd5c202a81",
+  "journey_start": "package_install_started",
+  "journey_completion": "actual_codex_useful_id_edge_answer_returned",
+  "journey_budget_ms": 600000,
+  "journey_duration_ms": 51069,
+  "journey_within_budget": true,
+  "actual_resolve_entity_used": true,
+  "actual_get_context_used": true,
+  "actual_search_used": true,
+  "useful_body_present": true,
+  "canonical_id_evidence_present": true,
+  "relation_evidence_present": true,
+  "projection_boundary_present": true,
+  "mcp_tool_call_evidence": [
+    {
+      "item_id": "item_2",
+      "tool": "resolve_entity"
+    },
+    {
+      "item_id": "item_4",
+      "tool": "get_context"
+    },
+    {
+      "item_id": "item_5",
+      "tool": "search"
+    },
+    {
+      "item_id": "item_6",
+      "tool": "search"
+    },
+    {
+      "item_id": "item_7",
+      "tool": "search"
+    }
+  ],
+  "candidate_journey_passed": true,
+  "known_major_count": null,
+  "synthetic_persona_value_recognition": "pending",
+  "human_value_recognition": "not_collected",
+  "traces": [
+    {
+      "id": "journey-01-install",
+      "sha256": "b7f94c46323707b361de4327bf8f1fd15a54a8c07a534283afb9247fee908ce6",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 2488
+    },
+    {
+      "id": "journey-02-start",
+      "sha256": "8681823ea50b99a6234dc9607fdd470aa24737b513c0c543d76270892febfa52",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 655
+    },
+    {
+      "id": "journey-03-displayed-seed",
+      "sha256": "298a74f6c1cb39ac170208cb001560b0d927596c3ae1931fb933f5c174efbba0",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 347
+    },
+    {
+      "id": "journey-04-doctor",
+      "sha256": "d20520c87631b4c9a0b78df987524a783b815490d80200750328edac46f96f43",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 243
+    },
+    {
+      "id": "journey-05-real-codex-id-edge",
+      "sha256": "f1c1e6c5595eab88abd7c9e8970f6a16411594a9403d28deabe5ad2b3db89c88",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 47327
+    }
+  ]
+}

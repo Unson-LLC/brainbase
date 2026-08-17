@@ -1,0 +1,27 @@
+{
+  "schema_version": "brainbase.persona-value-cycle.v3",
+  "cycle_id": "cycle-09-id-edge-first-value",
+  "status": "candidate_converged",
+  "journey_budget_ms": 600000,
+  "known_major_target": 0,
+  "evidence_surfaces": {
+    "candidate": "candidate-corpus",
+    "registry": "registry-corpus"
+  },
+  "candidate_corpus_id": "cycle-09-candidate_local_tarball-1786969405151",
+  "journey_duration_ms": 51069,
+  "persona_results": "candidate-persona-results/summary.json",
+  "persona_totals": {
+    "evaluated": 32,
+    "recognized": 32,
+    "reuse_yes": 32,
+    "known_major_unresolved": 0,
+    "new_major_count": 0
+  },
+  "synthetic_persona_value_recognition": "recognized",
+  "synthetic_value_converged": true,
+  "registry_value_recognition": "not_collected",
+  "human_observation": "not_collected",
+  "real_device": "not_collected",
+  "assistive_technology": "not_collected"
+}
