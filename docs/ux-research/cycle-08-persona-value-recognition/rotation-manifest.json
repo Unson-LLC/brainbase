@@ -1,0 +1,2086 @@
+{
+  "version": 1,
+  "config": {
+    "rounds": 4,
+    "panel_size": 32,
+    "replacement_count": 8,
+    "anchor_count": 16,
+    "attribute_change_min": 2,
+    "role_replacement_counts": {
+      "first_time_individual": 2,
+      "team_operator": 2,
+      "ontology_steward": 2,
+      "recovery_user": 2
+    }
+  },
+  "rounds": [
+    {
+      "round": 1,
+      "personas": [
+        {
+          "id": "P-101-G0",
+          "slot": "first_time_individual-anchor-01",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-102-G0",
+          "slot": "first_time_individual-anchor-02",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-103-G0",
+          "slot": "first_time_individual-anchor-03",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-104-G0",
+          "slot": "first_time_individual-anchor-04",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-105-G0",
+          "slot": "first_time_individual-rotation-05",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-106-G0",
+          "slot": "first_time_individual-rotation-06",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-107-G0",
+          "slot": "first_time_individual-rotation-07",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-108-G0",
+          "slot": "first_time_individual-rotation-08",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-201-G0",
+          "slot": "team_operator-anchor-01",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-202-G0",
+          "slot": "team_operator-anchor-02",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-203-G0",
+          "slot": "team_operator-anchor-03",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-204-G0",
+          "slot": "team_operator-anchor-04",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-205-G0",
+          "slot": "team_operator-rotation-05",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-206-G0",
+          "slot": "team_operator-rotation-06",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-207-G0",
+          "slot": "team_operator-rotation-07",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-208-G0",
+          "slot": "team_operator-rotation-08",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-301-G0",
+          "slot": "ontology_steward-anchor-01",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-302-G0",
+          "slot": "ontology_steward-anchor-02",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-303-G0",
+          "slot": "ontology_steward-anchor-03",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-304-G0",
+          "slot": "ontology_steward-anchor-04",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-305-G0",
+          "slot": "ontology_steward-rotation-05",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-306-G0",
+          "slot": "ontology_steward-rotation-06",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-307-G0",
+          "slot": "ontology_steward-rotation-07",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-308-G0",
+          "slot": "ontology_steward-rotation-08",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-401-G0",
+          "slot": "recovery_user-anchor-01",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-402-G0",
+          "slot": "recovery_user-anchor-02",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-403-G0",
+          "slot": "recovery_user-anchor-03",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-404-G0",
+          "slot": "recovery_user-anchor-04",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-405-G0",
+          "slot": "recovery_user-rotation-05",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-406-G0",
+          "slot": "recovery_user-rotation-06",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-407-G0",
+          "slot": "recovery_user-rotation-07",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-408-G0",
+          "slot": "recovery_user-rotation-08",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "personas": [
+        {
+          "id": "P-101-G0",
+          "slot": "first_time_individual-anchor-01",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-102-G0",
+          "slot": "first_time_individual-anchor-02",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-103-G0",
+          "slot": "first_time_individual-anchor-03",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-104-G0",
+          "slot": "first_time_individual-anchor-04",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-105-G1",
+          "slot": "first_time_individual-rotation-05",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-106-G1",
+          "slot": "first_time_individual-rotation-06",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-107-G0",
+          "slot": "first_time_individual-rotation-07",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-108-G0",
+          "slot": "first_time_individual-rotation-08",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-201-G0",
+          "slot": "team_operator-anchor-01",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-202-G0",
+          "slot": "team_operator-anchor-02",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-203-G0",
+          "slot": "team_operator-anchor-03",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-204-G0",
+          "slot": "team_operator-anchor-04",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-205-G1",
+          "slot": "team_operator-rotation-05",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-206-G1",
+          "slot": "team_operator-rotation-06",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-207-G0",
+          "slot": "team_operator-rotation-07",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-208-G0",
+          "slot": "team_operator-rotation-08",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-301-G0",
+          "slot": "ontology_steward-anchor-01",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-302-G0",
+          "slot": "ontology_steward-anchor-02",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-303-G0",
+          "slot": "ontology_steward-anchor-03",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-304-G0",
+          "slot": "ontology_steward-anchor-04",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-305-G1",
+          "slot": "ontology_steward-rotation-05",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-306-G1",
+          "slot": "ontology_steward-rotation-06",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-307-G0",
+          "slot": "ontology_steward-rotation-07",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-308-G0",
+          "slot": "ontology_steward-rotation-08",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-401-G0",
+          "slot": "recovery_user-anchor-01",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-402-G0",
+          "slot": "recovery_user-anchor-02",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-403-G0",
+          "slot": "recovery_user-anchor-03",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-404-G0",
+          "slot": "recovery_user-anchor-04",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-405-G1",
+          "slot": "recovery_user-rotation-05",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-406-G1",
+          "slot": "recovery_user-rotation-06",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-407-G0",
+          "slot": "recovery_user-rotation-07",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-408-G0",
+          "slot": "recovery_user-rotation-08",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        }
+      ]
+    },
+    {
+      "round": 3,
+      "personas": [
+        {
+          "id": "P-101-G0",
+          "slot": "first_time_individual-anchor-01",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-102-G0",
+          "slot": "first_time_individual-anchor-02",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-103-G0",
+          "slot": "first_time_individual-anchor-03",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-104-G0",
+          "slot": "first_time_individual-anchor-04",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-105-G1",
+          "slot": "first_time_individual-rotation-05",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-106-G1",
+          "slot": "first_time_individual-rotation-06",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-107-G1",
+          "slot": "first_time_individual-rotation-07",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-108-G1",
+          "slot": "first_time_individual-rotation-08",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-201-G0",
+          "slot": "team_operator-anchor-01",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-202-G0",
+          "slot": "team_operator-anchor-02",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-203-G0",
+          "slot": "team_operator-anchor-03",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-204-G0",
+          "slot": "team_operator-anchor-04",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-205-G1",
+          "slot": "team_operator-rotation-05",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-206-G1",
+          "slot": "team_operator-rotation-06",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-207-G1",
+          "slot": "team_operator-rotation-07",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-208-G1",
+          "slot": "team_operator-rotation-08",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-301-G0",
+          "slot": "ontology_steward-anchor-01",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-302-G0",
+          "slot": "ontology_steward-anchor-02",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-303-G0",
+          "slot": "ontology_steward-anchor-03",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-304-G0",
+          "slot": "ontology_steward-anchor-04",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-305-G1",
+          "slot": "ontology_steward-rotation-05",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-306-G1",
+          "slot": "ontology_steward-rotation-06",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-307-G1",
+          "slot": "ontology_steward-rotation-07",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-308-G1",
+          "slot": "ontology_steward-rotation-08",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-401-G0",
+          "slot": "recovery_user-anchor-01",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-402-G0",
+          "slot": "recovery_user-anchor-02",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-403-G0",
+          "slot": "recovery_user-anchor-03",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-404-G0",
+          "slot": "recovery_user-anchor-04",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-405-G1",
+          "slot": "recovery_user-rotation-05",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-406-G1",
+          "slot": "recovery_user-rotation-06",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-407-G1",
+          "slot": "recovery_user-rotation-07",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-408-G1",
+          "slot": "recovery_user-rotation-08",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        }
+      ]
+    },
+    {
+      "round": 4,
+      "personas": [
+        {
+          "id": "P-101-G0",
+          "slot": "first_time_individual-anchor-01",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-102-G0",
+          "slot": "first_time_individual-anchor-02",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-103-G0",
+          "slot": "first_time_individual-anchor-03",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-104-G0",
+          "slot": "first_time_individual-anchor-04",
+          "role": "first_time_individual",
+          "cohort": "anchor",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-105-G2",
+          "slot": "first_time_individual-rotation-05",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-106-G2",
+          "slot": "first_time_individual-rotation-06",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-107-G1",
+          "slot": "first_time_individual-rotation-07",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-108-G1",
+          "slot": "first_time_individual-rotation-08",
+          "role": "first_time_individual",
+          "cohort": "rotation",
+          "task_set_id": "first_time_individual-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-201-G0",
+          "slot": "team_operator-anchor-01",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-202-G0",
+          "slot": "team_operator-anchor-02",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-203-G0",
+          "slot": "team_operator-anchor-03",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-204-G0",
+          "slot": "team_operator-anchor-04",
+          "role": "team_operator",
+          "cohort": "anchor",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-205-G2",
+          "slot": "team_operator-rotation-05",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-206-G2",
+          "slot": "team_operator-rotation-06",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-207-G1",
+          "slot": "team_operator-rotation-07",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-208-G1",
+          "slot": "team_operator-rotation-08",
+          "role": "team_operator",
+          "cohort": "rotation",
+          "task_set_id": "team_operator-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-301-G0",
+          "slot": "ontology_steward-anchor-01",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-302-G0",
+          "slot": "ontology_steward-anchor-02",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-303-G0",
+          "slot": "ontology_steward-anchor-03",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-304-G0",
+          "slot": "ontology_steward-anchor-04",
+          "role": "ontology_steward",
+          "cohort": "anchor",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-305-G2",
+          "slot": "ontology_steward-rotation-05",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "high",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-306-G2",
+          "slot": "ontology_steward-rotation-06",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-307-G1",
+          "slot": "ontology_steward-rotation-07",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "low",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-308-G1",
+          "slot": "ontology_steward-rotation-08",
+          "role": "ontology_steward",
+          "cohort": "rotation",
+          "task_set_id": "ontology_steward-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-401-G0",
+          "slot": "recovery_user-anchor-01",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-402-G0",
+          "slot": "recovery_user-anchor-02",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-403-G0",
+          "slot": "recovery_user-anchor-03",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        },
+        {
+          "id": "P-404-G0",
+          "slot": "recovery_user-anchor-04",
+          "role": "recovery_user",
+          "cohort": "anchor",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-405-G2",
+          "slot": "recovery_user-rotation-05",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "intermediate",
+            "technical_literacy": "medium",
+            "time_pressure": "high",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "reduced_motion"
+          }
+        },
+        {
+          "id": "P-406-G2",
+          "slot": "recovery_user-rotation-06",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "frequently_interrupted",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-407-G1",
+          "slot": "recovery_user-rotation-07",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "experienced",
+            "technical_literacy": "high",
+            "time_pressure": "low",
+            "interruption_state": "focused",
+            "work_style": "speed_first",
+            "input_environment": "keyboard",
+            "accessibility_need": "screen_reader"
+          }
+        },
+        {
+          "id": "P-408-G1",
+          "slot": "recovery_user-rotation-08",
+          "role": "recovery_user",
+          "cohort": "rotation",
+          "task_set_id": "recovery_user-core",
+          "attributes": {
+            "domain_experience": "new",
+            "technical_literacy": "low",
+            "time_pressure": "high",
+            "interruption_state": "focused",
+            "work_style": "confirmation_first",
+            "input_environment": "voice_and_keyboard",
+            "accessibility_need": "none_declared"
+          }
+        }
+      ]
+    }
+  ]
+}

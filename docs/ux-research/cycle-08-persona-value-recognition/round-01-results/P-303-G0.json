@@ -1,0 +1,89 @@
+{
+  "persona_id": "P-303-G0",
+  "round": "round-01",
+  "evaluation_mode": "independent_read_only_synthetic_evaluation",
+  "persona_operated_cli": false,
+  "duration_ms": 65055,
+  "within_budget": true,
+  "persona": {
+    "role": "ontology_steward",
+    "cohort": "anchor",
+    "domain_experience": "experienced",
+    "technical_literacy": "medium",
+    "time_pressure": "high",
+    "interruption_state": "focused",
+    "work_style": "speed_first",
+    "input_environment": "voice_and_keyboard",
+    "accessibility_need": "screen_reader"
+  },
+  "evidence_reviewed": [
+    "evaluation-contract.md",
+    "rotation-manifest.json",
+    "baseline-terminal-corpus/manifest.json",
+    "baseline-terminal-corpus/baseline-01-registry-install.json",
+    "baseline-terminal-corpus/baseline-02-start.json",
+    "baseline-terminal-corpus/baseline-03-displayed-seed.json",
+    "baseline-terminal-corpus/baseline-04-install-preview.json",
+    "baseline-terminal-corpus/baseline-05-doctor.json",
+    "baseline-terminal-corpus/baseline-06-real-codex.json"
+  ],
+  "tasks": {
+    "T1_registry_install": {
+      "status": "pass",
+      "finding": "公開レジストリ版@unson/brainbase-mcp@0.2.4を隔離環境へ実際にインストール済み。",
+      "evidence_ref": "baseline-terminal-corpus/manifest.json:production_registry_install=true; baseline-01-registry-install.json"
+    },
+    "T2_displayed_seed": {
+      "status": "pass",
+      "finding": "公開CLIが表示した最小文脈保存シードを実行済み。self/work/relationshipsの保存をdoctorで確認できる。",
+      "evidence_ref": "baseline-terminal-corpus/manifest.json:displayed_seed_executed=true; baseline-03-displayed-seed.json; baseline-05-doctor.json"
+    },
+    "T3_mcp_install_preview": {
+      "status": "pass_with_boundary",
+      "finding": "MCP設定のinstall previewとdoctorを確認できる。previewは実設定反映ではなく、doctorのagentMcpはnot_verifiedである。",
+      "evidence_ref": "baseline-04-install-preview.json; baseline-05-doctor.json:agentMcp.status=not_verified",
+      "boundary": "公開スキル配置、実設定反映、再起動、運用ルーティン登録は未完了。"
+    },
+    "T4_actual_agent_value_response": {
+      "status": "pass",
+      "finding": "実CodexがBrainbase MCPのget_context/searchを呼び、Atlas導入と田中さんの承認責務に即した具体的な判断メモを返した。",
+      "evidence_ref": "baseline-terminal-corpus/manifest.json:actual_codex_exit_code=0, actual_mcp_used=true, useful_body_present=true; baseline-06-real-codex.json:item_2..item_9"
+    }
+  },
+  "hard_gates": {
+    "G1_production_registry_install": {"status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:production_registry_install=true"},
+    "G2_displayed_seed_executed": {"status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:displayed_seed_executed=true"},
+    "G3_actual_mcp_used": {"status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:actual_mcp_used=true; baseline-06-real-codex.json"},
+    "G4_concrete_useful_body": {"status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:useful_body_present=true; baseline-06-real-codex.json:item_9"},
+    "G5_within_10_minutes": {"status": "pass", "evidence_ref": "baseline-terminal-corpus/manifest.json:journey_duration_ms=65055, journey_within_budget=true"},
+    "G6_persona_value_recognition": {"status": "not_collected", "evidence_ref": "baseline-terminal-corpus/manifest.json:human_value_recognition=not_collected, synthetic_persona_value_recognition=pending"}
+  },
+  "value_simulation": {
+    "status": "uncertain",
+    "value_moment_ref": "baseline-06-real-codex.json:item_9: Atlas導入の田中さん向け相談判断メモ",
+    "value_reason": "高い時間圧のontology stewardでも、保存済みのプロジェクト・関係者・判断基準から、正本化した文脈に沿う判断メモを再説明なしで得られる差分はある。",
+    "counterfactual_without_product": "Atlas導入のプロジェクト、承認者、判断基準を再確認し、関係資料を探して判断メモを手作業で構成する必要がある。",
+    "reuse_intent": "uncertain",
+    "confidence": "medium",
+    "journey_duration_ms": 65055,
+    "within_budget": true,
+    "missing_condition": "実在利用者または独立ペルソナが回答を自分の業務に役立つと確認した証拠、および再利用意思の直接記録がない。"
+  },
+  "major_findings": [
+    {
+      "id": "P303-M1",
+      "severity": "Major",
+      "finding": "実MCP利用と具体的回答は確認できるが、価値認識のhuman_observationは未収集で、合成ペルソナの認識もpendingのため、利用者価値の収束条件を満たさない。",
+      "evidence_ref": "evaluation-contract.md:価値認識の必須判定・収束条件; baseline-terminal-corpus/manifest.json:human_value_recognition=not_collected"
+    }
+  ],
+  "boundaries": [
+    "これは合成ペルソナによるread-only評価であり、32人の実在利用者の結果ではない。",
+    "persona_operated_cli=falseのため、P-303本人によるCLI操作・キーボード到達性・中断復帰は実測していない。",
+    "音声入力、スクリーンリーダー、実機支援技術は未収集。screen_reader属性は自動的なゲート失敗を意味しない。",
+    "公開npm版とローカルtarballはmanifest上区別され、今回のcandidate corpusはproduction registry install=true。",
+    "doctorのagentMcp.status=not_verifiedは、CLI準備と実エージェント設定反映を混同しない根拠である。"
+  ],
+  "overall": "候補ジャーニーは65,055msで、公開版インストール、表示シード実行、実CodexのMCP利用、具体的判断メモまで通過した。P-303のontology steward文脈には差分が見えるが、直接の価値認識・再利用意思の証拠がないため、合成評価としてはuncertain、収束不可。",
+  "confidence": "medium"
+}

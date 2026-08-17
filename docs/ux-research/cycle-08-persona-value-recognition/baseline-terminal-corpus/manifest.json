@@ -1,0 +1,92 @@
+{
+  "version": 3,
+  "corpus_id": "cycle-08-registry-baseline-1786949310488",
+  "evidence_kind": "candidate_end_to_end_journey",
+  "execution_surface": "actual_cli_and_actual_codex",
+  "source_snapshot": "published_registry_package",
+  "evaluated_repository_head": "c40de6a3037cc6a67b2f2eab5d9487093193d314",
+  "registry_package_spec": "@unson/brainbase-mcp@0.2.4",
+  "installed_package_version": "0.2.4",
+  "package_lock_sha256": "e4620af08e782b07bdf6052c8583e870ea2203245f85b092f1c9e50761980902",
+  "journey_budget_ms": 600000,
+  "journey_duration_ms": 129357,
+  "journey_within_budget": true,
+  "production_registry_install": true,
+  "displayed_seed_executed": true,
+  "actual_codex_exit_code": 0,
+  "actual_mcp_used": true,
+  "useful_body_present": true,
+  "recovery_resume_executed": true,
+  "recovery_actual_mcp_used": true,
+  "recovery_useful_body_present": true,
+  "ontology_actual_mcp_used": true,
+  "ontology_useful_body_present": true,
+  "candidate_journey_passed": true,
+  "human_value_recognition": "not_collected",
+  "synthetic_persona_value_recognition": "pending",
+  "traces": [
+    {
+      "id": "baseline-01-registry-install",
+      "sha256": "1eabddfaf5538584b8f64841b97bfdafe2ce69a3d33e9b8b8b9fe7f07c48282e",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 3043
+    },
+    {
+      "id": "baseline-02-start",
+      "sha256": "1f6723158ecd09733b60ef53388b52a4a1fd5a9b34850555bcbbc2ab3a47e3e1",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 609
+    },
+    {
+      "id": "baseline-03-displayed-seed",
+      "sha256": "972939069e121ce4a11eed0dd4fa306a433f7f7253ee32aa9965bfb3b924fc3a",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 305
+    },
+    {
+      "id": "baseline-04-install-preview",
+      "sha256": "e53e5d9a910b6527a23991b3f1dd0772856412b086d94eede2c4950200d8b7fa",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 201
+    },
+    {
+      "id": "baseline-05-doctor",
+      "sha256": "3b0690eb05f3c2c56f10049973e76c61991abd66c897097b64fb943cf656235d",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 214
+    },
+    {
+      "id": "baseline-06-real-codex",
+      "sha256": "bc88aa11daf3b976cb1c72080850a3b4c6b092cc414a90ce3a4ee56babf80a1b",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 30262
+    },
+    {
+      "id": "baseline-07-resume-start",
+      "sha256": "70965e1078e961ecc47784578f2052b23f98c48f1535e04c36dfa13e7a213b71",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 232
+    },
+    {
+      "id": "baseline-08-real-codex-resume",
+      "sha256": "e124956084447cf28a380938f987892c5abe27ecd713c3e71bf91c830a2aeed0",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 26364
+    },
+    {
+      "id": "baseline-09-real-codex-ontology",
+      "sha256": "911ec8a272f9efec8e8b23faafde0272ec66a6cdbc225632a17ba149a79a293e",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 68115
+    }
+  ]
+}

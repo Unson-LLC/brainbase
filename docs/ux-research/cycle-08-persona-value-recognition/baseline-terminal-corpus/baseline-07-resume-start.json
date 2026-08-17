@@ -1,0 +1,18 @@
+{
+  "id": "baseline-07-resume-start",
+  "invocation_kind": "child_process.spawn",
+  "executable": "<isolated-run-root>/consumer/node_modules/.bin/brainbase",
+  "args": [
+    "onboard:start",
+    "--target",
+    "codex",
+    "--dir",
+    "<isolated-run-root>/personal-os"
+  ],
+  "cwd": "<isolated-run-root>/consumer",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_ms": 232,
+  "stdout": "# Brainbase 初回オンボーディング\n\n- 状態: 実エージェント接続待ち\n- データ: `<isolated-run-root>/personal-os`\n- 不足: なし\n\n## 次に実行\n`brainbase onboard:install --target codex --dir <isolated-run-root>/personal-os --dry-run`\n\n## 確認できる価値\n<最初のプロジェクト>の前提を説明し直さなくても、次に進める作業メモが出ること。\n\n- この案内だけではデータを書き込みません。seed実行時も既存データは削除しません。\n- 詳細を見る: `brainbase onboard:start --target codex --dir <isolated-run-root>/personal-os --details`\n",
+  "stderr": ""
+}

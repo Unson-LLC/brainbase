@@ -1,0 +1,57 @@
+{
+  "schema_version": "brainbase.persona-value-round-summary.v1",
+  "round": 4,
+  "evaluation_kind": "independent_synthetic_persona_evaluation",
+  "model": "gpt-5.6-luna",
+  "reasoning_effort": "low",
+  "persona_count": 32,
+  "recognized": 32,
+  "uncertain": 0,
+  "not_recognized": 0,
+  "not_executed": 0,
+  "reuse_intent_yes": 32,
+  "journey_duration_ms": 129357,
+  "journey_budget_ms": 600000,
+  "within_budget": true,
+  "hard_gates": {
+    "production_registry_install": "pass",
+    "displayed_seed_executed": "pass",
+    "actual_codex_executed": "pass",
+    "actual_mcp_get_context_and_search": "pass",
+    "concrete_useful_answer": "pass",
+    "end_to_end_journey_within_ten_minutes": "pass"
+  },
+  "value_moments": {
+    "initial": "baseline-terminal-corpus/baseline-06-real-codex.json:item_6",
+    "recovery": "baseline-terminal-corpus/baseline-08-real-codex-resume.json:item_7",
+    "ontology": "baseline-terminal-corpus/baseline-09-real-codex-ontology.json:item_16"
+  },
+  "shared_value_delta": "本人承認済みのAtlas導入、田中さんの最終承認責務、判断基準を再説明せず現実の判断メモへ変換でき、中断後も同じ判断へ戻れる。オントロジー管理者は正規データと投影、関係断絶、表記ゆれを点検し、正規化案まで得られる。",
+  "new_product_major_count": 1,
+  "product_major_families": [
+    {
+      "id": "ontology-linkage-and-normalization-gaps",
+      "evidence_ref": "baseline-terminal-corpus/baseline-09-real-codex-ontology.json:item_16",
+      "finding": "Atlas導入と保存済み判断基準が明示的に接続されず、正規エンティティと投影の区別、人物名の敬称正規化も不足している。",
+      "impact": "専門シナリオでは問題を発見して正規化案を得られるため価値認識は成立するが、知識構造の品質改善として次サイクルへ残る。"
+    }
+  ],
+  "synthetic_value_converged": true,
+  "human_observation": "not_collected",
+  "real_device_evidence": "not_collected",
+  "assistive_technology_evidence": "not_collected",
+  "claim_boundary": "32件は独立した合成ペルソナ評価であり、実在利用者32人の観察結果ではない。",
+  "evaluator_normalization": {
+    "rule": "最新manifestを時間と実行成否の正本とし、human/実機/AT未収集だけを合成評価の失敗へ昇格しない。製品上の重複した指摘は1つのMajor familyへ集約する。",
+    "deviations_observed": [
+      "一部評価器が旧64587msを参照したため、最新01..09 manifestの129357msへ正規化した。",
+      "同じ判断基準未接続・正規/投影不明瞭・敬称検索の指摘を1つの知識構造Major familyへ集約した。"
+    ]
+  },
+  "personas": [
+    "P-101-G0", "P-102-G0", "P-103-G0", "P-104-G0", "P-105-G2", "P-106-G2", "P-107-G1", "P-108-G1",
+    "P-201-G0", "P-202-G0", "P-203-G0", "P-204-G0", "P-205-G2", "P-206-G2", "P-207-G1", "P-208-G1",
+    "P-301-G0", "P-302-G0", "P-303-G0", "P-304-G0", "P-305-G2", "P-306-G2", "P-307-G1", "P-308-G1",
+    "P-401-G0", "P-402-G0", "P-403-G0", "P-404-G0", "P-405-G2", "P-406-G2", "P-407-G1", "P-408-G1"
+  ]
+}

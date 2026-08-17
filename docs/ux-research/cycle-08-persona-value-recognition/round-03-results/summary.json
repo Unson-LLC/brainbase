@@ -1,0 +1,57 @@
+{
+  "schema_version": "brainbase.persona-value-round-summary.v1",
+  "round": 3,
+  "evaluation_kind": "independent_synthetic_persona_evaluation",
+  "model": "gpt-5.6-luna",
+  "reasoning_effort": "low",
+  "persona_count": 32,
+  "recognized": 31,
+  "uncertain": 0,
+  "not_recognized": 1,
+  "not_executed": 0,
+  "reuse_intent_yes": 31,
+  "journey_duration_ms": 64587,
+  "journey_budget_ms": 600000,
+  "within_budget": true,
+  "hard_gates": {
+    "production_registry_install": "pass",
+    "displayed_seed_executed": "pass",
+    "actual_codex_executed": "pass",
+    "actual_mcp_get_context_and_search": "pass",
+    "concrete_useful_answer": "pass",
+    "end_to_end_journey_within_ten_minutes": "pass"
+  },
+  "value_moments": {
+    "initial": "baseline-terminal-corpus/baseline-06-real-codex.json:item_7",
+    "recovery": "baseline-terminal-corpus/baseline-08-real-codex-resume.json:item_5"
+  },
+  "shared_value_delta": "Atlas導入、田中さんの最終承認責務、実測と利用者成果を分ける判断基準を再説明せず取得し、事実・未確認事項・次の相談文へ変換できる。中断後も同じ文脈へ戻れる。",
+  "new_product_major_count": 1,
+  "synthetic_value_converged": false,
+  "decision": "not_converged",
+  "finding": {
+    "persona_id": "P-308-G1",
+    "status": "not_recognized",
+    "reason": "汎用的なAtlas導入判断メモだけでは、オントロジー管理者が担うエンティティ・関係・用語整合性の点検価値を認識できなかった。"
+  },
+  "next_action": "実MCPでエンティティ・関係・知識種別を点検し、断絶・重複・表記ゆれと正規化案まで返す専門シナリオを追加する。",
+  "human_observation": "not_collected",
+  "real_device_evidence": "not_collected",
+  "assistive_technology_evidence": "not_collected",
+  "claim_boundary": "32件は独立した合成ペルソナ評価であり、実在利用者32人の観察結果ではない。",
+  "evaluator_normalization": {
+    "rule": "評価契約を正本とし、human/実機/AT未収集だけをsynthetic failureまたは製品Majorへ昇格しない。",
+    "deviations_observed": [
+      "一部評価器が専用round-03ディレクトリを必要と誤読したため、絶対パスと直接参照対象を指定して再評価した。",
+      "一部評価器がhuman/AT未収集をMajorと表現したため、評価契約どおり証拠境界へ正規化した。",
+      "旧corpusの65055msを参照した評価は、最新manifestの64587msへ正規化した。"
+      ,"P-308-G1の反証を確認し、当初の32/32集計を31/32へ訂正した。"
+    ]
+  },
+  "personas": [
+    "P-101-G0", "P-102-G0", "P-103-G0", "P-104-G0", "P-105-G1", "P-106-G1", "P-107-G1", "P-108-G1",
+    "P-201-G0", "P-202-G0", "P-203-G0", "P-204-G0", "P-205-G1", "P-206-G1", "P-207-G1", "P-208-G1",
+    "P-301-G0", "P-302-G0", "P-303-G0", "P-304-G0", "P-305-G1", "P-306-G1", "P-307-G1", "P-308-G1",
+    "P-401-G0", "P-402-G0", "P-403-G0", "P-404-G0", "P-405-G1", "P-406-G1", "P-407-G1", "P-408-G1"
+  ]
+}
