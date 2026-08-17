@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, win32 } from 'node:path';
 import { z } from 'zod';
 import { assertOntologyValid } from './ontology.js';
 import { emptyGraph, emptyRelationships, schemaTemplates } from './templates.js';
-import type { DecisionRecord, GraphFile, PersonalKgEntry, PersonalOs, RelationshipsFile } from './types.js';
+import type { DecisionRecord, GraphFileV1, PersonalKgEntry, PersonalOs, RelationshipsFile } from './types.js';
 
 const canonicalFiles = ['graph.json', 'relationships.json', 'personal-kg.jsonl', 'decisions.jsonl'] as const;
 const lockName = '.brainbase-ssot.lock';
@@ -39,7 +39,7 @@ const graphEntitySchema = z.object({
   metadata: z.record(z.unknown()).optional()
 });
 
-const graphSchema: z.ZodType<GraphFile> = z.object({
+const graphSchema: z.ZodType<GraphFileV1> = z.object({
   version: z.literal(1),
   owner: z.object({
     name: z.string().optional(),

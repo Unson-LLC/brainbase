@@ -1,6 +1,6 @@
-import type { GraphFile, RelationshipsFile } from './types.js';
+import type { GraphFileV1, RelationshipsFile } from './types.js';
 
-export const emptyGraph: GraphFile = {
+export const emptyGraph: GraphFileV1 = {
   version: 1,
   owner: {},
   entities: []
