@@ -488,12 +488,19 @@ async function fetchAttempt(args, { env, fetchImpl }) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), Number(env.BRAINBASE_JUDGMENT_HOST_TIMEOUT_MS || 15000));
     try {
-        const response = await fetchImpl(env.BRAINBASE_JUDGMENT_HOST_URL || DEFAULT_HOST_URL, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(args),
-            signal: controller.signal
-        });
+        let response;
+        try {
+            response = await fetchImpl(env.BRAINBASE_JUDGMENT_HOST_URL || DEFAULT_HOST_URL, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(args),
+                signal: controller.signal
+            });
+        } catch (cause) {
+            const error = new Error('judgment_host_transport_failed', { cause });
+            error.transient = true;
+            throw error;
+        }
         let payload;
         try { payload = await response.json(); } catch { throw new Error('judgment_host_transport_failed'); }
         if (response.ok && payload.management_status === 'managed') return payload.receipt;

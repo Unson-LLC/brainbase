@@ -455,6 +455,36 @@ describe('Codex Judgment Resolver Host', () => {
         expect(adoption.owner_audit.source_receipt_digest).toBe(hash(canonicalJson(receipt)));
     });
 
+    it('fetch自体の一時失敗を正規化してreceipt採用前に再試行する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const args = buildJudgmentRequest({
+            session_id: 'session-fetch-retry', turn_id: 'turn-fetch-retry', prompt: '判断して', cwd: process.cwd()
+        }, { env });
+        const receipt = validReceipt(args);
+        const fetchImpl = vi.fn()
+            .mockRejectedValueOnce(new TypeError('fetch failed'))
+            .mockResolvedValueOnce({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            });
+
+        await expect(resolveAndAdopt(args, { env, fetchImpl })).resolves.toEqual(receipt);
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
+    it('fetch自体の失敗が続く場合は安全な正規エラーで停止する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const args = buildJudgmentRequest({
+            session_id: 'session-fetch-failure', turn_id: 'turn-fetch-failure', prompt: '判断して', cwd: process.cwd()
+        }, { env });
+        const fetchImpl = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
+
+        await expect(resolveAndAdopt(args, { env, fetchImpl })).rejects.toThrow('judgment_host_transport_failed');
+        expect(fetchImpl).toHaveBeenCalledTimes(3);
+    });
+
     it('UserPromptSubmitでepisodeを1件だけ開始し、Stopまではfinal receiptを作らない', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
