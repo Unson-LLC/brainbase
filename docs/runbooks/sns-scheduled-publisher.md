@@ -51,7 +51,7 @@ service token、runtime URL、connection selector、actor／resource bindingの�
 2. 発行側の`BRAINBASE_SERVICE_TOKEN_ISSUER`、`BRAINBASE_SERVICE_TOKEN_AUDIENCE`、`BRAINBASE_SERVICE_TOKEN_DEPLOYMENT_ID`、`BRAINBASE_SERVICE_TOKEN_CAPABILITIES`と、検証側の`BRAINBASE_TENANT_RUNTIME_SERVICE_ISSUER`、`BRAINBASE_TENANT_RUNTIME_SERVICE_AUDIENCE`、`BRAINBASE_TENANT_RUNTIME_DEPLOYMENT_ID`、`BRAINBASE_TENANT_RUNTIME_REQUIRED_CAPABILITIES`が一致することを確認する。expiryは発行APIの`ttlSeconds`、未指定時は`BRAINBASE_SERVICE_TOKEN_TTL_SECONDS`から生成される。
 3. 認証済み`POST /api/auth/service-tokens`へ`name`、`role`、`projectCodes`、`clearance`、`ttlSeconds`を渡して新しいcanonical tokenを発行し、tenant runtimeとSNS importer／runnerへ同時に反映する。JWT署名secretとtoken本体はdeployment-localのsecret管理から注入する。
 4. `POST /api/v1/runtime/negotiate`、続いて`POST /api/v1/runtime/tenant-context:resolve`を内部networkから疎通確認する。成功応答とtenant bindingを確認するまで公開runnerを有効化しない。
-5. `npm run sns:scheduled-publish -- --dry-run --json`で、provider呼出しやLedger更新を行わずに認証、tenant解決、due選択を確認する。確認後にだけ公開runnerを再開する。
+5. `npm run sns:scheduled-publish -- --dry-run --json`で、provider呼出しやLedger更新を行わずにdue選択だけを確認する。dry-runはtenant認可を実行しないため、認証とtenant解決の証拠にはstep 4の応答を用いる。両方の確認後にだけ公開runnerを再開する。
 
 疎通が失敗した場合は公開runnerを停止したままにし、issuer／audience／deployment／capabilityとexpiryを修正して新tokenを再発行する。旧claim tokenへ戻して公開を続行してはならない。rollbackは直前のcanonical claim設定と対応するtoken一式を発行側・runtime・importer／runnerへ同時に戻し、同じnegotiate、tenant-context resolve、dry-runを再確認する。確認不能は`not_collected`として残し、公開可能と扱わない。
 
