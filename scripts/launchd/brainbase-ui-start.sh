@@ -5,6 +5,7 @@ SOURCE_REPO="${BRAINBASE_SOURCE_REPO:-/Users/ksato/workspace/repos/brainbase}"
 RUNTIME_ROOT="${BRAINBASE_UI_RUNTIME_ROOT:-/Users/ksato/workspace/repos/.runtime/brainbase-31013}"
 REMOTE="${BRAINBASE_RUNTIME_REMOTE:-origin}"
 BRANCH="${BRAINBASE_RUNTIME_BRANCH:-develop}"
+TARGET_REF="${BRAINBASE_RUNTIME_TARGET_REF:-refs/brainbase-runtime/origin-develop}"
 NODE_BIN="${BRAINBASE_NODE_BIN:-/Users/ksato/.hermes/node/bin/node}"
 LOCK_DIR="${BRAINBASE_RUNTIME_LOCK:-/Users/ksato/workspace/var/brainbase-runtime-update.lock}"
 
@@ -16,8 +17,8 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
-git -C "$SOURCE_REPO" fetch --quiet "$REMOTE" "$BRANCH" || fail "could not fetch $REMOTE/$BRANCH"
-TARGET_SHA="$(git -C "$SOURCE_REPO" rev-parse "$REMOTE/$BRANCH^{commit}")"
+git -C "$SOURCE_REPO" fetch --quiet "$REMOTE" "$BRANCH:$TARGET_REF" || fail "could not fetch $REMOTE/$BRANCH"
+TARGET_SHA="$(git -C "$SOURCE_REPO" rev-parse "$TARGET_REF^{commit}")"
 if [[ ! -e "$RUNTIME_ROOT/.git" ]]; then
   [[ ! -e "$RUNTIME_ROOT" ]] || fail "runtime path exists but is not a linked worktree: $RUNTIME_ROOT"
   git -C "$SOURCE_REPO" worktree add --force --detach "$RUNTIME_ROOT" "$TARGET_SHA"
