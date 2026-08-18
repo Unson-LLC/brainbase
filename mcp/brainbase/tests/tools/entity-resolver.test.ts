@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it, mock } from 'node:test';
 import assert from 'node:assert';
 import {
   createEmptyIndex,
@@ -36,6 +36,32 @@ function seedResolverIndex(): EntityIndex {
     projects: ['senpainurse'],
     aliases: ['Sho Mochida'],
     status: 'active',
+    content: '',
+  });
+  index.people.set('per_sato_keigo', {
+    id: 'per_sato_keigo',
+    filePath: 'graph://person/per_sato_keigo',
+    type: 'person',
+    name: '佐藤 圭吾',
+    role: '代表',
+    org: '合同会社雲孫',
+    org_tags: ['unson'],
+    projects: ['brainbase'],
+    aliases: ['佐藤圭吾', 'per_sato_keigo_merged'],
+    status: 'active',
+    content: '',
+  });
+  index.people.set('per_sato_keigo_merged', {
+    id: 'per_sato_keigo_merged',
+    filePath: 'graph://person/per_sato_keigo_merged',
+    type: 'person',
+    name: '佐藤 圭吾',
+    role: '代表',
+    org: '合同会社雲孫',
+    org_tags: ['unson'],
+    projects: ['brainbase'],
+    aliases: [],
+    status: 'merged',
     content: '',
   });
   index.projects.set('senpainurse', {
@@ -92,6 +118,29 @@ function seedResolverIndex(): EntityIndex {
 }
 
 describe('Graph entity resolver', () => {
+  it('excludes merged rows and resolves an explicit legacy ID through the active canonical alias', () => {
+    const index = seedResolverIndex();
+    const byName = resolveEntities(index, { query: '佐藤圭吾', types: ['person'] });
+    assert.deepStrictEqual(byName.candidates.map(candidate => candidate.entity_id), ['per_sato_keigo']);
+
+    const byLegacyId = resolveEntities(index, { query: 'per_sato_keigo_merged', types: ['person'] });
+    assert.deepStrictEqual(byLegacyId.candidates.map(candidate => candidate.entity_id), ['per_sato_keigo']);
+  });
+
+  it('binds first-person expressions only to the authenticated active canonical person', () => {
+    const index = seedResolverIndex();
+    const unauthenticated = resolveEntities(index, { query: '俺 自分', types: ['person'] });
+    assert.deepStrictEqual(unauthenticated.candidates, []);
+
+    const authenticated = resolveEntities(index, {
+      query: '俺のデータと自分の判断',
+      types: ['person'],
+      ownerPersonId: 'per_sato_keigo_merged',
+    });
+    assert.strictEqual(authenticated.candidates[0]?.entity_id, 'per_sato_keigo');
+    assert.ok(authenticated.candidates[0]?.matched_fields.includes('authenticated_owner'));
+  });
+
   it('refreshes the Graph snapshot atomically before a runtime person lookup', async () => {
     __testing.setEntityIndex(seedResolverIndex());
     const refreshed = seedResolverIndex().people.get('per_wakamatsu_fuyumi')!;
@@ -269,6 +318,45 @@ describe('Graph entity resolver', () => {
     assert.ok(parsed.fallbacks_used.includes('tokenized_field_match'));
   });
 
+  it('binds resolve_entity first-person text to the personId claim in the authenticated token', async () => {
+    __testing.setEntityIndex(seedResolverIndex());
+    __testing.setTokenManager({ getToken: async () => jwt({ sub: 'service-runtime', personId: 'per_sato_keigo_merged' }) });
+
+    const output = await __testing.handleToolCall('resolve_entity', {
+      query: '俺',
+      types: ['person'],
+      includePhilosophy: false,
+    });
+    assert.strictEqual(JSON.parse(output).candidates[0]?.entity_id, 'per_sato_keigo');
+  });
+
+  it('allows Personal KG lookup only for the authenticated canonical Graph person ID', async () => {
+    __testing.setEntityIndex(seedResolverIndex());
+    const tool = __testing.tools.find(item => item.name === 'search_personal_kg');
+    assert.ok(tool && 'properties' in tool.inputSchema && 'person_entity_id' in tool.inputSchema.properties);
+    __testing.setWikiApiBaseUrl('https://bb.example.test');
+    __testing.setTokenManager({ getToken: async () => jwt({ sub: 'service-runtime', personId: 'per_sato_keigo_merged' }) });
+    const fetchMock = mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ candidates: [] }), { status: 200 }));
+    try {
+      await __testing.handleToolCall('search_personal_kg', {
+        query: '判断基準',
+        person_entity_id: 'per_sato_keigo',
+      });
+      assert.strictEqual(fetchMock.mock.callCount(), 1);
+
+      await assert.rejects(
+        __testing.handleToolCall('search_personal_kg', {
+          query: '判断基準',
+          person_entity_id: 'per_mochida_sho',
+        }),
+        /authenticated person/i,
+      );
+      assert.strictEqual(fetchMock.mock.callCount(), 1);
+    } finally {
+      fetchMock.mock.restore();
+    }
+  });
+
   it('story-graph-entity-resolver: falls back from search to resolver candidates for noisy compound queries', async () => {
     __testing.setEntityIndex(seedResolverIndex());
 
@@ -383,3 +471,8 @@ describe('Graph entity resolver', () => {
     assert.strictEqual(JSON.parse(output).candidates[0].entity_id, 'per_wakamatsu_fuyumi');
   });
 });
+
+function jwt(payload: Record<string, unknown>): string {
+  const segment = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  return `header.${segment}.signature`;
+}

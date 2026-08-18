@@ -22,6 +22,8 @@ import {
   getExtensionEntitiesByType,
   getExtensionTypeRegistrations,
   resolveEntities,
+  resolveCanonicalActivePerson,
+  containsFirstPersonReference,
   searchEntities,
   tokenizeEntityQuery,
   getContextForTopic,
@@ -743,6 +745,10 @@ const tools: Tool[] = [
           type: 'number',
           description: 'Max results (default 10, max 50).',
         },
+        person_entity_id: {
+          type: 'string',
+          description: 'Optional canonical Graph person ID. The authenticated identity must resolve to the same active person.',
+        },
       },
       required: ['query'],
     },
@@ -929,11 +935,16 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       const types = Array.isArray(args.types)
         ? args.types.filter((type): type is string => typeof type === 'string')
         : undefined;
+      const needsAuthenticatedOwner = containsFirstPersonReference(query);
+      const token = needsAuthenticatedOwner
+        ? await globalTokenManager?.getToken()
+        : undefined;
       const result = resolveEntities(entityIndex, {
         query,
         types,
         project: args.project as string | undefined,
         scope: args.scope as string | undefined,
+        ownerPersonId: token ? authenticatedPersonId(token) : undefined,
       });
       const philosophy_context = await philosophyContextPrompt(args, {
         scope: (args.scope as string) || 'graph',
@@ -975,12 +986,28 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       const query = args.query as string;
       const cognitiveType = args.cognitive_type as string | undefined;
       const limit = typeof args.limit === 'number' ? args.limit : undefined;
+      const requestedPersonId = typeof args.person_entity_id === 'string'
+        ? args.person_entity_id.trim()
+        : '';
+      let ownerName = '認証済みの本人';
+      if (requestedPersonId) {
+        const token = await globalTokenManager.getToken();
+        const authenticatedId = authenticatedPersonId(token);
+        const requestedPerson = resolveCanonicalActivePerson(entityIndex, requestedPersonId);
+        const authenticatedPerson = authenticatedId
+          ? resolveCanonicalActivePerson(entityIndex, authenticatedId)
+          : null;
+        if (!requestedPerson || !authenticatedPerson || requestedPerson.id !== authenticatedPerson.id) {
+          throw new Error('Personal KG person_entity_id must match the authenticated person.');
+        }
+        ownerName = requestedPerson.name;
+      }
       const hits = await fetchPersonalKgSearch(query, { cognitiveType, limit });
       if (hits.length === 0) {
         return `No personal KG entries found for "${query}"${cognitiveType ? ` (cognitive_type=${cognitiveType})` : ''}.`;
       }
       const lines: string[] = [];
-      lines.push(`# Personal KG (佐藤圭吾) — "${query}" (${hits.length} hits)`);
+      lines.push(`# Personal KG (${ownerName}) — "${query}" (${hits.length} hits)`);
       lines.push('');
       for (const h of hits) {
         const conf = h.confidence != null ? ` conf=${h.confidence}` : '';
@@ -1012,9 +1039,29 @@ export const __testing = {
   setIndexRefreshEnabled(enabled: boolean): void {
     indexRefreshEnabled = enabled;
   },
+  setTokenManager(manager: { getToken(): Promise<string> }): void {
+    globalTokenManager = manager as TokenManager;
+  },
+  setWikiApiBaseUrl(url: string): void {
+    wikiApiBaseUrl = url;
+  },
   refreshEntityIndex,
   handleToolCall,
 };
+
+function authenticatedPersonId(token: string): string | undefined {
+  const jwt = token.startsWith('bbsvc_') ? token.slice('bbsvc_'.length) : token;
+  const payloadSegment = jwt.split('.')[1];
+  if (!payloadSegment) return undefined;
+  try {
+    const payload = JSON.parse(Buffer.from(payloadSegment, 'base64url').toString('utf8')) as Record<string, unknown>;
+    if (typeof payload.personId === 'string' && payload.personId.trim()) return payload.personId.trim();
+    if (typeof payload.sub === 'string' && payload.sub.startsWith('per_')) return payload.sub;
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
 
 /**
  * Create and run the MCP server

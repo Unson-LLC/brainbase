@@ -43,6 +43,7 @@ export interface EntityResolverOptions {
   types?: string[];
   project?: string;
   scope?: string;
+  ownerPersonId?: string;
 }
 
 const RESOLVER_ENTITY_TYPES: EntityType[] = [
@@ -61,6 +62,13 @@ const RESOLVER_ENTITY_TYPES: EntityType[] = [
 
 const RESOLVER_ENTITY_TYPE_SET = new Set<string>(RESOLVER_ENTITY_TYPES);
 const HONORIFIC_SUFFIXES = ['さん', '氏', '様', '先生'];
+const FIRST_PERSON_TERMS = new Set(['俺', '自分', '私', 'わたし', '僕']);
+
+export function containsFirstPersonReference(query: string): boolean {
+  const normalized = normalizeResolverText(query);
+  return /(?:俺|自分|わたし|僕)(?:の|自身|は|が|を|に|$|\s)/u.test(normalized)
+    || /私(?:の|自身|は|が|を|に|$|\s)/u.test(normalized);
+}
 const TERM_EQUIVALENTS: Record<string, string[]> = {
   lecaldo: ['レカルド', 'リカルド', 'riccardo'],
   'le caldo': ['レカルド', 'リカルド', 'riccardo'],
@@ -579,11 +587,34 @@ export function resolveEntities(index: EntityIndex, options: EntityResolverOptio
     fallbacksUsed.push('unsupported_type_reported');
   }
 
+  if (requestedTypes.supported.includes('person')
+    && containsFirstPersonReference(options.query)
+    && options.ownerPersonId) {
+    const owner = resolveCanonicalActivePerson(index, options.ownerPersonId);
+    if (owner) {
+      const ownerTerms = searchedTerms.filter(term => FIRST_PERSON_TERMS.has(term));
+      candidatesByKey.set(`person:${owner.id}`, {
+        entity_id: owner.id,
+        type: owner.type,
+        name: owner.name,
+        aliases: owner.aliases,
+        matched_terms: ownerTerms.length > 0 ? ownerTerms : ['authenticated_owner'],
+        matched_fields: ['authenticated_owner'],
+        score: 100,
+        confidence: 'high',
+        project_code: owner.projects[0],
+        why: `${owner.name} matched the authenticated owner identity`,
+      });
+      fallbacksUsed.push('authenticated_owner_binding');
+    }
+  }
+
   for (const type of requestedTypes.supported) {
     const entities: ResolvableEntity[] = RESOLVER_ENTITY_TYPE_SET.has(type)
       ? getEntitiesByType(index, type as EntityType)
       : getExtensionEntitiesByType(index, type);
     for (const entity of entities) {
+      if (isMergedEntity(entity)) continue;
       const matchedTerms: string[] = [];
       const matchedFields: string[] = [];
       let score = 0;
@@ -636,6 +667,23 @@ export function resolveEntities(index: EntityIndex, options: EntityResolverOptio
     fallbacks_used: fallbacksUsed,
     unsupported_types: requestedTypes.unsupported,
   };
+}
+
+function isMergedEntity(entity: ResolvableEntity): boolean {
+  if ('status' in entity && typeof entity.status === 'string') {
+    return entity.status.trim().toLowerCase() === 'merged';
+  }
+  return 'payload' in entity
+    && typeof entity.payload.status === 'string'
+    && entity.payload.status.trim().toLowerCase() === 'merged';
+}
+
+export function resolveCanonicalActivePerson(index: EntityIndex, personId: string) {
+  const matches = Array.from(index.people.values()).filter(person =>
+    !isMergedEntity(person)
+    && (person.id === personId || person.aliases.includes(personId))
+  );
+  return matches.length === 1 ? matches[0] : null;
 }
 
 const CONTACT_DETAIL_FIELDS = [
