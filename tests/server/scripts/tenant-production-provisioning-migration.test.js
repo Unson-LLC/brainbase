@@ -36,7 +36,8 @@ async function createPool({
     indexOverride = {},
     viewDefinition = null,
     columnOverride = {},
-    constraintOverride = {}
+    constraintOverride = {},
+    missingConstraint = null
 } = {}) {
     const contract = await readSchemaContract();
     const migrationContract = migrationSchemaContract(contract.sql);
@@ -99,95 +100,28 @@ async function createPool({
                     };
                 })
         };
-        if (sql.includes('FROM pg_constraint')) return {
-            rows: [
-                {
-                    table_name: 'workspace_connections',
-                    conname: 'workspace_connections_status_check',
-                    contype: 'c',
-                    definition: "CHECK ((status = ANY (ARRAY['pending'::text, 'active'::text, 'revoked'::text, 'reauth_required'::text, 'uninstalled'::text, 'expired'::text])))"
-                },
-                {
-                    table_name: 'workspace_connections',
-                    conname: 'workspace_connections_profile_check',
-                    contype: 'c',
-                    definition: "CHECK ((profile IS NULL OR profile = ANY (ARRAY['shared_cloud'::text, 'dedicated_cloud'::text, 'customer_managed_oss'::text])))"
-                },
-                {
-                    table_name: 'workspace_connection_revisions',
-                    conname: 'workspace_connection_revisions_current_identity_fk',
-                    contype: 'f',
-                    definition: 'FOREIGN KEY (tenant_id, connection_id) REFERENCES workspace_connections(tenant_id, connection_id)'
-                },
-                {
-                    table_name: 'credential_broker_refs',
-                    conname: 'credential_broker_refs_connection_revision_fk',
-                    contype: 'f',
-                    definition: 'FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision)'
-                },
-                ...[
-                    'tenant_credential_leases',
-                    'tenant_usage_events',
-                    'tenant_operation_receipts',
-                    'tenant_business_effect_claims'
-                ].map((table_name) => ({
-                    table_name,
-                    conname: `${table_name}_connection_revision_fk`,
-                    contype: 'f',
-                    definition: 'FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision)'
-                })),
-                ...[
-                    'tenant_organizations',
-                    'tenant_memberships',
-                    'tenant_projects',
-                    'workspace_connections',
-                    'tenant_contract_revisions',
-                    'slack_installation_intents'
-                ].map((table_name) => ({
-                    table_name,
-                    conname: `${table_name}_tenant_revision_history_fk`,
-                    contype: 'f',
-                    definition: 'FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenant_revisions(tenant_id, tenant_revision)'
-                })),
-                {
-                    table_name: 'tenant_provisioning_operations',
-                    conname: 'tenant_provisioning_operations_claim_token_hash_check',
-                    contype: 'c',
-                    definition: "CHECK ((claim_token_hash IS NULL OR claim_token_hash ~ '^sha256:[a-f0-9]{64}$'::text))"
-                },
-                {
-                    table_name: 'tenant_provisioning_operations',
-                    conname: 'tenant_provisioning_operations_attempt_check',
-                    contype: 'c',
-                    definition: 'CHECK ((attempt > 0))'
-                },
-                {
-                    table_name: 'slack_installation_exchange_ledger',
-                    conname: 'slack_installation_exchange_ledger_status_check',
-                    contype: 'c',
-                    definition: "CHECK ((status = ANY (ARRAY['processing'::text, 'completed'::text, 'failed'::text])))"
-                },
-                ...[
-                    'brainbase_service_actor_capabilities',
-                    'brainbase_service_actor_keys'
-                ].map((table_name) => ({
-                    table_name,
-                    conname: `${table_name}_status_check`,
-                    contype: 'c',
-                    definition: "CHECK ((status = ANY (ARRAY['active'::text, 'revoked'::text])))"
-                })),
-                {
-                    table_name: 'tenant_contract_revision_runtime_bindings',
-                    conname: 'tenant_contract_revision_runtime_bindings_contract_fk',
-                    contype: 'f',
-                    definition: 'FOREIGN KEY (tenant_id, contract_id, contract_revision) REFERENCES tenant_contract_revisions(tenant_id, contract_id, contract_revision)'
-                }
-            ].map((row) => ({
-                ...row,
-                ...(row.contype === 'f' ? { on_update: 'a', on_delete: 'a' } : { on_update: null, on_delete: null }),
-                ...(constraintOverride[row.conname] ?? {})
-            }))
-        };
+        if (sql.includes('FROM pg_constraint')) {
+            const constraintRows = migrationContract.constraints.map((expected, index) => ({
+                table_name: expected.table_name,
+                conname: expected.constraint_name ?? `fixture_constraint_${index}`,
+                contype: expected.contype,
+                definition: expected.definition,
+                on_update: expected.on_update,
+                on_delete: expected.on_delete
+            }));
+            return {
+                rows: constraintRows
+                    .filter((row) => {
+                        if (!missingConstraint) return true;
+                        return !(
+                            row.table_name === missingConstraint.table_name
+                            && row.contype === missingConstraint.contype
+                            && row.definition.replaceAll(/\s+/gu, ' ').toLowerCase() === missingConstraint.definition.replaceAll(/\s+/gu, ' ').toLowerCase()
+                        );
+                    })
+                    .map((row) => ({ ...row, ...(constraintOverride[row.conname] ?? {}) }))
+            };
+        }
         if (sql.includes('FROM pg_views')) return {
             rows: [{
                 table_name: 'brainbase_service_actor_jwks',
@@ -321,6 +255,23 @@ describe('tenant production provisioning migration runner', () => {
                 workspace_connection_revisions_current_identity_fk: {
                     on_delete: 'c'
                 }
+            }
+        });
+        await expect(runTenantProvisioningMigration({
+            argv: ['--apply', '--approve-apply'],
+            env: { BRAINBASE_MIGRATION_ACTOR: 'operator@example.test' },
+            pool
+        })).rejects.toThrow(/constraints are missing or incorrect/u);
+        expect(queries.some(({ text }) => text.includes('INSERT INTO brainbase_schema_migrations'))).toBe(false);
+        expect(queries.map(({ text }) => text)).toContain('ROLLBACK');
+    });
+
+    it('rejects a table with a missing inline primary key before ledger write', async () => {
+        const { pool, queries } = await createPool({
+            missingConstraint: {
+                table_name: 'brainbase_tenant_revisions',
+                contype: 'p',
+                definition: 'PRIMARY KEY (tenant_id, tenant_revision)'
             }
         });
         await expect(runTenantProvisioningMigration({

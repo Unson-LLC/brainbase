@@ -245,15 +245,221 @@ function parseColumnDefinition(line) {
     };
 }
 
+function splitSqlList(value) {
+    const parts = [];
+    let start = 0;
+    let depth = 0;
+    let quote = false;
+    for (let index = 0; index < value.length; index += 1) {
+        const character = value[index];
+        if (character === "'") {
+            if (quote && value[index + 1] === "'") {
+                index += 1;
+                continue;
+            }
+            quote = !quote;
+            continue;
+        }
+        if (quote) continue;
+        if (character === '(') depth += 1;
+        if (character === ')') depth -= 1;
+        if (character === ',' && depth === 0) {
+            parts.push(value.slice(start, index).trim());
+            start = index + 1;
+        }
+    }
+    if (value.slice(start).trim()) parts.push(value.slice(start).trim());
+    return parts;
+}
+
+function extractParenthesized(value, openingIndex) {
+    let depth = 0;
+    let quote = false;
+    for (let index = openingIndex; index < value.length; index += 1) {
+        const character = value[index];
+        if (character === "'") {
+            if (quote && value[index + 1] === "'") {
+                index += 1;
+                continue;
+            }
+            quote = !quote;
+            continue;
+        }
+        if (quote) continue;
+        if (character === '(') depth += 1;
+        if (character === ')') {
+            depth -= 1;
+            if (depth === 0) return { value: value.slice(openingIndex + 1, index), end: index };
+        }
+    }
+    throw new TenantProvisioningMigrationError('SCHEMA_CONTRACT_INVALID', 'Unbalanced constraint expression in provisioning schema');
+}
+
+function constraintColumns(value) {
+    return splitSqlList(value).map((column) => normalizeSql(column)).filter(Boolean);
+}
+
+function constraintAction(value) {
+    const action = normalizeSql(value);
+    return {
+        'no action': 'a',
+        restrict: 'r',
+        cascade: 'c',
+        'set null': 'n',
+        'set default': 'd'
+    }[action] ?? 'a';
+}
+
+function parseForeignKeyConstraint(tableName, constraintName, value, localColumns = null) {
+    const foreignKey = value.match(/^(?:foreign\s+key\s*\(([^)]*)\)|([a-z][a-z0-9_]*))\s+references\s+([a-z][a-z0-9_]*)\s*\(([^)]*)\)(.*)$/iu);
+    if (!foreignKey) return null;
+    const columns = constraintColumns(foreignKey[1] ?? localColumns ?? '');
+    const referencedTable = normalizeSql(foreignKey[3]);
+    const referencedColumns = constraintColumns(foreignKey[4]);
+    if (!columns.length || !referencedTable || !referencedColumns.length) return null;
+    const tail = foreignKey[5] ?? '';
+    const updateMatch = tail.match(/\bon\s+update\s+(no\s+action|restrict|cascade|set\s+null|set\s+default)\b/iu);
+    const deleteMatch = tail.match(/\bon\s+delete\s+(no\s+action|restrict|cascade|set\s+null|set\s+default)\b/iu);
+    const on_update = constraintAction(updateMatch?.[1] ?? 'no action');
+    const on_delete = constraintAction(deleteMatch?.[1] ?? 'no action');
+    let definition = `foreign key (${columns.join(', ')}) references ${referencedTable}(${referencedColumns.join(', ')})`;
+    if (on_update !== 'a') definition += ` on update ${normalizeSql(updateMatch[1])}`;
+    if (on_delete !== 'a') definition += ` on delete ${normalizeSql(deleteMatch[1])}`;
+    return {
+        table_name: tableName,
+        constraint_name: constraintName,
+        contype: 'f',
+        definition,
+        on_update,
+        on_delete
+    };
+}
+
+function parseConstraintItem(tableName, item) {
+    const trimmed = item.trim().replace(/,$/u, '').trim();
+    if (!trimmed) return [];
+    const named = trimmed.match(/^constraint\s+([a-z][a-z0-9_]*)\s+(.+)$/iu);
+    const constraintName = named?.[1] ?? null;
+    const value = (named?.[2] ?? trimmed).trim();
+    const tableConstraint = value.match(/^(primary\s+key|unique|foreign\s+key|check)\b/iu)?.[1]?.toLowerCase();
+    if (tableConstraint === 'primary key' || tableConstraint === 'unique') {
+        const openingIndex = value.indexOf('(');
+        if (openingIndex < 0) return [];
+        const expression = extractParenthesized(value, openingIndex);
+        const columns = constraintColumns(expression.value);
+        if (!columns.length) return [];
+        return [{
+            table_name: tableName,
+            constraint_name: constraintName,
+            contype: tableConstraint === 'primary key' ? 'p' : 'u',
+            definition: `${tableConstraint} (${columns.join(', ')})`,
+            on_update: null,
+            on_delete: null
+        }];
+    }
+    if (tableConstraint === 'foreign key') {
+        const constraint = parseForeignKeyConstraint(tableName, constraintName, value);
+        return constraint ? [constraint] : [];
+    }
+    if (tableConstraint === 'check') {
+        const openingIndex = value.search(/\(/u);
+        if (openingIndex < 0) return [];
+        const expression = extractParenthesized(value, openingIndex);
+        return [{
+            table_name: tableName,
+            constraint_name: constraintName,
+            contype: 'c',
+            definition: `check (${expression.value.trim()})`,
+            on_update: null,
+            on_delete: null
+        }];
+    }
+
+    const columnMatch = value.match(/^([a-z][a-z0-9_]*)\s+(.+)$/iu);
+    if (!columnMatch) return [];
+    const [, columnName, remainder] = columnMatch;
+    const constraints = [];
+    const inlineName = remainder.match(/\bconstraint\s+([a-z][a-z0-9_]*)\s+/iu)?.[1] ?? null;
+    const primaryKey = remainder.match(/\bprimary\s+key\b/iu);
+    const unique = remainder.match(/\bunique\b/iu);
+    if (primaryKey) {
+        constraints.push({
+            table_name: tableName,
+            constraint_name: inlineName,
+            contype: 'p',
+            definition: `primary key (${normalizeSql(columnName)})`,
+            on_update: null,
+            on_delete: null
+        });
+    }
+    if (unique) {
+        constraints.push({
+            table_name: tableName,
+            constraint_name: inlineName,
+            contype: 'u',
+            definition: `unique (${normalizeSql(columnName)})`,
+            on_update: null,
+            on_delete: null
+        });
+    }
+    const referencesIndex = remainder.search(/\breferences\b/iu);
+    if (referencesIndex >= 0) {
+        const constraint = parseForeignKeyConstraint(
+            tableName,
+            inlineName,
+            `${normalizeSql(columnName)} ${remainder.slice(referencesIndex)}`,
+            normalizeSql(columnName)
+        );
+        if (constraint) constraints.push(constraint);
+    }
+    const checkMatch = remainder.match(/\bcheck\s*\(/iu);
+    if (checkMatch) {
+        const openingIndex = remainder.indexOf('(', checkMatch.index);
+        const expression = extractParenthesized(remainder, openingIndex);
+        constraints.push({
+            table_name: tableName,
+            constraint_name: inlineName,
+            contype: 'c',
+            definition: `check (${expression.value.trim()})`,
+            on_update: null,
+            on_delete: null
+        });
+    }
+    return constraints;
+}
+
+function parseTableConstraints(tableName, body) {
+    return splitSqlList(body).flatMap((item) => parseConstraintItem(tableName, item));
+}
+
+function mergeConstraints(parsedConstraints) {
+    const constraints = [];
+    const identities = new Set();
+    const semanticIdentities = new Set();
+    for (const constraint of [...REQUIRED_CONSTRAINTS, ...parsedConstraints]) {
+        const identity = constraint.constraint_name
+            ? `${normalizeSql(constraint.table_name)}:${normalizeSql(constraint.constraint_name)}`
+            : `${normalizeSql(constraint.table_name)}:${normalizeSql(constraint.contype)}:${normalizeConstraintDefinition(constraint.definition)}`;
+        const semanticIdentity = `${normalizeSql(constraint.table_name)}:${normalizeSql(constraint.contype)}:${normalizeConstraintDefinition(constraint.definition)}`;
+        if (identities.has(identity) || semanticIdentities.has(semanticIdentity)) continue;
+        identities.add(identity);
+        semanticIdentities.add(semanticIdentity);
+        constraints.push(constraint);
+    }
+    return constraints;
+}
+
 export function schemaContract(sql) {
     const tableColumns = new Map();
     const columnDefinitions = new Map();
+    const parsedConstraints = [];
     for (const match of sql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-z0-9_]+)\s*\(([^;]+)\);/gis)) {
         const definitions = [];
         for (const line of match[2].split('\n')) {
             const definition = parseColumnDefinition(line);
             if (definition) definitions.push(definition);
         }
+        parsedConstraints.push(...parseTableConstraints(match[1], match[2]));
         tableColumns.set(match[1], definitions.map(({ column_name: column }) => column));
         columnDefinitions.set(match[1], new Map(definitions.map((definition) => [definition.column_name, definition])));
     }
@@ -261,6 +467,7 @@ export function schemaContract(sql) {
         sha256: createHash('sha256').update(sql).digest('hex'),
         tableColumns,
         columnDefinitions,
+        constraints: mergeConstraints(parsedConstraints),
         indexes: REQUIRED_INDEXES
     };
 }
@@ -274,16 +481,59 @@ function normalizeSql(value) {
     return String(value ?? '').toLowerCase().replaceAll('"', '').replaceAll(/\s+/gu, ' ').trim();
 }
 
+function removeGroupingParentheses(value) {
+    const keepParenthesizedAfter = new Set(['any', 'cardinality', 'length']);
+    let result = '';
+    let quote = false;
+    for (let index = 0; index < value.length; index += 1) {
+        const character = value[index];
+        if (character === "'") {
+            result += character;
+            if (quote && value[index + 1] === "'") {
+                result += value[index + 1];
+                index += 1;
+                continue;
+            }
+            quote = !quote;
+            continue;
+        }
+        if (quote || character !== '(') {
+            result += character;
+            continue;
+        }
+        const expression = extractParenthesized(value, index);
+        const inner = removeGroupingParentheses(expression.value);
+        const precedingToken = result.match(/([a-z_][a-z0-9_]*)\s*$/iu)?.[1]?.toLowerCase() ?? null;
+        if (precedingToken && keepParenthesizedAfter.has(precedingToken)) result += `(${inner})`;
+        else result += inner;
+        index = expression.end;
+    }
+    return result;
+}
+
 function normalizeConstraintDefinition(value) {
-    return normalizeSql(value)
+    const normalized = normalizeSql(value)
+        .replaceAll(/'00:10:00'\s*::\s*interval/giu, "interval '10 minutes'")
         .replaceAll(/\s*::\s*[a-z_][a-z0-9_]*(?:\[\])?/giu, '')
         .replaceAll(/\s*;\s*$/gu, '')
         .replaceAll(/\s*,\s*/gu, ', ')
-        .replaceAll(/\(\s*([a-z_][a-z0-9_]*\s+is\s+null)\s*\)/giu, '$1')
-        .replaceAll(/\(\s*([a-z_][a-z0-9_]*\s*~\s*'[^']*')\s*\)/giu, '$1')
-        .replaceAll(/\(\s*([a-z_][a-z0-9_]*\s*>\s*[0-9]+)\s*\)/giu, '$1')
-        .replaceAll(/\(\s*([a-z_][a-z0-9_]*\s*=\s*any\s*\(array\[[^)]*\]\))\s*\)/giu, '$1')
+        .replaceAll(/\s+/gu, ' ')
         .trim();
+    const check = normalized.match(/^check\s+(.+)$/iu);
+    if (!check) return normalized;
+    let expression = stripOuterParentheses(check[1]);
+    expression = expression
+        .replaceAll(/\b([a-z_][a-z0-9_]*(?:\([^)]*\))?)\s+between\s+([0-9]+)\s+and\s+([0-9]+)/giu, '($1 >= $2 and $1 <= $3)')
+        .replaceAll(/\s+in\s*\(([^()]*)\)/giu, ' = any (array[$1])')
+        .replaceAll(/=\s*any\s*\(\s*array\s*\[([^\]]*)\]\s*\)/giu, '= any (array[$1])')
+        .replaceAll(/\s*,\s*/gu, ', ')
+        .replaceAll(/\s+/gu, ' ')
+        .trim();
+    expression = removeGroupingParentheses(expression)
+        .replaceAll(/\s*,\s*/gu, ', ')
+        .replaceAll(/\s+/gu, ' ')
+        .trim();
+    return `check (${expression})`;
 }
 
 function stripOuterParentheses(value) {
@@ -568,28 +818,37 @@ async function readbackSchema(client, contract, { verifyLedger = true } = {}) {
         on_delete: row.on_delete ?? null
     }));
     const incorrectConstraints = [];
-    for (const expected of REQUIRED_CONSTRAINTS) {
-        const actual = normalizedConstraints.find((row) => (
-            row.table_name === normalizeSql(expected.table_name)
-            && row.conname === normalizeSql(expected.constraint_name)
+    const matchedConstraintIndexes = new Set();
+    for (const expected of contract.constraints ?? REQUIRED_CONSTRAINTS) {
+        const expectedTable = normalizeSql(expected.table_name);
+        const expectedName = expected.constraint_name ? normalizeSql(expected.constraint_name) : null;
+        const expectedDefinition = normalizeConstraintDefinition(expected.definition);
+        const actualIndex = normalizedConstraints.findIndex((row, index) => (
+            !matchedConstraintIndexes.has(index)
+            && row.table_name === expectedTable
+            && (expectedName
+                ? row.conname === expectedName
+                : row.contype === normalizeSql(expected.contype) && row.definition === expectedDefinition)
         ));
+        const actual = actualIndex >= 0 ? normalizedConstraints[actualIndex] : null;
         if (!actual) {
-            incorrectConstraints.push(`${expected.table_name}.${expected.constraint_name} (missing)`);
+            incorrectConstraints.push(`${expected.table_name}.${expected.constraint_name ?? expectedDefinition} (missing)`);
             continue;
         }
+        matchedConstraintIndexes.add(actualIndex);
         if (actual.contype !== expected.contype) {
-            incorrectConstraints.push(`${expected.table_name}.${expected.constraint_name} (type=${actual.contype || 'unknown'})`);
+            incorrectConstraints.push(`${expected.table_name}.${expected.constraint_name ?? expectedDefinition} (type=${actual.contype || 'unknown'})`);
             continue;
         }
-        if (actual.definition !== normalizeConstraintDefinition(expected.definition)) {
-            incorrectConstraints.push(`${expected.table_name}.${expected.constraint_name} (definition mismatch)`);
+        if (actual.definition !== expectedDefinition) {
+            incorrectConstraints.push(`${expected.table_name}.${expected.constraint_name ?? expectedDefinition} (definition mismatch)`);
             continue;
         }
         if (expected.contype === 'f' && (
             actual.on_update !== expected.on_update
             || actual.on_delete !== expected.on_delete
         )) {
-            incorrectConstraints.push(`${expected.table_name}.${expected.constraint_name} (action=${actual.on_update ?? 'unknown'}/${actual.on_delete ?? 'unknown'})`);
+            incorrectConstraints.push(`${expected.table_name}.${expected.constraint_name ?? expectedDefinition} (action=${actual.on_update ?? 'unknown'}/${actual.on_delete ?? 'unknown'})`);
         }
     }
     if (incorrectConstraints.length) {
@@ -633,7 +892,7 @@ async function readbackSchema(client, contract, { verifyLedger = true } = {}) {
         column_count: [...contract.tableColumns.values()].reduce((sum, columns) => sum + columns.length, 0),
         existing_column_count: Object.values(REQUIRED_EXISTING_COLUMNS).flat().length,
         index_count: contract.indexes.length,
-        constraint_count: REQUIRED_CONSTRAINTS.length,
+        constraint_count: (contract.constraints ?? REQUIRED_CONSTRAINTS).length,
         view_count: REQUIRED_VIEWS.length,
         ledger_matches: ledgerMatches
     };

@@ -69,4 +69,62 @@ describe.sequential('tenant production provisioning migration catalog readback',
         expect(ledger.rows).toHaveLength(1);
         expect(ledger.rows[0].schema_sha256).toBe(result.schema_sha256);
     }, 120_000);
+
+    it('rejects a missing inline check constraint from the real catalog', async () => {
+        await pool.query('ALTER TABLE brainbase_service_actor_keys DROP CONSTRAINT brainbase_service_actor_keys_status_check');
+        await expect(runTenantProvisioningMigration({ argv: ['--check'], pool }))
+            .rejects.toMatchObject({ code: 'SCHEMA_READBACK_FAILED' });
+        await pool.query(
+            `ALTER TABLE brainbase_service_actor_keys
+             ADD CONSTRAINT brainbase_service_actor_keys_status_check
+             CHECK (status IN ('active', 'revoked'))`
+        );
+    }, 120_000);
+
+    it('rejects a wrong inline primary key definition from the real catalog', async () => {
+        await pool.query('ALTER TABLE brainbase_service_actor_keys DROP CONSTRAINT brainbase_service_actor_keys_pkey');
+        await pool.query(
+            `ALTER TABLE brainbase_service_actor_keys
+             ADD CONSTRAINT brainbase_service_actor_keys_pkey PRIMARY KEY (actor_id)`
+        );
+        await expect(runTenantProvisioningMigration({ argv: ['--check'], pool }))
+            .rejects.toMatchObject({ code: 'SCHEMA_READBACK_FAILED' });
+        await pool.query('ALTER TABLE brainbase_service_actor_keys DROP CONSTRAINT brainbase_service_actor_keys_pkey');
+        await pool.query(
+            `ALTER TABLE brainbase_service_actor_keys
+             ADD CONSTRAINT brainbase_service_actor_keys_pkey PRIMARY KEY (actor_id, kid)`
+        );
+    }, 120_000);
+
+    it('rejects a missing inline unique constraint from the real catalog', async () => {
+        await pool.query('ALTER TABLE slack_installation_intents DROP CONSTRAINT slack_installation_intents_state_hash_key');
+        await expect(runTenantProvisioningMigration({ argv: ['--check'], pool }))
+            .rejects.toMatchObject({ code: 'SCHEMA_READBACK_FAILED' });
+        await pool.query(
+            `ALTER TABLE slack_installation_intents
+             ADD CONSTRAINT slack_installation_intents_state_hash_key UNIQUE (state_hash)`
+        );
+    }, 120_000);
+
+    it('rejects a wrong inline foreign key definition from the real catalog', async () => {
+        await pool.query('ALTER TABLE brainbase_service_actor_keys DROP CONSTRAINT brainbase_service_actor_keys_actor_id_fkey');
+        await pool.query(
+            `ALTER TABLE brainbase_service_actor_keys
+             ADD CONSTRAINT brainbase_service_actor_keys_actor_id_fkey
+             FOREIGN KEY (kid) REFERENCES brainbase_service_actors(actor_id)`
+        );
+        await expect(runTenantProvisioningMigration({ argv: ['--check'], pool }))
+            .rejects.toMatchObject({ code: 'SCHEMA_READBACK_FAILED' });
+        await pool.query('ALTER TABLE brainbase_service_actor_keys DROP CONSTRAINT brainbase_service_actor_keys_actor_id_fkey');
+        await pool.query(
+            `ALTER TABLE brainbase_service_actor_keys
+             ADD CONSTRAINT brainbase_service_actor_keys_actor_id_fkey
+             FOREIGN KEY (actor_id) REFERENCES brainbase_service_actors(actor_id)`
+        );
+    }, 120_000);
+
+    it('still accepts the restored complete constraint catalog', async () => {
+        const result = await runTenantProvisioningMigration({ argv: ['--check'], pool });
+        expect(result).toMatchObject({ ok: true, mode: 'check', readback: { ledger_matches: true } });
+    }, 120_000);
 });
