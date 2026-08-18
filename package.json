@@ -73,6 +73,8 @@
     "migrate:canonical-task-postgres-workflow": "node scripts/run-canonical-task-postgres-migration-workflow.js",
     "migrate:canonical-task-search-indexes": "node scripts/run-canonical-task-search-index-workflow.js",
     "migrate:multitenant-platform-schema": "node scripts/migrate-multitenant-platform-schema.js",
+    "migrate:tenant-production-provisioning": "node scripts/migrate-tenant-production-provisioning.js",
+    "provision:tenant": "node scripts/provision-tenant.js",
     "canonical-task:readiness": "node scripts/set-canonical-task-readiness.js",
     "canonical-task:recover-writer": "node scripts/recover-canonical-task-writer.js",
     "canonical-task:check-postgres-concurrency": "node scripts/check-canonical-task-postgres-concurrency.js",

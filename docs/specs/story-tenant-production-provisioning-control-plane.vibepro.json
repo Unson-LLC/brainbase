@@ -1,0 +1,227 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "lifecycle": "draft",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "hybrid",
+    "tenant_identity": {
+      "canonical_key": "tenant_key",
+      "resolved_from": ["provisioning manifest", "Brainbase tenant authority"],
+      "resolution_point": "Provisioning Coordinator before first write",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": ["migration", "admin_api", "audit_log"],
+      "verified_surfaces": ["migration", "admin_api", "audit_log"]
+    },
+    "resources": [
+      {
+        "name": "tenant provisioning control-plane state",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "tenant_key",
+        "partition_key": "tenant_key/resource_id",
+        "trust_zone": "Brainbase control plane PostgreSQL",
+        "residue_policy": "retention then verified delete",
+        "data_owner": "Brainbase Tenant Authority",
+        "credential_scope": "opaque credential reference"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "tenant_key",
+      "scope": "tenant-bound opaque credential reference",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": ["Brainbase Tenant Authority"],
+      "residency": "Brainbase control-plane PostgreSQL",
+      "migration": "transactional migration after explicit approval",
+      "rollback": "rollback same transaction and read back tenant-isolated state"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"],
+    "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate"],
+    "graph_metadata": {
+      "tenant_entities": ["tenant", "tenant_revision", "workspace_connection", "provisioning_operation", "service_actor", "capability"],
+      "boundary_edges": ["manifest to tenant control plane", "service actor to capability grant"]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "evidence": {
+        "propagation_surfaces": ["migration", "admin_api", "audit_log"],
+        "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate"],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "graph": {
+          "tenant_key": "tenant_key",
+          "sharing_modes": ["tenant_partitioned"],
+          "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"],
+          "tenant_entities": [{"tenant_scope": "canonical provisioning state", "tenant_key_source": "tenant_key from manifest", "trust_zone": "Brainbase control plane", "data_owner": "Brainbase Tenant Authority"}],
+          "boundary_edges": [{"tenant_scope": "provisioning operation", "tenant_key_source": "tenant_key", "sharing_mode": "tenant_partitioned", "credential_scope": "opaque credential reference", "connection_mode": "authoritative revision", "deployment_mode": "managed_shared"}]
+        },
+        "spec": {"tenant_key": "tenant_key", "sharing_modes": ["tenant_partitioned"], "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"]},
+        "implementation": {"tenant_key": "tenant_key", "sharing_modes": ["tenant_partitioned"], "deployment_modes": ["managed_shared", "customer_managed", "self_hosted"]}
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "Provisionerはtenant_keyを一意なcanonical tenant identityとして検証し、tenant revision historyを保持する（BRAINBASE_TENANTS / BRAINBASE_TENANT_REVISIONS）",
+      "rationale": "revision更新で過去のtenant-owned recordを壊さず、同じtenant_keyの重複を拒否するため。Control-plane DBの履歴をappend-onlyで保持する。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 0, "text_snippet": "tenant_keyとrevision履歴"}],
+        "architecture_refs": [{"file": "docs/architecture/story-tenant-production-provisioning-control-plane.md", "section": "Control-plane Repository"}],
+        "code_refs": [{"file": "server/sql/tenant-production-provisioning-schema.sql", "anchor": "brainbase_tenant_revisions"}],
+        "test_refs": [{"file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js", "case": "defines tenant key, append-only revision history, and revision FKs"}]
+      },
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/services/multitenant/tenant-provisioning-schema.test.js", "must_cover": "append-only revision history"}]}
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "同一tenant・provider・workspace・appのpendingまたはactive connectionは一つだけで、再インストールはrevisionとして保存される（WORKSPACE_CONNECTIONS）",
+      "rationale": "provider再インストールの重複接続と別tenant fallbackを防ぐため。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 2, "text_snippet": "workspace logical uniqueness"}],
+        "architecture_refs": [{"file": "docs/architecture/story-tenant-production-provisioning-control-plane.md", "section": "運用上の不変条件"}],
+        "code_refs": [{"file": "server/sql/tenant-production-provisioning-schema.sql", "anchor": "workspace_connections_tenant_provider_workspace_app_uq"}],
+        "test_refs": [{"file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js", "case": "enforces workspace logical uniqueness, provisioning idempotency, and service capabilities"}]
+      },
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/services/multitenant/tenant-provisioning-schema.test.js", "must_cover": "workspace logical uniqueness"}]}
+    },
+    {
+      "id": "C-003",
+      "type": "invariant",
+      "statement": "workspace connection revisionは同じtenant、connection、revisionの親行なしに保存できない（WORKSPACE_CONNECTION_REVISIONS）",
+      "rationale": "孤立した接続revisionをruntimeが参照しないようにするため。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 3, "text_snippet": "connection revision FK"}],
+        "architecture_refs": [{"file": "docs/architecture/story-tenant-production-provisioning-control-plane.md", "section": "Control-plane Repository"}],
+        "code_refs": [{"file": "server/sql/tenant-production-provisioning-schema.sql", "anchor": "workspace_connection_revisions_parent_fk"}],
+        "test_refs": [{"file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js", "case": "defines tenant key, append-only revision history, and revision FKs"}]
+      },
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/services/multitenant/tenant-provisioning-schema.test.js", "must_cover": "revision FKs"}]}
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "同じidempotency keyとdesired-state fingerprintの再実行は保存済み結果を返し、fingerprint不一致は副作用なしでconflictにする（TENANT_PROVISIONING_OPERATIONS）",
+      "rationale": "Queue再試行や運用再実行でtenantやconnectionを重複作成しないため。Provisioning CoordinatorとControl-plane DBのclaimを一つにする。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 4, "text_snippet": "idempotency ledger"}],
+        "architecture_refs": [{"file": "docs/architecture/story-tenant-production-provisioning-control-plane.md", "section": "Provisioning Coordinator"}],
+        "code_refs": [{"file": "server/services/multitenant/tenant-provisioner.js", "anchor": "readExistingOperation"}],
+        "test_refs": [{"file": "tests/server/services/multitenant/tenant-provisioner.test.js", "case": "replays the same operation without duplicate writes"}]
+      },
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/services/multitenant/tenant-provisioner.test.js", "must_cover": "replays the same operation"}]}
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "service actorとcapabilityはBrainbase registryのcanonical IDで管理し、Graphのperson entityを作成しない（BRAINBASE_SERVICE_ACTORS / BRAINBASE_CAPABILITIES / BRAINBASE_SERVICE_ACTOR_CAPABILITIES）",
+      "rationale": "サービス主体を人物正本へ混入させず、actor・capability・tenant・project境界を監査可能にするため。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 6, "text_snippet": "service actor／capability registry"}],
+        "architecture_refs": [{"file": "docs/architecture/story-tenant-production-provisioning-control-plane.md", "section": "Graph Verification Boundary"}],
+        "code_refs": [{"file": "server/sql/tenant-production-provisioning-schema.sql", "anchor": "brainbase_service_actors"}],
+        "test_refs": [{"file": "tests/server/services/multitenant/tenant-provisioner.test.js", "case": "fails closed on ambiguous Graph project and never writes a Graph person"}]
+      },
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/services/multitenant/tenant-provisioner.test.js", "must_cover": "never writes a Graph person"}]}
+    },
+    {
+      "id": "C-006",
+      "type": "invariant",
+      "statement": "manifest、DB、Graph、ログ、receiptは秘密本文を保持せずopaque credential referenceとpublic key metadataだけを扱う",
+      "rationale": "provider tokenや署名秘密鍵が制御面へ漏えいするSecret boundaryを閉じるため。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 7, "text_snippet": "秘密値非露出"}],
+        "architecture_refs": [{"file": "docs/architecture/story-tenant-production-provisioning-control-plane.md", "section": "Secret Boundary"}],
+        "code_refs": [{"file": "server/services/multitenant/provisioning-manifest.js", "anchor": "scanForSecretMaterial"}, {"file": "server/sql/tenant-production-provisioning-schema.sql", "anchor": "credential_ref"}],
+        "test_refs": [{"file": "tests/server/services/multitenant/provisioning-manifest.test.js", "case": "rejects unknown tenant identity and secret material without echoing the value"}, {"file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js", "case": "does not persist secret bodies or model service actors as Graph persons"}]
+      },
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/services/multitenant/provisioning-manifest.test.js", "must_cover": "secret material"}]}
+    },
+    {
+      "id": "C-007",
+      "type": "contract",
+      "statement": "CLIはcheckとdry-runを既定の安全境界とし、applyには明示承認と実行actorを要求し、失敗時はcommitしない",
+      "rationale": "本番DBへ偶発的に書き込まず、schema・Graph・credential境界を先に確認するため。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 8, "text_snippet": "dry-runと明示的なapply承認"}],
+        "architecture_refs": [{"file": "docs/architecture/story-tenant-production-provisioning-control-plane.md", "section": "Activation and Readback"}],
+        "code_refs": [{"file": "scripts/provision-tenant.js", "anchor": "--approve-apply"}, {"file": "scripts/migrate-tenant-production-provisioning.js", "anchor": "--approve-apply"}],
+        "test_refs": [{"file": "tests/server/scripts/provision-tenant.test.js", "case": "keeps check and dry-run safe and requires explicit approval for apply"}, {"file": "tests/server/scripts/tenant-production-provisioning-migration.test.js", "case": "requires explicit apply approval"}]
+      },
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/scripts/provision-tenant.test.js", "must_cover": "explicit approval"}]}
+    },
+    {
+      "id": "C-008",
+      "type": "scenario",
+      "statement": "Graph projectが未登録、複数候補、別project、またはcredential refが別tenantの場合は有効化せずfail closedにする",
+      "rationale": "名前推測や別deployment fallbackを防ぎ、未確認を成功にしないため。",
+      "origin": {
+        "story_refs": [{"kind": "other", "index": 0, "text_snippet": "TPP-S-005 / TPP-S-006"}],
+        "architecture_refs": [{"file": "docs/architecture/story-tenant-production-provisioning-control-plane.md", "section": "失敗と復旧"}],
+        "code_refs": [{"file": "server/services/multitenant/tenant-provisioner.js", "anchor": "normalizeProjectResult"}, {"file": "server/services/multitenant/tenant-provisioner.js", "anchor": "assertCredentialResult"}],
+        "test_refs": [{"file": "tests/server/services/multitenant/tenant-provisioner.test.js", "case": "fails closed on ambiguous Graph project and never writes a Graph person"}]
+      },
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/services/multitenant/tenant-provisioner.test.js", "must_cover": "ambiguous Graph project"}]}
+    },
+    {
+      "id": "C-009",
+      "type": "contract",
+      "statement": "完了receiptは同一operation IDでschema、tenant、connection、registry、Graph検証、readbackを追跡でき、秘密値を含まない",
+      "rationale": "CLIの終了コードだけで本番移行完了と誤認せず、正本readbackを証跡に残すため。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 9, "text_snippet": "operation IDで追跡"}],
+        "architecture_refs": [{"file": "docs/architecture/story-tenant-production-provisioning-control-plane.md", "section": "Activation and Readback"}],
+        "code_refs": [{"file": "server/services/multitenant/tenant-provisioner.js", "anchor": "readback"}, {"file": "server/services/multitenant/tenant-provisioner.js", "anchor": "redactedReceipt"}],
+        "test_refs": [{"file": "tests/server/services/multitenant/tenant-provisioner.test.js", "case": "returns a redacted readback receipt after an atomic apply"}]
+      },
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/services/multitenant/tenant-provisioner.test.js", "must_cover": "redacted readback receipt"}]}
+    }
+  ],
+  "diagrams": [
+    {
+      "kind": "sequence",
+      "mermaid": "sequenceDiagram\n    participant CLI\n    participant C as Coordinator\n    participant DB as Control-plane DB\n    participant G as Graph\n    participant K as Secret boundary\n    CLI->>C: manifest + idempotency key\n    C->>DB: schema check and ledger claim\n    C->>G: resolve canonical project\n    C->>K: verify opaque credential ref\n    C->>DB: transaction + readback\n    C-->>CLI: redacted receipt",
+      "entities": ["CLI", "Coordinator", "Control-plane DB", "Graph", "Secret boundary"],
+      "rationale": "schema、idempotency、Graph、secret、readbackの順序と失敗境界を固定するため。"
+    },
+    {
+      "kind": "er",
+      "mermaid": "erDiagram\n    BRAINBASE_TENANTS ||--o{ BRAINBASE_TENANT_REVISIONS : has\n    WORKSPACE_CONNECTIONS ||--o{ WORKSPACE_CONNECTION_REVISIONS : records\n    TENANT_PROVISIONING_OPERATIONS }o--|| BRAINBASE_SERVICE_ACTORS : executed_by\n    BRAINBASE_SERVICE_ACTORS ||--o{ BRAINBASE_SERVICE_ACTOR_CAPABILITIES : grants\n    BRAINBASE_CAPABILITIES ||--o{ BRAINBASE_SERVICE_ACTOR_CAPABILITIES : contains",
+      "entities": ["BRAINBASE_TENANTS", "BRAINBASE_TENANT_REVISIONS", "WORKSPACE_CONNECTIONS", "WORKSPACE_CONNECTION_REVISIONS", "TENANT_PROVISIONING_OPERATIONS", "BRAINBASE_SERVICE_ACTORS", "BRAINBASE_CAPABILITIES", "BRAINBASE_SERVICE_ACTOR_CAPABILITIES"],
+      "rationale": "tenant revision、connection revision、ledger、service registryの所有関係を固定するため。"
+    }
+  ],
+  "open_questions": [
+    {"id": "Q-001", "question": "本番DBへのmigration apply actorと承認者をどの運用台帳へ記録するか", "blocker": true},
+    {"id": "Q-002", "question": "Graph canonical projectのread-only resolverを本番workerからどの接続契約で呼ぶか", "blocker": true}
+  ]
+}
