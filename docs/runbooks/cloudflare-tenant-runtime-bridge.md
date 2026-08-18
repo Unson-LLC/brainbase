@@ -10,11 +10,22 @@ mana-runtime Worker
   -> Cloudflare Worker（workers.dev/preview URLなし）
   -> Cloudflare Accessで保護したHTTPS Tunnel hostname
   -> cloudflared
-  -> http://127.0.0.1:31016/api/v1/runtime/provider-requests:forward
+  -> http://127.0.0.1:31016/api/v1/runtime/{allowlisted-route}
   -> Brainbase canonical service auth / tenant boundary / credential broker
 ```
 
-bridgeが受理するのは`POST /api/v1/runtime/provider-requests:forward`だけである。query、別method、他のtenant runtime routeは404で拒否する。request bodyは256 KiBを上限とし、`Content-Length`と実stream byte数の両方を検査する。bridgeは`Brainbase-Protocol-Version`、`Brainbase-Deployment-Id`、`Content-Type`、`Accept`だけをcallerからupstreamへ渡す。callerの`Authorization`は破棄してWorker SecretのBrainbase service JWTで上書きし、Cloudflare Access headerはWorker Secretから注入する。callerが送ったCookie、forwarding header、任意headerは渡さない。
+bridgeが受理するのは、次の`POST` routeとqueryなし要求だけである。
+
+- `/api/v1/runtime/tenant-context:resolve`
+- `/api/v1/runtime/credential-leases`
+- `/api/v1/runtime/provider-requests:forward`
+- `/api/v1/runtime/quota:decide`
+- `/api/v1/runtime/usage-events`
+- `/api/v1/runtime/operation-receipts:finalize`
+- `/api/v1/runtime/operation-receipts:finalize-with-pricing`
+- `/api/v1/runtime/operation-receipts/{receipt_id}/history:read`（`receipt_` + canonical ULIDのみ）
+
+別method、別path、allowlist外のcanonical route、不正receipt IDは404で拒否する。request bodyは256 KiBを上限とし、`Content-Length`と実stream byte数の両方を検査する。bridgeは`Brainbase-Protocol-Version`、`Brainbase-Deployment-Id`、`Content-Type`、`Accept`だけをcallerからupstreamへ渡す。callerの`Authorization`は破棄してWorker SecretのBrainbase service JWTで上書きし、Cloudflare Access headerはWorker Secretから注入する。callerが送ったCookie、forwarding header、任意headerは渡さない。
 
 Node runtimeのloopback既定を変更しない。`BRAINBASE_TENANT_RUNTIME_HOST=127.0.0.1`を維持し、`BRAINBASE_TENANT_RUNTIME_ALLOW_NON_LOOPBACK`は未設定または`0`にする。cloudflaredが同じhost上のloopback originへ接続するため、wildcard listenは不要である。
 
@@ -24,7 +35,7 @@ Node runtimeのloopback既定を変更しない。`BRAINBASE_TENANT_RUNTIME_HOST
 2. 専用hostnameのingressを`http://127.0.0.1:31016`へ向ける。catch-allは`http_status:404`にし、他のlocal serviceへfallbackさせない。
 3. 専用hostnameをCloudflare Accessのself-hosted applicationで保護する。
 4. `Service Auth` policyにはbridge専用Service Tokenだけを許可する。メール、Everyone、Bypass policyを追加しない。
-5. Access applicationのpathを`/api/v1/runtime/provider-requests:forward`へ限定する。Tunnel hostnameを直接公開APIとして運用しない。
+5. Access applicationのpathはallowlistの各pathへ限定する。Tunnel hostnameを直接公開APIとして運用しない。
 6. origin疎通を確認するときもservice tokenをコマンド引数へ置かない。Access audit logとNodeのsecret非含有構造化ログで結果を照合する。
 
 ## Node runtime設定

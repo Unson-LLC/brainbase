@@ -9,7 +9,7 @@ updated_at: 2026-08-19
 
 ## Decision
 
-Brainbaseは、ManaからのService Binding呼出しを受ける専用Cloudflare Worker `brainbase-tenant-runtime` をIngress adapterとして持つ。Workerは実運用で必要なcanonical routeを1本だけ許可し、業務ロジックを持たず、固定HTTPS Tunnel originに中継する。
+Brainbaseは、ManaからのService Binding呼出しを受ける専用Cloudflare Worker `brainbase-tenant-runtime` をIngress adapterとして持つ。WorkerはManaのcanonical transportが実際に使用するrouteだけを明示allowlistし、業務ロジックを持たず、固定HTTPS Tunnel originに中継する。
 
 ```text
 mana-runtime Worker
@@ -18,7 +18,7 @@ mana-runtime Worker
   -> fixed HTTPS hostname protected by Cloudflare Access
   -> cloudflared (catch-all=404)
   -> http://127.0.0.1:31016
-  -> Brainbase canonical service auth / tenant boundary / provider forward
+  -> Brainbase canonical service auth / tenant boundary / runtime operations
 ```
 
 WorkerはCloudflareの公開URL、arbitrary proxy、別origin、Nodeの別portへfallbackしない。Tunnelの公開hostnameはAccess Service Authで保護し、cloudflaredはNodeのloopbackだけへ接続する。
@@ -27,20 +27,27 @@ WorkerはCloudflareの公開URL、arbitrary proxy、別origin、Nodeの別port�
 
 | component | responsibility | must not do |
 | --- | --- | --- |
-| Mana Worker | Service Bindingからcanonical provider requestを送る | Brainbase Secretを保持する、別routeへfallbackする |
+| Mana Worker | Service Bindingからcanonical runtime requestを送る | Brainbase Secretを保持する、別routeへfallbackする |
 | Brainbase ingress Worker | route、origin、body、header、response境界を検査し、固定originへ中継する | tenant解決、credential発行、provider判断、任意proxy |
 | Cloudflare Access/Tunnel | hostname到達制御とloopbackへの接続 | tenant業務認可、別local serviceへのfallback |
 | Brainbase Node runtime | service JWT検証、tenant／connection境界、credential lease、provider forward、Receipt | non-loopback公開、Ingress境界の迂回 |
 
 ## Route and request contract
 
-許可する入口は次の1つだけである。
+許可する入口は、Manaのcanonical transportが使用する次のrouteだけである。
 
 | method | path | query | result |
 | --- | --- | --- | --- |
+| `POST` | `/api/v1/runtime/tenant-context:resolve` | なし | fixed originへ中継 |
+| `POST` | `/api/v1/runtime/credential-leases` | なし | fixed originへ中継 |
 | `POST` | `/api/v1/runtime/provider-requests:forward` | なし | fixed originへ中継 |
+| `POST` | `/api/v1/runtime/quota:decide` | なし | fixed originへ中継 |
+| `POST` | `/api/v1/runtime/usage-events` | なし | fixed originへ中継 |
+| `POST` | `/api/v1/runtime/operation-receipts:finalize` | なし | fixed originへ中継 |
+| `POST` | `/api/v1/runtime/operation-receipts:finalize-with-pricing` | なし | fixed originへ中継 |
+| `POST` | `/api/v1/runtime/operation-receipts/{receipt_id}/history:read`（canonical receipt ID） | なし | fixed originへ中継 |
 
-別method、別path、query付き要求は`404 application/problem+json`で拒否する。Workerは`tenant-context:resolve`、`negotiate`、credential leaseなどを外部Ingressへ追加公開しない。それらは別のcanonical runtime契約またはNode内部から利用する。
+別method、別path、query付き、canonical形式でないreceipt IDの要求は`404 application/problem+json`で拒否する。Workerは`negotiate`、verification keys、tenant boundary、migrationなどallowlist外のrouteを公開しない。routeの業務判断、tenant境界、credential、quota、usage、Receiptの正本はNode canonical runtimeが行う。
 
 Workerがupstreamへ渡す通常ヘッダーは`Accept`、`Content-Type`、`Brainbase-Protocol-Version`、`Brainbase-Deployment-Id`だけとする。Manaから受けた`Authorization`、`CF-Access-*`、Cookie、forwarding header、任意headerは破棄する。
 
@@ -60,7 +67,7 @@ Secretの値はコード、`wrangler.jsonc`の`vars`、テストの実値、ロ�
 
 ## Origin and body boundary
 
-`BRAINBASE_TENANT_RUNTIME_ORIGIN`はHTTPS scheme、想定hostname、標準origin pathだけを許可し、user/password、port、query、fragment、追加pathを拒否する。upstream URLは固定pathとの組み合わせで生成するため、request URLからhostやpathを採用しない。
+`BRAINBASE_TENANT_RUNTIME_ORIGIN`はHTTPS scheme、想定hostname、標準origin pathだけを許可し、user/password、port、query、fragment、追加pathを拒否する。upstream URLはroute allowlistから得たpathとの組み合わせで生成するため、request URLからhostやallowlist外pathを採用しない。
 
 request bodyは256 KiBを上限とし、数値だけの`Content-Length`が上限以下であることと、実streamの累計byte数を検査する。宣言値が不正、上限超過、streamが上限超過の場合は`413`でfetchを実行しない。
 

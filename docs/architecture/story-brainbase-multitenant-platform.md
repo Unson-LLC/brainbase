@@ -56,7 +56,7 @@ Graph、project、MCP、background job、migration、usage書込みは、認証�
 
 ### Cloudflare private bridge
 
-mana-runtimeのCloudflare Service Bindingが参照する`brainbase-tenant-runtime`はBrainbase所有の薄いprivate bridgeとして配備する。公開`workers.dev`／preview URLは持たせず、現行consumerが必要とする`POST /api/v1/runtime/provider-requests:forward`だけをallowlistする。bridgeはbodyを256 KiBに制限し、callerのCookie、forwarding header、Access headerを破棄し、Worker SecretのAccess Service Tokenで専用HTTPS Tunnel originへ転送する。
+mana-runtimeのCloudflare Service Bindingが参照する`brainbase-tenant-runtime`はBrainbase所有の薄いprivate bridgeとして配備する。公開`workers.dev`／preview URLは持たせず、現行consumerが必要とする`POST /api/v1/runtime/tenant-context:resolve`、`/credential-leases`、`/provider-requests:forward`、`/quota:decide`、`/usage-events`、`/operation-receipts:finalize`、`/operation-receipts:finalize-with-pricing`、canonical receipt IDを持つ`/operation-receipts/{receipt_id}/history:read`だけをallowlistする。bridgeはbodyを256 KiBに制限し、callerのCookie、forwarding header、Access headerを破棄し、Worker SecretのAccess Service Tokenで専用HTTPS Tunnel originへ転送する。
 
 Tunnel hostのcloudflaredはNode tenant runtimeのloopback portへ接続する。Node側のservice auth、TenantContext署名検証、authoritative revision、credential brokerを正本のまま使い、bridgeへtenant判断やcredential materializeを複製しない。origin、期待hostname、Access資格情報が欠けるか不一致なら、Nodeの別host／portや別deploymentへfallbackせず503で停止する。Nodeのnon-loopback listenは明示opt-inのまま維持する。
 

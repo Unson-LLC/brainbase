@@ -79,7 +79,34 @@ describe('Cloudflare tenant runtime private bridge', () => {
     });
 
     it.each([
-        ['unknown route', request('/api/v1/runtime/tenant-context:resolve')],
+        '/api/v1/runtime/tenant-context:resolve',
+        '/api/v1/runtime/credential-leases',
+        '/api/v1/runtime/quota:decide',
+        '/api/v1/runtime/usage-events',
+        '/api/v1/runtime/operation-receipts:finalize',
+        '/api/v1/runtime/operation-receipts:finalize-with-pricing',
+        '/api/v1/runtime/operation-receipts/receipt_01ARZ3NDEKTSV4RRFFQ69G5FB9/history:read'
+    ])('forwards the canonical runtime route %s without changing its path', async (path) => {
+        const fetchImpl = vi.fn(async (input) => {
+            const forwarded = new Request(input);
+            expect(new URL(forwarded.url).pathname).toBe(path);
+            expect(forwarded.method).toBe('POST');
+            expect(forwarded.headers.get('authorization')).toBe(`Bearer ${ENV.BRAINBASE_SERVICE_JWT}`);
+            expect(forwarded.headers.get('cf-access-client-id')).toBe(ENV.CF_ACCESS_CLIENT_ID);
+            expect(forwarded.headers.get('cf-access-client-secret')).toBe(ENV.CF_ACCESS_CLIENT_SECRET);
+            return Response.json({ ok: true }, { status: 200 });
+        });
+
+        const response = await handleTenantRuntimeBridgeRequest(request(path), ENV, { fetchImpl });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toEqual({ ok: true });
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+        ['unknown route', request('/api/v1/runtime/tenant-boundaries/admin-api:authorize')],
+        ['malformed receipt history route', request('/api/v1/runtime/operation-receipts/not-a-receipt/history:read')],
         ['wrong method', request('/api/v1/runtime/provider-requests:forward', { method: 'PUT' })],
         ['query string', request('/api/v1/runtime/provider-requests:forward?fallback=1')]
     ])('rejects %s without reaching the private origin', async (_label, inbound) => {

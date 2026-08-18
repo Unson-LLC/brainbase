@@ -185,10 +185,10 @@
   },
   "clauses": [
     {
-      "id": "C-001",
+      "id": "C-004",
       "type": "contract",
-      "statement": "The bridge accepts only POST /api/v1/runtime/provider-requests:forward without a query string and rejects every other method, path, or query before origin fetch.",
-      "rationale": "The ingress allowlist is the single public runtime boundary.",
+      "statement": "The bridge accepts only the explicit POST canonical runtime route allowlist (tenant-context:resolve, credential-leases, provider-requests:forward, quota:decide, usage-events, both operation-receipts finalize routes, and canonical receipt history readback) without a query string; every other method, path, query, or malformed receipt ID is rejected before origin fetch.",
+      "rationale": "The ingress allowlist is the single private runtime boundary while exposing the complete Mana transport contract without becoming a generic proxy.",
       "origin": {
         "story_refs": [
           {
@@ -205,13 +205,13 @@
         "code_refs": [
           {
             "file": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
-            "anchor": "PROVIDER_FORWARD_PATH"
+            "anchor": "CANONICAL_RUNTIME_POST_PATHS"
           }
         ],
         "test_refs": [
           {
             "file": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
-            "case": "rejects unknown route"
+            "case": "forwards the canonical runtime route"
           }
         ]
       },
@@ -220,18 +220,26 @@
         "code_pattern": [
           {
             "file_glob": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
-            "must_contain": "url.search === ''"
+            "must_contain": "CANONICAL_RUNTIME_POST_PATHS"
+          },
+          {
+            "file_glob": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "must_contain": "url.search !== ''"
           }
         ],
         "test_pattern": [
           {
             "file_glob": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
-            "must_cover": "rejects"
+            "must_cover": "forwards the canonical runtime route"
+          },
+          {
+            "file_glob": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "must_cover": "malformed receipt history route"
           }
         ]
       },
-      "first_seen_at": "2026-08-18T17:24:09.371Z",
-      "last_revised_at": "2026-08-18T17:24:09.371Z"
+      "first_seen_at": "2026-08-18T17:34:01.355Z",
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
     },
     {
       "id": "INV-001",
@@ -280,7 +288,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:24:09.371Z",
-      "last_revised_at": "2026-08-18T17:24:09.371Z"
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
     },
     {
       "id": "INV-002",
@@ -329,7 +337,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:24:09.371Z",
-      "last_revised_at": "2026-08-18T17:24:09.371Z"
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
     },
     {
       "id": "INV-003",
@@ -378,7 +386,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:24:09.371Z",
-      "last_revised_at": "2026-08-18T17:24:09.371Z"
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
     },
     {
       "id": "INV-004",
@@ -427,7 +435,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:24:09.371Z",
-      "last_revised_at": "2026-08-18T17:24:09.371Z"
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
     },
     {
       "id": "INV-005",
@@ -476,7 +484,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:24:09.371Z",
-      "last_revised_at": "2026-08-18T17:24:09.371Z"
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
     },
     {
       "id": "C-002",
@@ -525,7 +533,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:24:09.371Z",
-      "last_revised_at": "2026-08-18T17:24:09.371Z"
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
     },
     {
       "id": "INV-006",
@@ -574,7 +582,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:24:09.371Z",
-      "last_revised_at": "2026-08-18T17:24:09.371Z"
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
     },
     {
       "id": "INV-007",
@@ -623,7 +631,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:24:09.371Z",
-      "last_revised_at": "2026-08-18T17:24:09.371Z"
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
     },
     {
       "id": "C-003",
@@ -672,7 +680,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:24:09.371Z",
-      "last_revised_at": "2026-08-18T17:24:09.371Z"
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
     }
   ],
   "diagrams": [
@@ -694,6 +702,6 @@
       "blocker": false
     }
   ],
-  "generated_at": "2026-08-18T17:24:09.370Z",
-  "previous_spec_id": null
+  "generated_at": "2026-08-18T17:34:01.354Z",
+  "previous_spec_id": "2026-08-18T17:24:09.370Z"
 }
