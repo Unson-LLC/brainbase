@@ -82,13 +82,28 @@ export class PersonalKnowledgePromotionService {
             if (!personalEvent) throw new Error('personal_knowledge_event_not_found');
             const parentEpisodeId = personalEvent.parent_episode_id
                 || `episode_personal_promotion_${hash(request.personal_event_id).slice(0, 24)}`;
+            const requestedAuthority = input.decision_authority || {};
+            const decisionAuthority = request.subject.type === 'decision'
+                ? {
+                    ...requestedAuthority,
+                    authorized: requestedAuthority.authorized === true,
+                    decider_id: requestedAuthority.decider_id
+                        || requestedAuthority.actor_person_id
+                        || access.actorPersonId
+                        || access.personId,
+                    domain: requestedAuthority.domain || 'general'
+                }
+                : requestedAuthority;
             const event = {
                 schema_version: 'knowledge_event.v1',
                 event_id: organizationEventId,
                 occurred_at: this.now().toISOString(), captured_at: this.now().toISOString(),
                 source: { type: 'personal_knowledge_promotion', request_id: requestId },
                 subject: request.subject,
-                decision_authority: input.decision_authority || { authorized: false, actor_person_id: access.personId },
+                decision: request.subject.type === 'decision'
+                    ? { statement: request.sanitized_preview }
+                    : undefined,
+                decision_authority: decisionAuthority,
                 applicability_scope: { scope: 'organization', organization_id: access.organizationId, project_code: request.project_code },
                 permission_snapshot: { owner_approved: true, approved_by: access.personId },
                 source_pointer: { uri: `brainbase://personal-knowledge/promotions/${requestId}` },
