@@ -70,6 +70,24 @@ function graphAccess(actor, projectCode) {
     };
 }
 
+function canonicalTaskContext(actor, projectCode) {
+    const serviceId = actor?.sub || 'meeting-minutes-context-receipt';
+    return {
+        principal: { type: 'service', id: 'meeting-minutes-context-receipt' },
+        authSource: 'service-internal',
+        auditPrincipal: { type: 'service', id: serviceId },
+        auditAuthSource: actor?.authType || 'meeting-minutes-context-receipt',
+        access: {
+            role: actor?.role || 'member',
+            projectCodes: Array.from(new Set([...projectCodes(actor), projectCode])),
+            clearance: Array.isArray(actor?.clearance) && actor.clearance.length
+                ? actor.clearance
+                : ['internal'],
+            personId: actor?.person_id || actor?.personId || actor?.sub || null
+        }
+    };
+}
+
 function stable(value) {
     if (Array.isArray(value)) return value.map(stable);
     if (!value || typeof value !== 'object') return value;
@@ -212,7 +230,7 @@ export class MeetingMinutesContextReceiptService {
                 project_code: identity.project_code,
                 status: ['pending', 'in_progress', 'waiting'],
                 limit: MAX_TASKS
-            }, actor);
+            }, canonicalTaskContext(actor, identity.project_code));
         } catch (error) {
             errors.push({ source: 'tasks', code: 'canonical_tasks_unavailable', message: error?.message || String(error) });
         }

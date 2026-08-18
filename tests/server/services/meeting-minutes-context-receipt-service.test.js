@@ -72,6 +72,19 @@ describe('MeetingMinutesContextReceiptService', () => {
         ]);
         expect(receipt.checksum).toMatch(/^[a-f0-9]{64}$/);
         expect(Buffer.byteLength(JSON.stringify(receipt), 'utf8')).toBeLessThanOrEqual(128 * 1024);
+        expect(canonicalTaskService.listTasks).toHaveBeenCalledWith(
+            expect.objectContaining({ project_code: 'mana' }),
+            expect.objectContaining({
+                principal: { type: 'service', id: 'meeting-minutes-context-receipt' },
+                authSource: 'service-internal',
+                auditPrincipal: { type: 'service', id: 'meeting-minutes-context-receipt' },
+                auditAuthSource: 'service_token',
+                access: expect.objectContaining({
+                    projectCodes: ['mana'],
+                    clearance: ['internal']
+                })
+            })
+        );
         expect(await service.get(receipt.receipt_id, request, actor())).toEqual(receipt);
         expect(JSON.parse(await readFile(path.join(dir, 'receipts.json'), 'utf8')).receipts).toHaveLength(1);
     });
