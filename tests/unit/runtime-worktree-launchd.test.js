@@ -32,6 +32,8 @@ describe('managed launchd runtime contract', () => {
   });
 
   it('runs UI and MCP from the exact same runtime checkout', () => {
+    const start = read('scripts/launchd/brainbase-ui-start.sh');
+    expect(start).toContain('npm --prefix "$RUNTIME_ROOT/mcp/brainbase" ci --ignore-scripts');
     expect(read('scripts/reconcile-brainbase-mcp-runtime.sh')).toContain('MCP_RUNTIME="${BRAINBASE_MCP_RUNTIME_ROOT:-$UI_RUNTIME}"');
     expect(read('config/com.brainbase.mcp-brainbase.plist')).toContain('/Users/ksato/workspace/repos/.runtime/brainbase-31013');
     const install = read('scripts/install-brainbase-runtime-launchd.sh');
