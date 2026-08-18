@@ -15,6 +15,10 @@ import {
 
 const HASH_A = `sha256:${'a'.repeat(64)}`;
 const HASH_B = `sha256:${'b'.repeat(64)}`;
+const FIRST_VALUE_PRESENTATION = {
+    presentation_contract_version: 'first_value_clarity.v1',
+    presented_sections: ['覚えていたこと', 'つながったこと', '次にできること']
+};
 
 function createApp(projectCodes = ['brainbase']) {
     const calls = [];
@@ -124,7 +128,8 @@ describe('onboarding routes', () => {
         await request(app).post(`/api/onboarding/runs/${started.body.id}/first-value`).send({
             answer_hash: HASH_B,
             used_graph_entity_ids: [promoted.body.graph_entity_id],
-            missing_context: []
+            missing_context: [],
+            ...FIRST_VALUE_PRESENTATION
         }).expect(200);
         nowMs += 9 * 60 * 1000;
         const completed = await request(app)

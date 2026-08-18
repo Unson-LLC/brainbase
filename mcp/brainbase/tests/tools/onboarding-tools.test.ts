@@ -79,7 +79,7 @@ describe('Brainbase onboarding MCP tools', () => {
         candidates: [{ fact: 'fact', observation_class: 'observed', subject_type: 'org', evidence_id: 'f1#p1' }],
       }, 'POST', '/api/onboarding/runs/run%2F1/sources', ['source', 'candidates']],
       ['brainbase_onboarding_review', { project_code: 'brainbase', run_id: 'run/1', candidate_id: 'cand/1', decision: 'approve', reason: 'ok' }, 'POST', '/api/onboarding/runs/run%2F1/candidates/cand%2F1/review', ['decision', 'reason']],
-      ['brainbase_onboarding_first_value', { project_code: 'brainbase', run_id: 'run/1', action: 'record', answer_hash: `sha256:${'b'.repeat(64)}`, used_graph_entity_ids: ['ent_1'], missing_context: [] }, 'POST', '/api/onboarding/runs/run%2F1/first-value', ['answer_hash', 'used_graph_entity_ids', 'missing_context']],
+      ['brainbase_onboarding_first_value', { project_code: 'brainbase', run_id: 'run/1', action: 'record', answer_hash: `sha256:${'b'.repeat(64)}`, used_graph_entity_ids: ['ent_1'], missing_context: [], presentation_contract_version: 'first_value_clarity.v1', presented_sections: ['覚えていたこと', 'つながったこと', '次にできること'] }, 'POST', '/api/onboarding/runs/run%2F1/first-value', ['answer_hash', 'used_graph_entity_ids', 'missing_context', 'presentation_contract_version', 'presented_sections']],
       ['brainbase_onboarding_first_value', { project_code: 'brainbase', run_id: 'run/1', action: 'review', verdict: 'useful' }, 'POST', '/api/onboarding/runs/run%2F1/first-value/review', ['verdict']],
     ] as const;
 
@@ -141,6 +141,9 @@ describe('Brainbase onboarding MCP tools', () => {
       type: 'string', minLength: 1, maxLength: 500,
     });
     assert.equal(Array.isArray((firstValue?.inputSchema as any).allOf), true);
+    assert.deepEqual((firstValue?.inputSchema as any).allOf[0].then.required, [
+      'answer_hash', 'used_graph_entity_ids', 'presentation_contract_version', 'presented_sections',
+    ]);
   });
 
   it('first-value action別required違反はfetch前にerrorにする', async () => {

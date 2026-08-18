@@ -143,7 +143,7 @@ export const onboardingTools: Tool[] = [
   },
   {
     name: 'brainbase_onboarding_first_value',
-    description: 'Record a Graph-grounded answer receipt or the human useful/not_useful review without storing the answer body.',
+    description: 'Record a concise Graph-grounded answer receipt using the active three-section presentation contract, or record the human useful/not_useful review. Never store the answer body.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -153,11 +153,22 @@ export const onboardingTools: Tool[] = [
         answer_hash: { type: 'string' },
         used_graph_entity_ids: { type: 'array', items: { type: 'string' } },
         missing_context: { type: 'array', items: { type: 'string' } },
+        presentation_contract_version: { type: 'string', const: 'first_value_clarity.v1' },
+        presented_sections: {
+          type: 'array',
+          prefixItems: [
+            { const: '覚えていたこと' },
+            { const: 'つながったこと' },
+            { const: '次にできること' },
+          ],
+          minItems: 3,
+          maxItems: 3,
+        },
         verdict: { type: 'string', enum: ['useful', 'not_useful'] },
       },
       required: ['project_code', 'run_id', 'action'],
       allOf: [
-        { if: { properties: { action: { const: 'record' } } }, then: { required: ['answer_hash', 'used_graph_entity_ids'] } },
+        { if: { properties: { action: { const: 'record' } } }, then: { required: ['answer_hash', 'used_graph_entity_ids', 'presentation_contract_version', 'presented_sections'] } },
         { if: { properties: { action: { const: 'review' } } }, then: { required: ['verdict'] } },
       ],
     },
@@ -180,7 +191,13 @@ function requestFor(name: string, args: Record<string, unknown>): { path: string
     method: 'POST',
     body: reviewing
       ? { verdict: args.verdict }
-      : { answer_hash: args.answer_hash, used_graph_entity_ids: args.used_graph_entity_ids, missing_context: args.missing_context },
+      : {
+        answer_hash: args.answer_hash,
+        used_graph_entity_ids: args.used_graph_entity_ids,
+        missing_context: args.missing_context,
+        presentation_contract_version: args.presentation_contract_version,
+        presented_sections: args.presented_sections,
+      },
   };
 }
 
@@ -199,8 +216,15 @@ export async function handleOnboardingToolCall(name: string, args: Record<string
     }
   }
   if (name === 'brainbase_onboarding_first_value') {
-    if (args.action === 'record' && (typeof args.answer_hash !== 'string' || !Array.isArray(args.used_graph_entity_ids))) {
-      return errorResult('error', 'brainbase_onboarding_input_invalid', 'record requires answer_hash and used_graph_entity_ids', scope);
+    if (args.action === 'record' && (
+      typeof args.answer_hash !== 'string'
+      || !Array.isArray(args.used_graph_entity_ids)
+      || args.presentation_contract_version !== 'first_value_clarity.v1'
+      || !Array.isArray(args.presented_sections)
+      || args.presented_sections.length !== 3
+      || args.presented_sections.some((section, index) => section !== ['覚えていたこと', 'つながったこと', '次にできること'][index])
+    )) {
+      return errorResult('error', 'brainbase_onboarding_input_invalid', 'record requires the active first-value presentation contract', scope);
     }
     if (args.action === 'review' && !['useful', 'not_useful'].includes(String(args.verdict || ''))) {
       return errorResult('error', 'brainbase_onboarding_input_invalid', 'review requires a useful or not_useful verdict', scope);
