@@ -14,7 +14,7 @@ mana-runtime Worker
   -> Brainbase canonical service auth / tenant boundary / credential broker
 ```
 
-bridgeが受理するのは`POST /api/v1/runtime/provider-requests:forward`だけである。query、別method、他のtenant runtime routeは404で拒否する。request bodyは256 KiBを上限とし、`Content-Length`と実stream byte数の両方を検査する。bridgeは`Authorization`、`Brainbase-Protocol-Version`、`Brainbase-Deployment-Id`、`Content-Type`、`Accept`だけをupstreamへ渡す。callerが送ったCookie、forwarding header、Cloudflare Access header、任意headerは渡さない。
+bridgeが受理するのは`POST /api/v1/runtime/provider-requests:forward`だけである。query、別method、他のtenant runtime routeは404で拒否する。request bodyは256 KiBを上限とし、`Content-Length`と実stream byte数の両方を検査する。bridgeは`Brainbase-Protocol-Version`、`Brainbase-Deployment-Id`、`Content-Type`、`Accept`だけをcallerからupstreamへ渡す。callerの`Authorization`は破棄してWorker SecretのBrainbase service JWTで上書きし、Cloudflare Access headerはWorker Secretから注入する。callerが送ったCookie、forwarding header、任意headerは渡さない。
 
 Node runtimeのloopback既定を変更しない。`BRAINBASE_TENANT_RUNTIME_HOST=127.0.0.1`を維持し、`BRAINBASE_TENANT_RUNTIME_ALLOW_NON_LOOPBACK`は未設定または`0`にする。cloudflaredが同じhost上のloopback originへ接続するため、wildcard listenは不要である。
 
@@ -44,14 +44,15 @@ Node runtimeには既存のcanonical production設定を注入する。値はdep
 - `BRAINBASE_TENANT_RUNTIME_DEPLOYMENT_PROFILE`
 - Tenant Context署名鍵、正本PostgreSQL、credential materializer／provider forwarder設定
 
-`BRAINBASE_TENANT_RUNTIME_SERVICE_TOKEN`とJWT署名secretはbridgeへ複製しない。mana-runtimeがService Binding requestの`Authorization`へ設定し、bridgeは値を変更せずcanonical Node verifierへ渡す。
+mana-runtimeがService Binding requestへ設定した`Authorization`はbridgeで信頼せず破棄する。bridgeは`BRAINBASE_SERVICE_JWT`をWorker Secretから読み、`Authorization: Bearer <value>`としてcanonical Node verifierへ渡す。JWT署名secretはbridgeへ複製せず、JWTの検証とtenant boundaryはNode側canonical実装が所有する。
 
 ## Worker secretと配備
 
-次の4値はWrangler Secretとして設定する。`wrangler.jsonc`の`vars`、Git、CI出力へ値を書かない。
+次の5値はWrangler Secretとして設定する。`wrangler.jsonc`の`vars`、Git、CI出力へ値を書かない。
 
 - `BRAINBASE_TENANT_RUNTIME_ORIGIN`: Accessで保護した専用HTTPS origin。path、query、fragment、credential、非標準portを含めない。
 - `BRAINBASE_TENANT_RUNTIME_ORIGIN_HOSTNAME`: 上記originのhostnameと完全一致する値。
+- `BRAINBASE_SERVICE_JWT`: canonical Node service authが検証する署名済みBrainbase service JWT/token。Workerは値をログ・応答・監査票へ出さない。
 - `CF_ACCESS_CLIENT_ID`: bridge専用Access Service TokenのClient ID。
 - `CF_ACCESS_CLIENT_SECRET`: bridge専用Access Service TokenのClient Secret。
 
@@ -60,6 +61,7 @@ Node runtimeには既存のcanonical production設定を注入する。値はdep
 ```bash
 npx wrangler secret put BRAINBASE_TENANT_RUNTIME_ORIGIN --config packages/cloudflare-tenant-runtime-bridge/wrangler.jsonc
 npx wrangler secret put BRAINBASE_TENANT_RUNTIME_ORIGIN_HOSTNAME --config packages/cloudflare-tenant-runtime-bridge/wrangler.jsonc
+npx wrangler secret put BRAINBASE_SERVICE_JWT --config packages/cloudflare-tenant-runtime-bridge/wrangler.jsonc
 npx wrangler secret put CF_ACCESS_CLIENT_ID --config packages/cloudflare-tenant-runtime-bridge/wrangler.jsonc
 npx wrangler secret put CF_ACCESS_CLIENT_SECRET --config packages/cloudflare-tenant-runtime-bridge/wrangler.jsonc
 npm run build --prefix packages/cloudflare-tenant-runtime-bridge
@@ -82,7 +84,7 @@ mana-runtime側のWrangler設定はService Bindingを次の名前で参照する
 配備成功やHTTP 200だけで完了としない。同一相関IDで次を照合する。
 
 1. `wrangler deployments list`でbridgeのWorker versionとGit SHAを記録する。
-2. `wrangler secret list`では4つのsecret名だけを確認し、値を出力しない。
+2. `wrangler secret list`では5つのsecret名だけを確認し、値を出力しない。
 3. mana-runtimeの配備readbackで`BRAINBASE_TENANT_RUNTIME_SERVICE -> brainbase-tenant-runtime`を確認する。
 4. 新規Slack eventからprovider requestを1件実行し、mana event ID、tenant、connection revision、operation IDを固定する。
 5. Access audit logでbridge専用Service Tokenの許可が1件であることを確認する。

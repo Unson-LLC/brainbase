@@ -362,7 +362,7 @@ SNS Ledger接続先は`SNS_POSTING_LEDGER_DATABASE_URL`を優先し、次に`INF
 
 ### 外部runtime API
 
-Cloudflare上のmana-runtimeは、公開URLではなく`BRAINBASE_TENANT_RUNTIME_SERVICE` Service BindingからBrainbase所有の`brainbase-tenant-runtime` private bridgeを呼ぶ。bridgeは`workers_dev=false`かつpreview URLなしで配備し、`POST /api/v1/runtime/provider-requests:forward`だけをAccess保護済みHTTPS Tunnel originへ中継する。別method、query、別route、256 KiBを超えるbody、Tunnel origin／hostname不一致、Access Service Token欠落はorigin到達前に拒否する。callerのAccess header、Cookie、forwarding header、任意headerは中継せず、Access資格情報はWorker Secretだけから注入する。
+Cloudflare上のmana-runtimeは、公開URLではなく`BRAINBASE_TENANT_RUNTIME_SERVICE` Service BindingからBrainbase所有の`brainbase-tenant-runtime` private bridgeを呼ぶ。bridgeは`workers_dev=false`かつpreview URLなしで配備し、`POST /api/v1/runtime/provider-requests:forward`だけをAccess保護済みHTTPS Tunnel originへ中継する。別method、query、別route、256 KiBを超えるbody、Tunnel origin／hostname不一致、Access Service Token欠落、Brainbase service JWT欠落はorigin到達前に拒否する。callerの`Authorization`、Access header、Cookie、forwarding header、任意headerは中継せず、Brainbase service JWTとAccess資格情報はWorker Secretだけから注入する。WorkerはJWT署名鍵を保持せず、canonical Node verifierがservice authとtenant boundaryを検証する。
 
 Tunnel hostのcloudflaredはNode runtimeの`127.0.0.1`専用portへ接続する。Node runtimeのnon-loopback listenは引き続き明示opt-inであり、bridge導入を理由にwildcard bindを有効化しない。bridgeはservice token、tenant context、revisionを判断せず、canonical Node routeのservice authとtenant boundaryを迂回しない。配備とreadbackは[Cloudflare Tenant Runtime Private Bridge runbook](../runbooks/cloudflare-tenant-runtime-bridge.md)に従う。
 
