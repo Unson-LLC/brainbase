@@ -703,15 +703,15 @@
           },
           {
             "file": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js",
-            "case": "AC-005 resolves a signed canonical tenant context before importing the review pack"
+            "case": "AC-005 resolves a signed tenant context before sending canonical tenant headers to Ledger"
           },
           {
             "file": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js",
-            "case": "AC-005 sends service auth to context resolution and the full signed envelope to Ledger, then fails loudly when Ledger skips every draft"
+            "case": "AC-005 stops before Ledger when signed tenant context resolution fails"
           },
           {
             "file": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js",
-            "case": "AC-005 fails before context resolution when the service token or required authoritative selector is absent without disclosing a token"
+            "case": "AC-005 fails before HTTP import when the service token is absent without disclosing a token"
           },
           {
             "file": "tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js",
@@ -747,11 +747,11 @@
           },
           {
             "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
-            "case": "accepts the production review-pack client only after service-authenticated resolution of a signed canonical tenant envelope"
+            "case": "accepts the production review-pack client only through service auth and canonical tenant headers"
           },
           {
             "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
-            "case": "rejects the former tenant-id/revision-only header with SCHEMA_INVALID before authorization or provider work"
+            "case": "rejects a tenant-id-only header with the production signature verifier"
           },
           {
             "file": "tests/server/routes/sns-growth.test.js",
