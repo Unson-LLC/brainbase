@@ -68,14 +68,15 @@ canonical Graph projectを一意解決した後、PostgreSQLの `tenant_projects
 
 workspaceの論理キーは `(tenant_id, provider, workspace_id, app_id)`。pending／activeにpartial unique indexを付ける。同じ論理接続の再インストールはconnection IDを再生成せず、`connection_revision + 1` とsnapshotを保存する。
 
-`workspace_connection_revisions` には次の外部キーを持たせる。
+`workspace_connection_revisions`を不変snapshotの正本とし、`workspace_connections`をcurrent pointerとして扱う。credential・usage・receipt等のrevision consumerには次の外部キーを持たせ、可変current rowではなく保存時snapshotへ参照整合させる。
 
 ```sql
+-- credential_broker_refs等のrevision consumer
 FOREIGN KEY (tenant_id, connection_id, connection_revision)
-REFERENCES workspace_connections (tenant_id, connection_id, connection_revision)
+REFERENCES workspace_connection_revisions (tenant_id, connection_id, connection_revision)
 ```
 
-既存孤立revisionをreadbackし、一件でもあればconstraint適用を中止する。`credential_broker_refs` にはopaque `credential_ref`、tenant、connection、revision、modeだけを保存し、upsert時に既存tenantが一致しない場合は `CREDENTIAL_TENANT_MISMATCH` とする。
+履歴snapshotから可変current rowを親参照する旧方向のFKは持たない。新revisionではsnapshotを先に追加し、同じfresh transactionでcurrent pointerを進める。既存の孤立current pointerまたは孤立snapshotをreadbackし、一件でもあればconstraint適用を中止する。`credential_broker_refs`、usage、receipt等のrevision参照はhistoryを親とする。`credential_broker_refs` にはopaque `credential_ref`、tenant、connection、revision、modeだけを保存し、upsert時に既存tenantが一致しない場合は `CREDENTIAL_TENANT_MISMATCH` とする。
 
 ### 2.3 provisioning idempotency ledger
 
@@ -88,6 +89,9 @@ CREATE TABLE tenant_provisioning_operations (
   idempotency_key TEXT NOT NULL,
   desired_state_sha256 TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('claimed', 'applied', 'failed', 'conflict')),
+  claim_token_sha256 TEXT,
+  claimed_at TIMESTAMPTZ,
+  attempt INTEGER NOT NULL DEFAULT 0,
   actor_principal_id TEXT NOT NULL,
   receipt_payload JSONB,
   created_at TIMESTAMPTZ NOT NULL,
@@ -97,7 +101,9 @@ CREATE TABLE tenant_provisioning_operations (
 );
 ```
 
-`BEGIN`後にtenant keyのtransaction advisory lockを取得し、既存ledgerを `FOR UPDATE` で読む。同じkeyかつ同じfingerprintでterminal receiptがあればrollbackして同じredacted receiptを返す。fingerprintが異なる場合、または別runがclaimed中の場合は副作用なしで拒否する。
+短いtransactionでtenant keyのtransaction advisory lockを取得し、既存ledgerを `FOR UPDATE` で読む。同じkeyかつ同じfingerprintでterminal receiptがあればrollbackして同じredacted receiptを返す。fingerprintが異なる場合、または別runが有効なclaimを所有中の場合は副作用なしで拒否する。新しいattemptではclaim tokenのhashだけを保存してcommitし、advisory lockを解放する。外部resolverはこの後にだけ呼ぶ。
+
+`failed`は同じkey・同じfingerprintに限り新しいclaim tokenとattemptで再claimできる。外部検証後の適用はfresh transactionで同じclaim token hashが現在の所有者であることを確認してから行う。旧attemptの遅延完了、失敗更新、readback確定はfencingで拒否する。
 
 ### 2.4 service actor、capability、標準JWKS
 
@@ -116,7 +122,7 @@ node scripts/provision-tenant.js \
   --check|--dry-run|--apply --approve-apply
 ```
 
-- migration `--check` はcatalogとledgerを読むだけ、`--dry-run` はDDL・ledger・readbackを同一transactionでrollback、`--apply` だけがcommitする。
+- migration `--check` はcatalogとledgerを読むだけ、`--dry-run` はDDL・ledger・readbackを同一transactionでrollback、`--apply --approve-apply` だけがcommitする。migration actorは `BRAINBASE_PROVISIONING_ACTOR` から取得してDB ledgerの `brainbase_schema_migrations.applied_by` に保存し、本番適用の承認とreadbackをrollout receiptへ固定する。
 - provision `--check` はmanifestの正規化とredacted summaryだけ、`--dry-run` はprovisioning transactionをrollback、`--apply` は `--approve-apply` と `BRAINBASE_PROVISIONING_ACTOR` を必須とする。
 - DB URLは `INFO_SSOT_DATABASE_URL` または `INFO_SSOT_DB_URL` からだけ読み、URLやdriver本文をoutputへ出さない。
 - outputはoperation ID、tenant／revision、project、connection／revision、actor、capability、fingerprint、readbackのbooleanだけを返す。credential body、actor email、private keyは出さない。
@@ -125,22 +131,32 @@ node scripts/provision-tenant.js \
 
 1. manifestをDB接続前に正規化し、canonical fingerprintを計算する。
 2. schema prerequisiteとmigration hashをcheckする。
-3. `BEGIN`、timeout、tenant advisory lock、idempotency ledger claimを行う。
-4. Graphのcanonical projectをread-onlyで一意解決し、`tenant_projects`へ保存する。未登録・複数候補・別projectは停止する。
-5. credential resolverへopaque referenceの所有関係だけを問い合わせる。
-6. tenant current／revision、workspace connection／revision、credential broker ref、service actor／capabilityを同じtransactionへ保存する。
-7. 全てのreadbackがtenant key、revision、project、connection、actor境界と一致した場合だけtenantをactiveへ遷移し、ledgerをappliedへ更新する。
-8. `--dry-run` はここでrollback、`--apply` はcommit後にredacted receiptを返す。
+3. 短いtransactionでtenant advisory lockを取り、idempotency ledgerのclaim token hashとattemptを保存してcommitし、lockを解放する。
+4. DB transactionとlockを保持しない状態で、`createPostgresGraphProjectResolver` が専用read clientを使ってcanonical projectsをbounded timeout付き・read-onlyで一意解決する。未登録・複数候補・別projectは停止する。
+5. 同じくtransaction外でcredential resolverへopaque referenceの所有関係だけをbounded timeout付きで問い合わせる。
+6. fresh transactionとtenant advisory lockを取得し、同じclaim token hashが現在の所有者であることをfencing確認する。
+7. tenant current／revision、workspace connectionの不変snapshot／current pointer、credential broker ref、service actor／capabilityを保存する。connection snapshotをcurrent pointerより先に追加する。
+8. 全てのreadbackがtenant key、revision、project、connection、actor境界と一致した場合だけtenantをactiveへ遷移し、同じclaimでledgerをappliedへ更新する。
+9. `--dry-run` は適用transactionをrollbackし、`--apply` はcommit後にredacted receiptを返す。
 
-DB、Graph resolver、credential boundaryのいずれかが利用不能または曖昧な場合、Graph writeや別tenant fallbackを行わずrollbackする。rollback後に成功と確定できない状態は `PROVISIONING_FAILED`／`READBACK_FAILED` として残し、同じoperationを黙って新規作成しない。
+DB、Graph resolver、credential boundaryのいずれかが利用不能または曖昧な場合、Graph writeや別tenant fallbackを行わない。外部検証失敗では業務行の適用を開始せず、短いtransactionで現在claimだけをfailedへ遷移する。適用失敗ではfresh transactionをrollbackしてから同じfenced failure更新を行う。同じkey・fingerprintの再試行は外部呼出し前に新claimを永続化し、旧claimによる遅延完了を拒否する。成功と確定できない状態は `PROVISIONING_FAILED`／`READBACK_FAILED` として残し、同じoperationを黙って新規作成しない。
+
+### 4.1 Slack OAuth installation exchange
+
+Slack OAuth callbackは外部token exchangeの前に、単回intentのtenant／workspace／app binding、request digest、exchange claim hash、attemptを短いtransactionで永続化する。認証済みtenant adminまたは事前登録connectionに結びつかないintent、期限切れ、消費済み、別request digest、既存のworkspace／app衝突はfail closedにする。
+
+claim transactionをcommitしてlockを解放した後だけSlack OAuth token exchangeを呼ぶ。完了済みledgerのreplayは外部exchangeを行わず保存結果を返し、処理中の同時callbackは外部exchange前に抑止する。exchange後はfresh transactionで同じclaim、request digest、intent、tenant、workspace、appをfencing確認し、不変connection snapshotの追加、current pointer更新、opaque credential参照、intent消費、ledger完了を原子的に確定する。
+
+exchange失敗は現在claimに対応するfailed状態として記録する。同じbindingとrequest digestだけを新claimで再試行でき、旧claimの遅延完了は `INSTALLATION_CLAIM_STALE` として拒否する。
 
 ## 5. TDD traceability と残りの実装
 
 実装済みのテストは次を検証する。
 
 - manifestのunknown key、秘密値、opaque credential、fingerprint、capability allowlist
-- tenant key／revision history／FK／backfill blocker、workspace logical unique、connection revision FK、ledger、service registry
-- idempotency success replay、fingerprint conflict、Graph ambiguous／person writeなし、tenant project conflict境界、credential tenant mismatch、redacted readback、標準JWKS
+- tenant key／revision history／FK／backfill blocker、workspace logical unique、不変connection snapshotとcurrent pointer、history revision FK、ledger、service registry
+- idempotency success replay、fingerprint conflict、claim transaction解放後のbounded resolver、失敗再claim、旧attempt fencing、Graph ambiguous／person writeなし、tenant project conflict境界、credential tenant mismatch、redacted readback、標準JWKS
+- Slack OAuthの外部exchange前claim、同時callback抑止、完了replay、失敗再claim、旧callback fencing、workspace／app衝突、snapshot追加後のcurrent pointer更新
 - migration check／dry-run rollback／apply approval／actor／schema prerequisite／index readback
 
 次の実装レーンで、既存 `tenant_contract_revisions` のmanifest payload（契約ID、plan、allowance、effective window）を同じtransactionへ追加し、contract readbackをreceiptへ含める。契約を推測して書き込むことはしない。Graph側で追加のproject／person／relation作成が必要な顧客運用は、このStoryのprovisionerでは行わず、別の承認済みGraph migrationとして切り出す。

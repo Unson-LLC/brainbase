@@ -26,6 +26,11 @@ function createControlPlane(overrides = {}) {
     const repository = {
         createSlackInstallationIntent: vi.fn(async (input) => input),
         claimSlackInstallationExchange: vi.fn(async () => ({ status: 'claimed', attempt: 1 })),
+        reserveSlackInstallationConnection: vi.fn(async ({ proposed_connection_id: proposedConnectionId }) => ({
+            status: 'reserved',
+            connection_id: proposedConnectionId,
+            connection_revision: '1'
+        })),
         failSlackInstallationExchange: vi.fn(async () => true),
         registerSlackInstallation: vi.fn(async ({ intent, exchange, credential }) => ({
             connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAZ',
@@ -108,9 +113,12 @@ describe('Slack installation control plane', () => {
         expect(credentialStore.store).toHaveBeenCalledWith(expect.objectContaining({
             tenant_id: IDS.tenant,
             idempotency_key: IDS.intent,
+            connection_revision: '1',
             credential_material: 'raw-token-never-persisted'
         }));
         const registerInput = repository.registerSlackInstallation.mock.calls[0][0];
+        expect(registerInput.connection_id).toBe(credentialStore.store.mock.calls[0][0].connection_id);
+        expect(registerInput.connection_revision).toBe('1');
         expect(registerInput.credential).toEqual({
             credential_ref: 'opaque-ref:tenant-a:connection-1',
             credential_mode: 'customer_oauth',

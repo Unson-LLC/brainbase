@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { ContractError } from './errors.js';
 import { canonicalJson } from './canonical-json.js';
+import { isCanonicalId } from './ids.js';
 
 const OWNED_RESOURCE_TABLES = Object.freeze({
     tenant: { table: 'brainbase_tenants', id: 'tenant_id', revision: 'tenant_revision' },
@@ -338,11 +339,166 @@ export class MultitenantPostgresRepository {
         });
     }
 
+    async reserveSlackInstallationConnection({
+        intent,
+        workspace_id: workspaceId,
+        app_id: appId,
+        proposed_connection_id: proposedConnectionId,
+        claim_token: claimToken,
+        request_digest: requestDigest,
+        now = this.now().toISOString()
+    }) {
+        if (!intent || typeof workspaceId !== 'string' || typeof appId !== 'string'
+            || !isCanonicalId(proposedConnectionId, 'wsc')
+            || typeof claimToken !== 'string' || typeof requestDigest !== 'string') {
+            throw new ContractError('INSTALLATION_STATE_INVALID', { status: 400 });
+        }
+        return this.withTenant(intent.tenant_id, async (client) => {
+            const intentResult = await client.query(
+                `SELECT installation_intent_id, tenant_id, app_id,
+                        expected_workspace_id, expected_enterprise_id,
+                        initiated_by_principal_id AS initiated_by_person_id,
+                        expected_connection_revision, expires_at, consumed_at
+                   FROM slack_installation_intents
+                  WHERE tenant_id = $1 AND installation_intent_id = $2
+                  FOR UPDATE`,
+                [intent.tenant_id, intent.installation_intent_id]
+            );
+            const storedIntent = intentResult.rows[0];
+            if (!storedIntent) throw new ContractError('INSTALLATION_STATE_INVALID', { status: 400 });
+            if (storedIntent.app_id !== intent.app_id
+                || storedIntent.app_id !== appId
+                || storedIntent.tenant_id !== intent.tenant_id
+                || storedIntent.initiated_by_person_id !== intent.initiated_by_person_id
+                || (storedIntent.expected_workspace_id ?? null) !== (intent.expected_workspace_id ?? null)
+                || (storedIntent.expected_enterprise_id ?? null) !== (intent.expected_enterprise_id ?? null)
+                || String(storedIntent.expected_connection_revision ?? '') !== String(intent.expected_connection_revision ?? '')
+                || (storedIntent.expected_workspace_id && storedIntent.expected_workspace_id !== workspaceId)) {
+                throw new ContractError('INSTALLATION_BINDING_MISMATCH', { status: 409 });
+            }
+            if (storedIntent.consumed_at || Date.parse(storedIntent.expires_at) <= Date.parse(now)) {
+                throw new ContractError(storedIntent.consumed_at ? 'INSTALLATION_STATE_REPLAYED' : 'INSTALLATION_STATE_EXPIRED', {
+                    status: storedIntent.consumed_at ? 409 : 410
+                });
+            }
+
+            const ledgerResult = await client.query(
+                `SELECT status, request_digest, claim_token_hash,
+                        connection_id, connection_revision, response_payload
+                   FROM slack_installation_exchange_ledger
+                  WHERE tenant_id = $1 AND installation_intent_id = $2
+                  FOR UPDATE`,
+                [intent.tenant_id, intent.installation_intent_id]
+            );
+            const ledger = ledgerResult.rows[0];
+            if (ledger?.status === 'completed' && ledger.response_payload) {
+                return {
+                    status: 'completed',
+                    response_payload: ledger.response_payload,
+                    connection_id: ledger.connection_id,
+                    connection_revision: String(ledger.connection_revision)
+                };
+            }
+            if (!ledger || ledger.status !== 'processing'
+                || ledger.request_digest !== requestDigest
+                || ledger.claim_token_hash !== sha256(claimToken)) {
+                throw new ContractError('INSTALLATION_CLAIM_STALE', { status: 409, retryable: true });
+            }
+
+            const currentResult = await client.query(
+                `SELECT connection_id, connection_revision, status
+                   FROM workspace_connections
+                  WHERE tenant_id = $1 AND provider = 'slack'
+                    AND workspace_id = $2 AND app_id = $3
+                    AND status IN ('pending', 'active', 'reauth_required')
+                  LIMIT 2
+                  FOR UPDATE`,
+                [intent.tenant_id, workspaceId, appId]
+            );
+            if ((currentResult.rows ?? []).length > 1) {
+                throw new ContractError('WORKSPACE_CONNECTION_CONFLICT', { status: 409 });
+            }
+            const current = currentResult.rows[0] ?? null;
+            if (current && intent.expected_connection_revision === undefined) {
+                throw new ContractError('WORKSPACE_CONNECTION_CONFLICT', { status: 409 });
+            }
+            if (current && String(current.connection_revision) !== String(intent.expected_connection_revision)) {
+                throw new ContractError('WORKSPACE_CONNECTION_STALE_REVISION', { status: 409 });
+            }
+            if (!current && intent.expected_connection_revision !== undefined) {
+                throw new ContractError('WORKSPACE_CONNECTION_STALE_REVISION', { status: 409 });
+            }
+
+            const connectionId = current?.connection_id ?? proposedConnectionId;
+            const connectionRevision = String(Number(current?.connection_revision ?? 0) + 1);
+            if (!isCanonicalId(connectionId, 'wsc')) {
+                throw new ContractError('WORKSPACE_CONNECTION_CONFLICT', { status: 409 });
+            }
+            if (ledger.connection_id || ledger.connection_revision) {
+                if (ledger.connection_id !== connectionId
+                    || String(ledger.connection_revision) !== connectionRevision) {
+                    throw new ContractError('INSTALLATION_CLAIM_STALE', { status: 409, retryable: true });
+                }
+                return {
+                    status: 'reserved',
+                    connection_id: connectionId,
+                    connection_revision: connectionRevision
+                };
+            }
+
+            // A second callback for the same logical Slack target can have a
+            // different intent.  Do not hand both external stores the same
+            // next revision while the first claim is still processing.
+            const reservationConflict = await client.query(
+                `SELECT l.installation_intent_id
+                   FROM slack_installation_exchange_ledger l
+                   JOIN slack_installation_intents i
+                     ON i.tenant_id = l.tenant_id
+                    AND i.installation_intent_id = l.installation_intent_id
+                  WHERE l.tenant_id = $1
+                    AND l.status = 'processing'
+                    AND l.connection_id = $2
+                    AND l.connection_revision = $3
+                    AND l.installation_intent_id <> $4
+                    AND i.app_id = $5
+                    AND i.expected_workspace_id = $6
+                  LIMIT 1
+                  FOR SHARE OF l`,
+                [intent.tenant_id, connectionId, connectionRevision,
+                    intent.installation_intent_id, appId, workspaceId]
+            );
+            if ((reservationConflict.rows ?? []).length > 0) {
+                throw new ContractError('INSTALLATION_IN_PROGRESS', { status: 409, retryable: true });
+            }
+
+            const reserved = await client.query(
+                `UPDATE slack_installation_exchange_ledger
+                    SET connection_id = $3, connection_revision = $4
+                  WHERE tenant_id = $1 AND installation_intent_id = $2
+                    AND status = 'processing'
+                    AND request_digest = $5
+                    AND claim_token_hash = $6
+                 RETURNING connection_id, connection_revision`,
+                [intent.tenant_id, intent.installation_intent_id, connectionId,
+                    connectionRevision, requestDigest, sha256(claimToken)]
+            );
+            if (!reserved.rows[0]) {
+                throw new ContractError('INSTALLATION_CLAIM_STALE', { status: 409, retryable: true });
+            }
+            return {
+                status: 'reserved',
+                connection_id: reserved.rows[0].connection_id,
+                connection_revision: String(reserved.rows[0].connection_revision)
+            };
+        });
+    }
+
     async registerSlackInstallation({
         intent,
         exchange,
         credential,
         connection_id,
+        connection_revision,
         claim_token,
         request_digest,
         now = this.now().toISOString()
@@ -427,9 +583,13 @@ export class MultitenantPostgresRepository {
                   WHERE tenant_id = $1 AND provider = 'slack'
                     AND workspace_id = $2 AND app_id = $3
                     AND status IN ('pending', 'active', 'reauth_required')
+                  LIMIT 2
                   FOR UPDATE`,
                 [intent.tenant_id, exchange.workspace_id, intent.app_id]
             );
+            if ((currentResult.rows ?? []).length > 1) {
+                throw new ContractError('WORKSPACE_CONNECTION_CONFLICT', { status: 409 });
+            }
             const current = currentResult.rows[0];
             if (current && intent.expected_connection_revision === undefined) {
                 throw new ContractError('WORKSPACE_CONNECTION_CONFLICT', { status: 409 });
@@ -437,8 +597,24 @@ export class MultitenantPostgresRepository {
             if (current && String(current.connection_revision) !== String(intent.expected_connection_revision)) {
                 throw new ContractError('WORKSPACE_CONNECTION_STALE_REVISION', { status: 409 });
             }
-            const resolvedConnectionId = current?.connection_id ?? connection_id;
-            const resolvedRevision = String(Number(current?.connection_revision ?? 0) + 1);
+            if (!current && intent.expected_connection_revision !== undefined) {
+                throw new ContractError('WORKSPACE_CONNECTION_STALE_REVISION', { status: 409 });
+            }
+            const resolvedConnectionId = existingLedger.connection_id;
+            const resolvedRevision = String(existingLedger.connection_revision ?? '');
+            if (!isCanonicalId(resolvedConnectionId, 'wsc')
+                || !/^[1-9][0-9]*$/u.test(resolvedRevision)
+                || connection_id !== resolvedConnectionId
+                || String(connection_revision ?? '') !== resolvedRevision
+                || (current && (current.connection_id !== resolvedConnectionId
+                    || String(current.connection_revision) === resolvedRevision))
+                || (!current && resolvedRevision !== '1')) {
+                throw new ContractError('INSTALLATION_CLAIM_STALE', { status: 409, retryable: true });
+            }
+            const expectedNextRevision = String(Number(current?.connection_revision ?? 0) + 1);
+            if (resolvedRevision !== expectedNextRevision) {
+                throw new ContractError('WORKSPACE_CONNECTION_STALE_REVISION', { status: 409 });
+            }
             const installedAt = now;
             const snapshot = {
                 connection_id: resolvedConnectionId,

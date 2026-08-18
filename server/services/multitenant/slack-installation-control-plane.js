@@ -129,6 +129,7 @@ export class SlackInstallationControlPlane {
     } = {}) {
         if (!repository || typeof repository.createSlackInstallationIntent !== 'function'
             || typeof repository.claimSlackInstallationExchange !== 'function'
+            || typeof repository.reserveSlackInstallationConnection !== 'function'
             || typeof repository.registerSlackInstallation !== 'function'
             || typeof repository.failSlackInstallationExchange !== 'function') {
             throw new Error('Slack installation control-plane repository is required');
@@ -207,12 +208,27 @@ export class SlackInstallationControlPlane {
                 redirect_uri: redirect
             });
             exchanged = exchangedInstallation(upstream, normalizedIntent);
-            connectionId = generateCanonicalId('wsc');
+            const reservation = await this.repository.reserveSlackInstallationConnection({
+                intent: normalizedIntent,
+                workspace_id: exchanged.workspace_id,
+                app_id: exchanged.app_id,
+                proposed_connection_id: generateCanonicalId('wsc'),
+                claim_token: claimToken,
+                request_digest: requestDigest,
+                now: timestamp(this.now())
+            });
+            if (reservation?.status !== 'reserved'
+                || !isCanonicalId(reservation.connection_id, 'wsc')
+                || !/^[1-9][0-9]*$/u.test(String(reservation.connection_revision))) {
+                throw new ContractError('INSTALLATION_CLAIM_STALE', { status: 409, retryable: true });
+            }
+            connectionId = reservation.connection_id;
+            const connectionRevision = String(reservation.connection_revision);
             storedCredential = opaqueCredential(await this.credentialStore.store({
                 tenant_id: normalizedIntent.tenant_id,
                 idempotency_key: normalizedIntent.installation_intent_id,
                 connection_id: connectionId,
-                connection_revision: '1',
+                connection_revision: connectionRevision,
                 provider: 'slack',
                 credential_material: exchanged.credential_material,
                 credential_refresh_material: exchanged.credential_refresh_material
@@ -228,6 +244,7 @@ export class SlackInstallationControlPlane {
                 },
                 credential: storedCredential,
                 connection_id: connectionId,
+                connection_revision: connectionRevision,
                 claim_token: claimToken,
                 request_digest: requestDigest,
                 now: timestamp(this.now())

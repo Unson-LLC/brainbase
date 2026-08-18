@@ -87,7 +87,8 @@ export function createPostgresCredentialResolver({ pool, timeoutMs: configuredTi
             credential_ref: credentialRef,
             provider,
             workspace_id: workspaceId,
-            app_id: appId
+            app_id: appId,
+            allow_unregistered: allowUnregistered = false
         } = {}) {
             if (![tenantKey, credentialRef, provider, workspaceId, appId].every((value) => typeof value === 'string' && /^\S+$/u.test(value))) {
                 throw new TenantProvisioningError('CREDENTIAL_TENANT_MISMATCH', 'A complete credential boundary is required');
@@ -112,14 +113,37 @@ export function createPostgresCredentialResolver({ pool, timeoutMs: configuredTi
                     [tenantKey, credentialRef, provider, workspaceId, appId]
                 );
                 const rows = result.rows ?? [];
-                if (rows.length !== 1 || rows[0].tenant_key !== tenantKey) {
+                if (rows.length === 1 && rows[0].tenant_key === tenantKey) {
+                    return {
+                        valid: true,
+                        tenant_key: tenantKey,
+                        connection_id: rows[0].connection_id,
+                        connection_revision: Number(rows[0].connection_revision)
+                    };
+                }
+                if (!allowUnregistered) {
+                    return { valid: false, tenant_key: tenantKey };
+                }
+
+                // A first install is allowed to declare an opaque reference
+                // that this transaction will create later.  It is not an
+                // unconditional bypass: an existing reference, including one
+                // owned by another tenant or bound to different connection
+                // metadata, remains a hard mismatch.
+                const ownership = await client.query(
+                    `SELECT tenant_id, credential_ref
+                       FROM credential_broker_refs
+                      WHERE credential_ref = $1
+                      LIMIT 2`,
+                    [credentialRef]
+                );
+                if ((ownership.rows ?? []).length > 0) {
                     return { valid: false, tenant_key: tenantKey };
                 }
                 return {
                     valid: true,
                     tenant_key: tenantKey,
-                    connection_id: rows[0].connection_id,
-                    connection_revision: Number(rows[0].connection_revision)
+                    first_install: true
                 };
             });
         }

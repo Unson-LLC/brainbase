@@ -835,12 +835,31 @@ export async function provisionTenant({
         if (project.project_id !== normalizedManifest.service_actor.canonical_project_id) {
             throw new TenantProvisioningError('PROJECT_ACTOR_MISMATCH', 'Resolved project does not match the service actor registry');
         }
+        // The production credential resolver reads committed broker rows, but
+        // a first installation creates that row later in this transaction.
+        // Allow an explicitly planned opaque reference only when no current
+        // connection exists for this tenant/provider/workspace/app.  Existing
+        // connections (including reinstalls) must pass exact canonical
+        // credential metadata verification in the resolver.
+        const existingConnection = await client.query(
+            `SELECT connection_id, connection_revision
+               FROM workspace_connections
+              WHERE tenant_id = $1
+                AND provider = $2
+                AND workspace_id = $3
+                AND app_id = $4
+                AND status IN ('pending', 'active', 'reauth_required')
+              LIMIT 2`,
+            [normalizedManifest.tenant_id, normalizedManifest.workspace_connection.provider,
+                normalizedManifest.workspace_connection.workspace_id, normalizedManifest.workspace_connection.app_id]
+        );
         assertCredentialResult(await credentialResolver.verifyOpaqueReference({
             tenant_key: normalizedManifest.tenant_key,
             credential_ref: normalizedManifest.workspace_connection.credential_ref,
             provider: normalizedManifest.workspace_connection.provider,
             workspace_id: normalizedManifest.workspace_connection.workspace_id,
-            app_id: normalizedManifest.workspace_connection.app_id
+            app_id: normalizedManifest.workspace_connection.app_id,
+            allow_unregistered: (existingConnection.rows ?? []).length === 0
         }), normalizedManifest.tenant_key);
 
         await client.query('BEGIN');

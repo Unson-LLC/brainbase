@@ -112,4 +112,3 @@ describe('Slack installation control-plane production adapters', () => {
         expect(runtime.controlPlane).toHaveProperty('exchange_and_register');
     });
 });
-

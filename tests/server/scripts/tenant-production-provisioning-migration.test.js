@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     parseTenantProvisioningMigrationArgs,
+    REQUIRED_INDEX_DEFINITIONS,
+    REQUIRED_VIEW_DEFINITIONS,
     runTenantProvisioningMigration
 } from '../../../scripts/migrate-tenant-production-provisioning.js';
 
@@ -26,7 +28,12 @@ async function schemaContract() {
     return { sql, tables, indexes, columns, sha256: createHash('sha256').update(sql).digest('hex') };
 }
 
-async function createPool({ missingIndex = null, missingPrerequisite = null } = {}) {
+async function createPool({
+    missingIndex = null,
+    missingPrerequisite = null,
+    indexOverride = {},
+    viewDefinition = null
+} = {}) {
     const contract = await schemaContract();
     const prerequisiteTables = [
         'brainbase_schema_migrations', 'brainbase_tenants', 'tenant_projects',
@@ -55,12 +62,22 @@ async function createPool({ missingIndex = null, missingPrerequisite = null } = 
         if (sql.includes('FROM pg_indexes')) return {
             rows: contract.indexes
                 .filter((indexname) => indexname !== missingIndex)
-                .map((indexname) => ({
-                    indexname,
-                    indexdef: indexname === 'workspace_connections_tenant_provider_workspace_app_uq'
-                        ? "CREATE UNIQUE INDEX workspace_connections_tenant_provider_workspace_app_uq ON public.workspace_connections USING btree (tenant_id, provider, workspace_id, app_id) WHERE (status = ANY (ARRAY['pending'::text, 'active'::text]))"
-                        : `CREATE INDEX ${indexname} ON public.example (id)`
-                }))
+                .map((indexname) => {
+                    const expected = REQUIRED_INDEX_DEFINITIONS[indexname];
+                    const override = indexOverride[indexname] ?? {};
+                    return {
+                        indexname,
+                        indexdef: `CREATE ${expected.unique ? 'UNIQUE ' : ''}INDEX ${indexname} ON public.${expected.table_name} USING ${expected.access_method} (${expected.columns.map((column, index) => `${column}${expected.column_orders[index] === 'desc' ? ' DESC' : ''}`).join(', ')})${expected.predicate ? ` WHERE ${expected.predicate}` : ''}`,
+                        ...expected,
+                        ...override,
+                        columns: override.columns ?? expected.columns,
+                        column_orders: override.column_orders ?? expected.column_orders,
+                        table_name: override.table_name ?? expected.table_name,
+                        access_method: override.access_method ?? expected.access_method,
+                        is_unique: override.is_unique ?? expected.unique,
+                        predicate: Object.prototype.hasOwnProperty.call(override, 'predicate') ? override.predicate : expected.predicate
+                    };
+                })
         };
         if (sql.includes('FROM pg_constraint')) return {
             rows: [
@@ -147,7 +164,12 @@ async function createPool({ missingIndex = null, missingPrerequisite = null } = 
                 }
             ]
         };
-        if (sql.includes('FROM information_schema.views')) return { rows: [{ table_name: 'brainbase_service_actor_jwks' }] };
+        if (sql.includes('FROM pg_views')) return {
+            rows: [{
+                table_name: 'brainbase_service_actor_jwks',
+                definition: viewDefinition ?? REQUIRED_VIEW_DEFINITIONS.brainbase_service_actor_jwks
+            }]
+        };
         if (sql.includes('FROM brainbase_schema_migrations')) return { rows: [{ schema_sha256: contract.sha256 }] };
         return { rows: [], rowCount: 1 };
     });
@@ -212,6 +234,53 @@ describe('tenant production provisioning migration runner', () => {
         })).rejects.toThrow(/missing indexes/u);
         expect(queries.map(({ text }) => text)).toContain('ROLLBACK');
         expect(queries.map(({ text }) => text)).not.toContain('COMMIT');
+    });
+
+    it('rejects a same-name workspace index with the wrong uniqueness, columns, or predicate before ledger write', async () => {
+        const { pool, queries } = await createPool({
+            indexOverride: {
+                workspace_connections_tenant_provider_workspace_app_uq: {
+                    is_unique: false,
+                    columns: ['tenant_id', 'workspace_id', 'provider', 'app_id'],
+                    predicate: "status IN ('active')"
+                }
+            }
+        });
+        await expect(runTenantProvisioningMigration({
+            argv: ['--apply', '--approve-apply'],
+            env: { BRAINBASE_MIGRATION_ACTOR: 'operator@example.test' },
+            pool
+        })).rejects.toThrow(/index definitions are missing or incorrect/u);
+        expect(queries.some(({ text }) => text.includes('INSERT INTO brainbase_schema_migrations'))).toBe(false);
+        expect(queries.map(({ text }) => text)).toContain('ROLLBACK');
+    });
+
+    it('rejects a same-name non-unique index with the wrong column definition', async () => {
+        const { pool, queries } = await createPool({
+            indexOverride: {
+                tenant_provisioning_operations_claim_idx: {
+                    columns: ['tenant_key', 'status', 'idempotency_key', 'claimed_at']
+                }
+            }
+        });
+        await expect(runTenantProvisioningMigration({
+            argv: ['--apply', '--approve-apply'],
+            env: { BRAINBASE_MIGRATION_ACTOR: 'operator@example.test' },
+            pool
+        })).rejects.toThrow(/index definitions are missing or incorrect/u);
+        expect(queries.some(({ text }) => text.includes('INSERT INTO brainbase_schema_migrations'))).toBe(false);
+    });
+
+    it('rejects a same-name view with a different normalized definition before ledger write', async () => {
+        const { pool, queries } = await createPool({
+            viewDefinition: "SELECT actor_id, jsonb_build_object('keys', jsonb_agg(kid)) AS jwks FROM brainbase_service_actor_keys WHERE status = 'active' GROUP BY actor_id"
+        });
+        await expect(runTenantProvisioningMigration({
+            argv: ['--apply', '--approve-apply'],
+            env: { BRAINBASE_MIGRATION_ACTOR: 'operator@example.test' },
+            pool
+        })).rejects.toThrow(/view definitions are missing or incorrect/u);
+        expect(queries.some(({ text }) => text.includes('INSERT INTO brainbase_schema_migrations'))).toBe(false);
     });
 
     it('blocks when the base multitenant schema is not present', async () => {

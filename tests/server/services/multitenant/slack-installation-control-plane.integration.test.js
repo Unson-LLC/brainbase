@@ -14,12 +14,17 @@ const tenantKey = 'unson-business';
 const personId = 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY';
 const intentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FAZ';
 const concurrentIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FB3';
+const reinstallIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FB4';
 const contractId = 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FB1';
 const deploymentId = 'dep_01ARZ3NDEKTSV4RRFFQ69G5FB2';
 const appId = 'A0123456789';
 const workspaceId = 'T0123456789';
 const enterpriseId = 'E0123456789';
 const installerId = 'U0123456789';
+const reinstallAppId = 'A9876543210';
+const reinstallWorkspaceId = 'T9876543210';
+const reinstallEnterpriseId = 'E9876543210';
+const reinstallInstallerId = 'U9876543210';
 const now = new Date('2026-08-19T00:00:00.000Z');
 
 describe.sequential('Slack installation control-plane PostgreSQL integration', () => {
@@ -261,5 +266,113 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
             [tenantId, concurrentIntentId]
         );
         expect(ledger.rows).toEqual([{ status: 'completed', attempt: '1', connection_revision: '2' }]);
+    }, 120_000);
+
+    it('passes the reserved canonical connection identity and next revision to the credential store on reinstall', async () => {
+        const initialIntent = {
+            installation_intent_id: reinstallIntentId,
+            tenant_id: tenantId,
+            app_id: reinstallAppId,
+            expected_workspace_id: reinstallWorkspaceId,
+            expected_enterprise_id: reinstallEnterpriseId,
+            initiated_by_person_id: personId
+        };
+        await controlPlane.authorizeBinding(initialIntent);
+
+        oauthClient.exchangeCode.mockReset();
+        oauthClient.exchangeCode.mockResolvedValueOnce({
+            app_id: reinstallAppId,
+            workspace_id: reinstallWorkspaceId,
+            enterprise_id: reinstallEnterpriseId,
+            installer_id: reinstallInstallerId,
+            installation_id: `slack:${reinstallAppId}:${reinstallWorkspaceId}:initial`,
+            granted_scopes: ['chat:write', 'commands'],
+            credential_material: 'xoxb-reinstall-initial-secret',
+            credential_refresh_material: 'xoxr-reinstall-initial-secret'
+        });
+        credentialStore.store.mockReset();
+        credentialStore.store.mockResolvedValueOnce({
+            credential_ref: 'vault://slack/unson-business/reinstall-initial',
+            credential_mode: 'customer_oauth',
+            refresh_revision: 1
+        });
+
+        const initial = await controlPlane.exchange_and_register({
+            authorization_code: 'oauth-reinstall-initial',
+            redirect_uri: 'https://mana.example.test/oauth/slack/callback',
+            intent: initialIntent
+        });
+        const initialStoreInput = credentialStore.store.mock.calls[0][0];
+        expect(initialStoreInput).toMatchObject({
+            connection_id: initial.connection_id,
+            connection_revision: '1'
+        });
+
+        const reinstallIntent = {
+            ...initialIntent,
+            installation_intent_id: 'insi_01ARZ3NDEKTSV4RRFFQ69G5FB5',
+            expected_connection_revision: '1'
+        };
+        await controlPlane.authorizeBinding(reinstallIntent);
+        oauthClient.exchangeCode.mockResolvedValueOnce({
+            app_id: reinstallAppId,
+            workspace_id: reinstallWorkspaceId,
+            enterprise_id: reinstallEnterpriseId,
+            installer_id: reinstallInstallerId,
+            installation_id: `slack:${reinstallAppId}:${reinstallWorkspaceId}:reinstall`,
+            granted_scopes: ['chat:write', 'commands', 'files:read'],
+            credential_material: 'xoxb-reinstall-next-secret',
+            credential_refresh_material: 'xoxr-reinstall-next-secret'
+        });
+        credentialStore.store.mockResolvedValueOnce({
+            credential_ref: 'vault://slack/unson-business/reinstall-next',
+            credential_mode: 'customer_oauth',
+            refresh_revision: 2
+        });
+
+        const reinstall = await controlPlane.exchange_and_register({
+            authorization_code: 'oauth-reinstall-next',
+            redirect_uri: 'https://mana.example.test/oauth/slack/callback',
+            intent: reinstallIntent
+        });
+        const reinstallStoreInput = credentialStore.store.mock.calls[1][0];
+        expect(reinstall).toMatchObject({
+            connection_id: initial.connection_id,
+            connection_revision: '2',
+            workspace_id: reinstallWorkspaceId,
+            app_id: reinstallAppId
+        });
+        expect(reinstallStoreInput).toMatchObject({
+            connection_id: initial.connection_id,
+            connection_revision: '2'
+        });
+
+        const current = await pool.query(
+            `SELECT wc.connection_id, wc.connection_revision, wc.credential_ref,
+                    cbr.connection_id AS broker_connection_id,
+                    cbr.connection_revision AS broker_connection_revision,
+                    revision.connection_snapshot->>'connection_id' AS snapshot_connection_id,
+                    revision.connection_snapshot->>'connection_revision' AS snapshot_connection_revision
+               FROM workspace_connections wc
+               JOIN credential_broker_refs cbr
+                 ON cbr.tenant_id = wc.tenant_id
+                AND cbr.connection_id = wc.connection_id
+                AND cbr.connection_revision = wc.connection_revision
+               JOIN workspace_connection_revisions revision
+                 ON revision.tenant_id = wc.tenant_id
+                AND revision.connection_id = wc.connection_id
+                AND revision.connection_revision = wc.connection_revision
+              WHERE wc.tenant_id = $1 AND wc.workspace_id = $2 AND wc.app_id = $3`,
+            [tenantId, reinstallWorkspaceId, reinstallAppId]
+        );
+        expect(current.rows).toEqual([{
+            connection_id: initial.connection_id,
+            connection_revision: '2',
+            credential_ref: 'vault://slack/unson-business/reinstall-next',
+            broker_connection_id: initial.connection_id,
+            broker_connection_revision: '2',
+            snapshot_connection_id: initial.connection_id,
+            snapshot_connection_revision: '2'
+        }]);
     }, 120_000);
 });

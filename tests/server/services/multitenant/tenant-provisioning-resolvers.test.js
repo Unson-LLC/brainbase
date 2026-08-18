@@ -90,10 +90,28 @@ describe('tenant provisioning production resolvers', () => {
         })).resolves.toEqual({ valid: false, tenant_key: 'unson-business' });
     });
 
+    it('accepts an explicitly planned first-install boundary without treating it as an existing credential', async () => {
+        const fixture = createPool([]);
+        const resolver = createPostgresCredentialResolver({ pool: fixture.pool });
+
+        await expect(resolver.verifyOpaqueReference({
+            tenant_key: 'unson-business',
+            credential_ref: 'credref://unson-business/slack/primary',
+            provider: 'slack',
+            workspace_id: 'T0123456789',
+            app_id: 'A0123456789',
+            allow_unregistered: true
+        })).resolves.toEqual({
+            valid: true,
+            tenant_key: 'unson-business',
+            first_install: true
+        });
+        expect(fixture.queries.map(({ text }) => text).join('\n')).not.toMatch(/SELECT .*secret|token|value/iu);
+    });
+
     it('requires a production pool and rejects unbounded timeout configuration', () => {
         expect(() => createPostgresGraphProjectResolver()).toThrow(/PostgreSQL pool/u);
         expect(() => createPostgresCredentialResolver({ pool: { connect: vi.fn() }, timeoutMs: 0 }))
             .toThrow(/between 1 and 60000/u);
     });
 });
-
