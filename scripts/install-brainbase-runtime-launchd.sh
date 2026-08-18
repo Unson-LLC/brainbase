@@ -25,7 +25,20 @@ plutil -remove EnvironmentVariables.BRAINBASE_MCP_ENTRY "$MCP_PLIST" 2>/dev/null
 plutil -lint "$MCP_PLIST"
 
 DOMAIN="gui/$(id -u)"
+wait_until_unloaded() {
+  local label="$1"
+  for _ in {1..30}; do
+    if ! launchctl print "$DOMAIN/$label" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  printf 'launchd job did not unload: %s\n' "$label" >&2
+  return 1
+}
+
 launchctl bootout "$DOMAIN/com.brainbase.runtime-update" 2>/dev/null || true
+wait_until_unloaded com.brainbase.runtime-update
 launchctl bootstrap "$DOMAIN" "$AGENTS_DIR/com.brainbase.runtime-update.plist"
 launchctl enable "$DOMAIN/com.brainbase.runtime-update"
 
@@ -33,5 +46,6 @@ launchctl enable "$DOMAIN/com.brainbase.runtime-update"
 # ProgramArguments path is updated by replacing the installed launcher above.
 launchctl kickstart -k "$DOMAIN/com.brainbase.ui"
 launchctl bootout "$DOMAIN/com.brainbase.mcp-brainbase" 2>/dev/null || true
+wait_until_unloaded com.brainbase.mcp-brainbase
 launchctl bootstrap "$DOMAIN" "$MCP_PLIST"
 launchctl enable "$DOMAIN/com.brainbase.mcp-brainbase"

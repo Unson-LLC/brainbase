@@ -36,6 +36,7 @@ describe('managed launchd runtime contract', () => {
     const install = read('scripts/install-brainbase-runtime-launchd.sh');
     expect(install).toContain('plutil -replace ProgramArguments.1');
     expect(install).toContain('plutil -replace EnvironmentVariables.BRAINBASE_REPO_ROOT');
+    expect(install).toContain('wait_until_unloaded');
     expect(install).toContain('launchctl bootstrap "$DOMAIN" "$MCP_PLIST"');
   });
 });
