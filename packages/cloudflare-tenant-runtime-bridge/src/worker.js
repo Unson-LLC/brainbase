@@ -1,9 +1,17 @@
 export const MAX_REQUEST_BODY_BYTES = 256 * 1024;
 
-const PROVIDER_FORWARD_PATH = '/api/v1/runtime/provider-requests:forward';
+export const CANONICAL_RUNTIME_POST_PATHS = Object.freeze([
+    '/api/v1/runtime/tenant-context:resolve',
+    '/api/v1/runtime/credential-leases',
+    '/api/v1/runtime/provider-requests:forward',
+    '/api/v1/runtime/quota:decide',
+    '/api/v1/runtime/usage-events',
+    '/api/v1/runtime/operation-receipts:finalize',
+    '/api/v1/runtime/operation-receipts:finalize-with-pricing'
+]);
+const RECEIPT_HISTORY_PATH = /^\/api\/v1\/runtime\/operation-receipts\/receipt_[0-9A-HJKMNP-TV-Z]{26}\/history:read$/;
 const REQUEST_HEADERS = Object.freeze([
     'accept',
-    'authorization',
     'brainbase-deployment-id',
     'brainbase-protocol-version',
     'content-type'
@@ -61,18 +69,23 @@ function configuredOrigin(env) {
     return origin;
 }
 
-function assertAllowedRoute(request) {
+function allowedRuntimePath(request) {
     const url = new URL(request.url);
-    return request.method === 'POST'
-        && url.pathname === PROVIDER_FORWARD_PATH
-        && url.search === '';
+    if (request.method !== 'POST' || url.search !== '') return null;
+    if (CANONICAL_RUNTIME_POST_PATHS.includes(url.pathname) || RECEIPT_HISTORY_PATH.test(url.pathname)) {
+        return url.pathname;
+    }
+    return null;
 }
 
 async function readBoundedBody(request) {
     const declaredLength = request.headers.get('content-length');
     if (declaredLength !== null) {
-        const size = Number(declaredLength);
-        if (!Number.isSafeInteger(size) || size < 0 || size > MAX_REQUEST_BODY_BYTES) {
+        const normalizedLength = declaredLength.trim();
+        const size = Number(normalizedLength);
+        if (!/^\d+$/.test(normalizedLength)
+            || !Number.isSafeInteger(size)
+            || size > MAX_REQUEST_BODY_BYTES) {
             throw new RangeError('request_body_too_large');
         }
     }
@@ -111,6 +124,7 @@ function upstreamHeaders(request, env) {
         const value = request.headers.get(name);
         if (value !== null) headers.set(name, value);
     }
+    headers.set('authorization', `Bearer ${requiredSecret(env, 'BRAINBASE_SERVICE_JWT')}`);
     headers.set('cf-access-client-id', requiredSecret(env, 'CF_ACCESS_CLIENT_ID'));
     headers.set('cf-access-client-secret', requiredSecret(env, 'CF_ACCESS_CLIENT_SECRET'));
     return headers;
@@ -131,7 +145,8 @@ function downstreamResponse(upstream) {
 }
 
 export async function handleTenantRuntimeBridgeRequest(request, env, { fetchImpl = fetch } = {}) {
-    if (!assertAllowedRoute(request)) return problem(404, 'BRIDGE_ROUTE_NOT_ALLOWED');
+    const routePath = allowedRuntimePath(request);
+    if (!routePath) return problem(404, 'BRIDGE_ROUTE_NOT_ALLOWED');
 
     let origin;
     let headers;
@@ -150,7 +165,7 @@ export async function handleTenantRuntimeBridgeRequest(request, env, { fetchImpl
         return problem(400, 'REQUEST_BODY_INVALID');
     }
 
-    const upstreamUrl = new URL(PROVIDER_FORWARD_PATH, origin);
+    const upstreamUrl = new URL(routePath, origin);
     const upstreamRequest = new Request(upstreamUrl, {
         method: 'POST',
         headers,

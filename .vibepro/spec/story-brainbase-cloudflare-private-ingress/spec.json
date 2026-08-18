@@ -1,0 +1,707 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-cloudflare-private-ingress",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "hybrid",
+    "tenant_identity": {
+      "canonical_key": "tenant_id",
+      "resolved_from": [
+        "verified Brainbase service auth and canonical Node tenant boundary"
+      ],
+      "resolution_point": "Brainbase canonical Node runtime before provider forwarding",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "runtime_ingress",
+        "canonical_node"
+      ],
+      "verified_surfaces": [
+        "runtime_ingress",
+        "canonical_node"
+      ]
+    },
+    "resources": [
+      {
+        "name": "tenant-scoped provider runtime request",
+        "sharing": "connection_defined",
+        "tenant_key": "tenant_id",
+        "partition_key": "tenant_id/connection_id",
+        "connection_modes": [
+          "cloudflare_service_binding_to_private_tunnel"
+        ],
+        "trust_zone": "Brainbase canonical Node runtime and authoritative workspace connection",
+        "residue_policy": "retention then verified delete under tenant lifecycle policy",
+        "data_owner": "Brainbase Tenant Authority",
+        "credential_scope": "tenant-bound opaque service credential and single-use provider lease"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "tenant_id",
+      "scope": "tenant-bound opaque service credential and single-use provider lease",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase Tenant Authority"
+      ],
+      "residency": "Ingress carries tenant-scoped requests to the declared Brainbase deployment; the Worker stores no tenant data",
+      "migration": "No ingress data migration; preserve the canonical Node tenant and connection contract",
+      "rollback": "Disable the ingress route and return provider traffic to the approved release path without changing tenant records"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared",
+      "managed_dedicated",
+      "customer_managed",
+      "self_hosted"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "tenant",
+        "workspace_connection",
+        "provider_request"
+      ],
+      "boundary_edges": [
+        "ingress request resolves through canonical Node tenant boundary",
+        "credential lookup is tenant-scoped with no fallback"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "unverified",
+      "evidence": {
+        "propagation_surfaces": [
+          "runtime_ingress",
+          "canonical_node"
+        ],
+        "graph": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "connection_defined"
+          ],
+          "deployment_modes": [
+            "managed_shared",
+            "managed_dedicated",
+            "customer_managed",
+            "self_hosted"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "canonical tenant",
+              "tenant_key_source": "verified Brainbase service auth and canonical Node tenant boundary",
+              "trust_zone": "Brainbase Tenant Authority",
+              "data_owner": "Brainbase Tenant Authority"
+            },
+            {
+              "tenant_scope": "authoritative workspace connection",
+              "tenant_key_source": "canonical Node connection selector",
+              "trust_zone": "Brainbase canonical Node runtime",
+              "data_owner": "Brainbase Tenant Authority"
+            },
+            {
+              "tenant_scope": "provider runtime request",
+              "tenant_key_source": "canonical Node tenant boundary",
+              "trust_zone": "fixed private ingress and canonical Node runtime",
+              "data_owner": "Brainbase Tenant Authority"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "ingress request to canonical Node tenant boundary",
+              "tenant_key_source": "verified service auth",
+              "sharing_mode": "connection_defined",
+              "credential_scope": "tenant-bound opaque service credential",
+              "connection_mode": "cloudflare_service_binding_to_private_tunnel",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "connection_defined"
+          ],
+          "deployment_modes": [
+            "managed_shared",
+            "managed_dedicated",
+            "customer_managed",
+            "self_hosted"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "connection_defined"
+          ],
+          "deployment_modes": [
+            "managed_shared",
+            "managed_dedicated",
+            "customer_managed",
+            "self_hosted"
+          ]
+        },
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "scanner_results": {
+          "tenant_boundary": "inconclusive",
+          "tenant_key_propagation": "inconclusive",
+          "cross_tenant_authorization": "inconclusive",
+          "state_partitioning": "inconclusive",
+          "sandbox_isolation": "inconclusive",
+          "connection_routing": "inconclusive",
+          "secret_scope": "inconclusive",
+          "canonical_data_owner": "inconclusive",
+          "deployment_topology": "inconclusive",
+          "cross_tenant_negative_evidence": "inconclusive"
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "The bridge accepts only the explicit POST canonical runtime route allowlist (tenant-context:resolve, credential-leases, provider-requests:forward, quota:decide, usage-events, both operation-receipts finalize routes, and canonical receipt history readback) without a query string; every other method, path, query, or malformed receipt ID is rejected before origin fetch.",
+      "rationale": "The ingress allowlist is the single private runtime boundary while exposing the complete Mana transport contract without becoming a generic proxy.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-cloudflare-private-ingress.md",
+            "section": "Route and request contract"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "anchor": "CANONICAL_RUNTIME_POST_PATHS"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "case": "forwards the canonical runtime route"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "must_contain": "CANONICAL_RUNTIME_POST_PATHS"
+          },
+          {
+            "file_glob": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "must_contain": "url.search !== ''"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "must_cover": "forwards the canonical runtime route"
+          },
+          {
+            "file_glob": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "must_cover": "malformed receipt history route"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:34:01.355Z",
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "The bridge uses only a matching HTTPS origin with no credentials, port, path, query, or fragment.",
+      "rationale": "The upstream destination must be fixed to the Access Tunnel hostname.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-cloudflare-private-ingress.md",
+            "section": "Origin and body boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "anchor": "configuredOrigin"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "case": "non-HTTPS origin"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "must_contain": "origin.protocol !== 'https:'"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "must_cover": "hostname mismatch"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:24:09.371Z",
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "Missing or empty BRAINBASE_SERVICE_JWT, CF_ACCESS_CLIENT_ID, or CF_ACCESS_CLIENT_SECRET prevents origin fetch and returns a configuration problem.",
+      "rationale": "The Worker must fail closed when its service credentials are not provisioned.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-cloudflare-private-ingress.md",
+            "section": "Secret and authentication boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "anchor": "requiredSecret"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "case": "fails closed"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "must_contain": "BRIDGE_CONFIGURATION_INVALID"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "must_cover": "missing Brainbase service JWT"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:24:09.371Z",
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "The bridge discards inbound Authorization and CF-Access headers and injects its own Brainbase service JWT and Access service credentials.",
+      "rationale": "Callers must not select the identity used at the canonical Node verifier.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-cloudflare-private-ingress.md",
+            "section": "Secret and authentication boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "anchor": "headers.set('authorization'"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "case": "does not trust caller forwarding headers"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "must_contain": "BRAINBASE_SERVICE_JWT"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "must_cover": "caller-controlled-token"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:24:09.371Z",
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "Only Accept, Content-Type, Brainbase-Protocol-Version, and Brainbase-Deployment-Id are copied from the caller to the upstream request.",
+      "rationale": "The bridge must not become an arbitrary header or cookie proxy.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-cloudflare-private-ingress.md",
+            "section": "Route and request contract"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "anchor": "REQUEST_HEADERS"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "case": "x-arbitrary"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "must_contain": "content-type"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "must_cover": "x-forwarded-host"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:24:09.371Z",
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
+    },
+    {
+      "id": "INV-005",
+      "type": "invariant",
+      "statement": "Request bodies are limited to 256 KiB using both a strict decimal Content-Length check and the actual streamed byte count.",
+      "rationale": "The Worker must bound memory and reject malformed or oversized input before forwarding.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 5
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-cloudflare-private-ingress.md",
+            "section": "Origin and body boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "anchor": "MAX_REQUEST_BODY_BYTES"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "case": "rejects declared non-decimal body length"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "must_contain": "request_body_too_large"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "must_cover": "streamed oversized body"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:24:09.371Z",
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "The upstream request uses redirect manual and the bridge preserves upstream status, problem+json content type, and body without following redirects.",
+      "rationale": "Node canonical error envelopes and status classifications must remain observable to Mana.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 6
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-cloudflare-private-ingress.md",
+            "section": "Response and failure contract"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "anchor": "redirect: 'manual'"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "case": "passes through upstream problem status"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "must_contain": "application/problem+json"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "must_cover": "without following redirects"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:24:09.371Z",
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
+    },
+    {
+      "id": "INV-006",
+      "type": "invariant",
+      "statement": "Route rejection, configuration failure, body failure, and upstream failure do not invoke a direct fallback origin or another Node port.",
+      "rationale": "Failure classification must remain fail closed and origin-pinned.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 7
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-cloudflare-private-ingress.md",
+            "section": "Response and failure contract"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "anchor": "BRIDGE_UPSTREAM_UNAVAILABLE"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "case": "without reaching the private origin"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "must_contain": "return problem(502"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "must_cover": "not.toHaveBeenCalled"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:24:09.371Z",
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
+    },
+    {
+      "id": "INV-007",
+      "type": "invariant",
+      "statement": "The bridge does not include service JWT, Access credentials, or configured origin values in source-controlled logs, responses, or test assertions.",
+      "rationale": "Ingress credentials must remain outside normal artifacts and observability.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 8
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-cloudflare-private-ingress.md",
+            "section": "Secret and authentication boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "anchor": "problem(status, code"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "case": "without exposing configuration"
+          }
+        ]
+      },
+      "confidence": 0.95,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "packages/cloudflare-tenant-runtime-bridge/src/worker.js",
+            "must_not_contain": "console.log"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "must_cover": "not.toContain"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:24:09.371Z",
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "The Worker package remains configured with workers_dev false, preview_urls false, and no plaintext vars or route declarations.",
+      "rationale": "The private bridge must not create a public workers.dev or preview endpoint.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 9
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-cloudflare-private-ingress.md",
+            "section": "Deployment shape and verification"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "packages/cloudflare-tenant-runtime-bridge/wrangler.jsonc",
+            "anchor": "workers_dev"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "case": "without a public Worker URL"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "packages/cloudflare-tenant-runtime-bridge/wrangler.jsonc",
+            "must_contain": "\"preview_urls\": false"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/cloudflare/tenant-runtime-bridge.test.js",
+            "must_cover": "workers_dev"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:24:09.371Z",
+      "last_revised_at": "2026-08-18T17:34:01.355Z"
+    }
+  ],
+  "diagrams": [
+    {
+      "kind": "deployment",
+      "mermaid": "flowchart LR\n  Mana[Mana Worker] -->|Service Binding| Bridge[Brainbase ingress Worker]\n  Bridge -->|fixed HTTPS + Access| Tunnel[cloudflared Tunnel]\n  Tunnel -->|loopback only| Node[Brainbase Node runtime 127.0.0.1:31016]",
+      "rationale": "The private Cloudflare-to-loopback deployment boundary is part of the ingress contract."
+    },
+    {
+      "kind": "threat_model",
+      "mermaid": "flowchart LR\n  Caller[Untrusted caller headers] -->|discard| Bridge[Ingress Worker]\n  Secrets[Worker Secrets] -->|inject| Bridge\n  Bridge -->|fixed route + fixed origin| Node[Canonical Node verifier]",
+      "rationale": "Authentication header replacement and fixed-origin enforcement are the primary ingress threats."
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "OQ-001",
+      "question": "Confirm the production secret naming and rotation owner for BRAINBASE_SERVICE_JWT before provisioning the Worker.",
+      "blocker": false
+    }
+  ],
+  "generated_at": "2026-08-18T17:34:01.354Z",
+  "previous_spec_id": "2026-08-18T17:24:09.370Z"
+}
