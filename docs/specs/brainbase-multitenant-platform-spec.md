@@ -39,7 +39,7 @@ test_files:
 
 ## 0. 状態と境界
 
-このSpecは実装着手用のfinalである。先行してVibePro draftを生成・検証した後、Storyとaccepted Architectureを具体化し、横断契約の正本入力としてmana-runtime PR #237 remote HEAD `38e13adde56dbd398cea914aec69c831194353c9`のD-001〜D-009と`contracts/mana-brainbase-tenant-context/v1`を採用した。共通fixture setのSHA-256は`9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833`である。実装開始ゲートはSpecのfingerprintとdriftを記録した時点で開くが、adapter fixture、CI、本番readbackの成功を意味しない。
+このSpecは実装着手用のfinalである。先行してVibePro draftを生成・検証した後、Storyとaccepted Architectureを具体化し、横断契約の正本入力としてmana-runtime統合実装 `dd9a9f7d0183caa4db7719628adea2c79db35718`のD-001〜D-009と`contracts/mana-brainbase-tenant-context/v1`を採用した。共通fixture setのSHA-256は`9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833`である。実装開始ゲートはSpecのfingerprintとdriftを記録した時点で開くが、adapter fixture、CI、本番readbackの成功を意味しない。
 
 Brainbaseのconformance testは共通manifestの1 positive、21 negative、1 non-applicableを固定HEADから直接読む。fixtureの複製や期待値の再定義はconformance証拠として扱わない。test keyはテスト実行時だけ読み、repository、ログ、PR本文へ秘密値を記録しない。
 
@@ -609,7 +609,7 @@ blocking open decisionは0件である。今後D-001〜D-009の意味を変え�
 | Graphify／codebase graph差分調査 | 確認済み。現行のorganization fallback、tenant ledger不在、Receipt境界不足を確認 |
 | VibePro Spec readiness | ready |
 | 21 AC trace | 本SpecとVibePro機械Specで定義 |
-| canonical conformance kit | mana-runtime PR #237 remote HEAD `38e13adde56dbd398cea914aec69c831194353c9`、fixture SHA-256 `9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833`へ固定 |
+| canonical conformance kit | mana-runtime統合実装 `dd9a9f7d0183caa4db7719628adea2c79db35718`、fixture SHA-256 `9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833`へ固定 |
 | positive／negative／non-applicable fixture | 共通manifestの23件を直接読むBrainbase adapter testで検証する。本番readbackではない |
 | TDD Red | P0追従で管理／監査が`200`で通過する失敗、production runnerの境界resolver不在、ledgerのbinding未保存、claim／provider実行前authorize不在、境界欠落／cross-tenantが拒否されない失敗を先に固定した。review-pack producer追補では4 tests、既存production E2Eでは1 test、service auth追補ではcanonical claims未発行1 testと不正expiry／audience／deployment／capabilityを受理する4 testsの合5件が意図した理由でRedになったことを確認した |
 | 対象unit／schema／repository／route／contract | 関連unitは31 files、218 tests Green。実PostgreSQL Testcontainersは9 tests Green。共通adapterは25 tests Green（manifest 23件とsource-lock／冪等式2件）。MCP tenant boundaryは2 tests Green。production E2Eは1 test Green |

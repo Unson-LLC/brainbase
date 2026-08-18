@@ -188,7 +188,7 @@
   "lifecycle": "final",
   "cross_lane_contract_source": {
     "pull_request": "https://github.com/Unson-LLC/mana-runtime/pull/237",
-    "head": "38e13adde56dbd398cea914aec69c831194353c9",
+    "head": "dd9a9f7d0183caa4db7719628adea2c79db35718",
     "kit_path": "contracts/mana-brainbase-tenant-context/v1",
     "fixture_set_sha256": "9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833",
     "decision_ids": [
@@ -430,7 +430,7 @@
     }
   },
   "fixtures": {
-    "canonical_source": "mana-runtime PR #237 remote HEAD 38e13adde56dbd398cea914aec69c831194353c9 contracts/mana-brainbase-tenant-context/v1/fixtures/manifest.json",
+    "canonical_source": "mana-runtime integration dd9a9f7d0183caa4db7719628adea2c79db35718 contracts/mana-brainbase-tenant-context/v1/fixtures/manifest.json",
     "fixture_set_sha256": "9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833",
     "adapter_test": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
     "positive_count": 1,
