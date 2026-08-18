@@ -43,6 +43,18 @@ JST変換修正またはtenant境界導入より前に作られた既存rowは�
 
 service token、runtime URL、connection selector、actor／resource bindingのいずれかが欠落・不正、または署名Envelopeのresolveに失敗した場合、取込CLIはLedger APIへ送信する前に非zeroで停止する。tenant ID／revisionだけの未署名headerを手作りしない。
 
+### canonical service tokenの切替
+
+既存のclaimを持たない`bbsvc_` tokenはcanonical validatorで拒否される。切替は発行側と検証側を別々に更新せず、次の順序で同じmaintenance window内に行う。
+
+1. deployment-localのsecret管理で、新しいtokenへ設定するissuer、subject、audience、deployment ID、expiry、capabilityを確定する。repo、fixture、ログへtoken値を記録しない。
+2. 発行側の`BRAINBASE_SERVICE_TOKEN_ISSUER`、`BRAINBASE_SERVICE_TOKEN_SUBJECT`、`BRAINBASE_SERVICE_TOKEN_AUDIENCE`、`BRAINBASE_SERVICE_TOKEN_DEPLOYMENT_ID`、`BRAINBASE_SERVICE_TOKEN_EXPIRES_AT`、`BRAINBASE_SERVICE_TOKEN_CAPABILITIES`と、検証側の`BRAINBASE_TENANT_RUNTIME_SERVICE_ISSUER`、`BRAINBASE_TENANT_RUNTIME_SERVICE_AUDIENCE`、`BRAINBASE_TENANT_RUNTIME_DEPLOYMENT_ID`、`BRAINBASE_TENANT_RUNTIME_REQUIRED_CAPABILITIES`が一致することを確認する。
+3. 新しいcanonical tokenを発行し、tenant runtimeとSNS importer／runnerへ同時に反映する。JWT署名secretとtoken本体はdeployment-localのsecret管理から注入する。
+4. `POST /api/v1/runtime/negotiate`、続いて`POST /api/v1/runtime/tenant-context:resolve`を内部networkから疎通確認する。成功応答とtenant bindingを確認するまで公開runnerを有効化しない。
+5. `npm run sns:scheduled-publish -- --dry-run --json`で、provider呼出しやLedger更新を行わずに認証、tenant解決、due選択を確認する。確認後にだけ公開runnerを再開する。
+
+疎通が失敗した場合は公開runnerを停止したままにし、issuer／audience／deployment／capabilityとexpiryを修正して新tokenを再発行する。旧claim tokenへ戻して公開を続行してはならない。rollbackは直前のcanonical claim設定と対応するtoken一式を発行側・runtime・importer／runnerへ同時に戻し、同じnegotiate、tenant-context resolve、dry-runを再確認する。確認不能は`not_collected`として残し、公開可能と扱わない。
+
 ```bash
 TODAY=$(date +%F)
 npm run sns:import-review-pack -- --date "$TODAY"

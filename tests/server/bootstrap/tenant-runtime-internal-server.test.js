@@ -173,6 +173,8 @@ describe('tenant runtime internal service binding', () => {
     });
 
     it.each([
+        ['issuer違い', { issuer: 'other-issuer' }],
+        ['subject欠落', { subject: undefined }],
         ['期限切れ', { expires_at: '2020-01-01T00:00:00.000Z' }],
         ['audience違い', { audience: ['other-runtime'] }],
         ['deployment違い', { deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAY' }],
