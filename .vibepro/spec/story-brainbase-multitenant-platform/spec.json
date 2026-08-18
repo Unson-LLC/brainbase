@@ -722,6 +722,10 @@
             "case": "AC-005: production scheduler entrypointが実PostgreSQL接続・background_job認可・claim後にproviderを呼ぶ"
           },
           {
+            "file": "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+            "case": "AC-005: 実PostgreSQL claim競合は2 runnerの片方だけがproviderを呼ぶ"
+          },
+          {
             "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
             "case": "rejects unauthenticated access before tenant, Ledger, or provider work"
           },

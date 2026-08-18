@@ -10,6 +10,7 @@ import { PostgresTenantMigrationAdapter } from '../../../../server/services/mult
 import { MultitenantPostgresRepository } from '../../../../server/services/multitenant/postgres-repository.js';
 import { createTrustedHttpProviderForwarder } from '../../../../server/services/multitenant/trusted-provider-forwarder.js';
 import { PgSnsPostingLedgerRepository } from '../../../../server/services/sns/posting-ledger-repository.js';
+import { SnsLedgerPublishService } from '../../../../server/services/sns/sns-ledger-publish-service.js';
 import { SnsScheduledPublisher } from '../../../../server/services/sns/sns-scheduled-publisher.js';
 import { runScheduledPosts } from '../../../../scripts/run-sns-scheduled-posts.js';
 
@@ -455,6 +456,89 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
         await expect(repository.findById(postId)).resolves.toMatchObject({
             status: 'posted',
             posted_url: 'https://x.example.test/status/provider-entrypoint-proof'
+        });
+    });
+
+    it('AC-005: 実PostgreSQL claim競合は2 runnerの片方だけがproviderを呼ぶ', async () => {
+        const schema = await readFile(resolve(process.cwd(), 'server/sql/sns-posting-ledger-schema.sql'), 'utf8');
+        await pool.query(schema);
+        const repository = new PgSnsPostingLedgerRepository({ pool });
+        const tenantBoundary = {
+            tenant_context: {
+                tenant: {
+                    tenant_id: tenantA,
+                    tenant_revision: '3'
+                }
+            },
+            resource_ref: {
+                object_type: 'project',
+                resource_id: 'project_sns'
+            }
+        };
+        const imported = await repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            account_handle: '@AIBizNavigator',
+            drafts: [{
+                id: 'week_2026-08-18_3_claim_conflict',
+                date: '2026-08-18',
+                slot_index: 3,
+                time: '11:00',
+                body: 'postgres claim conflict proof',
+                tenant_boundary: tenantBoundary
+            }]
+        });
+        const postId = imported.created[0].id;
+        await repository.updatePost(postId, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+        await repository.updatePost(postId, {
+            status: 'scheduled',
+            scheduled_at: '2026-08-18T00:00:00.000Z'
+        }, { actor_person_id: 'sato_keigo' });
+
+        let listedRunners = 0;
+        let releaseLists;
+        const bothListed = new Promise((resolveBoth) => { releaseLists = resolveBoth; });
+        const repositoryForRunner = () => ({
+            async listPosts(filters) {
+                const posts = await repository.listPosts(filters);
+                listedRunners += 1;
+                if (listedRunners === 2) releaseLists();
+                await bothListed;
+                return posts;
+            },
+            claimScheduledPost: (...args) => repository.claimScheduledPost(...args),
+            findById: (...args) => repository.findById(...args),
+            updatePost: (...args) => repository.updatePost(...args)
+        });
+        const providerExecutor = vi.fn(async () => ({
+            id: 'provider-claim-winner',
+            url: 'https://x.example.test/status/provider-claim-winner'
+        }));
+        const publishService = new SnsLedgerPublishService({
+            ledgerRepository: repository,
+            postExecutor: providerExecutor,
+            now: () => new Date('2026-08-18T00:01:00.000Z')
+        });
+        const createPublisher = () => new SnsScheduledPublisher({
+            ledgerRepository: repositoryForRunner(),
+            tenantBoundaryAuthorizer: async () => ({ authorized: true }),
+            publishService,
+            now: () => new Date('2026-08-18T00:01:00.000Z')
+        });
+
+        const results = await Promise.all([
+            createPublisher().run({ auto_publish_enabled: true }),
+            createPublisher().run({ auto_publish_enabled: true })
+        ]);
+
+        expect(results.reduce((sum, result) => sum + result.posted, 0)).toBe(1);
+        expect(results.reduce((sum, result) => sum + result.skipped, 0)).toBe(1);
+        expect(results.flatMap((result) => result.skipped_posts)).toEqual([
+            { post_id: postId, reason: 'claim_lost' }
+        ]);
+        expect(providerExecutor).toHaveBeenCalledOnce();
+        await expect(repository.findById(postId)).resolves.toMatchObject({
+            status: 'posted',
+            posted_url: 'https://x.example.test/status/provider-claim-winner'
         });
     });
 });
