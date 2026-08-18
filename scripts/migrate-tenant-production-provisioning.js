@@ -17,7 +17,8 @@ const REQUIRED_INDEXES = [
     'brainbase_service_actor_capabilities_tenant_idx',
     'tenant_contract_revision_runtime_bindings_deployment_idx',
     'slack_installation_intents_tenant_idx',
-    'slack_installation_exchange_ledger_tenant_idx'
+    'slack_installation_exchange_ledger_tenant_idx',
+    'slack_installation_exchange_ledger_claim_idx'
 ];
 const REQUIRED_EXISTING_TABLES = [
     'brainbase_schema_migrations',
@@ -29,6 +30,9 @@ const REQUIRED_EXISTING_TABLES = [
     'tenant_contract_revisions'
 ];
 const REQUIRED_EXISTING_COLUMNS = Object.freeze({
+    brainbase_tenants: [
+        'tenant_key'
+    ],
     workspace_connections: [
         'enterprise_id',
         'installer_id',
@@ -37,6 +41,29 @@ const REQUIRED_EXISTING_COLUMNS = Object.freeze({
         'contract_revision'
     ]
 });
+const REQUIRED_VIEWS = ['brainbase_service_actor_jwks'];
+const REQUIRED_CONSTRAINTS = Object.freeze([
+    ['workspace_connections', 'status', /check .*status.*pending.*active.*revoked.*reauth_required.*uninstalled.*expired/iu],
+    ['workspace_connections', 'profile', /check .*profile.*shared_cloud.*dedicated_cloud.*customer_managed_oss/iu],
+    ['workspace_connection_revisions', 'current_identity_fk', /foreign key \(tenant_id, connection_id\) references workspace_connections/iu],
+    ['credential_broker_refs', 'connection_revision_fk', /foreign key \(tenant_id, connection_id, connection_revision\) references workspace_connection_revisions/iu],
+    ['tenant_credential_leases', 'connection_revision_fk', /foreign key \(tenant_id, connection_id, connection_revision\) references workspace_connection_revisions/iu],
+    ['tenant_usage_events', 'connection_revision_fk', /foreign key \(tenant_id, connection_id, connection_revision\) references workspace_connection_revisions/iu],
+    ['tenant_operation_receipts', 'connection_revision_fk', /foreign key \(tenant_id, connection_id, connection_revision\) references workspace_connection_revisions/iu],
+    ['tenant_business_effect_claims', 'connection_revision_fk', /foreign key \(tenant_id, connection_id, connection_revision\) references workspace_connection_revisions/iu],
+    ['tenant_organizations', 'tenant_revision_history_fk', /foreign key \(tenant_id, tenant_revision_at_write\) references brainbase_tenant_revisions/iu],
+    ['tenant_memberships', 'tenant_revision_history_fk', /foreign key \(tenant_id, tenant_revision_at_write\) references brainbase_tenant_revisions/iu],
+    ['tenant_projects', 'tenant_revision_history_fk', /foreign key \(tenant_id, tenant_revision_at_write\) references brainbase_tenant_revisions/iu],
+    ['workspace_connections', 'tenant_revision_history_fk', /foreign key \(tenant_id, tenant_revision_at_write\) references brainbase_tenant_revisions/iu],
+    ['tenant_contract_revisions', 'tenant_revision_history_fk', /foreign key \(tenant_id, tenant_revision_at_write\) references brainbase_tenant_revisions/iu],
+    ['slack_installation_intents', 'tenant_revision_history_fk', /foreign key \(tenant_id, tenant_revision_at_write\) references brainbase_tenant_revisions/iu],
+    ['tenant_provisioning_operations', 'claim_token_hash', /check .*claim_token_hash.*sha256/iu],
+    ['tenant_provisioning_operations', 'attempt', /check .*attempt.*[>] 0/iu],
+    ['slack_installation_exchange_ledger', 'status', /check .*status.*processing.*completed.*failed/iu],
+    ['brainbase_service_actor_capabilities', 'status', /check .*status.*active.*revoked/iu],
+    ['brainbase_service_actor_keys', 'status', /check .*status.*active.*revoked/iu],
+    ['tenant_contract_revision_runtime_bindings', 'contract_fk', /foreign key \(tenant_id, contract_id, contract_revision\) references tenant_contract_revisions/iu]
+]);
 
 export class TenantProvisioningMigrationError extends Error {
     constructor(code, message) {
@@ -68,6 +95,10 @@ function schemaContract(sql) {
 function missing(expected, actual) {
     const actualSet = new Set(actual);
     return expected.filter((value) => !actualSet.has(value)).sort();
+}
+
+function normalizeSql(value) {
+    return String(value ?? '').toLowerCase().replaceAll('"', '').replaceAll(/\s+/gu, ' ').trim();
 }
 
 export function parseTenantProvisioningMigrationArgs(argv = [], env = process.env) {
@@ -131,12 +162,43 @@ async function readbackSchema(client, contract) {
     if (missingColumns.length) throw new TenantProvisioningMigrationError('SCHEMA_READBACK_FAILED', `Provisioning schema has missing columns: ${missingColumns.join(', ')}`);
 
     const indexResult = await client.query(
-        `SELECT indexname FROM pg_indexes
+        `SELECT indexname, indexdef FROM pg_indexes
           WHERE schemaname = current_schema() AND indexname = ANY($1::text[])`,
         [contract.indexes]
     );
     const missingIndexes = missing(contract.indexes, indexResult.rows.map((row) => row.indexname));
     if (missingIndexes.length) throw new TenantProvisioningMigrationError('SCHEMA_READBACK_FAILED', `Provisioning schema has missing indexes: ${missingIndexes.join(', ')}`);
+    const uniqueWorkspaceIndex = indexResult.rows.find(({ indexname }) => indexname === 'workspace_connections_tenant_provider_workspace_app_uq');
+    if (!uniqueWorkspaceIndex || !/where .*status.*pending.*active/iu.test(normalizeSql(uniqueWorkspaceIndex.indexdef))) {
+        throw new TenantProvisioningMigrationError('SCHEMA_READBACK_FAILED', 'workspace connection uniqueness predicate is missing or incorrect');
+    }
+
+    const constraintResult = await client.query(
+        `SELECT conrelid::regclass::text AS table_name, conname, contype,
+                pg_get_constraintdef(oid) AS definition
+           FROM pg_constraint
+          WHERE connamespace = current_schema()::regnamespace
+          ORDER BY table_name, conname`
+    );
+    const normalizedConstraints = constraintResult.rows.map((row) => ({
+        table_name: normalizeSql(row.table_name),
+        definition: normalizeSql(row.definition)
+    }));
+    const missingConstraints = REQUIRED_CONSTRAINTS.filter(([table, , fragment]) => {
+        return !normalizedConstraints.some(({ table_name: actualTable, definition }) => {
+            if (actualTable !== normalizeSql(table)) return false;
+            return fragment instanceof RegExp ? fragment.test(definition) : definition.includes(normalizeSql(fragment));
+        });
+    }).map(([table, name]) => `${table}.${name}`);
+    if (missingConstraints.length) throw new TenantProvisioningMigrationError('SCHEMA_READBACK_FAILED', `Provisioning schema constraints are missing: ${missingConstraints.join(', ')}`);
+
+    const viewResult = await client.query(
+        `SELECT table_name FROM information_schema.views
+          WHERE table_schema = current_schema() AND table_name = ANY($1::text[])`,
+        [REQUIRED_VIEWS]
+    );
+    const missingViews = missing(REQUIRED_VIEWS, viewResult.rows.map((row) => row.table_name));
+    if (missingViews.length) throw new TenantProvisioningMigrationError('SCHEMA_READBACK_FAILED', `Provisioning schema has missing views: ${missingViews.join(', ')}`);
 
     const ledgerResult = await client.query(
         `SELECT schema_sha256 FROM brainbase_schema_migrations WHERE migration_id = $1`,
@@ -151,6 +213,8 @@ async function readbackSchema(client, contract) {
         column_count: [...contract.tableColumns.values()].reduce((sum, columns) => sum + columns.length, 0),
         existing_column_count: Object.values(REQUIRED_EXISTING_COLUMNS).flat().length,
         index_count: contract.indexes.length,
+        constraint_count: REQUIRED_CONSTRAINTS.length,
+        view_count: REQUIRED_VIEWS.length,
         ledger_matches: true
     };
 }

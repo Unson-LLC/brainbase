@@ -24,7 +24,7 @@ function schemaContract(sql) {
         const columns = [];
         for (const line of match[2].split('\n')) {
             const column = line.trim().match(/^([a-z][a-z0-9_]*)\s+/i)?.[1];
-            if (column && !['primary', 'unique', 'foreign', 'check', 'constraint', 'and', 'or'].includes(column.toLowerCase())) {
+            if (column && !['primary', 'unique', 'foreign', 'references', 'check', 'constraint', 'and', 'or'].includes(column.toLowerCase())) {
                 columns.push(column);
             }
         }

@@ -37,7 +37,7 @@ async function createPool({ missingTable = null, ledgerHash = null } = {}) {
             for (const match of contract.sql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-z0-9_]+)\s*\(([^;]+)\);/gis)) {
                 for (const line of match[2].split('\n')) {
                     const column = line.trim().match(/^([a-z][a-z0-9_]*)\s+/i)?.[1];
-                    if (column && !['primary', 'unique', 'foreign', 'check', 'constraint', 'and', 'or'].includes(column.toLowerCase())) {
+                    if (column && !['primary', 'unique', 'foreign', 'references', 'check', 'constraint', 'and', 'or'].includes(column.toLowerCase())) {
                         rows.push({ table_name: match[1], column_name: column });
                     }
                 }

@@ -1,5 +1,6 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
+import { canonicalJson } from './canonical-json.js';
 import { ContractError } from './errors.js';
 import { generateCanonicalId, isCanonicalId } from './ids.js';
 
@@ -127,7 +128,9 @@ export class SlackInstallationControlPlane {
         ttlSeconds = 600
     } = {}) {
         if (!repository || typeof repository.createSlackInstallationIntent !== 'function'
-            || typeof repository.registerSlackInstallation !== 'function') {
+            || typeof repository.claimSlackInstallationExchange !== 'function'
+            || typeof repository.registerSlackInstallation !== 'function'
+            || typeof repository.failSlackInstallationExchange !== 'function') {
             throw new Error('Slack installation control-plane repository is required');
         }
         if (!Number.isInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > 600) {
@@ -165,28 +168,46 @@ export class SlackInstallationControlPlane {
         if (!CODE.test(String(authorization_code ?? ''))) invalid('INSTALLATION_STATE_INVALID');
         const normalizedIntent = validateSlackInstallationBinding(intent);
         const redirect = validateRedirectUri(redirect_uri);
-        if (typeof this.repository.readSlackInstallationResult === 'function') {
-            const previous = await this.repository.readSlackInstallationResult({
-                tenant_id: normalizedIntent.tenant_id,
-                installation_intent_id: normalizedIntent.installation_intent_id
-            });
-            if (previous) return previous;
-        }
+        // Claim the intent before crossing either external boundary. The
+        // claim token fences stale callbacks after a retry takes ownership.
+        const claimToken = randomBytes(32).toString('base64url');
+        const requestDigest = credentialDigest(canonicalJson({
+            intent: normalizedIntent,
+            authorization_code,
+            redirect_uri: redirect
+        }));
+        const claim = await this.repository.claimSlackInstallationExchange({
+            intent: normalizedIntent,
+            request_digest: requestDigest,
+            claim_token: claimToken,
+            now: timestamp(this.now())
+        });
+        if (claim?.status === 'completed' && claim.response_payload) return claim.response_payload;
+        if (claim?.status !== 'claimed') invalid('INSTALLATION_STATE_INVALID');
         if (!this.oauthClient || typeof this.oauthClient.exchangeCode !== 'function'
             || !this.credentialStore || typeof this.credentialStore.store !== 'function') {
+            await this.repository.failSlackInstallationExchange({
+                intent: normalizedIntent,
+                claim_token: claimToken,
+                request_digest: requestDigest,
+                failure_code: 'UPSTREAM_UNAVAILABLE',
+                now: timestamp(this.now())
+            });
             invalid('UPSTREAM_UNAVAILABLE', 503);
         }
 
         // This is the only call that may receive the short-lived OAuth code.
         // Do not include its result in errors, logs or the persistence payload.
-        const upstream = await this.oauthClient.exchangeCode({
-            authorization_code,
-            redirect_uri: redirect
-        });
-        const exchanged = exchangedInstallation(upstream, normalizedIntent);
-        const connectionId = generateCanonicalId('wsc');
+        let exchanged;
+        let connectionId;
         let storedCredential;
         try {
+            const upstream = await this.oauthClient.exchangeCode({
+                authorization_code,
+                redirect_uri: redirect
+            });
+            exchanged = exchangedInstallation(upstream, normalizedIntent);
+            connectionId = generateCanonicalId('wsc');
             storedCredential = opaqueCredential(await this.credentialStore.store({
                 tenant_id: normalizedIntent.tenant_id,
                 idempotency_key: normalizedIntent.installation_intent_id,
@@ -207,6 +228,8 @@ export class SlackInstallationControlPlane {
                 },
                 credential: storedCredential,
                 connection_id: connectionId,
+                claim_token: claimToken,
+                request_digest: requestDigest,
                 now: timestamp(this.now())
             });
             return result;
@@ -220,6 +243,15 @@ export class SlackInstallationControlPlane {
                     reason: 'registration_failed'
                 }); } catch { /* preserve the registration error */ }
             }
+            try {
+                await this.repository.failSlackInstallationExchange({
+                    intent: normalizedIntent,
+                    claim_token: claimToken,
+                    request_digest: requestDigest,
+                    failure_code: error?.code ?? 'INSTALLATION_EXCHANGE_FAILED',
+                    now: timestamp(this.now())
+                });
+            } catch { /* preserve the external/registration error */ }
             throw error;
         }
     }

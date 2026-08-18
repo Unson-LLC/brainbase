@@ -22,7 +22,9 @@ describe('tenant production provisioning schema', () => {
         expect(sql).toContain('UNIQUE INDEX IF NOT EXISTS brainbase_tenants_tenant_key_uq');
         expect(sql).toContain('ON CONFLICT (tenant_id, tenant_revision) DO NOTHING');
         expect(sql).toContain('FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenant_revisions(tenant_id, tenant_revision)');
-        expect(sql).toContain('FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision)');
+        expect(sql).toMatch(/FOREIGN KEY \(tenant_id, connection_id, connection_revision\)\s+REFERENCES workspace_connection_revisions\(tenant_id, connection_id, connection_revision\)/u);
+        expect(sql).toContain('FOREIGN KEY (tenant_id, connection_id)');
+        expect(sql).toContain('workspace_connection_revisions_immutable');
     });
 
     it('enforces workspace logical uniqueness, provisioning idempotency, and service capabilities', async () => {

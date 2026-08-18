@@ -10,6 +10,7 @@
 
 import crypto from 'crypto';
 import { logger } from '../utils/logger.js';
+import { isDedicatedSlackInstallationExchangeRequest } from '../services/multitenant/slack-installation-auth.js';
 
 /** @typedef {{ token: string, createdAt: number }} StoredToken */
 /** @typedef {{ method?: string, path?: string, headers?: Record<string, string | string[] | undefined> }} RequestLike */
@@ -114,6 +115,14 @@ export function csrfMiddleware() {
     return (req, res, next) => {
         // Skip safe methods
         if (['GET', 'HEAD', 'OPTIONS'].includes(req.method || '')) {
+            return next();
+        }
+
+        // This exact machine-to-machine OAuth exchange is authenticated by a
+        // dedicated, fully verified service JWT. The route guard repeats the
+        // same verification after this global middleware. No user/browser JWT,
+        // generic service token, or neighbouring route is exempted.
+        if (isDedicatedSlackInstallationExchangeRequest(req)) {
             return next();
         }
 

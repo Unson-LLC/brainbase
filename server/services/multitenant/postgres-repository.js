@@ -15,6 +15,12 @@ const OWNED_RESOURCE_TABLES = Object.freeze({
     operation_receipt: { table: 'tenant_operation_receipts', id: 'receipt_id' }
 });
 
+const SLACK_INSTALLATION_CLAIM_STALE_SECONDS = 120;
+
+function sha256(value) {
+    return `sha256:${createHash('sha256').update(String(value), 'utf8').digest('hex')}`;
+}
+
 function unavailable(error) {
     if (error instanceof ContractError) return error;
     return new ContractError('UPSTREAM_UNAVAILABLE', {
@@ -219,6 +225,96 @@ export class MultitenantPostgresRepository {
         });
     }
 
+    async claimSlackInstallationExchange({
+        intent,
+        request_digest,
+        claim_token,
+        now = this.now().toISOString(),
+        stale_after_seconds = SLACK_INSTALLATION_CLAIM_STALE_SECONDS
+    }) {
+        if (!intent || typeof request_digest !== 'string' || typeof claim_token !== 'string') {
+            throw new ContractError('INSTALLATION_STATE_INVALID', { status: 400 });
+        }
+        return this.withTenant(intent.tenant_id, async (client) => {
+            const intentResult = await client.query(
+                `SELECT installation_intent_id, tenant_id, app_id,
+                        expected_workspace_id, expected_enterprise_id,
+                        initiated_by_principal_id AS initiated_by_person_id,
+                        expected_connection_revision, issued_at, expires_at, consumed_at
+                   FROM slack_installation_intents
+                  WHERE tenant_id = $1 AND installation_intent_id = $2
+                  FOR UPDATE`,
+                [intent.tenant_id, intent.installation_intent_id]
+            );
+            const storedIntent = intentResult.rows[0];
+            if (!storedIntent) throw new ContractError('INSTALLATION_STATE_INVALID', { status: 400 });
+            if (storedIntent.app_id !== intent.app_id
+                || storedIntent.tenant_id !== intent.tenant_id
+                || storedIntent.initiated_by_person_id !== intent.initiated_by_person_id
+                || (storedIntent.expected_workspace_id ?? null) !== (intent.expected_workspace_id ?? null)
+                || (storedIntent.expected_enterprise_id ?? null) !== (intent.expected_enterprise_id ?? null)
+                || String(storedIntent.expected_connection_revision ?? '') !== String(intent.expected_connection_revision ?? '')) {
+                throw new ContractError('INSTALLATION_BINDING_MISMATCH', { status: 409 });
+            }
+            const nowMs = Date.parse(now);
+            const expiresMs = Date.parse(storedIntent.expires_at);
+            if (!Number.isFinite(nowMs) || !Number.isFinite(expiresMs)) {
+                throw new ContractError('INSTALLATION_STATE_INVALID', { status: 400 });
+            }
+
+            const ledgerResult = await client.query(
+                `SELECT status, response_payload, claimed_at, attempt
+                   FROM slack_installation_exchange_ledger
+                  WHERE tenant_id = $1 AND installation_intent_id = $2
+                  FOR UPDATE`,
+                [intent.tenant_id, intent.installation_intent_id]
+            );
+            const ledger = ledgerResult.rows[0];
+            if (ledger?.status === 'completed' && ledger.response_payload) {
+                return { status: 'completed', response_payload: ledger.response_payload };
+            }
+            if (storedIntent.consumed_at) {
+                throw new ContractError('INSTALLATION_STATE_REPLAYED', { status: 409 });
+            }
+            if (expiresMs <= nowMs) {
+                throw new ContractError('INSTALLATION_STATE_EXPIRED', { status: 410 });
+            }
+            if (ledger?.status === 'processing') {
+                const claimedMs = Date.parse(ledger.claimed_at);
+                const staleMs = nowMs - Number(stale_after_seconds) * 1000;
+                if (Number.isFinite(claimedMs) && claimedMs > staleMs) {
+                    throw new ContractError('INSTALLATION_IN_PROGRESS', { status: 409, retryable: true });
+                }
+            }
+
+            const claimTokenHash = sha256(claim_token);
+            if (ledger) {
+                await client.query(
+                    `UPDATE slack_installation_exchange_ledger
+                        SET status = 'processing', request_digest = $3,
+                            claim_token_hash = $4, claimed_at = $5,
+                            attempt = attempt + 1, failure_code = NULL,
+                            connection_id = NULL, connection_revision = NULL,
+                            response_payload = NULL, completed_at = NULL
+                      WHERE tenant_id = $1 AND installation_intent_id = $2`,
+                    [intent.tenant_id, intent.installation_intent_id, request_digest, claimTokenHash, now]
+                );
+            } else {
+                await client.query(
+                    `INSERT INTO slack_installation_exchange_ledger (
+                        installation_intent_id, tenant_id, request_digest, status,
+                        claim_token_hash, claimed_at, attempt, created_at
+                     ) VALUES ($1, $2, $3, 'processing', $4, $5, 1, $5)`,
+                    [intent.installation_intent_id, intent.tenant_id, request_digest, claimTokenHash, now]
+                );
+            }
+            return {
+                status: 'claimed',
+                attempt: Number(ledger?.attempt ?? 0) + 1
+            };
+        });
+    }
+
     async readSlackInstallationResult({ tenant_id, installation_intent_id }) {
         return this.withTenant(tenant_id, async (client) => {
             const result = await client.query(
@@ -234,6 +330,9 @@ export class MultitenantPostgresRepository {
             const row = result.rows[0];
             if (!row) throw new ContractError('INSTALLATION_STATE_INVALID', { status: 400 });
             if (row.status === 'completed' && row.response_payload) return row.response_payload;
+            if (row.status === 'processing') {
+                throw new ContractError('INSTALLATION_IN_PROGRESS', { status: 409, retryable: true });
+            }
             if (row.consumed_at) throw new ContractError('INSTALLATION_STATE_REPLAYED', { status: 409 });
             return null;
         });
@@ -244,6 +343,8 @@ export class MultitenantPostgresRepository {
         exchange,
         credential,
         connection_id,
+        claim_token,
+        request_digest,
         now = this.now().toISOString()
     }) {
         return this.withTenant(intent.tenant_id, async (client) => {
@@ -261,7 +362,8 @@ export class MultitenantPostgresRepository {
             if (!storedIntent) throw new ContractError('INSTALLATION_STATE_INVALID', { status: 400 });
 
             const existingLedgerResult = await client.query(
-                `SELECT request_digest, status, connection_id, connection_revision, response_payload
+                `SELECT request_digest, status, connection_id, connection_revision,
+                        response_payload, claim_token_hash
                    FROM slack_installation_exchange_ledger
                   WHERE tenant_id = $1 AND installation_intent_id = $2
                   FOR UPDATE`,
@@ -270,6 +372,11 @@ export class MultitenantPostgresRepository {
             const existingLedger = existingLedgerResult.rows[0];
             if (existingLedger?.status === 'completed' && existingLedger.response_payload) {
                 return existingLedger.response_payload;
+            }
+            if (!existingLedger || existingLedger.status !== 'processing'
+                || existingLedger.request_digest !== request_digest
+                || existingLedger.claim_token_hash !== sha256(claim_token)) {
+                throw new ContractError('INSTALLATION_CLAIM_STALE', { status: 409, retryable: true });
             }
             if (storedIntent.consumed_at) {
                 throw new ContractError('INSTALLATION_STATE_REPLAYED', { status: 409 });
@@ -349,6 +456,27 @@ export class MultitenantPostgresRepository {
                 credential_mode: credential.credential_mode,
                 contract_revision: String(contract.contract_revision)
             };
+            if (!current) {
+                await client.query(
+                    `INSERT INTO workspace_connections (
+                        connection_id, connection_revision, tenant_id, tenant_revision_at_write,
+                        provider, installation_id, workspace_id, enterprise_id, app_id, installer_id,
+                        granted_scopes, status, credential_ref, installed_at,
+                        deployment_id, profile, contract_revision
+                     ) VALUES ($1,1,$2,$3,'slack',$4,$5,$6,$7,$8,$9,'active',$10,$11,$12,$13,$14)`,
+                    [resolvedConnectionId, intent.tenant_id, tenant.tenant_revision,
+                        exchange.installation_id, exchange.workspace_id, exchange.enterprise_id ?? null,
+                        intent.app_id, exchange.installer_id, exchange.granted_scopes,
+                        credential.credential_ref, installedAt, contract.deployment_id,
+                        contract.profile, String(contract.contract_revision)]
+                );
+            }
+            await client.query(
+                `INSERT INTO workspace_connection_revisions (
+                    tenant_id, connection_id, connection_revision, connection_snapshot, recorded_at
+                 ) VALUES ($1,$2,$3,$4::jsonb,$5)`,
+                [intent.tenant_id, resolvedConnectionId, resolvedRevision, canonicalJson(snapshot), installedAt]
+            );
             if (current) {
                 await client.query(
                     `UPDATE workspace_connections
@@ -368,20 +496,6 @@ export class MultitenantPostgresRepository {
                         credential.credential_ref, installedAt, current.connection_revision,
                         contract.deployment_id, contract.profile, String(contract.contract_revision)]
                 );
-            } else {
-                await client.query(
-                    `INSERT INTO workspace_connections (
-                        connection_id, connection_revision, tenant_id, tenant_revision_at_write,
-                        provider, installation_id, workspace_id, enterprise_id, app_id, installer_id,
-                        granted_scopes, status, credential_ref, installed_at,
-                        deployment_id, profile, contract_revision
-                     ) VALUES ($1,1,$2,$3,'slack',$4,$5,$6,$7,$8,$9,'active',$10,$11,$12,$13,$14)`,
-                    [resolvedConnectionId, intent.tenant_id, tenant.tenant_revision,
-                        exchange.installation_id, exchange.workspace_id, exchange.enterprise_id ?? null,
-                        intent.app_id, exchange.installer_id, exchange.granted_scopes,
-                        credential.credential_ref, installedAt, contract.deployment_id,
-                        contract.profile, String(contract.contract_revision)]
-                );
             }
             await client.query(
                 `INSERT INTO credential_broker_refs (
@@ -392,30 +506,60 @@ export class MultitenantPostgresRepository {
                     credential.credential_mode, credential.refresh_revision ?? 1, installedAt]
             );
             await client.query(
-                `INSERT INTO workspace_connection_revisions (
-                    tenant_id, connection_id, connection_revision, connection_snapshot, recorded_at
-                 ) VALUES ($1,$2,$3,$4::jsonb,$5)`,
-                [intent.tenant_id, resolvedConnectionId, resolvedRevision, canonicalJson(snapshot), installedAt]
-            );
-            await client.query(
                 `UPDATE slack_installation_intents
                     SET consumed_at = $3
                   WHERE tenant_id = $1 AND installation_intent_id = $2 AND consumed_at IS NULL`,
                 [intent.tenant_id, intent.installation_intent_id, installedAt]
             );
-            const requestDigest = `sha256:${createHash('sha256').update(canonicalJson({
-                intent, exchange: { ...exchange, credential_ref: credential.credential_ref }
-            }), 'utf8').digest('hex')}`;
             const ledger = await client.query(
-                `INSERT INTO slack_installation_exchange_ledger (
-                    installation_intent_id, tenant_id, request_digest, status,
-                    connection_id, connection_revision, response_payload, created_at, completed_at
-                 ) VALUES ($1,$2,$3,'completed',$4,$5,$6::jsonb,$7,$7)
+                `UPDATE slack_installation_exchange_ledger
+                    SET status = 'completed', claim_token_hash = NULL,
+                        claimed_at = NULL, failure_code = NULL,
+                        connection_id = $3, connection_revision = $4,
+                        response_payload = $5::jsonb, completed_at = $6
+                  WHERE tenant_id = $1 AND installation_intent_id = $2
+                    AND status = 'processing'
+                    AND request_digest = $7
+                    AND claim_token_hash = $8
                  RETURNING response_payload`,
-                [intent.installation_intent_id, intent.tenant_id, requestDigest,
-                    resolvedConnectionId, resolvedRevision, canonicalJson(snapshot), installedAt]
+                [intent.tenant_id, intent.installation_intent_id,
+                    resolvedConnectionId, resolvedRevision, canonicalJson(snapshot), installedAt,
+                    request_digest, sha256(claim_token)]
             );
-            return ledger.rows[0]?.response_payload ?? snapshot;
+            if (!ledger.rows[0]?.response_payload) {
+                throw new ContractError('INSTALLATION_CLAIM_STALE', { status: 409, retryable: true });
+            }
+            return ledger.rows[0].response_payload;
+        });
+    }
+
+    async failSlackInstallationExchange({
+        intent,
+        claim_token,
+        request_digest,
+        failure_code = 'INSTALLATION_EXCHANGE_FAILED',
+        now = this.now().toISOString()
+    }) {
+        if (!intent || typeof claim_token !== 'string' || typeof request_digest !== 'string') return false;
+        const safeFailureCode = /^[A-Z0-9_:-]{1,128}$/u.test(String(failure_code))
+            ? String(failure_code)
+            : 'INSTALLATION_EXCHANGE_FAILED';
+        return this.withTenant(intent.tenant_id, async (client) => {
+            const result = await client.query(
+                `UPDATE slack_installation_exchange_ledger
+                    SET status = 'failed', claim_token_hash = NULL,
+                        claimed_at = NULL, failure_code = $3,
+                        completed_at = NULL, response_payload = NULL,
+                        connection_id = NULL, connection_revision = NULL
+                  WHERE tenant_id = $1 AND installation_intent_id = $2
+                    AND status = 'processing'
+                    AND request_digest = $4
+                    AND claim_token_hash = $5`,
+                [intent.tenant_id, intent.installation_intent_id, safeFailureCode,
+                    request_digest, sha256(claim_token)]
+            );
+            if (result.rowCount !== 1) return false;
+            return true;
         });
     }
 

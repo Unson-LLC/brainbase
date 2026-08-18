@@ -41,6 +41,21 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
             ) VALUES ($1, 7, $2, 3, 'openai', 'installation-a', 'workspace-a',
                       'app-a', ARRAY['responses.create'], 'active', $3, now())`,
         [connectionA, tenantA, credentialRefA]);
+        await pool.query(`INSERT INTO workspace_connection_revisions (
+                tenant_id, connection_id, connection_revision, connection_snapshot, recorded_at
+            ) VALUES ($1, $2, 7, $3::jsonb, now())`, [
+            tenantA,
+            connectionA,
+            JSON.stringify({
+                provider: 'openai',
+                installation_id: 'installation-a',
+                workspace_id: 'workspace-a',
+                app_id: 'app-a',
+                granted_scopes: ['responses.create'],
+                status: 'active',
+                credential_ref: credentialRefA
+            })
+        ]);
         await pool.query(`INSERT INTO credential_broker_refs (
                 credential_ref, tenant_id, connection_id, connection_revision,
                 credential_mode, refresh_revision, created_at, updated_at

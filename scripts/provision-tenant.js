@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { Pool } from 'pg';
@@ -8,6 +9,10 @@ import {
     redactedManifestSummary
 } from '../server/services/multitenant/provisioning-manifest.js';
 import { provisionTenant, TenantProvisioningError } from '../server/services/multitenant/tenant-provisioner.js';
+import {
+    createPostgresCredentialResolver,
+    createPostgresGraphProjectResolver
+} from '../server/services/multitenant/tenant-provisioning-resolvers.js';
 
 export function parseProvisionTenantArgs(argv = [], env = process.env) {
     const modeNames = ['check', 'dry-run', 'apply'];
@@ -34,20 +39,12 @@ export function parseProvisionTenantArgs(argv = [], env = process.env) {
     return { mode: modes[0], manifestPath, idempotencyKey, approved };
 }
 
-function unavailableResolver(name) {
-    return {
-        async [name]() {
-            throw new TenantProvisioningError('RESOLVER_CONFIG_REQUIRED', `A configured ${name} resolver is required`);
-        }
-    };
-}
-
 export async function runProvisionTenant({
     argv = process.argv.slice(2),
     env = process.env,
     pool = null,
-    graphResolver = unavailableResolver('resolveCanonicalProject'),
-    credentialResolver = unavailableResolver('verifyOpaqueReference'),
+    graphResolver = null,
+    credentialResolver = null,
     readManifest = readFile
 } = {}) {
     const args = parseProvisionTenantArgs(argv, env);
@@ -67,13 +64,22 @@ export async function runProvisionTenant({
     let client;
     try {
         client = await activePool.connect();
+        // Production defaults are DB-backed canonical read adapters.  They
+        // use their own pool clients so Graph/credential reads never happen
+        // under the provisioner's transaction or advisory lock.  Supplying a
+        // custom adapter remains an explicit DI seam for controlled tests.
+        const activeGraphResolver = graphResolver ?? createPostgresGraphProjectResolver({ pool: activePool });
+        const activeCredentialResolver = credentialResolver ?? createPostgresCredentialResolver({ pool: activePool });
+        const schemaSql = await readFile(new URL('../server/sql/tenant-production-provisioning-schema.sql', import.meta.url), 'utf8');
+        const schemaSha256 = createHash('sha256').update(schemaSql).digest('hex');
         const result = await provisionTenant({
             client,
             manifest,
             idempotencyKey: args.idempotencyKey,
             actorId: String(env.BRAINBASE_PROVISIONING_ACTOR ?? 'dry-run'),
-            graphResolver,
-            credentialResolver,
+            graphResolver: activeGraphResolver,
+            credentialResolver: activeCredentialResolver,
+            schemaSha256,
             commit: args.mode === 'apply'
         });
         return { ok: true, mode: args.mode, persisted: args.mode === 'apply' && result.persisted !== false, ...result };

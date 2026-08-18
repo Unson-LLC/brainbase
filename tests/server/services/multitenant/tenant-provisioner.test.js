@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { exportServiceActorJwks, provisionTenant } from '../../../../server/services/multitenant/tenant-provisioner.js';
 
+const TEST_SCHEMA_SHA256 = 'a'.repeat(64);
+
 const manifest = {
     tenant_key: 'unson-business',
     tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
@@ -53,16 +55,34 @@ const manifest = {
 
 function createClient({ existingOperation = null, project = { project_id: 'project_mana' }, connection = null, existingProject = null, existingContract = null, existingBinding = null } = {}) {
     const queries = [];
+    let operationRow = existingOperation;
     let contractRow = existingContract;
     let bindingRow = existingBinding;
     const query = vi.fn(async (text, values = []) => {
         queries.push({ text: String(text), values });
         const sql = String(text);
+        if (String(text).includes('FROM brainbase_schema_migrations')) {
+            return { rows: [{ schema_sha256: TEST_SCHEMA_SHA256 }] };
+        }
         if (String(text).includes('FROM tenant_provisioning_operations')) {
-            return { rows: existingOperation ? [existingOperation] : [] };
+            if (sql.includes('status = \'claimed\'')) return { rows: operationRow?.status === 'claimed' ? [operationRow] : [] };
+            return { rows: operationRow ? [operationRow] : [] };
         }
         if (String(text).includes('INSERT INTO tenant_provisioning_operations')) {
-            return { rows: [{ operation_id: 'op_01', status: 'claimed' }] };
+            operationRow = { operation_id: 'op_01', status: 'claimed', claim_token_hash: values[5], claimed_at: values[6], attempt: 1 };
+            return { rows: [operationRow] };
+        }
+        if (sql.includes('UPDATE tenant_provisioning_operations') && sql.includes("SET status = 'claimed'")) {
+            operationRow = { ...(operationRow ?? {}), status: 'claimed', claim_token_hash: values[1], claimed_at: values[2], attempt: Number(operationRow?.attempt ?? 1) + 1 };
+            return { rows: [operationRow], rowCount: 1 };
+        }
+        if (sql.includes('UPDATE tenant_provisioning_operations') && sql.includes("SET status = 'applied'")) {
+            operationRow = { ...(operationRow ?? {}), status: 'applied', receipt_payload: JSON.parse(values[2]) };
+            return { rows: [], rowCount: 1 };
+        }
+        if (sql.includes('UPDATE tenant_provisioning_operations') && sql.includes("SET status = 'failed'")) {
+            operationRow = { ...(operationRow ?? {}), status: 'failed', receipt_payload: JSON.parse(values[3]) };
+            return { rows: [], rowCount: 1 };
         }
         if (sql.includes('FROM tenant_contract_revision_runtime_bindings')) {
             return { rows: bindingRow ? [bindingRow] : [] };
@@ -102,6 +122,11 @@ function createClient({ existingOperation = null, project = { project_id: 'proje
         if (String(text).includes('FROM workspace_connections')) {
             return { rows: connection ? [connection] : [] };
         }
+        if (sql.includes('FROM brainbase_service_actor_capabilities')) {
+            return { rows: manifest.service_actor.capabilities.map((capability_id) => ({ capability_id })) };
+        }
+        if (sql.includes('FROM brainbase_service_actor_keys')) return { rows: [] };
+        if (sql.includes('FROM brainbase_tenants') && sql.includes('WHERE tenant_id = $1')) return { rows: [] };
         if (String(text).includes('FROM tenant_projects')) return { rows: existingProject ? [existingProject] : [] };
         if (String(text).includes('INSERT INTO tenant_projects')) return {
             rows: [{ project_id: project?.project_id ?? 'project_mana', tenant_id: manifest.tenant_id, project_code: manifest.project_code }],
@@ -158,6 +183,10 @@ const credentialResolver = {
     verifyOpaqueReference: vi.fn(async ({ tenant_key }) => ({ tenant_key, valid: true }))
 };
 
+function provision(options) {
+    return provisionTenant({ ...options, schemaSha256: TEST_SCHEMA_SHA256 });
+}
+
 describe('tenant provisioner', () => {
     it('exports only the tenant-scoped standard JWKS view', async () => {
         const client = {
@@ -183,6 +212,19 @@ describe('tenant provisioner', () => {
         });
     });
 
+    it('requires the migration ledger hash before any provisioning transaction', async () => {
+        const client = createClient();
+        await expect(provisionTenant({
+            client,
+            manifest,
+            idempotencyKey: 'ik_schema_required',
+            actorId: 'operator@example.test',
+            graphResolver,
+            credentialResolver
+        })).rejects.toMatchObject({ code: 'SCHEMA_VERSION_REQUIRED' });
+        expect(client.queries.map(({ text }) => text)).not.toContain('BEGIN');
+    });
+
     it('replays the same operation without duplicate writes', async () => {
         const client = createClient({
             existingOperation: {
@@ -192,7 +234,7 @@ describe('tenant provisioner', () => {
                 receipt_payload: { operation_id: 'op_existing', outcome: 'succeeded' }
             }
         });
-        const result = await provisionTenant({
+        const result = await provision({
             client,
             manifest,
             idempotencyKey: 'ik_same',
@@ -217,7 +259,7 @@ describe('tenant provisioner', () => {
                 receipt_payload: { operation_id: 'op_existing' }
             }
         });
-        await expect(provisionTenant({
+        await expect(provision({
             client,
             manifest,
             idempotencyKey: 'ik_same',
@@ -236,7 +278,7 @@ describe('tenant provisioner', () => {
             resolveCanonicalProject: vi.fn(async () => ({ matches: 2, candidates: ['project_a', 'project_b'] }))
         };
 
-        await expect(provisionTenant({
+        await expect(provision({
             client,
             manifest,
             idempotencyKey: 'ik_ambiguous',
@@ -255,7 +297,7 @@ describe('tenant provisioner', () => {
             resolveCanonicalProject: vi.fn(async () => ({ matches: 2, candidates: ['project_a', 'project_b'] }))
         };
 
-        await expect(provisionTenant({
+        await expect(provision({
             client,
             manifest,
             idempotencyKey: 'ik_failed',
@@ -264,24 +306,25 @@ describe('tenant provisioner', () => {
             credentialResolver
         })).rejects.toMatchObject({ code: 'PROJECT_AMBIGUOUS' });
 
-        const failureInsert = client.queries.find(({ text }) => text.includes('INSERT INTO tenant_provisioning_operations') && text.includes('receipt_payload'));
-        expect(failureInsert).toBeDefined();
-        const failureReceipt = JSON.parse(failureInsert.values[5]);
+        const failureUpdate = client.queries.find(({ text }) => text.includes('UPDATE tenant_provisioning_operations') && text.includes("SET status = 'failed'"));
+        expect(failureUpdate).toBeDefined();
+        const failureReceipt = JSON.parse(failureUpdate.values[3]);
         expect(failureReceipt).toMatchObject({ outcome: 'failed', failure_code: 'PROJECT_AMBIGUOUS' });
         expect(JSON.stringify(failureReceipt)).not.toContain('project_a');
         expect(client.queries.map(({ text }) => text)).toContain('COMMIT');
     });
 
-    it('does not silently retry a previously failed operation', async () => {
+    it('reclaims a failed operation with the same fingerprint and fences the old attempt', async () => {
         const client = createClient({
             existingOperation: {
                 operation_id: 'op_failed',
                 desired_state_sha256: 'same',
                 status: 'failed',
-                receipt_payload: { failure_code: 'PROJECT_AMBIGUOUS' }
+                receipt_payload: { failure_code: 'PROJECT_AMBIGUOUS' },
+                attempt: 1
             }
         });
-        await expect(provisionTenant({
+        const result = await provision({
             client,
             manifest,
             idempotencyKey: 'ik_failed_replay',
@@ -289,13 +332,14 @@ describe('tenant provisioner', () => {
             graphResolver,
             credentialResolver,
             fingerprint: 'same'
-        })).rejects.toMatchObject({ code: 'PROJECT_AMBIGUOUS' });
-        expect(client.queries.some(({ text }) => text.includes('INSERT INTO brainbase_tenants'))).toBe(false);
+        });
+        expect(result.receipt.operation_id).toBe('op_failed');
+        expect(client.queries.some(({ text }) => text.includes("SET status = 'claimed'"))).toBe(true);
     });
 
     it('fails closed when the tenant project code belongs to another canonical project', async () => {
         const client = createClient({ existingProject: { project_id: 'project_other' } });
-        await expect(provisionTenant({
+        await expect(provision({
             client,
             manifest,
             idempotencyKey: 'ik_project_conflict',
@@ -310,7 +354,7 @@ describe('tenant provisioner', () => {
 
     it('returns a redacted readback receipt after an atomic apply', async () => {
         const client = createClient();
-        const result = await provisionTenant({
+        const result = await provision({
             client,
             manifest,
             idempotencyKey: 'ik_apply',
@@ -349,7 +393,7 @@ describe('tenant provisioner', () => {
             fx_table_revision: manifest.contract_revision.fx_table_revision,
             sales_price_revision: manifest.contract_revision.sales_price_revision
         } });
-        await expect(provisionTenant({
+        await expect(provision({
             client,
             manifest,
             idempotencyKey: 'ik_contract_conflict',

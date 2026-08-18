@@ -166,4 +166,85 @@ describe('Slack installation route-specific authentication', () => {
         expect(response.statusCode).toBe(404);
         expect(next).not.toHaveBeenCalled();
     });
+
+    it('resolves legacy user JWT identity through the canonical mapping resolver', async () => {
+        const resolveCanonicalAccess = vi.fn(async ({ slackUserId, slackWorkspaceId }) => ({
+            tenantId,
+            personId,
+            role: 'ceo',
+            slackUserId,
+            slackWorkspaceId
+        }));
+        const middleware = createSlackInstallationControlPlaneAuthMiddleware({
+            authService: {
+                verifyToken: () => ({
+                    sub: 'legacy-subject',
+                    organizationId: 'org-self-asserted',
+                    slackUserId: 'U0123456789',
+                    slackWorkspaceId: 'T0123456789'
+                })
+            },
+            resolveCanonicalAccess,
+            env
+        });
+        const req = {
+            method: 'POST',
+            path: '/slack-installations:authorize',
+            headers: { authorization: 'Bearer legacy-user-token' },
+            get(name) { return this.headers[name.toLowerCase()]; }
+        };
+        const response = {
+            statusCode: null,
+            body: null,
+            status(code) { this.statusCode = code; return this; },
+            type() { return this; },
+            json(body) { this.body = body; return this; }
+        };
+        const next = vi.fn();
+
+        await middleware(req, response, next);
+
+        expect(resolveCanonicalAccess).toHaveBeenCalledWith(expect.objectContaining({
+            slack_user_id: 'U0123456789',
+            slack_workspace_id: 'T0123456789'
+        }));
+        expect(req.access).toMatchObject({ tenantId, personId, role: 'ceo' });
+        expect(req.access.organizationId).not.toBe('org-self-asserted');
+        expect(next).toHaveBeenCalledOnce();
+    });
+
+    it('fails closed when legacy user identity has no canonical mapping', async () => {
+        const middleware = createSlackInstallationControlPlaneAuthMiddleware({
+            authService: {
+                verifyToken: () => ({
+                    sub: 'legacy-subject',
+                    organizationId: 'org-self-asserted',
+                    slackUserId: 'U0123456789',
+                    slackWorkspaceId: 'T0123456789'
+                })
+            },
+            resolveCanonicalAccess: vi.fn(async () => null),
+            env
+        });
+        const req = {
+            method: 'POST',
+            path: '/slack-installations:authorize',
+            headers: { authorization: 'Bearer legacy-user-token' },
+            get(name) { return this.headers[name.toLowerCase()]; }
+        };
+        const response = {
+            statusCode: null,
+            body: null,
+            status(code) { this.statusCode = code; return this; },
+            type() { return this; },
+            json(body) { this.body = body; return this; }
+        };
+        const next = vi.fn();
+
+        await middleware(req, response, next);
+
+        expect(response.statusCode).toBe(403);
+        expect(response.body).toMatchObject({ code: 'INSTALLATION_AUTHORIZATION_REQUIRED' });
+        expect(next).not.toHaveBeenCalled();
+    });
 });

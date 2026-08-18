@@ -13,6 +13,7 @@ const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV';
 const tenantKey = 'unson-business';
 const personId = 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY';
 const intentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FAZ';
+const concurrentIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FB3';
 const contractId = 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FB1';
 const deploymentId = 'dep_01ARZ3NDEKTSV4RRFFQ69G5FB2';
 const appId = 'A0123456789';
@@ -190,5 +191,75 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
             'SELECT count(*)::integer AS count FROM slack_installation_exchange_ledger WHERE tenant_id = $1',
             [tenantId]
         )).toMatchObject({ rows: [{ count: 1 }] });
+    }, 120_000);
+
+    it('claims concurrent callbacks before OAuth so only one external exchange and registration occur', async () => {
+        const intent = {
+            installation_intent_id: concurrentIntentId,
+            tenant_id: tenantId,
+            app_id: appId,
+            expected_workspace_id: workspaceId,
+            expected_enterprise_id: enterpriseId,
+            initiated_by_person_id: personId,
+            expected_connection_revision: '1'
+        };
+        await controlPlane.authorizeBinding(intent);
+
+        let resolveOauthStarted;
+        let releaseOauth;
+        const oauthStarted = new Promise((resolveStarted) => { resolveOauthStarted = resolveStarted; });
+        const oauthGate = new Promise((resolveRelease) => { releaseOauth = resolveRelease; });
+        oauthClient.exchangeCode.mockImplementationOnce(async () => {
+            resolveOauthStarted();
+            await oauthGate;
+            return {
+                app_id: appId,
+                workspace_id: workspaceId,
+                enterprise_id: enterpriseId,
+                installer_id: installerId,
+                installation_id: `slack:${appId}:${workspaceId}:concurrent`,
+                granted_scopes: ['chat:write', 'commands'],
+                credential_material: 'xoxb-concurrent-secret',
+                credential_refresh_material: 'xoxr-concurrent-secret'
+            };
+        });
+        credentialStore.store.mockResolvedValue({
+            credential_ref: 'vault://slack/unson-business/concurrent',
+            credential_mode: 'customer_oauth',
+            refresh_revision: 1
+        });
+        oauthClient.exchangeCode.mockClear();
+        credentialStore.store.mockClear();
+
+        const first = controlPlane.exchange_and_register({
+            authorization_code: 'oauth-concurrent-one',
+            redirect_uri: 'https://mana.example.test/oauth/slack/callback',
+            intent
+        });
+        await oauthStarted;
+        const second = controlPlane.exchange_and_register({
+            authorization_code: 'oauth-concurrent-two',
+            redirect_uri: 'https://mana.example.test/oauth/slack/callback',
+            intent
+        });
+        await expect(second).rejects.toMatchObject({ code: 'INSTALLATION_IN_PROGRESS', retryable: true });
+        expect(oauthClient.exchangeCode).toHaveBeenCalledTimes(1);
+        expect(credentialStore.store).not.toHaveBeenCalled();
+
+        releaseOauth();
+        await expect(first).resolves.toMatchObject({
+            tenant_id: tenantId,
+            connection_revision: '2',
+            status: 'active'
+        });
+        expect(oauthClient.exchangeCode).toHaveBeenCalledTimes(1);
+        expect(credentialStore.store).toHaveBeenCalledTimes(1);
+        const ledger = await pool.query(
+            `SELECT status, attempt, connection_revision
+               FROM slack_installation_exchange_ledger
+              WHERE tenant_id = $1 AND installation_intent_id = $2`,
+            [tenantId, concurrentIntentId]
+        );
+        expect(ledger.rows).toEqual([{ status: 'completed', attempt: '1', connection_revision: '2' }]);
     }, 120_000);
 });

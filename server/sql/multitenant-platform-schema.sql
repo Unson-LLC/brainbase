@@ -94,7 +94,9 @@ CREATE TABLE IF NOT EXISTS workspace_connection_revisions (
     connection_revision BIGINT NOT NULL,
     connection_snapshot JSONB NOT NULL,
     recorded_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (tenant_id, connection_id, connection_revision)
+    PRIMARY KEY (tenant_id, connection_id, connection_revision),
+    FOREIGN KEY (tenant_id, connection_id)
+        REFERENCES workspace_connections(tenant_id, connection_id)
 );
 
 CREATE TABLE IF NOT EXISTS credential_broker_refs (
@@ -106,7 +108,7 @@ CREATE TABLE IF NOT EXISTS credential_broker_refs (
     refresh_revision BIGINT NOT NULL CHECK (refresh_revision > 0),
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
-    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision)
+    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision)
 );
 
 CREATE TABLE IF NOT EXISTS tenant_credential_leases (
@@ -126,7 +128,7 @@ CREATE TABLE IF NOT EXISTS tenant_credential_leases (
     max_uses SMALLINT NOT NULL CHECK (max_uses = 1),
     consumed_at TIMESTAMPTZ,
     UNIQUE (tenant_id, lease_id),
-    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision),
+    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision),
     CHECK (expires_at > issued_at),
     CHECK (expires_at <= issued_at + INTERVAL '60 seconds'),
     CHECK (consumed_at IS NULL OR consumed_at >= issued_at)
@@ -197,7 +199,7 @@ CREATE TABLE IF NOT EXISTS tenant_usage_events (
     observed_at TIMESTAMPTZ NOT NULL,
     event_payload JSONB NOT NULL,
     FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision),
-    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision),
+    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision),
     CHECK ((collection_state = 'not_collected' AND quantity IS NULL) OR collection_state <> 'not_collected')
 );
 
@@ -229,7 +231,7 @@ CREATE TABLE IF NOT EXISTS tenant_operation_receipts (
     completed_at TIMESTAMPTZ NOT NULL,
     receipt_payload JSONB NOT NULL,
     FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision),
-    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision),
+    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision),
     UNIQUE (tenant_id, receipt_id)
 );
 
@@ -267,7 +269,7 @@ CREATE TABLE IF NOT EXISTS tenant_business_effect_claims (
     retain_until TIMESTAMPTZ NOT NULL,
     claim_payload JSONB NOT NULL,
     CHECK (retain_until >= claimed_at + INTERVAL '30 days'),
-    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision)
+    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision)
 );
 
 CREATE TABLE IF NOT EXISTS tenant_migrations (

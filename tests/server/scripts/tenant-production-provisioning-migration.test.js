@@ -46,12 +46,108 @@ async function createPool({ missingIndex = null, missingPrerequisite = null } = 
             return {
                 rows: [
                     ...contract.columns,
+                    { table_name: 'brainbase_tenants', column_name: 'tenant_key' },
                     ...['enterprise_id', 'installer_id', 'deployment_id', 'profile', 'contract_revision']
                         .map((column_name) => ({ table_name: 'workspace_connections', column_name }))
                 ]
             };
         }
-        if (sql.includes('FROM pg_indexes')) return { rows: contract.indexes.filter((indexname) => indexname !== missingIndex).map((indexname) => ({ indexname })) };
+        if (sql.includes('FROM pg_indexes')) return {
+            rows: contract.indexes
+                .filter((indexname) => indexname !== missingIndex)
+                .map((indexname) => ({
+                    indexname,
+                    indexdef: indexname === 'workspace_connections_tenant_provider_workspace_app_uq'
+                        ? "CREATE UNIQUE INDEX workspace_connections_tenant_provider_workspace_app_uq ON public.workspace_connections USING btree (tenant_id, provider, workspace_id, app_id) WHERE (status = ANY (ARRAY['pending'::text, 'active'::text]))"
+                        : `CREATE INDEX ${indexname} ON public.example (id)`
+                }))
+        };
+        if (sql.includes('FROM pg_constraint')) return {
+            rows: [
+                {
+                    table_name: 'workspace_connections',
+                    conname: 'workspace_connections_status_check',
+                    contype: 'c',
+                    definition: "CHECK ((status = ANY (ARRAY['pending'::text, 'active'::text, 'revoked'::text, 'reauth_required'::text, 'uninstalled'::text, 'expired'::text])))"
+                },
+                {
+                    table_name: 'workspace_connections',
+                    conname: 'workspace_connections_profile_check',
+                    contype: 'c',
+                    definition: "CHECK ((profile IS NULL OR profile = ANY (ARRAY['shared_cloud'::text, 'dedicated_cloud'::text, 'customer_managed_oss'::text])))"
+                },
+                {
+                    table_name: 'workspace_connection_revisions',
+                    conname: 'workspace_connection_revisions_current_identity_fk',
+                    contype: 'f',
+                    definition: 'FOREIGN KEY (tenant_id, connection_id) REFERENCES workspace_connections(tenant_id, connection_id)'
+                },
+                {
+                    table_name: 'credential_broker_refs',
+                    conname: 'credential_broker_refs_connection_revision_fk',
+                    contype: 'f',
+                    definition: 'FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision)'
+                },
+                ...[
+                    'tenant_credential_leases',
+                    'tenant_usage_events',
+                    'tenant_operation_receipts',
+                    'tenant_business_effect_claims'
+                ].map((table_name) => ({
+                    table_name,
+                    conname: `${table_name}_connection_revision_fk`,
+                    contype: 'f',
+                    definition: 'FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision)'
+                })),
+                ...[
+                    'tenant_organizations',
+                    'tenant_memberships',
+                    'tenant_projects',
+                    'workspace_connections',
+                    'tenant_contract_revisions',
+                    'slack_installation_intents'
+                ].map((table_name) => ({
+                    table_name,
+                    conname: `${table_name}_tenant_revision_history_fk`,
+                    contype: 'f',
+                    definition: 'FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenant_revisions(tenant_id, tenant_revision)'
+                })),
+                {
+                    table_name: 'tenant_provisioning_operations',
+                    conname: 'tenant_provisioning_operations_claim_token_hash_check',
+                    contype: 'c',
+                    definition: "CHECK ((claim_token_hash IS NULL OR claim_token_hash ~ '^sha256:[a-f0-9]{64}$'::text))"
+                },
+                {
+                    table_name: 'tenant_provisioning_operations',
+                    conname: 'tenant_provisioning_operations_attempt_check',
+                    contype: 'c',
+                    definition: 'CHECK ((attempt > 0))'
+                },
+                {
+                    table_name: 'slack_installation_exchange_ledger',
+                    conname: 'slack_installation_exchange_ledger_status_check',
+                    contype: 'c',
+                    definition: "CHECK ((status = ANY (ARRAY['processing'::text, 'completed'::text, 'failed'::text])))"
+                },
+                ...[
+                    'brainbase_service_actor_capabilities',
+                    'brainbase_service_actor_keys'
+                ].map((table_name) => ({
+                    table_name,
+                    conname: `${table_name}_status_check`,
+                    contype: 'c',
+                    definition: "CHECK ((status = ANY (ARRAY['active'::text, 'revoked'::text])))"
+                })),
+                {
+                    table_name: 'tenant_contract_revision_runtime_bindings',
+                    conname: 'tenant_contract_revision_runtime_bindings_contract_fk',
+                    contype: 'f',
+                    definition: 'FOREIGN KEY (tenant_id, contract_id, contract_revision) REFERENCES tenant_contract_revisions(tenant_id, contract_id, contract_revision)'
+                }
+            ]
+        };
+        if (sql.includes('FROM information_schema.views')) return { rows: [{ table_name: 'brainbase_service_actor_jwks' }] };
         if (sql.includes('FROM brainbase_schema_migrations')) return { rows: [{ schema_sha256: contract.sha256 }] };
         return { rows: [], rowCount: 1 };
     });

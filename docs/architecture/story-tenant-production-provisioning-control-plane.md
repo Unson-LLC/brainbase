@@ -10,11 +10,11 @@
 
 ### Provisioning Coordinator
 
-宣言を正規化してfingerprintを作り、schemaが利用可能か、実行actorが許可されているか、対象tenantとdeploymentが一意かを先に検証する。操作ledgerを最初の永続化境界として確保し、同じ宣言の再実行を既存結果へ収束させる。副作用を行う順序と失敗分類を所有する。
+宣言を正規化してfingerprintを作り、schemaが利用可能か、実行actorが許可されているか、対象tenantとdeploymentが一意かを先に検証する。操作ledgerを最初の永続化境界として確保し、同じ宣言の再実行を既存結果へ収束させる。副作用を行う順序と失敗分類を所有する。ledgerのclaimは短いDB transactionで確定し、Graph／credential resolverはtransactionとadvisory lockの外でbounded timeout付きに実行する。
 
 ### Control-plane Repository
 
-テナント識別子、revision履歴、workspace接続のrevision、契約revisionへの参照、service actor／capability、操作ledgerを同一PostgreSQLトランザクションで管理する。現在値のポインタと過去revisionの参照可能性を分離し、過去のtenant-owned recordが新しいrevisionの更新で壊れないようにする。契約payloadの宣言的upsertは既存 `tenant_contract_revisions` の状態を確認してから別実装レーンで追加する。
+テナント識別子、revision履歴、workspace接続のrevision、契約revisionへの参照、service actor／capability、操作ledgerを同一PostgreSQLトランザクションで管理する。workspace接続はcurrent pointerを更新し、`workspace_connection_revisions`をappend-only historyとして先に追加する。credential／usage／receipt等のrevision FKはhistoryへ向け、過去のtenant-owned recordが新しいrevisionの更新で壊れないようにする。契約payloadの宣言的upsertは既存 `tenant_contract_revisions` の状態を確認してから別実装レーンで追加する。
 
 ### Graph Verification Boundary
 
@@ -50,10 +50,10 @@ CoordinatorはGraphやSecret Managerの実装詳細を所有せず、検証結�
 1. CLIまたは管理APIがmanifestとidempotency keyを受け取る。
 2. Coordinatorがmanifestを正規化し、秘密らしいキー・値を拒否してdesired-state fingerprintを算出する。
 3. Schema contractと実行actor/capabilityをread-onlyで確認する。
-4. 操作ledgerをkeyとfingerprintへ原子的に紐づける。既存成功なら結果を返し、fingerprint不一致ならconflictにする。
-5. Graphのcanonical projectとcredential referenceをDB書込み前に境界越しに検証する。検証不能なら操作ledgerを含むDB書込みを行わず、有効化しない。
+4. 操作ledgerをkeyとfingerprintへ原子的に紐づける。claim token hashとattemptを保存し、既存成功なら結果を返し、fingerprint不一致ならconflictにする。`failed`は同じkey・同じfingerprintに限り新しいclaim tokenで再claimでき、`claimed`のstale claimはfencingして旧実行の完了を拒否する。
+5. Graphのcanonical projectとcredential referenceを、claim transactionをcommitしてlockを解放した後に境界越しで検証する。検証不能なら短い失敗更新でledgerをfailedにし、DB副作用を開始しない。
 6. tenant識別子・revision履歴、接続、service registryを同一DBトランザクションで確定する。既存contract revisionの境界は確認するが、契約payloadが未指定なら推測せず次レーンへ渡す。
-7. capability境界を再確認し、操作ledgerを完了へ遷移させる。
+7. capability境界を再確認し、manifestから消えたcapability grant／JWKをrevokedへ遷移させてreadbackする。DB副作用失敗時はsavepoint後にrollbackし、claim tokenでfencedされたledgerをfailedへ遷移させる。
 8. DB、Graph、registry、ledgerをoperation IDでreadbackし、秘密値を含まないreceiptを返す。
 
 ## 失敗と復旧
@@ -61,7 +61,7 @@ CoordinatorはGraphやSecret Managerの実装詳細を所有せず、検証結�
 - schema未適用・hash不一致・DB到達不能: 計画またはschema状態で停止し、既存tenantへ書き込まない。
 - tenant／project／credentialの不一致: denyとして記録し、候補を横断検索しない。
 - Graph／Secret Managerのunavailable: unavailableとして記録し、0件や成功へ丸めない。
-- DBトランザクション失敗: その操作のDB副作用をrollbackし、ledgerに安全な失敗状態を残して同じ宣言の再試行を許可する。
+- DBトランザクション失敗: その操作のDB副作用をrollbackし、ledgerに安全な失敗状態を残して同じkey・同じfingerprintの再試行を許可する。旧claim tokenは無効化し、別fingerprintの再利用や旧callbackの完了は拒否する。
 - provider側副作用が伴う将来拡張: provider callをDBトランザクション内へ隠さず、独立したoutbox／compensation契約をArchitecture変更として先に承認する。
 
 ## 運用上の不変条件

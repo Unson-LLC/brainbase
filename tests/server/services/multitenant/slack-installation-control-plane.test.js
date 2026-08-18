@@ -25,7 +25,8 @@ const now = new Date('2026-08-19T00:00:00.000Z');
 function createControlPlane(overrides = {}) {
     const repository = {
         createSlackInstallationIntent: vi.fn(async (input) => input),
-        readSlackInstallationResult: vi.fn(async () => null),
+        claimSlackInstallationExchange: vi.fn(async () => ({ status: 'claimed', attempt: 1 })),
+        failSlackInstallationExchange: vi.fn(async () => true),
         registerSlackInstallation: vi.fn(async ({ intent, exchange, credential }) => ({
             connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAZ',
             connection_revision: '3',
@@ -117,13 +118,18 @@ describe('Slack installation control plane', () => {
         });
         expect(JSON.stringify(registerInput)).not.toContain('raw-token-never-persisted');
         expect(JSON.stringify(registerInput)).not.toContain('raw-refresh-never-persisted');
+        expect(registerInput.claim_token).toEqual(expect.any(String));
+        expect(registerInput.request_digest).toMatch(/^sha256:[a-f0-9]{64}$/u);
     });
 
     it('returns the completed ledger result before exchanging a replayed OAuth code', async () => {
         const previous = { connection_id: 'wsc_previous', status: 'active', tenant_id: IDS.tenant };
         const { controlPlane, repository, oauthClient, credentialStore } = createControlPlane({
             repository: {
-                readSlackInstallationResult: vi.fn(async () => previous)
+                claimSlackInstallationExchange: vi.fn(async () => ({
+                    status: 'completed',
+                    response_payload: previous
+                }))
             }
         });
 
@@ -135,6 +141,7 @@ describe('Slack installation control plane', () => {
         expect(oauthClient.exchangeCode).not.toHaveBeenCalled();
         expect(credentialStore.store).not.toHaveBeenCalled();
         expect(repository.registerSlackInstallation).not.toHaveBeenCalled();
+        expect(repository.failSlackInstallationExchange).not.toHaveBeenCalled();
     });
 
     it('fails closed on app mismatch before the credential boundary', async () => {
@@ -160,10 +167,13 @@ describe('Slack installation control plane', () => {
         );
         expect(credentialStore.store).not.toHaveBeenCalled();
         expect(repository.registerSlackInstallation).not.toHaveBeenCalled();
+        expect(repository.failSlackInstallationExchange).toHaveBeenCalledWith(expect.objectContaining({
+            failure_code: 'WORKSPACE_CONNECTION_CONFLICT'
+        }));
     });
 
     it('revokes an opaque credential reference when the transactional registration fails', async () => {
-        const { controlPlane, credentialStore } = createControlPlane({
+        const { controlPlane, credentialStore, repository } = createControlPlane({
             repository: {
                 registerSlackInstallation: vi.fn(async () => {
                     throw new Error('database unavailable');
@@ -181,6 +191,84 @@ describe('Slack installation control plane', () => {
             credential_ref: 'opaque-ref:tenant-a:connection-1',
             reason: 'registration_failed'
         });
+        expect(repository.failSlackInstallationExchange).toHaveBeenCalledWith(expect.objectContaining({
+            failure_code: 'INSTALLATION_EXCHANGE_FAILED'
+        }));
+    });
+
+    it('claims before OAuth and suppresses a concurrent callback', async () => {
+        let releaseFirst;
+        const firstExchange = new Promise((resolve) => { releaseFirst = resolve; });
+        const { controlPlane, oauthClient, credentialStore, repository } = createControlPlane({
+            oauthClient: {
+                exchangeCode: vi.fn()
+                    .mockImplementationOnce(() => firstExchange)
+                    .mockResolvedValueOnce({
+                        app_id: binding.app_id,
+                        team_id: binding.expected_workspace_id,
+                        authed_user_id: 'U0123456789',
+                        scope: 'chat:write',
+                        credential_material: 'second-token'
+                    })
+            },
+            repository: {
+                claimSlackInstallationExchange: vi.fn()
+                    .mockResolvedValueOnce({ status: 'claimed', attempt: 1 })
+                    .mockRejectedValueOnce(Object.assign(new Error('in progress'), {
+                        code: 'INSTALLATION_IN_PROGRESS', status: 409
+                    }))
+            }
+        });
+        const input = {
+            authorization_code: 'oauth-code-one',
+            redirect_uri: 'https://mana.example.test/slack/oauth/callback',
+            intent: binding
+        };
+        const first = controlPlane.exchange_and_register(input);
+        await vi.waitFor(() => expect(repository.claimSlackInstallationExchange).toHaveBeenCalledTimes(1));
+        await expect(controlPlane.exchange_and_register({ ...input, authorization_code: 'oauth-code-two' }))
+            .rejects.toMatchObject({ code: 'INSTALLATION_IN_PROGRESS' });
+        expect(oauthClient.exchangeCode).toHaveBeenCalledTimes(1);
+        expect(credentialStore.store).not.toHaveBeenCalled();
+        releaseFirst({
+            app_id: binding.app_id,
+            team_id: binding.expected_workspace_id,
+            authed_user_id: 'U0123456789',
+            scope: 'chat:write',
+            credential_material: 'first-token'
+        });
+        await first;
+    });
+
+    it('marks failed claims retryable and fences stale completion', async () => {
+        let registerCalls = 0;
+        const { controlPlane, repository, oauthClient, credentialStore } = createControlPlane({
+            repository: {
+                claimSlackInstallationExchange: vi.fn()
+                    .mockResolvedValueOnce({ status: 'claimed', attempt: 1 })
+                    .mockResolvedValueOnce({ status: 'claimed', attempt: 2 }),
+                registerSlackInstallation: vi.fn()
+                    .mockImplementation(async ({ claim_token }) => {
+                        registerCalls += 1;
+                        if (registerCalls === 1) {
+                            throw Object.assign(new Error('stale claim'), { code: 'INSTALLATION_CLAIM_STALE' });
+                        }
+                        return { status: 'active', connection_revision: '1', claim_token_seen: claim_token };
+                    })
+            }
+        });
+        const input = {
+            authorization_code: 'oauth-code-one',
+            redirect_uri: 'https://mana.example.test/slack/oauth/callback',
+            intent: binding
+        };
+        await expect(controlPlane.exchange_and_register(input)).rejects.toThrow('stale claim');
+        expect(repository.failSlackInstallationExchange).toHaveBeenCalledTimes(1);
+        await expect(controlPlane.exchange_and_register({ ...input, authorization_code: 'oauth-code-two' }))
+            .resolves.toMatchObject({ status: 'active' });
+        expect(oauthClient.exchangeCode).toHaveBeenCalledTimes(2);
+        expect(credentialStore.store).toHaveBeenCalledTimes(2);
+        expect(credentialStore.revoke).toHaveBeenCalledTimes(1);
     });
 
     it('redacts authorization code and credential material from diagnostics', () => {

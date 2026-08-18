@@ -1,9 +1,10 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { canonicalJson } from './canonical-json.js';
 import { canonicalProvisioningFingerprint, normalizeProvisioningManifest } from './provisioning-manifest.js';
 
-const TERMINAL_STATUSES = new Set(['applied', 'failed', 'conflict']);
+const TERMINAL_STATUSES = new Set(['applied', 'conflict']);
+const CLAIM_STALE_MS = 120_000;
 
 export class TenantProvisioningError extends Error {
     constructor(code, message, details = {}) {
@@ -16,6 +17,14 @@ export class TenantProvisioningError extends Error {
 
 function operationId() {
     return `op_${randomUUID().replaceAll('-', '')}`;
+}
+
+function claimToken() {
+    return randomUUID().replaceAll('-', '') + randomUUID().replaceAll('-', '');
+}
+
+function sha256(value) {
+    return `sha256:${createHash('sha256').update(String(value)).digest('hex')}`;
 }
 
 function assertActor(actorId) {
@@ -191,16 +200,17 @@ async function ensureContractRevision(client, tenant, contract, now) {
     return contractReceipt(contract);
 }
 
-async function recordFailedOperation(client, {
+async function markFailedOperation(client, {
     operationId: operationIdValue,
     tenantKey,
     idempotencyKey,
     desiredStateSha256,
     actorId,
+    claimTokenHash,
     error,
     now
 }) {
-    if (!operationIdValue || !tenantKey || !idempotencyKey || !desiredStateSha256) return;
+    if (!operationIdValue || !tenantKey || !idempotencyKey || !desiredStateSha256 || !claimTokenHash) return;
     const failureReceipt = redactedReceipt({
         operation_id: operationIdValue,
         tenant_key: tenantKey,
@@ -221,12 +231,14 @@ async function recordFailedOperation(client, {
         await client.query('BEGIN');
         failureTransactionStarted = true;
         await client.query(
-            `INSERT INTO tenant_provisioning_operations (
-                operation_id, tenant_key, idempotency_key, desired_state_sha256,
-                status, actor_principal_id, receipt_payload, created_at, updated_at, completed_at
-             ) VALUES ($1, $2, $3, $4, 'failed', $5, $6::jsonb, $7, $7, $7)
-             ON CONFLICT (tenant_key, idempotency_key) DO NOTHING`,
-            [operationIdValue, tenantKey, idempotencyKey, desiredStateSha256, actorId, JSON.stringify(failureReceipt), now]
+            `UPDATE tenant_provisioning_operations
+                SET status = 'failed', failure_code = $3,
+                    receipt_payload = $4::jsonb, claim_token_hash = NULL,
+                    claimed_at = NULL, completed_at = $5, updated_at = $5
+              WHERE operation_id = $1 AND tenant_key = $2
+                AND status = 'claimed' AND claim_token_hash = $6`,
+            [operationIdValue, tenantKey, error?.code ?? 'PROVISIONING_FAILED',
+                JSON.stringify(failureReceipt), now, claimTokenHash]
         );
         await client.query('COMMIT');
         failureTransactionStarted = false;
@@ -239,7 +251,8 @@ async function recordFailedOperation(client, {
 
 async function readExistingOperation(client, tenantKey, idempotencyKey) {
     const result = await client.query(
-        `SELECT operation_id, desired_state_sha256, status, receipt_payload
+        `SELECT operation_id, desired_state_sha256, status, receipt_payload,
+                claim_token_hash, claimed_at, attempt, failure_code
            FROM tenant_provisioning_operations
           WHERE tenant_key = $1 AND idempotency_key = $2
           FOR UPDATE`,
@@ -254,60 +267,151 @@ async function claimOperation(client, {
     idempotencyKey,
     desiredStateSha256,
     actorId,
-    now
+    now,
+    staleBefore,
+    claimTokenHash,
+    existing
 }) {
-    const result = await client.query(
-        `INSERT INTO tenant_provisioning_operations (
-            operation_id, tenant_key, idempotency_key, desired_state_sha256,
-            status, actor_principal_id, created_at, updated_at
-         ) VALUES ($1, $2, $3, $4, 'claimed', $5, $6, $6)
-         ON CONFLICT (tenant_key, idempotency_key) DO NOTHING
-         RETURNING operation_id, status`,
-        [id, tenantKey, idempotencyKey, desiredStateSha256, actorId, now]
-    );
+    const result = existing
+        ? await client.query(
+            `UPDATE tenant_provisioning_operations
+                SET status = 'claimed', claim_token_hash = $2, claimed_at = $3,
+                    attempt = attempt + 1, failure_code = NULL,
+                    receipt_payload = NULL, completed_at = NULL, updated_at = $3
+              WHERE operation_id = $1
+                AND (status = 'failed'
+                  OR (status = 'claimed' AND claimed_at IS NOT NULL AND claimed_at < $4))
+              RETURNING operation_id, status, claim_token_hash, attempt`,
+            [existing.operation_id, claimTokenHash, now, staleBefore]
+        )
+        : await client.query(
+            `INSERT INTO tenant_provisioning_operations (
+                operation_id, tenant_key, idempotency_key, desired_state_sha256,
+                status, actor_principal_id, claim_token_hash, claimed_at, attempt,
+                created_at, updated_at
+             ) VALUES ($1, $2, $3, $4, 'claimed', $5, $6, $7, 1, $7, $7)
+             ON CONFLICT (tenant_key, idempotency_key) DO NOTHING
+             RETURNING operation_id, status, claim_token_hash, attempt`,
+            [id, tenantKey, idempotencyKey, desiredStateSha256, actorId, claimTokenHash, now]
+        );
     return result.rows[0] ?? null;
 }
 
-async function ensureTenant(client, manifest, now) {
-    let result;
-    try {
-        result = await client.query(
-            `INSERT INTO brainbase_tenants (
-                tenant_id, tenant_key, tenant_revision, status, display_name,
-                created_at, updated_at
-             ) VALUES ($1, $2, 1, 'provisioning', $3, $4, $4)
-             ON CONFLICT (tenant_id) DO UPDATE SET
-                tenant_key = EXCLUDED.tenant_key,
-                display_name = EXCLUDED.display_name,
-                updated_at = EXCLUDED.updated_at
-             WHERE brainbase_tenants.tenant_key = EXCLUDED.tenant_key
-             RETURNING tenant_id, tenant_key, tenant_revision`,
-            [manifest.tenant_id, manifest.tenant_key, manifest.display_name, now]
-        );
-    } catch (error) {
-        if (error?.code === '23505') throw new TenantProvisioningError('TENANT_KEY_CONFLICT', 'tenant_key is already owned by another tenant');
-        throw error;
+async function assertClaimedOperation(client, operationIdValue, claimTokenHash) {
+    const result = await client.query(
+        `SELECT operation_id, status, claim_token_hash
+           FROM tenant_provisioning_operations
+          WHERE operation_id = $1 AND status = 'claimed'
+            AND claim_token_hash = $2
+          FOR UPDATE`,
+        [operationIdValue, claimTokenHash]
+    );
+    if (!result.rows[0]) {
+        throw new TenantProvisioningError('PROVISIONING_CLAIM_STALE', 'Provisioning claim is no longer active; retry safely');
     }
-    const row = result.rows[0];
-    if (!row) throw new TenantProvisioningError('TENANT_KEY_CONFLICT', 'tenant_id is already owned by another tenant_key');
+}
+
+async function assertSchemaLedger(client, schemaSha256) {
+    if (typeof schemaSha256 !== 'string' || !/^[a-f0-9]{64}$/u.test(schemaSha256)) {
+        throw new TenantProvisioningError('SCHEMA_VERSION_REQUIRED', 'Provisioning requires an explicit migration schema hash');
+    }
+    const result = await client.query(
+        `SELECT schema_sha256
+           FROM brainbase_schema_migrations
+          WHERE migration_id = $1`,
+        ['tenant-production-provisioning.v1']
+    );
+    if (result.rows[0]?.schema_sha256 !== schemaSha256) {
+        throw new TenantProvisioningError('SCHEMA_VERSION_MISMATCH', 'Provisioning schema ledger does not match repository schema hash');
+    }
+}
+
+async function ensureTenant(client, manifest, now) {
+    const existingResult = await client.query(
+        `SELECT tenant_id, tenant_key, tenant_revision, status, display_name,
+                suspension_reason_code, deletion_after, created_at, updated_at
+           FROM brainbase_tenants
+          WHERE tenant_id = $1
+          FOR UPDATE`,
+        [manifest.tenant_id]
+    );
+    const existing = existingResult.rows[0] ?? null;
+    if (!existing) {
+        let result;
+        try {
+            result = await client.query(
+                `INSERT INTO brainbase_tenants (
+                    tenant_id, tenant_key, tenant_revision, status, display_name,
+                    created_at, updated_at
+                 ) VALUES ($1, $2, 1, 'provisioning', $3, $4, $4)
+                 RETURNING tenant_id, tenant_key, tenant_revision, status, display_name`,
+                [manifest.tenant_id, manifest.tenant_key, manifest.display_name, now]
+            );
+        } catch (error) {
+            if (error?.code === '23505') throw new TenantProvisioningError('TENANT_KEY_CONFLICT', 'tenant_key is already owned by another tenant');
+            throw error;
+        }
+        const row = result.rows[0];
+        if (!row) throw new TenantProvisioningError('TENANT_KEY_CONFLICT', 'tenant_id is already owned by another tenant_key');
+        await client.query(
+            `INSERT INTO brainbase_tenant_revisions (
+                tenant_id, tenant_revision, tenant_key, status, display_name,
+                created_at, updated_at, recorded_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, $6, $6)
+             ON CONFLICT (tenant_id, tenant_revision) DO NOTHING`,
+            [row.tenant_id, row.tenant_revision, row.tenant_key, row.status, row.display_name, now]
+        );
+        return { tenant_id: row.tenant_id, tenant_key: row.tenant_key, tenant_revision: Number(row.tenant_revision), status: row.status };
+    }
+    if (existing.tenant_key !== manifest.tenant_key) {
+        throw new TenantProvisioningError('TENANT_KEY_CONFLICT', 'tenant_id is already owned by another tenant_key');
+    }
+    if (['suspended', 'deletion_pending', 'deleted'].includes(existing.status)) {
+        throw new TenantProvisioningError('TENANT_STATUS_CONFLICT', `Tenant status ${existing.status} cannot be activated by provisioning`);
+    }
+    let revision = Number(existing.tenant_revision);
+    let displayName = existing.display_name;
+    if (existing.display_name !== manifest.display_name) {
+        revision += 1;
+        displayName = manifest.display_name;
+        await client.query(
+            `UPDATE brainbase_tenants
+                SET tenant_revision = $2, display_name = $3, updated_at = $4
+              WHERE tenant_id = $1 AND tenant_revision = $5
+                AND status IN ('provisioning', 'active')`,
+            [existing.tenant_id, revision, displayName, now, existing.tenant_revision]
+        );
+    }
     await client.query(
         `INSERT INTO brainbase_tenant_revisions (
             tenant_id, tenant_revision, tenant_key, status, display_name,
             created_at, updated_at, recorded_at
-         ) VALUES ($1, $2, $3, 'provisioning', $4, $5, $5, $5)
+         ) VALUES ($1, $2, $3, $4, $5, $6, $6, $6)
          ON CONFLICT (tenant_id, tenant_revision) DO NOTHING`,
-        [row.tenant_id, row.tenant_revision, manifest.tenant_key, manifest.display_name, now]
+        [existing.tenant_id, revision, existing.tenant_key, existing.status, displayName, now]
     );
-    return { tenant_id: row.tenant_id, tenant_key: row.tenant_key, tenant_revision: Number(row.tenant_revision) };
+    return { tenant_id: existing.tenant_id, tenant_key: existing.tenant_key, tenant_revision: revision, status: existing.status };
 }
 
 async function activateTenant(client, tenant, now) {
-    await client.query(
+    const result = await client.query(
         `UPDATE brainbase_tenants
             SET status = 'active', updated_at = $2
-          WHERE tenant_id = $1 AND tenant_key = $3`,
+          WHERE tenant_id = $1 AND tenant_key = $3 AND status = 'provisioning'
+          RETURNING tenant_id, status`,
         [tenant.tenant_id, now, tenant.tenant_key]
     );
+    if (result.rowCount === 0) {
+        const current = await client.query(
+            `SELECT status FROM brainbase_tenants WHERE tenant_id = $1 AND tenant_key = $2 FOR SHARE`,
+            [tenant.tenant_id, tenant.tenant_key]
+        );
+        const status = current.rows[0]?.status;
+        if (status !== 'active') {
+            throw new TenantProvisioningError('TENANT_STATUS_CONFLICT', `Tenant status ${status ?? 'unknown'} cannot be activated`);
+        }
+        return;
+    }
     await client.query(
         `UPDATE brainbase_tenant_revisions
             SET status = 'active', updated_at = $2
@@ -363,23 +467,7 @@ async function ensureWorkspaceConnection(client, manifest, tenant, now) {
     const existing = existingResult.rows[0];
     const connectionId = existing?.connection_id ?? input.connection_id;
     const connectionRevision = Number(existing?.connection_revision ?? 0) + 1;
-    if (existing) {
-        await client.query(
-            `UPDATE workspace_connections
-                SET connection_revision = $2,
-                    tenant_revision_at_write = $3,
-                    installation_id = $4,
-                    granted_scopes = $5,
-                    status = 'active',
-                    credential_ref = $6,
-                    installed_at = $7,
-                    revoked_at = NULL,
-                    supersedes_connection_revision = $8
-              WHERE tenant_id = $1 AND connection_id = $9`,
-            [tenant.tenant_id, connectionRevision, tenant.tenant_revision, input.installation_id,
-                input.scopes, input.credential_ref, now, connectionRevision - 1, connectionId]
-        );
-    } else {
+    if (!existing) {
         await client.query(
             `INSERT INTO workspace_connections (
                 connection_id, connection_revision, tenant_id, tenant_revision_at_write,
@@ -405,6 +493,23 @@ async function ensureWorkspaceConnection(client, manifest, tenant, now) {
             status: 'active'
         }), now]
     );
+    if (existing) {
+        await client.query(
+            `UPDATE workspace_connections
+                SET connection_revision = $2,
+                    tenant_revision_at_write = $3,
+                    installation_id = $4,
+                    granted_scopes = $5,
+                    status = 'active',
+                    credential_ref = $6,
+                    installed_at = $7,
+                    revoked_at = NULL,
+                    supersedes_connection_revision = $8
+              WHERE tenant_id = $1 AND connection_id = $9`,
+            [tenant.tenant_id, connectionRevision, tenant.tenant_revision, input.installation_id,
+                input.scopes, input.credential_ref, now, connectionRevision - 1, connectionId]
+        );
+    }
     const credentialResult = await client.query(
         `INSERT INTO credential_broker_refs (
             credential_ref, tenant_id, connection_id, connection_revision,
@@ -445,7 +550,8 @@ async function ensureServiceRegistry(client, actor, tenantKey, now) {
     if (actorResult.rowCount === 0) {
         throw new TenantProvisioningError('SERVICE_ACTOR_TENANT_CONFLICT', 'Service actor is already owned by another tenant');
     }
-    for (const capabilityId of actor.capabilities) {
+    const capabilities = [...new Set(actor.capabilities)].sort();
+    for (const capabilityId of capabilities) {
         await client.query(
             `INSERT INTO brainbase_capabilities (capability_id, status, created_at, updated_at)
              VALUES ($1, 'active', $2, $2)
@@ -454,32 +560,78 @@ async function ensureServiceRegistry(client, actor, tenantKey, now) {
         );
         await client.query(
             `INSERT INTO brainbase_service_actor_capabilities (
-                actor_id, capability_id, tenant_key, granted_at
-             ) VALUES ($1, $2, $3, $4)
-             ON CONFLICT (actor_id, capability_id, tenant_key) DO NOTHING`,
+                actor_id, capability_id, tenant_key, granted_at, status, revoked_at
+             ) VALUES ($1, $2, $3, $4, 'active', NULL)
+             ON CONFLICT (actor_id, capability_id, tenant_key) DO UPDATE
+                SET granted_at = EXCLUDED.granted_at, status = 'active', revoked_at = NULL`,
             [actor.actor_id, capabilityId, tenantKey, now]
         );
     }
-    for (const publicJwk of actor.public_keys ?? []) {
+    await client.query(
+        `UPDATE brainbase_service_actor_capabilities
+            SET status = 'revoked', revoked_at = $3
+          WHERE actor_id = $1 AND tenant_key = $2
+            AND NOT (capability_id = ANY($4::text[]))
+            AND status <> 'revoked'`,
+        [actor.actor_id, tenantKey, now, capabilities]
+    );
+    const publicKeys = [...(actor.public_keys ?? [])].sort((left, right) => left.kid.localeCompare(right.kid));
+    for (const publicJwk of publicKeys) {
         await client.query(
             `INSERT INTO brainbase_service_actor_keys (actor_id, kid, public_jwk, status, created_at)
              VALUES ($1, $2, $3::jsonb, 'active', $4)
-             ON CONFLICT (actor_id, kid) DO UPDATE SET public_jwk = EXCLUDED.public_jwk, status = 'active'`,
+             ON CONFLICT (actor_id, kid) DO UPDATE
+                SET public_jwk = EXCLUDED.public_jwk, status = 'active', revoked_at = NULL`,
             [actor.actor_id, publicJwk.kid, JSON.stringify(publicJwk), now]
         );
     }
-}
-
-async function updateOperation(client, operationIdValue, receipt, now) {
     await client.query(
-        `UPDATE tenant_provisioning_operations
-            SET status = 'applied', receipt_payload = $2::jsonb, completed_at = $3, updated_at = $3
-          WHERE operation_id = $1`,
-        [operationIdValue, JSON.stringify(receipt), now]
+        `UPDATE brainbase_service_actor_keys
+            SET status = 'revoked', revoked_at = $2
+          WHERE actor_id = $1
+            AND NOT (kid = ANY($3::text[]))
+            AND status <> 'revoked'`,
+        [actor.actor_id, now, publicKeys.map(({ kid }) => kid)]
     );
+    const grantedResult = await client.query(
+        `SELECT capability_id
+           FROM brainbase_service_actor_capabilities
+          WHERE actor_id = $1 AND tenant_key = $2 AND status = 'active'
+          ORDER BY capability_id`,
+        [actor.actor_id, tenantKey]
+    );
+    const keyResult = await client.query(
+        `SELECT kid, public_jwk
+           FROM brainbase_service_actor_keys
+          WHERE actor_id = $1 AND status = 'active'
+          ORDER BY kid`,
+        [actor.actor_id]
+    );
+    const readbackCapabilities = grantedResult.rows.map(({ capability_id: capabilityId }) => capabilityId).sort();
+    const readbackKeys = keyResult.rows.map(({ kid, public_jwk: publicJwk }) => ({ kid, public_jwk: publicJwk }));
+    const readbackPublicKeys = readbackKeys.map(({ public_jwk: publicJwk }) => publicJwk);
+    if (canonicalJson(readbackCapabilities) !== canonicalJson(capabilities)
+        || canonicalJson(readbackPublicKeys) !== canonicalJson(publicKeys)) {
+        throw new TenantProvisioningError('SERVICE_REGISTRY_READBACK_FAILED', 'Service actor capabilities or keys differ from the manifest');
+    }
+    return { capabilities: readbackCapabilities, public_keys: readbackKeys };
 }
 
-async function readback(client, tenant, project, connection, actor, contract) {
+async function updateOperation(client, operationIdValue, claimTokenHash, receipt, now) {
+    const result = await client.query(
+        `UPDATE tenant_provisioning_operations
+            SET status = 'applied', receipt_payload = $3::jsonb,
+                completed_at = $4, updated_at = $4,
+                claim_token_hash = NULL, claimed_at = NULL, failure_code = NULL
+          WHERE operation_id = $1 AND status = 'claimed' AND claim_token_hash = $2`,
+        [operationIdValue, claimTokenHash, JSON.stringify(receipt), now]
+    );
+    if (result.rowCount !== 1) {
+        throw new TenantProvisioningError('PROVISIONING_CLAIM_STALE', 'Provisioning claim is no longer active; retry safely');
+    }
+}
+
+async function readback(client, tenant, project, connection, actor, contract, registry) {
     const result = await client.query(
         `SELECT t.tenant_id, t.tenant_key, t.tenant_revision,
                 tp.project_id, tp.project_code,
@@ -548,11 +700,16 @@ async function readback(client, tenant, project, connection, actor, contract) {
     if (canonicalJson(contractReceipt(readbackContract)) !== canonicalJson(contractReceipt(contract))) {
         throw new TenantProvisioningError('READBACK_BOUNDARY_FAILED', 'Contract revision readback did not match the manifest');
     }
+    if (!registry || canonicalJson([...registry.capabilities].sort()) !== canonicalJson([...actor.capabilities].sort())) {
+        throw new TenantProvisioningError('SERVICE_REGISTRY_READBACK_FAILED', 'Service actor capability readback did not match the manifest');
+    }
     return {
         tenant: true,
         tenant_project: true,
         workspace_connection: true,
         service_actor: true,
+        service_actor_capabilities: registry.capabilities,
+        service_actor_public_keys: registry.public_keys.map(({ kid }) => kid),
         contract_revision: contractReceipt(readbackContract)
     };
 }
@@ -594,7 +751,8 @@ export async function provisionTenant({
     fingerprint = null,
     now = new Date().toISOString(),
     operationIdFactory = operationId,
-    commit = true
+    commit = true,
+    schemaSha256 = null
 } = {}) {
     if (!client || typeof client.query !== 'function') throw new TenantProvisioningError('DATABASE_REQUIRED', 'A PostgreSQL client is required');
     if (typeof idempotencyKey !== 'string' || !/^\S{3,255}$/u.test(idempotencyKey)) {
@@ -610,8 +768,13 @@ export async function provisionTenant({
     const normalizedManifest = normalizeProvisioningManifest(manifest);
     const desiredStateSha256 = fingerprint ?? canonicalProvisioningFingerprint(normalizedManifest);
     let transactionStarted = false;
-    let claimedOperationId = null;
+    let claimed = null;
+    let claimTokenHash = null;
+    let claimPersisted = false;
     try {
+        // The migration ledger is the write gate.  A caller may not apply or
+        // simulate a provisioning manifest against an unknown schema version.
+        await assertSchemaLedger(client, schemaSha256);
         await client.query('BEGIN');
         transactionStarted = true;
         await client.query("SET LOCAL lock_timeout = '5s'");
@@ -628,24 +791,43 @@ export async function provisionTenant({
                 return { replayed: true, receipt: redactedReceipt(existing.receipt_payload) };
             }
             if (TERMINAL_STATUSES.has(existing.status)) {
-                throw new TenantProvisioningError(
-                    existing.receipt_payload?.failure_code ?? 'PROVISIONING_FAILED',
-                    'A previous provisioning attempt failed; use a new idempotency key after remediation'
-                );
+                throw new TenantProvisioningError('PROVISIONING_TERMINAL', 'A terminal provisioning operation cannot be changed');
             }
-            throw new TenantProvisioningError('PROVISIONING_IN_PROGRESS', 'A provisioning operation is already in progress');
+            if (existing.status === 'claimed') {
+                const claimedAt = Date.parse(existing.claimed_at ?? '');
+                if (!Number.isFinite(claimedAt) || Date.parse(now) - claimedAt < CLAIM_STALE_MS) {
+                    throw new TenantProvisioningError('PROVISIONING_IN_PROGRESS', 'A provisioning operation is already in progress');
+                }
+            }
         }
 
-        claimedOperationId = operationIdFactory();
-        const claimed = await claimOperation(client, {
-            operationId: claimedOperationId,
+        const rawClaimToken = claimToken();
+        claimTokenHash = sha256(rawClaimToken);
+        const staleBefore = new Date(Date.parse(now) - CLAIM_STALE_MS).toISOString();
+        claimed = await claimOperation(client, {
+            operationId: operationIdFactory(),
             tenantKey: normalizedManifest.tenant_key,
             idempotencyKey,
             desiredStateSha256,
             actorId,
-            now
+            now,
+            staleBefore,
+            claimTokenHash,
+            existing
         });
         if (!claimed) throw new TenantProvisioningError('IDEMPOTENCY_CONFLICT', 'Provisioning operation could not claim its idempotency key');
+        if (commit) {
+            await client.query('COMMIT');
+            transactionStarted = false;
+            claimPersisted = true;
+        } else {
+            await client.query('ROLLBACK');
+            transactionStarted = false;
+        }
+
+        // Canonical Graph and credential systems are external boundaries. They
+        // are resolved only after the short claim transaction releases its
+        // advisory lock, and both adapters are responsible for bounded timeouts.
         const project = normalizeProjectResult(await graphResolver.resolveCanonicalProject({
             tenant_key: normalizedManifest.tenant_key,
             project_code: normalizedManifest.project_code
@@ -661,15 +843,20 @@ export async function provisionTenant({
             app_id: normalizedManifest.workspace_connection.app_id
         }), normalizedManifest.tenant_key);
 
+        await client.query('BEGIN');
+        transactionStarted = true;
+        await client.query("SET LOCAL lock_timeout = '5s'");
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [normalizedManifest.tenant_key]);
+        if (commit) await assertClaimedOperation(client, claimed.operation_id, claimTokenHash);
         const tenant = await ensureTenant(client, normalizedManifest, now);
         const contract = await ensureContractRevision(client, tenant, normalizedManifest.contract_revision, now);
         const tenantProject = await ensureTenantProject(client, tenant, project, normalizedManifest, now);
         const connection = await ensureWorkspaceConnection(client, normalizedManifest, tenant, now);
-        await ensureServiceRegistry(client, normalizedManifest.service_actor, normalizedManifest.tenant_key, now);
+        const registry = await ensureServiceRegistry(client, normalizedManifest.service_actor, normalizedManifest.tenant_key, now);
         await activateTenant(client, tenant, now);
         const readbackResult = await readback(
             client, tenant, tenantProject, connection, normalizedManifest.service_actor,
-            normalizedManifest.contract_revision
+            normalizedManifest.contract_revision, registry
         );
         const receipt = redactedReceipt({
             operation_id: claimed.operation_id,
@@ -686,7 +873,7 @@ export async function provisionTenant({
             outcome: 'succeeded',
             readback: readbackResult
         });
-        await updateOperation(client, claimed.operation_id, receipt, now);
+        if (commit) await updateOperation(client, claimed.operation_id, claimTokenHash, receipt, now);
         await client.query(commit ? 'COMMIT' : 'ROLLBACK');
         transactionStarted = false;
         return { replayed: false, persisted: commit, receipt };
@@ -697,13 +884,14 @@ export async function provisionTenant({
         const safeError = error instanceof TenantProvisioningError
             ? error
             : new TenantProvisioningError('PROVISIONING_FAILED', 'Tenant provisioning failed; inspect the control-plane logs');
-        if (commit) {
-            await recordFailedOperation(client, {
-                operationId: claimedOperationId,
+        if (commit && claimPersisted && claimed) {
+            await markFailedOperation(client, {
+                operationId: claimed.operation_id,
                 tenantKey: normalizedManifest.tenant_key,
                 idempotencyKey,
                 desiredStateSha256,
                 actorId,
+                claimTokenHash,
                 error: safeError,
                 now
             });
