@@ -107,6 +107,16 @@ bridgeの応答分類は、route不許可404、body超過413、設定欠落503�
 
 ## Rotationとrollback
 
-Access Service Tokenは新tokenを作成し、Worker secretを更新して疎通を確認してから旧tokenを失効する。Node service tokenはmana-runtimeとNode verifierを同じrelease windowで更新し、bridgeへ保存しない。
+Access Service Tokenは新tokenを作成し、Worker secretを更新して疎通を確認してから旧tokenを失効する。Brainbase service JWTは、Node expected tokenとbridge Worker Secretを片方だけ先に更新せず、provider利用を停止／drainした同じ保守rotation windowで切り替える。
+
+現行実装は旧新tokenのoverlapをサポートしない。Node verifierは`BRAINBASE_TENANT_RUNTIME_SERVICE_TOKEN`の単一expected tokenを比較し、bridgeは必須Worker Secret `BRAINBASE_SERVICE_JWT`の単一値を`Authorization: Bearer`へ注入する。次の順序で実施する。
+
+1. 新しいcanonical `bbsvc_` JWTを発行し、issuer、subject、audience、deployment、expiry、capabilityがNode verifierの期待値と一致することを確認する。値をログ、コマンド引数、リポジトリへ出さない。
+2. 実行中のprovider requestをdrainし、新規provider利用を停止する。Brainbase Node runtimeのdeployment-local secret managerで`BRAINBASE_TENANT_RUNTIME_SERVICE_TOKEN`を新JWTへ更新し、Nodeをreload／restartしてreadinessを確認する。
+3. 同じ新JWTをCloudflare Worker Secret `BRAINBASE_SERVICE_JWT`へ設定してbridgeをdeployする。`wrangler secret list`ではsecret名だけをreadbackし、値を出力しない。
+4. bridge経由のcanonical routeを1件だけ疎通し、Node canonical service auth、Access、Tunnelのreadbackを揃えてからprovider利用を再開する。
+5. 旧JWTを発行元とsecret managerから失効／削除する。途中で失敗した場合は、Worker SecretとNode expected tokenを旧ペアへ戻してから既知のWorker versionへrollbackする。
+
+`BRAINBASE_TENANT_RUNTIME_SERVICE_TOKEN`と`BRAINBASE_SERVICE_JWT`は同じJWTを指す。前者はBrainbase Node runtimeのdeployment-local secret managerだけに、後者はCloudflare Worker Secretだけに置く。JWT値をmana-runtimeのWorker vars／secrets、Service Binding設定、リポジトリ、CI、ログ、Receiptへ置かない。mana-runtimeはservice tokenを保持せず、Service Bindingを呼ぶだけである。将来Node verifierが旧新tokenのoverlapを受理できる実装になった場合だけ、Nodeへ新tokenを追加 → Worker Secretを新tokenへ更新 → bridge smoke → overlap期間後にNodeから旧tokenを削除、の順で行う。現行は単一値比較のため、このoverlap手順を適用しない。
 
 障害時はmana-runtimeのprovider利用機能を停止し、既知のWorker versionへ戻す。Access protectionやNode tenant boundaryを外して復旧しない。Tunnel、Access、Node runtimeのいずれが未確認でも`upstream_unavailable`として残し、成功へ丸めない。
