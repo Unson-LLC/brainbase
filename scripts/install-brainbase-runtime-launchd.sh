@@ -19,7 +19,7 @@ MCP_PLIST="$AGENTS_DIR/com.brainbase.mcp-brainbase.plist"
 if [[ ! -f "$MCP_PLIST" ]]; then
   install -m 644 "$REPO_ROOT/config/com.brainbase.mcp-brainbase.plist" "$MCP_PLIST"
 fi
-plutil -replace ProgramArguments.1 -string "$RUNTIME_ROOT/scripts/run-brainbase-mcp.sh" "$MCP_PLIST"
+plutil -replace ProgramArguments -json "[\"/bin/bash\",\"$RUNTIME_ROOT/scripts/run-brainbase-mcp.sh\"]" "$MCP_PLIST"
 plutil -replace EnvironmentVariables.BRAINBASE_REPO_ROOT -string "$RUNTIME_ROOT" "$MCP_PLIST"
 plutil -remove EnvironmentVariables.BRAINBASE_MCP_ENTRY "$MCP_PLIST" 2>/dev/null || true
 plutil -lint "$MCP_PLIST"

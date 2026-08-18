@@ -37,7 +37,7 @@ describe('managed launchd runtime contract', () => {
     expect(read('scripts/reconcile-brainbase-mcp-runtime.sh')).toContain('MCP_RUNTIME="${BRAINBASE_MCP_RUNTIME_ROOT:-$UI_RUNTIME}"');
     expect(read('config/com.brainbase.mcp-brainbase.plist')).toContain('/Users/ksato/workspace/repos/.runtime/brainbase-31013');
     const install = read('scripts/install-brainbase-runtime-launchd.sh');
-    expect(install).toContain('plutil -replace ProgramArguments.1');
+    expect(install).toContain('plutil -replace ProgramArguments -json');
     expect(install).toContain('plutil -replace EnvironmentVariables.BRAINBASE_REPO_ROOT');
     expect(install).toContain('wait_until_unloaded');
     expect(install).toContain('launchctl bootstrap "$DOMAIN" "$MCP_PLIST"');
