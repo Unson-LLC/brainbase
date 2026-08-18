@@ -1,3 +1,5 @@
+import { canonicalPersonalKgOwner } from '../services/personal-kg-owner.js';
+
 function firstValue(source, keys) {
     for (const key of keys) {
         if (source?.[key] !== undefined && source[key] !== null && source[key] !== '') return String(source[key]);
@@ -5,7 +7,7 @@ function firstValue(source, keys) {
     return null;
 }
 
-export function requirePersonalKnowledgeAccess({ audit = null } = {}) {
+export function requirePersonalKnowledgeAccess({ audit = null, env = process.env } = {}) {
     return (req, res, next) => {
         const isService = ['service-token', 'internal'].includes(req.authSource);
         const proxyPersonId = firstValue(req.headers, ['x-brainbase-proxy-person-id']);
@@ -14,7 +16,9 @@ export function requirePersonalKnowledgeAccess({ audit = null } = {}) {
             return res.status(403).json({ error: 'personal_knowledge_proxy_required' });
         }
 
-        const personId = isService ? proxyPersonId : req.access?.personId;
+        const actorPersonId = req.access?.personId || req.auth?.sub || proxyPersonId;
+        const rawPersonId = isService ? proxyPersonId : req.access?.personId;
+        const personId = canonicalPersonalKgOwner(rawPersonId, env);
         const organizationId = isService
             ? proxyOrganizationId
             : (req.access?.organizationId || req.access?.tenantId);
@@ -26,7 +30,7 @@ export function requirePersonalKnowledgeAccess({ audit = null } = {}) {
             || firstValue(req.query, ['owner_person_id', 'ownerPersonId']);
         const claimedOrganization = firstValue(req.body, ['organization_id', 'organizationId'])
             || firstValue(req.query, ['organization_id', 'organizationId']);
-        if ((claimedPerson && claimedPerson !== personId)
+        if ((claimedPerson && canonicalPersonalKgOwner(claimedPerson, env) !== personId)
             || (claimedOrganization && claimedOrganization !== organizationId)) {
             return res.status(403).json({ error: 'personal_knowledge_scope_spoofing_rejected' });
         }
@@ -34,13 +38,18 @@ export function requirePersonalKnowledgeAccess({ audit = null } = {}) {
         req.personalKnowledgeAccess = {
             personId,
             organizationId,
-            actorPersonId: req.access?.personId || req.auth?.sub || personId,
+            actorPersonId: actorPersonId || personId,
             role: req.access?.role || 'member',
             projectCodes: req.access?.projectCodes || [],
             clearance: req.access?.clearance || ['internal'],
             proxied: isService
         };
-        req.access = { ...req.access, personId, organizationId };
+        req.access = {
+            ...req.access,
+            personId,
+            organizationId,
+            actorPersonId: actorPersonId || personId
+        };
         if (isService && audit) {
             return Promise.resolve(audit({
                 action: 'personal_knowledge_proxy',

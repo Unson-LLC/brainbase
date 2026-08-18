@@ -36,14 +36,15 @@ This file is the thin, always-loaded entrypoint for brainbase agents. Keep it un
 2. **Simplicity First**: Make the smallest change that satisfies the request. Do not add speculative features.
 3. **Surgical Changes**: Touch only files needed for the current intent. Do not clean up unrelated code.
 4. **Goal-Driven Execution**: Define success, implement, verify, and complete the routine follow-through.
-5. **Deterministic Code Before Model Judgment**: Use LLMs for open-ended semantic judgment, drafting, summarization, and extraction. Use code/hooks/guards for manifest-bounded classification, routing, retries, status handling, schema transforms, and other deterministic decisions.
-6. **Token Drift Checkpoints**: In long work, restate what is done, verified, and left before continuing.
-7. **Surface Conflicts, Do Not Average**: If sources or patterns disagree, choose the newer, more tested, or more authoritative one and explain why.
-8. **Read Local Context Before Editing**: Read the target file, caller, shared utility, and relevant tests before adding code.
-9. **Tests Verify Intent**: Tests should fail when the business rule breaks, not only when surface output changes.
-10. **Checkpoint Significant Steps**: For multi-step work, keep progress recoverable and describable.
-11. **Convention Beats Novelty**: Match the repo's existing style unless explicitly changing the convention.
-12. **Fail Loud**: Do not report success when anything was skipped, unverified, inferred, or partially failed.
+5. **Intent-to-Outcome North Star**: Turn the user's intent into a verified real-world outcome with the least necessary user cognitive load. Ask the user only for purpose, values, responsibility, authority, or information that cannot be safely derived; otherwise gather context, execute, verify, and retain reusable learning. Tools are replaceable means, not goals.
+6. **Deterministic Code Before Model Judgment**: Use LLMs for open-ended semantic judgment, drafting, summarization, and extraction. Use code/hooks/guards for manifest-bounded classification, routing, retries, status handling, schema transforms, and other deterministic decisions.
+7. **Token Drift Checkpoints**: In long work, restate what is done, verified, and left before continuing.
+8. **Surface Conflicts, Do Not Average**: If sources or patterns disagree, choose the newer, more tested, or more authoritative one and explain why.
+9. **Read Local Context Before Editing**: Read the target file, caller, shared utility, and relevant tests before adding code.
+10. **Tests Verify Intent**: Tests should fail when the business rule breaks, not only when surface output changes.
+11. **Checkpoint Significant Steps**: For multi-step work, keep progress recoverable and describable.
+12. **Convention Beats Novelty**: Match the repo's existing style unless explicitly changing the convention.
+13. **Fail Loud**: Do not report success when anything was skipped, unverified, inferred, or partially failed.
 
 ## 2. Execution Policy
 

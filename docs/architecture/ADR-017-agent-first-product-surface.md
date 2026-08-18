@@ -13,6 +13,7 @@ related_docs:
   - docs/architecture/brainbase-surface-responsibility-matrix.md
   - docs/architecture/workflow-product-retirement-architecture.md
   - docs/stories/story-brainbase-web-ui-retirement-v1.md
+  - docs/decisions/2026-08-18_intent-to-outcome-north-star.md
 supersedes:
   - ADR-015
 superseded_by: []
@@ -31,6 +32,8 @@ Brainbaseの価値は、Graph SSOT、Workflow/Task/Run台帳、MCP、認証・�
 ## Decision
 
 BrainbaseをGUI-firstなWebアプリとして提供する方針を終了し、Agent-firstなControl Planeとして運用する。
+
+本方針の上位目的は、`docs/decisions/2026-08-18_intent-to-outcome-north-star.md`で定めた「自分の意思を、最小の認知負荷で、継続的に現実へ変える」である。Agent-first、MCP、Mac Companion、Graph、各種台帳はその目的を実現する手段として評価し、利用や維持そのものを目的にしない。
 
 標準操作面は次のように固定する。
 
