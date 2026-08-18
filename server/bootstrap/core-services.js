@@ -63,6 +63,7 @@ import {
     createDefaultWorkflowHandlers
 } from '../services/automation-runtime/automation-runtime-defaults-service.js';
 import { createAutomationRuntimeServices } from '../services/automation-runtime/automation-runtime-services.js';
+import { createTenantRuntimeServicesFromEnv } from '../services/multitenant/tenant-runtime-services.js';
 
 export function createCanonicalTaskRepository({
     backend = resolveCanonicalTaskBackend(),
@@ -102,6 +103,10 @@ export function createCoreServices({
     );
     const configService = new ConfigService(configPath, projectsRoot, configParser);
     const infoSSOTService = new InfoSSOTService();
+    const tenantRuntimeServices = createTenantRuntimeServicesFromEnv({
+        env: process.env,
+        pool: infoSSOTService.pool
+    });
     const canonicalTaskStoreConfig = createCanonicalTaskStoreConfig();
     const canonicalTaskBackend = resolveCanonicalTaskBackend();
     const canonicalTaskOperationRepository = new CanonicalTaskOperationRepository({
@@ -340,6 +345,7 @@ export function createCoreServices({
         configParser,
         configService,
         infoSSOTService,
+        tenantRuntimeServices,
         canonicalTaskStoreConfig,
         canonicalTaskReadiness,
         canonicalTaskOperationRepository,

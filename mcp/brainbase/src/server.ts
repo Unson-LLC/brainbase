@@ -49,6 +49,7 @@ import {
 import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-tools.js';
 import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './tools/knowledge-resolution-tools.js';
 import { judgmentResolutionTools, resolveJudgmentBeforeModel } from './tools/judgment-resolution-tools.js';
+import { tenantBoundaryTools, handleTenantBoundaryToolCall } from './tools/tenant-boundary-tools.js';
 import { normalizeJudgmentHostResult } from './tools/judgment-host-contract.js';
 import { dispatchFirst, type ToolHandler } from './tools/tool-dispatcher.js';
 import {
@@ -1023,7 +1024,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
 }
 
 export const __testing = {
-  tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...meetingMinutesContextTools, ...taskTools],
+  tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...meetingMinutesContextTools, ...taskTools, ...tenantBoundaryTools],
   dispatchOnboardingToolCall,
   dispatchJudgmentResolutionBeforeModel,
   dispatchKnowledgeResolutionToolCall,
@@ -1173,7 +1174,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...meetingMinutesContextTools, ...taskTools, ...meshTools] };
+    return { tools: [...tools, ...controlPlaneTools, ...onboardingTools, ...judgmentResolutionTools, ...knowledgeResolutionTools, ...meetingMinutesContextTools, ...taskTools, ...tenantBoundaryTools, ...meshTools] };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -1182,6 +1183,10 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
     try {
       const toolArgs = args as Record<string, unknown>;
       const extensionResult = await dispatchExtensionToolCall(name, toolArgs, [
+        (toolName, extensionArgs) => handleTenantBoundaryToolCall(toolName, extensionArgs, {
+          apiUrl: resolveBrainbaseApiUrl(),
+          serviceToken: process.env.BRAINBASE_TENANT_RUNTIME_SERVICE_TOKEN,
+        }),
         (toolName, extensionArgs) => handleControlPlaneToolCall(toolName, extensionArgs, {
           apiUrl: resolveBrainbaseApiUrl(),
           configuredProjectCodes,

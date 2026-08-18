@@ -7,13 +7,15 @@ import pg from 'pg';
 import { databaseConfig } from './migrate-m5a-production-schema.js';
 import {
     JsonFileSnsPostingLedgerRepository,
-    PgSnsPostingLedgerRepository
+    PgSnsPostingLedgerRepository,
+    isSnsPostingLedgerJsonTestMode
 } from '../server/services/sns/posting-ledger-repository.js';
 import {
     createSnsPostScriptExecutor,
     SnsLedgerPublishService
 } from '../server/services/sns/sns-ledger-publish-service.js';
 import { SnsScheduledPublisher } from '../server/services/sns/sns-scheduled-publisher.js';
+import { createTenantRuntimeServicesFromEnv } from '../server/services/multitenant/tenant-runtime-services.js';
 
 const { Pool } = pg;
 
@@ -57,6 +59,39 @@ export function resolveSnsPostingLedgerFile(env = process.env, cwd = process.cwd
     return env.SNS_POSTING_LEDGER_FILE || path.join(cwd, 'var', 'sns-posting-ledger.json');
 }
 
+export function shouldUseJsonLedgerForTest(env = process.env) {
+    return isSnsPostingLedgerJsonTestMode(env);
+}
+
+export function resolveTenantJobBoundary({
+    env = process.env,
+    pool,
+    requireTenantBoundary = false,
+    createServices = createTenantRuntimeServicesFromEnv
+} = {}) {
+    if (!requireTenantBoundary) {
+        return { tenantIsolationRequired: false, tenantBoundaryAuthorizer: null };
+    }
+    if (env.BRAINBASE_TENANT_RUNTIME_ENABLED !== '1') {
+        throw new Error('Tenant runtime is required for public scheduled publishing');
+    }
+    if (!pool) {
+        throw new Error('Tenant runtime PostgreSQL pool is required for public scheduled publishing');
+    }
+    const services = createServices({ env, pool });
+    if (typeof services?.tenantBoundaryGateway?.authorize !== 'function') {
+        throw new Error('Tenant boundary gateway is required for public scheduled publishing');
+    }
+    return {
+        tenantIsolationRequired: true,
+        tenantBoundaryAuthorizer: ({ tenant_context, resource_ref }) => services.tenantBoundaryGateway.authorize({
+            tenant_context,
+            entry_point: 'background_job',
+            resource_ref
+        })
+    };
+}
+
 function actor() {
     return {
         sub: 'sato_keigo',
@@ -66,44 +101,72 @@ function actor() {
     };
 }
 
-async function main() {
-    const args = parseArgs(process.argv.slice(2));
+export async function runScheduledPosts({
+    argv = process.argv.slice(2),
+    env = process.env,
+    cwd = process.cwd(),
+    PoolClass = Pool,
+    createServices = createTenantRuntimeServicesFromEnv,
+    createPostExecutor = createSnsPostScriptExecutor,
+    output = console
+} = {}) {
+    const args = parseArgs(argv);
     validateArgs(args);
-    const databaseUrl = resolveSnsPostingLedgerDatabaseUrl();
-    const pool = databaseUrl ? new Pool(databaseConfig({
-        ...process.env,
+    const databaseUrl = resolveSnsPostingLedgerDatabaseUrl(env);
+    const pool = databaseUrl ? new PoolClass(databaseConfig({
+        ...env,
         SNS_POSTING_LEDGER_DATABASE_URL: databaseUrl
     })) : null;
     try {
+        if (!pool && !shouldUseJsonLedgerForTest(env)) {
+            throw new Error('SNS Posting Ledger PostgreSQL URL is required outside explicit JSON test mode');
+        }
+        const autoPublishEnabled = resolveAutoPublishEnabled(env);
+        const tenantJobBoundary = resolveTenantJobBoundary({
+            env,
+            pool,
+            requireTenantBoundary: autoPublishEnabled && !args.dryRun,
+            createServices
+        });
         const ledgerRepository = pool
             ? new PgSnsPostingLedgerRepository({ pool })
-            : new JsonFileSnsPostingLedgerRepository({ filePath: resolveSnsPostingLedgerFile() });
+            : new JsonFileSnsPostingLedgerRepository({ filePath: resolveSnsPostingLedgerFile(env, cwd) });
         const publishService = new SnsLedgerPublishService({
             ledgerRepository,
-            postExecutor: createSnsPostScriptExecutor()
+            postExecutor: createPostExecutor({
+                pythonPath: env.SNS_POST_PYTHON,
+                scriptPath: env.SNS_POST_SCRIPT
+            })
         });
         const publisher = new SnsScheduledPublisher({
             ledgerRepository,
             publishService,
+            tenantBoundaryAuthorizer: tenantJobBoundary.tenantBoundaryAuthorizer,
             now: () => args.now ? new Date(args.now) : new Date()
         });
         const result = await publisher.run({
             actor: actor(),
             dry_run: args.dryRun,
-            auto_publish_enabled: resolveAutoPublishEnabled(),
+            auto_publish_enabled: autoPublishEnabled,
             limit: args.limit
         });
-        const output = JSON.stringify(result, null, 2);
+        const outputText = JSON.stringify(result, null, 2);
         if (args.json) {
-            console.log(output);
+            output.log(outputText);
         } else {
-            console.log(`SNS scheduled publisher: due=${result.due} posted=${result.posted} failed=${result.failed} skipped=${result.skipped} dry_run=${result.dry_run}`);
-            console.log(output);
+            output.log(`SNS scheduled publisher: due=${result.due} posted=${result.posted} failed=${result.failed} skipped=${result.skipped} dry_run=${result.dry_run}`);
+            output.log(outputText);
         }
-        if (result.failed > 0) process.exitCode = 1;
+        return result;
     } finally {
         await pool?.end();
     }
+}
+
+export async function main() {
+    const result = await runScheduledPosts();
+    if (result.failed > 0) process.exitCode = 1;
+    return result;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

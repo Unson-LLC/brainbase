@@ -27,6 +27,11 @@ import { createWikiRouter } from '../routes/wiki.js';
 import { createMiscRouter } from '../routes/misc.js';
 import { createUsageRouter } from '../routes/usage.js';
 import { createSnsGrowthRouter } from '../routes/sns-growth.js';
+import { createTenantRuntimeRouter } from '../routes/tenant-runtime.js';
+import {
+    createTenantEntrypointGuard,
+    createUnavailableTenantEntrypointGuard
+} from '../middleware/tenant-entrypoint.js';
 import {
     createWorkflowHumanStepRouter,
     createWorkflowRouter,
@@ -39,7 +44,9 @@ import { AccountService } from '../services/account/account-service.js';
 import { PgAccountRepository } from '../services/account/account-repository.js';
 import {
     JsonFileSnsPostingLedgerRepository,
-    PgSnsPostingLedgerRepository
+    PgSnsPostingLedgerRepository,
+    SnsPostingLedgerUnavailableRepository,
+    isSnsPostingLedgerJsonTestMode
 } from '../services/sns/posting-ledger-repository.js';
 import {
     createSnsPostScriptExecutor,
@@ -66,16 +73,19 @@ export function resolveSnsPostingLedgerDatabaseUrl(env = process.env) {
     return env.INFO_SSOT_DATABASE_URL || env.INFO_SSOT_DB_URL || '';
 }
 
-function createSnsPostingLedgerRepository(runtimePaths) {
-    const databaseUrl = resolveSnsPostingLedgerDatabaseUrl();
+export function createSnsPostingLedgerRepository(runtimePaths, { env = process.env } = {}) {
+    const databaseUrl = resolveSnsPostingLedgerDatabaseUrl(env);
     if (databaseUrl) {
         return new PgSnsPostingLedgerRepository({
             pool: new Pool({ connectionString: databaseUrl })
         });
     }
-    return new JsonFileSnsPostingLedgerRepository({
-        filePath: path.join(runtimePaths.varDir, 'sns-posting-ledger.json')
-    });
+    if (isSnsPostingLedgerJsonTestMode(env)) {
+        return new JsonFileSnsPostingLedgerRepository({
+            filePath: path.join(runtimePaths.varDir, 'sns-posting-ledger.json')
+        });
+    }
+    return new SnsPostingLedgerUnavailableRepository();
 }
 
 function createDecisionEventService(runtimePaths) {
@@ -159,6 +169,16 @@ export function registerJudgmentResolutionApiRoute(app, {
     );
 }
 
+export function registerTenantRuntimeApiRoute(app, services) {
+    if (!services?.serviceAuth) {
+        throw new Error('Tenant runtime service authentication middleware is required');
+    }
+    if (!services?.tenantContextVerifier) {
+        throw new Error('Tenant runtime context verifier is required');
+    }
+    app.use('/api/v1/runtime', createTenantRuntimeRouter(services));
+}
+
 export function registerApiRoutes(app, {
     configParser,
     configService,
@@ -197,8 +217,16 @@ export function registerApiRoutes(app, {
     workspaceRoot,
     uploadsDir,
     runtimeInfo,
-    brainbaseRoot
+    brainbaseRoot,
+    tenantRuntimeServices,
+    snsPostExecutor = null
 }) {
+    const adminTenantGuard = tenantRuntimeServices
+        ? createTenantEntrypointGuard(tenantRuntimeServices, 'admin_api')
+        : createUnavailableTenantEntrypointGuard();
+    const auditTenantGuard = tenantRuntimeServices
+        ? createTenantEntrypointGuard(tenantRuntimeServices, 'audit_log')
+        : createUnavailableTenantEntrypointGuard();
     app.use('/api/state', createRetiredCapabilityRouter({
         capability: 'brainbase.session-state',
         owner: 'Codex app and CLI',
@@ -233,7 +261,7 @@ export function registerApiRoutes(app, {
     app.use(
         '/api/info',
         requireAuth(authService, { allowInsecureHeaders: false }),
-        createInfoSSOTRouter(infoSSOTService)
+        createInfoSSOTRouter(infoSSOTService, { auditTenantGuard })
     );
     const personalKnowledgeAuthGuard = requireAuth(authService, { allowInsecureHeaders: false });
     const auditPersonalAccess = personalKnowledgeService
@@ -272,7 +300,7 @@ export function registerApiRoutes(app, {
             ownerAliasIds: canonicalTaskStoreConfig?.ownerAliasIds
         }
     }));
-    app.use('/api/admin', adminNoCacheMiddleware, requireAuth(authService), createAdminVisualizationRouter(new AdminVisualizationService({
+    app.use('/api/admin', adminNoCacheMiddleware, requireAuth(authService), adminTenantGuard, createAdminVisualizationRouter(new AdminVisualizationService({
         infoSSOTService,
         candidateRepository
     })));
@@ -300,15 +328,20 @@ export function registerApiRoutes(app, {
         }));
     }
     const snsPostingLedgerRepository = createSnsPostingLedgerRepository(runtimePaths);
-    app.use('/api/sns-growth', createSnsGrowthRouter({
-        repository: snsPostingLedgerRepository,
-        publishService: new SnsLedgerPublishService({
-            ledgerRepository: snsPostingLedgerRepository,
-            postExecutor: createSnsPostScriptExecutor()
-        }),
-        accountService: createSnsAccountService(),
-        accountProvider: createSnsAccountProvider()
-    }));
+    app.use(
+        '/api/sns-growth',
+        requireAuth(authService, { allowInsecureHeaders: false }),
+        adminTenantGuard,
+        createSnsGrowthRouter({
+            repository: snsPostingLedgerRepository,
+            publishService: new SnsLedgerPublishService({
+                ledgerRepository: snsPostingLedgerRepository,
+                postExecutor: snsPostExecutor || createSnsPostScriptExecutor()
+            }),
+            accountService: createSnsAccountService(),
+            accountProvider: createSnsAccountProvider()
+        })
+    );
     app.use('/api/wiki', createWikiRouter(wikiService));
     app.use('/api/usage', createUsageRouter(tokenUsageService));
     const workflowAuthGuard = requireAuth(authService);

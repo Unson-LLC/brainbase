@@ -36,6 +36,9 @@ function sendRouteError(res, error) {
     if (error instanceof SnsPostValidationError) {
         return res.status(400).json({ error: error.message, code: 'invalid_sns_post' });
     }
+    if (Number.isInteger(error?.status) && typeof error?.code === 'string') {
+        return res.status(error.status).json({ error: error.message, code: error.code });
+    }
     return res.status(500).json({ error: 'sns_growth_route_failed' });
 }
 
@@ -226,6 +229,12 @@ export function createSnsGrowthRouter({
 
     router.post('/posts/:id/publish', async (req, res) => {
         try {
+            if (req.body?.dry_run !== true) {
+                return res.status(409).json({
+                    error: 'Direct public SNS publish is disabled; use the scheduled publisher',
+                    code: 'sns_direct_public_publish_disabled'
+                });
+            }
             if (!publishService) {
                 return res.status(503).json({
                     error: 'SNS publish service unavailable',
@@ -234,8 +243,8 @@ export function createSnsGrowthRouter({
             }
             const result = await publishService.publishPost(req.params.id, {
                 actor: defaultActor(),
-                dry_run: req.body?.dry_run === true,
-                confirm_public_post: req.body?.confirm_public_post === true
+                dry_run: true,
+                confirm_public_post: false
             });
             res.json(result);
         } catch (error) {

@@ -5,7 +5,7 @@
 import express from 'express';
 import { InfoSSOTController } from '../controllers/info-ssot-controller.js';
 
-export function createInfoSSOTRouter(infoSSOTService) {
+export function createInfoSSOTRouter(infoSSOTService, { auditTenantGuard = (_req, _res, next) => next() } = {}) {
     const router = express.Router();
     const controller = new InfoSSOTController(infoSSOTService);
 
@@ -18,7 +18,7 @@ export function createInfoSSOTRouter(infoSSOTService) {
     router.post('/ontology/infer/decisions', controller.inferOntology);
     router.post('/ontology/infer', controller.inferOntology);
     router.post('/ontology/impact', controller.impactOntology);
-    router.post('/ontology/audit', controller.auditOntology);
+    router.post('/ontology/audit', auditTenantGuard, controller.auditOntology);
     router.post('/ontology/graph/commit', controller.commitOntologyGraph);
     router.post('/ontology/publications/authorize', controller.authorizeOntologyPublication);
 

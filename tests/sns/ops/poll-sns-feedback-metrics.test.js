@@ -9,6 +9,7 @@ import {
     parseArgs,
     resolveMetricsPollingEnabled,
     resolveSnsPostingLedgerDatabaseUrl,
+    shouldUseJsonLedgerForTest,
     validateArgs
 } from '../../../scripts/poll-sns-feedback-metrics.js';
 
@@ -97,5 +98,10 @@ describe('poll-sns-feedback-metrics', () => {
         expect(resolveSnsPostingLedgerDatabaseUrl({
             INFO_SSOT_DATABASE_URL: 'postgres://info'
         })).toBe('postgres://info');
+        expect(shouldUseJsonLedgerForTest({
+            BRAINBASE_TEST_MODE: 'true',
+            SNS_POSTING_LEDGER_MODE: 'json_test'
+        })).toBe(true);
+        expect(shouldUseJsonLedgerForTest({ BRAINBASE_TEST_MODE: 'true' })).toBe(false);
     });
 });

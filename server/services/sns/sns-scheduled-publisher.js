@@ -1,4 +1,5 @@
 // @ts-check
+import { ContractError } from '../multitenant/errors.js';
 
 const DEFAULT_LIMIT = 20;
 
@@ -19,13 +20,16 @@ function failureMemo(error, now) {
 }
 
 export class SnsScheduledPublisher {
-    constructor({ ledgerRepository, publishService, now = () => new Date() }) {
+    constructor({ ledgerRepository, publishService, tenantBoundaryAuthorizer = null, now = () => new Date() }) {
         if (!ledgerRepository) throw new Error('ledgerRepository required');
         if (!publishService || typeof publishService.publishPost !== 'function') {
             throw new Error('publishService.publishPost required');
         }
         this.ledgerRepository = ledgerRepository;
         this.publishService = publishService;
+        this.tenantBoundaryAuthorizer = typeof tenantBoundaryAuthorizer === 'function'
+            ? tenantBoundaryAuthorizer
+            : null;
         this.now = now;
     }
 
@@ -66,6 +70,7 @@ export class SnsScheduledPublisher {
         }
 
         for (const post of duePosts) {
+            await this._authorizeTenantBoundary(post);
             const claimed = await this._claim(post, currentNow, actor);
             if (!claimed) {
                 result.skipped += 1;
@@ -98,6 +103,32 @@ export class SnsScheduledPublisher {
         }
 
         return result;
+    }
+
+    async _authorizeTenantBoundary(post) {
+        if (!this.tenantBoundaryAuthorizer) {
+            throw new ContractError('UPSTREAM_UNAVAILABLE', {
+                status: 503,
+                retryable: true,
+                fault_domain: 'brainbase_cloud'
+            });
+        }
+        const binding = post?.evidence?.tenant_boundary;
+        if (!binding || typeof binding !== 'object' || Array.isArray(binding)
+            || !binding.tenant_context?.tenant?.tenant_id
+            || !binding.tenant_context?.tenant?.tenant_revision
+            || !binding.resource_ref?.object_type
+            || !binding.resource_ref?.resource_id) {
+            throw new ContractError('TENANT_BOUNDARY_INVALID', { status: 400 });
+        }
+        const authorization = await this.tenantBoundaryAuthorizer(structuredClone(binding));
+        if (authorization?.authorized !== true) {
+            throw new ContractError('UPSTREAM_UNAVAILABLE', {
+                status: 503,
+                retryable: true,
+                fault_domain: 'brainbase_cloud'
+            });
+        }
     }
 
     async _claim(post, now, actor) {

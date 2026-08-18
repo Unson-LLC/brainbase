@@ -239,7 +239,7 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
   - production durable store uses PostgreSQL when `SNS_POSTING_LEDGER_DATABASE_URL` is configured
   - if the dedicated SNS URL is not configured, production runtime uses `INFO_SSOT_DATABASE_URL` / `INFO_SSOT_DB_URL` for the shared Lightsail PostgreSQL database
   - generic `DATABASE_URL` must not override the dedicated SNS URL or Info SSOT URL for this ledger
-  - local fallback may use JSON file persistence for UI/runtime verification
+  - JSON file persistence is permitted only when `BRAINBASE_TEST_MODE=true` and `SNS_POSTING_LEDGER_MODE=json_test`; production without PostgreSQL fails closed
 - **postconditions**:
   - Peer Circle and News posts preserve source type and source URL
   - `posted -> deleted` preserves `posted_url` and records `deleted_at`, `deletion_source`, `deletion_reason`
@@ -255,21 +255,23 @@ Brainbase が、今日なにを見て、なにを考え、なにを出し、な�
 
 - **input**:
   - SNS Posting Ledger post id
-  - publish mode: `dry_run=true` or `confirm_public_post=true`
+  - interactive publish mode: `dry_run=true` only
   - reviewed Ledger body and title
 - **output**:
   - `POST /api/sns-growth/posts/:id/publish`
   - dry-run result from the SNS post executor
-  - actual publish result with `posted_url`, `posted_at`, and `status=posted`
+  - actual publish result with `posted_url`, `posted_at`, and `status=posted` is produced only by the scheduled runner after tenant authorization and PostgreSQL claim
 - **preconditions**:
-  - public posting is an external side effect and must require `confirm_public_post=true`
-  - publishable statuses are `approved` and `scheduled`
+  - `/api/sns-growth` requires authentication and the `admin_api` tenant guard
+  - direct non-dry-run publish returns HTTP 409 `sns_direct_public_publish_disabled`
+  - scheduled public posting requires `confirm_public_post=true` and a claimed `publishing` row
+  - dry-run statuses are `approved`, `scheduled`, or `publishing`; public publish status is `publishing` only
   - `review_needed`, `skipped`, `learning_ready`, and already `posted` records are not publishable
   - dry-run may execute against the same body/title but must not mutate the Ledger
   - the runtime executor may call `/Users/ksato/workspace/common/ops/scripts/sns_post.py`; UI/tests must inject a fake executor
 - **postconditions**:
-  - approved posts move through the allowed `approved -> scheduled -> posted` transition
-  - scheduled posts move through `scheduled -> posted`
+  - the scheduled runner claims `scheduled -> publishing` transactionally before provider work
+  - only `publishing -> posted` is allowed after provider success
   - posted records preserve the returned X URL in `posted_url`
   - Ledger write remains operational state; Graph SSOT is not mutated by publish execution
 - **error cases**:

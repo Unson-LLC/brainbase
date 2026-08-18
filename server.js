@@ -29,6 +29,7 @@ import {
     registerPersonalKnowledgePreAuth
 } from './server/bootstrap/register-api-routes.js';
 import { registerStaticRoutes } from './server/bootstrap/static-routes.js';
+import { startTenantRuntimeInternalServerFromEnv } from './server/bootstrap/tenant-runtime-internal-server.js';
 import { assertAllowedServerEntrypoint } from './server/bootstrap/direct-launch-guard.js';
 import { BRAINBASE_CORS_OPTIONS } from './server/bootstrap/cors-options.js';
 
@@ -289,6 +290,7 @@ const {
     configParser,
     configService,
     infoSSOTService,
+    tenantRuntimeServices,
     canonicalTaskStoreConfig,
     canonicalTaskReadiness,
     canonicalTaskOperationRepository,
@@ -447,7 +449,8 @@ registerApiRoutes(app, {
     workspaceRoot,
     uploadsDir: UPLOADS_DIR,
     runtimeInfo: RUNTIME_INFO,
-    brainbaseRoot: BRAINBASE_ROOT
+    brainbaseRoot: BRAINBASE_ROOT,
+    tenantRuntimeServices
 });
 
 // ========================================
@@ -558,6 +561,11 @@ app.use('/api/mesh', createMeshRouter(meshService));
 app.use(errorHandler);
 
 // Start server
+const tenantRuntimeInternalServer = await startTenantRuntimeInternalServerFromEnv({
+    services: tenantRuntimeServices,
+    env: process.env,
+    log: console
+});
 const server = app.listen(PORT, async () => {
     console.log(`Server is running on http://localhost:${PORT}`);
     console.log(`Serving static files from ${path.join(__dirname, 'public')}`);
@@ -572,6 +580,7 @@ const server = app.listen(PORT, async () => {
 
 registerGracefulShutdown({
     server,
+    tenantRuntimeInternalServer,
     meetingSourceMcpSyncService,
     canonicalTaskOperationRepository,
     getMeshService: () => meshService,

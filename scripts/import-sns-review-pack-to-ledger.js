@@ -4,6 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { resolveSnsRoot } from './workspace-paths.js';
+import { validateCanonicalWire } from '../server/services/multitenant/canonical-wire-validator.js';
+import { generateCanonicalId, isCanonicalId } from '../server/services/multitenant/ids.js';
+import { normalizeSnsTenantBoundary } from '../server/services/sns/posting-ledger-repository.js';
 
 const SNS_ROOT = resolveSnsRoot();
 const DEFAULT_DAILY_BRIEFS_DIR = path.join(SNS_ROOT, 'x/ops/daily-briefs');
@@ -46,7 +49,134 @@ function sourceTypeForPost(post) {
     return 'News';
 }
 
-export function reviewPackToLedgerPayload(input) {
+export function resolveSnsTenantBoundary(env = process.env) {
+    const required = [
+        'BRAINBASE_SNS_TENANT_ID',
+        'BRAINBASE_SNS_TENANT_REVISION',
+        'BRAINBASE_SNS_RESOURCE_OBJECT_TYPE',
+        'BRAINBASE_SNS_RESOURCE_ID'
+    ];
+    const missing = required.filter((name) => typeof env[name] !== 'string' || env[name].length === 0);
+    if (missing.length > 0) {
+        throw new Error(`SNS tenant boundary environment is required: ${missing.join(', ')}`);
+    }
+    return normalizeSnsTenantBoundary({
+        tenant_context: {
+            tenant: {
+                tenant_id: env.BRAINBASE_SNS_TENANT_ID,
+                tenant_revision: env.BRAINBASE_SNS_TENANT_REVISION
+            }
+        },
+        resource_ref: {
+            object_type: env.BRAINBASE_SNS_RESOURCE_OBJECT_TYPE,
+            resource_id: env.BRAINBASE_SNS_RESOURCE_ID
+        }
+    }, { required: true });
+}
+
+export function resolveSnsServiceToken(env = process.env) {
+    const token = env.BRAINBASE_SNS_SERVICE_TOKEN;
+    if (typeof token !== 'string' || token.length === 0) {
+        throw new Error('BRAINBASE_SNS_SERVICE_TOKEN is required for SNS Ledger import');
+    }
+    if (!/^bbsvc_[A-Za-z0-9._-]+$/u.test(token)) {
+        throw new Error('BRAINBASE_SNS_SERVICE_TOKEN must be a valid Brainbase service token');
+    }
+    return token;
+}
+
+function requiredEnv(env, names, label) {
+    const missing = names.filter((name) => typeof env[name] !== 'string' || env[name].length === 0);
+    if (missing.length > 0) throw new Error(`${label}: ${missing.join(', ')}`);
+}
+
+function assertRevision(value, name) {
+    if (!/^(0|[1-9][0-9]*)$/u.test(value)) throw new Error(`${name} must be a canonical revision string`);
+}
+
+export function resolveSnsRuntimeBaseUrl(env = process.env) {
+    let rawUrl = env.BRAINBASE_TENANT_RUNTIME_URL;
+    if (!rawUrl) {
+        const host = env.BRAINBASE_TENANT_RUNTIME_HOST || '127.0.0.1';
+        const port = env.BRAINBASE_TENANT_RUNTIME_PORT;
+        if (!/^\d{1,5}$/u.test(port ?? '') || Number(port) < 1 || Number(port) > 65535) {
+            throw new Error('BRAINBASE_TENANT_RUNTIME_URL or a valid BRAINBASE_TENANT_RUNTIME_PORT is required');
+        }
+        rawUrl = `http://${host}:${port}`;
+    }
+    let parsed;
+    try {
+        parsed = new URL(rawUrl);
+    } catch {
+        throw new Error('BRAINBASE_TENANT_RUNTIME_URL must be a valid HTTP(S) URL');
+    }
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password
+        || parsed.search || parsed.hash || (parsed.pathname !== '/' && parsed.pathname !== '')) {
+        throw new Error('BRAINBASE_TENANT_RUNTIME_URL must be an HTTP(S) origin without credentials, path, query, or fragment');
+    }
+    return parsed.origin;
+}
+
+export function resolveSnsTenantContextRequest(env = process.env, {
+    correlationId = generateCanonicalId('cor'),
+    operationId = generateCanonicalId('op')
+} = {}) {
+    const required = [
+        'BRAINBASE_SNS_TENANT_ID',
+        'BRAINBASE_SNS_TENANT_REVISION',
+        'BRAINBASE_SNS_CONNECTION_ID',
+        'BRAINBASE_SNS_CONNECTION_REVISION',
+        'BRAINBASE_SNS_SERVICE_PRINCIPAL_ID',
+        'BRAINBASE_SNS_CHANNEL_ID',
+        'BRAINBASE_SNS_RESOURCE_OBJECT_TYPE',
+        'BRAINBASE_SNS_RESOURCE_ID'
+    ];
+    requiredEnv(env, required, 'SNS signed tenant context environment is required');
+    if (!isCanonicalId(env.BRAINBASE_SNS_TENANT_ID, 'ten')) {
+        throw new Error('BRAINBASE_SNS_TENANT_ID must be a canonical tenant ID');
+    }
+    if (!isCanonicalId(env.BRAINBASE_SNS_CONNECTION_ID, 'wsc')) {
+        throw new Error('BRAINBASE_SNS_CONNECTION_ID must be a canonical workspace connection ID');
+    }
+    assertRevision(env.BRAINBASE_SNS_TENANT_REVISION, 'BRAINBASE_SNS_TENANT_REVISION');
+    assertRevision(env.BRAINBASE_SNS_CONNECTION_REVISION, 'BRAINBASE_SNS_CONNECTION_REVISION');
+    if (!isCanonicalId(correlationId, 'cor') || !isCanonicalId(operationId, 'op')) {
+        throw new Error('SNS tenant context operation identifiers must be canonical');
+    }
+    const principalId = env.BRAINBASE_SNS_SERVICE_PRINCIPAL_ID;
+    const projectIds = env.BRAINBASE_SNS_RESOURCE_OBJECT_TYPE === 'project'
+        ? [env.BRAINBASE_SNS_RESOURCE_ID]
+        : [];
+    return {
+        tenant_id: env.BRAINBASE_SNS_TENANT_ID,
+        expected_tenant_revision: env.BRAINBASE_SNS_TENANT_REVISION,
+        connection_id: env.BRAINBASE_SNS_CONNECTION_ID,
+        expected_connection_revision: env.BRAINBASE_SNS_CONNECTION_REVISION,
+        actor: {
+            principal_id: principalId,
+            principal_type: 'service',
+            authenticated_subject_id: principalId
+        },
+        authorization: {
+            organization_ids: [],
+            project_ids: projectIds,
+            data_scopes: ['sns.review_pack'],
+            capability_ids: ['sns.review_pack.import']
+        },
+        slack: {
+            event_id: `sns-review-pack:${operationId}`,
+            channel_id: env.BRAINBASE_SNS_CHANNEL_ID,
+            requester_id: principalId
+        },
+        correlation_id: correlationId,
+        operation_id: operationId
+    };
+}
+
+export function reviewPackToLedgerPayload(input, {
+    tenantBoundary = input?.tenant_boundary,
+    requireTenantBoundary = false
+} = {}) {
     const reviewPack = input?.reviewPack;
     if (!reviewPack || !Array.isArray(reviewPack.posts)) {
         throw new Error('signals JSON must include reviewPack.posts');
@@ -62,6 +192,9 @@ export function reviewPackToLedgerPayload(input) {
             : '';
         throw new Error(`reviewPack.posts is empty; SNS Ledger import would create no reviewable posts${suffix}`);
     }
+    const canonicalTenantBoundary = normalizeSnsTenantBoundary(tenantBoundary, {
+        required: requireTenantBoundary
+    });
     return {
         account_id: input.account_id || 'acc_x_sato',
         account_handle: input.account_handle || '@AIBizNavigator',
@@ -91,7 +224,8 @@ export function reviewPackToLedgerPayload(input) {
                 persona_affect: post.quality_gate?.persona_affect || null
             },
             evidence_ids: post.lifelog_check?.evidence_ids || [],
-            derived_from: post.lifelog_check?.source_id ? [post.lifelog_check.source_id] : []
+            derived_from: post.lifelog_check?.source_id ? [post.lifelog_check.source_id] : [],
+            ...(canonicalTenantBoundary ? { tenant_boundary: structuredClone(canonicalTenantBoundary) } : {})
         }))
     };
 }
@@ -133,29 +267,112 @@ export function assertImportCreatedReviewablePosts(summary) {
     }
 }
 
-async function postJson(url, payload) {
-    const response = await fetch(url, {
+async function postJson(url, payload, { headers = {}, fetchImpl = fetch, operation = 'request' } = {}) {
+    const response = await fetchImpl(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...headers },
         body: JSON.stringify(payload)
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
-        throw new Error(`Ledger import failed: ${response.status} ${body.error || ''}`.trim());
+        throw new Error(`${operation} failed: ${response.status} ${body.code || body.error || ''}`.trim());
     }
     return body;
+}
+
+function encodeCanonicalHeader(value) {
+    return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+}
+
+function assertResolvedContextBinding(tenantContext, request) {
+    validateCanonicalWire('TenantContextEnvelope', tenantContext);
+    if (tenantContext.tenant.tenant_id !== request.tenant_id
+        || tenantContext.tenant.tenant_revision !== request.expected_tenant_revision
+        || tenantContext.workspace_connection.connection_id !== request.connection_id
+        || tenantContext.workspace_connection.connection_revision !== request.expected_connection_revision
+        || tenantContext.actor.principal_id !== request.actor.principal_id
+        || !tenantContext.authorization.capability_ids.includes('sns.review_pack.import')
+        || !tenantContext.authorization.data_scopes.includes('sns.review_pack')) {
+        throw new Error('Resolved tenant context does not match the SNS review-pack binding');
+    }
+    return tenantContext;
+}
+
+export async function resolveSignedSnsTenantContext({
+    runtimeBaseUrl,
+    request,
+    serviceToken,
+    fetchImpl = fetch
+}) {
+    const canonicalServiceToken = resolveSnsServiceToken({
+        BRAINBASE_SNS_SERVICE_TOKEN: serviceToken
+    });
+    const tenantContext = await postJson(
+        `${runtimeBaseUrl.replace(/\/$/u, '')}/api/v1/runtime/tenant-context:resolve`,
+        request,
+        {
+            fetchImpl,
+            operation: 'SNS tenant context resolution',
+            headers: { Authorization: `Bearer ${canonicalServiceToken}` }
+        }
+    );
+    return assertResolvedContextBinding(tenantContext, request);
+}
+
+export async function postReviewPackToLedger({
+    baseUrl,
+    payload,
+    tenantBoundary,
+    signedTenantContext,
+    serviceToken,
+    fetchImpl = fetch
+}) {
+    const canonicalTenantBoundary = normalizeSnsTenantBoundary(tenantBoundary, { required: true });
+    validateCanonicalWire('TenantContextEnvelope', signedTenantContext);
+    const canonicalServiceToken = resolveSnsServiceToken({
+        BRAINBASE_SNS_SERVICE_TOKEN: serviceToken
+    });
+    return postJson(
+        `${baseUrl.replace(/\/$/u, '')}/api/sns-growth/review-pack`,
+        payload,
+        {
+            fetchImpl,
+            headers: {
+                Authorization: `Bearer ${canonicalServiceToken}`,
+                'Brainbase-Tenant-Context': encodeCanonicalHeader(signedTenantContext),
+                'Brainbase-Resource-Ref': encodeCanonicalHeader(canonicalTenantBoundary.resource_ref)
+            }
+        }
+    );
 }
 
 async function main() {
     const args = parseArgs(process.argv.slice(2));
     const filePath = args.file || defaultFileForDate(args.date);
     const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    const payload = reviewPackToLedgerPayload(parsed);
+    const tenantBoundary = resolveSnsTenantBoundary();
+    const payload = reviewPackToLedgerPayload(parsed, {
+        tenantBoundary,
+        requireTenantBoundary: true
+    });
     if (args.dryRun) {
         console.log(JSON.stringify(payload, null, 2));
         return;
     }
-    const result = await postJson(`${args.baseUrl.replace(/\/$/u, '')}/api/sns-growth/review-pack`, payload);
+    const serviceToken = resolveSnsServiceToken();
+    const contextRequest = resolveSnsTenantContextRequest();
+    const signedTenantContext = await resolveSignedSnsTenantContext({
+        runtimeBaseUrl: resolveSnsRuntimeBaseUrl(),
+        request: contextRequest,
+        serviceToken
+    });
+    const result = await postReviewPackToLedger({
+        baseUrl: args.baseUrl,
+        payload,
+        tenantBoundary,
+        signedTenantContext,
+        serviceToken
+    });
     const summary = summarizeImportResult(result, {
         importedFile: filePath,
         expectedDrafts: payload.drafts.length

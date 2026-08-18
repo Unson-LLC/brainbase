@@ -8,7 +8,8 @@ import { PgAccountRepository } from '../server/services/account/account-reposito
 import { XApiClient } from '../server/services/sns/providers/x-client.js';
 import {
     JsonFileSnsPostingLedgerRepository,
-    PgSnsPostingLedgerRepository
+    PgSnsPostingLedgerRepository,
+    isSnsPostingLedgerJsonTestMode
 } from '../server/services/sns/posting-ledger-repository.js';
 import { SnsMetricsPoller } from '../server/services/sns/sns-metrics-poller.js';
 import { databaseConfig } from './migrate-m5a-production-schema.js';
@@ -75,6 +76,10 @@ export function resolveSnsPostingLedgerFile(env = process.env, cwd = process.cwd
     return env.SNS_POSTING_LEDGER_FILE || path.join(cwd, 'var', 'sns-posting-ledger.json');
 }
 
+export function shouldUseJsonLedgerForTest(env = process.env) {
+    return isSnsPostingLedgerJsonTestMode(env);
+}
+
 export function formatSummary(result) {
     return `SNS metrics poller: date=${result.date || '-'} scanned=${result.scanned} polled=${result.polled} failed=${result.failed} skipped=${result.skipped} learning_ready=${result.learning_ready?.after ?? 0} anomalies=${result.anomalies.length} mark_learning_ready=${result.mark_learning_ready} dry_run=${result.dry_run}`;
 }
@@ -103,6 +108,9 @@ async function main() {
         SNS_POSTING_LEDGER_DATABASE_URL: databaseUrl
     })) : null;
     try {
+        if (!pool && !shouldUseJsonLedgerForTest()) {
+            throw new Error('SNS Posting Ledger PostgreSQL URL is required outside explicit JSON test mode');
+        }
         const ledgerRepository = pool
             ? new PgSnsPostingLedgerRepository({ pool })
             : new JsonFileSnsPostingLedgerRepository({ filePath: resolveSnsPostingLedgerFile() });

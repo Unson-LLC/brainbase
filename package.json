@@ -39,6 +39,7 @@
     "test:server": "INTERNAL_API_SECRET=${BRAINBASE_E2E_INTERNAL_API_SECRET:-brainbase-e2e-internal-api-secret} BRAINBASE_TEST_MODE=true BRAINBASE_VAR_DIR=${BRAINBASE_E2E_VAR_DIR:-var/e2e-runtime} BRAINBASE_STATE_PATH=${BRAINBASE_E2E_VAR_DIR:-var/e2e-runtime}/state.json BRAINBASE_ALLOW_DIRECT_SERVER=1 node server.js",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:conformance:mana-brainbase": "vitest run --config vitest.conformance.config.js",
     "test:knowledge-resolution": "vitest run tests/unit/knowledge-resolution-service.test.js tests/integration/knowledge-resolution-routes.test.js tests/server/bootstrap/knowledge-resolution-registration.test.js && npm --prefix mcp/brainbase test",
     "test:judgment-resolution": "vitest run tests/unit/judgment-resolution-service.test.js tests/unit/judgment-resolution-publication.test.js tests/unit/judgment-resolver-host.test.js tests/unit/codex-judgment-hook-readiness.test.js tests/unit/preflight-judgment-binding.test.js tests/unit/knowledge-resolution-service.test.js tests/integration/judgment-resolution-routes.test.js tests/integration/judgment-managed-turn-e2e.test.js tests/integration/judgment-launcher-process.test.js tests/integration/judgment-resolver-host-entrypoint.test.js tests/integration/knowledge-resolution-routes.test.js tests/server/bootstrap/judgment-resolution-registration.test.js tests/server/bootstrap/knowledge-resolution-registration.test.js && npm run typecheck && npm --prefix mcp/brainbase run typecheck && npm --prefix mcp/brainbase test",
     "check:judgment-hook-readiness": "node scripts/check-codex-judgment-hook-readiness.mjs",
@@ -71,6 +72,7 @@
     "migrate:canonical-task-postgres": "node scripts/migrate-canonical-task-postgres-store.js",
     "migrate:canonical-task-postgres-workflow": "node scripts/run-canonical-task-postgres-migration-workflow.js",
     "migrate:canonical-task-search-indexes": "node scripts/run-canonical-task-search-index-workflow.js",
+    "migrate:multitenant-platform-schema": "node scripts/migrate-multitenant-platform-schema.js",
     "canonical-task:readiness": "node scripts/set-canonical-task-readiness.js",
     "canonical-task:recover-writer": "node scripts/recover-canonical-task-writer.js",
     "canonical-task:check-postgres-concurrency": "node scripts/check-canonical-task-postgres-concurrency.js",
@@ -131,6 +133,7 @@
     "@assistant-ui/react-markdown": "^0.14.1",
     "@assistant-ui/react-ui": "^0.2.1",
     "@playwright/test": "^1.48.0",
+    "@testcontainers/postgresql": "^11.14.0",
     "@vitest/coverage-v8": "^4.0.16",
     "@xterm/headless": "^5.5.0",
     "esbuild": "^0.28.0",
@@ -143,6 +146,7 @@
     "supertest": "^7.1.4",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.16",
+    "wrangler": "4.124.0"
   }
 }

@@ -3,6 +3,7 @@ import { HTTP_SERVER_CLOSE_TIMEOUT_MS } from '../../lib/server-lifecycle-timeout
 
 export function registerGracefulShutdown({
     server,
+    tenantRuntimeInternalServer = null,
     meetingSourceMcpSyncService = null,
     canonicalTaskOperationRepository = null,
     getMeshService = () => null,
@@ -17,6 +18,17 @@ export function registerGracefulShutdown({
                 fn: () => new Promise((resolve) => {
                     server.close(() => {
                         log.log('HTTP server closed');
+                        resolve();
+                    });
+                    setTimeout(resolve, HTTP_SERVER_CLOSE_TIMEOUT_MS);
+                })
+            },
+            {
+                name: 'close-tenant-runtime-internal-server',
+                fn: () => new Promise((resolve) => {
+                    if (!tenantRuntimeInternalServer) return resolve();
+                    tenantRuntimeInternalServer.close(() => {
+                        log.log('Tenant runtime internal HTTP server closed');
                         resolve();
                     });
                     setTimeout(resolve, HTTP_SERVER_CLOSE_TIMEOUT_MS);

@@ -7,6 +7,10 @@ describe('AuthService service tokens', () => {
         process.env.BRAINBASE_JWT_SECRET = 'test-jwt-secret';
         process.env.BRAINBASE_SERVICE_TOKEN_SECRET = 'test-service-secret';
         process.env.BRAINBASE_SERVICE_TOKEN_TTL_SECONDS = '3600';
+        process.env.BRAINBASE_SERVICE_TOKEN_ISSUER = 'brainbase';
+        process.env.BRAINBASE_SERVICE_TOKEN_AUDIENCE = 'mana-runtime';
+        process.env.BRAINBASE_SERVICE_TOKEN_DEPLOYMENT_ID = 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+        process.env.BRAINBASE_SERVICE_TOKEN_CAPABILITIES = 'tenant_context:resolve,tenant_boundary:authorize';
     });
 
     it('issueServiceToken呼び出し時_bbsvc prefixのservice tokenを発行し検証できる', () => {
@@ -33,6 +37,14 @@ describe('AuthService service tokens', () => {
         expect(decoded.projectCodes).toEqual(['unson']);
         expect(decoded.clearance).toEqual(['internal', 'restricted']);
         expect(decoded.organizationId).toBe('unson');
+        expect(decoded).toMatchObject({
+            issuer: 'brainbase',
+            subject: 'svc_hp_unson_production',
+            audience: ['mana-runtime'],
+            deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAX',
+            capabilities: ['tenant_context:resolve', 'tenant_boundary:authorize'],
+            expires_at: result.expires_at
+        });
         expect(result.access.organizationId).toBe('unson');
     });
 

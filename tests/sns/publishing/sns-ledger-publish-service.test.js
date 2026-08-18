@@ -1,5 +1,5 @@
 // @ts-check
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { InMemorySnsPostingLedgerRepository } from '../../../server/services/sns/posting-ledger-repository.js';
 import { SnsLedgerPublishService } from '../../../server/services/sns/sns-ledger-publish-service.js';
@@ -22,11 +22,14 @@ function makeRepository(status = 'approved') {
         }]
     });
     let post = repository.listPosts({})[0];
-    if (status === 'approved' || status === 'scheduled' || status === 'posted') {
+    if (status === 'approved' || status === 'scheduled' || status === 'publishing' || status === 'posted') {
         post = repository.updatePost(post.id, { status: 'approved' }, actor());
     }
-    if (status === 'scheduled' || status === 'posted') {
+    if (status === 'scheduled' || status === 'publishing' || status === 'posted') {
         post = repository.updatePost(post.id, { status: 'scheduled' }, actor());
+    }
+    if (status === 'publishing') {
+        post = repository.updatePost(post.id, { status: 'publishing' }, actor());
     }
     if (status === 'posted') {
         post = repository.updatePost(post.id, {
@@ -39,8 +42,8 @@ function makeRepository(status = 'approved') {
 }
 
 describe('SnsLedgerPublishService', () => {
-    it('publishes an approved Ledger post and stores the posted URL through allowed status transitions', async () => {
-        const { repository, post } = makeRepository('approved');
+    it('publishes only a previously claimed Ledger post and stores the posted URL', async () => {
+        const { repository, post } = makeRepository('publishing');
         const calls = [];
         const service = new SnsLedgerPublishService({
             ledgerRepository: repository,
@@ -65,6 +68,18 @@ describe('SnsLedgerPublishService', () => {
             posted_at: '2026-05-14T03:00:00.000Z'
         });
         expect(repository.findById(post.id).status).toBe('posted');
+    });
+
+    it.each(['approved', 'scheduled'])('rejects an unclaimed %s post before the provider side effect', async (status) => {
+        const { repository, post } = makeRepository(status);
+        const postExecutor = vi.fn();
+        const service = new SnsLedgerPublishService({ ledgerRepository: repository, postExecutor });
+
+        await expect(service.publishPost(post.id, { actor: actor(), confirm_public_post: true }))
+            .rejects.toThrow('claimed before public SNS publish');
+
+        expect(postExecutor).not.toHaveBeenCalled();
+        expect(repository.findById(post.id).status).toBe(status);
     });
 
     it('dry-runs the publish executor without mutating the Ledger post', async () => {

@@ -1,0 +1,1653 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-multitenant-platform",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "hybrid",
+    "tenant_identity": {
+      "canonical_key": "tenant_id",
+      "resolved_from": [
+        "verified TenantContextEnvelope",
+        "authoritative Brainbase tenant repository"
+      ],
+      "resolution_point": "Tenant Authority before the first business operation",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "admin_api",
+        "mcp",
+        "background_job",
+        "migration",
+        "audit_log"
+      ],
+      "verified_surfaces": [
+        "admin_api",
+        "mcp",
+        "background_job",
+        "migration",
+        "audit_log"
+      ]
+    },
+    "resources": [
+      {
+        "name": "Brainbase tenant-owned records and operational ledgers",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "tenant_id",
+        "partition_key": "tenant_id/resource_id",
+        "trust_zone": "Brainbase control plane and tenant-scoped PostgreSQL transaction",
+        "residue_policy": "retention then verified delete under tenant lifecycle policy",
+        "data_owner": "Brainbase Tenant Authority",
+        "credential_scope": "tenant-bound opaque handle and single-use lease"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "tenant_id",
+      "scope": "tenant-bound opaque handle and single-use lease",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase Tenant Authority"
+      ],
+      "residency": "Cloud uses tenant-partitioned PostgreSQL; customer-managed OSS retains data in its declared deployment",
+      "migration": "transactional PostgreSQL adapter applies one tenant plan at a time after migration authorization",
+      "rollback": "rollback the same tenant transaction and verify tenant-isolated readback before retry"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared",
+      "managed_dedicated",
+      "customer_managed",
+      "self_hosted"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "tenant",
+        "organization",
+        "membership",
+        "project",
+        "graph_entity",
+        "graph_relation",
+        "workspace_connection",
+        "contract",
+        "usage_event",
+        "operation_receipt"
+      ],
+      "boundary_edges": [
+        "tenant owns organization/project/Graph/workspace/contract/usage/receipt",
+        "runtime entrypoint authorizes tenant-owned resource before side effect"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "evidence": {
+        "propagation_surfaces": [
+          "admin_api",
+          "mcp",
+          "background_job",
+          "migration",
+          "audit_log"
+        ],
+        "graph": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared",
+            "managed_dedicated",
+            "customer_managed",
+            "self_hosted"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "canonical tenant-owned objects",
+              "tenant_key_source": "verified TenantContextEnvelope tenant_id",
+              "trust_zone": "Brainbase Tenant Authority",
+              "data_owner": "Brainbase Tenant Authority"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "entrypoint to tenant-owned resource",
+              "tenant_key_source": "verified TenantContextEnvelope tenant_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "tenant-bound opaque handle and single-use lease",
+              "connection_mode": "authoritative workspace connection revision",
+              "deployment_mode": "managed and customer-managed protocol v1"
+            }
+          ]
+        },
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "spec": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared",
+            "managed_dedicated",
+            "customer_managed",
+            "self_hosted"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared",
+            "managed_dedicated",
+            "customer_managed",
+            "self_hosted"
+          ]
+        }
+      }
+    }
+  },
+  "generated_by": {
+    "caller": "codex",
+    "stage": "spec"
+  },
+  "lifecycle": "final",
+  "cross_lane_contract_source": {
+    "pull_request": "https://github.com/Unson-LLC/mana-runtime/pull/292",
+    "head": "1b015def50a1ee21b616c87b717e821655bf2a48",
+    "kit_path": "contracts/mana-brainbase-tenant-context/v1",
+    "fixture_set_sha256": "9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833",
+    "decision_ids": [
+      "D-001",
+      "D-002",
+      "D-003",
+      "D-004",
+      "D-005",
+      "D-006",
+      "D-007",
+      "D-008",
+      "D-009"
+    ]
+  },
+  "implementation_start_gate": {
+    "status": "PASS",
+    "blocking_open_decisions": 0,
+    "implementation_evidence": "targeted_unit_contract_green",
+    "production_evidence": "not_collected"
+  },
+  "cross_lane_decision_table": [
+    {
+      "id": "D-001",
+      "status": "fixed",
+      "decision": "Canonical snake_case TenantContextEnvelope; exact RFC 8785 without integrity; detached JWS EdDSA/Ed25519 with b64=false, crit=[b64], kid and canonical typ; canonical decimal string revisions; expires_at > issued_at; TTL <= 300 seconds; skew <= 30 seconds; current and retiring public keys."
+    },
+    {
+      "id": "D-002",
+      "status": "fixed",
+      "decision": "New shared IDs use lowercase prefix plus uppercase Crockford ULID; provider and existing Brainbase IDs remain opaque; Brainbase adds op_<ULID>."
+    },
+    {
+      "id": "D-003",
+      "status": "fixed",
+      "decision": "Ordered revision invalidation events plus authoritative expected-revision reads immediately before credential lease, Brainbase write, and Slack delivery; cache <= 30 seconds."
+    },
+    {
+      "id": "D-004",
+      "status": "fixed",
+      "decision": "Protocol mana-brainbase-tenant-context request/response messages advertise range >=1.0 <2.0, supported versions and every required capability; select the highest mutual v1 minor without downgrade; deprecation notice >= 90 days."
+    },
+    {
+      "id": "D-005",
+      "status": "fixed",
+      "decision": "Brainbase solely owns credentials and refresh; runtime uses opaque credential_ref and a lease_id/lease_token response bound to tenant, connection/revision, contract revision, operation, audience and credential mode; max_uses=1 and TTL <= 60 seconds; OAuth refresh uses CAS."
+    },
+    {
+      "id": "D-006",
+      "status": "fixed",
+      "decision": "Brainbase owns credential_lease, quota_decision, business_effect and usage_receipt claims; mana-runtime owns queue_execution and slack_delivery claims. Brainbase emits canonical quota, UsageEvent and OperationReceipt wires with string revisions; all scopes use the fixed length-prefixed idempotency formula and terminal claims are retained >= 30 days."
+    },
+    {
+      "id": "D-007",
+      "status": "fixed",
+      "decision": "collection_state collected|partial|not_collected is independent from outcome succeeded|failed|cancelled|timed_out; collected empty is NO_DATA with observed_units=0."
+    },
+    {
+      "id": "D-008",
+      "status": "fixed",
+      "decision": "Brainbase has no Container execution implementation; consume sanitization status only as optional Receipt evidence."
+    },
+    {
+      "id": "D-009",
+      "status": "fixed",
+      "decision": "Wire profile customer_managed_oss; only advertised optional capabilities can be non_applicable with reason; common controls never are."
+    }
+  ],
+  "common_contract": {
+    "protocol": {
+      "protocol_id": "mana-brainbase-tenant-context",
+      "current_version": "1.0",
+      "supported_range": ">=1.0 <2.0",
+      "negotiation": "highest_mutually_supported_minor",
+      "deprecation_notice_days_minimum": 90,
+      "required_capabilities": [
+        "signed_tenant_context",
+        "connection_revision_recheck",
+        "tenant_scoped_authorization",
+        "credential_broker_v1",
+        "usage_receipt_v1",
+        "idempotent_effects_v1",
+        "container_sanitization_v1"
+      ],
+      "optional_capabilities": [
+        "cloud_billing_export",
+        "managed_operations",
+        "shared_cloud_rls_conformance",
+        "cloud_standard_credential"
+      ]
+    },
+    "tenant_context_envelope": {
+      "wire_format": "canonical snake_case JSON",
+      "canonicalization": "RFC 8785 over envelope with integrity omitted",
+      "signature": "RFC 7515 detached compact JWS EdDSA with Ed25519 over ASCII(protected64 + '.') followed by UTF-8 JCS(unsigned envelope); payload segment is empty and payload is not base64url encoded",
+      "protected_header": {
+        "alg": "EdDSA",
+        "b64": false,
+        "crit": [
+          "b64"
+        ],
+        "kid": "integrity.key_id",
+        "typ": "application/mana-brainbase-tenant-context+jws"
+      },
+      "revision_type": "canonical decimal string matching ^(0|[1-9][0-9]*)$",
+      "time_order": "expires_at must be later than issued_at",
+      "ttl_seconds_maximum": 300,
+      "clock_skew_seconds_maximum": 30,
+      "verification_key_statuses": [
+        "current",
+        "retiring"
+      ],
+      "required_top_level_fields": [
+        "schema_version",
+        "protocol_id",
+        "protocol_version",
+        "issuer",
+        "audience",
+        "tenant",
+        "workspace_connection",
+        "actor",
+        "authorization",
+        "placement",
+        "slack",
+        "correlation_id",
+        "operation_id",
+        "idempotency_key",
+        "contract_revision",
+        "credential",
+        "issued_at",
+        "expires_at",
+        "integrity"
+      ],
+      "forbidden_secret_fields": [
+        "raw_secret",
+        "access_token",
+        "refresh_token",
+        "authorization_header"
+      ]
+    },
+    "workspace_connection": {
+      "canonical_owner": "Brainbase",
+      "projection_cache_ttl_seconds_maximum": 30,
+      "revision_type": "canonical decimal string matching ^(0|[1-9][0-9]*)$ and monotonically increasing numerically",
+      "authoritative_recheck_points": [
+        "ingress",
+        "before_credential_lease",
+        "before_brainbase_write",
+        "before_slack_delivery"
+      ]
+    },
+    "credential_broker": {
+      "canonical_owner": "Brainbase",
+      "lease_ttl_seconds_maximum": 60,
+      "single_use": true,
+      "request_message_type": "credential_lease_request",
+      "response_message_type": "credential_lease_response",
+      "response_fields": [
+        "lease_id",
+        "contract_revision",
+        "binding",
+        "issued_at",
+        "expires_at",
+        "max_uses",
+        "lease_token"
+      ],
+      "lease_binding": [
+        "tenant_id",
+        "connection_id",
+        "connection_revision",
+        "contract_revision",
+        "operation_id",
+        "audience",
+        "credential_mode",
+        "credential_ref"
+      ],
+      "refresh_compare_and_swap": true,
+      "raw_secret_persistence": "forbidden"
+    },
+    "correlation_and_idempotency": {
+      "length_prefix_encoding": "LP(v) = uint32be(UTF-8 byte length of v) followed by UTF-8 bytes of v",
+      "derivation": "ik1_ + base64url_without_padding(SHA-256(LP(protocol_id) || LP(protocol_major) || LP(tenant_id) || LP(connection_id) || LP(slack_event_id) || LP(operation_id)))",
+      "claim_states": [
+        "pending",
+        "claimed",
+        "succeeded",
+        "failed_terminal"
+      ],
+      "terminal_claim_retention_days_minimum": 30,
+      "owner_by_scope": {
+        "credential_lease": "brainbase",
+        "quota_decision": "brainbase",
+        "business_effect": "brainbase",
+        "usage_receipt": "brainbase",
+        "queue_execution": "mana_runtime",
+        "slack_delivery": "mana_runtime"
+      },
+      "conflict_rule": "same key after claim with different payload_hash or context_hash is IDEMPOTENCY_CONFLICT"
+    },
+    "usage_and_receipt": {
+      "collection_states": [
+        "collected",
+        "partial",
+        "not_collected"
+      ],
+      "outcomes": [
+        "succeeded",
+        "failed",
+        "cancelled",
+        "timed_out"
+      ],
+      "quota_decisions": [
+        "allowed",
+        "warning",
+        "hard_stopped",
+        "approval_required",
+        "unavailable"
+      ],
+      "empty_rule": "outcome=succeeded collection_state=collected observed_units=0 failure_code=NO_DATA",
+      "receipt_type": "immutable OperationReceipt"
+    },
+    "deployment_compatibility": {
+      "profiles": [
+        "shared_cloud",
+        "dedicated_cloud",
+        "customer_managed_oss"
+      ],
+      "never_non_applicable": [
+        "tenant_context_envelope",
+        "signature_and_time_validation",
+        "connection_revision_recheck",
+        "authorization",
+        "credential_scope_enforcement",
+        "isolation",
+        "correlation_and_idempotency",
+        "failure_classification",
+        "usage_and_receipt",
+        "fallback_prohibition"
+      ]
+    }
+  },
+  "fixtures": {
+    "canonical_source": "mana-runtime PR #292 integration 1b015def50a1ee21b616c87b717e821655bf2a48 contracts/mana-brainbase-tenant-context/v1/fixtures/manifest.json",
+    "fixture_set_sha256": "9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833",
+    "adapter_test": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+    "positive_count": 1,
+    "negative_count": 21,
+    "non_applicable_count": 1,
+    "duplication_policy": "Brainbase adapter reads the shared manifest and fixture files directly; copied fixtures or independently restated expected results are not conformance evidence",
+    "execution_evidence": "adapter_and_route_tests_green_not_production_readback"
+  },
+  "clauses": [
+    {
+      "id": "BBMT-AC-001",
+      "type": "contract",
+      "statement": "Tenant Authorityだけがprefix付きopaque tenant_idを発行し、provisioning、active、suspended、deletion_pending、deletedの状態遷移と終端削除をrevision付きで管理する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-1"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "Tenant Context契約"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/tenant-authority.js"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/tenant-authority.test.js",
+        "case": "AC-001: canonical IDを発行し、許可された状態遷移と終端削除だけを受理する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-authority.test.js",
+            "must_cover": "AC-001"
+          }
+        ]
+      },
+      "confidence": 0.96
+    },
+    {
+      "id": "BBMT-AC-002",
+      "type": "invariant",
+      "statement": "organization、membership、project、Graph、connection、contract、usage、Receiptはtenant_id NOT NULLとwrite時tenant revisionを持ち、親子のtenant一致をDBまたはrepository guardで保証する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-2"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "責務と正本"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/tenant-boundary.js"
+          },
+          {
+            "file": "server/sql/multitenant-platform-schema.sql"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
+        "case": "AC-002: 全帰属objectにtenant_idとwrite時revisionを要求する"
+          },
+          {
+        "file": "tests/server/services/multitenant/persistence-schema.test.js",
+        "case": "AC-002/005: 帰属table、FK、RLS、repository用tenant revision境界を定義する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
+            "must_cover": "AC-002"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/persistence-schema.test.js",
+            "must_cover": "AC-002"
+          }
+        ]
+      },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-003",
+      "type": "invariant",
+      "statement": "workspace ID、project code、organization名、deployment名、organization IDをtenant IDとして生成、推定、fallbackしてはならない",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-3"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "決定"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/tenant-authority.js"
+          },
+          {
+            "file": "server/services/multitenant/service-auth.js"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/tenant-authority.test.js",
+        "case": "AC-003: workspace ID、project code、organization名をtenant IDとして解決しない"
+          },
+          {
+        "file": "tests/server/services/multitenant/service-auth.test.js",
+        "case": "D-001/AC-003: token内tenant自己申告をservice identityとして採用しない"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-authority.test.js",
+            "must_cover": "AC-003"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/service-auth.test.js",
+            "must_cover": "AC-003"
+          }
+        ]
+      },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-004",
+      "type": "contract",
+      "statement": "actor認証後かつ業務処理前にTenant Authorityでtenantを一意解決し、未解決、複数解決、payload不一致、無効状態、改ざん、revision不一致をfail closedにする",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-4"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "信頼境界と拒否規則"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/tenant-authority.js"
+          },
+          {
+            "file": "server/services/multitenant/tenant-context.js"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/tenant-authority.test.js",
+        "case": "AC-004: 未解決、複数解決、無効tenantを業務処理前に分類して拒否する"
+          },
+          {
+        "file": "tests/server/services/multitenant/protocol-contract.test.js",
+        "case": "D-001/AC-004/AC-305: nested shape、audience型、JWS header、公開鍵有効期間をfail closedにする"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-authority.test.js",
+            "must_cover": "AC-004"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/protocol-contract.test.js",
+            "must_cover": "AC-004"
+          }
+        ]
+      },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-005",
+      "type": "invariant",
+      "statement": "管理API、MCP、background job、migration、監査ログは同じtenant resolutionとactor-resource-connection-deployment-revision照合guardを必ず通る。runtime無効時の管理・監査は503で拒否する。SNS対話APIは認証・tenant guard付きdry-runだけを許可する。review pack投入は署名、issuer、subject、audience、deployment、expiry、capabilityを検証するcanonical service authでPOST /api/v1/runtime/tenant-context:resolveを先に呼び、正本revision照合後に発行された完全なEd25519署名済みTenantContextEnvelopeとcanonical resource headerを本番verifierへ渡す。tenant ID/revisionだけの部分header、CLIへの署名秘密鍵配布、APIからの直接公開を許さない。公開jobはcanonical bindingのbackground_job認可、PostgreSQL claim、provider呼出しの順を強制する。production DB未設定をJSON fileへfallbackせず、gateway、service token、設定、binding、DB欠落時は暗黙補完せず拒否する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-5"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "データ面"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/tenant-boundary.js"
+          },
+          {
+            "file": "server/services/multitenant/postgres-repository.js"
+          },
+          {
+            "file": "server/bootstrap/register-api-routes.js"
+          },
+          {
+            "file": "scripts/run-sns-scheduled-posts.js"
+          },
+          {
+            "file": "scripts/import-sns-review-pack-to-ledger.js"
+          },
+          {
+            "file": "server/services/sns/posting-ledger-repository.js"
+          },
+          {
+            "file": "server/services/sns/sns-scheduled-publisher.js"
+          },
+          {
+            "file": "server/routes/sns-growth.js"
+          },
+          {
+            "file": "server/services/multitenant/service-auth.js"
+          },
+          {
+            "file": "server/services/multitenant/tenant-runtime-services.js"
+          },
+          {
+            "file": "server/services/auth-service.js"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
+        "case": "AC-005/AC-305: 全entry pointで越境を同じ非開示エラーにしfallbackしない"
+          },
+          {
+        "file": "tests/server/services/multitenant/postgres-repository.test.js",
+        "case": "AC-005/AC-105/D-003: transaction-local tenant RLSを設定しauthoritative revisionをlock付きで読む"
+          },
+          {
+        "file": "tests/server/routes/tenant-runtime-contract.test.js",
+        "case": "AC-005/301: production bootstrapへservice-auth付きruntime routeを登録する"
+          },
+          {
+        "file": "tests/server/bootstrap/tenant-entrypoint-fail-closed.test.js",
+            "case": "AC-005 rejects authenticated admin and audit routes when tenant runtime is %s"
+          },
+          {
+            "file": "tests/sns/ops/run-sns-scheduled-posts.test.js",
+            "case": "AC-005 fails closed before public publishing when tenant runtime is %s"
+          },
+        {
+          "file": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js",
+          "case": "AC-005 resolves a signed tenant context before sending canonical tenant headers to Ledger"
+        },
+        {
+          "file": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js",
+          "case": "AC-005 stops before Ledger when signed tenant context resolution fails"
+        },
+        {
+          "file": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js",
+          "case": "AC-005 fails before HTTP import when the service token is absent without disclosing a token"
+        },
+          {
+            "file": "tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js",
+            "case": "AC-005 authorizes the persisted background_job binding before claim and provider publish"
+          },
+          {
+            "file": "tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts",
+            "case": "AC-005 str.brainbase.sns-scheduled-publisher ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 JST review-pack schedule and due runner contract"
+          },
+          {
+            "file": "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+            "case": "AC-005: review-packのtenant bindingを実PostgreSQLから認可してclaim後にだけpublishする"
+          },
+          {
+            "file": "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+            "case": "AC-005: production scheduler entrypointが実PostgreSQL接続・background_job認可・claim後にproviderを呼ぶ"
+          },
+          {
+            "file": "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+            "case": "AC-005: 実PostgreSQL claim競合は2 runnerの片方だけがproviderを呼ぶ"
+          },
+          {
+            "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
+            "case": "rejects unauthenticated access before tenant, Ledger, or provider work"
+          },
+          {
+            "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
+            "case": "rejects an authenticated request without tenant headers before Ledger or provider work"
+          },
+        {
+          "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
+          "case": "returns 503 without a production DB and creates neither a JSON Ledger nor provider side effects"
+        },
+        {
+          "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
+          "case": "accepts the production review-pack client only through service auth and canonical tenant headers"
+        },
+        {
+          "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
+          "case": "rejects a tenant-id-only header with the production signature verifier"
+        },
+          {
+            "file": "tests/server/routes/sns-growth.test.js",
+            "case": "dry-runs publishing without mutating the approved Ledger post"
+          },
+        {
+          "file": "tests/server/routes/sns-growth.test.js",
+          "case": "AC-005 rejects direct confirmed public publish without calling the provider"
+        },
+        {
+          "file": "tests/server/bootstrap/tenant-runtime-internal-server.test.js",
+          "case": "AC-005: production runtimeは%sのservice tokenを拒否する"
+        }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/postgres-repository.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/server/bootstrap/tenant-entrypoint-fail-closed.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/sns/ops/run-sns-scheduled-posts.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/server/routes/sns-growth.test.js",
+            "must_cover": "AC-005"
+          }
+        ]
+      },
+      "confidence": 0.98
+    },
+    {
+      "id": "BBMT-AC-006",
+      "type": "contract",
+      "statement": "既存データ移行はwriteなしdry-run、scanned-eligible-ambiguous-unowned件数照合、apply件数照合、曖昧・未帰属隔離、更新競合を上書きしないmigration単位rollbackを持つ",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-6"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "移行"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/migration-planner.js"
+          },
+          {
+            "file": "server/sql/multitenant-platform-schema.sql"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/migration-planner.test.js",
+        "case": "AC-006: dry-runは書込0で件数を照合し曖昧・未帰属を隔離候補にする"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/migration-planner.test.js",
+            "must_cover": "AC-006"
+          }
+        ]
+      },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-101",
+      "type": "contract",
+      "statement": "Workspace Connection Registryはconnection_id、tenant_id、provider、installation_id、workspace_id、app_id、scopes、status、revision、opaque credential_refを正本objectとして保持する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-7"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "Workspace Connection"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/workspace-connection-registry.js"
+          },
+          {
+            "file": "server/sql/multitenant-platform-schema.sql"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/workspace-connection.test.js",
+        "case": "AC-101/AC-102/AC-103: 複数workspace、再install履歴、監査field、単調revisionを正本化する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/workspace-connection.test.js",
+            "must_cover": "AC-101"
+          }
+        ]
+      },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-102",
+      "type": "contract",
+      "statement": "1 tenantは複数workspace connectionを持て、同一provider-workspace-appの再installはconnection_idを維持してrevisionを増やし、旧revisionとrevoked connectionを認可に使わない",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-8"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "Workspace Connection"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/workspace-connection-registry.js"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/workspace-connection.test.js",
+        "case": "AC-101/AC-102/AC-103: 複数workspace、再install履歴、監査field、単調revisionを正本化する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/workspace-connection.test.js",
+            "must_cover": "AC-102"
+          }
+        ]
+      },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-103",
+      "type": "contract",
+      "statement": "connectionのinstallation ID、workspace ID、app ID、scope、status、revisionはimmutable履歴と監査eventで追跡可能にする",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-9"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "Workspace Connection"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/workspace-connection-registry.js"
+          },
+          {
+            "file": "server/sql/multitenant-platform-schema.sql"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/workspace-connection.test.js",
+        "case": "AC-101/AC-102/AC-103: 複数workspace、再install履歴、監査field、単調revisionを正本化する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/workspace-connection.test.js",
+            "must_cover": "AC-103"
+          }
+        ]
+      },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-104",
+      "type": "invariant",
+      "statement": "token、secret、OAuth credential本文はGraph、通常DB列、通常ログ、event、Receipt、TenantContextEnvelopeへ保存せず、tenant-connection-revision-deployment-operation-audienceへ束縛したopaque credential_refと最大60秒single-use leaseだけを扱い、OAuth refreshはexpected revisionのCASにする",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-10"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "Workspace Connection"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/workspace-connection-registry.js"
+          },
+          {
+            "file": "server/services/multitenant/credential-broker.js"
+          },
+          {
+            "file": "server/sql/multitenant-platform-schema.sql"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/workspace-connection.test.js",
+        "case": "AC-104: credential本文らしい入力を保存前に拒否する"
+          },
+          {
+        "file": "tests/server/services/multitenant/credential-broker.test.js",
+        "case": "D-005/AC-104/AC-305: 最大60秒、single-use、operation/audience/mode束縛のopaque leaseを発行する"
+          },
+          {
+        "file": "tests/server/services/multitenant/persistence-schema.test.js",
+        "case": "AC-104/D-005: secret本文用の通常列を持たずopaque refとrefresh revisionだけを永続化する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/workspace-connection.test.js",
+            "must_cover": "AC-104"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/credential-broker.test.js",
+            "must_cover": "AC-104"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/persistence-schema.test.js",
+            "must_cover": "AC-104"
+          }
+        ]
+      },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-105",
+      "type": "contract",
+      "statement": "未登録、revoked、別tenant、別workspace／app、scope不足、authoritative revision不一致を機械判定可能なcodeで区別し、不可逆副作用直前の正本readが失敗した場合もfallbackなしで拒否する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-11"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "障害の意味"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/workspace-connection-registry.js"
+          },
+          {
+            "file": "server/services/multitenant/postgres-repository.js"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/workspace-connection.test.js",
+        "case": "AC-105: 未登録、失効、別tenant、別app、scope不足、stale revisionを区別する"
+          },
+          {
+        "file": "tests/server/services/multitenant/postgres-repository.test.js",
+        "case": "AC-005/AC-105/D-003: transaction-local tenant RLSを設定しauthoritative revisionをlock付きで読む"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/workspace-connection.test.js",
+            "must_cover": "AC-105"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/postgres-repository.test.js",
+            "must_cover": "AC-105"
+          }
+        ]
+      },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-201",
+      "type": "contract",
+      "statement": "Contract Authorityはtenant別にplan、AI・tool・Container・supportのallowance、警告threshold、hard stop、overage policy、effective periodをimmutable revisionとして保持する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-12"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "契約・利用量・Receipt"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/contract-usage-ledger.js"
+          },
+          {
+            "file": "server/sql/multitenant-platform-schema.sql"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+        "case": "AC-201/AC-203: plan枠、警告閾値、hard stop、超過方針をrevision固定で判断する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "must_cover": "AC-201"
+          }
+        ]
+      },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-202",
+      "type": "contract",
+      "statement": "Usage LedgerはAI、tool、Container、storage、retry、external APIのUsageEventをtenant、connection revision、contract revision、deployment、correlation、operation、canonical idempotency keyへ帰属させ、同一keyのpayload／context hash不一致を拒否する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-13"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "契約・利用量・Receipt"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/contract-usage-ledger.js"
+          },
+          {
+            "file": "server/services/multitenant/postgres-repository.js"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+        "case": "AC-202/D-006: length-prefix固定式でtenant別の副作用claimを冪等化する"
+          },
+          {
+        "file": "tests/server/services/multitenant/postgres-repository.test.js",
+        "case": "D-006/AC-202: claim conflict時はpayload/context hash差分を追加副作用なしで拒否する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "must_cover": "AC-202"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/postgres-repository.test.js",
+            "must_cover": "AC-202"
+          }
+        ]
+      },
+      "confidence": 0.98
+    },
+    {
+      "id": "BBMT-AC-203",
+      "type": "contract",
+      "statement": "QuotaDecisionはallowed、warning、hard_stopped、approval_required、unavailableを返し、50%、80%、100%等のbasis-point thresholdとoverage policyをcontract revisionに固定する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-14"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "契約・利用量・Receipt"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/contract-usage-ledger.js"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+        "case": "AC-201/AC-203: plan枠、警告閾値、hard stop、超過方針をrevision固定で判断する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "must_cover": "AC-203"
+          }
+        ]
+      },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-204",
+      "type": "invariant",
+      "statement": "UsageEventとOperationReceiptはoutcome succeeded|failed|cancelled|timed_outとcollection_state collected|partial|not_collectedを独立に記録し、未取得quantityやcostを0へ丸めず、取得済み空結果だけをNO_DATAかつobserved_units=0にする",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-15"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "監査面"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/contract-usage-ledger.js"
+          },
+          {
+            "file": "server/sql/multitenant-platform-schema.sql"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+        "case": "AC-204/D-007: outcomeとcollection_stateを分離し、失敗消費と未計測を0へ丸めない"
+          },
+          {
+        "file": "tests/server/services/multitenant/persistence-schema.test.js",
+        "case": "D-006/AC-204: Usage、Receipt、30日claim保持、collection/outcome制約を持つ"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "must_cover": "AC-204"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/persistence-schema.test.js",
+            "must_cover": "AC-204"
+          }
+        ]
+      },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-205",
+      "type": "contract",
+      "statement": "canonical OperationReceipt wireは共通Schemaのまま確定し、Brainbase価格台帳は同じreceipt_idへpurchase rate、FX、sales priceのrevision、currency、minor units、effective timestampを別immutable snapshotとして同一transactionで固定する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-16"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "契約・利用量・Receipt"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/contract-usage-ledger.js"
+          },
+          {
+            "file": "server/services/multitenant/postgres-contract-usage-ledger.js"
+          },
+          {
+            "file": "server/services/multitenant/postgres-repository.js"
+          },
+          {
+            "file": "server/routes/tenant-runtime.js"
+          },
+          {
+            "file": "server/sql/multitenant-platform-schema.sql"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+        "case": "AC-205: canonical Receiptを変えずBrainbase価格revisionをimmutable snapshotとして固定する"
+          },
+          {
+        "file": "tests/server/services/multitenant/postgres-repository.test.js",
+        "case": "AC-205: canonical Receiptと価格snapshotを同一transactionで保存しtenant限定historyを返す"
+          },
+          {
+        "file": "tests/server/routes/tenant-runtime-contract.test.js",
+        "case": "AC-205: HTTP finalize-with-pricingからledger保存とtenant限定history readbackへ接続する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/contract-usage-ledger.test.js",
+            "must_cover": "AC-205"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/postgres-repository.test.js",
+            "must_cover": "AC-205"
+          },
+          {
+            "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
+            "must_cover": "AC-205"
+          }
+        ]
+      },
+      "confidence": 0.98
+    },
+    {
+      "id": "BBMT-AC-301",
+      "type": "contract",
+      "statement": "Brainbase Cloudと互換OSSはmana-brainbase-tenant-context v1のservice authentication、authorization、canonical snake_case TenantContextEnvelope、minimum OperationReceipt、application/problem+json ErrorEnvelopeを同じ意味で提供する",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-17"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "Cloud／OSS共通契約"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/service-auth.js"
+          },
+          {
+            "file": "server/services/multitenant/tenant-context.js"
+          },
+          {
+            "file": "server/routes/tenant-runtime.js"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/service-auth.test.js",
+        "case": "D-001/AC-301: issuer subject audience deployment expiry capabilityを検証する"
+          },
+          {
+        "file": "tests/server/services/multitenant/protocol-contract.test.js",
+        "case": "D-001/AC-301: snake_case canonical JSONのdetached Ed25519 JWSを検証しimmutable化する"
+          },
+          {
+        "file": "tests/server/routes/tenant-runtime-contract.test.js",
+        "case": "AC-301/AC-302: service auth後にCloud/OSS共通v1 negotiationを返す"
+          },
+          {
+        "file": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+        "case": "locks the fixed commit, manifest digest, and all 23 shared fixtures"
+        }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/service-auth.test.js",
+            "must_cover": "AC-301"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/protocol-contract.test.js",
+            "must_cover": "AC-301"
+          },
+          {
+            "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
+            "must_cover": "AC-301"
+          },
+          {
+            "file_glob": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+            "must_cover": "canonical PR #292 manifest"
+        }
+        ]
+      },
+      "confidence": 0.98
+    },
+    {
+      "id": "BBMT-AC-302",
+      "type": "contract",
+      "statement": "runtime negotiate APIはprotocol_id mana-brainbase-tenant-context、client range、server range >=1.0 <2.0、required／optional capability、deployment profileを照合し、最高の相互minorだけをselected_versionにし、majorまたはrequired不一致を専用codeで拒否してdowngradeしない",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-18"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "Cloud／OSS共通契約"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/protocol-contract.js"
+          },
+          {
+            "file": "server/routes/tenant-runtime.js"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/protocol-contract.test.js",
+        "case": "AC-301/AC-302: %sでprotocol v1と共通必須capabilityを交渉する"
+          },
+          {
+        "file": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+        "case": "locks the fixed commit, manifest digest, and all 23 shared fixtures"
+        }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/protocol-contract.test.js",
+            "must_cover": "AC-302"
+          },
+          {
+            "file_glob": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+            "must_cover": "canonical PR #292 manifest"
+        }
+        ]
+      },
+      "confidence": 0.92
+    },
+    {
+      "id": "BBMT-AC-303",
+      "type": "invariant",
+      "statement": "cloud_billing_export、managed_operations、shared_cloud_rls_conformance、cloud_standard_credentialはadvertised optional capabilityとし、customer_managed_ossで不在の場合だけ理由付きnon_applicableにできるが共通controlは非適用にできない",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-19"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "Cloud／OSS共通契約"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/protocol-contract.js"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/protocol-contract.test.js",
+        "case": "AC-303: OSSではCloud任意機能だけを理由付きnon_applicableにする"
+          },
+          {
+        "file": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+        "case": "locks the fixed commit, manifest digest, and all 23 shared fixtures"
+        }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/protocol-contract.test.js",
+            "must_cover": "AC-303"
+          },
+          {
+            "file_glob": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
+            "must_cover": "canonical PR #292 manifest"
+        }
+        ]
+      },
+      "confidence": 0.99
+    },
+    {
+      "id": "BBMT-AC-304",
+      "type": "contract",
+      "statement": "ErrorEnvelopeはcode、retryable、correlation_idとfault_domain customer_environment、brainbase_cloud、mana_runtime、protocolを持ち、障害責務を機械判定可能にする",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-20"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "障害の意味"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/protocol-contract.js"
+          },
+          {
+            "file": "server/routes/tenant-runtime.js"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/routes/tenant-runtime-contract.test.js",
+        "case": "AC-304: failureをapplication/problem+jsonと機械判定可能なfault_domainで返す"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
+            "must_cover": "AC-304"
+          }
+        ]
+      },
+      "confidence": 0.9
+    },
+    {
+      "id": "BBMT-AC-305",
+      "type": "invariant",
+      "statement": "tenant、deployment、connection revision、credential bindingのどれかが不一致または失効したとき、別tenant、別deployment、別credential、default projectへfallbackしてはならない",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+        "ac_id": "AC-21"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-brainbase-multitenant-platform.md",
+            "section": "信頼境界と拒否規則"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/tenant-boundary.js"
+          },
+          {
+            "file": "server/services/multitenant/tenant-context.js"
+          },
+          {
+            "file": "server/services/multitenant/credential-broker.js"
+          },
+          {
+            "file": "server/routes/tenant-runtime.js"
+          }
+        ],
+        "test_refs": [
+          {
+        "file": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
+        "case": "AC-005/AC-305: 全entry pointで越境を同じ非開示エラーにしfallbackしない"
+          },
+          {
+        "file": "tests/server/services/multitenant/credential-broker.test.js",
+        "case": "D-005/AC-104/AC-305: 最大60秒、single-use、operation/audience/mode束縛のopaque leaseを発行する"
+          },
+          {
+        "file": "tests/server/routes/tenant-runtime-contract.test.js",
+        "case": "D-001/AC-301/AC-305: 各業務境界でEnvelopeを再検証しbodyの越境自己申告を拒否する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-authorization-boundary.test.js",
+            "must_cover": "AC-305"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/credential-broker.test.js",
+            "must_cover": "AC-305"
+          },
+          {
+            "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
+            "must_cover": "AC-305"
+          }
+        ]
+      },
+      "confidence": 0.99
+    }
+  ],
+  "planned_test_suites": [
+    {
+      "layer": "unit",
+      "covers": [
+        "tenant lifecycle and unique resolution",
+        "workspace connection revisions and opaque credentials",
+        "contract quota usage and Receipt evidence states"
+      ]
+    },
+    {
+      "layer": "integration",
+      "covers": [
+        "API MCP job migration and audit boundary parity",
+        "service auth and TenantContextEnvelope validation",
+        "cross-tenant and cross-deployment negative matrix"
+      ]
+    },
+    {
+      "layer": "migration",
+      "covers": [
+        "dry-run count reconciliation",
+        "ambiguous and unowned quarantine",
+        "conflict-safe rollback"
+      ]
+    },
+    {
+      "layer": "contract",
+      "covers": [
+        "Cloud and OSS positive fixtures",
+        "Cloud and OSS negative fixtures",
+        "optional capability non-applicable fixtures"
+      ]
+    }
+  ],
+  "open_questions": []
+}
