@@ -35,6 +35,13 @@ if [[ ! -f "$INSTALL_STAMP" ]] || [[ "$(cat "$INSTALL_STAMP" 2>/dev/null)" != "$
   mkdir -p "$(dirname "$INSTALL_STAMP")"
   printf '%s\n' "$LOCK_SHA" > "$INSTALL_STAMP"
 fi
+MCP_INSTALL_STAMP="$RUNTIME_ROOT/mcp/brainbase/node_modules/.brainbase-package-lock.sha256"
+MCP_LOCK_SHA="$(shasum -a 256 "$RUNTIME_ROOT/mcp/brainbase/package-lock.json" | awk '{print $1}')"
+if [[ ! -f "$MCP_INSTALL_STAMP" ]] || [[ "$(cat "$MCP_INSTALL_STAMP" 2>/dev/null)" != "$MCP_LOCK_SHA" ]]; then
+  npm --prefix "$RUNTIME_ROOT/mcp/brainbase" ci --ignore-scripts
+  mkdir -p "$(dirname "$MCP_INSTALL_STAMP")"
+  printf '%s\n' "$MCP_LOCK_SHA" > "$MCP_INSTALL_STAMP"
+fi
 npm --prefix "$RUNTIME_ROOT/mcp/brainbase" run build
 
 export BRAINBASE_UI_RUNTIME_ROOT="$RUNTIME_ROOT"
