@@ -12,7 +12,8 @@ describe('tenant production provisioning schema', () => {
             'tenant_provisioning_operations',
             'brainbase_service_actors',
             'brainbase_capabilities',
-            'brainbase_service_actor_capabilities'
+            'brainbase_service_actor_capabilities',
+            'tenant_contract_revision_runtime_bindings'
         ]) {
             expect(sql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS\\s+${table}\\b`, 'i'));
         }
@@ -35,6 +36,16 @@ describe('tenant production provisioning schema', () => {
         expect(sql).toContain('canonical_project_id');
         expect(sql).toContain('brainbase_service_actor_capabilities');
         expect(sql).toContain('public_jwk');
+        expect(sql).toContain('tenant_contract_revision_runtime_bindings');
+        expect(sql).toContain('slack_installation_intents');
+        expect(sql).toContain('slack_installation_exchange_ledger');
+        expect(sql).toContain('FOREIGN KEY (tenant_id, contract_id, contract_revision)');
+        expect(sql).toContain('deployment_id');
+        expect(sql).toContain('profile');
+        expect(sql).toContain('capabilities TEXT[]');
+        expect(sql).toContain('audience TEXT[]');
+        expect(sql).toContain('slack_installation_intents_tenant_idx');
+        expect(sql).toContain('slack_installation_exchange_ledger_tenant_idx');
     });
 
     it('does not persist secret bodies or model service actors as Graph persons', async () => {

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { canonicalJson, deepFreeze } from './canonical-json.js';
+import { REQUIRED_CAPABILITIES } from './protocol-contract.js';
 
 const SECRET_KEY = /(?:access|refresh)[_-]?token|client[_-]?secret|private[_-]?key|secret[_-]?value|oauth[_-]?token|bearer[_-]?token/iu;
 const SECRET_VALUE = /(?:^xox[baprs]-|^sk-[A-Za-z0-9]|-----BEGIN [A-Z ]+-----)/u;
@@ -8,8 +9,12 @@ const TENANT_KEY = /^[a-z][a-z0-9-]{1,62}$/u;
 const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/u;
 const TENANT_ID = /^ten_[0-9A-HJKMNP-TV-Z]{26}$/u;
 const CONNECTION_ID = /^wsc_[0-9A-HJKMNP-TV-Z]{26}$/u;
+const CONTRACT_ID = /^ctr_[0-9A-HJKMNP-TV-Z]{26}$/u;
+const DEPLOYMENT_ID = /^dep_[0-9A-HJKMNP-TV-Z]{26}$/u;
 const CREDENTIAL_REF = /^credref:\/\/[a-z][a-z0-9-]{1,62}\/[a-z][a-z0-9_-]{1,62}\/[a-z][a-z0-9_-]{1,62}$/u;
 const CAPABILITY = /^[a-z][a-z0-9_:-]{1,63}$/u;
+const AUDIENCE = /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/u;
+const RFC3339_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u;
 
 const ALLOWED_ROOT_KEYS = new Set([
     'tenant_key', 'tenant_id', 'display_name', 'project_code',
@@ -21,10 +26,19 @@ const ALLOWED_CONNECTION_KEYS = new Set([
 ]);
 const ALLOWED_ACTOR_KEYS = new Set(['actor_id', 'canonical_project_id', 'capabilities', 'public_keys']);
 const CREDENTIAL_MODES = new Set(['cloud_standard', 'customer_oauth', 'customer_api']);
+const CONTRACT_STATUSES = new Set(['active']);
+const OVERAGE_POLICIES = new Set(['deny', 'allow_and_bill', 'allow_with_approval']);
+const DEPLOYMENT_PROFILES = new Set(['shared_cloud', 'dedicated_cloud', 'customer_managed_oss']);
 const ALLOWED_CAPABILITIES = new Set([
     'send_message', 'create_task', 'list_tasks', 'update_task', 'transition_task',
     'list_sessions', 'get_session', 'list_employees', 'get_employee', 'read_graph',
     'read_drive', 'write_drive', 'read_nocodb', 'write_nocodb'
+]);
+const ALLOWED_CONTRACT_KEYS = new Set([
+    'contract_id', 'revision', 'status', 'effective_from', 'effective_until', 'plan_code',
+    'allowances', 'thresholds_basis_points', 'overage_policy', 'hard_stop_basis_points',
+    'rate_card_revision', 'fx_table_revision', 'sales_price_revision',
+    'capabilities', 'audience', 'deployment_id', 'profile'
 ]);
 
 export class ProvisioningManifestError extends Error {
@@ -78,6 +92,73 @@ function sortedStrings(values, field, pattern = IDENTIFIER) {
     const normalized = values.map((value) => requiredString(value, field, pattern));
     if (new Set(normalized).size !== normalized.length) fail('MANIFEST_INVALID', `${field} must not contain duplicates`);
     return normalized.sort((a, b) => a.localeCompare(b));
+}
+
+function positiveRevision(value, field) {
+    if (typeof value !== 'string' || !/^[1-9][0-9]*$/u.test(value)) {
+        fail('MANIFEST_INVALID', `${field} is invalid`);
+    }
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) fail('MANIFEST_INVALID', `${field} is invalid`);
+    return value;
+}
+
+function integer(value, field, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+    if (!Number.isSafeInteger(value) || value < min || value > max) {
+        fail('MANIFEST_INVALID', `${field} is invalid`);
+    }
+    return value;
+}
+
+function timestamp(value, field, { nullable = false } = {}) {
+    if (nullable && value === null) return null;
+    if (typeof value !== 'string' || !RFC3339_UTC.test(value) || !Number.isFinite(Date.parse(value))) {
+        fail('MANIFEST_INVALID', `${field} is invalid`);
+    }
+    return value;
+}
+
+function normalizeContract(value) {
+    assertRecord(value, 'contract_revision');
+    assertKnownKeys(value, ALLOWED_CONTRACT_KEYS, 'contract_revision');
+    const capabilities = sortedStrings(value.capabilities, 'contract_revision.capabilities', CAPABILITY);
+    const required = REQUIRED_CAPABILITIES.filter((capability) => !capabilities.includes(capability));
+    const unsupported = capabilities.filter((capability) => !REQUIRED_CAPABILITIES.includes(capability));
+    if (required.length || unsupported.length) {
+        fail('CAPABILITY_FORBIDDEN', 'contract_revision.capabilities must contain the canonical protocol capabilities');
+    }
+    const audience = sortedStrings(value.audience, 'contract_revision.audience', AUDIENCE);
+    if (!DEPLOYMENT_PROFILES.has(value.profile)) fail('MANIFEST_INVALID', 'contract_revision.profile is invalid');
+    if (!CONTRACT_STATUSES.has(value.status)) fail('MANIFEST_INVALID', 'contract_revision.status must be active');
+    if (!OVERAGE_POLICIES.has(value.overage_policy)) fail('MANIFEST_INVALID', 'contract_revision.overage_policy is invalid');
+    if (!value.allowances || typeof value.allowances !== 'object' || Array.isArray(value.allowances)) {
+        fail('MANIFEST_INVALID', 'contract_revision.allowances must be an object');
+    }
+    if (!Array.isArray(value.thresholds_basis_points) || value.thresholds_basis_points.length === 0) {
+        fail('MANIFEST_INVALID', 'contract_revision.thresholds_basis_points must be a non-empty array');
+    }
+    const thresholds = value.thresholds_basis_points.map((threshold, index) =>
+        integer(threshold, `contract_revision.thresholds_basis_points[${index}]`, { min: 0, max: 10000 }));
+    if (new Set(thresholds).size !== thresholds.length) fail('MANIFEST_INVALID', 'contract_revision.thresholds_basis_points must not contain duplicates');
+    return {
+        contract_id: requiredString(value.contract_id, 'contract_revision.contract_id', CONTRACT_ID),
+        revision: positiveRevision(value.revision, 'contract_revision.revision'),
+        status: value.status,
+        effective_from: timestamp(value.effective_from, 'contract_revision.effective_from'),
+        effective_until: timestamp(value.effective_until, 'contract_revision.effective_until', { nullable: true }),
+        plan_code: requiredString(value.plan_code, 'contract_revision.plan_code', /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/u),
+        allowances: structuredClone(value.allowances),
+        thresholds_basis_points: thresholds,
+        overage_policy: value.overage_policy,
+        hard_stop_basis_points: integer(value.hard_stop_basis_points, 'contract_revision.hard_stop_basis_points', { min: 0, max: 10000 }),
+        rate_card_revision: integer(value.rate_card_revision, 'contract_revision.rate_card_revision', { min: 1 }),
+        fx_table_revision: integer(value.fx_table_revision, 'contract_revision.fx_table_revision', { min: 1 }),
+        sales_price_revision: integer(value.sales_price_revision, 'contract_revision.sales_price_revision', { min: 1 }),
+        capabilities,
+        audience,
+        deployment_id: requiredString(value.deployment_id, 'contract_revision.deployment_id', DEPLOYMENT_ID),
+        profile: value.profile
+    };
 }
 
 function normalizeConnection(value) {
@@ -146,9 +227,8 @@ export function normalizeProvisioningManifest(input) {
         workspace_connection: normalizeConnection(input.workspace_connection),
         service_actor: normalizeActor(input.service_actor)
     };
-    if (input.contract_revision !== undefined) {
-        normalized.contract_revision = requiredString(input.contract_revision, 'contract_revision', /^[0-9]+$/u);
-    }
+    if (input.contract_revision === undefined) fail('MANIFEST_INVALID', 'contract_revision is required');
+    normalized.contract_revision = normalizeContract(input.contract_revision);
     return deepFreeze(normalized);
 }
 
@@ -169,6 +249,14 @@ export function redactedManifestSummary(manifest) {
         connection_id: normalized.workspace_connection.connection_id,
         credential_ref: normalized.workspace_connection.credential_ref,
         actor_id: normalized.service_actor.actor_id,
-        capability_count: normalized.service_actor.capabilities.length
+        capability_count: normalized.service_actor.capabilities.length,
+        contract_revision: {
+            contract_id: normalized.contract_revision.contract_id,
+            revision: normalized.contract_revision.revision,
+            deployment_id: normalized.contract_revision.deployment_id,
+            profile: normalized.contract_revision.profile,
+            audience: normalized.contract_revision.audience,
+            capability_count: normalized.contract_revision.capabilities.length
+        }
     });
 }

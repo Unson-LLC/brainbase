@@ -12,6 +12,41 @@ function poolWithRows(rowsByPattern) {
 }
 
 describe('MultitenantPostgresRepository', () => {
+    it('Slack installation replay readback returns the completed ledger payload without exposing credentials', async () => {
+        const snapshot = {
+            connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAZ',
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX',
+            status: 'active'
+        };
+        const { pool, client } = poolWithRows({
+            'FROM slack_installation_intents i': [{ consumed_at: '2026-08-19T00:00:01Z', status: 'completed', response_payload: snapshot }]
+        });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.readSlackInstallationResult({
+            tenant_id: snapshot.tenant_id,
+            installation_intent_id: 'insi_01ARZ3NDEKTSV4RRFFQ69G5FAV'
+        })).resolves.toEqual(snapshot);
+        expect(client.query.mock.calls.some(([sql]) => sql.includes('FOR SHARE OF i'))).toBe(true);
+        expect(client.query.mock.calls.every(([, params = []]) => !params.includes('raw-token'))).toBe(true);
+    });
+
+    it('Slack installation replay without a completed ledger fails closed after the intent is consumed', async () => {
+        const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+        const { pool } = poolWithRows({
+            'FROM slack_installation_intents i': [{ consumed_at: '2026-08-19T00:00:01Z', status: null, response_payload: null }]
+        });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expectContractErrorAsync(
+            () => repository.readSlackInstallationResult({
+                tenant_id: tenantId,
+                installation_intent_id: 'insi_01ARZ3NDEKTSV4RRFFQ69G5FAV'
+            }),
+            { code: 'INSTALLATION_STATE_REPLAYED', status: 409 }
+        );
+    });
+
     it('AC-005/AC-105/D-003: transaction-local tenant RLSを設定しauthoritative revisionをlock付きで読む', async () => {
         const { pool, client } = poolWithRows({
             'FROM workspace_connections': [{ tenant_id: 'ten_a', connection_id: 'wsc_a', connection_revision: 3, status: 'active', workspace_id: 'w', app_id: 'a', granted_scopes: ['chat:write'] }]
@@ -122,13 +157,21 @@ describe('MultitenantPostgresRepository', () => {
                 tenant_id: 'ten_a', contract_id: 'ctr_a', contract_revision: 11,
                 allowances: { model_tokens: 1000 }, thresholds_basis_points: [8000, 10000],
                 overage_policy: 'deny', hard_stop_basis_points: 10000,
-                rate_card_revision: 8, fx_table_revision: 5, sales_price_revision: 3
+                rate_card_revision: 8, fx_table_revision: 5, sales_price_revision: 3,
+                runtime_capabilities: ['signed_tenant_context', 'tenant_scoped_authorization'],
+                runtime_audience: ['mana-runtime'], runtime_deployment_id: 'dep_a', runtime_profile: 'shared_cloud'
             }]
         });
         const repository = new MultitenantPostgresRepository({ pool });
 
         await expect(repository.loadContractRevision({ tenant_id: 'ten_a', contract_revision: '11' }))
-            .resolves.toMatchObject({ contract_revision: '11', rate_card_revision: 8, fx_table_revision: 5, sales_price_revision: 3 });
+            .resolves.toMatchObject({
+                contract_revision: '11', rate_card_revision: 8, fx_table_revision: 5, sales_price_revision: 3,
+                runtime_binding: {
+                    capabilities: ['signed_tenant_context', 'tenant_scoped_authorization'],
+                    audience: ['mana-runtime'], deployment_id: 'dep_a', profile: 'shared_cloud'
+                }
+            });
         expect(client.query.mock.calls.some(([sql]) => sql.includes('FOR SHARE'))).toBe(true);
     });
 

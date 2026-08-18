@@ -21,18 +21,83 @@ const manifest = {
         actor_id: 'svc_mana_runtime',
         canonical_project_id: 'project_mana',
         capabilities: ['send_message']
+    },
+    contract_revision: {
+        contract_id: 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        revision: '1',
+        status: 'active',
+        effective_from: '2026-08-18T00:00:00Z',
+        effective_until: null,
+        plan_code: 'mana-standard',
+        allowances: { tool_calls: 1000 },
+        thresholds_basis_points: [5000, 8000, 10000],
+        overage_policy: 'deny',
+        hard_stop_basis_points: 10000,
+        rate_card_revision: 8,
+        fx_table_revision: 5,
+        sales_price_revision: 3,
+        capabilities: [
+            'signed_tenant_context',
+            'connection_revision_recheck',
+            'tenant_scoped_authorization',
+            'credential_broker_v1',
+            'usage_receipt_v1',
+            'idempotent_effects_v1',
+            'container_sanitization_v1'
+        ],
+        audience: ['mana-runtime'],
+        deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        profile: 'shared_cloud'
     }
 };
 
-function createClient({ existingOperation = null, project = { project_id: 'project_mana' }, connection = null, existingProject = null } = {}) {
+function createClient({ existingOperation = null, project = { project_id: 'project_mana' }, connection = null, existingProject = null, existingContract = null, existingBinding = null } = {}) {
     const queries = [];
+    let contractRow = existingContract;
+    let bindingRow = existingBinding;
     const query = vi.fn(async (text, values = []) => {
         queries.push({ text: String(text), values });
+        const sql = String(text);
         if (String(text).includes('FROM tenant_provisioning_operations')) {
             return { rows: existingOperation ? [existingOperation] : [] };
         }
         if (String(text).includes('INSERT INTO tenant_provisioning_operations')) {
             return { rows: [{ operation_id: 'op_01', status: 'claimed' }] };
+        }
+        if (sql.includes('FROM tenant_contract_revision_runtime_bindings')) {
+            return { rows: bindingRow ? [bindingRow] : [] };
+        }
+        if (sql.includes('FROM tenant_contract_revisions')) {
+            return { rows: contractRow ? [contractRow] : [] };
+        }
+        if (sql.includes('INSERT INTO tenant_contract_revisions')) {
+            contractRow = {
+                tenant_id: values[2],
+                contract_id: values[0],
+                contract_revision: Number(values[1]),
+                tenant_revision_at_write: Number(values[3]),
+                status: values[4],
+                effective_from: values[5],
+                effective_until: values[6],
+                plan_code: values[7],
+                allowances: JSON.parse(values[8]),
+                thresholds_basis_points: values[9],
+                overage_policy: values[10],
+                hard_stop_basis_points: values[11],
+                rate_card_revision: values[12],
+                fx_table_revision: values[13],
+                sales_price_revision: values[14]
+            };
+            return { rows: [], rowCount: 1 };
+        }
+        if (sql.includes('INSERT INTO tenant_contract_revision_runtime_bindings')) {
+            bindingRow = {
+                capabilities: values[3],
+                audience: values[4],
+                deployment_id: values[5],
+                profile: values[6]
+            };
+            return { rows: [], rowCount: 1 };
         }
         if (String(text).includes('FROM workspace_connections')) {
             return { rows: connection ? [connection] : [] };
@@ -61,7 +126,24 @@ function createClient({ existingOperation = null, project = { project_id: 'proje
                 project_code: manifest.project_code,
                 connection_id: manifest.workspace_connection.connection_id,
                 connection_revision: 1,
-                actor_id: manifest.service_actor.actor_id
+                actor_id: manifest.service_actor.actor_id,
+                contract_id: contractRow?.contract_id ?? manifest.contract_revision.contract_id,
+                contract_revision: contractRow?.contract_revision ?? Number(manifest.contract_revision.revision),
+                contract_status: contractRow?.status ?? manifest.contract_revision.status,
+                effective_from: contractRow?.effective_from ?? manifest.contract_revision.effective_from,
+                effective_until: contractRow?.effective_until ?? manifest.contract_revision.effective_until,
+                plan_code: contractRow?.plan_code ?? manifest.contract_revision.plan_code,
+                allowances: contractRow?.allowances ?? manifest.contract_revision.allowances,
+                thresholds_basis_points: contractRow?.thresholds_basis_points ?? manifest.contract_revision.thresholds_basis_points,
+                overage_policy: contractRow?.overage_policy ?? manifest.contract_revision.overage_policy,
+                hard_stop_basis_points: contractRow?.hard_stop_basis_points ?? manifest.contract_revision.hard_stop_basis_points,
+                rate_card_revision: contractRow?.rate_card_revision ?? manifest.contract_revision.rate_card_revision,
+                fx_table_revision: contractRow?.fx_table_revision ?? manifest.contract_revision.fx_table_revision,
+                sales_price_revision: contractRow?.sales_price_revision ?? manifest.contract_revision.sales_price_revision,
+                runtime_capabilities: bindingRow?.capabilities ?? manifest.contract_revision.capabilities,
+                runtime_audience: bindingRow?.audience ?? manifest.contract_revision.audience,
+                runtime_deployment_id: bindingRow?.deployment_id ?? manifest.contract_revision.deployment_id,
+                runtime_profile: bindingRow?.profile ?? manifest.contract_revision.profile
             }]
         };
         return { rows: [], rowCount: 1 };
@@ -239,10 +321,43 @@ describe('tenant provisioner', () => {
         });
 
         expect(result.replayed).toBe(false);
-        expect(result.receipt).toMatchObject({ tenant_key: 'unson-business', outcome: 'succeeded' });
+        expect(result.receipt).toMatchObject({
+            tenant_key: 'unson-business',
+            outcome: 'succeeded',
+            contract_revision: { revision: '1', deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV' }
+        });
         expect(result.receipt).not.toHaveProperty('credential_value');
         expect(client.queries.map(({ text }) => text)).toContain('BEGIN');
         expect(client.queries.map(({ text }) => text)).toContain('COMMIT');
         expect(JSON.stringify(result)).not.toContain('operator@example.test');
+    });
+
+    it('fails closed when a canonical contract revision already has a different payload', async () => {
+        const client = createClient({ existingContract: {
+            tenant_id: manifest.tenant_id,
+            contract_id: manifest.contract_revision.contract_id,
+            contract_revision: 1,
+            status: 'active',
+            effective_from: manifest.contract_revision.effective_from,
+            effective_until: null,
+            plan_code: 'different-plan',
+            allowances: manifest.contract_revision.allowances,
+            thresholds_basis_points: manifest.contract_revision.thresholds_basis_points,
+            overage_policy: manifest.contract_revision.overage_policy,
+            hard_stop_basis_points: manifest.contract_revision.hard_stop_basis_points,
+            rate_card_revision: manifest.contract_revision.rate_card_revision,
+            fx_table_revision: manifest.contract_revision.fx_table_revision,
+            sales_price_revision: manifest.contract_revision.sales_price_revision
+        } });
+        await expect(provisionTenant({
+            client,
+            manifest,
+            idempotencyKey: 'ik_contract_conflict',
+            actorId: 'operator@example.test',
+            graphResolver,
+            credentialResolver,
+            fingerprint: 'same'
+        })).rejects.toMatchObject({ code: 'CONTRACT_REVISION_CONFLICT' });
+        expect(client.queries.map(({ text }) => text)).toContain('ROLLBACK');
     });
 });

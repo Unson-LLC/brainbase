@@ -14,7 +14,10 @@ const REQUIRED_INDEXES = [
     'workspace_connections_tenant_provider_workspace_app_uq',
     'tenant_provisioning_operations_tenant_status_idx',
     'brainbase_service_actors_tenant_idx',
-    'brainbase_service_actor_capabilities_tenant_idx'
+    'brainbase_service_actor_capabilities_tenant_idx',
+    'tenant_contract_revision_runtime_bindings_deployment_idx',
+    'slack_installation_intents_tenant_idx',
+    'slack_installation_exchange_ledger_tenant_idx'
 ];
 const REQUIRED_EXISTING_TABLES = [
     'brainbase_schema_migrations',
@@ -25,6 +28,15 @@ const REQUIRED_EXISTING_TABLES = [
     'credential_broker_refs',
     'tenant_contract_revisions'
 ];
+const REQUIRED_EXISTING_COLUMNS = Object.freeze({
+    workspace_connections: [
+        'enterprise_id',
+        'installer_id',
+        'deployment_id',
+        'profile',
+        'contract_revision'
+    ]
+});
 
 export class TenantProvisioningMigrationError extends Error {
     constructor(code, message) {
@@ -40,7 +52,7 @@ function schemaContract(sql) {
         const columns = [];
         for (const line of match[2].split('\n')) {
             const column = line.trim().match(/^([a-z][a-z0-9_]*)\s+/i)?.[1];
-            if (column && !['primary', 'unique', 'foreign', 'check', 'constraint', 'and', 'or'].includes(column.toLowerCase())) {
+            if (column && !['primary', 'unique', 'foreign', 'references', 'check', 'constraint', 'and', 'or'].includes(column.toLowerCase())) {
                 columns.push(column);
             }
         }
@@ -100,16 +112,20 @@ async function readbackSchema(client, contract) {
     const missingTables = missing(tables, tableResult.rows.map((row) => row.table_name));
     if (missingTables.length) throw new TenantProvisioningMigrationError('SCHEMA_READBACK_FAILED', `Provisioning schema has missing tables: ${missingTables.join(', ')}`);
 
+    const columnTables = [...new Set([...tables, ...Object.keys(REQUIRED_EXISTING_COLUMNS)])];
     const columnResult = await client.query(
         `SELECT table_name, column_name FROM information_schema.columns
           WHERE table_schema = current_schema() AND table_name = ANY($1::text[])
           ORDER BY table_name, ordinal_position`,
-        [tables]
+        [columnTables]
     );
-    const actualColumns = new Map(tables.map((table) => [table, []]));
+    const actualColumns = new Map(columnTables.map((table) => [table, []]));
     for (const row of columnResult.rows) actualColumns.get(row.table_name)?.push(row.column_name);
     const missingColumns = [];
     for (const [table, columns] of contract.tableColumns) {
+        for (const column of missing(columns, actualColumns.get(table) ?? [])) missingColumns.push(`${table}.${column}`);
+    }
+    for (const [table, columns] of Object.entries(REQUIRED_EXISTING_COLUMNS)) {
         for (const column of missing(columns, actualColumns.get(table) ?? [])) missingColumns.push(`${table}.${column}`);
     }
     if (missingColumns.length) throw new TenantProvisioningMigrationError('SCHEMA_READBACK_FAILED', `Provisioning schema has missing columns: ${missingColumns.join(', ')}`);
@@ -133,6 +149,7 @@ async function readbackSchema(client, contract) {
         table_count: tables.length,
         prerequisite_table_count: REQUIRED_EXISTING_TABLES.length,
         column_count: [...contract.tableColumns.values()].reduce((sum, columns) => sum + columns.length, 0),
+        existing_column_count: Object.values(REQUIRED_EXISTING_COLUMNS).flat().length,
         index_count: contract.indexes.length,
         ledger_matches: true
     };

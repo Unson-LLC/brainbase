@@ -18,7 +18,7 @@ async function schemaContract() {
     for (const match of sql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-z0-9_]+)\s*\(([^;]+);/gis)) {
         for (const line of match[2].split('\n')) {
             const column = line.trim().match(/^([a-z][a-z0-9_]*)\s+/i)?.[1];
-            if (column && !['primary', 'unique', 'foreign', 'check', 'constraint', 'and', 'or'].includes(column.toLowerCase())) {
+            if (column && !['primary', 'unique', 'foreign', 'references', 'check', 'constraint', 'and', 'or'].includes(column.toLowerCase())) {
                 columns.push({ table_name: match[1], column_name: column });
             }
         }
@@ -42,7 +42,15 @@ async function createPool({ missingIndex = null, missingPrerequisite = null } = 
                 .filter((table_name) => table_name !== missingPrerequisite)
                 .map((table_name) => ({ table_name })) };
         }
-        if (sql.includes('FROM information_schema.columns')) return { rows: contract.columns };
+        if (sql.includes('FROM information_schema.columns')) {
+            return {
+                rows: [
+                    ...contract.columns,
+                    ...['enterprise_id', 'installer_id', 'deployment_id', 'profile', 'contract_revision']
+                        .map((column_name) => ({ table_name: 'workspace_connections', column_name }))
+                ]
+            };
+        }
         if (sql.includes('FROM pg_indexes')) return { rows: contract.indexes.filter((indexname) => indexname !== missingIndex).map((indexname) => ({ indexname })) };
         if (sql.includes('FROM brainbase_schema_migrations')) return { rows: [{ schema_sha256: contract.sha256 }] };
         return { rows: [], rowCount: 1 };

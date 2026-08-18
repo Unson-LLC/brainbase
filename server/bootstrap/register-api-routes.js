@@ -28,6 +28,8 @@ import { createMiscRouter } from '../routes/misc.js';
 import { createUsageRouter } from '../routes/usage.js';
 import { createSnsGrowthRouter } from '../routes/sns-growth.js';
 import { createTenantRuntimeRouter } from '../routes/tenant-runtime.js';
+import { createSlackInstallationControlPlaneRouter } from '../routes/slack-installation-control-plane.js';
+import { createSlackInstallationControlPlaneAuthMiddleware } from '../services/multitenant/slack-installation-auth.js';
 import {
     createTenantEntrypointGuard,
     createUnavailableTenantEntrypointGuard
@@ -179,6 +181,28 @@ export function registerTenantRuntimeApiRoute(app, services) {
     app.use('/api/v1/runtime', createTenantRuntimeRouter(services));
 }
 
+export function registerSlackInstallationControlPlaneApiRoute(app, {
+    controlPlane,
+    authService,
+    authMiddleware,
+    appId,
+    resolvePreProvisionedConnection,
+    authEnv = process.env,
+    authNow
+}) {
+    if (!controlPlane) throw new Error('Slack installation control-plane is required');
+    const guard = authMiddleware ?? createSlackInstallationControlPlaneAuthMiddleware({
+        authService,
+        env: authEnv,
+        now: authNow
+    });
+    app.use(
+        '/api/v1',
+        guard,
+        createSlackInstallationControlPlaneRouter({ controlPlane, appId, resolvePreProvisionedConnection })
+    );
+}
+
 export function registerApiRoutes(app, {
     configParser,
     configService,
@@ -219,6 +243,10 @@ export function registerApiRoutes(app, {
     runtimeInfo,
     brainbaseRoot,
     tenantRuntimeServices,
+    slackInstallationControlPlane,
+    slackInstallationControlPlaneAuthMiddleware,
+    slackInstallationControlPlaneAppId,
+    resolvePreProvisionedSlackConnection,
     snsPostExecutor = null
 }) {
     const adminTenantGuard = tenantRuntimeServices
@@ -227,6 +255,15 @@ export function registerApiRoutes(app, {
     const auditTenantGuard = tenantRuntimeServices
         ? createTenantEntrypointGuard(tenantRuntimeServices, 'audit_log')
         : createUnavailableTenantEntrypointGuard();
+    if (slackInstallationControlPlane) {
+        registerSlackInstallationControlPlaneApiRoute(app, {
+            controlPlane: slackInstallationControlPlane,
+            authService,
+            authMiddleware: slackInstallationControlPlaneAuthMiddleware,
+            appId: slackInstallationControlPlaneAppId,
+            resolvePreProvisionedConnection: resolvePreProvisionedSlackConnection
+        });
+    }
     app.use('/api/state', createRetiredCapabilityRouter({
         capability: 'brainbase.session-state',
         owner: 'Codex app and CLI',

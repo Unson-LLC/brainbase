@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { ContractError } from './errors.js';
 import { canonicalJson } from './canonical-json.js';
 
@@ -172,6 +173,249 @@ export class MultitenantPostgresRepository {
                 tenant_id: row.tenant_id,
                 tenant_revision_at_write: String(row.tenant_revision_at_write)
             } : null;
+        });
+    }
+
+    async createSlackInstallationIntent({
+        installation_intent_id,
+        tenant_id,
+        app_id,
+        expected_workspace_id = null,
+        expected_enterprise_id = null,
+        initiated_by_person_id,
+        expected_connection_revision = null,
+        issued_at,
+        expires_at
+    }) {
+        return this.withTenant(tenant_id, async (client) => {
+            const tenantResult = await client.query(
+                `SELECT tenant_id, tenant_revision, status
+                   FROM brainbase_tenants
+                  WHERE tenant_id = $1
+                  FOR SHARE`,
+                [tenant_id]
+            );
+            const tenant = tenantResult.rows[0];
+            if (!tenant || tenant.status !== 'active') {
+                throw new ContractError('INSTALLATION_AUTHORIZATION_REQUIRED', { status: 403 });
+            }
+            const result = await client.query(
+                `INSERT INTO slack_installation_intents (
+                    installation_intent_id, tenant_id, tenant_revision_at_write,
+                    app_id, expected_workspace_id, expected_enterprise_id,
+                    initiated_by_principal_id, expected_connection_revision,
+                    issued_at, expires_at, created_at
+                 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$9)
+                 RETURNING installation_intent_id, tenant_id, app_id,
+                           expected_workspace_id, expected_enterprise_id,
+                           initiated_by_principal_id AS initiated_by_person_id, expected_connection_revision,
+                           issued_at, expires_at, consumed_at`,
+                [installation_intent_id, tenant_id, tenant.tenant_revision, app_id,
+                    expected_workspace_id, expected_enterprise_id, initiated_by_person_id,
+                    expected_connection_revision, issued_at, expires_at]
+            );
+            if (!result.rows[0]) throw new ContractError('INSTALLATION_STATE_INVALID', { status: 400 });
+            return result.rows[0];
+        });
+    }
+
+    async readSlackInstallationResult({ tenant_id, installation_intent_id }) {
+        return this.withTenant(tenant_id, async (client) => {
+            const result = await client.query(
+                `SELECT i.consumed_at, l.status, l.response_payload
+                   FROM slack_installation_intents i
+              LEFT JOIN slack_installation_exchange_ledger l
+                     ON l.tenant_id = i.tenant_id
+                    AND l.installation_intent_id = i.installation_intent_id
+                  WHERE i.tenant_id = $1 AND i.installation_intent_id = $2
+                  FOR SHARE OF i`,
+                [tenant_id, installation_intent_id]
+            );
+            const row = result.rows[0];
+            if (!row) throw new ContractError('INSTALLATION_STATE_INVALID', { status: 400 });
+            if (row.status === 'completed' && row.response_payload) return row.response_payload;
+            if (row.consumed_at) throw new ContractError('INSTALLATION_STATE_REPLAYED', { status: 409 });
+            return null;
+        });
+    }
+
+    async registerSlackInstallation({
+        intent,
+        exchange,
+        credential,
+        connection_id,
+        now = this.now().toISOString()
+    }) {
+        return this.withTenant(intent.tenant_id, async (client) => {
+            const intentResult = await client.query(
+                `SELECT installation_intent_id, tenant_id, app_id,
+                        expected_workspace_id, expected_enterprise_id,
+                        initiated_by_principal_id AS initiated_by_person_id, expected_connection_revision,
+                        issued_at, expires_at, consumed_at
+                   FROM slack_installation_intents
+                  WHERE tenant_id = $1 AND installation_intent_id = $2
+                  FOR UPDATE`,
+                [intent.tenant_id, intent.installation_intent_id]
+            );
+            const storedIntent = intentResult.rows[0];
+            if (!storedIntent) throw new ContractError('INSTALLATION_STATE_INVALID', { status: 400 });
+
+            const existingLedgerResult = await client.query(
+                `SELECT request_digest, status, connection_id, connection_revision, response_payload
+                   FROM slack_installation_exchange_ledger
+                  WHERE tenant_id = $1 AND installation_intent_id = $2
+                  FOR UPDATE`,
+                [intent.tenant_id, intent.installation_intent_id]
+            );
+            const existingLedger = existingLedgerResult.rows[0];
+            if (existingLedger?.status === 'completed' && existingLedger.response_payload) {
+                return existingLedger.response_payload;
+            }
+            if (storedIntent.consumed_at) {
+                throw new ContractError('INSTALLATION_STATE_REPLAYED', { status: 409 });
+            }
+            if (Date.parse(storedIntent.expires_at) <= Date.parse(now)) {
+                throw new ContractError('INSTALLATION_STATE_EXPIRED', { status: 410 });
+            }
+            if (storedIntent.app_id !== intent.app_id
+                || storedIntent.tenant_id !== intent.tenant_id
+                || storedIntent.initiated_by_person_id !== intent.initiated_by_person_id
+                || (storedIntent.expected_workspace_id ?? null) !== (intent.expected_workspace_id ?? null)
+                || (storedIntent.expected_enterprise_id ?? null) !== (intent.expected_enterprise_id ?? null)
+                || String(storedIntent.expected_connection_revision ?? '') !== String(intent.expected_connection_revision ?? '')) {
+                throw new ContractError('INSTALLATION_BINDING_MISMATCH', { status: 409 });
+            }
+
+            const tenantResult = await client.query(
+                `SELECT tenant_revision, status
+                   FROM brainbase_tenants
+                  WHERE tenant_id = $1
+                  FOR SHARE`,
+                [intent.tenant_id]
+            );
+            const tenant = tenantResult.rows[0];
+            if (!tenant || tenant.status !== 'active') throw new ContractError('TENANT_UNKNOWN', { status: 403 });
+
+            const contractResult = await client.query(
+                `SELECT c.contract_revision, rb.deployment_id, rb.profile
+                   FROM tenant_contract_revisions c
+                   JOIN tenant_contract_revision_runtime_bindings rb
+                     ON rb.tenant_id = c.tenant_id
+                    AND rb.contract_id = c.contract_id
+                    AND rb.contract_revision = c.contract_revision
+                  WHERE c.tenant_id = $1 AND c.status = 'active'
+                    AND c.effective_from <= $2
+                    AND (c.effective_until IS NULL OR c.effective_until > $2)
+                  ORDER BY c.contract_revision DESC
+                  LIMIT 1
+                  FOR SHARE`,
+                [intent.tenant_id, now]
+            );
+            const contract = contractResult.rows[0];
+            if (!contract) throw new ContractError('CONTRACT_UNAVAILABLE', { status: 503, retryable: true, fault_domain: 'brainbase_cloud' });
+
+            const currentResult = await client.query(
+                `SELECT connection_id, connection_revision, status
+                   FROM workspace_connections
+                  WHERE tenant_id = $1 AND provider = 'slack'
+                    AND workspace_id = $2 AND app_id = $3
+                    AND status IN ('pending', 'active', 'reauth_required')
+                  FOR UPDATE`,
+                [intent.tenant_id, exchange.workspace_id, intent.app_id]
+            );
+            const current = currentResult.rows[0];
+            if (current && intent.expected_connection_revision === undefined) {
+                throw new ContractError('WORKSPACE_CONNECTION_CONFLICT', { status: 409 });
+            }
+            if (current && String(current.connection_revision) !== String(intent.expected_connection_revision)) {
+                throw new ContractError('WORKSPACE_CONNECTION_STALE_REVISION', { status: 409 });
+            }
+            const resolvedConnectionId = current?.connection_id ?? connection_id;
+            const resolvedRevision = String(Number(current?.connection_revision ?? 0) + 1);
+            const installedAt = now;
+            const snapshot = {
+                connection_id: resolvedConnectionId,
+                connection_revision: resolvedRevision,
+                tenant_id: intent.tenant_id,
+                installation_id: exchange.installation_id,
+                workspace_id: exchange.workspace_id,
+                ...(exchange.enterprise_id ? { enterprise_id: exchange.enterprise_id } : {}),
+                app_id: intent.app_id,
+                installer_id: exchange.installer_id,
+                granted_scopes: [...exchange.granted_scopes].sort(),
+                status: 'active',
+                deployment_id: contract.deployment_id,
+                profile: contract.profile,
+                credential_mode: credential.credential_mode,
+                contract_revision: String(contract.contract_revision)
+            };
+            if (current) {
+                await client.query(
+                    `UPDATE workspace_connections
+                        SET connection_revision = $3,
+                            installation_id = $4, workspace_id = $5,
+                            enterprise_id = $6, app_id = $7,
+                            installer_id = $8, granted_scopes = $9,
+                            status = 'active', credential_ref = $10,
+                            installed_at = $11, revoked_at = NULL,
+                            supersedes_connection_revision = $12,
+                            deployment_id = $13, profile = $14,
+                            contract_revision = $15
+                      WHERE tenant_id = $1 AND connection_id = $2`,
+                    [intent.tenant_id, resolvedConnectionId, resolvedRevision,
+                        exchange.installation_id, exchange.workspace_id, exchange.enterprise_id ?? null,
+                        intent.app_id, exchange.installer_id, exchange.granted_scopes,
+                        credential.credential_ref, installedAt, current.connection_revision,
+                        contract.deployment_id, contract.profile, String(contract.contract_revision)]
+                );
+            } else {
+                await client.query(
+                    `INSERT INTO workspace_connections (
+                        connection_id, connection_revision, tenant_id, tenant_revision_at_write,
+                        provider, installation_id, workspace_id, enterprise_id, app_id, installer_id,
+                        granted_scopes, status, credential_ref, installed_at,
+                        deployment_id, profile, contract_revision
+                     ) VALUES ($1,1,$2,$3,'slack',$4,$5,$6,$7,$8,$9,'active',$10,$11,$12,$13,$14)`,
+                    [resolvedConnectionId, intent.tenant_id, tenant.tenant_revision,
+                        exchange.installation_id, exchange.workspace_id, exchange.enterprise_id ?? null,
+                        intent.app_id, exchange.installer_id, exchange.granted_scopes,
+                        credential.credential_ref, installedAt, contract.deployment_id,
+                        contract.profile, String(contract.contract_revision)]
+                );
+            }
+            await client.query(
+                `INSERT INTO credential_broker_refs (
+                    credential_ref, tenant_id, connection_id, connection_revision,
+                    credential_mode, refresh_revision, created_at, updated_at
+                 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$7)`,
+                [credential.credential_ref, intent.tenant_id, resolvedConnectionId, resolvedRevision,
+                    credential.credential_mode, credential.refresh_revision ?? 1, installedAt]
+            );
+            await client.query(
+                `INSERT INTO workspace_connection_revisions (
+                    tenant_id, connection_id, connection_revision, connection_snapshot, recorded_at
+                 ) VALUES ($1,$2,$3,$4::jsonb,$5)`,
+                [intent.tenant_id, resolvedConnectionId, resolvedRevision, canonicalJson(snapshot), installedAt]
+            );
+            await client.query(
+                `UPDATE slack_installation_intents
+                    SET consumed_at = $3
+                  WHERE tenant_id = $1 AND installation_intent_id = $2 AND consumed_at IS NULL`,
+                [intent.tenant_id, intent.installation_intent_id, installedAt]
+            );
+            const requestDigest = `sha256:${createHash('sha256').update(canonicalJson({
+                intent, exchange: { ...exchange, credential_ref: credential.credential_ref }
+            }), 'utf8').digest('hex')}`;
+            const ledger = await client.query(
+                `INSERT INTO slack_installation_exchange_ledger (
+                    installation_intent_id, tenant_id, request_digest, status,
+                    connection_id, connection_revision, response_payload, created_at, completed_at
+                 ) VALUES ($1,$2,$3,'completed',$4,$5,$6::jsonb,$7,$7)
+                 RETURNING response_payload`,
+                [intent.installation_intent_id, intent.tenant_id, requestDigest,
+                    resolvedConnectionId, resolvedRevision, canonicalJson(snapshot), installedAt]
+            );
+            return ledger.rows[0]?.response_payload ?? snapshot;
         });
     }
 
@@ -361,13 +605,21 @@ export class MultitenantPostgresRepository {
             const result = await client.query(
                 `SELECT tenant_id, contract_id, contract_revision, allowances,
                         thresholds_basis_points, overage_policy, hard_stop_basis_points,
-                        rate_card_revision, fx_table_revision, sales_price_revision
+                        rate_card_revision, fx_table_revision, sales_price_revision,
+                        rb.capabilities AS runtime_capabilities,
+                        rb.audience AS runtime_audience,
+                        rb.deployment_id AS runtime_deployment_id,
+                        rb.profile AS runtime_profile
                  FROM tenant_contract_revisions
-                 WHERE tenant_id = $1
-                   AND contract_revision = $2
-                   AND status = 'active'
-                   AND effective_from <= $3
-                   AND (effective_until IS NULL OR effective_until > $3)
+                 JOIN tenant_contract_revision_runtime_bindings rb
+                   ON rb.tenant_id = tenant_contract_revisions.tenant_id
+                  AND rb.contract_id = tenant_contract_revisions.contract_id
+                  AND rb.contract_revision = tenant_contract_revisions.contract_revision
+                 WHERE tenant_contract_revisions.tenant_id = $1
+                   AND tenant_contract_revisions.contract_revision = $2
+                   AND tenant_contract_revisions.status = 'active'
+                   AND tenant_contract_revisions.effective_from <= $3
+                   AND (tenant_contract_revisions.effective_until IS NULL OR tenant_contract_revisions.effective_until > $3)
                  FOR SHARE`,
                 [tenant_id, contract_revision, this.now().toISOString()]
             );
@@ -385,7 +637,13 @@ export class MultitenantPostgresRepository {
                 rate_card_revision: Number(contract.rate_card_revision),
                 fx_table_revision: Number(contract.fx_table_revision),
                 sales_price_revision: Number(contract.sales_price_revision),
-                hard_stop_basis_points: Number(contract.hard_stop_basis_points)
+                hard_stop_basis_points: Number(contract.hard_stop_basis_points),
+                runtime_binding: {
+                    capabilities: [...contract.runtime_capabilities],
+                    audience: [...contract.runtime_audience],
+                    deployment_id: contract.runtime_deployment_id,
+                    profile: contract.runtime_profile
+                }
             };
         });
     }

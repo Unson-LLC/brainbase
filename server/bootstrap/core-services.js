@@ -64,6 +64,7 @@ import {
 } from '../services/automation-runtime/automation-runtime-defaults-service.js';
 import { createAutomationRuntimeServices } from '../services/automation-runtime/automation-runtime-services.js';
 import { createTenantRuntimeServicesFromEnv } from '../services/multitenant/tenant-runtime-services.js';
+import { createSlackInstallationControlPlaneFromEnv } from './slack-installation-control-plane.js';
 
 export function createCanonicalTaskRepository({
     backend = resolveCanonicalTaskBackend(),
@@ -145,6 +146,11 @@ export function createCoreServices({
         ownerPersonId: canonicalTaskStoreConfig.ownerPersonId
     });
     const authService = new AuthService();
+    const slackInstallationControlPlaneRuntime = createSlackInstallationControlPlaneFromEnv({
+        pool: infoSSOTService.pool,
+        authService,
+        env: process.env
+    });
     const wikiService = new WikiService({ pool: infoSSOTService.pool });
     // Memory Promotion Kernel is the sole memory_candidates access boundary.
     // Construct it before LearningService so the compatibility API delegates to it.
@@ -352,6 +358,12 @@ export function createCoreServices({
         canonicalTaskRepository,
         canonicalTaskService,
         authService,
+        slackInstallationControlPlane: slackInstallationControlPlaneRuntime.controlPlane,
+        slackInstallationControlPlaneAuthMiddleware: slackInstallationControlPlaneRuntime.authMiddleware,
+        slackInstallationControlPlaneAppId: slackInstallationControlPlaneRuntime.appId,
+        resolvePreProvisionedSlackConnection: slackInstallationControlPlaneRuntime.resolvePreProvisionedConnection,
+        slackInstallationControlPlaneReady: slackInstallationControlPlaneRuntime.ready,
+        slackInstallationControlPlaneReason: slackInstallationControlPlaneRuntime.reason,
         wikiService,
         learningService,
         learningHealthService,

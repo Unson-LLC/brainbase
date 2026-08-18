@@ -24,6 +24,33 @@ const validManifest = {
         actor_id: 'svc_mana_runtime',
         canonical_project_id: 'project_mana',
         capabilities: ['send_message', 'create_task']
+    },
+    contract_revision: {
+        contract_id: 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        revision: '1',
+        status: 'active',
+        effective_from: '2026-08-18T00:00:00Z',
+        effective_until: null,
+        plan_code: 'mana-standard',
+        allowances: { tool_calls: 1000 },
+        thresholds_basis_points: [5000, 8000, 10000],
+        overage_policy: 'deny',
+        hard_stop_basis_points: 10000,
+        rate_card_revision: 8,
+        fx_table_revision: 5,
+        sales_price_revision: 3,
+        capabilities: [
+            'signed_tenant_context',
+            'connection_revision_recheck',
+            'tenant_scoped_authorization',
+            'credential_broker_v1',
+            'usage_receipt_v1',
+            'idempotent_effects_v1',
+            'container_sanitization_v1'
+        ],
+        audience: ['mana-runtime'],
+        deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        profile: 'shared_cloud'
     }
 };
 
@@ -39,11 +66,14 @@ describe('provisioning manifest', () => {
             project_code: 'mana',
             display_name: 'Unson Business',
             tenant_id: validManifest.tenant_id,
-            tenant_key: 'unson-business'
+            tenant_key: 'unson-business',
+            contract_revision: validManifest.contract_revision
         });
 
         expect(first.tenant_key).toBe('unson-business');
         expect(first.workspace_connection.scopes).toEqual(['channels:history', 'chat:write']);
+        expect(first.contract_revision.revision).toBe('1');
+        expect(first.contract_revision.capabilities).toContain('signed_tenant_context');
         expect(canonicalProvisioningFingerprint(first)).toBe(canonicalProvisioningFingerprint(second));
         expect(canonicalProvisioningFingerprint(first)).toMatch(/^[a-f0-9]{64}$/u);
     });
@@ -76,5 +106,35 @@ describe('provisioning manifest', () => {
             ...validManifest,
             service_actor: { ...validManifest.service_actor, capabilities: ['delete_everything'] }
         })).toThrow(/capabilit/u);
+    });
+
+    it('requires the canonical runtime contract binding fields', () => {
+        for (const field of ['capabilities', 'audience', 'deployment_id', 'profile', 'revision']) {
+            const contract = { ...validManifest.contract_revision };
+            delete contract[field];
+            expect(() => normalizeProvisioningManifest({
+                ...validManifest,
+                contract_revision: contract
+            })).toThrow(new RegExp(`contract_revision.${field}`, 'u'));
+        }
+    });
+
+    it('rejects a contract that omits any canonical protocol capability', () => {
+        const capabilities = validManifest.contract_revision.capabilities.slice(1);
+        expect(() => normalizeProvisioningManifest({
+            ...validManifest,
+            contract_revision: { ...validManifest.contract_revision, capabilities }
+        })).toThrow(/capabilit/u);
+    });
+
+    it('rejects a non-active or non-effective contract revision', () => {
+        expect(() => normalizeProvisioningManifest({
+            ...validManifest,
+            contract_revision: { ...validManifest.contract_revision, status: 'draft' }
+        })).toThrow(/active/u);
+        expect(() => normalizeProvisioningManifest({
+            ...validManifest,
+            contract_revision: { ...validManifest.contract_revision, effective_from: 'not-a-date' }
+        })).toThrow(/effective_from/u);
     });
 });

@@ -113,9 +113,114 @@ $workspace_connection_revision_fk$;
 -- Contract: FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision).
 -- The existing credential_ref remains an opaque reference to the secret boundary.
 
+-- Runtime binding is kept separate from the canonical commercial contract row.
+-- This preserves the existing tenant_contract_revisions payload while making
+-- deployment and protocol capabilities explicit at provisioning time.
+CREATE TABLE IF NOT EXISTS tenant_contract_revision_runtime_bindings (
+    tenant_id TEXT NOT NULL,
+    contract_id TEXT NOT NULL,
+    contract_revision BIGINT NOT NULL CHECK (contract_revision > 0),
+    capabilities TEXT[] NOT NULL CHECK (cardinality(capabilities) > 0),
+    audience TEXT[] NOT NULL CHECK (cardinality(audience) > 0),
+    deployment_id TEXT NOT NULL CHECK (deployment_id ~ '^dep_[0-9A-HJKMNP-TV-Z]{26}$'),
+    profile TEXT NOT NULL CHECK (profile IN ('shared_cloud', 'dedicated_cloud', 'customer_managed_oss')),
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (tenant_id, contract_id, contract_revision),
+    FOREIGN KEY (tenant_id, contract_id, contract_revision)
+        REFERENCES tenant_contract_revisions(tenant_id, contract_id, contract_revision)
+);
+
+CREATE INDEX IF NOT EXISTS tenant_contract_revision_runtime_bindings_deployment_idx
+    ON tenant_contract_revision_runtime_bindings (tenant_id, deployment_id, profile);
+
 CREATE UNIQUE INDEX IF NOT EXISTS workspace_connections_tenant_provider_workspace_app_uq
     ON workspace_connections (tenant_id, provider, workspace_id, app_id)
     WHERE status IN ('pending', 'active');
+
+-- Slack OAuth registration is a control-plane operation.  Only hashes of the
+-- state/nonce digests and opaque credential references are stored here; OAuth
+-- bearer material never crosses this schema boundary.
+ALTER TABLE workspace_connections
+    ADD COLUMN IF NOT EXISTS enterprise_id TEXT,
+    ADD COLUMN IF NOT EXISTS installer_id TEXT,
+    ADD COLUMN IF NOT EXISTS deployment_id TEXT,
+    ADD COLUMN IF NOT EXISTS profile TEXT,
+    ADD COLUMN IF NOT EXISTS contract_revision TEXT;
+
+DO $workspace_connection_status_migration$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'workspace_connections'::regclass
+           AND conname = 'workspace_connections_status_check'
+    ) THEN
+        ALTER TABLE workspace_connections DROP CONSTRAINT workspace_connections_status_check;
+    END IF;
+    ALTER TABLE workspace_connections
+        ADD CONSTRAINT workspace_connections_status_check
+        CHECK (status IN ('pending', 'active', 'revoked', 'reauth_required', 'uninstalled', 'expired'));
+END
+$workspace_connection_status_migration$;
+
+DO $workspace_connection_profile_migration$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'workspace_connections'::regclass
+           AND conname = 'workspace_connections_profile_check'
+    ) THEN
+        ALTER TABLE workspace_connections
+            ADD CONSTRAINT workspace_connections_profile_check
+            CHECK (profile IS NULL OR profile IN ('shared_cloud', 'dedicated_cloud', 'customer_managed_oss'));
+    END IF;
+END
+$workspace_connection_profile_migration$;
+
+CREATE TABLE IF NOT EXISTS slack_installation_intents (
+    installation_intent_id TEXT PRIMARY KEY CHECK (installation_intent_id ~ '^insi_[0-9A-HJKMNP-TV-Z]{26}$'),
+    tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
+    tenant_revision_at_write BIGINT NOT NULL,
+    app_id TEXT NOT NULL CHECK (app_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'),
+    expected_workspace_id TEXT,
+    expected_enterprise_id TEXT,
+    initiated_by_principal_id TEXT NOT NULL CHECK (initiated_by_principal_id ~ '^per_[0-9A-HJKMNP-TV-Z]{26}$'),
+    expected_connection_revision BIGINT,
+    state_hash TEXT CHECK (state_hash IS NULL OR state_hash ~ '^sha256:[a-f0-9]{64}$'),
+    nonce_hash TEXT CHECK (nonce_hash IS NULL OR nonce_hash ~ '^sha256:[a-f0-9]{64}$'),
+    issued_at TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    consumed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL,
+    FOREIGN KEY (tenant_id, tenant_revision_at_write)
+        REFERENCES brainbase_tenant_revisions(tenant_id, tenant_revision),
+    UNIQUE (state_hash),
+    CHECK (expires_at > issued_at),
+    CHECK (expires_at <= issued_at + INTERVAL '10 minutes'),
+    CHECK (expected_connection_revision IS NULL OR expected_connection_revision > 0),
+    CHECK (consumed_at IS NULL OR consumed_at >= issued_at)
+);
+
+CREATE INDEX IF NOT EXISTS slack_installation_intents_tenant_idx
+    ON slack_installation_intents (tenant_id, expires_at, consumed_at);
+
+CREATE TABLE IF NOT EXISTS slack_installation_exchange_ledger (
+    installation_intent_id TEXT PRIMARY KEY
+        REFERENCES slack_installation_intents(installation_intent_id),
+    tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
+    request_digest TEXT NOT NULL CHECK (request_digest ~ '^sha256:[a-f0-9]{64}$'),
+    status TEXT NOT NULL CHECK (status IN ('completed', 'failed')),
+    connection_id TEXT,
+    connection_revision BIGINT,
+    response_payload JSONB,
+    created_at TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ,
+    UNIQUE (tenant_id, installation_intent_id),
+    CHECK (status <> 'completed' OR (connection_id IS NOT NULL AND connection_revision IS NOT NULL AND response_payload IS NOT NULL))
+);
+
+CREATE INDEX IF NOT EXISTS slack_installation_exchange_ledger_tenant_idx
+    ON slack_installation_exchange_ledger (tenant_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS tenant_provisioning_operations (
     operation_id TEXT PRIMARY KEY CHECK (operation_id ~ '^op_[A-Za-z0-9-]{8,128}$'),

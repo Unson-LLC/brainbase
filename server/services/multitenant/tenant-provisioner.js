@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { canonicalJson } from './canonical-json.js';
 import { canonicalProvisioningFingerprint, normalizeProvisioningManifest } from './provisioning-manifest.js';
 
 const TERMINAL_STATUSES = new Set(['applied', 'failed', 'conflict']);
@@ -54,11 +55,140 @@ function redactedReceipt(receipt) {
         connection_revision: receipt.connection_revision,
         actor_id: receipt.actor_id,
         capabilities: receipt.capabilities,
+        contract_revision: receipt.contract_revision,
         desired_state_sha256: receipt.desired_state_sha256,
         outcome: receipt.outcome,
         failure_code: receipt.failure_code,
         readback: receipt.readback
     };
+}
+
+function timestampForComparison(value) {
+    if (value instanceof Date) return value.toISOString().replace('.000Z', 'Z');
+    return value == null ? null : String(value);
+}
+
+function contractCore(contract) {
+    return {
+        contract_id: contract.contract_id,
+        revision: String(contract.revision),
+        status: contract.status,
+        effective_from: timestampForComparison(contract.effective_from),
+        effective_until: timestampForComparison(contract.effective_until),
+        plan_code: contract.plan_code,
+        allowances: contract.allowances,
+        thresholds_basis_points: contract.thresholds_basis_points.map(Number),
+        overage_policy: contract.overage_policy,
+        hard_stop_basis_points: Number(contract.hard_stop_basis_points),
+        rate_card_revision: Number(contract.rate_card_revision),
+        fx_table_revision: Number(contract.fx_table_revision),
+        sales_price_revision: Number(contract.sales_price_revision)
+    };
+}
+
+function runtimeBinding(contract) {
+    return {
+        capabilities: [...contract.capabilities],
+        audience: [...contract.audience],
+        deployment_id: contract.deployment_id,
+        profile: contract.profile
+    };
+}
+
+function contractReceipt(contract) {
+    return {
+        ...contractCore(contract),
+        ...runtimeBinding(contract)
+    };
+}
+
+function assertContractEffective(contract, now) {
+    const nowMs = Date.parse(now);
+    if (!Number.isFinite(nowMs)
+        || Date.parse(contract.effective_from) > nowMs
+        || (contract.effective_until !== null && Date.parse(contract.effective_until) <= nowMs)) {
+        throw new TenantProvisioningError('CONTRACT_NOT_EFFECTIVE', 'Contract revision is not effective at provisioning time');
+    }
+}
+
+function contractRowsEqual(existing, contract) {
+    return canonicalJson(contractCore(existing)) === canonicalJson(contractCore(contract));
+}
+
+function bindingRowsEqual(existing, contract) {
+    return canonicalJson({
+        capabilities: [...(existing.capabilities ?? [])].sort(),
+        audience: [...(existing.audience ?? [])].sort(),
+        deployment_id: existing.deployment_id,
+        profile: existing.profile
+    }) === canonicalJson(runtimeBinding(contract));
+}
+
+async function ensureContractRevision(client, tenant, contract, now) {
+    assertContractEffective(contract, now);
+    const revision = Number(contract.revision);
+    const existingResult = await client.query(
+        `SELECT tenant_id, contract_id, contract_revision, tenant_revision_at_write,
+                status, effective_from, effective_until, plan_code, allowances,
+                thresholds_basis_points, overage_policy, hard_stop_basis_points,
+                rate_card_revision, fx_table_revision, sales_price_revision
+           FROM tenant_contract_revisions
+          WHERE tenant_id = $1 AND contract_revision = $2
+          FOR UPDATE`,
+        [tenant.tenant_id, revision]
+    );
+    const existing = existingResult.rows[0] ?? null;
+    if (existing && existing.contract_id !== contract.contract_id) {
+        throw new TenantProvisioningError('CONTRACT_REVISION_CONFLICT', 'Contract revision is already owned by another contract');
+    }
+    if (existing && !contractRowsEqual(existing, contract)) {
+        throw new TenantProvisioningError('CONTRACT_REVISION_CONFLICT', 'Canonical contract revision payload differs from the manifest');
+    }
+    if (!existing) {
+        try {
+            await client.query(
+                `INSERT INTO tenant_contract_revisions (
+                    contract_id, contract_revision, tenant_id, tenant_revision_at_write,
+                    status, effective_from, effective_until, plan_code, allowances,
+                    thresholds_basis_points, overage_policy, hard_stop_basis_points,
+                    rate_card_revision, fx_table_revision, sales_price_revision
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15)`,
+                [contract.contract_id, revision, tenant.tenant_id, tenant.tenant_revision,
+                    contract.status, contract.effective_from, contract.effective_until,
+                    contract.plan_code, JSON.stringify(contract.allowances), contract.thresholds_basis_points,
+                    contract.overage_policy, contract.hard_stop_basis_points, contract.rate_card_revision,
+                    contract.fx_table_revision, contract.sales_price_revision]
+            );
+        } catch (error) {
+            if (error?.code === '23505') {
+                throw new TenantProvisioningError('CONTRACT_REVISION_CONFLICT', 'Contract revision is already owned by another payload');
+            }
+            throw error;
+        }
+    }
+
+    const bindingResult = await client.query(
+        `SELECT capabilities, audience, deployment_id, profile
+           FROM tenant_contract_revision_runtime_bindings
+          WHERE tenant_id = $1 AND contract_id = $2 AND contract_revision = $3
+          FOR UPDATE`,
+        [tenant.tenant_id, contract.contract_id, revision]
+    );
+    const binding = bindingResult.rows[0] ?? null;
+    if (binding && !bindingRowsEqual(binding, contract)) {
+        throw new TenantProvisioningError('CONTRACT_REVISION_CONFLICT', 'Runtime contract binding differs from the manifest');
+    }
+    if (!binding) {
+        await client.query(
+            `INSERT INTO tenant_contract_revision_runtime_bindings (
+                tenant_id, contract_id, contract_revision, capabilities, audience,
+                deployment_id, profile, created_at, updated_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
+            [tenant.tenant_id, contract.contract_id, revision, contract.capabilities, contract.audience,
+                contract.deployment_id, contract.profile, now]
+        );
+    }
+    return contractReceipt(contract);
 }
 
 async function recordFailedOperation(client, {
@@ -349,19 +479,37 @@ async function updateOperation(client, operationIdValue, receipt, now) {
     );
 }
 
-async function readback(client, tenant, project, connection, actor) {
+async function readback(client, tenant, project, connection, actor, contract) {
     const result = await client.query(
         `SELECT t.tenant_id, t.tenant_key, t.tenant_revision,
                 tp.project_id, tp.project_code,
                 wc.connection_id, wc.connection_revision,
-                sa.actor_id
+                sa.actor_id,
+                cr.contract_id, cr.contract_revision,
+                cr.status AS contract_status,
+                cr.effective_from, cr.effective_until, cr.plan_code, cr.allowances,
+                cr.thresholds_basis_points, cr.overage_policy, cr.hard_stop_basis_points,
+                cr.rate_card_revision, cr.fx_table_revision, cr.sales_price_revision,
+                rb.capabilities AS runtime_capabilities,
+                rb.audience AS runtime_audience,
+                rb.deployment_id AS runtime_deployment_id,
+                rb.profile AS runtime_profile
            FROM brainbase_tenants t
            JOIN tenant_projects tp ON tp.tenant_id = t.tenant_id AND tp.project_id = $3
            JOIN workspace_connections wc ON wc.tenant_id = t.tenant_id
            JOIN brainbase_service_actors sa ON sa.tenant_key = t.tenant_key
+           JOIN tenant_contract_revisions cr
+             ON cr.tenant_id = t.tenant_id
+            AND cr.contract_id = $6
+            AND cr.contract_revision = $7
+           JOIN tenant_contract_revision_runtime_bindings rb
+             ON rb.tenant_id = cr.tenant_id
+            AND rb.contract_id = cr.contract_id
+            AND rb.contract_revision = cr.contract_revision
           WHERE t.tenant_id = $1 AND t.tenant_key = $2
             AND wc.connection_id = $4 AND sa.actor_id = $5`,
-        [tenant.tenant_id, tenant.tenant_key, project.project_id, connection.connection_id, actor.actor_id]
+        [tenant.tenant_id, tenant.tenant_key, project.project_id, connection.connection_id, actor.actor_id,
+            contract.contract_id, Number(contract.revision)]
     );
     const row = result.rows[0];
     if (!row) throw new TenantProvisioningError('READBACK_FAILED', 'Provisioning state was not found during readback');
@@ -371,14 +519,41 @@ async function readback(client, tenant, project, connection, actor) {
         || row.project_code !== project.project_code
         || row.connection_id !== connection.connection_id
         || Number(row.connection_revision) !== Number(connection.connection_revision)
-        || row.actor_id !== actor.actor_id) {
+        || row.actor_id !== actor.actor_id
+        || row.contract_id !== contract.contract_id
+        || Number(row.contract_revision) !== Number(contract.revision)
+        || row.runtime_deployment_id !== contract.deployment_id
+        || row.runtime_profile !== contract.profile) {
         throw new TenantProvisioningError('READBACK_BOUNDARY_FAILED', 'Provisioning readback crossed a tenant boundary');
+    }
+    const readbackContract = {
+        contract_id: row.contract_id,
+        revision: String(row.contract_revision),
+        status: row.contract_status,
+        effective_from: timestampForComparison(row.effective_from),
+        effective_until: timestampForComparison(row.effective_until),
+        plan_code: row.plan_code,
+        allowances: row.allowances,
+        thresholds_basis_points: (row.thresholds_basis_points ?? []).map(Number),
+        overage_policy: row.overage_policy,
+        hard_stop_basis_points: Number(row.hard_stop_basis_points),
+        rate_card_revision: Number(row.rate_card_revision),
+        fx_table_revision: Number(row.fx_table_revision),
+        sales_price_revision: Number(row.sales_price_revision),
+        capabilities: [...(row.runtime_capabilities ?? [])],
+        audience: [...(row.runtime_audience ?? [])],
+        deployment_id: row.runtime_deployment_id,
+        profile: row.runtime_profile
+    };
+    if (canonicalJson(contractReceipt(readbackContract)) !== canonicalJson(contractReceipt(contract))) {
+        throw new TenantProvisioningError('READBACK_BOUNDARY_FAILED', 'Contract revision readback did not match the manifest');
     }
     return {
         tenant: true,
         tenant_project: true,
         workspace_connection: true,
-        service_actor: true
+        service_actor: true,
+        contract_revision: contractReceipt(readbackContract)
     };
 }
 
@@ -487,11 +662,15 @@ export async function provisionTenant({
         }), normalizedManifest.tenant_key);
 
         const tenant = await ensureTenant(client, normalizedManifest, now);
+        const contract = await ensureContractRevision(client, tenant, normalizedManifest.contract_revision, now);
         const tenantProject = await ensureTenantProject(client, tenant, project, normalizedManifest, now);
         const connection = await ensureWorkspaceConnection(client, normalizedManifest, tenant, now);
         await ensureServiceRegistry(client, normalizedManifest.service_actor, normalizedManifest.tenant_key, now);
         await activateTenant(client, tenant, now);
-        const readbackResult = await readback(client, tenant, tenantProject, connection, normalizedManifest.service_actor);
+        const readbackResult = await readback(
+            client, tenant, tenantProject, connection, normalizedManifest.service_actor,
+            normalizedManifest.contract_revision
+        );
         const receipt = redactedReceipt({
             operation_id: claimed.operation_id,
             tenant_key: tenant.tenant_key,
@@ -502,6 +681,7 @@ export async function provisionTenant({
             connection_revision: connection.connection_revision,
             actor_id: normalizedManifest.service_actor.actor_id,
             capabilities: normalizedManifest.service_actor.capabilities,
+            contract_revision: contract,
             desired_state_sha256: desiredStateSha256,
             outcome: 'succeeded',
             readback: readbackResult
