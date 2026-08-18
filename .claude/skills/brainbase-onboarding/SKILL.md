@@ -32,7 +32,8 @@ description: Brainbaseの初回オンボーディングで、接続済みMCP、G
 7. person / org / project / relationship / decision候補を、source pointer、evidence hash、scope、observed/inferred、confidence付きでCandidate Storeへ送る。
 8. approve / edit / reject / mergeの人間レビューを行う。未承認候補とinferred edgeはGraph SSOTへ書かない。
 9. 承認済み候補だけを既存のPromotion Gateへ渡す。
-10. Graph SSOTから改めてcontextを取得して最初の問いへ答え、使用entity、不足context、useful/not usefulをreceiptへ残す。
+10. Graph SSOTから改めてcontextを取得して最初の問いへ答える。最初の画面は表や内部状態から始めず、短い箇条書きで `覚えていたこと`、`つながったこと`、`次にできること` の3節をこの順に示す。確認済み事実と未確認事項を混ぜず、entity ID、digest、tool traceなどの技術詳細は求められた時の別表示にする。
+11. 回答本文は保存せず、回答hash、使用entity、不足context、`presentation_contract_version=first_value_clarity.v1`、実際に提示した3節をreceiptへ残す。その後、利用者本人の`useful`または`not_useful`を記録する。CLIサンプル、合成ペルソナ、処理時間だけを価値の証拠にしない。
 
 ## Connector別境界
 
@@ -56,7 +57,7 @@ description: Brainbaseの初回オンボーディングで、接続済みMCP、G
 
 ## 完了条件
 
-connector接続、inventory、候補生成、graph表示だけでは完了しない。承認済みGraph contextで答えを生成し、利用者が`useful`または`not_useful`を記録した`first_value_answer_reviewed`だけをオンボーディング完了とする。
+connector接続、inventory、候補生成、graph表示、CLIサンプルだけでは完了しない。承認済みGraph contextで3節の実用回答を生成し、利用者本人が`useful`または`not_useful`を記録した`first_value_answer_reviewed`だけをオンボーディング完了とする。
 
 ## 禁止
 
@@ -65,4 +66,6 @@ connector接続、inventory、候補生成、graph表示だけでは完了しな
 - raw本文、credential、token、secretをGraph SSOTまたはinventoryへ保存する
 - LLM抽出結果を直接Graph writerへ渡す
 - inferred relationをobserved factとして自動昇格する
+- 初回回答を表、設定完了、ID一覧、CLIサンプルから始める
+- 合成ペルソナや処理時間を利用者本人の価値判定へ置き換える
 - production E2E未確認の状態を提供済みと報告する

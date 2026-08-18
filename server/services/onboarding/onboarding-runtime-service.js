@@ -21,6 +21,16 @@ const URI_USERINFO = /^[a-z][a-z0-9+.-]*:\/\/[^/?#\s]*:[^@/?#\s]+@/i;
 const SECRET_DECODE_LIMIT = 8;
 const REVIEW_REASON_MAX_LENGTH = 500;
 const RUN_LEDGER_SCHEMA_VERSION = 'onboarding_runs.v1';
+const FIRST_VALUE_PRESENTATION_CONTRACT = Object.freeze({
+    version: 'first_value_clarity.v1',
+    sections: Object.freeze(['覚えていたこと', 'つながったこと', '次にできること']),
+    initial_format: 'short_bullets',
+    initial_table: false,
+    separate_confirmed_and_unverified: true,
+    technical_details: 'separate_on_request',
+    value_evidence: 'human_review',
+    cli_sample_counts_as_value: false
+});
 const PERMISSION_SNAPSHOT_KEYS = new Set([
     'visibility', 'collected_by', 'provider', 'connection_id', 'grant_id', 'account_id',
     'folder_id', 'project_code', 'role_min', 'sensitivity', 'scope', 'scopes', 'roles',
@@ -410,6 +420,7 @@ export class OnboardingRuntimeService {
             sources: [],
             candidate_items: [],
             promoted_graph_entity_ids: [],
+            first_value_presentation_contract: clone(FIRST_VALUE_PRESENTATION_CONTRACT),
             first_value_receipt: null,
             first_value_review: null
         });
@@ -687,6 +698,18 @@ export class OnboardingRuntimeService {
             throw new OnboardingRuntimeError('unpromoted_graph_reference', 'answer references an entity not promoted by this run', 409);
         }
         if (usedIds.length === 0) throw new OnboardingRuntimeError('input_invalid', 'used_graph_entity_ids must not be empty');
+        const presentedSections = Array.isArray(input?.presented_sections) ? input.presented_sections : [];
+        if (
+            input?.presentation_contract_version !== FIRST_VALUE_PRESENTATION_CONTRACT.version
+            || presentedSections.length !== FIRST_VALUE_PRESENTATION_CONTRACT.sections.length
+            || presentedSections.some((section, index) => section !== FIRST_VALUE_PRESENTATION_CONTRACT.sections[index])
+        ) {
+            throw new OnboardingRuntimeError(
+                'first_value_presentation_invalid',
+                'first-value answer must use the active presentation contract',
+                409
+            );
+        }
         const generatedAt = iso(this.now);
         return this.repository.update(run.id, (current) => ({
             ...current,
@@ -696,6 +719,8 @@ export class OnboardingRuntimeService {
             first_value_receipt: {
                 answer_hash: hash,
                 used_graph_entity_ids: [...new Set(usedIds)],
+                presentation_contract_version: FIRST_VALUE_PRESENTATION_CONTRACT.version,
+                presented_sections: [...FIRST_VALUE_PRESENTATION_CONTRACT.sections],
                 missing_context: Array.isArray(input.missing_context)
                     ? input.missing_context.slice(0, 50).map((value, index) => requireString(value, `missing_context.${index}`, 200))
                     : [],

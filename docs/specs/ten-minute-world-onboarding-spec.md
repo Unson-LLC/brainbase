@@ -4,7 +4,7 @@ story_id: story-ten-minute-world-onboarding
 title: Ten-minute world onboarding specification
 status: active
 created_at: 2026-08-02
-updated_at: 2026-08-02
+updated_at: 2026-08-18
 ---
 
 # 10分オンボーディング Spec
@@ -25,6 +25,8 @@ updated_at: 2026-08-02
 - INV-012: source は metadata-first に棚卸しし、問いに必要な content だけを明示 scope 内で取得する。
 - INV-013: OAuth token、MCP credential、provider secret を onboarding 入力として貼り付けさせず、既存の認証・secret authority を参照する。
 - INV-014: connector inventoryは実際にtoolを呼べるhost agentが作り、Brainbase serverは兄弟MCP/app connectorの接続状態を捏造または複製しない。
+- INV-015: first-value answerの初期表示は、短い箇条書きによる`覚えていたこと`、`つながったこと`、`次にできること`の3節とし、確認済み事実と未確認事項を分ける。表、entity ID、digest、tool traceは初期表示に置かず、技術詳細として分離する。
+- INV-016: CLIサンプル、合成ペルソナ、処理時間は改善の検証材料であって、利用者本人の`useful|not_useful` reviewを置き換えない。
 
 ## Slice 0 Contracts
 
@@ -60,7 +62,7 @@ updated_at: 2026-08-02
 
 ### C-006: First-value answer receipt
 
-回答 receipt は `value_target`, `used_graph_entity_ids`, `used_edge_ids`, `missing_context`, `generated_at`, `review=useful|not_useful|unreviewed` を返す。
+回答 receipt は `value_target`, `used_graph_entity_ids`, `used_edge_ids`, `missing_context`, `generated_at`, `presentation_contract_version=first_value_clarity.v1`, `presented_sections=[覚えていたこと,つながったこと,次にできること]`, `review=useful|not_useful|unreviewed` を返す。回答本文は保存せず、表示契約に従ったことと回答hashだけを証跡化する。
 
 ### C-007: Host source inventory normalization
 
@@ -109,3 +111,4 @@ host agentはcredentialと本文を除いたsource inventoryを `scripts/normali
 - AP-006: runtime 未確認の設計やローカルテストを production outcome と表明する。
 - AP-007: connector の待ち時間を隠すため、標準経路を手入力や一文書へ置き換える。
 - AP-008: Gmail 全文、Drive 全件、local folder 全階層を scope 選択なしで初回取得する。
+- AP-009: CLIサンプル、合成評価、応答時間だけを「利用者が価値を感じた」証拠として扱う。

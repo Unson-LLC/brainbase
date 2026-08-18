@@ -121,6 +121,8 @@ for (const sourceMode of ['mcp', 'drive', 'gmail', 'local_folder', 'single_docum
       data(await handleOnboardingToolCall('brainbase_onboarding_first_value', {
         project_code: 'brainbase', run_id: run.id, action: 'record', answer_hash: HASH_B,
         used_graph_entity_ids: [promoted.graph_entity_id], missing_context: [],
+        presentation_contract_version: 'first_value_clarity.v1',
+        presented_sections: ['覚えていたこと', 'つながったこと', '次にできること'],
       }, state.dependencies));
       state.advance(9 * 60 * 1000);
       const completed = data<{ source_mode: string; status: string; workflow_state: string; first_value_review: { verdict: string; within_ten_minutes: boolean } }>(

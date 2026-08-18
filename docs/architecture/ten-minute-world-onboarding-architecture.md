@@ -142,9 +142,19 @@ candidate JSON や一般管理画面をそのまま初回レビュー面には�
   "candidate_ids": [],
   "review_receipts": [],
   "promoted_graph_entity_ids": [],
+  "first_value_presentation_contract": {
+    "version": "first_value_clarity.v1",
+    "sections": ["覚えていたこと", "つながったこと", "次にできること"],
+    "initial_format": "short_bullets",
+    "initial_table": false,
+    "technical_details": "separate_on_request",
+    "value_evidence": "human_review"
+  },
   "first_value_answer": {
     "used_entity_ids": [],
     "missing_context": [],
+    "presentation_contract_version": "first_value_clarity.v1",
+    "presented_sections": ["覚えていたこと", "つながったこと", "次にできること"],
     "review": "useful|not_useful|unreviewed"
   },
   "completion_signal": "first_value_answer_reviewed"

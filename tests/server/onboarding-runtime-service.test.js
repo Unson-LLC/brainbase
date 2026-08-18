@@ -17,6 +17,10 @@ import {
 
 const HASH_A = `sha256:${'a'.repeat(64)}`;
 const HASH_B = `sha256:${'b'.repeat(64)}`;
+const FIRST_VALUE_PRESENTATION = {
+    presentation_contract_version: 'first_value_clarity.v1',
+    presented_sections: ['覚えていたこと', 'つながったこと', '次にできること']
+};
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 function sourceEventIdFor(runId, sourceId, evidenceId) {
@@ -89,6 +93,55 @@ async function startAndIngest(fixture, candidates = [{
 }
 
 describe('OnboardingRuntimeService', () => {
+    it('初回価値の表示契約を開始時に示し、契約準拠の3節だけをreceiptへ記録する', async () => {
+        const fixture = createFixture();
+        const started = await fixture.service.startRun(actor(), {
+            project_code: 'brainbase', value_target: '組織を理解する', source_mode: 'drive'
+        });
+
+        expect(started.first_value_presentation_contract).toEqual({
+            version: 'first_value_clarity.v1',
+            sections: ['覚えていたこと', 'つながったこと', '次にできること'],
+            initial_format: 'short_bullets',
+            initial_table: false,
+            separate_confirmed_and_unverified: true,
+            technical_details: 'separate_on_request',
+            value_evidence: 'human_review',
+            cli_sample_counts_as_value: false
+        });
+
+        const ingested = await fixture.service.ingestSource(actor(), started.id, {
+            source: {
+                mode: 'drive', source_id: 'drive:first-value', evidence_ref: 'drive:first-value#p1',
+                content_hash: HASH_A, permission_snapshot: { visibility: 'owner' }, collection_status: 'collected'
+            },
+            candidates: [{
+                subject_type: 'org', fact: 'Unson LLC は Brainbase を運営している',
+                observation_class: 'observed', evidence_id: 'drive:first-value#p1'
+            }]
+        });
+        const promoted = await fixture.service.reviewCandidate(actor(), started.id, ingested.candidates[0].id, { decision: 'approve' });
+
+        await expect(fixture.service.recordFirstValue(actor(), started.id, {
+            answer_hash: HASH_B,
+            used_graph_entity_ids: [promoted.graph_entity_id],
+            missing_context: []
+        })).rejects.toMatchObject({ code: 'first_value_presentation_invalid' });
+
+        await expect(fixture.service.recordFirstValue(actor(), started.id, {
+            answer_hash: HASH_B,
+            used_graph_entity_ids: [promoted.graph_entity_id],
+            missing_context: [],
+            presentation_contract_version: 'first_value_clarity.v1',
+            presented_sections: ['覚えていたこと', 'つながったこと', '次にできること']
+        })).resolves.toMatchObject({
+            first_value_receipt: {
+                presentation_contract_version: 'first_value_clarity.v1',
+                presented_sections: ['覚えていたこと', 'つながったこと', '次にできること']
+            }
+        });
+    });
+
     it('source receiptだけをsource_ready、candidate追加後をcandidates_readyとして投影する', async () => {
         const fixture = createFixture();
         const run = await fixture.service.startRun(actor(), {
@@ -194,7 +247,8 @@ describe('OnboardingRuntimeService', () => {
                 status: 'answering', workflow_state: 'promotion_reviewed'
             });
             await expect(fixture.service.recordFirstValue(actor(), ingested.id, {
-                answer_hash: HASH_B, used_graph_entity_ids: [promoted.graph_entity_id], missing_context: []
+                answer_hash: HASH_B, used_graph_entity_ids: [promoted.graph_entity_id], missing_context: [],
+                ...FIRST_VALUE_PRESENTATION
             })).resolves.toMatchObject({ status: 'answering', workflow_state: 'first_value_ready' });
             await expect(fixture.service.reviewFirstValue(actor(), ingested.id, { verdict: 'useful' }))
                 .resolves.toMatchObject({ status: 'first_value_answer_reviewed', workflow_state: 'first_value_answer_reviewed' });
@@ -232,7 +286,8 @@ describe('OnboardingRuntimeService', () => {
         await fixture.service.recordFirstValue(actor(), ingested.id, {
             answer_hash: HASH_B,
             used_graph_entity_ids: [promoted.graph_entity_id],
-            missing_context: []
+            missing_context: [],
+            ...FIRST_VALUE_PRESENTATION
         });
         fixture.advance(10 * 60 * 1000);
         const completed = await fixture.service.reviewFirstValue(actor(), ingested.id, {
@@ -260,7 +315,8 @@ describe('OnboardingRuntimeService', () => {
         await fixture.service.recordFirstValue(actor(), ingested.id, {
             answer_hash: HASH_B,
             used_graph_entity_ids: [promoted.graph_entity_id],
-            missing_context: []
+            missing_context: [],
+            ...FIRST_VALUE_PRESENTATION
         });
         fixture.advance(600001);
 
@@ -443,7 +499,8 @@ describe('OnboardingRuntimeService', () => {
         await expect(fixture.service.recordFirstValue(actor(), ingested.id, {
             answer_hash: HASH_B,
             used_graph_entity_ids: ['graph_not_promoted'],
-            missing_context: []
+            missing_context: [],
+            ...FIRST_VALUE_PRESENTATION
         })).rejects.toMatchObject({ code: 'unpromoted_graph_reference', statusCode: 409 });
     });
 
@@ -591,7 +648,8 @@ describe('OnboardingRuntimeService', () => {
         await fixture.service.recordFirstValue(actor(), ingested.id, {
             answer_hash: HASH_B,
             used_graph_entity_ids: [promoted.graph_entity_id],
-            missing_context: []
+            missing_context: [],
+            ...FIRST_VALUE_PRESENTATION
         });
         await expect(fixture.service.reviewFirstValue(nonHuman, ingested.id, { verdict: 'useful' }))
             .rejects.toMatchObject({ code: 'human_review_required', statusCode: 403 });
@@ -857,10 +915,12 @@ describe('OnboardingRuntimeService', () => {
         await expect(fixture.service.recordFirstValue(actor(), ingested.id, {
             answer_hash: HASH_B,
             used_graph_entity_ids: [promoted.graph_entity_id],
-            missing_context: ['Bearer TOP_SECRET_TOKEN']
+            missing_context: ['Bearer TOP_SECRET_TOKEN'],
+            ...FIRST_VALUE_PRESENTATION
         })).rejects.toMatchObject({ code: 'secret_or_raw_content_rejected' });
         await fixture.service.recordFirstValue(actor(), ingested.id, {
-            answer_hash: HASH_B, used_graph_entity_ids: [promoted.graph_entity_id], missing_context: ['customer_org_name']
+            answer_hash: HASH_B, used_graph_entity_ids: [promoted.graph_entity_id], missing_context: ['customer_org_name'],
+            ...FIRST_VALUE_PRESENTATION
         });
         await fixture.service.reviewFirstValue(actor(), ingested.id, { verdict: 'useful' });
 
