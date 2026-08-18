@@ -7,6 +7,7 @@ import {
     resolveTenantJobBoundary,
     resolveSnsPostingLedgerDatabaseUrl,
     resolveSnsPostingLedgerFile,
+    shouldUseJsonLedgerForTest,
     validateArgs
 } from '../../../scripts/run-sns-scheduled-posts.js';
 
@@ -37,7 +38,7 @@ describe('run-sns-scheduled-posts', () => {
         expect(resolveAutoPublishEnabled({})).toBe(false);
     });
 
-    it('uses the same JSON ledger fallback as the SNS Growth route in test mode', () => {
+    it('uses JSON only with the same explicit two-flag test mode as the SNS Growth route', () => {
         expect(resolveSnsPostingLedgerDatabaseUrl({
             BRAINBASE_TEST_MODE: 'true',
             INFO_SSOT_DATABASE_URL: 'postgres://info'
@@ -47,6 +48,12 @@ describe('run-sns-scheduled-posts', () => {
             BRAINBASE_TEST_MODE: 'true'
         })).toBe('postgres://sns');
         expect(resolveSnsPostingLedgerFile({}, '/repo')).toBe('/repo/var/sns-posting-ledger.json');
+        expect(shouldUseJsonLedgerForTest({
+            BRAINBASE_TEST_MODE: 'true',
+            SNS_POSTING_LEDGER_MODE: 'json_test'
+        })).toBe(true);
+        expect(shouldUseJsonLedgerForTest({ BRAINBASE_TEST_MODE: 'true' })).toBe(false);
+        expect(shouldUseJsonLedgerForTest({ SNS_POSTING_LEDGER_MODE: 'json_test' })).toBe(false);
     });
 
     it.each([

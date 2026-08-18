@@ -63,6 +63,32 @@ export class SnsPostValidationError extends Error {
     }
 }
 
+export class SnsPostingLedgerUnavailableError extends Error {
+    constructor() {
+        super('SNS Posting Ledger PostgreSQL URL is required outside explicit JSON test mode');
+        this.name = 'SnsPostingLedgerUnavailableError';
+        this.status = 503;
+        this.code = 'sns_posting_ledger_database_required';
+    }
+}
+
+export function isSnsPostingLedgerJsonTestMode(env = process.env) {
+    return env.BRAINBASE_TEST_MODE === 'true'
+        && env.SNS_POSTING_LEDGER_MODE === 'json_test';
+}
+
+export class SnsPostingLedgerUnavailableRepository {
+    unavailable() {
+        throw new SnsPostingLedgerUnavailableError();
+    }
+
+    async upsertReviewPack() { return this.unavailable(); }
+    async listPosts() { return this.unavailable(); }
+    async findById() { return this.unavailable(); }
+    async updatePost() { return this.unavailable(); }
+    async claimScheduledPost() { return this.unavailable(); }
+}
+
 function nowIso() {
     return new Date().toISOString();
 }

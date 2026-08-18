@@ -640,7 +640,7 @@
     {
       "id": "INV-008",
       "type": "invariant",
-      "statement": "管理API、MCP、background job、migration、監査ログは同じtenant resolutionとactor-resource-connection-deployment-revision照合guardを必ず通る。runtime無効時の管理・監査は503で拒否する。公開jobのproducerはdeployment-localの明示設定からcanonical tenant／resource bindingを永続化し、jobはclaim/provider呼出し前にbackground_jobとして認可する。gateway、設定、binding欠落時は暗黙補完せず拒否する",
+      "statement": "管理API、MCP、background job、migration、監査ログは同じtenant resolutionとactor-resource-connection-deployment-revision照合guardを必ず通る。runtime無効時の管理・監査は503で拒否する。SNS対話APIは認証・tenant guard付きdry-runだけを許可し、公開jobはcanonical bindingのbackground_job認可、PostgreSQL claim、provider呼出しの順を強制する。production DB未設定をJSON fileへfallbackせず、gateway、設定、binding、DB欠落時は暗黙補完せず拒否する",
       "origin": {
         "story_refs": [
           {
@@ -675,6 +675,9 @@
           },
           {
             "file": "server/services/sns/sns-scheduled-publisher.js"
+          },
+          {
+            "file": "server/routes/sns-growth.js"
           }
         ],
         "test_refs": [
@@ -713,6 +716,14 @@
           {
             "file": "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
             "case": "AC-005: review-packのtenant bindingを実PostgreSQLから認可してclaim後にだけpublishする"
+          },
+          {
+            "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
+            "case": "AC-005 rejects unauthenticated, missing-tenant, direct-public-publish, and production DB fallback before provider side effects"
+          },
+          {
+            "file": "tests/server/routes/sns-growth.test.js",
+            "case": "AC-005 rejects direct confirmed public publish and preserves dry-run"
           }
         ]
       },
@@ -752,6 +763,14 @@
           },
           {
             "file_glob": "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/server/routes/sns-growth.test.js",
             "must_cover": "AC-005"
           }
         ]

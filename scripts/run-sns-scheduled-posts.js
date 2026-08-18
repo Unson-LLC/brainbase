@@ -7,7 +7,8 @@ import pg from 'pg';
 import { databaseConfig } from './migrate-m5a-production-schema.js';
 import {
     JsonFileSnsPostingLedgerRepository,
-    PgSnsPostingLedgerRepository
+    PgSnsPostingLedgerRepository,
+    isSnsPostingLedgerJsonTestMode
 } from '../server/services/sns/posting-ledger-repository.js';
 import {
     createSnsPostScriptExecutor,
@@ -58,6 +59,10 @@ export function resolveSnsPostingLedgerFile(env = process.env, cwd = process.cwd
     return env.SNS_POSTING_LEDGER_FILE || path.join(cwd, 'var', 'sns-posting-ledger.json');
 }
 
+export function shouldUseJsonLedgerForTest(env = process.env) {
+    return isSnsPostingLedgerJsonTestMode(env);
+}
+
 export function resolveTenantJobBoundary({
     env = process.env,
     pool,
@@ -105,6 +110,9 @@ export async function main() {
         SNS_POSTING_LEDGER_DATABASE_URL: databaseUrl
     })) : null;
     try {
+        if (!pool && !shouldUseJsonLedgerForTest()) {
+            throw new Error('SNS Posting Ledger PostgreSQL URL is required outside explicit JSON test mode');
+        }
         const autoPublishEnabled = resolveAutoPublishEnabled();
         const tenantJobBoundary = resolveTenantJobBoundary({
             pool,

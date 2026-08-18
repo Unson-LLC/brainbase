@@ -185,6 +185,28 @@ describe('SnsScheduledPublisher', () => {
         expect(events).toEqual(['authorize', 'claim', 'publish']);
     });
 
+    it('AC-005 treats a PostgreSQL claim conflict as fenced and never calls the provider', async () => {
+        const repository = makeRepository();
+        vi.spyOn(repository, 'claimScheduledPost').mockResolvedValue(null);
+        const publishPost = vi.fn();
+        const publisher = new SnsScheduledPublisher({
+            ledgerRepository: repository,
+            tenantBoundaryAuthorizer: vi.fn(async () => ({ authorized: true })),
+            publishService: { publishPost },
+            now: () => new Date('2026-05-14T12:00:00.000Z')
+        });
+
+        const result = await publisher.run({ actor: actor(), auto_publish_enabled: true });
+
+        expect(result).toMatchObject({ posted: 0, failed: 0, skipped: 1 });
+        expect(result.skipped_posts).toEqual([{
+            post_id: 'sns_20260514_1_trust_balance',
+            reason: 'claim_lost'
+        }]);
+        expect(publishPost).not.toHaveBeenCalled();
+        expect(repository.findById('sns_20260514_1_trust_balance').status).toBe('scheduled');
+    });
+
     it.each([
         ['missing authorizer', null, 'UPSTREAM_UNAVAILABLE', 503],
         ['cross tenant', async () => { throw new ContractError('CROSS_TENANT_CANDIDATE', { status: 403 }); }, 'CROSS_TENANT_CANDIDATE', 403]

@@ -70,6 +70,10 @@ SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
 
 `SNS_AUTO_PUBLISH_ENABLED=true`がない場合は`auto_publish_disabled`としてskipする。runtime／PostgreSQL gatewayがなければrunner起動時に停止し、row bindingがない、越境、またはrevision不一致ならclaimとprovider呼出しより前に停止する。
 
+SNS Cockpitの`POST /api/sns-growth/posts/:id/publish`はdry-run確認専用であり、`confirm_public_post=true`を指定しても公開しない。実公開はこのrunnerだけがtenant認可、PostgreSQL claim、provider呼出しの順で行う。
+
+productionでは`SNS_POSTING_LEDGER_DATABASE_URL`、`INFO_SSOT_DATABASE_URL`、`INFO_SSOT_DB_URL`のいずれかが必須である。未設定時は503で停止し、`var/sns-posting-ledger.json`へfallbackしない。JSON repositoryはtestで`BRAINBASE_TEST_MODE=true`と`SNS_POSTING_LEDGER_MODE=json_test`を同時に指定した場合だけ使用できる。
+
 ## launchd運用
 
 1分間隔などで起動する場合は、LaunchAgentからこのコマンドを呼ぶ。repo内plistは安全な初期値として`SNS_AUTO_PUBLISH_ENABLED=false`、`BRAINBASE_TENANT_RUNTIME_ENABLED=0`を持つ。公開時はrepoへ識別子やDB資格情報を書かず、deployment-localのLaunchAgent／環境管理で必要設定を注入する。初回はdry-runまたはskipログを確認し、tenant binding再インポートと正本認可を確認してから有効化する。

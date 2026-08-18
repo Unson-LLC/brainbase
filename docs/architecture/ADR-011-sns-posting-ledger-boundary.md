@@ -107,7 +107,7 @@ raw metrics は Graph に直接書き込まない。
 
 MVP では、X 上で手動投稿し、posted URL を brainbase に貼り戻す運用を許容する。X API による full posting は execution layer として追加してよいが、その場合も同じ Ledger を通す。
 
-full posting execution は `POST /api/sns-growth/posts/:id/publish` を入口にする。公開投稿は外部副作用なので `confirm_public_post=true` を必須とし、dry-run は Ledger を更新しない。実投稿が成功した場合だけ、Ledger に `posted_url`, `posted_at`, `status=posted` を戻す。
+2026-08-18のtenant境界追補により、full posting executionの唯一のproduction入口は`scripts/run-sns-scheduled-posts.js`から`SnsScheduledPublisher.run`への経路とする。`POST /api/sns-growth/posts/:id/publish`は認証・tenant guard付きのdry-run専用であり、`confirm_public_post=true`による直接公開は拒否する。runnerはtenant認可、PostgreSQL claim、provider呼出しの順を強制し、実投稿が成功した場合だけLedgerに`posted_url`、`posted_at`、`status=posted`を戻す。
 
 `/oyasumi` の SNS feedback handoff は、`learning_ready` の Ledger record から candidate-store に `source_system=sns-feedback` の `observation` candidate を作る。raw metrics や reader reaction は `permission_snapshot.sns` に snapshot として保持し、Graph へは直接書き込まない。作成した candidate id は Ledger の `learning_candidate_id` に戻す。
 
@@ -121,7 +121,7 @@ SNS Cockpit から投稿後の反応を手動または将来の polling で取�
 
 `SNS_POSTING_LEDGER_DATABASE_URL` が未設定の場合、同じ Lightsail PostgreSQL infrastructure を指す `INFO_SSOT_DATABASE_URL` / `INFO_SSOT_DB_URL` を使う。generic `DATABASE_URL` は他ツール・別DBを指す可能性があるため、SNS Ledger / M5 migration の接続先としては dedicated URL と Info SSOT URL より低い優先度に置く。
 
-ローカル検証や tunnel / DB 未設定時の UI 動作確認では、同じ repository contract の JSON file fallback を許容する。これは operational fallback であり、Graph SSOT への保存や本番 durable store の代替ではない。
+JSON file repositoryは`BRAINBASE_TEST_MODE=true`かつ`SNS_POSTING_LEDGER_MODE=json_test`を明示した決定論的testだけに許可する。production、通常のlocal runtime、tunnel環境でPostgreSQL URLが未設定なら503でfail closedにし、JSON fileを生成しない。
 
 schema migration は `server/sql/sns-posting-ledger-schema.sql` を通す。既存 M5-A migration runner は candidate-store / integration accounts / SNS Posting Ledger schema を同一 transaction で適用する。
 

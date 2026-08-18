@@ -169,7 +169,7 @@ describe('sns-growth routes', () => {
         expect(repository.findById(post.id).status).toBe('approved');
     });
 
-    it('publishes a confirmed approved Ledger post and returns the posted URL', async () => {
+    it('AC-005 rejects direct confirmed public publish without calling the provider', async () => {
         const { app, repository, calls } = makePublishingApp();
         repository.upsertReviewPack({
             account_id: 'acc_x_sato',
@@ -185,11 +185,11 @@ describe('sns-growth routes', () => {
         const res = await request(app)
             .post(`/api/sns-growth/posts/${post.id}/publish`)
             .send({ confirm_public_post: true })
-            .expect(200);
+            .expect(409);
 
-        expect(calls[0].options.confirm_public_post).toBe(true);
-        expect(res.body.post.status).toBe('posted');
-        expect(res.body.post.posted_url).toBe('https://x.com/i/web/status/2055000000000000001');
+        expect(res.body).toMatchObject({ code: 'sns_direct_public_publish_disabled' });
+        expect(calls).toHaveLength(0);
+        expect(repository.findById(post.id).status).toBe('approved');
     });
 
     it('marks a posted Ledger record as deleted without clearing the posted URL', async () => {

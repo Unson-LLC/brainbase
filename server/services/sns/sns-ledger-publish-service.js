@@ -79,6 +79,9 @@ export class SnsLedgerPublishService {
         if (!dry_run && !confirm_public_post) {
             throw new SnsPostValidationError('confirm_public_post required for public SNS publish');
         }
+        if (!dry_run && post.status !== 'publishing') {
+            throw new SnsPostValidationError('SNS post must be claimed before public SNS publish');
+        }
 
         const publishResult = await this.postExecutor({
             title: post.title,
@@ -90,11 +93,7 @@ export class SnsLedgerPublishService {
         const postedUrl = postedUrlFromResult(publishResult);
         if (!postedUrl) throw new SnsPostValidationError('posted URL missing from publish result');
 
-        let current = post;
-        if (current.status === 'approved') {
-            current = await this.ledgerRepository.updatePost(current.id, { status: 'scheduled' }, actor);
-        }
-        const updated = await this.ledgerRepository.updatePost(current.id, {
+        const updated = await this.ledgerRepository.updatePost(post.id, {
             status: 'posted',
             posted_url: postedUrl,
             posted_at: this.now().toISOString()

@@ -26,7 +26,7 @@ test_files:
 
 - **INV-1**: runnerはSNS Posting Ledgerから `status=scheduled` かつ `scheduled_at <= now` の投稿だけをdue postとして扱う。
 - **INV-2**: runnerは公開投稿が明示的に有効化されていない場合、X投稿スクリプトを呼ばない。
-- **INV-3**: runnerは手動投稿と同じ `SnsLedgerPublishService` 経路を使い、独自のX投稿経路を持たない。
+- **INV-3**: 実公開はrunnerだけが `SnsLedgerPublishService` 経路で行う。対話APIはdry-run専用で、公開副作用を持たない。
 - **INV-4**: runnerは冪等であり、同じLedger rowを二重投稿しない。
 - **INV-5**: `scheduled_at` の比較はJST/UTCの扱いを実装とテストで明示する。
 - **INV-6**: 投稿失敗はUIで再確認できる状態としてLedgerに残し、黙って破棄しない。
@@ -35,6 +35,8 @@ test_files:
 - **INV-9**: 修正前に作成済みのmutable Ledger rowは、review pack再インポートで `time` と `scheduled_at` を補正できる。公開済み履歴は上書きしない。
 - **INV-10**: production review-pack取込はdeployment-localの4つの明示設定からcanonical tenant／resource bindingを全draftへ付与し、欠落・不正時はHTTP送信前に停止する。暗黙tenantを補完しない。
 - **INV-11**: 公開runnerはtenant runtimeとPostgreSQL gatewayを必須にし、永続bindingを`entry_point=background_job`としてclaim／provider呼出し前に認可する。
+- **INV-12**: `/api/sns-growth`は認証と`admin_api` tenant guardを必須とし、非dry-run publishをHTTP 409で拒否する。
+- **INV-13**: production LedgerはPostgreSQLを必須とし、接続先未設定時は503で停止する。JSON fileは明示的なtest modeでだけ使用する。
 
 ## Contracts
 
@@ -87,7 +89,8 @@ SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
 - Publication safety: `SNS_AUTO_PUBLISH_ENABLED=true` がない場合はX投稿を呼ばない。
 - Tenant safety: production importerはbinding欠落時に送信せず、publisherはgateway／binding／認可のいずれかが成立しない場合にclaimとX投稿を呼ばない。
 - Operational surface: runbookに再インポート、dry-run、即時due時の判断が書かれている。
-- UI/API surface: API routeやUIコンポーネントは変更しない。SNS UIが表示するLedger rowの `time` / `scheduled_at` contractだけを変更対象にする。
+- UI/API surface: `/api/sns-growth`全体に認証とtenant guardを適用し、publish endpointはdry-runだけを許可する。UIコンポーネントの公開操作はscheduled runnerへ委譲する。
+- Storage surface: productionでPostgreSQL URLがなければ503とし、ローカルJSON fileを生成しない。
 
 ## Scenarios
 
@@ -145,6 +148,18 @@ SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
 - **when**: public runnerを実行する。
 - **then**: `entry_point=background_job`認可がclaim／provider呼出しより先に成功した場合だけ投稿する。
 
+### S-10: 対話APIから直接公開しない
+
+- **given**: 認証・tenant context付きのoperatorがSNS publish endpointを呼ぶ。
+- **when**: `dry_run=true`でない公開要求を送る。
+- **then**: `sns_direct_public_publish_disabled`で拒否し、claim、Ledger mutation、provider呼出しを行わない。
+
+### S-11: production DB未設定でfail closedにする
+
+- **given**: production runtimeにSNS Ledger用PostgreSQL URLがない。
+- **when**: SNS Ledger APIを呼ぶ。
+- **then**: `sns_posting_ledger_database_required`を503で返し、JSON fileとprovider副作用を生成しない。
+
 ## Anti-patterns
 
 - **AP-1**: runnerが `SnsLedgerPublishService` を迂回してX投稿スクリプトを直接呼ぶ。
@@ -155,6 +170,8 @@ SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
 - **AP-6**: デプロイだけで既存Ledger rowの `scheduled_at` が補正されたとみなす。
 - **AP-7**: tenant env欠落を既定tenant、account ID、workspace ID、project codeから補完する。
 - **AP-8**: tenant bindingの認可より前にrowをclaimする、またはX providerを呼ぶ。
+- **AP-9**: 対話APIの`confirm_public_post`でclaim／fencingを迂回する。
+- **AP-10**: production DB未設定をJSON file repositoryで継続する。
 
 ## Verification
 
@@ -171,3 +188,5 @@ SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
 | INV-9, S-7, AP-6 | tests/sns/posting-ledger/posting-ledger-repository.test.js, docs/runbooks/sns-scheduled-publisher.md | ✅ |
 | INV-10, S-8, AP-7 | tests/sns/ops/import-sns-review-pack-to-ledger.test.js, tests/sns/posting-ledger/posting-ledger-repository.test.js | ✅ |
 | INV-11, S-9, AP-8 | tests/sns/ops/run-sns-scheduled-posts.test.js, tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js, tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts | ✅ |
+| INV-12, S-10, AP-9 | tests/server/routes/sns-growth.test.js, tests/server/bootstrap/sns-growth-production-boundary.test.js | ✅ |
+| INV-13, S-11, AP-10 | tests/server/bootstrap/sns-posting-ledger-runtime-config.test.js, tests/server/bootstrap/sns-growth-production-boundary.test.js | ✅ |

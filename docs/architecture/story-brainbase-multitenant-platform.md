@@ -82,6 +82,8 @@ contextは署名または同等の改ざん検知を備え、各境界で再検�
 
 tenant runtimeのfeature flagはtenant境界を迂回する許可ではない。runtimeが無効、未設定、または正本へ到達不能な場合、認証済み管理APIと監査APIは`upstream_unavailable`として503で拒否する。公開副作用を行うbackground jobは起動時にtenant boundary gatewayを必須化する。review pack producerはdeployment-localの明示設定からcanonical tenant／resource bindingを各Ledger rowへ永続化し、jobはそのbindingをclaimおよびprovider呼出しより前に`entry_point=background_job`で照合する。gateway、設定、bindingのいずれかがなければ既定tenantを補完せず停止する。旧`PostingService.tick`はproduction schedulerのcall siteではなく、公開経路は`run-sns-scheduled-posts.js`から`SnsScheduledPublisher.run`へ限定する。
 
+SNS Cockpitの`/api/sns-growth`は認証と`admin_api` tenant guardの後にだけ到達できる。対話APIのpublish endpointはdry-run専用とし、公開副作用を実行しない。実公開は`SnsScheduledPublisher`だけが`background_job`認可、PostgreSQLの競合安全なclaim、provider呼出しの順に実行する。productionでSNS Ledger接続先がない場合は503で停止し、JSON file repositoryは明示的なtest modeだけに限定する。これにより、API直送とローカルfile fallbackのどちらもclaim／fencingを迂回できない。
+
 ## Workspace Connection
 
 workspace connectionは外部workspaceとtenantの関係を表す正本オブジェクトである。installation、workspace、app、scope、status、revisionの履歴を監査可能にし、複数workspace、再インストール、scope変更、失効を同じtenant境界で扱う。
@@ -149,7 +151,7 @@ protocol version negotiationで必須機能、任意機能、互換期間を合�
 | `AC-002` | 全管理・データ・契約領域をtenant配下へ置く。 |
 | `AC-003` | workspace、project、organization表示をtenant代用にしない。 |
 | `AC-004` | 一意解決と業務処理前のfail-closedを定義する。 |
-| `AC-005` | API、MCP、job、migration、監査へ同じ境界を適用する。runtime無効時の管理／監査は503、公開jobはproducerの明示的bindingとgatewayを必須にし、副作用前認可とする。 |
+| `AC-005` | API、MCP、job、migration、監査へ同じ境界を適用する。runtime無効時の管理／監査は503、SNS対話APIは認証・tenant guard・dry-run限定、公開jobはproducerの明示的binding、gateway、PostgreSQL claimを必須にし、副作用前認可とする。 |
 | `AC-006` | dry-run、照合、隔離、rollbackを移行契約にする。 |
 | `AC-101` | Workspace Connection Registryを正本化する。 |
 | `AC-102` | 複数workspace、再インストール、失効をrevision履歴で扱う。 |

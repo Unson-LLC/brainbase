@@ -44,7 +44,9 @@ import { AccountService } from '../services/account/account-service.js';
 import { PgAccountRepository } from '../services/account/account-repository.js';
 import {
     JsonFileSnsPostingLedgerRepository,
-    PgSnsPostingLedgerRepository
+    PgSnsPostingLedgerRepository,
+    SnsPostingLedgerUnavailableRepository,
+    isSnsPostingLedgerJsonTestMode
 } from '../services/sns/posting-ledger-repository.js';
 import {
     createSnsPostScriptExecutor,
@@ -71,16 +73,19 @@ export function resolveSnsPostingLedgerDatabaseUrl(env = process.env) {
     return env.INFO_SSOT_DATABASE_URL || env.INFO_SSOT_DB_URL || '';
 }
 
-function createSnsPostingLedgerRepository(runtimePaths) {
-    const databaseUrl = resolveSnsPostingLedgerDatabaseUrl();
+export function createSnsPostingLedgerRepository(runtimePaths, { env = process.env } = {}) {
+    const databaseUrl = resolveSnsPostingLedgerDatabaseUrl(env);
     if (databaseUrl) {
         return new PgSnsPostingLedgerRepository({
             pool: new Pool({ connectionString: databaseUrl })
         });
     }
-    return new JsonFileSnsPostingLedgerRepository({
-        filePath: path.join(runtimePaths.varDir, 'sns-posting-ledger.json')
-    });
+    if (isSnsPostingLedgerJsonTestMode(env)) {
+        return new JsonFileSnsPostingLedgerRepository({
+            filePath: path.join(runtimePaths.varDir, 'sns-posting-ledger.json')
+        });
+    }
+    return new SnsPostingLedgerUnavailableRepository();
 }
 
 function createDecisionEventService(runtimePaths) {
@@ -213,7 +218,8 @@ export function registerApiRoutes(app, {
     uploadsDir,
     runtimeInfo,
     brainbaseRoot,
-    tenantRuntimeServices
+    tenantRuntimeServices,
+    snsPostExecutor = null
 }) {
     const adminTenantGuard = tenantRuntimeServices
         ? createTenantEntrypointGuard(tenantRuntimeServices, 'admin_api')
@@ -322,15 +328,20 @@ export function registerApiRoutes(app, {
         }));
     }
     const snsPostingLedgerRepository = createSnsPostingLedgerRepository(runtimePaths);
-    app.use('/api/sns-growth', createSnsGrowthRouter({
-        repository: snsPostingLedgerRepository,
-        publishService: new SnsLedgerPublishService({
-            ledgerRepository: snsPostingLedgerRepository,
-            postExecutor: createSnsPostScriptExecutor()
-        }),
-        accountService: createSnsAccountService(),
-        accountProvider: createSnsAccountProvider()
-    }));
+    app.use(
+        '/api/sns-growth',
+        requireAuth(authService, { allowInsecureHeaders: false }),
+        adminTenantGuard,
+        createSnsGrowthRouter({
+            repository: snsPostingLedgerRepository,
+            publishService: new SnsLedgerPublishService({
+                ledgerRepository: snsPostingLedgerRepository,
+                postExecutor: snsPostExecutor || createSnsPostScriptExecutor()
+            }),
+            accountService: createSnsAccountService(),
+            accountProvider: createSnsAccountProvider()
+        })
+    );
     app.use('/api/wiki', createWikiRouter(wikiService));
     app.use('/api/usage', createUsageRouter(tokenUsageService));
     const workflowAuthGuard = requireAuth(authService);

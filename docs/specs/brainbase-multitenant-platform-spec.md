@@ -57,7 +57,7 @@ Brainbaseのconformance testは共通manifestの1 positive、21 negative、1 non
 - **INV-007 Collection and outcome**: `collection_state=collected|partial|not_collected`と`outcome=succeeded|failed|cancelled|timed_out`を独立に保持し、未計測・取得不能・部分取得を0件、0円、成功へ変換しない。取得済み空結果だけは`collected`、`observed_units=0`、`failure_code=NO_DATA`とする。
 - **INV-008 Immutable accounting**: canonical OperationReceipt wireは共通Schemaのまま確定後immutableとし、Brainbase価格台帳は同じ`receipt_id`へ当時のcontract、rate、FX、sales price revisionを別snapshotとして同一transactionで保持する。
 - **INV-009 Deployment isolation**: tenant、deployment、connection、credentialのいずれかが一致しない場合、別の組み合わせへfallbackしない。
-- **INV-010 Uniform boundary**: 管理API、MCP、background job、migration、監査ログで同じtenant解決・照合規則を使う。tenant runtime無効・未設定時も管理／監査を`next()`で通過させず503で拒否する。公開副作用を行うjobはgatewayと永続tenant bindingを必須とし、claim／provider呼出しより前に`entry_point=background_job`で認可する。
+- **INV-010 Uniform boundary**: 管理API、MCP、background job、migration、監査ログで同じtenant解決・照合規則を使う。tenant runtime無効・未設定時も管理／監査を`next()`で通過させず503で拒否する。SNSを含む運用APIは認証とtenant guardを必須にし、対話APIから公開副作用を実行しない。公開副作用を行うjobはgatewayと永続tenant bindingを必須とし、claim／provider呼出しより前に`entry_point=background_job`で認可する。claimはPostgreSQL上で競合安全に行い、production接続先がない場合はローカルfileへfallbackしない。
 
 ## 2. 識別子と共通型
 
@@ -346,6 +346,14 @@ canonical OperationReceiptはmana-runtime PR #237のSchemaと同値で、`pricin
 | `PUT /api/v1/tenants/{tenant_id}/contracts/{contract_id}/revisions/{revision}` | immutable contract revision | `201 ContractRevision` | overlapping active period、invalid threshold |
 | `GET /api/v1/tenants/{tenant_id}/receipts/{receipt_id}` | tenant-scoped id | `200 OperationReceipt` | cross-tenant resource is non-disclosing denial |
 
+### SNS運用API境界
+
+`/api/sns-growth`配下は`Authorization`と`Brainbase-Tenant-Context`、`Brainbase-Resource-Ref`を必須とし、`entry_point=admin_api`でtenant境界を照合する。`POST /api/sns-growth/posts/{post_id}/publish`は`{ "dry_run": true }`だけを受理し、Ledger mutationとprovider呼出しを行わない。`confirm_public_post=true`を含む非dry-run要求はHTTP 409、`code=sns_direct_public_publish_disabled`で拒否する。
+
+実公開の唯一のproduction entrypointは`scripts/run-sns-scheduled-posts.js`から`SnsScheduledPublisher.run`への経路である。各rowの永続tenant bindingを`entry_point=background_job`で認可し、`PgSnsPostingLedgerRepository.claimScheduledPost`でclaimを取得してからproviderを呼ぶ。claim競合は`claim_lost`としてskipし、providerを呼ばない。
+
+SNS Ledger接続先は`SNS_POSTING_LEDGER_DATABASE_URL`を優先し、次に`INFO_SSOT_DATABASE_URL`／`INFO_SSOT_DB_URL`を使う。productionで全て未設定ならSNS Ledger操作はHTTP 503、`code=sns_posting_ledger_database_required`で拒否し、`var/sns-posting-ledger.json`を作らない。JSON repositoryは`BRAINBASE_TEST_MODE=true`かつ`SNS_POSTING_LEDGER_MODE=json_test`の明示的な組合せだけで使用できる。
+
 ### 外部runtime API
 
 | method／path | 入力 | 成功 | 意味 |
@@ -530,7 +538,8 @@ tenant context、署名／時刻、revision、認可、credential scope、isolat
 | `tests/server/bootstrap/tenant-entrypoint-fail-closed.test.js` | runtime無効時の認証済みadmin／auditがtenant guardを通過して業務handlerへ到達する | 管理API／監査APIの503 fail-closed |
 | `tests/sns/ops/run-sns-scheduled-posts.test.js` | public publish runnerがruntime無効でもboundaryなしで起動する | production background job起動時のgateway必須化 |
 | `tests/sns/ops/import-sns-review-pack-to-ledger.test.js` | production review-pack producerがtenant bindingを永続化しない | 4つのdeployment-local envをcanonical bindingへ変換し、欠落時はHTTP送信前に拒否 |
-| `tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js` | due postをtenant認可前にclaimしproviderへ送る | 永続bindingの副作用前認可、missing／cross-tenant拒否 |
+| `tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js` | due postをtenant認可前にclaimしproviderへ送る、またはclaim競合後もproviderへ進む | 永続bindingの副作用前認可、missing／cross-tenant拒否、claim fencing |
+| `tests/server/bootstrap/sns-growth-production-boundary.test.js` | SNS APIが認証・tenant guardなしで直接publishでき、DB未設定時にJSON fileへfallbackする | 未認証／tenant欠落拒否、direct publish 409、DB未設定503、file／provider副作用なし |
 | `tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts` | review-packからpublisherまでtenant binding／authorizerが未配線 | import→Ledger→background_job認可→provider呼出しの既存経路回帰 |
 
 Redの成立条件は「新contractがないため期待した箇所で失敗する」ことであり、環境変数不足、外部サービス停止、秘密値不足による失敗はRed証拠にしない。各Redを確認後、slice単位で最小実装し、Green、既存回帰、Refactorへ進む。
@@ -543,7 +552,7 @@ Redの成立条件は「新contractがないため期待した箇所で失敗す
 | `AC-002` | INV-002、Contract-02 | `tenant-authorization-boundary: every owned row has tenant` | organization／project／Graph／Receiptを束ねるtenant列がない |
 | `AC-003` | INV-001、AP-001／002 | `tenant-authority: aliases never resolve tenant` | authがorganizationIdとtenantIdをfallbackする |
 | `AC-004` | INV-003〜005、BBMT-N-001／002／012 | `tenant-authority: rejects unresolved ambiguous invalid before work` | 一意解決・revision検証がない |
-| `AC-005` | INV-010、Contract-02 | `tenant-entrypoint-fail-closed: runtime disabled admin/audit 503`、`import-sns-review-pack: canonical binding or fail before HTTP`、`run-sns-scheduled-posts: public runner requires gateway`、`sns-scheduled-publisher: authorize before claim/provider`、`scheduled-publisher E2E`、`PostgreSQL binding readback→authorize→claim→publish` | runtime無効時の管理／監査fail-open、producer binding欠落、production scheduler未配線をREDで固定 |
+| `AC-005` | INV-010、Contract-02 | `tenant-entrypoint-fail-closed: runtime disabled admin/audit 503`、`sns-growth production boundary: auth + tenant guard + direct publish disabled + DB required`、`import-sns-review-pack: canonical binding or fail before HTTP`、`run-sns-scheduled-posts: public runner requires gateway`、`sns-scheduled-publisher: authorize before claim/provider and claim-loss fencing`、`scheduled-publisher E2E`、`PostgreSQL binding readback→authorize→claim→publish` | runtime無効時の管理／監査fail-open、SNS API直送、JSON production fallback、producer binding欠落、production scheduler未配線をREDで固定 |
 | `AC-006` | MigrationPlan、BBMT-N-010 | `tenant-backfill: dry-run counts quarantine rollback` | tenant migrationがない |
 | `AC-101` | Contract-03 | `workspace-connection-registry: canonical relationship` | connection正本objectがない |
 | `AC-102` | Contract-03、BBMT-P-002／003 | `workspace-connection-registry: multi-workspace reinstall revoke` | revision履歴がない |
