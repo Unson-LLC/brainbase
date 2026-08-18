@@ -8,7 +8,7 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/Users/ksato/workspace/code/brainbase/scripts/run-brainbase-mcp.sh</string>
+    <string>/Users/ksato/workspace/repos/.runtime/brainbase-31013/scripts/run-brainbase-mcp.sh</string>
   </array>
 
   <key>EnvironmentVariables</key>
@@ -21,6 +21,8 @@
     <string>graphapi</string>
     <key>BRAINBASE_WIKI_API_URL</key>
     <string>http://localhost:31013</string>
+    <key>BRAINBASE_REPO_ROOT</key>
+    <string>/Users/ksato/workspace/repos/.runtime/brainbase-31013</string>
     <key>INFISICAL_BIN</key>
     <string>/Users/ksato/.local/bin/infisical</string>
     <key>PATH</key>

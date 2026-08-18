@@ -1,6 +1,8 @@
 # Runbook: Restart Brainbase 31013 With launchd
 
-Use this when the canonical Brainbase UI needs to pick up merged develop code.
+The 60-second updater normally applies merged `develop` automatically. Use this only when an immediate restart is needed.
+
+The source checkout is `/Users/ksato/workspace/repos/brainbase`. The process runs from the disposable linked worktree `/Users/ksato/workspace/repos/.runtime/brainbase-31013`; do not edit that runtime directly.
 
 ## Standard Restart
 
@@ -29,6 +31,7 @@ It may already be loaded or restarting.
 ```bash
 lsof -nP -iTCP:31013 -sTCP:LISTEN
 curl -s http://127.0.0.1:31013/api/version | jq '.runtime.git'
+cat /Users/ksato/workspace/var/brainbase-mcp-reconcile.last
 ```
 
 Expected after a clean canonical restart:
@@ -36,4 +39,6 @@ Expected after a clean canonical restart:
 ```text
 dirty = false
 sha = latest intended origin/develop commit
+cwd = /Users/ksato/workspace/repos/.runtime/brainbase-31013
+MCP receipt sha = the same sha
 ```
