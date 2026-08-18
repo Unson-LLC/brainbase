@@ -32,7 +32,7 @@ const configuredRoot = process.env.MANA_BRAINBASE_CONFORMANCE_KIT_ROOT;
 const configuredCommit = process.env.MANA_BRAINBASE_CONFORMANCE_KIT_COMMIT;
 
 if (!configuredRoot) {
-    throw new Error('MANA_BRAINBASE_CONFORMANCE_KIT_ROOT must point to the shared PR #237 contract root');
+    throw new Error('MANA_BRAINBASE_CONFORMANCE_KIT_ROOT must point to the shared PR #292 contract root');
 }
 
 const contractRoot = resolve(configuredRoot);
@@ -120,7 +120,7 @@ const fixtureCases = [
     ...manifest.non_applicable.map((file) => ({ kind: 'non_applicable', file }))
 ];
 
-describe('Brainbase producer adapter reads the canonical PR #237 manifest', () => {
+describe('Brainbase producer adapter reads the canonical PR #292 manifest', () => {
     it('locks the fixed commit, manifest digest, and all 23 shared fixtures', async () => {
         expect(configuredCommit).toBe(sourceLock.commit);
         expect(manifest.fixture_set_sha256).toBe(sourceLock.fixture_set_sha256);
