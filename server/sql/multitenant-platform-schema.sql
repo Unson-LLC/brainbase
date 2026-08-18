@@ -1,3 +1,10 @@
+CREATE TABLE IF NOT EXISTS brainbase_schema_migrations (
+    migration_id TEXT PRIMARY KEY,
+    schema_sha256 TEXT NOT NULL CHECK (schema_sha256 ~ '^[a-f0-9]{64}$'),
+    applied_at TIMESTAMPTZ NOT NULL,
+    applied_by TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS brainbase_tenants (
     tenant_id TEXT PRIMARY KEY CHECK (tenant_id ~ '^ten_[0-9A-HJKMNP-TV-Z]{26}$'),
     tenant_revision BIGINT NOT NULL CHECK (tenant_revision > 0),

@@ -1,0 +1,11 @@
+{
+  "name": "@brainbase/cloudflare-tenant-runtime-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run --root ../.. tests/server/cloudflare/tenant-runtime-bridge.test.js",
+    "build": "wrangler deploy --dry-run --config wrangler.jsonc",
+    "deploy": "wrangler deploy --config wrangler.jsonc"
+  }
+}

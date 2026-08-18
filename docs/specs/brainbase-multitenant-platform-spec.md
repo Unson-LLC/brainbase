@@ -10,6 +10,7 @@ implementation_files:
   - server/services/multitenant/
   - server/routes/tenant-runtime.js
   - server/bootstrap/register-api-routes.js
+  - packages/cloudflare-tenant-runtime-bridge/
   - scripts/run-sns-scheduled-posts.js
   - scripts/import-sns-review-pack-to-ledger.js
   - server/services/sns/posting-ledger-repository.js
@@ -25,6 +26,7 @@ test_files:
   - tests/server/services/multitenant/migration-planner.test.js
   - tests/server/routes/tenant-runtime-contract.test.js
   - tests/server/bootstrap/tenant-entrypoint-fail-closed.test.js
+  - tests/server/cloudflare/tenant-runtime-bridge.test.js
   - tests/sns/ops/run-sns-scheduled-posts.test.js
   - tests/sns/ops/import-sns-review-pack-to-ledger.test.js
   - tests/sns/posting-ledger/posting-ledger-repository.test.js
@@ -360,6 +362,10 @@ SNS Ledger接続先は`SNS_POSTING_LEDGER_DATABASE_URL`を優先し、次に`INF
 
 ### 外部runtime API
 
+Cloudflare上のmana-runtimeは、公開URLではなく`BRAINBASE_TENANT_RUNTIME_SERVICE` Service BindingからBrainbase所有の`brainbase-tenant-runtime` private bridgeを呼ぶ。bridgeは`workers_dev=false`かつpreview URLなしで配備し、`POST /api/v1/runtime/provider-requests:forward`だけをAccess保護済みHTTPS Tunnel originへ中継する。別method、query、別route、256 KiBを超えるbody、Tunnel origin／hostname不一致、Access Service Token欠落はorigin到達前に拒否する。callerのAccess header、Cookie、forwarding header、任意headerは中継せず、Access資格情報はWorker Secretだけから注入する。
+
+Tunnel hostのcloudflaredはNode runtimeの`127.0.0.1`専用portへ接続する。Node runtimeのnon-loopback listenは引き続き明示opt-inであり、bridge導入を理由にwildcard bindを有効化しない。bridgeはservice token、tenant context、revisionを判断せず、canonical Node routeのservice authとtenant boundaryを迂回しない。配備とreadbackは[Cloudflare Tenant Runtime Private Bridge runbook](../runbooks/cloudflare-tenant-runtime-bridge.md)に従う。
+
 | method／path | 入力 | 成功 | 意味 |
 |---|---|---|---|
 | `POST /api/v1/runtime/negotiate` | `protocol_negotiation_request`（protocol ID、range、versions、required／optional capabilities、deployment） | `200 protocol_negotiation_response` | 共通契約を開始する前のversion交渉 |
@@ -468,6 +474,8 @@ consumerはevent中のtenantを信頼せず、service identity、deployment、re
 ```
 
 dry-runは書込み0件で、対象ID、推奨tenant、根拠、ambiguityを出力する。`scanned = eligible + ambiguous + unowned`を照合し、apply後は`eligible = migrated + unchanged + failed`を照合する。`ambiguous|unowned|failed`は隔離tableへ置き通常queryから除外する。rollbackはmigration ID単位で、元identifier／revisionを復元し、既に新規更新された行は自動上書きせず`rollback_conflict`に隔離する。
+
+基盤スキーマは`npm run migrate:multitenant-platform-schema`をproduction runnerとする。`--check`は書込みなしのcatalog／schema hash読戻し、`--dry-run`は同じDDLとreadbackをtransaction内で実行後rollback、`--apply --approve-apply`はoperator識別子、advisory lock、同一transaction内のschema hash台帳、readback成功を必須とする。接続先はInfo SSOT用の明示環境変数だけから取得し、接続文字列やsecretを引数、出力、Receiptへ含めない。運用順序と証跡は`docs/runbooks/multitenant-platform-schema-migration.md`を正本とする。
 
 ## 8. Scenariosとfixture
 
