@@ -20,8 +20,70 @@ const tenantEnv = {
     BRAINBASE_SNS_SERVICE_TOKEN: 'bbsvc_test_review_pack_importer',
     BRAINBASE_SNS_TENANT_ID: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     BRAINBASE_SNS_TENANT_REVISION: '7',
+    BRAINBASE_SNS_CONNECTION_ID: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAW',
+    BRAINBASE_SNS_CONNECTION_REVISION: '3',
+    BRAINBASE_SNS_SERVICE_PRINCIPAL_ID: 'svc_sns_review_pack_importer',
+    BRAINBASE_SNS_CHANNEL_ID: 'C0123456789',
     BRAINBASE_SNS_RESOURCE_OBJECT_TYPE: 'project',
     BRAINBASE_SNS_RESOURCE_ID: 'project_sns'
+};
+
+const signedTenantContext = {
+    schema_version: '1.0',
+    protocol_id: 'mana-brainbase-tenant-context',
+    protocol_version: '1.0',
+    issuer: 'brainbase',
+    audience: ['mana-runtime'],
+    tenant: {
+        tenant_id: tenantEnv.BRAINBASE_SNS_TENANT_ID,
+        tenant_revision: tenantEnv.BRAINBASE_SNS_TENANT_REVISION
+    },
+    workspace_connection: {
+        connection_id: tenantEnv.BRAINBASE_SNS_CONNECTION_ID,
+        connection_revision: tenantEnv.BRAINBASE_SNS_CONNECTION_REVISION,
+        status: 'active',
+        provider: 'slack',
+        installation_id: 'installation-sns',
+        workspace_id: 'workspace-sns',
+        app_id: 'app-sns'
+    },
+    actor: {
+        principal_id: tenantEnv.BRAINBASE_SNS_SERVICE_PRINCIPAL_ID,
+        principal_type: 'service',
+        authenticated_subject_id: tenantEnv.BRAINBASE_SNS_SERVICE_PRINCIPAL_ID
+    },
+    authorization: {
+        organization_ids: [],
+        project_ids: [tenantEnv.BRAINBASE_SNS_RESOURCE_ID],
+        data_scopes: ['sns.review_pack'],
+        capability_ids: ['sns.review_pack.import']
+    },
+    placement: {
+        deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAX',
+        profile: 'shared_cloud'
+    },
+    slack: {
+        event_id: 'Ev-SNS-REVIEW-PACK',
+        channel_id: tenantEnv.BRAINBASE_SNS_CHANNEL_ID,
+        requester_id: tenantEnv.BRAINBASE_SNS_SERVICE_PRINCIPAL_ID
+    },
+    correlation_id: 'cor_01ARZ3NDEKTSV4RRFFQ69G5FAY',
+    operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAZ',
+    idempotency_key: `ik1_${'a'.repeat(43)}`,
+    contract_revision: '11',
+    credential: {
+        mode: 'customer_oauth',
+        credential_ref: 'credential-ref-sns',
+        billing_principal_id: tenantEnv.BRAINBASE_SNS_SERVICE_PRINCIPAL_ID
+    },
+    issued_at: '2026-08-18T00:00:00Z',
+    expires_at: '2026-08-18T00:05:00Z',
+    integrity: {
+        method: 'jws_detached',
+        algorithm: 'EdDSA',
+        key_id: 'brainbase-test-key-1',
+        value: `test-protected-header..${'a'.repeat(86)}`
+    }
 };
 
 function writeTempJson(value) {
@@ -48,7 +110,10 @@ function runCli(args, envOverrides = {}) {
     });
 }
 
-function createLedgerImportServer(responseBody) {
+function createLedgerImportServer(responseBody, {
+    contextBody = signedTenantContext,
+    contextStatus = 200
+} = {}) {
     const requests = [];
     const server = http.createServer((request, response) => {
         let body = '';
@@ -61,8 +126,9 @@ function createLedgerImportServer(responseBody) {
                 headers: request.headers,
                 body: body ? JSON.parse(body) : null
             });
-            response.writeHead(200, { 'Content-Type': 'application/json' });
-            response.end(JSON.stringify(responseBody));
+            const isContextResolve = request.url === '/api/v1/runtime/tenant-context:resolve';
+            response.writeHead(isContextResolve ? contextStatus : 200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(isContextResolve ? contextBody : responseBody));
         });
     });
     return new Promise((resolve, reject) => {
@@ -213,7 +279,7 @@ describe('import-sns-review-pack-to-ledger', () => {
         expect(result.stderr).toContain('duplicate_recent_body');
     });
 
-    it('AC-005 sends service auth and canonical tenant headers, then fails loudly when Ledger skips every draft', async () => {
+    it('AC-005 resolves a signed tenant context before sending canonical tenant headers to Ledger', async () => {
         const file = writeTempJson({
             reviewPack: {
                 date: '2026-06-04',
@@ -234,31 +300,59 @@ describe('import-sns-review-pack-to-ledger', () => {
         });
 
         try {
-            const result = await runCli(['--file', file, '--base-url', server.baseUrl]);
+            const result = await runCli(['--file', file, '--base-url', server.baseUrl], {
+                BRAINBASE_TENANT_RUNTIME_URL: server.baseUrl
+            });
             const summary = JSON.parse(result.stdout);
 
             expect(result.status).toBe(1);
-            expect(server.requests).toHaveLength(1);
+            expect(server.requests).toHaveLength(2);
             expect(server.requests[0]).toMatchObject({
+                method: 'POST',
+                url: '/api/v1/runtime/tenant-context:resolve',
+                headers: {
+                    authorization: `Bearer ${tenantEnv.BRAINBASE_SNS_SERVICE_TOKEN}`
+                },
+                body: {
+                    tenant_id: tenantEnv.BRAINBASE_SNS_TENANT_ID,
+                    expected_tenant_revision: tenantEnv.BRAINBASE_SNS_TENANT_REVISION,
+                    connection_id: tenantEnv.BRAINBASE_SNS_CONNECTION_ID,
+                    expected_connection_revision: tenantEnv.BRAINBASE_SNS_CONNECTION_REVISION,
+                    actor: {
+                        principal_id: tenantEnv.BRAINBASE_SNS_SERVICE_PRINCIPAL_ID,
+                        principal_type: 'service',
+                        authenticated_subject_id: tenantEnv.BRAINBASE_SNS_SERVICE_PRINCIPAL_ID
+                    },
+                    authorization: {
+                        organization_ids: [],
+                        project_ids: [tenantEnv.BRAINBASE_SNS_RESOURCE_ID],
+                        data_scopes: ['sns.review_pack'],
+                        capability_ids: ['sns.review_pack.import']
+                    },
+                    slack: {
+                        channel_id: tenantEnv.BRAINBASE_SNS_CHANNEL_ID,
+                        requester_id: tenantEnv.BRAINBASE_SNS_SERVICE_PRINCIPAL_ID
+                    }
+                }
+            });
+            expect(server.requests[0].body.correlation_id).toMatch(/^cor_[0-9A-HJKMNP-TV-Z]{26}$/u);
+            expect(server.requests[0].body.operation_id).toMatch(/^op_[0-9A-HJKMNP-TV-Z]{26}$/u);
+            expect(server.requests[0].body.slack.event_id).toMatch(/^sns-review-pack:/u);
+            expect(server.requests[1]).toMatchObject({
                 method: 'POST',
                 url: '/api/sns-growth/review-pack',
                 headers: {
                     authorization: `Bearer ${tenantEnv.BRAINBASE_SNS_SERVICE_TOKEN}`,
-                    'brainbase-tenant-context': Buffer.from(JSON.stringify({
-                        tenant: {
-                            tenant_id: tenantEnv.BRAINBASE_SNS_TENANT_ID,
-                            tenant_revision: tenantEnv.BRAINBASE_SNS_TENANT_REVISION
-                        }
-                    }), 'utf8').toString('base64url'),
+                    'brainbase-tenant-context': Buffer.from(JSON.stringify(signedTenantContext), 'utf8').toString('base64url'),
                     'brainbase-resource-ref': Buffer.from(JSON.stringify({
                         object_type: tenantEnv.BRAINBASE_SNS_RESOURCE_OBJECT_TYPE,
                         resource_id: tenantEnv.BRAINBASE_SNS_RESOURCE_ID
                     }), 'utf8').toString('base64url')
                 }
             });
-            expect(JSON.stringify(server.requests[0].body)).not.toContain(tenantEnv.BRAINBASE_SNS_SERVICE_TOKEN);
-            expect(server.requests[0].body.drafts).toHaveLength(2);
-            expect(server.requests[0].body.drafts[0].tenant_boundary).toEqual({
+            expect(JSON.stringify(server.requests.map((item) => item.body))).not.toContain(tenantEnv.BRAINBASE_SNS_SERVICE_TOKEN);
+            expect(server.requests[1].body.drafts).toHaveLength(2);
+            expect(server.requests[1].body.drafts[0].tenant_boundary).toEqual({
                 tenant_context: {
                     tenant: {
                         tenant_id: tenantEnv.BRAINBASE_SNS_TENANT_ID,
@@ -283,6 +377,33 @@ describe('import-sns-review-pack-to-ledger', () => {
             });
             expect(result.stderr).toContain('SNS Ledger import created no reviewable posts');
             expect(result.stderr).toContain('duplicate_body:2');
+        } finally {
+            await server.close();
+        }
+    });
+
+    it('AC-005 stops before Ledger when signed tenant context resolution fails', async () => {
+        const file = writeTempJson({
+            reviewPack: {
+                date: '2026-06-04',
+                posts: [{ slot: 'baseline_1', body: 'resolver失敗時は保存しない' }]
+            }
+        });
+        const server = await createLedgerImportServer({ created: [], updated: [], skipped: [] }, {
+            contextBody: { code: 'TENANT_REVISION_MISMATCH' },
+            contextStatus: 409
+        });
+
+        try {
+            const result = await runCli(['--file', file, '--base-url', server.baseUrl], {
+                BRAINBASE_TENANT_RUNTIME_URL: server.baseUrl
+            });
+
+            expect(result.status).toBe(1);
+            expect(result.stdout).toBe('');
+            expect(result.stderr).toContain('TENANT_REVISION_MISMATCH');
+            expect(server.requests).toHaveLength(1);
+            expect(server.requests[0].url).toBe('/api/v1/runtime/tenant-context:resolve');
         } finally {
             await server.close();
         }
@@ -328,6 +449,30 @@ describe('import-sns-review-pack-to-ledger', () => {
             expect(result.status).toBe(1);
             expect(result.stdout).toBe('');
             expect(result.stderr).toContain('BRAINBASE_SNS_SERVICE_TOKEN');
+            expect(server.requests).toEqual([]);
+        } finally {
+            await server.close();
+        }
+    });
+
+    it.each([
+        ['workspace connection', { BRAINBASE_SNS_CONNECTION_ID: '' }, 'BRAINBASE_SNS_CONNECTION_ID'],
+        ['runtime endpoint', { BRAINBASE_TENANT_RUNTIME_URL: '', BRAINBASE_TENANT_RUNTIME_PORT: '' }, 'BRAINBASE_TENANT_RUNTIME_URL']
+    ])('AC-005 fails before HTTP import when %s binding is absent', async (_label, envOverrides, expectedError) => {
+        const file = writeTempJson({
+            reviewPack: {
+                date: '2026-06-04',
+                posts: [{ slot: 'baseline_1', body: 'resolver設定なしでは送信しない' }]
+            }
+        });
+        const server = await createLedgerImportServer({ created: [], updated: [], skipped: [] });
+
+        try {
+            const result = await runCli(['--file', file, '--base-url', server.baseUrl], envOverrides);
+
+            expect(result.status).toBe(1);
+            expect(result.stdout).toBe('');
+            expect(result.stderr).toContain(expectedError);
             expect(server.requests).toEqual([]);
         } finally {
             await server.close();

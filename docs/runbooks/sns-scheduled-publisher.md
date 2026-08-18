@@ -32,12 +32,16 @@ JST変換修正またはtenant境界導入より前に作られた既存rowは�
 
 - `BRAINBASE_SNS_TENANT_ID`
 - `BRAINBASE_SNS_TENANT_REVISION`
+- `BRAINBASE_SNS_CONNECTION_ID`
+- `BRAINBASE_SNS_CONNECTION_REVISION`
+- `BRAINBASE_SNS_SERVICE_PRINCIPAL_ID`
+- `BRAINBASE_SNS_CHANNEL_ID`
 - `BRAINBASE_SNS_RESOURCE_OBJECT_TYPE`
 - `BRAINBASE_SNS_RESOURCE_ID`
 
-加えて、deployment-localのsecret管理から`BRAINBASE_SNS_SERVICE_TOKEN`へ`bbsvc_` service tokenを注入する。取込CLIはBearer認証とcanonical tenant／resource headerを付け、productionの`/api/sns-growth`認証・`admin_api` tenant guardを通る。token値はコマンド引数、repo、fixture、ログへ書かない。
+加えて、deployment-localのsecret管理から`BRAINBASE_SNS_SERVICE_TOKEN`へ`bbsvc_` service tokenを注入し、`BRAINBASE_TENANT_RUNTIME_URL`、または`BRAINBASE_TENANT_RUNTIME_HOST`と`BRAINBASE_TENANT_RUNTIME_PORT`を設定する。対象workspace connectionには`granted_scopes`として`sns.review_pack.import`が必要である。取込CLIは内部runtimeの`POST /api/v1/runtime/tenant-context:resolve`をBearer認証で先に呼び、正本DBから発行された短命Ed25519署名済みEnvelopeを`Brainbase-Tenant-Context`へ設定する。`Brainbase-Resource-Ref`も同時に送り、productionの`/api/sns-growth`認証・`admin_api` tenant guardと本番署名verifierを通る。CLIへ署名秘密鍵を配らず、token値をコマンド引数、repo、fixture、ログへ書かない。
 
-service tokenまたは4つのbinding設定のいずれかが欠落・不正なら、取込CLIはLedger APIへ送信する前に非zeroで停止する。
+service token、runtime URL、connection selector、actor／resource bindingのいずれかが欠落・不正、または署名Envelopeのresolveに失敗した場合、取込CLIはLedger APIへ送信する前に非zeroで停止する。tenant ID／revisionだけの未署名headerを手作りしない。
 
 ```bash
 TODAY=$(date +%F)
