@@ -19,6 +19,8 @@ describe('managed launchd runtime contract', () => {
     expect(start).toContain('fetch --quiet "$REMOTE" "$BRANCH:$TARGET_REF" || fail');
     expect(start).toContain('refs/brainbase-runtime/origin-develop');
     expect(start).toContain('git -C "$RUNTIME_ROOT" reset --hard');
+    expect(start).toContain('rmdir "$LOCK_DIR"');
+    expect(start).toContain('trap - EXIT');
     expect(start).not.toContain('git -C "$SOURCE_REPO" reset');
   });
 

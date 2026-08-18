@@ -49,4 +49,6 @@ export BRAINBASE_REPO_ROOT="$RUNTIME_ROOT"
 export BRAINBASE_RUNTIME_EXPECTED_SHA="$TARGET_SHA"
 ("$RUNTIME_ROOT/scripts/reconcile-brainbase-mcp-runtime.sh" "$TARGET_SHA" &) >/dev/null 2>&1
 cd "$RUNTIME_ROOT"
+rmdir "$LOCK_DIR"
+trap - EXIT
 exec "$NODE_BIN" start.js
