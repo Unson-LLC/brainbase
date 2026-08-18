@@ -10,6 +10,11 @@ function response() {
 }
 
 describe('requirePersonalKnowledgeAccess', () => {
+    const ownerEnv = {
+        BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
+        BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS: 'per_graph_sato'
+    };
+
     it('derives owner and organization from authenticated human context', () => {
         const req = {
             authSource: 'bearer',
@@ -25,6 +30,49 @@ describe('requirePersonalKnowledgeAccess', () => {
         expect(req.personalKnowledgeAccess).toMatchObject({
             personId: 'person_a', organizationId: 'org_a', actorPersonId: 'person_a'
         });
+    });
+
+    it('canonicalizes a configured Personal KG owner alias while preserving the actor identity', () => {
+        const req = {
+            authSource: 'bearer',
+            access: { personId: 'per_graph_sato', organizationId: 'unson' },
+            body: { owner_person_id: 'per_graph_sato' }, query: {}, headers: {}
+        };
+        const res = response();
+        const next = vi.fn();
+
+        requirePersonalKnowledgeAccess({ env: ownerEnv })(req, res, next);
+
+        expect(next).toHaveBeenCalledOnce();
+        expect(req.personalKnowledgeAccess).toMatchObject({
+            personId: 'sato_keigo', organizationId: 'unson', actorPersonId: 'per_graph_sato'
+        });
+        expect(req.access.personId).toBe('sato_keigo');
+        expect(req.access.actorPersonId).toBe('per_graph_sato');
+    });
+
+    it('canonicalizes a proxied owner alias but keeps the service as the actor', async () => {
+        const req = {
+            authSource: 'service-token',
+            access: { personId: 'service_agent', organizationId: 'unson' },
+            headers: {
+                'x-brainbase-proxy-person-id': 'per_graph_sato',
+                'x-brainbase-organization-id': 'unson'
+            },
+            body: {}, query: {}, params: {}
+        };
+        const audit = vi.fn(async () => {});
+        const next = vi.fn();
+
+        await requirePersonalKnowledgeAccess({ audit, env: ownerEnv })(req, response(), next);
+
+        expect(next).toHaveBeenCalledOnce();
+        expect(req.access).toMatchObject({
+            personId: 'sato_keigo', actorPersonId: 'service_agent', organizationId: 'unson'
+        });
+        expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+            personId: 'sato_keigo', actorPersonId: 'service_agent'
+        }));
     });
 
     it('rejects owner spoofing from request input', () => {
