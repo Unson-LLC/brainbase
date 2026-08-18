@@ -188,6 +188,10 @@ describe('onboarding CLI', () => {
     expect(protocol.nextCommands.join('\n')).toContain('brainbase onboard:routines --target codex');
     expect(protocol.completionCheck.join('\n')).toContain('unfinished operationalization');
     expect(protocol.completionCheck.join('\n')).toContain('MCP resolve_entity/get_context/search verification');
+    expect(protocol.interviewSections.find((section: { id: string }) => section.id === 'first_value_demo').questions.join('\n'))
+      .toContain('what Brainbase remembered');
+    expect(protocol.interviewSections.find((section: { id: string }) => section.id === 'first_value_demo').questions.join('\n'))
+      .toContain('optional details section');
     expect(protocol.nextCommands.indexOf('brainbase onboard:demo --scenario "<real request that should now work>"')).toBeLessThan(
       protocol.nextCommands.indexOf('brainbase onboard:diagnose-sources --email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --tasks notion')
     );

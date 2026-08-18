@@ -1,6 +1,6 @@
 {
   "name": "@unson/brainbase-mcp",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Local-first Brainbase MCP server and personal onboarding kit.",
   "type": "module",
   "license": "MIT",

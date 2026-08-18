@@ -96,6 +96,17 @@ describe('buildSkillBundle', () => {
     expect(onboarding).toContain('本人に役立ったかを確認');
     expect(onboarding).toContain('CLIサンプルは初回価値の達成証拠にしない');
   });
+
+  it('shows the first value before technical audit details', () => {
+    const onboarding = buildSkillBundle('codex', ['brainbase-personal-onboarding']).skills[0].content;
+    expect(onboarding).toContain('覚えていたこと');
+    expect(onboarding).toContain('つながったこと');
+    expect(onboarding).toContain('次にできること');
+    expect(onboarding).toContain('表は使わない');
+    expect(onboarding).toContain('正規ID、関係経路、Receipt digest、生のtool trace、source file名は「詳細」');
+    expect(onboarding).toContain('内部Skillの読み込み、検索の再試行、tool orchestrationは説明しない');
+    expect(onboarding).toContain('利用者向け回答の先頭を「覚えていたこと」にする');
+  });
 });
 
 describe('onboard:skills CLI', () => {
