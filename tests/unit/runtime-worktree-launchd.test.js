@@ -44,4 +44,24 @@ describe('managed launchd runtime contract', () => {
     expect(install).toContain('wait_until_unloaded');
     expect(install).toContain('launchctl bootstrap "$DOMAIN" "$MCP_PLIST"');
   });
+
+  it('does not let installable runtime configuration revive the retired clone', () => {
+    const runtimeFiles = [
+      'config/com.brainbase.mcp-brainbase.plist',
+      'config/com.brainbase.mcp-nocodb.plist',
+      'config/com.brainbase.mcp-slack-unson.plist',
+      'config/com.brainbase.mcp-slack-salestailor.plist',
+      'config/com.brainbase.mcp-slack-techknight.plist',
+      'config/com.brainbase.mcp-slack-t0882t8n9uh.plist',
+      'config/com.brainbase.mcp-slack-t0882t8n9uh-upload.plist',
+      'config/com.brainbase.sns-feedback-metrics-poller.plist',
+      'config/com.brainbase.sns-scheduled-publisher.plist',
+      'scripts/run-nocodb-mcp.sh',
+      'scripts/ai-session-adapter/codex-envelope-builder.mjs',
+    ];
+
+    for (const path of runtimeFiles) {
+      expect(read(path), path).not.toContain('/Users/ksato/workspace/code/brainbase');
+    }
+  });
 });

@@ -32,7 +32,7 @@ DEFAULT_NOCODB_MCP_INFISICAL_AUTH_FILE="$HOME/.brainbase/runtime-env/nocodb-mcp.
 NOCODB_MCP_INFISICAL_AUTH_FILE="${NOCODB_MCP_INFISICAL_AUTH_FILE:-}"
 NOCODB_MCP_INFISICAL_AUTH_FALLBACK="${NOCODB_MCP_INFISICAL_AUTH_FALLBACK:-$HOME/.brainbase/runtime-env/slack-mcp.universal-auth.env}"
 
-REPO_ROOT="${BRAINBASE_REPO_ROOT:-/Users/ksato/workspace/code/brainbase}"
+REPO_ROOT="${BRAINBASE_REPO_ROOT:-/Users/ksato/workspace/repos/brainbase}"
 NOCODB_MCP_ENTRY="${NOCODB_MCP_ENTRY:-$REPO_ROOT/mcp/nocodb/src/index.ts}"
 NPX_BIN="${NOCODB_MCP_NPX:-npx}"
 

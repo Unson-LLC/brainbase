@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>com.brainbase.mcp-slack-t0882t8n9uh-upload</string>
-  <key>ProgramArguments</key><array><string>/bin/bash</string><string>/Users/ksato/workspace/code/brainbase/scripts/run-slack-mcp.sh</string><string>t0882t8n9uh</string><string>--upload</string></array>
+  <key>ProgramArguments</key><array><string>/bin/bash</string><string>/Users/ksato/workspace/repos/brainbase/scripts/run-slack-mcp.sh</string><string>t0882t8n9uh</string><string>--upload</string></array>
   <key>EnvironmentVariables</key><dict>
     <key>SLACK_MCP_UPLOAD_CHANNELS</key><string>C0BKTFQ9V38</string>
     <key>SLACK_MCP_UPLOAD_ROOTS</key><string>/tmp,/private/tmp</string>

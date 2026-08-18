@@ -10,7 +10,7 @@
   <array>
     <string>/bin/zsh</string>
     <string>-lc</string>
-    <string>source /Users/ksato/.brainbase/runtime-env/brainbase-production.env &amp;&amp; cd /Users/ksato/workspace/code/brainbase &amp;&amp; npm run sns:poll-metrics -- --date "$(date +%F)" --json</string>
+    <string>source /Users/ksato/.brainbase/runtime-env/brainbase-production.env &amp;&amp; cd /Users/ksato/workspace/repos/brainbase &amp;&amp; npm run sns:poll-metrics -- --date "$(date +%F)" --json</string>
   </array>
 
   <key>EnvironmentVariables</key>
@@ -28,9 +28,9 @@
   <false/>
 
   <key>StandardOutPath</key>
-  <string>/Users/ksato/workspace/code/brainbase/var/logs/sns-feedback-metrics-poller.out.log</string>
+  <string>/Users/ksato/workspace/repos/brainbase/var/logs/sns-feedback-metrics-poller.out.log</string>
 
   <key>StandardErrorPath</key>
-  <string>/Users/ksato/workspace/code/brainbase/var/logs/sns-feedback-metrics-poller.err.log</string>
+  <string>/Users/ksato/workspace/repos/brainbase/var/logs/sns-feedback-metrics-poller.err.log</string>
 </dict>
 </plist>

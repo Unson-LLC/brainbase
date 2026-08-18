@@ -7,7 +7,7 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/Users/ksato/workspace/code/brainbase/scripts/run-slack-mcp.sh</string>
+    <string>/Users/ksato/workspace/repos/brainbase/scripts/run-slack-mcp.sh</string>
     <string>unson</string>
   </array>
   <key>EnvironmentVariables</key>
