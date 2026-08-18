@@ -534,7 +534,7 @@ tenant context、署名／時刻、revision、認可、credential scope、isolat
 | `tests/server/routes/tenant-runtime-contract.test.js`（Envelope境界） | tenant不一致bodyを`403`で拒否できず`200`になり失敗 | 検証済みEnvelopeへの業務入力束縛 |
 | `tests/server/services/multitenant/canonical-wire-strictness.test.js` | required欠落、unknown property、ID／enum／時刻／hash／revision／数量違反を旧validatorが受理して失敗 | canonical Schema同値のstrict rejection |
 | `tests/server/services/multitenant/tenant-boundary-entrypoints.test.js` | 5 entrypoint共通gatewayがなく永続resource ownerを照合できず失敗 | 管理API、MCP、background job、migration、audit log |
-| `tests/server/services/multitenant/postgres-migration-adapter.integration.test.js` | PostgreSQL adapterが存在せずtransactional apply／rollback／tenant readback不能。SNS bindingも実DB経路の認可前readbackが未証明 | 実PostgreSQL migration境界、rollback、tenant isolation、review-pack→Ledger→background_job認可→claim→publish |
+| `tests/server/services/multitenant/postgres-migration-adapter.integration.test.js` | PostgreSQL adapterが存在せずtransactional apply／rollback／tenant readback不能。SNS bindingもproduction schedulerのDB接続・認可・claim・provider合成経路で未証明 | 実PostgreSQL migration境界、rollback、tenant isolation、production scheduler entrypoint→Ledger→background_job認可→claim→publish |
 | `tests/server/bootstrap/tenant-entrypoint-fail-closed.test.js` | runtime無効時の認証済みadmin／auditがtenant guardを通過して業務handlerへ到達する | 管理API／監査APIの503 fail-closed |
 | `tests/sns/ops/run-sns-scheduled-posts.test.js` | public publish runnerがruntime無効でもboundaryなしで起動する | production background job起動時のgateway必須化 |
 | `tests/sns/ops/import-sns-review-pack-to-ledger.test.js` | production review-pack producerがtenant bindingを永続化しない | 4つのdeployment-local envをcanonical bindingへ変換し、欠落時はHTTP送信前に拒否 |

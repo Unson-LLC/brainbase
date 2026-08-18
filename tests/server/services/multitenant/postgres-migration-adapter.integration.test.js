@@ -4,13 +4,14 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CredentialBroker } from '../../../../server/services/multitenant/credential-broker.js';
 import { PostgresTenantMigrationAdapter } from '../../../../server/services/multitenant/postgres-migration-adapter.js';
 import { MultitenantPostgresRepository } from '../../../../server/services/multitenant/postgres-repository.js';
 import { createTrustedHttpProviderForwarder } from '../../../../server/services/multitenant/trusted-provider-forwarder.js';
 import { PgSnsPostingLedgerRepository } from '../../../../server/services/sns/posting-ledger-repository.js';
 import { SnsScheduledPublisher } from '../../../../server/services/sns/sns-scheduled-publisher.js';
+import { runScheduledPosts } from '../../../../scripts/run-sns-scheduled-posts.js';
 
 const { Pool } = pg;
 const tenantA = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV';
@@ -381,6 +382,79 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
         await expect(repository.findById(postId)).resolves.toMatchObject({
             status: 'posted',
             evidence: { tenant_boundary: tenantBoundary }
+        });
+    });
+
+    it('AC-005: production scheduler entrypointが実PostgreSQL接続・background_job認可・claim後にproviderを呼ぶ', async () => {
+        const schema = await readFile(resolve(process.cwd(), 'server/sql/sns-posting-ledger-schema.sql'), 'utf8');
+        await pool.query(schema);
+        const repository = new PgSnsPostingLedgerRepository({ pool });
+        const tenantBoundary = {
+            tenant_context: {
+                tenant: {
+                    tenant_id: tenantA,
+                    tenant_revision: '3'
+                }
+            },
+            resource_ref: {
+                object_type: 'project',
+                resource_id: 'project_sns'
+            }
+        };
+        const imported = await repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            account_handle: '@AIBizNavigator',
+            drafts: [{
+                id: 'week_2026-08-18_2_scheduler_entrypoint',
+                date: '2026-08-18',
+                slot_index: 2,
+                time: '10:00',
+                body: 'production scheduler entrypoint proof',
+                tenant_boundary: tenantBoundary
+            }]
+        });
+        const postId = imported.created[0].id;
+        await repository.updatePost(postId, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+        await repository.updatePost(postId, {
+            status: 'scheduled',
+            scheduled_at: '2026-08-18T00:00:00.000Z'
+        }, { actor_person_id: 'sato_keigo' });
+
+        const authorize = vi.fn(async () => ({ authorized: true, entry_point: 'background_job' }));
+        const createServices = vi.fn(() => ({ tenantBoundaryGateway: { authorize } }));
+        const providerExecutor = vi.fn(async () => ({
+            id: 'provider-entrypoint-proof',
+            url: 'https://x.example.test/status/provider-entrypoint-proof'
+        }));
+        const createPostExecutor = vi.fn(() => providerExecutor);
+        const output = { log: vi.fn() };
+
+        await expect(runScheduledPosts({
+            argv: ['--now', '2026-08-18T00:01:00.000Z', '--json'],
+            env: {
+                SNS_POSTING_LEDGER_DATABASE_URL: container.getConnectionUri(),
+                SNS_AUTO_PUBLISH_ENABLED: 'true',
+                BRAINBASE_TENANT_RUNTIME_ENABLED: '1'
+            },
+            createServices,
+            createPostExecutor,
+            output
+        })).resolves.toMatchObject({
+            due: 1,
+            posted: 1,
+            failed: 0
+        });
+
+        expect(createServices).toHaveBeenCalledOnce();
+        expect(authorize).toHaveBeenCalledWith({
+            tenant_context: tenantBoundary.tenant_context,
+            entry_point: 'background_job',
+            resource_ref: tenantBoundary.resource_ref
+        });
+        expect(providerExecutor).toHaveBeenCalledOnce();
+        await expect(repository.findById(postId)).resolves.toMatchObject({
+            status: 'posted',
+            posted_url: 'https://x.example.test/status/provider-entrypoint-proof'
         });
     });
 });

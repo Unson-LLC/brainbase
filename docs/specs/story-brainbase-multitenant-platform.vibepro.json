@@ -710,12 +710,28 @@
             "case": "AC-005: review-packのtenant bindingを実PostgreSQLから認可してclaim後にだけpublishする"
           },
           {
+            "file": "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+            "case": "AC-005: production scheduler entrypointが実PostgreSQL接続・background_job認可・claim後にproviderを呼ぶ"
+          },
+          {
             "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
-            "case": "AC-005 rejects unauthenticated, missing-tenant, direct-public-publish, and production DB fallback before provider side effects"
+            "case": "rejects unauthenticated access before tenant, Ledger, or provider work"
+          },
+          {
+            "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
+            "case": "rejects an authenticated request without tenant headers before Ledger or provider work"
+          },
+          {
+            "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
+            "case": "returns 503 without a production DB and creates neither a JSON Ledger nor provider side effects"
           },
           {
             "file": "tests/server/routes/sns-growth.test.js",
-            "case": "AC-005 rejects direct confirmed public publish and preserves dry-run"
+            "case": "dry-runs publishing without mutating the approved Ledger post"
+          },
+          {
+            "file": "tests/server/routes/sns-growth.test.js",
+            "case": "AC-005 rejects direct confirmed public publish without calling the provider"
           }
         ]
       },
