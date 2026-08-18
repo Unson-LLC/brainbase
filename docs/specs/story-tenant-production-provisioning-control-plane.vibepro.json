@@ -217,7 +217,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:47:48.249Z",
-      "last_revised_at": "2026-08-18T21:39:50.561Z"
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
     },
     {
       "id": "C-002",
@@ -259,7 +259,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:47:48.249Z",
-      "last_revised_at": "2026-08-18T21:39:50.561Z"
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
     },
     {
       "id": "INV-001",
@@ -317,7 +317,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:47:48.249Z",
-      "last_revised_at": "2026-08-18T21:39:50.561Z"
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
     },
     {
       "id": "C-003",
@@ -359,7 +359,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:47:48.249Z",
-      "last_revised_at": "2026-08-18T21:39:50.561Z"
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
     },
     {
       "id": "C-004",
@@ -401,7 +401,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:47:48.249Z",
-      "last_revised_at": "2026-08-18T21:39:50.561Z"
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
     },
     {
       "id": "INV-005",
@@ -459,7 +459,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T21:06:05.928Z",
-      "last_revised_at": "2026-08-18T21:39:50.561Z"
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
     },
     {
       "id": "S-001",
@@ -505,7 +505,7 @@
         ]
       },
       "first_seen_at": "2026-08-19T00:00:00.000Z",
-      "last_revised_at": "2026-08-18T21:39:50.561Z"
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
     },
     {
       "id": "INV-003",
@@ -555,7 +555,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:47:48.249Z",
-      "last_revised_at": "2026-08-18T21:39:50.561Z"
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
     },
     {
       "id": "C-007",
@@ -605,7 +605,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T21:06:05.928Z",
-      "last_revised_at": "2026-08-18T21:39:50.561Z"
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
     },
     {
       "id": "S-002",
@@ -651,7 +651,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T21:39:50.561Z",
-      "last_revised_at": "2026-08-18T21:39:50.561Z"
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
     },
     {
       "id": "C-006",
@@ -697,7 +697,77 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:47:48.249Z",
-      "last_revised_at": "2026-08-18T21:39:50.561Z"
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "provisionerはmanifestのcontract revisionを、契約本体payload（contract ID、revision、status、有効期間、plan、allowances、basis-point閾値、overage policy、hard stop、rate card／FX／sales price revision）とruntime binding（capabilities、audience、deployment ID、profile）へ分離して同じfresh transactionで保存する。既存の同一tenant／revisionは全項目一致の場合だけ再利用し、不一致はCONTRACT_REVISION_CONFLICTで拒否して、両方のreadbackを秘密値を含まないreceiptへ記録する",
+      "rationale": "実行時bindingを契約本体から推測したり部分上書きしたりせず、同じ契約revisionの意味と配備境界を一意に保つため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-010"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "Control-plane Repository"
+          },
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "操作シーケンス"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/provisioning-manifest.js",
+            "anchor": "normalizeContract"
+          },
+          {
+            "file": "server/services/multitenant/tenant-provisioner.js",
+            "anchor": "ensureContractRevision"
+          },
+          {
+            "file": "server/services/multitenant/tenant-provisioner.js",
+            "anchor": "readback"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/provisioning-manifest.test.js",
+            "case": "requires the canonical runtime contract binding fields"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "returns a redacted readback receipt after an atomic apply"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "fails closed when a canonical contract revision already has a different payload"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/provisioning-manifest.test.js",
+            "must_cover": "canonical runtime contract binding fields"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "must_cover": "contract revision"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T22:35:38.422Z",
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
     },
     {
       "id": "INV-004",
@@ -751,7 +821,7 @@
         ]
       },
       "first_seen_at": "2026-08-19T00:00:00.000Z",
-      "last_revised_at": "2026-08-18T21:39:50.561Z"
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
     },
     {
       "id": "S-003",
@@ -801,7 +871,7 @@
         ]
       },
       "first_seen_at": "2026-08-19T00:00:00.000Z",
-      "last_revised_at": "2026-08-18T21:39:50.561Z"
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
     }
   ],
   "diagrams": [

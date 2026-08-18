@@ -50,18 +50,18 @@ Graph ontologyの新しい人物種別追加、実際の秘密値の発行・保
 
 ## Acceptance Criteria
 
-- [ ] AC-001: テナントに人間が読める `tenant_key` と不変のcanonical tenant IDを持たせ、同一keyの重複を拒否できる。
-- [ ] AC-002: テナントrevisionを履歴として保持し、tenant-owned recordは現在値だけでなく書込み時revisionへ参照整合する。revision更新で既存recordの外部キーを壊さない。
-- [ ] AC-003: 同じtenant・provider・workspace・appの有効接続は一つだけで、再インストールは既存connectionのrevision更新として表現できる。
-- [ ] AC-004: `workspace_connection_revisions`を不変snapshotの正本とし、`workspace_connections`のcurrent pointerは既存snapshotだけを指す。credential・usage・receipt等のrevision参照は履歴へ向け、snapshot追加前にcurrent pointerを進めず、孤立snapshotや存在しないcurrent revisionを保存できない。
-- [ ] AC-005: 同じidempotency keyと同じ宣言の再実行は、既存の成功結果を返して書込みを増やさない。keyと宣言の不一致はconflictとして拒否する。
-- [ ] AC-006: provisionerはschema確認、tenant、tenant revision、workspace connection、contract、service registry、canonical project検証を一つの明示的な段階として実行し、途中失敗時に有効化状態を残さない。
-- [ ] AC-007: service actorとcapabilityはBrainbaseのregistryで一意に管理し、既存Graphへ `person` として書き込まない。権限付与はactor、capability、tenant、project境界を検証してから行う。
-- [ ] AC-008: manifest、通常ログ、receipt、Graphにはtoken、secret、private key、OAuth本文を一切出さず、opaque credential referenceとpublic key metadataだけを扱う。
-- [ ] AC-009: CLIはデフォルトでread-onlyまたはdry-runであり、DB書込みには明示的なapply承認と実行actorを要求する。migration actorは `BRAINBASE_MIGRATION_ACTOR` から取得してDB ledgerの `applied_by` に記録し、本番適用は `--approve-apply` とrollout receiptで承認を固定する。出力は秘密値を含まないJSONで再読込できる。
-- [ ] AC-010: schema差分、provisioning結果、Graph検証結果、readback結果を同一operation IDで追跡でき、未確認・障害・部分適用を成功や0件へ丸めない。
-- [ ] AC-011: provisionerは短いtransactionでoperation claimとattemptを永続化してcommit・lock解放した後だけ、`createPostgresGraphProjectResolver` によるread-onlyのcanonical projects lookupをbounded timeout付きで呼ぶ。適用はfresh transactionで同じclaimをfencing確認してから行い、失敗後の再試行で発行した新claimに対して旧実行が完了を書き込めない。
-- [ ] AC-012: Slack OAuth callbackはintent、request digest、exchange claimを短いtransactionで永続化してから外部token exchangeを行う。登録はfresh transactionで同じclaimとtenant／workspace／app bindingを再検証し、connectionの不変snapshot追加、current pointer更新、opaque credential参照、intent消費、ledger完了を原子的に確定する。完了済みcallbackは保存結果を返し、同時callback、replay、workspace／app衝突、旧claimの完了はfail closedにする。
+- [x] AC-001: テナントに人間が読める `tenant_key` と不変のcanonical tenant IDを持たせ、同一keyの重複を拒否できる。
+- [x] AC-002: テナントrevisionを履歴として保持し、tenant-owned recordは現在値だけでなく書込み時revisionへ参照整合する。revision更新で既存recordの外部キーを壊さない。
+- [x] AC-003: 同じtenant・provider・workspace・appの有効接続は一つだけで、再インストールは既存connectionのrevision更新として表現できる。
+- [x] AC-004: `workspace_connection_revisions`を不変snapshotの正本とし、`workspace_connections`のcurrent pointerは既存snapshotだけを指す。credential・usage・receipt等のrevision参照は履歴へ向け、snapshot追加前にcurrent pointerを進めず、孤立snapshotや存在しないcurrent revisionを保存できない。
+- [x] AC-005: 同じidempotency keyと同じ宣言の再実行は、既存の成功結果を返して書込みを増やさない。keyと宣言の不一致はconflictとして拒否する。
+- [x] AC-006: provisionerはschema確認、tenant、tenant revision、workspace connection、contract、service registry、canonical project検証を一つの明示的な段階として実行し、途中失敗時に有効化状態を残さない。contract revisionは契約本体payloadとruntime bindingを宣言から完全に検証・保存・readbackし、既存revisionとの不一致をconflictとして拒否する。
+- [x] AC-007: service actorとcapabilityはBrainbaseのregistryで一意に管理し、既存Graphへ `person` として書き込まない。権限付与はactor、capability、tenant、project境界を検証してから行う。
+- [x] AC-008: manifest、通常ログ、receipt、Graphにはtoken、secret、private key、OAuth本文を一切出さず、opaque credential referenceとpublic key metadataだけを扱う。
+- [x] AC-009: CLIはデフォルトでread-onlyまたはdry-runであり、DB書込みには明示的なapply承認と実行actorを要求する。migration actorは `BRAINBASE_MIGRATION_ACTOR` から取得してDB ledgerの `applied_by` に記録し、本番適用は `--approve-apply` とrollout receiptで承認を固定する。出力は秘密値を含まないJSONで再読込できる。
+- [x] AC-010: schema差分、provisioning結果、Graph検証結果、contract revision readbackを同一operation IDで追跡でき、未確認・障害・部分適用を成功や0件へ丸めない。
+- [x] AC-011: provisionerは短いtransactionでoperation claimとattemptを永続化してcommit・lock解放した後だけ、`createPostgresGraphProjectResolver` によるread-onlyのcanonical projects lookupをbounded timeout付きで呼ぶ。適用はfresh transactionで同じclaimをfencing確認してから行い、失敗後の再試行で発行した新claimに対して旧実行が完了を書き込めない。
+- [x] AC-012: Slack OAuth callbackはintent、request digest、exchange claimを短いtransactionで永続化してから外部token exchangeを行う。登録はfresh transactionで同じclaimとtenant／workspace／app bindingを再検証し、connectionの不変snapshot追加、current pointer更新、opaque credential参照、intent消費、ledger完了を原子的に確定する。完了済みcallbackは保存結果を返し、同時callback、replay、workspace／app衝突、旧claimの完了はfail closedにする。
 
 ## Scenarios
 
@@ -74,10 +74,11 @@ Graph ontologyの新しい人物種別追加、実際の秘密値の発行・保
 - `TPP-S-007`: schema blockerが未適用、schema hashが不一致、DBが到達不能の場合、通常provisioningを開始せず、既存テナントを変更しない。
 - `TPP-S-008`: claim永続化後にGraphまたはcredential resolverがtimeout／unavailableになると業務行を保存せず、同じkey・fingerprintだけを新claimで再試行でき、旧実行の遅延完了はfencingで拒否される。
 - `TPP-S-009`: 同じSlack OAuth callbackが同時到着しても外部token exchangeは一回だけ行い、完了後のreplayは保存済み結果を返す。失敗後の再試行は新claimで行い、旧claimや別workspace／appによる確定は拒否する。
+- `TPP-S-010`: 宣言されたcontract revisionは、契約本体payload（契約ID、status、有効期間、plan、allowance、閾値、超過方針、価格revision群）とruntime binding（capabilities、audience、deployment、profile）を分離して保存・readbackする。同じtenant／revisionの既存値と一項目でも異なる場合は有効化せずconflictにする。
 
 ## Evidence and Completion
 
-- ACのチェックは、Architecture、Spec、schema contract、CLIテスト、repository transactionテスト、秘密値非露出テストが同じGit HEADへ入り、そのHEADの検証証跡が揃った後だけ完了へ変更する。現在の実装・テストはworking treeで合格しているが未コミットのため、AC-001〜012は未完了表示を維持する。
+- AC-001〜012のチェックは、Architecture、Spec、schema contract、CLIテスト、repository transactionテスト、秘密値非露出テストを同じGit HEADで検証したコード受入れの結果を示す。VibeProのstrict-head検証証跡でHEAD、テスト結果、作業木不変を固定する。
 - dry-runとapply（テスト用DBのみ）の結果で、操作ledger、tenant revision、connection revision、registry、canonical project検証、readbackを照合できる。
 - 本番DB適用、秘密値発行、Graphの人物ontology変更、Cloudflareデプロイ、Slack E2Eは別の配備受入れであり、現時点では未実施と明示する。これらをArchitecture／Spec lifecycleの `final` やコード受入れ完了へ読み替えない。
 

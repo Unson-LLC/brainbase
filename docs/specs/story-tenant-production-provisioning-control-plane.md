@@ -135,8 +135,8 @@ node scripts/provision-tenant.js \
 4. DB transactionとlockを保持しない状態で、`createPostgresGraphProjectResolver` が専用read clientを使ってcanonical projectsをbounded timeout付き・read-onlyで一意解決する。未登録・複数候補・別projectは停止する。
 5. 同じくtransaction外でcredential resolverへopaque referenceの所有関係だけをbounded timeout付きで問い合わせる。未登録ref、別tenant、別connection metadata、revokedをfail closedにする。初回接続で `allow_unregistered` を使う場合も、DB上の既存所有者が0件であることと、canonical credential boundaryがrefの存在およびtenant ID／tenant key／provider／workspace／app bindingを証明することを必須とする。boundary未設定・unavailable・no data・不一致では `CREDENTIAL_BOUNDARY_REQUIRED` または不一致分類で停止し、`first_install` を返さない。
 6. fresh transactionとtenant advisory lockを取得し、同じclaim token hashが現在の所有者であることをfencing確認する。
-7. tenant current／revision、workspace connectionの不変snapshot／current pointer、credential broker ref、service actor／capabilityを保存する。connection snapshotをcurrent pointerより先に追加する。
-8. 全てのreadbackがtenant key、revision、project、connection、actor境界と一致した場合だけtenantをactiveへ遷移し、同じclaimでledgerをappliedへ更新する。
+7. tenant current／revision、契約本体payload／runtime binding、workspace connectionの不変snapshot／current pointer、credential broker ref、service actor／capabilityを保存する。契約本体は `tenant_contract_revisions`、capabilities／audience／deployment／profileは `tenant_contract_revision_runtime_bindings` へ分離し、同一tenant／revisionの既存値と完全一致しない場合は `CONTRACT_REVISION_CONFLICT` で停止する。connection snapshotをcurrent pointerより先に追加する。
+8. 全てのreadbackがtenant key、revision、project、contract本体、runtime binding、connection、actor境界と一致した場合だけtenantをactiveへ遷移し、同じclaimでledgerをappliedへ更新する。redacted receiptには契約ID、revision、status、有効期間、plan、allowances、閾値、超過方針、価格revision群、capabilities、audience、deployment ID、profileのreadbackを含める。
 9. `--dry-run` は適用transactionをrollbackし、`--apply` はcommit後にredacted receiptを返す。
 
 DB、Graph resolver、credential boundaryのいずれかが利用不能または曖昧な場合、Graph writeや別tenant fallbackを行わない。外部検証失敗では業務行の適用を開始せず、短いtransactionで現在claimだけをfailedへ遷移する。適用失敗ではfresh transactionをrollbackしてから同じfenced failure更新を行う。同じkey・fingerprintの再試行は外部呼出し前に新claimを永続化し、旧claimによる遅延完了を拒否する。成功と確定できない状態は `PROVISIONING_FAILED`／`READBACK_FAILED` として残し、同じoperationを黙って新規作成しない。
@@ -149,7 +149,7 @@ claim transactionをcommitしてlockを解放した後だけSlack OAuth token ex
 
 exchange失敗は現在claimに対応するfailed状態として記録する。同じbindingとrequest digestだけを新claimで再試行でき、旧claimの遅延完了は `INSTALLATION_CLAIM_STALE` として拒否する。
 
-## 5. TDD traceability と残りの実装
+## 5. TDD traceability と配備残件
 
 実装済みのテストは次を検証する。
 
@@ -158,7 +158,8 @@ exchange失敗は現在claimに対応するfailed状態として記録する。�
 - idempotency success replay、fingerprint conflict、claim transaction解放後のbounded resolver、失敗再claim、旧attempt fencing、Graph ambiguous／person writeなし、tenant project conflict境界、credential tenant mismatch、redacted readback、標準JWKS
 - Slack OAuthの外部exchange前claim、同時callback抑止、完了replay、失敗再claim、旧callback fencing、workspace／app衝突、snapshot追加後のcurrent pointer更新
 - migration check／dry-run rollback／apply approval／actor／schema prerequisite／index readback
+- contract revisionの必須payload、canonical protocol capabilities、effective window、契約本体／runtime binding分離、同一revision conflict、redacted receipt readback
 
-次の実装レーンで、既存 `tenant_contract_revisions` のmanifest payload（契約ID、plan、allowance、effective window）を同じtransactionへ追加し、contract readbackをreceiptへ含める。契約を推測して書き込むことはしない。Graph側で追加のproject／person／relation作成が必要な顧客運用は、このStoryのprovisionerでは行わず、別の承認済みGraph migrationとして切り出す。
+契約payload境界は実装済みであり、契約を推測して書き込まず、manifestの宣言と既存revisionが一致する場合だけ適用する。Graph側で追加のproject／person／relation作成が必要な顧客運用は、このStoryのprovisionerでは行わず、別の承認済みGraph migrationとして切り出す。
 
 本Storyでは本番DB apply、秘密値発行、Graph ontology変更、Cloudflare／mana-runtime deployを行わない。
