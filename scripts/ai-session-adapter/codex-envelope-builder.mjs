@@ -27,7 +27,7 @@ const SOURCE_SYSTEM = 'codex_session';
  *   /Volumes/UNSON-DRIVE/brainbase-worktrees/session-1777...-unson  → workspace=unson, project_code=brainbase
  *   /Volumes/UNSON-DRIVE/actions-runner/_work/salestailor/salestailor → workspace=unson, project_code=salestailor
  *   /Users/ksato/workspace/projects/mana                              → workspace=unson, project_code=mana
- *   /Users/ksato/workspace/code/brainbase                             → workspace=unson, project_code=brainbase
+ *   /Users/ksato/workspace/repos/brainbase                            → workspace=unson, project_code=brainbase
  *
  * 個人 ksato 環境のため workspace は 'unson' 固定。 project_code は cwd の最終的な project name を抽出。
  *
