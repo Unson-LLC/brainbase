@@ -232,6 +232,8 @@ export function buildAgentOnboardingProtocol(): AgentOnboardingProtocol {
           'Optionally run brainbase onboard:demo to preview which saved context should be used.',
           'Install the MCP config after user approval and restart the selected agent.',
           'Send the real request through that agent and require resolve_entity/get_context/search evidence.',
+          'Start the user-facing answer directly with what Brainbase remembered, without narrating skill loading or tool orchestration; then show how it connected the request and what the user can do next using short bullets rather than a table.',
+          'Keep canonical IDs, relation paths, receipt digests, raw tool traces, and source file names in an optional details section.',
           'Ask the user whether the actual answer was useful. A CLI sample or synthetic evaluator is not onboarding completion.'
         ]
       },

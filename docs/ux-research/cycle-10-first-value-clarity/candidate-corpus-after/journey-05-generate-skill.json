@@ -1,0 +1,20 @@
+{
+  "id": "journey-05-generate-skill",
+  "invocation_kind": "child_process.spawn",
+  "executable": "<isolated-run-root>/consumer/node_modules/.bin/brainbase",
+  "args": [
+    "onboard:skills",
+    "--target",
+    "codex",
+    "--skills",
+    "brainbase-personal-onboarding",
+    "--out",
+    "<isolated-run-root>/consumer/.agents/skills"
+  ],
+  "cwd": "<isolated-run-root>/consumer",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_ms": 201,
+  "stdout": "# Brainbase公開オンボーディングSkills\n\n- 対象: codex\n- Skills: brainbase-personal-onboarding\n- canonical writes: false\n- live config writes: false\n- 出力ディレクトリ: <isolated-run-root>/consumer/.agents/skills\n\n## ファイル\n\n### brainbase-personal-onboarding\n\n- 推奨パス: ~/.agents/skills/brainbase-personal-onboarding/SKILL.md\n- 相対パス: brainbase-personal-onboarding/SKILL.md\n\n```markdown\n---\nname: brainbase-personal-onboarding\ndescription: 公開版Brainbaseの個人オンボーディング面談とローカルMCP設定を、安全に進める。\n---\n\n# Brainbase個人オンボーディング\n\n## 目的\n\nユーザーがCodex、Claude Code、または他のコーディングエージェントからBrainbaseを使い始める時に使う。\n\n## 手順\n\n1. 最初に、Brainbaseを使って試したい現実の依頼を一つ聞く。\n2. `brainbase onboard:start --target codex|claude|codecode` を実行し、本人、プロジェクト、関係者、判断基準の最小候補を確認する。\n3. ユーザーが明示的に承認した事実だけを `brainbase onboard:seed` で保存する。\n4. `brainbase onboard:install --target codex|claude|codecode --dry-run` でMCP設定を確認し、承認後に実設定へ反映して対象エージェントを再起動する。\n5. 新しい実際のエージェントで、Brainbaseの `resolve_entity`、`get_context`、`search` を使うよう明示して最初の現実の依頼を実行する。\n6. 内部準備の宣言を挟まず、利用者向け回答の先頭を「覚えていたこと」にする。続けて「つながったこと」「次にできること」の3節を短い箇条書きで示す。確認済みの事実と未確認事項は混ぜず、初回表示に表は使わない。\n7. 正規ID、関係経路、Receipt digest、生のtool trace、source file名は「詳細」に分け、ホストが対応する場合は折りたたむ。利用者が求めない限り初回の本文へ並べない。\n8. 内部Skillの読み込み、検索の再試行、tool orchestrationは説明しない。失敗によって結果や次の行動が変わる場合だけ示す。\n9. その実回答について本人に役立ったかを確認する。取得開始からここまでを10分以内の初回価値候補ジャーニーとして測る。\n10. CLIの `onboard:demo` は必要なら接続前のプレビューに使えるが、CLIサンプルは初回価値の達成証拠にしない。\n11. 本人が役立つと確認した後だけ、必要に応じてsource診断、追加候補、Skills、ルーティンへ進む。\n12. 継続利用するプロジェクトの詳細が必要なら、本人確認後に `brainbase onboard:projects --write` で登録する。\n\n## 安全ルール\n\n- OAuthトークン、パスワード、APIキー、リフレッシュトークンをチャットに貼るようユーザーに依頼しない。\n- Brainbaseはローカルファーストで扱う。ユーザーが別のローカルパスを明示しない限り、ローカルMCPサーバーと `~/.brainbase/personal-os/` を使う。\n- メール、カレンダー、ドライブ、タスク、メモの生データは `sources/` 配下の二次材料として扱う。\n- canonical contextは、ユーザー確認後の `graph.json`、`relationships.json`、`personal-kg.jsonl`、`decisions.jsonl` だけから作る。\n- 終了コード0、`ready: true`、CLIサンプル、合成ペルソナ判定を、人間本人の価値認識に置き換えない。\n```\n\n## 安全ルール\n- OAuthトークン、パスワード、APIキー、リフレッシュトークンをチャットに貼るようユーザーに依頼しない。\n- 生成されるskillsは個人スコープかつローカルファーストに限定する。\n- 生成されるskillsは内部Brainbase運用からコピーしない。\n- このコマンドはportableなSKILL.mdを表示または書き出すだけで、live agent configurationは変更しない。\n\n## 次のステップ\n- 生成された codex skill files を確認する。\n- 対象エージェントのskill directoryへ配置するか、生成ディレクトリをエージェントに参照させる。\n- `brainbase onboard:agent` を実行し、オンボーディング面談を続ける。\n",
+  "stderr": ""
+}

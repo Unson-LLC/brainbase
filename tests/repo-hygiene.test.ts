@@ -126,6 +126,13 @@ describe('MCP-only repository hygiene', () => {
       expect(text).toContain('public skills placement');
       expect(text).toContain('ohayo` / `oyasumi` / `retro');
       expect(text).toContain('MCP `resolve_entity` / `get_context` / `search` verification');
+      expect(text).toContain('Lead with three short sections');
+      expect(text).toContain('what Brainbase remembered');
+      expect(text).toContain('how it connected the request');
+      expect(text).toContain('what the user can do next');
+      expect(text).toContain('Do not use a table for the first-value answer');
+      expect(text).toContain('canonical IDs, relation paths, receipt digests, raw tool traces, and source file names under an optional details section');
+      expect(text).toContain('Do not narrate internal skill loading, lookup retries, or tool orchestration');
     }
 
     expect(readme, 'onboarding-operationalization-next-actions S-5 C-5 README guidance must keep onboarding open after the demo').toContain('After the demo, keep onboarding open');
@@ -135,6 +142,19 @@ describe('MCP-only repository hygiene', () => {
     expect(readme).toContain('source allowlist / import / candidate review decisions');
     expect(readme).toContain('MCP `resolve_entity` / `get_context` / `search` verification');
     expect(readme).toContain('Do not treat those generated artifacts as installed');
+  });
+
+  it('documents the concise first-value response contract in the public manual', async () => {
+    const firstValue = await readFile(join(repoRoot, 'docs/manual/guide/first-value.md'), 'utf8');
+    const quickStart = await readFile(join(repoRoot, 'docs/manual/guide/quick-start.md'), 'utf8');
+
+    for (const text of [firstValue, quickStart]) {
+      expect(text).toContain('覚えていたこと');
+      expect(text).toContain('つながったこと');
+      expect(text).toContain('次にできること');
+      expect(text).toContain('初回表示に表は使いません');
+      expect(text).toContain('正規ID、関係経路、Receipt digest、toolの生ログは「詳細」');
+    }
   });
 
   it('keeps the public Judgment Host guide aligned with the three-hook audit contract', async () => {

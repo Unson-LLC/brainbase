@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "corpus_id": "cycle-10-candidate-1787010594404",
+  "evidence_kind": "first_value_end_to_end_journey",
+  "execution_surface": "actual_cli_generated_skill_actual_mcp_actual_codex",
+  "source_snapshot": "candidate_local_tarball",
+  "evaluated_repository_head": "d67585f65897ba5b686f189953a24cc428036963",
+  "installed_package_version": "0.3.0",
+  "journey_start": "candidate_tarball_install_started",
+  "journey_completion": "actual_codex_concise_grounded_answer_returned",
+  "journey_budget_ms": 600000,
+  "journey_duration_ms": 28815,
+  "journey_within_budget": true,
+  "actual_resolve_entity_used": true,
+  "actual_get_context_used": true,
+  "actual_search_used": true,
+  "useful_body_present": true,
+  "concise_structure_present": true,
+  "technical_evidence_in_tools": true,
+  "table_absent": true,
+  "internal_narration_absent": true,
+  "generated_skill_used": true,
+  "candidate_journey_passed": true,
+  "synthetic_persona_value_recognition": "recognized_32_of_32",
+  "synthetic_persona_results": "../candidate-persona-results/summary.json",
+  "human_value_recognition": "not_collected",
+  "traces": [
+    {
+      "id": "journey-01-install",
+      "sha256": "201421f7bb4193aee2a715602e94c83ed9f637f7436cb56a9598298b1f657caa",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 1605
+    },
+    {
+      "id": "journey-02-start",
+      "sha256": "855ec7863df9003ba4f83c41cc503072f0fa46a787b880c6541b8696515f8ce7",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 426
+    },
+    {
+      "id": "journey-03-seed",
+      "sha256": "c111236b62d974e369fce5465e4ca4fcde8cae1fd612047fe60b142490e2a0c1",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 299
+    },
+    {
+      "id": "journey-04-doctor",
+      "sha256": "27ff7cadaee33dd66bb4b2ee00b8a1f7197ba40985f5e0ee0ed19e25d3d0d874",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 214
+    },
+    {
+      "id": "journey-05-generate-skill",
+      "sha256": "ba25361e48ad9001877b8f8b46a5d68b9db14dd350c742558825ba8c539b2074",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 201
+    },
+    {
+      "id": "journey-06-real-codex-clear-value",
+      "sha256": "7d067aa1743447e82a8a149bf3294a9aee10dc3e41f3c86dca3921773a983002",
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 26060
+    }
+  ]
+}

@@ -17,7 +17,10 @@ When a user asks to onboard Brainbase from Codex, Claude Code, or CodeCode, trea
 - Do not stop after printing commands. Ask for the one context the user does not want to explain repeatedly: a work premise, key relationship, decision principle, or active project.
 - Seed only facts the user approves with `brainbase onboard:seed`.
 - After seed, preview and approve `brainbase onboard:install --target <agent> --dry-run`, merge only the Brainbase MCP entry, and restart the selected agent.
-- In a fresh real agent session, run the user's real request with Brainbase `resolve_entity`, `get_context`, and `search`. Show the actual answer, canonical IDs, relations, used context, and unknowns, then ask the user whether it was useful.
+- In a fresh real agent session, run the user's real request with Brainbase `resolve_entity`, `get_context`, and `search`. Lead with three short sections: what Brainbase remembered, how it connected the request, and what the user can do next. Keep confirmed facts and unknowns distinct, then ask the user whether it was useful.
+- Do not use a table for the first-value answer. Use short bullets that can be understood without knowing Brainbase internals.
+- Put canonical IDs, relation paths, receipt digests, raw tool traces, and source file names under an optional details section, collapsed when the host supports it, or show them only when the user asks.
+- Do not narrate internal skill loading, lookup retries, or tool orchestration unless a failure changes the result or the next action.
 - Do not stop at `ready: true`. Show the first useful output from the real agent and state what the user did not have to explain again.
 - `brainbase onboard:demo` is an optional local CLI preview. Never use its output, `ready: true`, `cli_sample_ready`, command latency, or a synthetic persona judgment as the onboarding completion signal.
 - Complete the first-value gate only when the human user personally recognizes value in the actual agent result. Record automated install-to-answer execution only as a candidate end-to-end journey.
