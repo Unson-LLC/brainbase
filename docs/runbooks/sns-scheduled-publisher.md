@@ -47,9 +47,9 @@ service token、runtime URL、connection selector、actor／resource bindingの�
 
 既存のclaimを持たない`bbsvc_` tokenはcanonical validatorで拒否される。切替は発行側と検証側を別々に更新せず、次の順序で同じmaintenance window内に行う。
 
-1. deployment-localのsecret管理で、新しいtokenへ設定するissuer、subject、audience、deployment ID、expiry、capabilityを確定する。repo、fixture、ログへtoken値を記録しない。
-2. 発行側の`BRAINBASE_SERVICE_TOKEN_ISSUER`、`BRAINBASE_SERVICE_TOKEN_SUBJECT`、`BRAINBASE_SERVICE_TOKEN_AUDIENCE`、`BRAINBASE_SERVICE_TOKEN_DEPLOYMENT_ID`、`BRAINBASE_SERVICE_TOKEN_EXPIRES_AT`、`BRAINBASE_SERVICE_TOKEN_CAPABILITIES`と、検証側の`BRAINBASE_TENANT_RUNTIME_SERVICE_ISSUER`、`BRAINBASE_TENANT_RUNTIME_SERVICE_AUDIENCE`、`BRAINBASE_TENANT_RUNTIME_DEPLOYMENT_ID`、`BRAINBASE_TENANT_RUNTIME_REQUIRED_CAPABILITIES`が一致することを確認する。
-3. 新しいcanonical tokenを発行し、tenant runtimeとSNS importer／runnerへ同時に反映する。JWT署名secretとtoken本体はdeployment-localのsecret管理から注入する。
+1. deployment-local設定で、新しいtokenのissuer、audience、deployment ID、capability、TTLを確定する。subjectは発行APIの`name`から`svc_<slug>`として生成されるため、予定する`name`と生成後のclaimを照合する。repo、fixture、ログへtoken値を記録しない。
+2. 発行側の`BRAINBASE_SERVICE_TOKEN_ISSUER`、`BRAINBASE_SERVICE_TOKEN_AUDIENCE`、`BRAINBASE_SERVICE_TOKEN_DEPLOYMENT_ID`、`BRAINBASE_SERVICE_TOKEN_CAPABILITIES`と、検証側の`BRAINBASE_TENANT_RUNTIME_SERVICE_ISSUER`、`BRAINBASE_TENANT_RUNTIME_SERVICE_AUDIENCE`、`BRAINBASE_TENANT_RUNTIME_DEPLOYMENT_ID`、`BRAINBASE_TENANT_RUNTIME_REQUIRED_CAPABILITIES`が一致することを確認する。expiryは発行APIの`ttlSeconds`、未指定時は`BRAINBASE_SERVICE_TOKEN_TTL_SECONDS`から生成される。
+3. 認証済み`POST /api/auth/service-tokens`へ`name`、`role`、`projectCodes`、`clearance`、`ttlSeconds`を渡して新しいcanonical tokenを発行し、tenant runtimeとSNS importer／runnerへ同時に反映する。JWT署名secretとtoken本体はdeployment-localのsecret管理から注入する。
 4. `POST /api/v1/runtime/negotiate`、続いて`POST /api/v1/runtime/tenant-context:resolve`を内部networkから疎通確認する。成功応答とtenant bindingを確認するまで公開runnerを有効化しない。
 5. `npm run sns:scheduled-publish -- --dry-run --json`で、provider呼出しやLedger更新を行わずに認証、tenant解決、due選択を確認する。確認後にだけ公開runnerを再開する。
 
