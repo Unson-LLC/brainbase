@@ -338,7 +338,7 @@ function parseForeignKeyConstraint(tableName, constraintName, value, localColumn
 function parseConstraintItem(tableName, item) {
     const trimmed = item.trim().replace(/,$/u, '').trim();
     if (!trimmed) return [];
-    const named = trimmed.match(/^constraint\s+([a-z][a-z0-9_]*)\s+(.+)$/iu);
+    const named = trimmed.match(/^constraint\s+([a-z][a-z0-9_]*)\s+([\s\S]+)$/iu);
     const constraintName = named?.[1] ?? null;
     const value = (named?.[2] ?? trimmed).trim();
     const tableConstraint = value.match(/^(primary\s+key|unique|foreign\s+key|check)\b/iu)?.[1]?.toLowerCase();
@@ -375,7 +375,7 @@ function parseConstraintItem(tableName, item) {
         }];
     }
 
-    const columnMatch = value.match(/^([a-z][a-z0-9_]*)\s+(.+)$/iu);
+    const columnMatch = value.match(/^([a-z][a-z0-9_]*)\s+([\s\S]+)$/iu);
     if (!columnMatch) return [];
     const [, columnName, remainder] = columnMatch;
     const constraints = [];

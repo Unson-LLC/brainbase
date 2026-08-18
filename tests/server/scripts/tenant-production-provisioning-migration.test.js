@@ -141,6 +141,24 @@ async function createPool({
 }
 
 describe('tenant production provisioning migration runner', () => {
+    it('enumerates multiline inline primary key and foreign key constraints', async () => {
+        const { sql } = await readSchemaContract();
+        const { constraints } = migrationSchemaContract(sql);
+
+        expect(constraints).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                table_name: 'slack_installation_exchange_ledger',
+                contype: 'p',
+                definition: 'primary key (installation_intent_id)'
+            }),
+            expect.objectContaining({
+                table_name: 'slack_installation_exchange_ledger',
+                contype: 'f',
+                definition: 'foreign key (installation_intent_id) references slack_installation_intents(installation_intent_id)'
+            })
+        ]));
+    });
+
     it('requires one mode and explicit approval plus actor for apply', () => {
         expect(parseTenantProvisioningMigrationArgs(['--check'])).toEqual({ mode: 'check', approved: false });
         expect(() => parseTenantProvisioningMigrationArgs(['--check', '--dry-run'])).toThrow(/exactly one/u);

@@ -70,6 +70,39 @@ describe.sequential('tenant production provisioning migration catalog readback',
         expect(ledger.rows[0].schema_sha256).toBe(result.schema_sha256);
     }, 120_000);
 
+    it('rejects a missing multiline inline primary key before ledger readback succeeds', async () => {
+        await pool.query('ALTER TABLE slack_installation_exchange_ledger DROP CONSTRAINT slack_installation_exchange_ledger_pkey');
+        try {
+            await expect(runTenantProvisioningMigration({ argv: ['--check'], pool }))
+                .rejects.toMatchObject({ code: 'SCHEMA_READBACK_FAILED' });
+        } finally {
+            await pool.query(
+                `ALTER TABLE slack_installation_exchange_ledger
+                 ADD CONSTRAINT slack_installation_exchange_ledger_pkey PRIMARY KEY (installation_intent_id)`
+            );
+        }
+    }, 120_000);
+
+    it('rejects a wrong multiline inline foreign key before ledger readback succeeds', async () => {
+        await pool.query('ALTER TABLE slack_installation_exchange_ledger DROP CONSTRAINT slack_installation_exchange_ledger_installation_intent_id_fkey');
+        try {
+            await pool.query(
+                `ALTER TABLE slack_installation_exchange_ledger
+                 ADD CONSTRAINT slack_installation_exchange_ledger_installation_intent_id_fkey
+                 FOREIGN KEY (tenant_id) REFERENCES slack_installation_intents(installation_intent_id)`
+            );
+            await expect(runTenantProvisioningMigration({ argv: ['--check'], pool }))
+                .rejects.toMatchObject({ code: 'SCHEMA_READBACK_FAILED' });
+        } finally {
+            await pool.query('ALTER TABLE slack_installation_exchange_ledger DROP CONSTRAINT slack_installation_exchange_ledger_installation_intent_id_fkey');
+            await pool.query(
+                `ALTER TABLE slack_installation_exchange_ledger
+                 ADD CONSTRAINT slack_installation_exchange_ledger_installation_intent_id_fkey
+                 FOREIGN KEY (installation_intent_id) REFERENCES slack_installation_intents(installation_intent_id)`
+            );
+        }
+    }, 120_000);
+
     it('rejects a missing inline check constraint from the real catalog', async () => {
         await pool.query('ALTER TABLE brainbase_service_actor_keys DROP CONSTRAINT brainbase_service_actor_keys_status_check');
         await expect(runTenantProvisioningMigration({ argv: ['--check'], pool }))
