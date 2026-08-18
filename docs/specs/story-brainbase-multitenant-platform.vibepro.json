@@ -632,7 +632,7 @@
     {
       "id": "BBMT-AC-005",
       "type": "invariant",
-      "statement": "管理API、MCP、background job、migration、監査ログは同じtenant resolutionとactor-resource-connection-deployment-revision照合guardを必ず通る。runtime無効時の管理・監査は503で拒否する。SNS対話APIは認証・tenant guard付きdry-runだけを許可し、公開jobはcanonical bindingのbackground_job認可、PostgreSQL claim、provider呼出しの順を強制する。production DB未設定をJSON fileへfallbackせず、gateway、設定、binding、DB欠落時は暗黙補完せず拒否する",
+      "statement": "管理API、MCP、background job、migration、監査ログは同じtenant resolutionとactor-resource-connection-deployment-revision照合guardを必ず通る。runtime無効時の管理・監査は503で拒否する。SNS対話APIは認証・tenant guard付きdry-runだけを許可し、review pack投入はservice authとcanonical tenant/resource headerを必須化する。公開jobはcanonical bindingのbackground_job認可、PostgreSQL claim、provider呼出しの順を強制する。production DB未設定をJSON fileへfallbackせず、gateway、service token、設定、binding、DB欠落時は暗黙補完せず拒否する",
       "origin": {
         "story_refs": [
           {
@@ -693,10 +693,18 @@
             "file": "tests/sns/ops/run-sns-scheduled-posts.test.js",
             "case": "AC-005 fails closed before public publishing when tenant runtime is %s"
           },
-          {
-            "file": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js",
-            "case": "AC-005 requires canonical runtime tenant binding for the production import path"
-          },
+        {
+          "file": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js",
+          "case": "AC-005 requires canonical runtime tenant binding for the production import path"
+        },
+        {
+          "file": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js",
+          "case": "AC-005 sends service auth and canonical tenant headers, then fails loudly when Ledger skips every draft"
+        },
+        {
+          "file": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js",
+          "case": "AC-005 fails before HTTP import when the service token is absent without disclosing a token"
+        },
           {
             "file": "tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js",
             "case": "AC-005 authorizes the persisted background_job binding before claim and provider publish"
@@ -725,10 +733,14 @@
             "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
             "case": "rejects an authenticated request without tenant headers before Ledger or provider work"
           },
-          {
-            "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
-            "case": "returns 503 without a production DB and creates neither a JSON Ledger nor provider side effects"
-          },
+        {
+          "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
+          "case": "returns 503 without a production DB and creates neither a JSON Ledger nor provider side effects"
+        },
+        {
+          "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
+          "case": "accepts the production review-pack client only through service auth and canonical tenant headers"
+        },
           {
             "file": "tests/server/routes/sns-growth.test.js",
             "case": "dry-runs publishing without mutating the approved Ledger post"

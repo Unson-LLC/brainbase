@@ -72,6 +72,17 @@ export function resolveSnsTenantBoundary(env = process.env) {
     }, { required: true });
 }
 
+export function resolveSnsServiceToken(env = process.env) {
+    const token = env.BRAINBASE_SNS_SERVICE_TOKEN;
+    if (typeof token !== 'string' || token.length === 0) {
+        throw new Error('BRAINBASE_SNS_SERVICE_TOKEN is required for SNS Ledger import');
+    }
+    if (!/^bbsvc_[A-Za-z0-9._-]+$/u.test(token)) {
+        throw new Error('BRAINBASE_SNS_SERVICE_TOKEN must be a valid Brainbase service token');
+    }
+    return token;
+}
+
 export function reviewPackToLedgerPayload(input, {
     tenantBoundary = input?.tenant_boundary,
     requireTenantBoundary = false
@@ -166,10 +177,10 @@ export function assertImportCreatedReviewablePosts(summary) {
     }
 }
 
-async function postJson(url, payload) {
-    const response = await fetch(url, {
+async function postJson(url, payload, { headers = {}, fetchImpl = fetch } = {}) {
+    const response = await fetchImpl(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...headers },
         body: JSON.stringify(payload)
     });
     const body = await response.json().catch(() => ({}));
@@ -177,6 +188,35 @@ async function postJson(url, payload) {
         throw new Error(`Ledger import failed: ${response.status} ${body.error || ''}`.trim());
     }
     return body;
+}
+
+function encodeCanonicalHeader(value) {
+    return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+}
+
+export async function postReviewPackToLedger({
+    baseUrl,
+    payload,
+    tenantBoundary,
+    serviceToken,
+    fetchImpl = fetch
+}) {
+    const canonicalTenantBoundary = normalizeSnsTenantBoundary(tenantBoundary, { required: true });
+    const canonicalServiceToken = resolveSnsServiceToken({
+        BRAINBASE_SNS_SERVICE_TOKEN: serviceToken
+    });
+    return postJson(
+        `${baseUrl.replace(/\/$/u, '')}/api/sns-growth/review-pack`,
+        payload,
+        {
+            fetchImpl,
+            headers: {
+                Authorization: `Bearer ${canonicalServiceToken}`,
+                'Brainbase-Tenant-Context': encodeCanonicalHeader(canonicalTenantBoundary.tenant_context),
+                'Brainbase-Resource-Ref': encodeCanonicalHeader(canonicalTenantBoundary.resource_ref)
+            }
+        }
+    );
 }
 
 async function main() {
@@ -192,7 +232,12 @@ async function main() {
         console.log(JSON.stringify(payload, null, 2));
         return;
     }
-    const result = await postJson(`${args.baseUrl.replace(/\/$/u, '')}/api/sns-growth/review-pack`, payload);
+    const result = await postReviewPackToLedger({
+        baseUrl: args.baseUrl,
+        payload,
+        tenantBoundary,
+        serviceToken: resolveSnsServiceToken()
+    });
     const summary = summarizeImportResult(result, {
         importedFile: filePath,
         expectedDrafts: payload.drafts.length

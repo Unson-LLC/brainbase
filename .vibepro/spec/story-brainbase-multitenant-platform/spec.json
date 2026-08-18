@@ -182,7 +182,7 @@
     }
   },
   "generated_by": {
-    "caller": "unknown",
+    "caller": "codex",
     "stage": "spec"
   },
   "lifecycle": "final",
@@ -479,7 +479,7 @@
       },
       "confidence": 0.96,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "INV-001",
@@ -531,7 +531,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "INV-002",
@@ -583,7 +583,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "C-002",
@@ -635,12 +635,12 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "INV-008",
       "type": "invariant",
-      "statement": "管理API、MCP、background job、migration、監査ログは同じtenant resolutionとactor-resource-connection-deployment-revision照合guardを必ず通る。runtime無効時の管理・監査は503で拒否する。SNS対話APIは認証・tenant guard付きdry-runだけを許可し、公開jobはcanonical bindingのbackground_job認可、PostgreSQL claim、provider呼出しの順を強制する。production DB未設定をJSON fileへfallbackせず、gateway、設定、binding、DB欠落時は暗黙補完せず拒否する",
+      "statement": "管理API、MCP、background job、migration、監査ログは同じtenant resolutionとactor-resource-connection-deployment-revision照合guardを必ず通る。runtime無効時の管理・監査は503で拒否する。SNS対話APIは認証・tenant guard付きdry-runだけを許可し、review pack投入はservice authとcanonical tenant/resource headerを必須化する。公開jobはcanonical bindingのbackground_job認可、PostgreSQL claim、provider呼出しの順を強制する。production DB未設定をJSON fileへfallbackせず、gateway、service token、設定、binding、DB欠落時は暗黙補完せず拒否する",
       "origin": {
         "story_refs": [
           {
@@ -706,6 +706,14 @@
             "case": "AC-005 requires canonical runtime tenant binding for the production import path"
           },
           {
+            "file": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js",
+            "case": "AC-005 sends service auth and canonical tenant headers, then fails loudly when Ledger skips every draft"
+          },
+          {
+            "file": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js",
+            "case": "AC-005 fails before HTTP import when the service token is absent without disclosing a token"
+          },
+          {
             "file": "tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js",
             "case": "AC-005 authorizes the persisted background_job binding before claim and provider publish"
           },
@@ -736,6 +744,10 @@
           {
             "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
             "case": "returns 503 without a production DB and creates neither a JSON Ledger nor provider side effects"
+          },
+          {
+            "file": "tests/server/bootstrap/sns-growth-production-boundary.test.js",
+            "case": "accepts the production review-pack client only through service auth and canonical tenant headers"
           },
           {
             "file": "tests/server/routes/sns-growth.test.js",
@@ -797,7 +809,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-18T02:11:16.349Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "C-003",
@@ -841,7 +853,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "C-004",
@@ -885,7 +897,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "C-005",
@@ -926,7 +938,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "C-006",
@@ -970,7 +982,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "INV-004",
@@ -1033,7 +1045,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "C-007",
@@ -1085,7 +1097,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "C-008",
@@ -1129,7 +1141,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "C-009",
@@ -1181,7 +1193,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "C-010",
@@ -1222,7 +1234,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "INV-005",
@@ -1274,7 +1286,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "C-015",
@@ -1343,7 +1355,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-17T03:09:47.275Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "C-012",
@@ -1414,7 +1426,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "C-013",
@@ -1466,7 +1478,7 @@
       },
       "confidence": 0.92,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "INV-006",
@@ -1515,7 +1527,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "C-014",
@@ -1559,7 +1571,7 @@
       },
       "confidence": 0.9,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     },
     {
       "id": "INV-007",
@@ -1625,7 +1637,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T02:31:17.931Z"
+      "last_revised_at": "2026-08-18T06:33:48.467Z"
     }
   ],
   "planned_test_suites": [
@@ -1663,6 +1675,6 @@
     }
   ],
   "open_questions": [],
-  "generated_at": "2026-08-18T02:31:17.928Z",
-  "previous_spec_id": "2026-08-18T02:15:20.907Z"
+  "generated_at": "2026-08-18T06:33:48.466Z",
+  "previous_spec_id": "2026-08-18T02:31:17.928Z"
 }

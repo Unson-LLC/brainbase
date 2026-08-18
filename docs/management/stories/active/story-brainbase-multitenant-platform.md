@@ -64,7 +64,7 @@ Slackイベントの受信、Cloudflare Worker／Queue／Durable Object／Contai
 - [ ] `AC-002`: organization、membership、project、Graph data、connection、contract、usage、Receiptがtenantへ帰属する。
 - [ ] `AC-003`: workspace ID、project code、organization名をtenant IDとして暗黙利用しない。
 - [ ] `AC-004`: tenant未解決、複数解決、payload不一致、無効tenantは認証後かつ業務処理前に拒否する。
-- [ ] `AC-005`: 管理API、MCP、background job、migration、監査ログが同じtenant境界を強制する。tenant runtimeが無効・未設定・到達不能な場合も管理／監査経路を通過させない。公開副作用を行うjobはproducerが明示したcanonical tenant／resource bindingを永続化し、binding欠落時は暗黙補完せず、claimやprovider呼出しより前に拒否する。SNSの対話APIは認証・tenant境界を必須化し、公開副作用は直接実行せず、永続PostgreSQL claimとfencingを持つbackground jobへ一本化する。
+- [ ] `AC-005`: 管理API、MCP、background job、migration、監査ログが同じtenant境界を強制する。tenant runtimeが無効・未設定・到達不能な場合も管理／監査経路を通過させない。公開副作用を行うjobはproducerが明示したcanonical tenant／resource bindingを永続化し、binding欠落時は暗黙補完せず、claimやprovider呼出しより前に拒否する。SNSの対話APIは認証・tenant境界を必須化し、公開副作用は直接実行せず、永続PostgreSQL claimとfencingを持つbackground jobへ一本化する。review packのproduction投入もservice tokenと同じcanonical tenant／resource headerを必須とし、認証・tenant guardを迂回しない。
 - [ ] `AC-006`: 既存単一組織データの移行は、dry-run、件数照合、rollback、未帰属隔離を持つ。
 
 **Workspace Connection**

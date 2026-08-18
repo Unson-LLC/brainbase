@@ -7,6 +7,10 @@ import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { registerApiRoutes } from '../../../server/bootstrap/register-api-routes.js';
+import {
+    postReviewPackToLedger,
+    reviewPackToLedgerPayload
+} from '../../../scripts/import-sns-review-pack-to-ledger.js';
 
 // VibePro traceability: story-brainbase-multitenant-platform:AC-005.
 
@@ -25,6 +29,13 @@ function bootstrapApp() {
     }));
     const authorize = vi.fn(async () => ({ authorized: true }));
     const authService = {
+        verifyServiceToken: vi.fn(() => ({
+            sub: 'svc_sns_review_pack_importer',
+            role: 'member',
+            tenantId: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            projectCodes: ['brainbase'],
+            clearance: ['internal']
+        })),
         verifyToken: vi.fn(() => ({
             sub: 'person_admin',
             role: 'ceo',
@@ -146,5 +157,64 @@ describe('AC-005 SNS production bootstrap boundary', () => {
         expect(authorize).toHaveBeenCalledTimes(1);
         expect(postExecutor).not.toHaveBeenCalled();
         expect(fs.existsSync(path.join(varDir, 'sns-posting-ledger.json'))).toBe(false);
+    });
+
+    it('accepts the production review-pack client only through service auth and canonical tenant headers', async () => {
+        vi.stubEnv('BRAINBASE_TEST_MODE', 'true');
+        vi.stubEnv('SNS_POSTING_LEDGER_MODE', 'json_test');
+        vi.stubEnv('SNS_POSTING_LEDGER_DATABASE_URL', '');
+        vi.stubEnv('INFO_SSOT_DATABASE_URL', '');
+        vi.stubEnv('INFO_SSOT_DB_URL', '');
+        vi.stubEnv('DATABASE_URL', '');
+        const { app, authorize, postExecutor } = bootstrapApp();
+        const server = app.listen(0, '127.0.0.1');
+        await new Promise((resolve, reject) => {
+            server.once('listening', resolve);
+            server.once('error', reject);
+        });
+        const address = server.address();
+        if (!address || typeof address === 'string') {
+            throw new Error('test server did not expose a TCP address');
+        }
+        const tenantBoundary = {
+            tenant_context: {
+                tenant: {
+                    tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+                    tenant_revision: '7'
+                }
+            },
+            resource_ref: {
+                object_type: 'project',
+                resource_id: 'project_sns'
+            }
+        };
+        const payload = reviewPackToLedgerPayload({
+            reviewPack: {
+                date: '2026-08-18',
+                posts: [{ slot: 'baseline_1', body: 'service auth経路の確認' }]
+            }
+        }, { tenantBoundary, requireTenantBoundary: true });
+
+        try {
+            const result = await postReviewPackToLedger({
+                baseUrl: `http://127.0.0.1:${address.port}`,
+                payload,
+                tenantBoundary,
+                serviceToken: 'bbsvc_test_review_pack_importer'
+            });
+
+            expect(result.created).toHaveLength(1);
+            expect(authorize).toHaveBeenCalledTimes(1);
+            expect(authorize.mock.calls[0][0]).toMatchObject({
+                entry_point: 'admin_api',
+                tenant_context: tenantBoundary.tenant_context,
+                resource_ref: tenantBoundary.resource_ref
+            });
+            expect(postExecutor).not.toHaveBeenCalled();
+        } finally {
+            await new Promise((resolve, reject) => {
+                server.close((error) => error ? reject(error) : resolve());
+            });
+        }
     });
 });

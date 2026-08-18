@@ -35,7 +35,9 @@ JST変換修正またはtenant境界導入より前に作られた既存rowは�
 - `BRAINBASE_SNS_RESOURCE_OBJECT_TYPE`
 - `BRAINBASE_SNS_RESOURCE_ID`
 
-いずれかが欠落またはcanonical形式でなければ、取込CLIはLedger APIへ送信する前に非zeroで停止する。
+加えて、deployment-localのsecret管理から`BRAINBASE_SNS_SERVICE_TOKEN`へ`bbsvc_` service tokenを注入する。取込CLIはBearer認証とcanonical tenant／resource headerを付け、productionの`/api/sns-growth`認証・`admin_api` tenant guardを通る。token値はコマンド引数、repo、fixture、ログへ書かない。
+
+service tokenまたは4つのbinding設定のいずれかが欠落・不正なら、取込CLIはLedger APIへ送信する前に非zeroで停止する。
 
 ```bash
 TODAY=$(date +%F)
@@ -85,4 +87,4 @@ productionでは`SNS_POSTING_LEDGER_DATABASE_URL`、`INFO_SSOT_DATABASE_URL`、`
 - `failed`: 投稿失敗数
 - `skipped`: 自動投稿無効またはclaim失敗でskipした数
 
-失敗時はLedger statusが `publish_failed` になり、memoに失敗理由が残る。
+失敗時はLedger statusが `publish_failed` になり、memoに失敗理由が残る。providerが副作用を完了した可能性がある一方で応答を取得できなかった曖昧な失敗では、operatorは直ちに再scheduleしない。provider側の投稿履歴をtenant／account／本文またはprovider idempotency証跡でreadbackし、未公開を確認できた場合だけ再試行する。確認不能は`not_collected`として残し、未公開や成功へ丸めない。

@@ -17,6 +17,7 @@ import {
 const root = path.resolve(import.meta.dirname, '../../..');
 const cliPath = path.join(root, 'scripts/import-sns-review-pack-to-ledger.js');
 const tenantEnv = {
+    BRAINBASE_SNS_SERVICE_TOKEN: 'bbsvc_test_review_pack_importer',
     BRAINBASE_SNS_TENANT_ID: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
     BRAINBASE_SNS_TENANT_REVISION: '7',
     BRAINBASE_SNS_RESOURCE_OBJECT_TYPE: 'project',
@@ -57,6 +58,7 @@ function createLedgerImportServer(responseBody) {
             requests.push({
                 method: request.method,
                 url: request.url,
+                headers: request.headers,
                 body: body ? JSON.parse(body) : null
             });
             response.writeHead(200, { 'Content-Type': 'application/json' });
@@ -211,7 +213,7 @@ describe('import-sns-review-pack-to-ledger', () => {
         expect(result.stderr).toContain('duplicate_recent_body');
     });
 
-    it('prints skipped reasons and exits non-zero from the CLI when Ledger skips every draft', async () => {
+    it('AC-005 sends service auth and canonical tenant headers, then fails loudly when Ledger skips every draft', async () => {
         const file = writeTempJson({
             reviewPack: {
                 date: '2026-06-04',
@@ -239,8 +241,22 @@ describe('import-sns-review-pack-to-ledger', () => {
             expect(server.requests).toHaveLength(1);
             expect(server.requests[0]).toMatchObject({
                 method: 'POST',
-                url: '/api/sns-growth/review-pack'
+                url: '/api/sns-growth/review-pack',
+                headers: {
+                    authorization: `Bearer ${tenantEnv.BRAINBASE_SNS_SERVICE_TOKEN}`,
+                    'brainbase-tenant-context': Buffer.from(JSON.stringify({
+                        tenant: {
+                            tenant_id: tenantEnv.BRAINBASE_SNS_TENANT_ID,
+                            tenant_revision: tenantEnv.BRAINBASE_SNS_TENANT_REVISION
+                        }
+                    }), 'utf8').toString('base64url'),
+                    'brainbase-resource-ref': Buffer.from(JSON.stringify({
+                        object_type: tenantEnv.BRAINBASE_SNS_RESOURCE_OBJECT_TYPE,
+                        resource_id: tenantEnv.BRAINBASE_SNS_RESOURCE_ID
+                    }), 'utf8').toString('base64url')
+                }
             });
+            expect(JSON.stringify(server.requests[0].body)).not.toContain(tenantEnv.BRAINBASE_SNS_SERVICE_TOKEN);
             expect(server.requests[0].body.drafts).toHaveLength(2);
             expect(server.requests[0].body.drafts[0].tenant_boundary).toEqual({
                 tenant_context: {
@@ -289,6 +305,29 @@ describe('import-sns-review-pack-to-ledger', () => {
             expect(result.status).toBe(1);
             expect(result.stdout).toBe('');
             expect(result.stderr).toContain('BRAINBASE_SNS_TENANT_ID');
+            expect(server.requests).toEqual([]);
+        } finally {
+            await server.close();
+        }
+    });
+
+    it('AC-005 fails before HTTP import when the service token is absent without disclosing a token', async () => {
+        const file = writeTempJson({
+            reviewPack: {
+                date: '2026-06-04',
+                posts: [{ slot: 'baseline_1', body: '認証なしでは送信しない' }]
+            }
+        });
+        const server = await createLedgerImportServer({ created: [], updated: [], skipped: [] });
+
+        try {
+            const result = await runCli(['--file', file, '--base-url', server.baseUrl], {
+                BRAINBASE_SNS_SERVICE_TOKEN: ''
+            });
+
+            expect(result.status).toBe(1);
+            expect(result.stdout).toBe('');
+            expect(result.stderr).toContain('BRAINBASE_SNS_SERVICE_TOKEN');
             expect(server.requests).toEqual([]);
         } finally {
             await server.close();
