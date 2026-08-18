@@ -764,7 +764,7 @@
         },
         {
           "file": "tests/server/bootstrap/tenant-runtime-internal-server.test.js",
-          "case": "AC-005: production runtime rejects expired, wrong-audience, wrong-deployment, and capability-deficient service tokens"
+          "case": "AC-005: production runtimeは%sのservice tokenを拒否する"
         }
         ]
       },
