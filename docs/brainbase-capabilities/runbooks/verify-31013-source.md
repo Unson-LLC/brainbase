@@ -27,7 +27,7 @@ launchctl print gui/$(id -u)/com.brainbase.ui
 Expected:
 
 ```text
-runtime.cwd = /Users/ksato/workspace/code/brainbase
+runtime.cwd = /Users/ksato/workspace/repos/.runtime/brainbase-31013
 runtime.git.sha = intended origin/develop sha
 runtime.git.dirty = false
 ```
@@ -35,6 +35,6 @@ runtime.git.dirty = false
 ## Failure Signals
 
 - `dirty: true` means local files differ from the checked commit.
-- `cwd` points to a worktree, so port 31013 is not canonical.
+- `cwd` points anywhere other than the managed runtime worktree, so port 31013 is not canonical.
 - `sha` is older than the merged PR.
-- launchd logs show sync to `origin/develop`, which can overwrite unmerged local patches.
+- the MCP reconciliation receipt SHA differs from the UI SHA.

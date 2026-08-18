@@ -8,8 +8,8 @@ set -euo pipefail
 
 TARGET_SHA="${1:-}"
 UI_API_URL="${BRAINBASE_UI_API_URL:-http://127.0.0.1:31013}"
-MCP_RUNTIME="${BRAINBASE_MCP_RUNTIME_ROOT:-/Users/ksato/workspace/code/.worktrees/brainbase-mcp-runtime-45ec989ba}"
-UI_RUNTIME="${BRAINBASE_UI_RUNTIME_ROOT:-/Users/ksato/workspace/code/brainbase}"
+UI_RUNTIME="${BRAINBASE_UI_RUNTIME_ROOT:-/Users/ksato/workspace/repos/.runtime/brainbase-31013}"
+MCP_RUNTIME="${BRAINBASE_MCP_RUNTIME_ROOT:-$UI_RUNTIME}"
 MCP_LABEL="${BRAINBASE_MCP_LAUNCHD_LABEL:-com.brainbase.mcp-brainbase}"
 RECEIPT="${BRAINBASE_MCP_RECONCILE_RECEIPT:-/Users/ksato/workspace/var/brainbase-mcp-reconcile.last}"
 LOCK_DIR="${BRAINBASE_MCP_RECONCILE_LOCK:-/Users/ksato/workspace/var/brainbase-mcp-reconcile.lock}"
@@ -74,20 +74,12 @@ tracked_dirty="$(git status --porcelain --untracked-files=no 2>/dev/null || true
 [[ -z "$tracked_dirty" ]] || \
   fail "MCP runtime has tracked local changes; refusing to overwrite"
 
-log "syncing MCP runtime to UI SHA ${TARGET_SHA:0:12}"
-# The UI updater already fetched and verified this exact commit. Import it from
-# the local canonical checkout so reconciliation does not depend on a second
-# GitHub request that can hang or observe a newer develop head.
-timeout 10 git fetch --quiet "$UI_RUNTIME" "$TARGET_SHA" || \
-  fail "could not import target SHA from local UI runtime"
-git cat-file -e "${TARGET_SHA}^{commit}" 2>/dev/null || \
-  fail "target SHA is not available in MCP runtime clone"
-git merge-base --is-ancestor HEAD "$TARGET_SHA" || \
-  fail "MCP runtime cannot fast-forward from $(git rev-parse --short HEAD) to ${TARGET_SHA:0:12}"
-git merge --ff-only "$TARGET_SHA" --quiet || fail "MCP runtime fast-forward failed"
+runtime_sha="$(git rev-parse HEAD 2>/dev/null || true)"
+[[ "$runtime_sha" == "$TARGET_SHA" ]] || \
+  fail "shared UI/MCP runtime does not match target SHA ${TARGET_SHA:0:12}"
 
 npm --prefix mcp/brainbase run build >&2 || fail "MCP build failed"
-INFISICAL_BIN="$INFISICAL_BIN" scripts/run-brainbase-mcp.sh --check >&2 || \
+BRAINBASE_REPO_ROOT="$MCP_RUNTIME" INFISICAL_BIN="$INFISICAL_BIN" scripts/run-brainbase-mcp.sh --check >&2 || \
   fail "MCP authentication preflight failed"
 
 launchctl kickstart -k "gui/$(id -u)/${MCP_LABEL}" || fail "MCP launchd restart failed"
@@ -102,7 +94,7 @@ for ((attempt = 1; attempt <= 10; attempt += 1)); do
 done
 [[ "$running" == "1" ]] || fail "MCP launchd did not reach running state"
 
-INFISICAL_BIN="$INFISICAL_BIN" scripts/run-brainbase-mcp.sh --check >&2 || \
+BRAINBASE_REPO_ROOT="$MCP_RUNTIME" INFISICAL_BIN="$INFISICAL_BIN" scripts/run-brainbase-mcp.sh --check >&2 || \
   fail "MCP post-restart authentication check failed"
 
 mkdir -p "$(dirname "$RECEIPT")"

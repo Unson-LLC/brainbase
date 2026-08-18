@@ -31,7 +31,7 @@ die() {
   exit 78
 }
 
-REPO_ROOT="${BRAINBASE_REPO_ROOT:-/Users/ksato/workspace/code/brainbase}"
+REPO_ROOT="${BRAINBASE_REPO_ROOT:-/Users/ksato/workspace/repos/.runtime/brainbase-31013}"
 MCP_ENTRY="${BRAINBASE_MCP_ENTRY:-$REPO_ROOT/mcp/brainbase/dist/index.js}"
 
 INFISICAL_BIN="${INFISICAL_BIN:-infisical}"
