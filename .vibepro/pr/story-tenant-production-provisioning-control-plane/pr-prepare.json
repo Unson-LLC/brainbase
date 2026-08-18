@@ -1,0 +1,2475 @@
+{
+  "schema_version": "0.2.0",
+  "created_at": "2026-08-18T23:06:27.977Z",
+  "runtime_identity": {
+    "schema_version": "0.2.0",
+    "collected_at": "2026-08-18T23:06:27.038Z",
+    "mode": "normal",
+    "source_kind": "npm_package",
+    "test_context": null,
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.10",
+      "exact_version": "0.2.0-beta.10",
+      "root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/bin/vibepro.js",
+      "invoked_as": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/.bin/vibepro",
+      "runtime_module": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/src/runtime-info.js"
+    },
+    "release_manifest": {
+      "status": "valid",
+      "manifest": {
+        "schema_version": "0.1.0",
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.10",
+          "package_json_sha256": "12514f6d7d96aafde4a75c9886cb4f8046762c7d0d2b063c381d887269beab7d",
+          "entrypoint": "bin/vibepro.js"
+        },
+        "source_git": {
+          "commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+          "origin_main_relation": "same",
+          "dirty": false
+        }
+      },
+      "errors": []
+    },
+    "source_git": {
+      "is_git_repo": false,
+      "commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro",
+      "origin_main_commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+      "origin_main_relation": "published",
+      "dirty": false,
+      "dirty_summary": []
+    },
+    "identity_digest": "c785934050bf71cd6644d7c40477854fbab61a75a25fc7e2849fcd52aa1917d9",
+    "integrity": {
+      "status": "trusted",
+      "code": null,
+      "purpose": "pr_judgment",
+      "reasons": [
+        "manifested immutable npm runtime"
+      ]
+    }
+  },
+  "story": {
+    "story_id": "story-tenant-production-provisioning-control-plane",
+    "title": "テナント本番プロビジョニング制御面",
+    "ssot": "local",
+    "status": "active",
+    "horizon": "quarter",
+    "view": "product",
+    "period": null,
+    "started_at": null,
+    "due_at": null,
+    "category": null,
+    "contract_type": null
+  },
+  "task_context": null,
+  "task_authorities": {
+    "human": {
+      "authority": "human_authored",
+      "path": null,
+      "present": false,
+      "task_count": 0,
+      "status_counts": {},
+      "tasks": []
+    },
+    "generated": {
+      "authority": "generated_proposal",
+      "path": ".vibepro/stories/story-tenant-production-provisioning-control-plane/tasks/tasks.md",
+      "present": true,
+      "task_count": 2,
+      "status_counts": {
+        "todo": 2
+      },
+      "execution_policies": [],
+      "mutates_repository": [],
+      "tasks": [
+        {
+          "id": "VP-TASK-FLOW-006",
+          "status": "todo",
+          "execution_policy": null,
+          "mutates_repository": null
+        },
+        {
+          "id": "VP-TASK-STATIC-003",
+          "status": "todo",
+          "execution_policy": null,
+          "mutates_repository": null
+        }
+      ]
+    }
+  },
+  "output": {
+    "language": "ja"
+  },
+  "git": {
+    "current_branch": "codex/tenant-production-provisioning-control-plane",
+    "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+    "base_ref": "develop",
+    "head_ref": "9cead354c8e6d462f786cacb697c4910feb00182",
+    "changed_files": [
+      {
+        "status": "M",
+        "path": ".claude/scripts/hooks/lib/vibepro-runtime-contract.mjs"
+      },
+      {
+        "status": "M",
+        "path": ".env.example"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/spec/story-brainbase-multitenant-platform/spec.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/spec/story-tenant-production-provisioning-control-plane/spec.json"
+      },
+      {
+        "status": "M",
+        "path": "AGENTS.md"
+      },
+      {
+        "status": "M",
+        "path": "CLAUDE.md"
+      },
+      {
+        "status": "M",
+        "path": "config/com.brainbase.mcp-nocodb.plist"
+      },
+      {
+        "status": "M",
+        "path": "config/com.brainbase.mcp-slack-salestailor.plist"
+      },
+      {
+        "status": "M",
+        "path": "config/com.brainbase.mcp-slack-t0882t8n9uh-upload.plist"
+      },
+      {
+        "status": "M",
+        "path": "config/com.brainbase.mcp-slack-t0882t8n9uh.plist"
+      },
+      {
+        "status": "M",
+        "path": "config/com.brainbase.mcp-slack-techknight.plist"
+      },
+      {
+        "status": "M",
+        "path": "config/com.brainbase.mcp-slack-unson.plist"
+      },
+      {
+        "status": "M",
+        "path": "config/com.brainbase.sns-feedback-metrics-poller.plist"
+      },
+      {
+        "status": "M",
+        "path": "config/com.brainbase.sns-scheduled-publisher.plist"
+      },
+      {
+        "status": "M",
+        "path": "docs/architecture/ADR-011-sns-posting-ledger-boundary.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/architecture/ADR-017-agent-first-product-surface.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/architecture/sns-approval-schedules-posting-architecture.md"
+      },
+      {
+        "status": "A",
+        "path": "docs/architecture/story-brainbase-multitenant-platform.md"
+      },
+      {
+        "status": "A",
+        "path": "docs/architecture/story-tenant-production-provisioning-control-plane.md"
+      },
+      {
+        "status": "A",
+        "path": "docs/contracts/intent-to-outcome-evidence-v1.md"
+      },
+      {
+        "status": "A",
+        "path": "docs/decisions/2026-08-18_intent-to-outcome-north-star.md"
+      },
+      {
+        "status": "A",
+        "path": "docs/management/stories/active/story-brainbase-multitenant-platform.md"
+      },
+      {
+        "status": "A",
+        "path": "docs/management/stories/active/story-tenant-production-provisioning-control-plane.md"
+      },
+      {
+        "status": "A",
+        "path": "docs/runbooks/cloudflare-tenant-runtime-bridge.md"
+      },
+      {
+        "status": "A",
+        "path": "docs/runbooks/multitenant-platform-schema-migration.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/runbooks/sns-scheduled-publisher.md"
+      },
+      {
+        "status": "A",
+        "path": "docs/specs/brainbase-multitenant-platform-spec.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/specs/sns-growth-cockpit-ui-transition-spec.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/specs/sns-scheduled-publisher-spec.md"
+      },
+      {
+        "status": "A",
+        "path": "docs/specs/story-brainbase-multitenant-platform.vibepro.json"
+      },
+      {
+        "status": "A",
+        "path": "docs/specs/story-tenant-production-provisioning-control-plane.md"
+      },
+      {
+        "status": "A",
+        "path": "docs/specs/story-tenant-production-provisioning-control-plane.vibepro.json"
+      },
+      {
+        "status": "M",
+        "path": "docs/stories/sns-scheduled-publisher-story.md"
+      },
+      {
+        "status": "M",
+        "path": "mcp/brainbase/src/indexer/index.ts"
+      },
+      {
+        "status": "M",
+        "path": "mcp/brainbase/src/server.ts"
+      },
+      {
+        "status": "A",
+        "path": "mcp/brainbase/src/tools/tenant-boundary-tools.ts"
+      },
+      {
+        "status": "M",
+        "path": "mcp/brainbase/tests/tools/entity-resolver.test.ts"
+      },
+      {
+        "status": "A",
+        "path": "mcp/brainbase/tests/tools/tenant-boundary-tools.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "package-lock.json"
+      },
+      {
+        "status": "M",
+        "path": "package.json"
+      },
+      {
+        "status": "A",
+        "path": "packages/cloudflare-slack-installation-control-plane-bridge/package.json"
+      },
+      {
+        "status": "A",
+        "path": "packages/cloudflare-slack-installation-control-plane-bridge/src/worker.js"
+      },
+      {
+        "status": "A",
+        "path": "packages/cloudflare-slack-installation-control-plane-bridge/wrangler.jsonc"
+      },
+      {
+        "status": "A",
+        "path": "packages/cloudflare-tenant-runtime-bridge/package.json"
+      },
+      {
+        "status": "A",
+        "path": "packages/cloudflare-tenant-runtime-bridge/src/worker.js"
+      },
+      {
+        "status": "A",
+        "path": "packages/cloudflare-tenant-runtime-bridge/wrangler.jsonc"
+      },
+      {
+        "status": "M",
+        "path": "scripts/ai-session-adapter/codex-envelope-builder.mjs"
+      },
+      {
+        "status": "M",
+        "path": "scripts/import-sns-review-pack-to-ledger.js"
+      },
+      {
+        "status": "A",
+        "path": "scripts/migrate-multitenant-platform-schema.js"
+      },
+      {
+        "status": "A",
+        "path": "scripts/migrate-tenant-production-provisioning.js"
+      },
+      {
+        "status": "M",
+        "path": "scripts/poll-sns-feedback-metrics.js"
+      },
+      {
+        "status": "A",
+        "path": "scripts/provision-tenant.js"
+      },
+      {
+        "status": "M",
+        "path": "scripts/run-nocodb-mcp.sh"
+      },
+      {
+        "status": "M",
+        "path": "scripts/run-sns-scheduled-posts.js"
+      },
+      {
+        "status": "M",
+        "path": "server.js"
+      },
+      {
+        "status": "M",
+        "path": "server/bootstrap/core-services.js"
+      },
+      {
+        "status": "M",
+        "path": "server/bootstrap/graceful-shutdown.js"
+      },
+      {
+        "status": "M",
+        "path": "server/bootstrap/register-api-routes.js"
+      },
+      {
+        "status": "A",
+        "path": "server/bootstrap/slack-installation-control-plane.js"
+      },
+      {
+        "status": "A",
+        "path": "server/bootstrap/tenant-runtime-internal-server.js"
+      },
+      {
+        "status": "M",
+        "path": "server/middleware/csrf.js"
+      },
+      {
+        "status": "M",
+        "path": "server/middleware/personal-knowledge-access.js"
+      },
+      {
+        "status": "A",
+        "path": "server/middleware/tenant-entrypoint.js"
+      },
+      {
+        "status": "M",
+        "path": "server/routes/info-ssot.js"
+      },
+      {
+        "status": "A",
+        "path": "server/routes/slack-installation-control-plane.js"
+      },
+      {
+        "status": "M",
+        "path": "server/routes/sns-growth.js"
+      },
+      {
+        "status": "A",
+        "path": "server/routes/tenant-runtime.js"
+      },
+      {
+        "status": "M",
+        "path": "server/services/auth-service.js"
+      },
+      {
+        "status": "M",
+        "path": "server/services/meeting-minutes/context-receipt-service.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/canonical-json.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/canonical-wire-validator.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/contract-usage-ledger.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/credential-broker.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/errors.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/ids.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/migration-planner.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/postgres-contract-usage-ledger.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/postgres-migration-adapter.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/postgres-repository.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/protocol-contract.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/provisioning-manifest.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/service-auth.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/slack-installation-access.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/slack-installation-auth.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/slack-installation-control-plane.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/tenant-authority.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/tenant-boundary.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/tenant-context-producer.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/tenant-context.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/tenant-provisioner.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/tenant-provisioning-resolvers.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/tenant-runtime-services.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/trusted-provider-forwarder.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/multitenant/workspace-connection-registry.js"
+      },
+      {
+        "status": "M",
+        "path": "server/services/personal-knowledge/personal-knowledge-promotion-service.js"
+      },
+      {
+        "status": "M",
+        "path": "server/services/sns/posting-ledger-repository.js"
+      },
+      {
+        "status": "M",
+        "path": "server/services/sns/sns-ledger-publish-service.js"
+      },
+      {
+        "status": "M",
+        "path": "server/services/sns/sns-scheduled-publisher.js"
+      },
+      {
+        "status": "A",
+        "path": "server/sql/multitenant-platform-schema.sql"
+      },
+      {
+        "status": "A",
+        "path": "server/sql/tenant-production-provisioning-schema.sql"
+      },
+      {
+        "status": "A",
+        "path": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/conformance/mana-brainbase-tenant-context.source-lock.json"
+      },
+      {
+        "status": "M",
+        "path": "tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts"
+      },
+      {
+        "status": "A",
+        "path": "tests/fixtures/multitenant-contract/v1/negative.json"
+      },
+      {
+        "status": "A",
+        "path": "tests/fixtures/multitenant-contract/v1/non-applicable.json"
+      },
+      {
+        "status": "A",
+        "path": "tests/fixtures/multitenant-contract/v1/positive.json"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/bootstrap/slack-installation-control-plane-auth-order.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/bootstrap/slack-installation-control-plane.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/bootstrap/sns-growth-production-boundary.test.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/server/bootstrap/sns-posting-ledger-runtime-config.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/bootstrap/tenant-entrypoint-fail-closed.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/bootstrap/tenant-runtime-internal-server.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/cloudflare/slack-installation-control-plane-bridge.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/cloudflare/tenant-runtime-bridge.test.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/server/middleware/personal-knowledge-access.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/middleware/tenant-entrypoint.test.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/server/routes/info-ssot-context.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/routes/slack-installation-control-plane.test.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/server/routes/sns-growth.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/routes/tenant-runtime-bootstrap.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/routes/tenant-runtime-contract.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/scripts/multitenant-platform-schema-migration.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/scripts/provision-tenant.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/scripts/tenant-production-provisioning-migration.integration.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/scripts/tenant-production-provisioning-migration.test.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/server/services/meeting-minutes-context-receipt-service.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/canonical-wire-strictness.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/contract-fixtures.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/contract-usage-ledger.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/credential-broker.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/migration-planner.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/persistence-schema.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/postgres-contract-usage-ledger.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/postgres-repository.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/protocol-contract.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/provisioning-manifest.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/schema-migration-runner.integration.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/service-auth.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/slack-installation-access.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/slack-installation-auth.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/slack-installation-control-plane.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/tenant-authority.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/tenant-authorization-boundary.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/tenant-boundary-entrypoints.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/tenant-provisioner.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/tenant-provisioning-resolvers.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/tenant-provisioning-schema.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/test-helpers.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/trusted-provider-forwarder.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/multitenant/workspace-connection.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/personal-knowledge-promotion-service.test.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/sns/ops/poll-sns-feedback-metrics.test.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/sns/ops/run-sns-scheduled-posts.test.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/sns/posting-ledger/posting-ledger-repository.test.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/sns/publishing/sns-ledger-publish-service.test.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/unit/auth-service-service-token.test.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/unit/runtime-worktree-launchd.test.js"
+      },
+      {
+        "status": "M",
+        "path": "tests/unit/vibepro-runtime-hook-contract.test.js"
+      },
+      {
+        "status": "A",
+        "path": "vitest.conformance.config.js"
+      }
+    ],
+    "dirty_files": [],
+    "commit_count": 78
+  },
+  "spec": {
+    "present": true,
+    "story_id": "story-tenant-production-provisioning-control-plane",
+    "clause_count": 14
+  },
+  "spec_drift": {
+    "status": "clean",
+    "item_count": 0
+  },
+  "verification": {
+    "recorded": true,
+    "updated_at": "2026-08-18T23:05:18.389Z",
+    "artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-evidence.json",
+    "commands": [
+      {
+        "kind": "typecheck",
+        "status": "pass",
+        "command": "npm run typecheck",
+        "summary": "vibepro verify run executed the typecheck command: exit_code=0, duration_ms=1132, status=pass computed from the exit code | agent summary: PR1260 exact HEAD typecheck",
+        "summary_authority": "agent_provided_non_authoritative",
+        "evidence_source": "runner_direct",
+        "observation": {
+          "targets": [
+            "server/services/multitenant"
+          ],
+          "scenarios": [
+            "repository typecheck at exact PR1260 HEAD"
+          ],
+          "values": {
+            "status": "pass",
+            "exit_code": "0",
+            "evidence_source": "runner_direct",
+            "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json",
+            "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.log",
+            "duration_ms": "1132",
+            "started_at": "2026-08-18T23:05:16.763Z",
+            "finished_at": "2026-08-18T23:05:17.895Z",
+            "head_sha_before": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha_after": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "worktree_sampled": "true",
+            "worktree_sampling_complete": "true",
+            "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "stdout_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
+            "output_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
+            "output_bytes": "73",
+            "log_truncated": "false",
+            "output_metrics": "none",
+            "timed_out": "false",
+            "output_limit_exceeded": "false",
+            "external_kill_signal": "none",
+            "timeout_ms": "120000",
+            "max_output_bytes": "67108864",
+            "harness_env_removed": "none",
+            "runner_node_version": "v26.3.1",
+            "tree_mutated_during_run": "false",
+            "head_moved_during_run": "false",
+            "worktree_changed_during_run": "false",
+            "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "computed_observation": {
+          "producer": "vibepro verify run",
+          "computed_keys": [
+            "status",
+            "evidence_source",
+            "run_artifact",
+            "run_log",
+            "exit_code",
+            "duration_ms",
+            "started_at",
+            "finished_at",
+            "head_sha_before",
+            "head_sha_after",
+            "head_sha",
+            "worktree_sampled",
+            "worktree_sampling_complete",
+            "worktree_sha256_before",
+            "worktree_sha256_after",
+            "stdout_sha256",
+            "output_sha256",
+            "output_bytes",
+            "log_truncated",
+            "output_metrics",
+            "timed_out",
+            "output_limit_exceeded",
+            "external_kill_signal",
+            "timeout_ms",
+            "max_output_bytes",
+            "harness_env_removed",
+            "runner_node_version",
+            "tree_mutated_during_run",
+            "head_moved_during_run",
+            "worktree_changed_during_run",
+            "worktree_status_sha256_before",
+            "worktree_status_sha256_after",
+            "worktree_diff_sha256_before",
+            "worktree_diff_sha256_after"
+          ],
+          "values": {
+            "status": "pass",
+            "evidence_source": "runner_direct",
+            "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json",
+            "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.log",
+            "exit_code": "0",
+            "duration_ms": "1132",
+            "started_at": "2026-08-18T23:05:16.763Z",
+            "finished_at": "2026-08-18T23:05:17.895Z",
+            "head_sha_before": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha_after": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "worktree_sampled": "true",
+            "worktree_sampling_complete": "true",
+            "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "stdout_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
+            "output_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
+            "output_bytes": "73",
+            "log_truncated": "false",
+            "output_metrics": "none",
+            "timed_out": "false",
+            "output_limit_exceeded": "false",
+            "external_kill_signal": "none",
+            "timeout_ms": "120000",
+            "max_output_bytes": "67108864",
+            "harness_env_removed": "none",
+            "runner_node_version": "v26.3.1",
+            "tree_mutated_during_run": "false",
+            "head_moved_during_run": "false",
+            "worktree_changed_during_run": "false",
+            "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "artifact_derived_keys": [
+            "status",
+            "exit_code",
+            "evidence_source",
+            "run_artifact",
+            "run_log",
+            "duration_ms",
+            "started_at",
+            "finished_at",
+            "head_sha_before",
+            "head_sha_after",
+            "head_sha",
+            "worktree_sampled",
+            "worktree_sampling_complete",
+            "worktree_sha256_before",
+            "worktree_sha256_after",
+            "stdout_sha256",
+            "output_sha256",
+            "output_bytes",
+            "log_truncated",
+            "output_metrics",
+            "timed_out",
+            "output_limit_exceeded",
+            "external_kill_signal",
+            "timeout_ms",
+            "max_output_bytes",
+            "harness_env_removed",
+            "runner_node_version",
+            "tree_mutated_during_run",
+            "head_moved_during_run",
+            "worktree_changed_during_run",
+            "worktree_status_sha256_before",
+            "worktree_status_sha256_after",
+            "worktree_diff_sha256_before",
+            "worktree_diff_sha256_after"
+          ],
+          "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json",
+          "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.log",
+          "tree_mutated_during_run": false,
+          "head_moved_during_run": false,
+          "worktree_changed_during_run": false,
+          "worktree_sampled": true,
+          "worktree_sampling_complete": true,
+          "output_metrics": "none"
+        },
+        "computed_counts": null,
+        "artifact_check": {
+          "status": "verified",
+          "format": "generic_status",
+          "artifact_outcome": "pass",
+          "reason": "generic_status artifact outcome matches the claimed status (status=pass)"
+        },
+        "observation_check": {
+          "status": "recorded",
+          "reason": "observation states the inspected targets and what was observed"
+        },
+        "git_context": {
+          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "current_branch": "codex/tenant-production-provisioning-control-plane",
+          "dirty": false,
+          "raw_dirty": false,
+          "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+          "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+          "fingerprint_scope": {
+            "user_excludes": [
+              ".vibepro/",
+              ".worktrees/vibepro/"
+            ]
+          },
+          "recorded_at": "2026-08-18T23:05:18.383Z"
+        },
+        "content_binding": {
+          "schema_version": "0.1.0",
+          "model": "vibepro-content-scoped-evidence-freshness-v1",
+          "mode": "strict_head",
+          "status": "strict_head",
+          "reason": "strict HEAD binding was requested for this evidence",
+          "recorded_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "surface_files": [],
+          "missing_files": [],
+          "surface_hash": null
+        },
+        "warnings": [
+          {
+            "id": "managed_worktree_locality",
+            "status": "needs_review",
+            "mode": "preferred",
+            "required": false,
+            "command_name": "verify run",
+            "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+            "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+            "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+            "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+            "expected_root": null,
+            "expected_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "current_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "managed_worktree": null
+          },
+          {
+            "id": "verification_run_counts_not_parsed",
+            "command_name": "verify run",
+            "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+          }
+        ],
+        "runtime_identity": {
+          "schema_version": "0.2.0",
+          "collected_at": "2026-08-18T23:05:18.113Z",
+          "mode": "normal",
+          "source_kind": "npm_package",
+          "test_context": null,
+          "package": {
+            "name": "vibepro",
+            "version": "0.2.0-beta.10",
+            "exact_version": "0.2.0-beta.10",
+            "root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro"
+          },
+          "cli": {
+            "entrypoint": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/bin/vibepro.js",
+            "invoked_as": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/.bin/vibepro",
+            "runtime_module": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/src/runtime-info.js"
+          },
+          "release_manifest": {
+            "status": "valid",
+            "manifest": {
+              "schema_version": "0.1.0",
+              "package": {
+                "name": "vibepro",
+                "version": "0.2.0-beta.10",
+                "package_json_sha256": "12514f6d7d96aafde4a75c9886cb4f8046762c7d0d2b063c381d887269beab7d",
+                "entrypoint": "bin/vibepro.js"
+              },
+              "source_git": {
+                "commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+                "origin_url": "https://github.com/Unson-LLC/vibepro",
+                "origin_main_commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+                "origin_main_relation": "same",
+                "dirty": false
+              }
+            },
+            "errors": []
+          },
+          "source_git": {
+            "is_git_repo": false,
+            "commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+            "branch": null,
+            "origin_url": "https://github.com/Unson-LLC/vibepro",
+            "origin_main_commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+            "origin_main_relation": "published",
+            "dirty": false,
+            "dirty_summary": []
+          },
+          "identity_digest": "c785934050bf71cd6644d7c40477854fbab61a75a25fc7e2849fcd52aa1917d9",
+          "integrity": {
+            "status": "trusted",
+            "code": null,
+            "purpose": "evidence_generation",
+            "reasons": [
+              "manifested immutable npm runtime"
+            ]
+          }
+        },
+        "executed_at": "2026-08-18T23:05:17.895Z",
+        "trust_status": "trusted"
+      },
+      {
+        "kind": "integration",
+        "status": "pass",
+        "command": "npx vitest run tests/server/services/multitenant tests/server/scripts/tenant-production-provisioning-migration.test.js tests/server/scripts/tenant-production-provisioning-migration.integration.test.js --maxWorkers=1",
+        "summary": "vibepro verify run executed the integration command: exit_code=0, duration_ms=32060, status=pass computed from the exit code | agent summary: PR1260 exact HEAD multitenant provisioning integration verification",
+        "summary_authority": "agent_provided_non_authoritative",
+        "evidence_source": "runner_direct",
+        "observation": {
+          "targets": [
+            "server/services/multitenant",
+            "scripts/migrate-tenant-production-provisioning.js"
+          ],
+          "scenarios": [
+            "tenant provisioning, migration, credential boundary, and fail-closed controls"
+          ],
+          "values": {
+            "status": "pass",
+            "exit_code": "0",
+            "evidence_source": "runner_direct",
+            "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
+            "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
+            "duration_ms": "32060",
+            "started_at": "2026-08-18T23:04:28.303Z",
+            "finished_at": "2026-08-18T23:05:00.363Z",
+            "head_sha_before": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha_after": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "worktree_sampled": "true",
+            "worktree_sampling_complete": "true",
+            "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "stdout_sha256": "7ee947f43eba20628cdad385b76589bdf8c471110d9e52dfb9d4c79636317b68",
+            "output_sha256": "7ee947f43eba20628cdad385b76589bdf8c471110d9e52dfb9d4c79636317b68",
+            "output_bytes": "2679",
+            "log_truncated": "false",
+            "output_metrics": "none",
+            "timed_out": "false",
+            "output_limit_exceeded": "false",
+            "external_kill_signal": "none",
+            "timeout_ms": "180000",
+            "max_output_bytes": "67108864",
+            "harness_env_removed": "none",
+            "runner_node_version": "v26.3.1",
+            "tree_mutated_during_run": "false",
+            "head_moved_during_run": "false",
+            "worktree_changed_during_run": "false",
+            "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "computed_observation": {
+          "producer": "vibepro verify run",
+          "computed_keys": [
+            "status",
+            "evidence_source",
+            "run_artifact",
+            "run_log",
+            "exit_code",
+            "duration_ms",
+            "started_at",
+            "finished_at",
+            "head_sha_before",
+            "head_sha_after",
+            "head_sha",
+            "worktree_sampled",
+            "worktree_sampling_complete",
+            "worktree_sha256_before",
+            "worktree_sha256_after",
+            "stdout_sha256",
+            "output_sha256",
+            "output_bytes",
+            "log_truncated",
+            "output_metrics",
+            "timed_out",
+            "output_limit_exceeded",
+            "external_kill_signal",
+            "timeout_ms",
+            "max_output_bytes",
+            "harness_env_removed",
+            "runner_node_version",
+            "tree_mutated_during_run",
+            "head_moved_during_run",
+            "worktree_changed_during_run",
+            "worktree_status_sha256_before",
+            "worktree_status_sha256_after",
+            "worktree_diff_sha256_before",
+            "worktree_diff_sha256_after"
+          ],
+          "values": {
+            "status": "pass",
+            "evidence_source": "runner_direct",
+            "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
+            "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
+            "exit_code": "0",
+            "duration_ms": "32060",
+            "started_at": "2026-08-18T23:04:28.303Z",
+            "finished_at": "2026-08-18T23:05:00.363Z",
+            "head_sha_before": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha_after": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "worktree_sampled": "true",
+            "worktree_sampling_complete": "true",
+            "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "stdout_sha256": "7ee947f43eba20628cdad385b76589bdf8c471110d9e52dfb9d4c79636317b68",
+            "output_sha256": "7ee947f43eba20628cdad385b76589bdf8c471110d9e52dfb9d4c79636317b68",
+            "output_bytes": "2679",
+            "log_truncated": "false",
+            "output_metrics": "none",
+            "timed_out": "false",
+            "output_limit_exceeded": "false",
+            "external_kill_signal": "none",
+            "timeout_ms": "180000",
+            "max_output_bytes": "67108864",
+            "harness_env_removed": "none",
+            "runner_node_version": "v26.3.1",
+            "tree_mutated_during_run": "false",
+            "head_moved_during_run": "false",
+            "worktree_changed_during_run": "false",
+            "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "artifact_derived_keys": [
+            "status",
+            "exit_code",
+            "evidence_source",
+            "run_artifact",
+            "run_log",
+            "duration_ms",
+            "started_at",
+            "finished_at",
+            "head_sha_before",
+            "head_sha_after",
+            "head_sha",
+            "worktree_sampled",
+            "worktree_sampling_complete",
+            "worktree_sha256_before",
+            "worktree_sha256_after",
+            "stdout_sha256",
+            "output_sha256",
+            "output_bytes",
+            "log_truncated",
+            "output_metrics",
+            "timed_out",
+            "output_limit_exceeded",
+            "external_kill_signal",
+            "timeout_ms",
+            "max_output_bytes",
+            "harness_env_removed",
+            "runner_node_version",
+            "tree_mutated_during_run",
+            "head_moved_during_run",
+            "worktree_changed_during_run",
+            "worktree_status_sha256_before",
+            "worktree_status_sha256_after",
+            "worktree_diff_sha256_before",
+            "worktree_diff_sha256_after"
+          ],
+          "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
+          "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
+          "tree_mutated_during_run": false,
+          "head_moved_during_run": false,
+          "worktree_changed_during_run": false,
+          "worktree_sampled": true,
+          "worktree_sampling_complete": true,
+          "output_metrics": "none"
+        },
+        "computed_counts": null,
+        "artifact_check": {
+          "status": "verified",
+          "format": "generic_status",
+          "artifact_outcome": "pass",
+          "reason": "generic_status artifact outcome matches the claimed status (status=pass)"
+        },
+        "observation_check": {
+          "status": "recorded",
+          "reason": "observation states the inspected targets and what was observed"
+        },
+        "git_context": {
+          "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "current_branch": "codex/tenant-production-provisioning-control-plane",
+          "dirty": false,
+          "raw_dirty": false,
+          "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+          "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+          "fingerprint_scope": {
+            "user_excludes": [
+              ".vibepro/",
+              ".worktrees/vibepro/"
+            ]
+          },
+          "recorded_at": "2026-08-18T23:05:01.027Z"
+        },
+        "content_binding": {
+          "schema_version": "0.1.0",
+          "model": "vibepro-content-scoped-evidence-freshness-v1",
+          "mode": "strict_head",
+          "status": "strict_head",
+          "reason": "strict HEAD binding was requested for this evidence",
+          "recorded_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+          "surface_files": [
+            {
+              "path": "scripts/migrate-tenant-production-provisioning.js",
+              "sha256": "8c7c5312dd7728ebbbbc53086c4b809cd7eb24f06728304fafc42bdd212965f1",
+              "size": 45418
+            }
+          ],
+          "missing_files": [],
+          "surface_hash": "77352c167484ed1f91dc75b6677184eddc05b0c1b12fc6643ccbe9167c69211f"
+        },
+        "warnings": [
+          {
+            "id": "managed_worktree_locality",
+            "status": "needs_review",
+            "mode": "preferred",
+            "required": false,
+            "command_name": "verify run",
+            "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+            "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+            "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+            "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+            "expected_root": null,
+            "expected_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "current_head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "managed_worktree": null
+          },
+          {
+            "id": "verification_run_counts_not_parsed",
+            "command_name": "verify run",
+            "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+          }
+        ],
+        "runtime_identity": {
+          "schema_version": "0.2.0",
+          "collected_at": "2026-08-18T23:05:00.638Z",
+          "mode": "normal",
+          "source_kind": "npm_package",
+          "test_context": null,
+          "package": {
+            "name": "vibepro",
+            "version": "0.2.0-beta.10",
+            "exact_version": "0.2.0-beta.10",
+            "root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro"
+          },
+          "cli": {
+            "entrypoint": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/bin/vibepro.js",
+            "invoked_as": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/.bin/vibepro",
+            "runtime_module": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/src/runtime-info.js"
+          },
+          "release_manifest": {
+            "status": "valid",
+            "manifest": {
+              "schema_version": "0.1.0",
+              "package": {
+                "name": "vibepro",
+                "version": "0.2.0-beta.10",
+                "package_json_sha256": "12514f6d7d96aafde4a75c9886cb4f8046762c7d0d2b063c381d887269beab7d",
+                "entrypoint": "bin/vibepro.js"
+              },
+              "source_git": {
+                "commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+                "origin_url": "https://github.com/Unson-LLC/vibepro",
+                "origin_main_commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+                "origin_main_relation": "same",
+                "dirty": false
+              }
+            },
+            "errors": []
+          },
+          "source_git": {
+            "is_git_repo": false,
+            "commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+            "branch": null,
+            "origin_url": "https://github.com/Unson-LLC/vibepro",
+            "origin_main_commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+            "origin_main_relation": "published",
+            "dirty": false,
+            "dirty_summary": []
+          },
+          "identity_digest": "c785934050bf71cd6644d7c40477854fbab61a75a25fc7e2849fcd52aa1917d9",
+          "integrity": {
+            "status": "trusted",
+            "code": null,
+            "purpose": "evidence_generation",
+            "reasons": [
+              "manifested immutable npm runtime"
+            ]
+          }
+        },
+        "executed_at": "2026-08-18T23:05:00.363Z",
+        "trust_status": "trusted"
+      }
+    ]
+  },
+  "review": {
+    "recorded": true,
+    "status": "needs_review",
+    "summary": {
+      "stage_count": 7,
+      "pass": 0,
+      "needs_review": 7,
+      "block": 0,
+      "stale": 0
+    },
+    "stages": [
+      {
+        "stage": "planning_spec",
+        "status": "needs_review",
+        "roles": [
+          "product_requirement",
+          "architecture_boundary",
+          "spec_consistency"
+        ]
+      },
+      {
+        "stage": "requirement",
+        "status": "needs_review",
+        "roles": [
+          "product_requirement",
+          "scope_risk",
+          "acceptance_e2e"
+        ]
+      },
+      {
+        "stage": "architecture_spec",
+        "status": "needs_review",
+        "roles": [
+          "architecture_boundary",
+          "spec_consistency",
+          "regression_risk"
+        ]
+      },
+      {
+        "stage": "test_plan",
+        "status": "needs_review",
+        "roles": [
+          "unit_integration",
+          "e2e_ux",
+          "gate_coverage"
+        ]
+      },
+      {
+        "stage": "implementation",
+        "status": "needs_review",
+        "roles": [
+          "code_spec_alignment",
+          "runtime_contract",
+          "ux_completion"
+        ]
+      },
+      {
+        "stage": "gate",
+        "status": "needs_review",
+        "roles": [
+          "gate_evidence",
+          "pr_split_scope",
+          "release_risk"
+        ]
+      },
+      {
+        "stage": "preview",
+        "status": "needs_review",
+        "roles": [
+          "preview_smoke",
+          "network_runtime",
+          "human_usability"
+        ]
+      }
+    ]
+  },
+  "multi_tenant_architecture": {
+    "applicable": true,
+    "activation_reasons": [
+      "explicit_applicability"
+    ],
+    "mode": "final",
+    "status": "ready",
+    "findings": [],
+    "coverage": {
+      "status": "verified",
+      "scanners": {
+        "tenant_boundary": "pass",
+        "tenant_key_propagation": "pass",
+        "cross_tenant_authorization": "pass",
+        "state_partitioning": "pass",
+        "sandbox_isolation": "pass",
+        "connection_routing": "pass",
+        "secret_scope": "pass",
+        "canonical_data_owner": "pass",
+        "deployment_topology": "pass",
+        "cross_tenant_negative_evidence": "pass"
+      },
+      "verified_surfaces": [
+        "migration",
+        "admin_api",
+        "audit_log"
+      ],
+      "negative_scenarios": [
+        "unknown_tenant",
+        "ambiguous_tenant",
+        "unavailable_connection",
+        "no_data",
+        "cross_tenant_candidate"
+      ]
+    },
+    "views": {
+      "system_context": {
+        "tenancy_model": "hybrid",
+        "tenant_entities": [
+          "tenant",
+          "tenant_revision",
+          "workspace_connection",
+          "provisioning_operation",
+          "service_actor",
+          "capability"
+        ],
+        "canonical_owners": [
+          "Brainbase Tenant Authority"
+        ],
+        "evidence": {
+          "tenant_key": "tenant_key",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared",
+            "customer_managed",
+            "self_hosted"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "canonical provisioning state",
+              "tenant_key_source": "tenant_key from manifest",
+              "trust_zone": "Brainbase control plane",
+              "data_owner": "Brainbase Tenant Authority"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "provisioning operation",
+              "tenant_key_source": "tenant_key",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "opaque credential reference",
+              "connection_mode": "authoritative revision",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        }
+      },
+      "tenant_resolution": {
+        "canonical_key": "tenant_key",
+        "resolved_from": [
+          "provisioning manifest",
+          "Brainbase tenant authority"
+        ],
+        "resolution_point": "Provisioning Coordinator before first write",
+        "failure": {
+          "missing": "deny",
+          "ambiguous": "deny"
+        },
+        "evidence": {
+          "tenant_key": "tenant_key",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared",
+            "customer_managed",
+            "self_hosted"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "canonical provisioning state",
+              "tenant_key_source": "tenant_key from manifest",
+              "trust_zone": "Brainbase control plane",
+              "data_owner": "Brainbase Tenant Authority"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "provisioning operation",
+              "tenant_key_source": "tenant_key",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "opaque credential reference",
+              "connection_mode": "authoritative revision",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        }
+      },
+      "trust_data_boundary": {
+        "resources": [
+          {
+            "name": "tenant provisioning control-plane state",
+            "sharing": "tenant_partitioned",
+            "tenant_key": "tenant_key",
+            "partition_key": "tenant_key/resource_id",
+            "trust_zone": "Brainbase control plane PostgreSQL",
+            "residue_policy": "retention then verified delete",
+            "data_owner": "Brainbase Tenant Authority",
+            "credential_scope": "opaque credential reference"
+          }
+        ],
+        "credential_lookup_key": "tenant_key",
+        "credential_scope": "tenant-bound opaque credential reference",
+        "canonical_owners": [
+          "Brainbase Tenant Authority"
+        ],
+        "residency": "Brainbase control-plane PostgreSQL",
+        "boundary_edges": [
+          "manifest to tenant control plane",
+          "service actor to capability grant"
+        ],
+        "evidence": {
+          "tenant_key": "tenant_key",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared",
+            "customer_managed",
+            "self_hosted"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "canonical provisioning state",
+              "tenant_key_source": "tenant_key from manifest",
+              "trust_zone": "Brainbase control plane",
+              "data_owner": "Brainbase Tenant Authority"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "provisioning operation",
+              "tenant_key_source": "tenant_key",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "opaque credential reference",
+              "connection_mode": "authoritative revision",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        }
+      },
+      "runtime_execution": {
+        "required_surfaces": [
+          "migration",
+          "admin_api",
+          "audit_log"
+        ],
+        "declared_verified_surfaces": [
+          "migration",
+          "admin_api",
+          "audit_log"
+        ],
+        "evidence_verified_surfaces": [
+          "migration",
+          "admin_api",
+          "audit_log"
+        ],
+        "cross_tenant_fallback": "forbidden",
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        }
+      },
+      "deployment_variants": {
+        "tenancy_model": "hybrid",
+        "modes": [
+          "managed_shared",
+          "customer_managed",
+          "self_hosted"
+        ],
+        "connection_modes": [],
+        "resource_sharing": [
+          {
+            "name": "tenant provisioning control-plane state",
+            "sharing": "tenant_partitioned",
+            "partition_key": "tenant_key/resource_id"
+          }
+        ],
+        "evidence": {
+          "graph": [
+            "managed_shared",
+            "customer_managed",
+            "self_hosted"
+          ],
+          "spec": [
+            "managed_shared",
+            "customer_managed",
+            "self_hosted"
+          ],
+          "implementation": [
+            "managed_shared",
+            "customer_managed",
+            "self_hosted"
+          ]
+        }
+      },
+      "migration_rollback": {
+        "canonical_owners": [
+          "Brainbase Tenant Authority"
+        ],
+        "migration": "transactional migration after explicit approval",
+        "rollback": "rollback same transaction and read back tenant-isolated state",
+        "operator_action": null,
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "verified_negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "failure_semantics": {
+          "unknown_tenant": "deny",
+          "ambiguous_tenant": "deny",
+          "unavailable_connection": "unavailable",
+          "no_data": "empty",
+          "cross_tenant_candidate": "deny_and_audit"
+        }
+      }
+    },
+    "review_lenses": [
+      {
+        "id": "tenant_architecture",
+        "question": "tenant identityは入口から全実行面と資源境界まで一意に伝播するか",
+        "status": "ready",
+        "findings": [],
+        "unconfirmed": []
+      },
+      {
+        "id": "security_boundary",
+        "question": "credential、secret、dataにcross-tenant fallbackまたは混線経路がないか",
+        "status": "ready",
+        "findings": [],
+        "unconfirmed": []
+      },
+      {
+        "id": "operations_and_migration",
+        "question": "各配備形態で移行・rollback・削除・接続不能の意味が維持されるか",
+        "status": "ready",
+        "findings": [],
+        "unconfirmed": []
+      }
+    ]
+  },
+  "bug_diagnosis": null,
+  "execution_dag": {
+    "schema_version": "0.1.0",
+    "nodes": [
+      {
+        "id": "story_selected",
+        "status": "passed",
+        "required": true,
+        "reason": "Story id is bound to this execution state"
+      },
+      {
+        "id": "worktree_created",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "managed worktree mode is disabled",
+        "evidence": null
+      },
+      {
+        "id": "branch_bound",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "no managed branch recorded",
+        "evidence": null
+      },
+      {
+        "id": "head_bound",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "managed worktree HEAD binding is not recorded",
+        "evidence": null
+      },
+      {
+        "id": "implementation_started",
+        "status": "passed",
+        "required": false,
+        "reason": "implementation starts in the current checkout because managed worktree mode is disabled"
+      },
+      {
+        "id": "implementation_complete",
+        "status": "passed",
+        "required": false,
+        "reason": "implementation has produced PR preparation or verification evidence"
+      },
+      {
+        "id": "verification_recorded",
+        "status": "passed",
+        "required": false,
+        "reason": "verification evidence exists"
+      },
+      {
+        "id": "agent_review_recorded",
+        "status": "passed",
+        "required": false,
+        "reason": "required agent review evidence is complete"
+      },
+      {
+        "id": "pr_prepare_ready",
+        "status": "pending",
+        "required": true,
+        "reason": "PR prepare is not ready yet"
+      },
+      {
+        "id": "pr_created",
+        "status": "pending",
+        "required": true,
+        "reason": "PR has not been created yet"
+      },
+      {
+        "id": "merge_ready",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "PR has not been created yet"
+      },
+      {
+        "id": "merged_or_closed",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "PR has not been created yet"
+      },
+      {
+        "id": "delivery_reconciliation",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "delivery has not been observed"
+      },
+      {
+        "id": "worktree_cleaned",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "managed worktree cleanup is outside this MVP implementation scope"
+      }
+    ],
+    "edges": [
+      {
+        "from": "story_selected",
+        "to": "worktree_created"
+      },
+      {
+        "from": "worktree_created",
+        "to": "branch_bound"
+      },
+      {
+        "from": "branch_bound",
+        "to": "head_bound"
+      },
+      {
+        "from": "head_bound",
+        "to": "implementation_started"
+      },
+      {
+        "from": "implementation_started",
+        "to": "implementation_complete"
+      },
+      {
+        "from": "implementation_complete",
+        "to": "verification_recorded"
+      },
+      {
+        "from": "verification_recorded",
+        "to": "agent_review_recorded"
+      },
+      {
+        "from": "agent_review_recorded",
+        "to": "pr_prepare_ready"
+      },
+      {
+        "from": "pr_prepare_ready",
+        "to": "pr_created"
+      },
+      {
+        "from": "pr_created",
+        "to": "merge_ready"
+      },
+      {
+        "from": "merge_ready",
+        "to": "merged_or_closed"
+      },
+      {
+        "from": "merged_or_closed",
+        "to": "delivery_reconciliation"
+      },
+      {
+        "from": "delivery_reconciliation",
+        "to": "worktree_cleaned"
+      }
+    ]
+  },
+  "gate_status": "ready",
+  "blocking_reasons": [],
+  "story_source": {
+    "path": "docs/management/stories/active/story-tenant-production-provisioning-control-plane.md",
+    "title": "テナント本番プロビジョニング制御面",
+    "found": true,
+    "acceptance_criteria_count": 12
+  },
+  "traceability": {
+    "acceptance_criteria": [
+      {
+        "id": "AC-001",
+        "type": "acceptance_criterion",
+        "source_text": "AC-001: テナントに人間が読める `tenant_key` と不変のcanonical tenant IDを持たせ、同一keyの重複を拒否できる。",
+        "text": "AC-001: テナントに人間が読める `tenant_key` と不変のcanonical tenant IDを持たせ、同一keyの重複を拒否できる。",
+        "source_line": 53,
+        "status": "mapped",
+        "story_scenario_ids": [],
+        "scenario_lineage_status": "valid",
+        "unknown_story_scenario_ids": [],
+        "mapped_files": [
+          "tests/server/services/multitenant/tenant-provisioning-schema.test.js"
+        ],
+        "mapped_tests": [
+          "tests/server/services/multitenant/tenant-provisioning-schema.test.js"
+        ],
+        "mapped_test_provenance": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
+            "case": "defines tenant key, append-only revision history, and revision FKs",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "1f920f0b47b2c42d31fb337e1aef0fee317930f0"
+          }
+        ],
+        "mapped_evidence": [],
+        "mapped_review_findings": [],
+        "spec_clause_ids": [
+          "C-001"
+        ],
+        "mapping_source": "accepted_spec",
+        "lineage_status": "resolved",
+        "verification_status": "unverified",
+        "reason_codes": [],
+        "weak_mapping_reason": null
+      },
+      {
+        "id": "AC-002",
+        "type": "acceptance_criterion",
+        "source_text": "AC-002: テナントrevisionを履歴として保持し、tenant-owned recordは現在値だけでなく書込み時revisionへ参照整合する。revision更新で既存recordの外部キーを壊さない。",
+        "text": "AC-002: テナントrevisionを履歴として保持し、tenant-owned recordは現在値だけでなく書込み時revisionへ参照整合する。revision更新で既存recordの外部キーを壊さない。",
+        "source_line": 54,
+        "status": "mapped",
+        "story_scenario_ids": [],
+        "scenario_lineage_status": "valid",
+        "unknown_story_scenario_ids": [],
+        "mapped_files": [
+          "tests/server/services/multitenant/tenant-provisioning-schema.test.js"
+        ],
+        "mapped_tests": [
+          "tests/server/services/multitenant/tenant-provisioning-schema.test.js"
+        ],
+        "mapped_test_provenance": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
+            "case": "defines tenant key, append-only revision history, and revision FKs",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "1f920f0b47b2c42d31fb337e1aef0fee317930f0"
+          }
+        ],
+        "mapped_evidence": [],
+        "mapped_review_findings": [],
+        "spec_clause_ids": [
+          "C-001"
+        ],
+        "mapping_source": "accepted_spec",
+        "lineage_status": "resolved",
+        "verification_status": "unverified",
+        "reason_codes": [],
+        "weak_mapping_reason": null
+      },
+      {
+        "id": "AC-003",
+        "type": "acceptance_criterion",
+        "source_text": "AC-003: 同じtenant・provider・workspace・appの有効接続は一つだけで、再インストールは既存connectionのrevision更新として表現できる。",
+        "text": "AC-003: 同じtenant・provider・workspace・appの有効接続は一つだけで、再インストールは既存connectionのrevision更新として表現できる。",
+        "source_line": 55,
+        "status": "mapped",
+        "story_scenario_ids": [],
+        "scenario_lineage_status": "valid",
+        "unknown_story_scenario_ids": [],
+        "mapped_files": [
+          "tests/server/services/multitenant/tenant-provisioning-schema.test.js"
+        ],
+        "mapped_tests": [
+          "tests/server/services/multitenant/tenant-provisioning-schema.test.js"
+        ],
+        "mapped_test_provenance": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
+            "case": "enforces workspace logical uniqueness, provisioning idempotency, and service capabilities",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "1f920f0b47b2c42d31fb337e1aef0fee317930f0"
+          }
+        ],
+        "mapped_evidence": [],
+        "mapped_review_findings": [],
+        "spec_clause_ids": [
+          "C-002"
+        ],
+        "mapping_source": "accepted_spec",
+        "lineage_status": "resolved",
+        "verification_status": "unverified",
+        "reason_codes": [],
+        "weak_mapping_reason": null
+      },
+      {
+        "id": "AC-004",
+        "type": "acceptance_criterion",
+        "source_text": "AC-004: `workspace_connection_revisions`を不変snapshotの正本とし、`workspace_connections`のcurrent pointerは既存snapshotだけを指す。credential・usage・receipt等のrevision参照は履歴へ向け、snapshot追加前にcurrent pointerを進めず、孤立snapshotや存在しないcurrent revisionを保存できない。",
+        "text": "AC-004: `workspace_connection_revisions`を不変snapshotの正本とし、`workspace_connections`のcurrent pointerは既存snapshotだけを指す。credential・usage・receipt等のrevision参照は履歴へ向け、snapshot追加前にcurrent pointerを進めず、孤立snapshotや存在しないcurrent revisionを保存できない。",
+        "source_line": 56,
+        "status": "mapped",
+        "story_scenario_ids": [],
+        "scenario_lineage_status": "valid",
+        "unknown_story_scenario_ids": [],
+        "mapped_files": [
+          "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
+          "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js"
+        ],
+        "mapped_tests": [
+          "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
+          "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js"
+        ],
+        "mapped_test_provenance": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
+            "case": "defines tenant key, append-only revision history, and revision FKs",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "1f920f0b47b2c42d31fb337e1aef0fee317930f0"
+          },
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "case": "passes the reserved canonical connection identity and next revision to the credential store on reinstall",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "ba44f74e9419e4b9ad77dca8623bf654640825e9"
+          }
+        ],
+        "mapped_evidence": [],
+        "mapped_review_findings": [],
+        "spec_clause_ids": [
+          "INV-001"
+        ],
+        "mapping_source": "accepted_spec",
+        "lineage_status": "resolved",
+        "verification_status": "unverified",
+        "reason_codes": [],
+        "weak_mapping_reason": null
+      },
+      {
+        "id": "AC-005",
+        "type": "acceptance_criterion",
+        "source_text": "AC-005: 同じidempotency keyと同じ宣言の再実行は、既存の成功結果を返して書込みを増やさない。keyと宣言の不一致はconflictとして拒否する。",
+        "text": "AC-005: 同じidempotency keyと同じ宣言の再実行は、既存の成功結果を返して書込みを増やさない。keyと宣言の不一致はconflictとして拒否する。",
+        "source_line": 57,
+        "status": "mapped",
+        "story_scenario_ids": [],
+        "scenario_lineage_status": "valid",
+        "unknown_story_scenario_ids": [],
+        "mapped_files": [
+          "tests/server/services/multitenant/tenant-provisioner.test.js"
+        ],
+        "mapped_tests": [
+          "tests/server/services/multitenant/tenant-provisioner.test.js"
+        ],
+        "mapped_test_provenance": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "replays the same operation without duplicate writes",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          }
+        ],
+        "mapped_evidence": [],
+        "mapped_review_findings": [],
+        "spec_clause_ids": [
+          "C-003"
+        ],
+        "mapping_source": "accepted_spec",
+        "lineage_status": "resolved",
+        "verification_status": "unverified",
+        "reason_codes": [],
+        "weak_mapping_reason": null
+      },
+      {
+        "id": "AC-006",
+        "type": "acceptance_criterion",
+        "source_text": "AC-006: provisionerはschema確認、tenant、tenant revision、workspace connection、contract、service registry、canonical project検証を一つの明示的な段階として実行し、途中失敗時に有効化状態を残さない。contract revisionは契約本体payloadとruntime bindingを宣言から完全に検証・保存・readbackし、既存revisionとの不一致をconflictとして拒否する。",
+        "text": "AC-006: provisionerはschema確認、tenant、tenant revision、workspace connection、contract、service registry、canonical project検証を一つの明示的な段階として実行し、途中失敗時に有効化状態を残さない。contract revisionは契約本体payloadとruntime bindingを宣言から完全に検証・保存・readbackし、既存revisionとの不一致をconflictとして拒否する。",
+        "source_line": 58,
+        "status": "mapped",
+        "story_scenario_ids": [],
+        "scenario_lineage_status": "valid",
+        "unknown_story_scenario_ids": [],
+        "mapped_files": [
+          "tests/server/services/multitenant/tenant-provisioner.test.js",
+          "tests/server/services/multitenant/tenant-provisioning-resolvers.test.js",
+          "tests/server/services/multitenant/provisioning-manifest.test.js"
+        ],
+        "mapped_tests": [
+          "tests/server/services/multitenant/tenant-provisioner.test.js",
+          "tests/server/services/multitenant/tenant-provisioning-resolvers.test.js",
+          "tests/server/services/multitenant/provisioning-manifest.test.js"
+        ],
+        "mapped_test_provenance": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "reclaims a failed operation with the same fingerprint and fences the old attempt",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioning-resolvers.test.js",
+            "case": "resolves one canonical project with a bounded, separate read client",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "4c10c5fdfa6eb2dfe9d175b8215fab17e39dc91d"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "fails closed on ambiguous Graph project and never writes a Graph person",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          },
+          {
+            "file": "tests/server/services/multitenant/provisioning-manifest.test.js",
+            "case": "requires the canonical runtime contract binding fields",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "6d7ccb7bcca11ac0bb7cd6b88fdfa92d4f233054"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "returns a redacted readback receipt after an atomic apply",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "fails closed when a canonical contract revision already has a different payload",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          }
+        ],
+        "mapped_evidence": [],
+        "mapped_review_findings": [],
+        "spec_clause_ids": [
+          "INV-005",
+          "S-002",
+          "C-005"
+        ],
+        "mapping_source": "accepted_spec",
+        "lineage_status": "resolved",
+        "verification_status": "unverified",
+        "reason_codes": [],
+        "weak_mapping_reason": null
+      },
+      {
+        "id": "AC-007",
+        "type": "acceptance_criterion",
+        "source_text": "AC-007: service actorとcapabilityはBrainbaseのregistryで一意に管理し、既存Graphへ `person` として書き込まない。権限付与はactor、capability、tenant、project境界を検証してから行う。",
+        "text": "AC-007: service actorとcapabilityはBrainbaseのregistryで一意に管理し、既存Graphへ `person` として書き込まない。権限付与はactor、capability、tenant、project境界を検証してから行う。",
+        "source_line": 59,
+        "status": "mapped",
+        "story_scenario_ids": [],
+        "scenario_lineage_status": "valid",
+        "unknown_story_scenario_ids": [],
+        "mapped_files": [
+          "tests/server/services/multitenant/tenant-provisioner.test.js"
+        ],
+        "mapped_tests": [
+          "tests/server/services/multitenant/tenant-provisioner.test.js"
+        ],
+        "mapped_test_provenance": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "fails closed on ambiguous Graph project and never writes a Graph person",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          }
+        ],
+        "mapped_evidence": [],
+        "mapped_review_findings": [],
+        "spec_clause_ids": [
+          "C-004"
+        ],
+        "mapping_source": "accepted_spec",
+        "lineage_status": "resolved",
+        "verification_status": "unverified",
+        "reason_codes": [],
+        "weak_mapping_reason": null
+      },
+      {
+        "id": "AC-008",
+        "type": "acceptance_criterion",
+        "source_text": "AC-008: manifest、通常ログ、receipt、Graphにはtoken、secret、private key、OAuth本文を一切出さず、opaque credential referenceとpublic key metadataだけを扱う。",
+        "text": "AC-008: manifest、通常ログ、receipt、Graphにはtoken、secret、private key、OAuth本文を一切出さず、opaque credential referenceとpublic key metadataだけを扱う。",
+        "source_line": 60,
+        "status": "mapped",
+        "story_scenario_ids": [],
+        "scenario_lineage_status": "valid",
+        "unknown_story_scenario_ids": [],
+        "mapped_files": [
+          "tests/server/services/multitenant/provisioning-manifest.test.js",
+          "tests/server/services/multitenant/tenant-provisioning-schema.test.js"
+        ],
+        "mapped_tests": [
+          "tests/server/services/multitenant/provisioning-manifest.test.js",
+          "tests/server/services/multitenant/tenant-provisioning-schema.test.js"
+        ],
+        "mapped_test_provenance": [
+          {
+            "file": "tests/server/services/multitenant/provisioning-manifest.test.js",
+            "case": "rejects unknown tenant identity and secret material without echoing the value",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "6d7ccb7bcca11ac0bb7cd6b88fdfa92d4f233054"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
+            "case": "does not persist secret bodies or model service actors as Graph persons",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "1f920f0b47b2c42d31fb337e1aef0fee317930f0"
+          }
+        ],
+        "mapped_evidence": [],
+        "mapped_review_findings": [],
+        "spec_clause_ids": [
+          "INV-003"
+        ],
+        "mapping_source": "accepted_spec",
+        "lineage_status": "resolved",
+        "verification_status": "unverified",
+        "reason_codes": [],
+        "weak_mapping_reason": null
+      },
+      {
+        "id": "AC-009",
+        "type": "acceptance_criterion",
+        "source_text": "AC-009: CLIはデフォルトでread-onlyまたはdry-runであり、DB書込みには明示的なapply承認と実行actorを要求する。migration actorは `BRAINBASE_MIGRATION_ACTOR` から取得してDB ledgerの `applied_by` に記録し、本番適用は `--approve-apply` とrollout receiptで承認を固定する。出力は秘密値を含まないJSONで再読込できる。",
+        "text": "AC-009: CLIはデフォルトでread-onlyまたはdry-runであり、DB書込みには明示的なapply承認と実行actorを要求する。migration actorは `BRAINBASE_MIGRATION_ACTOR` から取得してDB ledgerの `applied_by` に記録し、本番適用は `--approve-apply` とrollout receiptで承認を固定する。出力は秘密値を含まないJSONで再読込できる。",
+        "source_line": 61,
+        "status": "mapped",
+        "story_scenario_ids": [],
+        "scenario_lineage_status": "valid",
+        "unknown_story_scenario_ids": [],
+        "mapped_files": [
+          "tests/server/scripts/provision-tenant.test.js",
+          "tests/server/scripts/tenant-production-provisioning-migration.test.js"
+        ],
+        "mapped_tests": [
+          "tests/server/scripts/provision-tenant.test.js",
+          "tests/server/scripts/tenant-production-provisioning-migration.test.js"
+        ],
+        "mapped_test_provenance": [
+          {
+            "file": "tests/server/scripts/provision-tenant.test.js",
+            "case": "keeps check and dry-run safe and requires explicit approval for apply",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "92b57b99d86de7b571788d56718baacd4f22f214"
+          },
+          {
+            "file": "tests/server/scripts/tenant-production-provisioning-migration.test.js",
+            "case": "requires one mode and explicit approval plus actor for apply",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "43795eb019401abc413a04a608cc6ba8f659ab62"
+          }
+        ],
+        "mapped_evidence": [],
+        "mapped_review_findings": [],
+        "spec_clause_ids": [
+          "C-007"
+        ],
+        "mapping_source": "accepted_spec",
+        "lineage_status": "resolved",
+        "verification_status": "unverified",
+        "reason_codes": [],
+        "weak_mapping_reason": null
+      },
+      {
+        "id": "AC-010",
+        "type": "acceptance_criterion",
+        "source_text": "AC-010: schema差分、provisioning結果、Graph検証結果、contract revision readbackを同一operation IDで追跡でき、未確認・障害・部分適用を成功や0件へ丸めない。",
+        "text": "AC-010: schema差分、provisioning結果、Graph検証結果、contract revision readbackを同一operation IDで追跡でき、未確認・障害・部分適用を成功や0件へ丸めない。",
+        "source_line": 62,
+        "status": "mapped",
+        "story_scenario_ids": [],
+        "scenario_lineage_status": "valid",
+        "unknown_story_scenario_ids": [],
+        "mapped_files": [
+          "tests/server/services/multitenant/tenant-provisioner.test.js",
+          "tests/server/services/multitenant/provisioning-manifest.test.js"
+        ],
+        "mapped_tests": [
+          "tests/server/services/multitenant/tenant-provisioner.test.js",
+          "tests/server/services/multitenant/provisioning-manifest.test.js"
+        ],
+        "mapped_test_provenance": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "returns a redacted readback receipt after an atomic apply",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          },
+          {
+            "file": "tests/server/services/multitenant/provisioning-manifest.test.js",
+            "case": "requires the canonical runtime contract binding fields",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "6d7ccb7bcca11ac0bb7cd6b88fdfa92d4f233054"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "returns a redacted readback receipt after an atomic apply",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "fails closed when a canonical contract revision already has a different payload",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          }
+        ],
+        "mapped_evidence": [],
+        "mapped_review_findings": [],
+        "spec_clause_ids": [
+          "C-006",
+          "C-005"
+        ],
+        "mapping_source": "accepted_spec",
+        "lineage_status": "resolved",
+        "verification_status": "unverified",
+        "reason_codes": [],
+        "weak_mapping_reason": null
+      },
+      {
+        "id": "AC-011",
+        "type": "acceptance_criterion",
+        "source_text": "AC-011: provisionerは短いtransactionでoperation claimとattemptを永続化してcommit・lock解放した後だけ、`createPostgresGraphProjectResolver` によるread-onlyのcanonical projects lookupをbounded timeout付きで呼ぶ。適用はfresh transactionで同じclaimをfencing確認してから行い、失敗後の再試行で発行した新claimに対して旧実行が完了を書き込めない。",
+        "text": "AC-011: provisionerは短いtransactionでoperation claimとattemptを永続化してcommit・lock解放した後だけ、`createPostgresGraphProjectResolver` によるread-onlyのcanonical projects lookupをbounded timeout付きで呼ぶ。適用はfresh transactionで同じclaimをfencing確認してから行い、失敗後の再試行で発行した新claimに対して旧実行が完了を書き込めない。",
+        "source_line": 63,
+        "status": "mapped",
+        "story_scenario_ids": [],
+        "scenario_lineage_status": "valid",
+        "unknown_story_scenario_ids": [],
+        "mapped_files": [
+          "tests/server/services/multitenant/tenant-provisioner.test.js",
+          "tests/server/services/multitenant/tenant-provisioning-resolvers.test.js"
+        ],
+        "mapped_tests": [
+          "tests/server/services/multitenant/tenant-provisioner.test.js",
+          "tests/server/services/multitenant/tenant-provisioning-resolvers.test.js"
+        ],
+        "mapped_test_provenance": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "reclaims a failed operation with the same fingerprint and fences the old attempt",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioning-resolvers.test.js",
+            "case": "resolves one canonical project with a bounded, separate read client",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "4c10c5fdfa6eb2dfe9d175b8215fab17e39dc91d"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "records a redacted failed operation after an apply rollback",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "reclaims a failed operation with the same fingerprint and fences the old attempt",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "70d800fb0e9d99ded357a5403e821472e2a09c4b"
+          }
+        ],
+        "mapped_evidence": [],
+        "mapped_review_findings": [],
+        "spec_clause_ids": [
+          "INV-005",
+          "S-001"
+        ],
+        "mapping_source": "accepted_spec",
+        "lineage_status": "resolved",
+        "verification_status": "unverified",
+        "reason_codes": [],
+        "weak_mapping_reason": null
+      },
+      {
+        "id": "AC-012",
+        "type": "acceptance_criterion",
+        "source_text": "AC-012: Slack OAuth callbackはintent、request digest、exchange claimを短いtransactionで永続化してから外部token exchangeを行う。登録はfresh transactionで同じclaimとtenant／workspace／app bindingを再検証し、connectionの不変snapshot追加、current pointer更新、opaque credential参照、intent消費、ledger完了を原子的に確定する。完了済みcallbackは保存結果を返し、同時callback、replay、workspace／app衝突、旧claimの完了はfail closedにする。",
+        "text": "AC-012: Slack OAuth callbackはintent、request digest、exchange claimを短いtransactionで永続化してから外部token exchangeを行う。登録はfresh transactionで同じclaimとtenant／workspace／app bindingを再検証し、connectionの不変snapshot追加、current pointer更新、opaque credential参照、intent消費、ledger完了を原子的に確定する。完了済みcallbackは保存結果を返し、同時callback、replay、workspace／app衝突、旧claimの完了はfail closedにする。",
+        "source_line": 64,
+        "status": "mapped",
+        "story_scenario_ids": [],
+        "scenario_lineage_status": "valid",
+        "unknown_story_scenario_ids": [],
+        "mapped_files": [
+          "tests/server/services/multitenant/slack-installation-control-plane.test.js",
+          "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js"
+        ],
+        "mapped_tests": [
+          "tests/server/services/multitenant/slack-installation-control-plane.test.js",
+          "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js"
+        ],
+        "mapped_test_provenance": [
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
+            "case": "claims before OAuth and suppresses a concurrent callback",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "c640ec4a9fc64b795a2d58266336a0f1184a14e2"
+          },
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "case": "writes and reads back the intent, connection revision, opaque credential and exchange ledger atomically",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "ba44f74e9419e4b9ad77dca8623bf654640825e9"
+          },
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
+            "case": "returns the completed ledger result before exchanging a replayed OAuth code",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "c640ec4a9fc64b795a2d58266336a0f1184a14e2"
+          },
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
+            "case": "marks failed claims retryable and fences stale completion",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "c640ec4a9fc64b795a2d58266336a0f1184a14e2"
+          },
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "case": "claims concurrent callbacks before OAuth so only one external exchange and registration occur",
+            "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+            "blob_oid": "ba44f74e9419e4b9ad77dca8623bf654640825e9"
+          }
+        ],
+        "mapped_evidence": [],
+        "mapped_review_findings": [],
+        "spec_clause_ids": [
+          "INV-004",
+          "S-003"
+        ],
+        "mapping_source": "accepted_spec",
+        "lineage_status": "resolved",
+        "verification_status": "unverified",
+        "reason_codes": [],
+        "weak_mapping_reason": null
+      }
+    ],
+    "scenario_clauses": [],
+    "scenario_lineage": null,
+    "accepted_spec_lineage": {
+      "status": "resolved",
+      "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+      "spec_path": ".vibepro/spec/story-tenant-production-provisioning-control-plane/spec.json",
+      "spec_blob_oid": "79b9934774d5460091ccc403d70cb747df41daa2",
+      "story_path": "docs/management/stories/active/story-tenant-production-provisioning-control-plane.md",
+      "story_blob_oid": "eeb41a1dd955cea76ccc0e74ecf8e72cf5c61ac8",
+      "mapping_source": "accepted_spec",
+      "clause_count": 14,
+      "resolved_clause_count": 12,
+      "reason_codes": [],
+      "failures": []
+    },
+    "summary": {
+      "clause_count": 12,
+      "acceptance_criteria_count": 12,
+      "scenario_clause_count": 0,
+      "mapped_count": 12,
+      "weakly_mapped_count": 0,
+      "unmapped_count": 0,
+      "scenario_lineage": null,
+      "examples": []
+    }
+  }
+}

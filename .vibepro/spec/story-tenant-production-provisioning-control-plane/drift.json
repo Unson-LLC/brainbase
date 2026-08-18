@@ -1,0 +1,14 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "spec_id": "2026-08-18T17:47:48.248Z",
+  "evaluated_at": "2026-08-18T23:06:16.987Z",
+  "status": "clean",
+  "summary": {
+    "spec_code_drift": 0,
+    "spec_test_drift": 0,
+    "code_test_drift": 0,
+    "spec_pr_drift": 0
+  },
+  "items": []
+}

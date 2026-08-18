@@ -1,0 +1,132 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "stage": "planning_spec",
+  "status": "needs_review",
+  "roles": [
+    {
+      "role": "product_requirement",
+      "status": "missing",
+      "effective_status": "missing",
+      "stale": false,
+      "stale_reason": null,
+      "binding_status": null,
+      "merge_delta_reuse": null,
+      "content_binding": null,
+      "freshness_policy": null,
+      "provenance_status": null,
+      "provenance_reason": null,
+      "agent_provenance": null,
+      "summary": null,
+      "inspection": {
+        "summary": null,
+        "evidence": null,
+        "inputs": []
+      },
+      "judgment_delta": [],
+      "findings": [],
+      "finding_dispositions": [],
+      "finding_count": 0,
+      "agent_usage": null,
+      "recorded_at": null,
+      "git_context": null,
+      "source_git_context": null,
+      "artifact": null,
+      "history_artifacts": []
+    },
+    {
+      "role": "architecture_boundary",
+      "status": "missing",
+      "effective_status": "missing",
+      "stale": false,
+      "stale_reason": null,
+      "binding_status": null,
+      "merge_delta_reuse": null,
+      "content_binding": null,
+      "freshness_policy": null,
+      "provenance_status": null,
+      "provenance_reason": null,
+      "agent_provenance": null,
+      "summary": null,
+      "inspection": {
+        "summary": null,
+        "evidence": null,
+        "inputs": []
+      },
+      "judgment_delta": [],
+      "findings": [],
+      "finding_dispositions": [],
+      "finding_count": 0,
+      "agent_usage": null,
+      "recorded_at": null,
+      "git_context": null,
+      "source_git_context": null,
+      "artifact": null,
+      "history_artifacts": []
+    },
+    {
+      "role": "spec_consistency",
+      "status": "missing",
+      "effective_status": "missing",
+      "stale": false,
+      "stale_reason": null,
+      "binding_status": null,
+      "merge_delta_reuse": null,
+      "content_binding": null,
+      "freshness_policy": null,
+      "provenance_status": null,
+      "provenance_reason": null,
+      "agent_provenance": null,
+      "summary": null,
+      "inspection": {
+        "summary": null,
+        "evidence": null,
+        "inputs": []
+      },
+      "judgment_delta": [],
+      "findings": [],
+      "finding_dispositions": [],
+      "finding_count": 0,
+      "agent_usage": null,
+      "recorded_at": null,
+      "git_context": null,
+      "source_git_context": null,
+      "artifact": null,
+      "history_artifacts": []
+    }
+  ],
+  "pass_count": 0,
+  "stale_count": 0,
+  "missing_count": 3,
+  "unverified_agent_count": 0,
+  "block_count": 0,
+  "needs_changes_count": 0,
+  "next_actions": [
+    "Run and record planning_spec:product_requirement: `vibepro review record . --id story-tenant-production-provisioning-control-plane --stage planning_spec --role product_requirement --status \"<pass|needs_changes|block>\" --summary \"<summary>\" --inspection-summary \"<inspection-summary>\" --inspection-evidence \"<inspection-evidence>\" --inspection-input \"<ref>\" --judgment-delta \"<initial judgment -> final judgment because evidence>\" --agent-system \"<codex|claude_code>\" --execution-mode parallel_subagent --agent-id \"<replacement-agent-id>\" --agent-thread-id \"<replacement-agent-thread-id>\" --agent-session-id \"<replacement-agent-session-id>\" --implementation-session-id \"<implementation-session-id>\" --reviewer-identity separate_session --agent-model \"<model>\" --agent-reasoning-effort \"<reasoning-effort>\" --agent-cost-tier \"<cost-tier>\" --agent-transcript \"<replacement-agent-transcript>\" --agent-closed --agent-close-evidence \"<replacement-agent-close-evidence>\"`",
+    "Run and record planning_spec:architecture_boundary: `vibepro review record . --id story-tenant-production-provisioning-control-plane --stage planning_spec --role architecture_boundary --status \"<pass|needs_changes|block>\" --summary \"<summary>\" --inspection-summary \"<inspection-summary>\" --inspection-evidence \"<inspection-evidence>\" --inspection-input \"<ref>\" --judgment-delta \"<initial judgment -> final judgment because evidence>\" --agent-system \"<codex|claude_code>\" --execution-mode parallel_subagent --agent-id \"<replacement-agent-id>\" --agent-thread-id \"<replacement-agent-thread-id>\" --agent-session-id \"<replacement-agent-session-id>\" --implementation-session-id \"<implementation-session-id>\" --reviewer-identity separate_session --agent-model \"<model>\" --agent-reasoning-effort \"<reasoning-effort>\" --agent-cost-tier \"<cost-tier>\" --agent-transcript \"<replacement-agent-transcript>\" --agent-closed --agent-close-evidence \"<replacement-agent-close-evidence>\"`",
+    "Run and record planning_spec:spec_consistency: `vibepro review record . --id story-tenant-production-provisioning-control-plane --stage planning_spec --role spec_consistency --status \"<pass|needs_changes|block>\" --summary \"<summary>\" --inspection-summary \"<inspection-summary>\" --inspection-evidence \"<inspection-evidence>\" --inspection-input \"<ref>\" --judgment-delta \"<initial judgment -> final judgment because evidence>\" --agent-system \"<codex|claude_code>\" --execution-mode parallel_subagent --agent-id \"<replacement-agent-id>\" --agent-thread-id \"<replacement-agent-thread-id>\" --agent-session-id \"<replacement-agent-session-id>\" --implementation-session-id \"<implementation-session-id>\" --reviewer-identity separate_session --agent-model \"<model>\" --agent-reasoning-effort \"<reasoning-effort>\" --agent-cost-tier \"<cost-tier>\" --agent-transcript \"<replacement-agent-transcript>\" --agent-closed --agent-close-evidence \"<replacement-agent-close-evidence>\"`"
+  ],
+  "updated_at": "2026-08-18T23:06:20.418Z",
+  "current_git_context": {
+    "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+    "current_branch": "codex/tenant-production-provisioning-control-plane",
+    "dirty": false,
+    "raw_dirty": false,
+    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-08-18T23:06:20.406Z"
+  },
+  "parallel_dispatch": {
+    "mode": "policy_aware_parallel_reviews",
+    "prepared": true,
+    "artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/parallel-dispatch.md",
+    "artifact_updated_at": "2026-08-18T23:06:20.416Z",
+    "prepare_command": "vibepro review prepare . --id story-tenant-production-provisioning-control-plane --stage planning_spec --role product_requirement --role architecture_boundary --role spec_consistency"
+  }
+}
