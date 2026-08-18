@@ -1,4 +1,8 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
+import jwt from 'jsonwebtoken';
 import { deepFreeze } from './canonical-json.js';
+
+const SERVICE_TOKEN_PREFIX = 'bbsvc_';
 
 function reject(res, details = {}) {
     return res.status(401).type('application/problem+json').json({
@@ -21,6 +25,27 @@ function bearerToken(header) {
 
 function includesAudience(actual, expected) {
     return Array.isArray(actual) ? actual.includes(expected) : actual === expected;
+}
+
+function digest(value) {
+    return createHash('sha256').update(String(value), 'utf8').digest();
+}
+
+export function createJwtServiceTokenVerifier({ secret, expectedToken }) {
+    if (!secret) throw new Error('BRAINBASE_SERVICE_TOKEN_SECRET is required');
+    if (!expectedToken) throw new Error('BRAINBASE_TENANT_RUNTIME_SERVICE_TOKEN is required');
+    const expectedDigest = digest(expectedToken);
+    return async function verifyServiceToken(token) {
+        if (typeof token !== 'string' || !token.startsWith(SERVICE_TOKEN_PREFIX)) {
+            throw new Error('Invalid service token');
+        }
+        if (!timingSafeEqual(expectedDigest, digest(token))) {
+            throw new Error('Invalid service token');
+        }
+        const claims = jwt.verify(token.slice(SERVICE_TOKEN_PREFIX.length), secret);
+        if (!claims || claims.typ !== 'service') throw new Error('Invalid service token');
+        return claims;
+    };
 }
 
 export function createServiceAuthMiddleware({

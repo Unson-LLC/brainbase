@@ -140,7 +140,7 @@ DBの外部キーまたはrepository guardで親子の`tenant_id`一致を保証
 
 ### Contract-04: ServicePrincipalとTenantContextEnvelope
 
-service tokenはcredentialとは別の短命な認証手段で、少なくとも`issuer`、`subject`、`audience`、`deployment_id`、`expires_at`、`capabilities`を検証する。token payloadだけでtenantを決定しない。
+service tokenはcredentialとは別の短命な認証手段である。production内部runtimeは`bbsvc_` JWTの署名とdeployment-local tokenの一致を確認したうえで、`issuer`、非空の`subject`、対象を含む`audience`、一致する`deployment_id`、未来の`expires_at`、必要`capabilities`をすべて検証する。期限切れ、audience／deployment不一致、capability不足は`401 SERVICE_AUTH_INVALID`で拒否する。token payloadだけでtenantを決定しない。
 
 ```json
 {
@@ -544,6 +544,7 @@ tenant context、署名／時刻、revision、認可、credential scope、isolat
 | `tests/sns/ops/import-sns-review-pack-to-ledger.test.js` | production review-pack producerがtenant bindingを永続化せず、署名済みEnvelopeの発行を通らない | deployment-local service tokenとruntime selectorで`tenant-context:resolve`を先行し、完全な署名済みEnvelope／canonical resource headerを送信。欠落またはresolve失敗時はLedger API前に拒否 |
 | `tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js` | due postをtenant認可前にclaimしproviderへ送る、またはclaim競合後もproviderへ進む | 永続bindingの副作用前認可、missing／cross-tenant拒否、claim fencing |
 | `tests/server/bootstrap/sns-growth-production-boundary.test.js` | SNS APIが認証・tenant guardなしで直接publishでき、DB未設定時にJSON fileへfallbackする | 未認証／tenant欠落拒否、direct publish 409、DB未設定503、file／provider副作用なし |
+| `tests/server/bootstrap/tenant-runtime-internal-server.test.js` | production合成経路が固定token比較だけでclaims不正tokenも200にする | 実内部HTTPでJWT署名、issuer、subject、audience、deployment、expiry、capabilityを検証し401でfail closed |
 | `tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts` | review-packからpublisherまでtenant binding／authorizerが未配線 | import→Ledger→background_job認可→provider呼出しの既存経路回帰 |
 
 Redの成立条件は「新contractがないため期待した箇所で失敗する」ことであり、環境変数不足、外部サービス停止、秘密値不足による失敗はRed証拠にしない。各Redを確認後、slice単位で最小実装し、Green、既存回帰、Refactorへ進む。
@@ -556,7 +557,7 @@ Redの成立条件は「新contractがないため期待した箇所で失敗す
 | `AC-002` | INV-002、Contract-02 | `tenant-authorization-boundary: every owned row has tenant` | organization／project／Graph／Receiptを束ねるtenant列がない |
 | `AC-003` | INV-001、AP-001／002 | `tenant-authority: aliases never resolve tenant` | authがorganizationIdとtenantIdをfallbackする |
 | `AC-004` | INV-003〜005、BBMT-N-001／002／012 | `tenant-authority: rejects unresolved ambiguous invalid before work` | 一意解決・revision検証がない |
-| `AC-005` | INV-010、Contract-02 | `tenant-entrypoint-fail-closed: runtime disabled admin/audit 503`、`sns-growth production boundary: auth + tenant guard + direct publish disabled + DB required`、`review-pack producer: service auth + canonical tenant/resource headers`、`import-sns-review-pack: canonical binding or fail before HTTP`、`run-sns-scheduled-posts: public runner requires gateway`、`sns-scheduled-publisher: authorize before claim/provider and claim-loss fencing`、`scheduled-publisher E2E`、`PostgreSQL binding readback→authorize→claim→publish` | runtime無効時の管理／監査fail-open、SNS API直送、JSON production fallback、producer auth/header欠落、binding欠落、production scheduler未配線をREDで固定 |
+| `AC-005` | INV-010、Contract-02、Contract-04 | `tenant-entrypoint-fail-closed: runtime disabled admin/audit 503`、`sns-growth production boundary: auth + tenant guard + direct publish disabled + DB required`、`review-pack producer: service auth + canonical tenant/resource headers`、`tenant runtime internal server: canonical service-token claims`、`import-sns-review-pack: canonical binding or fail before HTTP`、`run-sns-scheduled-posts: public runner requires gateway`、`sns-scheduled-publisher: authorize before claim/provider and claim-loss fencing`、`scheduled-publisher E2E`、`PostgreSQL binding readback→authorize→claim→publish` | runtime無効時の管理／監査fail-open、SNS API直送、JSON production fallback、固定token比較のみのservice auth、producer auth/header欠落、binding欠落、production scheduler未配線をREDで固定 |
 | `AC-006` | MigrationPlan、BBMT-N-010 | `tenant-backfill: dry-run counts quarantine rollback` | tenant migrationがない |
 | `AC-101` | Contract-03 | `workspace-connection-registry: canonical relationship` | connection正本objectがない |
 | `AC-102` | Contract-03、BBMT-P-002／003 | `workspace-connection-registry: multi-workspace reinstall revoke` | revision履歴がない |
@@ -602,9 +603,9 @@ blocking open decisionは0件である。今後D-001〜D-009の意味を変え�
 | 21 AC trace | 本SpecとVibePro機械Specで定義 |
 | canonical conformance kit | mana-runtime PR #237 remote HEAD `38e13adde56dbd398cea914aec69c831194353c9`、fixture SHA-256 `9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833`へ固定 |
 | positive／negative／non-applicable fixture | 共通manifestの23件を直接読むBrainbase adapter testで検証する。本番readbackではない |
-| TDD Red | P0追従で管理／監査が`200`で通過する失敗、production runnerの境界resolver不在、ledgerのbinding未保存、claim／provider実行前authorize不在、境界欠落／cross-tenantが拒否されない失敗を先に固定した。review-pack producer追補では4 tests、既存production E2Eでは1 testが意図した理由でRedになったことを確認した |
-| 対象unit／schema／repository／route／contract | multitenant／route／実PostgreSQL Testcontainersは20 files、129 tests Green。SNS全体は72 files、191 tests Green。共通adapterは別途25 tests Green（manifest 23件とsource-lock／冪等式2件）。production E2Eは1 test Green |
-| Spec fingerprint | accepted Specの明示code refsを入力したVibePro fingerprint engineで影響code 17 files、test 120 files、Architecture 1 fileを走査。VibePro inputs digestのcode SHA-256 `cc180da015d555c17189802d8b81f6647556e074b1284662f257ea17757e5164` |
+| TDD Red | P0追従で管理／監査が`200`で通過する失敗、production runnerの境界resolver不在、ledgerのbinding未保存、claim／provider実行前authorize不在、境界欠落／cross-tenantが拒否されない失敗を先に固定した。review-pack producer追補では4 tests、既存production E2Eでは1 test、service auth追補ではcanonical claims未発行1 testと不正expiry／audience／deployment／capabilityを受理する4 testsの合5件が意図した理由でRedになったことを確認した |
+| 対象unit／schema／repository／route／contract | 関連unitは31 files、216 tests Green。実PostgreSQL Testcontainersは9 tests Green。共通adapterは25 tests Green（manifest 23件とsource-lock／冪等式2件）。MCP tenant boundaryは2 tests Green。production E2Eは1 test Green |
+| Spec fingerprint | accepted Specの明示code refsを入力したVibePro fingerprint engineで影響code 20 files、test 120 files、Architecture 1 fileを走査。VibePro inputs digestのcode SHA-256 `2c2efc82464fdf436d66f91e445257fd2baf43ae4197d872551994f7b8aa50cc` |
 | repository全体のCI | この時点では未取得。PR push後に別途readbackする |
 | Cloud／OSS deployment readback | `not_collected` |
 | 実Slackイベント〜Receipt E2E | `not_collected` |

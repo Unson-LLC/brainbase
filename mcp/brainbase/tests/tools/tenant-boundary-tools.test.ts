@@ -30,6 +30,7 @@ describe('tenant boundary MCP tool', () => {
 
     assert.deepEqual(result, { authorized: true, entry_point: 'mcp' });
     assert.equal(captured.url, 'https://brainbase.example/api/v1/runtime/tenant-boundaries/mcp:authorize');
+    assert.equal(new Headers(captured.init?.headers).get('Authorization'), 'Bearer service-opaque');
     assert.equal(new Headers(captured.init?.headers).get('Brainbase-Protocol-Version'), '1.0');
     assert.equal(new Headers(captured.init?.headers).get('Brainbase-Deployment-Id'), tenantContext.placement.deployment_id);
     assert.deepEqual(JSON.parse(String(captured.init?.body)), {

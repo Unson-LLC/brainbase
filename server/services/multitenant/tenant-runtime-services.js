@@ -11,6 +11,10 @@ import {
     createEnvCredentialMaterializer,
     createTrustedProviderForwardersFromEnv
 } from './trusted-provider-forwarder.js';
+import {
+    createJwtServiceTokenVerifier,
+    createServiceAuthMiddleware
+} from './service-auth.js';
 
 function tokenDigest(value) {
     return createHash('sha256').update(String(value), 'utf8').digest();
@@ -36,6 +40,7 @@ function publicKeyFor(signingKey) {
 
 export function createTenantRuntimeServices({
     serviceToken,
+    serviceAuth,
     tenantAuthority,
     connectionRegistry,
     credentialBroker = new CredentialBroker(),
@@ -75,7 +80,7 @@ export function createTenantRuntimeServices({
         now
     });
     return {
-        serviceAuth: createServiceAuth(serviceToken),
+        serviceAuth: serviceAuth ?? createServiceAuth(serviceToken),
         verificationKeys,
         tenantAuthority: tenantContextProducer,
         connectionRegistry,
@@ -117,11 +122,30 @@ export function createTenantRuntimeServicesFromEnv({
         ? providerForwarders
         : createTrustedProviderForwardersFromEnv({ env });
     const usageLedger = new PostgresContractUsageLedger({ repository, now });
+    const deploymentId = requiredEnv(env, 'BRAINBASE_TENANT_RUNTIME_DEPLOYMENT_ID');
+    const runtimeAudience = env.BRAINBASE_TENANT_RUNTIME_AUDIENCE ?? 'mana-runtime';
+    const serviceAudience = env.BRAINBASE_TENANT_RUNTIME_SERVICE_AUDIENCE ?? runtimeAudience;
+    const requiredCapabilities = (env.BRAINBASE_TENANT_RUNTIME_REQUIRED_CAPABILITIES ?? 'tenant_context:resolve')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+    const expectedServiceToken = requiredEnv(env, 'BRAINBASE_TENANT_RUNTIME_SERVICE_TOKEN');
+    const serviceAuth = createServiceAuthMiddleware({
+        verifyToken: createJwtServiceTokenVerifier({
+            secret: requiredEnv(env, 'BRAINBASE_SERVICE_TOKEN_SECRET'),
+            expectedToken: expectedServiceToken
+        }),
+        issuer: env.BRAINBASE_TENANT_RUNTIME_SERVICE_ISSUER ?? 'brainbase',
+        audience: serviceAudience,
+        deploymentId,
+        requiredCapabilities,
+        now
+    });
     const tenantBoundaryGateway = new TenantBoundaryGateway({
         resolveResource: (input) => repository.resolveOwnedResource(input)
     });
     return createTenantRuntimeServices({
-        serviceToken: requiredEnv(env, 'BRAINBASE_TENANT_RUNTIME_SERVICE_TOKEN'),
+        serviceAuth,
         connectionRegistry: {
             validateRevision: (input) => repository.validateConnectionRevision(input)
         },
@@ -143,8 +167,8 @@ export function createTenantRuntimeServicesFromEnv({
             not_before: env.BRAINBASE_TENANT_CONTEXT_KEY_NOT_BEFORE ?? null,
             expires_at: env.BRAINBASE_TENANT_CONTEXT_KEY_EXPIRES_AT ?? null
         },
-        audience: env.BRAINBASE_TENANT_RUNTIME_AUDIENCE ?? 'mana-runtime',
-        deploymentId: requiredEnv(env, 'BRAINBASE_TENANT_RUNTIME_DEPLOYMENT_ID'),
+        audience: runtimeAudience,
+        deploymentId,
         deploymentProfile: requiredEnv(env, 'BRAINBASE_TENANT_RUNTIME_DEPLOYMENT_PROFILE'),
         now
     });

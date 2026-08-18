@@ -632,7 +632,7 @@
     {
       "id": "BBMT-AC-005",
       "type": "invariant",
-      "statement": "管理API、MCP、background job、migration、監査ログは同じtenant resolutionとactor-resource-connection-deployment-revision照合guardを必ず通る。runtime無効時の管理・監査は503で拒否する。SNS対話APIは認証・tenant guard付きdry-runだけを許可する。review pack投入はservice authでPOST /api/v1/runtime/tenant-context:resolveを先に呼び、正本revision照合後に発行された完全なEd25519署名済みTenantContextEnvelopeとcanonical resource headerを本番verifierへ渡す。tenant ID/revisionだけの部分header、CLIへの署名秘密鍵配布、APIからの直接公開を許さない。公開jobはcanonical bindingのbackground_job認可、PostgreSQL claim、provider呼出しの順を強制する。production DB未設定をJSON fileへfallbackせず、gateway、service token、設定、binding、DB欠落時は暗黙補完せず拒否する",
+      "statement": "管理API、MCP、background job、migration、監査ログは同じtenant resolutionとactor-resource-connection-deployment-revision照合guardを必ず通る。runtime無効時の管理・監査は503で拒否する。SNS対話APIは認証・tenant guard付きdry-runだけを許可する。review pack投入は署名、issuer、subject、audience、deployment、expiry、capabilityを検証するcanonical service authでPOST /api/v1/runtime/tenant-context:resolveを先に呼び、正本revision照合後に発行された完全なEd25519署名済みTenantContextEnvelopeとcanonical resource headerを本番verifierへ渡す。tenant ID/revisionだけの部分header、CLIへの署名秘密鍵配布、APIからの直接公開を許さない。公開jobはcanonical bindingのbackground_job認可、PostgreSQL claim、provider呼出しの順を強制する。production DB未設定をJSON fileへfallbackせず、gateway、service token、設定、binding、DB欠落時は暗黙補完せず拒否する",
       "origin": {
         "story_refs": [
           {
@@ -670,6 +670,15 @@
           },
           {
             "file": "server/routes/sns-growth.js"
+          },
+          {
+            "file": "server/services/multitenant/service-auth.js"
+          },
+          {
+            "file": "server/services/multitenant/tenant-runtime-services.js"
+          },
+          {
+            "file": "server/services/auth-service.js"
           }
         ],
         "test_refs": [
@@ -749,10 +758,14 @@
             "file": "tests/server/routes/sns-growth.test.js",
             "case": "dry-runs publishing without mutating the approved Ledger post"
           },
-          {
-            "file": "tests/server/routes/sns-growth.test.js",
-            "case": "AC-005 rejects direct confirmed public publish without calling the provider"
-          }
+        {
+          "file": "tests/server/routes/sns-growth.test.js",
+          "case": "AC-005 rejects direct confirmed public publish without calling the provider"
+        },
+        {
+          "file": "tests/server/bootstrap/tenant-runtime-internal-server.test.js",
+          "case": "AC-005: production runtime rejects expired, wrong-audience, wrong-deployment, and capability-deficient service tokens"
+        }
         ]
       },
       "verifiable_by": {

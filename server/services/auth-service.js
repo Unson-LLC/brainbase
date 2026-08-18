@@ -28,6 +28,12 @@ function normalizeList(value) {
         .filter(Boolean))];
 }
 
+function normalizeConfiguredList(value) {
+    if (Array.isArray(value)) return normalizeList(value);
+    if (typeof value !== 'string') return [];
+    return normalizeList(value.split(','));
+}
+
 function slugifyServiceName(name) {
     const normalized = String(name || '')
         .trim()
@@ -44,6 +50,10 @@ export class AuthService {
         this.jwtSecret = process.env.BRAINBASE_JWT_SECRET || '';
         this.serviceTokenSecret = process.env.BRAINBASE_SERVICE_TOKEN_SECRET || this.jwtSecret || '';
         this.serviceTokenTtlSeconds = Number(process.env.BRAINBASE_SERVICE_TOKEN_TTL_SECONDS || DEFAULT_SERVICE_TOKEN_TTL_SECONDS);
+        this.serviceTokenIssuer = process.env.BRAINBASE_SERVICE_TOKEN_ISSUER || 'brainbase';
+        this.serviceTokenAudience = normalizeConfiguredList(process.env.BRAINBASE_SERVICE_TOKEN_AUDIENCE);
+        this.serviceTokenDeploymentId = process.env.BRAINBASE_SERVICE_TOKEN_DEPLOYMENT_ID || '';
+        this.serviceTokenCapabilities = normalizeConfiguredList(process.env.BRAINBASE_SERVICE_TOKEN_CAPABILITIES);
         this.refreshSecret = process.env.BRAINBASE_REFRESH_SECRET || this.jwtSecret || '';
         this.accessTtlSeconds = Number(process.env.BRAINBASE_ACCESS_TTL_SECONDS || 60 * 60);
         this.refreshTtlSeconds = Number(process.env.BRAINBASE_REFRESH_TTL_SECONDS || 60 * 60 * 24 * 30);
@@ -567,6 +577,20 @@ export class AuthService {
         const payload = {
             typ: 'service',
             sub: serviceId,
+            issuer: typeof input.issuer === 'string' && input.issuer.trim()
+                ? input.issuer.trim()
+                : this.serviceTokenIssuer,
+            subject: serviceId,
+            audience: normalizeConfiguredList(input.audience).length > 0
+                ? normalizeConfiguredList(input.audience)
+                : this.serviceTokenAudience,
+            deployment_id: typeof input.deploymentId === 'string' && input.deploymentId.trim()
+                ? input.deploymentId.trim()
+                : this.serviceTokenDeploymentId,
+            expires_at: new Date(exp * 1000).toISOString(),
+            capabilities: normalizeConfiguredList(input.capabilities).length > 0
+                ? normalizeConfiguredList(input.capabilities)
+                : this.serviceTokenCapabilities,
             personId: serviceId,
             name,
             role: this.normalizeRole(input.role),
