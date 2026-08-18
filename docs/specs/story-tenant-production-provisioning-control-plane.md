@@ -2,9 +2,9 @@
 
 ## 目的と実装境界
 
-`unson-business` を本番のBrainbase制御面へ登録するための宣言的な入口を定義する。現在の実装対象は、既存の `multitenant-platform.v1` を前提にした schema blocker の検査・適用、tenant identity／revision、tenant project、workspace connection／revision、credential reference、provisioning idempotency ledger、service actor／capability registry、標準JWKS readback、redacted receiptである。
+`unson-business` を本番のBrainbase制御面へ登録するための宣言的な入口を定義する。現在の実装対象は、既存の `multitenant-platform.v1` を前提にした schema blocker の検査・適用、tenant identity／revision、tenant project、workspace connection／revision、credential reference、provisioning idempotency ledger、service actor／capability registry、契約本体payload／runtime binding、標準JWKS readback、redacted receiptである。
 
-Graphは既存canonical projectのread-only解決だけを担当する。service actorやcapabilityをGraphの `person` として作成・更新する処理は持たない。契約revisionの業務項目は既存 `tenant_contract_revisions` の正本を使用するが、manifestからの契約内容を保存する専用書込みは次の実装レーンで追加するまで、schema prerequisiteとして扱い、未指定の契約を推測しない。
+Graphは既存canonical projectのread-only解決だけを担当する。service actorやcapabilityをGraphの `person` として作成・更新する処理は持たない。契約revisionはmanifestで契約本体payloadとruntime bindingの全必須項目を宣言し、前者を `tenant_contract_revisions`、後者を `tenant_contract_revision_runtime_bindings` へ同じfresh transactionで保存する。既存の同一tenant／revisionは全項目一致の場合だけ再利用し、不一致は `CONTRACT_REVISION_CONFLICT` で拒否する。未指定の契約を推測せず、部分更新も行わない。
 
 ## 1. 入力manifest
 
@@ -30,6 +30,33 @@ CLIは秘密本文を含まない、次のようなフラットmanifestを受け
     "actor_id": "svc_mana_runtime",
     "canonical_project_id": "project_mana",
     "capabilities": ["send_message", "read_graph"]
+  },
+  "contract_revision": {
+    "contract_id": "ctr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "revision": "1",
+    "status": "active",
+    "effective_from": "2026-08-18T00:00:00Z",
+    "effective_until": null,
+    "plan_code": "mana-standard",
+    "allowances": { "tool_calls": 1000 },
+    "thresholds_basis_points": [5000, 8000, 10000],
+    "overage_policy": "deny",
+    "hard_stop_basis_points": 10000,
+    "rate_card_revision": 8,
+    "fx_table_revision": 5,
+    "sales_price_revision": 3,
+    "capabilities": [
+      "signed_tenant_context",
+      "connection_revision_recheck",
+      "tenant_scoped_authorization",
+      "credential_broker_v1",
+      "usage_receipt_v1",
+      "idempotent_effects_v1",
+      "container_sanitization_v1"
+    ],
+    "audience": ["mana-runtime"],
+    "deployment_id": "dep_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "profile": "shared_cloud"
   }
 }
 ```
