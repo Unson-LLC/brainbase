@@ -187,8 +187,8 @@
   },
   "lifecycle": "final",
   "cross_lane_contract_source": {
-    "pull_request": "https://github.com/Unson-LLC/mana-runtime/pull/237",
-    "head": "38e13adde56dbd398cea914aec69c831194353c9",
+    "pull_request": "https://github.com/Unson-LLC/mana-runtime/pull/292",
+    "head": "1b015def50a1ee21b616c87b717e821655bf2a48",
     "kit_path": "contracts/mana-brainbase-tenant-context/v1",
     "fixture_set_sha256": "9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833",
     "decision_ids": [
@@ -430,7 +430,7 @@
     }
   },
   "fixtures": {
-    "canonical_source": "mana-runtime PR #237 remote HEAD 38e13adde56dbd398cea914aec69c831194353c9 contracts/mana-brainbase-tenant-context/v1/fixtures/manifest.json",
+    "canonical_source": "mana-runtime PR #292 integration 1b015def50a1ee21b616c87b717e821655bf2a48 contracts/mana-brainbase-tenant-context/v1/fixtures/manifest.json",
     "fixture_set_sha256": "9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833",
     "adapter_test": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
     "positive_count": 1,
@@ -479,7 +479,7 @@
       },
       "confidence": 0.96,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "INV-001",
@@ -531,7 +531,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "INV-002",
@@ -583,7 +583,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "C-002",
@@ -635,7 +635,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "INV-003",
@@ -826,7 +826,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-18T07:02:00.485Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "C-003",
@@ -870,7 +870,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "C-004",
@@ -914,7 +914,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "C-005",
@@ -955,7 +955,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "C-006",
@@ -999,7 +999,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "INV-004",
@@ -1062,7 +1062,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "C-007",
@@ -1114,7 +1114,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "C-008",
@@ -1158,7 +1158,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "C-009",
@@ -1210,7 +1210,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "C-010",
@@ -1251,7 +1251,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "INV-005",
@@ -1303,7 +1303,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "C-015",
@@ -1372,7 +1372,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-17T03:09:47.275Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "C-012",
@@ -1437,13 +1437,13 @@
           },
           {
             "file_glob": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
-            "must_cover": "canonical PR #237 manifest"
+            "must_cover": "canonical PR #292 manifest"
           }
         ]
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "C-013",
@@ -1489,13 +1489,13 @@
           },
           {
             "file_glob": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
-            "must_cover": "canonical PR #237 manifest"
+            "must_cover": "canonical PR #292 manifest"
           }
         ]
       },
       "confidence": 0.92,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "INV-006",
@@ -1538,13 +1538,13 @@
           },
           {
             "file_glob": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
-            "must_cover": "canonical PR #237 manifest"
+            "must_cover": "canonical PR #292 manifest"
           }
         ]
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "C-014",
@@ -1588,7 +1588,7 @@
       },
       "confidence": 0.9,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     },
     {
       "id": "INV-007",
@@ -1654,7 +1654,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-18T07:02:00.485Z"
+      "last_revised_at": "2026-08-18T15:36:27.684Z"
     }
   ],
   "planned_test_suites": [
@@ -1692,6 +1692,6 @@
     }
   ],
   "open_questions": [],
-  "generated_at": "2026-08-18T06:33:48.466Z",
+  "generated_at": "2026-08-18T15:36:27.683Z",
   "previous_spec_id": "2026-08-18T06:33:48.466Z"
 }
