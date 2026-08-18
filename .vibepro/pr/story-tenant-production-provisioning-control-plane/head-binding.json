@@ -1,0 +1,37 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "verified_implementation_head": "9cead354c8e6d462f786cacb697c4910feb00182",
+  "evidence_commit": "f6a623ca87516fc2643607797d11d457aea258ff",
+  "binding_model": "implementation_head_then_artifact_commit",
+  "claims": {
+    "strict_integration": "pass",
+    "strict_typecheck": "pass",
+    "doc_trace": "passed",
+    "spec_readiness": "ready",
+    "spec_drift": "clean",
+    "pr_prepare_gate_status": "ready"
+  },
+  "review_boundary": {
+    "planning_spec": "prepared_not_recorded",
+    "gate": "prepared_not_recorded",
+    "missing_roles_are_not_pass": true
+  },
+  "deployment_boundary": {
+    "production_deploy": "not_executed",
+    "production_e2e": "not_executed"
+  },
+  "artifact_commit_scope": {
+    "artifact_only": true,
+    "path_prefixes": [
+      ".vibepro/pr/story-tenant-production-provisioning-control-plane/",
+      ".vibepro/reviews/story-tenant-production-provisioning-control-plane/",
+      ".vibepro/spec/story-tenant-production-provisioning-control-plane/"
+    ]
+  },
+  "final_tip_validation": {
+    "authority": "github_status_checks",
+    "status": "external_readback_required_after_push",
+    "note": "This receipt does not claim that its own commit was the strict-head verification target."
+  }
+}
