@@ -145,6 +145,9 @@ function createCredentialStore({ env, fetchImpl = globalThis.fetch } = {}) {
         store(input) {
             return call({ operation: 'store', ...input });
         },
+        verify(input) {
+            return call({ operation: 'verify', ...input });
+        },
         revoke(input) {
             return call({ operation: 'revoke', ...input });
         }

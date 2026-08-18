@@ -236,9 +236,40 @@ CREATE TABLE IF NOT EXISTS tenant_contract_revision_runtime_bindings (
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (tenant_id, contract_id, contract_revision),
-    FOREIGN KEY (tenant_id, contract_id, contract_revision)
+    CONSTRAINT tenant_contract_revision_runtime_bindings_contract_fk
+        FOREIGN KEY (tenant_id, contract_id, contract_revision)
         REFERENCES tenant_contract_revisions(tenant_id, contract_id, contract_revision)
 );
+
+DO $tenant_contract_revision_runtime_binding_fk$
+DECLARE
+    fk RECORD;
+BEGIN
+    FOR fk IN
+        SELECT conname
+          FROM pg_constraint
+         WHERE conrelid = 'tenant_contract_revision_runtime_bindings'::regclass
+           AND contype = 'f'
+           AND confrelid = 'tenant_contract_revisions'::regclass
+           AND array_length(conkey, 1) = 3
+    LOOP
+        IF fk.conname <> 'tenant_contract_revision_runtime_bindings_contract_fk' THEN
+            EXECUTE format('ALTER TABLE tenant_contract_revision_runtime_bindings DROP CONSTRAINT %I', fk.conname);
+        END IF;
+    END LOOP;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid = 'tenant_contract_revision_runtime_bindings'::regclass
+           AND conname = 'tenant_contract_revision_runtime_bindings_contract_fk'
+    ) THEN
+        ALTER TABLE tenant_contract_revision_runtime_bindings
+            ADD CONSTRAINT tenant_contract_revision_runtime_bindings_contract_fk
+            FOREIGN KEY (tenant_id, contract_id, contract_revision)
+            REFERENCES tenant_contract_revisions(tenant_id, contract_id, contract_revision);
+    END IF;
+END
+$tenant_contract_revision_runtime_binding_fk$;
 
 CREATE INDEX IF NOT EXISTS tenant_contract_revision_runtime_bindings_deployment_idx
     ON tenant_contract_revision_runtime_bindings (tenant_id, deployment_id, profile);
@@ -301,7 +332,8 @@ CREATE TABLE IF NOT EXISTS slack_installation_intents (
     expires_at TIMESTAMPTZ NOT NULL,
     consumed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL,
-    FOREIGN KEY (tenant_id, tenant_revision_at_write)
+    CONSTRAINT slack_installation_intents_tenant_revision_history_fk
+        FOREIGN KEY (tenant_id, tenant_revision_at_write)
         REFERENCES brainbase_tenant_revisions(tenant_id, tenant_revision),
     UNIQUE (state_hash),
     CHECK (expires_at > issued_at),
@@ -309,6 +341,36 @@ CREATE TABLE IF NOT EXISTS slack_installation_intents (
     CHECK (expected_connection_revision IS NULL OR expected_connection_revision > 0),
     CHECK (consumed_at IS NULL OR consumed_at >= issued_at)
 );
+
+DO $slack_installation_intents_revision_fk$
+DECLARE
+    fk RECORD;
+BEGIN
+    FOR fk IN
+        SELECT conname
+          FROM pg_constraint
+         WHERE conrelid = 'slack_installation_intents'::regclass
+           AND contype = 'f'
+           AND confrelid = 'brainbase_tenant_revisions'::regclass
+           AND array_length(conkey, 1) = 2
+    LOOP
+        IF fk.conname <> 'slack_installation_intents_tenant_revision_history_fk' THEN
+            EXECUTE format('ALTER TABLE slack_installation_intents DROP CONSTRAINT %I', fk.conname);
+        END IF;
+    END LOOP;
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conrelid = 'slack_installation_intents'::regclass
+           AND conname = 'slack_installation_intents_tenant_revision_history_fk'
+    ) THEN
+        ALTER TABLE slack_installation_intents
+            ADD CONSTRAINT slack_installation_intents_tenant_revision_history_fk
+            FOREIGN KEY (tenant_id, tenant_revision_at_write)
+            REFERENCES brainbase_tenant_revisions(tenant_id, tenant_revision);
+    END IF;
+END
+$slack_installation_intents_revision_fk$;
 
 CREATE INDEX IF NOT EXISTS slack_installation_intents_tenant_idx
     ON slack_installation_intents (tenant_id, expires_at, consumed_at);

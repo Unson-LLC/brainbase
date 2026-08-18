@@ -217,7 +217,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:47:48.249Z",
-      "last_revised_at": "2026-08-18T21:06:05.928Z"
+      "last_revised_at": "2026-08-18T21:39:50.561Z"
     },
     {
       "id": "C-002",
@@ -259,7 +259,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:47:48.249Z",
-      "last_revised_at": "2026-08-18T21:06:05.928Z"
+      "last_revised_at": "2026-08-18T21:39:50.561Z"
     },
     {
       "id": "INV-001",
@@ -317,7 +317,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:47:48.249Z",
-      "last_revised_at": "2026-08-18T21:06:05.928Z"
+      "last_revised_at": "2026-08-18T21:39:50.561Z"
     },
     {
       "id": "C-003",
@@ -359,7 +359,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:47:48.249Z",
-      "last_revised_at": "2026-08-18T21:06:05.928Z"
+      "last_revised_at": "2026-08-18T21:39:50.561Z"
     },
     {
       "id": "C-004",
@@ -401,7 +401,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:47:48.249Z",
-      "last_revised_at": "2026-08-18T21:06:05.928Z"
+      "last_revised_at": "2026-08-18T21:39:50.561Z"
     },
     {
       "id": "INV-005",
@@ -459,7 +459,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T21:06:05.928Z",
-      "last_revised_at": "2026-08-18T21:06:05.928Z"
+      "last_revised_at": "2026-08-18T21:39:50.561Z"
     },
     {
       "id": "S-001",
@@ -505,7 +505,7 @@
         ]
       },
       "first_seen_at": "2026-08-19T00:00:00.000Z",
-      "last_revised_at": "2026-08-18T21:06:05.928Z"
+      "last_revised_at": "2026-08-18T21:39:50.561Z"
     },
     {
       "id": "INV-003",
@@ -555,12 +555,12 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:47:48.249Z",
-      "last_revised_at": "2026-08-18T21:06:05.928Z"
+      "last_revised_at": "2026-08-18T21:39:50.561Z"
     },
     {
       "id": "C-007",
       "type": "contract",
-      "statement": "CLIはcheckとdry-runを既定の安全境界とし、applyには--approve-applyと実行actorを要求する。migration actorはDB ledgerのapplied_byへ記録し、本番適用の承認はrollout receiptへ固定し、失敗時はcommitしない",
+      "statement": "CLIはcheckとdry-runを既定の安全境界とし、applyには--approve-applyとBRAINBASE_MIGRATION_ACTORを要求する。migration actorはDB ledgerのapplied_byへ記録し、本番適用の承認はrollout receiptへ固定し、失敗時はcommitしない",
       "rationale": "本番DBへ偶発的に書き込まず、schema・Graph・credential境界を先に確認するため。",
       "origin": {
         "story_refs": [
@@ -605,12 +605,12 @@
         ]
       },
       "first_seen_at": "2026-08-18T21:06:05.928Z",
-      "last_revised_at": "2026-08-18T21:06:05.928Z"
+      "last_revised_at": "2026-08-18T21:39:50.561Z"
     },
     {
       "id": "S-002",
       "type": "scenario",
-      "statement": "Graph projectが未登録、複数候補、別project、またはcredential refが別tenantの場合は有効化せずfail closedにする",
+      "statement": "Graph projectが未登録、複数候補、別projectならfail closedにする。credential refは未登録、別tenant、別connection metadata、revokedならfail closedとし、初回接続もDB上の既存所有者0件に加えてcanonical credential boundaryがrefの存在とtenant／provider／workspace／app bindingをread-onlyで証明した場合だけfirst_installとして許可する。boundary未設定・unavailable・no data・不一致では拒否する",
       "rationale": "名前推測や別deployment fallbackを防ぎ、未確認を成功にしないため。",
       "origin": {
         "story_refs": [
@@ -650,8 +650,8 @@
           }
         ]
       },
-      "first_seen_at": "2026-08-18T17:47:48.249Z",
-      "last_revised_at": "2026-08-18T21:06:05.928Z"
+      "first_seen_at": "2026-08-18T21:39:50.561Z",
+      "last_revised_at": "2026-08-18T21:39:50.561Z"
     },
     {
       "id": "C-006",
@@ -697,7 +697,7 @@
         ]
       },
       "first_seen_at": "2026-08-18T17:47:48.249Z",
-      "last_revised_at": "2026-08-18T21:06:05.928Z"
+      "last_revised_at": "2026-08-18T21:39:50.561Z"
     },
     {
       "id": "INV-004",
@@ -751,7 +751,7 @@
         ]
       },
       "first_seen_at": "2026-08-19T00:00:00.000Z",
-      "last_revised_at": "2026-08-18T21:06:05.928Z"
+      "last_revised_at": "2026-08-18T21:39:50.561Z"
     },
     {
       "id": "S-003",
@@ -801,7 +801,7 @@
         ]
       },
       "first_seen_at": "2026-08-19T00:00:00.000Z",
-      "last_revised_at": "2026-08-18T21:06:05.928Z"
+      "last_revised_at": "2026-08-18T21:39:50.561Z"
     }
   ],
   "diagrams": [

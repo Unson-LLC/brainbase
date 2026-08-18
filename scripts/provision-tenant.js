@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { Pool } from 'pg';
 
+import { createCredentialStore } from '../server/bootstrap/slack-installation-control-plane.js';
 import {
     normalizeProvisioningManifest,
     redactedManifestSummary
@@ -45,6 +46,7 @@ export async function runProvisionTenant({
     pool = null,
     graphResolver = null,
     credentialResolver = null,
+    credentialBoundary = null,
     readManifest = readFile
 } = {}) {
     const args = parseProvisionTenantArgs(argv, env);
@@ -69,7 +71,20 @@ export async function runProvisionTenant({
         // under the provisioner's transaction or advisory lock.  Supplying a
         // custom adapter remains an explicit DI seam for controlled tests.
         const activeGraphResolver = graphResolver ?? createPostgresGraphProjectResolver({ pool: activePool });
-        const activeCredentialResolver = credentialResolver ?? createPostgresCredentialResolver({ pool: activePool });
+        const activeCredentialBoundary = credentialBoundary ?? (() => {
+            try {
+                return createCredentialStore({ env });
+            } catch {
+                // A missing canonical boundary must remain fail-closed.  The
+                // resolver reports the required boundary if first-install
+                // verification reaches it; no DB-only fallback is allowed.
+                return null;
+            }
+        })();
+        const activeCredentialResolver = credentialResolver ?? createPostgresCredentialResolver({
+            pool: activePool,
+            credentialBoundary: activeCredentialBoundary
+        });
         const schemaSql = await readFile(new URL('../server/sql/tenant-production-provisioning-schema.sql', import.meta.url), 'utf8');
         const schemaSha256 = createHash('sha256').update(schemaSql).digest('hex');
         const result = await provisionTenant({

@@ -26,7 +26,7 @@ provider credential、OAuth token、署名秘密鍵、service token本文は制�
 
 ### Activation and Readback
 
-有効化は、schema確認、永続化済みclaim、Graph検証、credential reference検証、service capability検証が完了し、fresh transactionで同じclaimをfencing確認した後だけ可能とする。各段階はoperation IDに紐づけ、失敗時にはclaimでfencingされた失敗状態を残して再実行可能にする。migration applyは明示的な `--approve-apply` と実行actorを要求し、actorをDB migration ledgerの `applied_by` に保存する。本番適用の承認とreadbackはrollout receiptへ固定する。完了判定はCLIの終了コードではなく、DBのledger、各revision、registry、Graph検証、秘密境界のreadbackを照合して行う。
+有効化は、schema確認、永続化済みclaim、Graph検証、credential reference検証、service capability検証が完了し、fresh transactionで同じclaimをfencing確認した後だけ可能とする。各段階はoperation IDに紐づけ、失敗時にはclaimでfencingされた失敗状態を残して再実行可能にする。migration applyは明示的な `--approve-apply` と `BRAINBASE_MIGRATION_ACTOR` を要求し、actorをDB migration ledgerの `applied_by` に保存する。本番適用の承認とreadbackはrollout receiptへ固定する。完了判定はCLIの終了コードではなく、DBのledger、各revision、registry、Graph検証、秘密境界のreadbackを照合して行う。
 
 ## 依存方向
 
@@ -52,7 +52,7 @@ CoordinatorはGraphやSecret Managerの実装詳細を所有せず、検証結�
 2. Coordinatorがmanifestを正規化し、秘密らしいキー・値を拒否してdesired-state fingerprintを算出する。
 3. Schema contractと実行actor/capabilityをread-onlyで確認する。
 4. 操作ledgerをkeyとfingerprintへ原子的に紐づける。claim token hashとattemptを保存し、既存成功なら結果を返し、fingerprint不一致ならconflictにする。`failed`は同じkey・同じfingerprintに限り新しいclaim tokenで再claimでき、`claimed`のstale claimはfencingして旧実行の完了を拒否する。
-5. Graphのcanonical projectとcredential referenceを、claim transactionをcommitしてlockを解放した後に境界越しで検証する。検証不能なら短い失敗更新でledgerをfailedにし、DB副作用を開始しない。
+5. Graphのcanonical projectとcredential referenceを、claim transactionをcommitしてlockを解放した後に境界越しで検証する。未登録ref、別tenant、別connection metadata、revokedはfail closedにする。初回接続の未登録opaque refも、DB上の既存所有者が0件であることに加え、canonical credential boundaryがrefの存在とtenant／provider／workspace／app bindingをread-onlyで証明できた場合だけ `first_install` として続行する。boundary未設定・unavailable・no data・別tenantを含む検証不能は短い失敗更新でledgerをfailedにし、DB副作用を開始しない。
 6. fresh transactionとtenant advisory lockを取得し、同じclaim token hashとattemptが現在の所有者であることをfencing確認してから、tenant識別子・revision履歴、接続snapshot／current pointer、service registryを確定する。既存contract revisionの境界は確認するが、契約payloadが未指定なら推測せず次レーンへ渡す。
 7. capability境界を再確認し、manifestから消えたcapability grant／JWKをrevokedへ遷移させてreadbackする。DB副作用失敗時はrollbackし、別の短いtransactionで同じclaimにfencingされたledgerだけをfailedへ遷移させる。
 8. DB、Graph、registry、ledgerをoperation IDでreadbackし、秘密値を含まないreceiptを返す。

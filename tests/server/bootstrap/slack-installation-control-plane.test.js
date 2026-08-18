@@ -79,6 +79,47 @@ describe('Slack installation control-plane production adapters', () => {
         expect(fetchImpl).toHaveBeenCalledOnce();
     });
 
+    it('exposes only opaque canonical credential verification through the secret boundary', async () => {
+        const fetchImpl = vi.fn(async (_url, init) => {
+            expect(init.headers.authorization).toBe('Bearer credential-store-token');
+            const body = JSON.parse(init.body);
+            expect(body).toEqual({
+                operation: 'verify',
+                tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+                tenant_key: 'unson-business',
+                credential_ref: 'credref://unson-business/slack/primary',
+                provider: 'slack',
+                workspace_id: 'T0123456789',
+                app_id: appId
+            });
+            return Response.json({ result: {
+                valid: true,
+                tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+                tenant_key: 'unson-business',
+                credential_ref: 'credref://unson-business/slack/primary',
+                provider: 'slack',
+                workspace_id: 'T0123456789',
+                app_id: appId
+            } });
+        });
+        const store = createCredentialStore({
+            env: {
+                BRAINBASE_SLACK_CREDENTIAL_STORE_URL: 'https://secrets.example.test/v1/credentials',
+                BRAINBASE_SLACK_CREDENTIAL_STORE_TOKEN: 'credential-store-token'
+            },
+            fetchImpl
+        });
+
+        await expect(store.verify({
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            tenant_key: 'unson-business',
+            credential_ref: 'credref://unson-business/slack/primary',
+            provider: 'slack',
+            workspace_id: 'T0123456789',
+            app_id: appId
+        })).resolves.toMatchObject({ valid: true });
+    });
+
     it('registers a fail-closed control-plane route when production ports are missing', async () => {
         const runtime = createSlackInstallationControlPlaneFromEnv({
             pool: null,

@@ -34,7 +34,7 @@ CLIは秘密本文を含まない、次のようなフラットmanifestを受け
 }
 ```
 
-`tenant_id`とconnection IDは現在の正本と一致することを検証する。新規ID生成を行う運用では、manifestを先に確定させ、生成結果を別の承認済みmanifestへ固定する。`credential_ref`はopaque referenceの形式とtenant／provider／workspace／appの所有関係だけを確認し、秘密brokerの値は取得・出力・保存しない。
+`tenant_id`とconnection IDは現在の正本と一致することを検証する。新規ID生成を行う運用では、manifestを先に確定させ、生成結果を別の承認済みmanifestへ固定する。`credential_ref`はopaque referenceの形式とtenant／provider／workspace／appの所有関係を確認し、秘密brokerの値は取得・出力・保存しない。初回接続の未登録refはDB上の未所有だけでは有効とせず、canonical credential boundaryがrefの存在と完全なtenant bindingをread-onlyで証明できない限りfail closedにする。
 
 必須キー以外、秘密らしいキー／値、重複するscope／capability、未知のtenant、曖昧なprojectは `MANIFEST_INVALID` または upstream固有のfail-closedエラーとして拒否する。fingerprintは正規化manifestのcanonical JSONをSHA-256した値である。
 
@@ -122,7 +122,7 @@ node scripts/provision-tenant.js \
   --check|--dry-run|--apply --approve-apply
 ```
 
-- migration `--check` はcatalogとledgerを読むだけ、`--dry-run` はDDL・ledger・readbackを同一transactionでrollback、`--apply --approve-apply` だけがcommitする。migration actorは `BRAINBASE_PROVISIONING_ACTOR` から取得してDB ledgerの `brainbase_schema_migrations.applied_by` に保存し、本番適用の承認とreadbackをrollout receiptへ固定する。
+- migration `--check` はcatalogとledgerを読むだけ、`--dry-run` はDDL・ledger・readbackを同一transactionでrollback、`--apply --approve-apply` だけがcommitする。migration actorは `BRAINBASE_MIGRATION_ACTOR` から取得してDB ledgerの `brainbase_schema_migrations.applied_by` に保存し、本番適用の承認とreadbackをrollout receiptへ固定する。
 - provision `--check` はmanifestの正規化とredacted summaryだけ、`--dry-run` はprovisioning transactionをrollback、`--apply` は `--approve-apply` と `BRAINBASE_PROVISIONING_ACTOR` を必須とする。
 - DB URLは `INFO_SSOT_DATABASE_URL` または `INFO_SSOT_DB_URL` からだけ読み、URLやdriver本文をoutputへ出さない。
 - outputはoperation ID、tenant／revision、project、connection／revision、actor、capability、fingerprint、readbackのbooleanだけを返す。credential body、actor email、private keyは出さない。
@@ -133,7 +133,7 @@ node scripts/provision-tenant.js \
 2. schema prerequisiteとmigration hashをcheckする。
 3. 短いtransactionでtenant advisory lockを取り、idempotency ledgerのclaim token hashとattemptを保存してcommitし、lockを解放する。
 4. DB transactionとlockを保持しない状態で、`createPostgresGraphProjectResolver` が専用read clientを使ってcanonical projectsをbounded timeout付き・read-onlyで一意解決する。未登録・複数候補・別projectは停止する。
-5. 同じくtransaction外でcredential resolverへopaque referenceの所有関係だけをbounded timeout付きで問い合わせる。
+5. 同じくtransaction外でcredential resolverへopaque referenceの所有関係だけをbounded timeout付きで問い合わせる。未登録ref、別tenant、別connection metadata、revokedをfail closedにする。初回接続で `allow_unregistered` を使う場合も、DB上の既存所有者が0件であることと、canonical credential boundaryがrefの存在およびtenant ID／tenant key／provider／workspace／app bindingを証明することを必須とする。boundary未設定・unavailable・no data・不一致では `CREDENTIAL_BOUNDARY_REQUIRED` または不一致分類で停止し、`first_install` を返さない。
 6. fresh transactionとtenant advisory lockを取得し、同じclaim token hashが現在の所有者であることをfencing確認する。
 7. tenant current／revision、workspace connectionの不変snapshot／current pointer、credential broker ref、service actor／capabilityを保存する。connection snapshotをcurrent pointerより先に追加する。
 8. 全てのreadbackがtenant key、revision、project、connection、actor境界と一致した場合だけtenantをactiveへ遷移し、同じclaimでledgerをappliedへ更新する。

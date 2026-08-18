@@ -39,6 +39,29 @@ async function withBoundedClient(pool, timeout, operation) {
     }
 }
 
+async function withBoundedExternal(timeout, operation) {
+    let timer;
+    try {
+        return await Promise.race([
+            Promise.resolve().then(operation),
+            new Promise((_, reject) => {
+                timer = setTimeout(() => reject(new TenantProvisioningError(
+                    'CREDENTIAL_BOUNDARY_UNAVAILABLE',
+                    'The canonical credential boundary did not respond within its bounded read window'
+                )), timeout);
+            })
+        ]);
+    } catch (error) {
+        if (error instanceof TenantProvisioningError) throw error;
+        throw new TenantProvisioningError(
+            'CREDENTIAL_BOUNDARY_UNAVAILABLE',
+            'The canonical credential boundary could not verify the opaque reference'
+        );
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
+}
+
 /**
  * Resolve a project code from the canonical Info SSOT project table.
  *
@@ -78,11 +101,19 @@ export function createPostgresGraphProjectResolver({ pool, timeoutMs: configured
  * boundary.  Secret material is owned by the credential broker and is never
  * selected, returned, logged, or placed in a provisioning receipt.
  */
-export function createPostgresCredentialResolver({ pool, timeoutMs: configuredTimeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+export function createPostgresCredentialResolver({
+    pool,
+    credentialBoundary = null,
+    timeoutMs: configuredTimeoutMs = DEFAULT_TIMEOUT_MS
+} = {}) {
     const timeout = timeoutMs(configuredTimeoutMs);
     const configuredPool = requirePool(pool);
+    const verifyBoundary = credentialBoundary?.verifyOpaqueReference
+        ?? credentialBoundary?.verify
+        ?? null;
     return {
         async verifyOpaqueReference({
+            tenant_id: tenantId,
             tenant_key: tenantKey,
             credential_ref: credentialRef,
             provider,
@@ -90,12 +121,12 @@ export function createPostgresCredentialResolver({ pool, timeoutMs: configuredTi
             app_id: appId,
             allow_unregistered: allowUnregistered = false
         } = {}) {
-            if (![tenantKey, credentialRef, provider, workspaceId, appId].every((value) => typeof value === 'string' && /^\S+$/u.test(value))) {
+            if (![tenantId, tenantKey, credentialRef, provider, workspaceId, appId].every((value) => typeof value === 'string' && /^\S+$/u.test(value))) {
                 throw new TenantProvisioningError('CREDENTIAL_TENANT_MISMATCH', 'A complete credential boundary is required');
             }
-            return withBoundedClient(configuredPool, timeout, async (client) => {
+            const databaseResult = await withBoundedClient(configuredPool, timeout, async (client) => {
                 const result = await client.query(
-                    `SELECT t.tenant_key, cbr.credential_ref, cbr.connection_id,
+                    `SELECT t.tenant_id, t.tenant_key, cbr.credential_ref, cbr.connection_id,
                             cbr.connection_revision
                        FROM credential_broker_refs cbr
                        JOIN brainbase_tenants t ON t.tenant_id = cbr.tenant_id
@@ -104,32 +135,36 @@ export function createPostgresCredentialResolver({ pool, timeoutMs: configuredTi
                         AND wc.connection_id = cbr.connection_id
                         AND wc.connection_revision = cbr.connection_revision
                       WHERE t.tenant_key = $1
+                        AND t.tenant_id = $6
                         AND cbr.credential_ref = $2
                         AND wc.provider = $3
                         AND wc.workspace_id = $4
                         AND wc.app_id = $5
                         AND wc.status IN ('pending', 'active')
                       LIMIT 2`,
-                    [tenantKey, credentialRef, provider, workspaceId, appId]
+                    [tenantKey, credentialRef, provider, workspaceId, appId, tenantId]
                 );
                 const rows = result.rows ?? [];
-                if (rows.length === 1 && rows[0].tenant_key === tenantKey) {
+                if (rows.length === 1 && rows[0].tenant_id === tenantId && rows[0].tenant_key === tenantKey) {
                     return {
-                        valid: true,
-                        tenant_key: tenantKey,
-                        connection_id: rows[0].connection_id,
-                        connection_revision: Number(rows[0].connection_revision)
+                        kind: 'existing',
+                        result: {
+                            valid: true,
+                            tenant_key: tenantKey,
+                            connection_id: rows[0].connection_id,
+                            connection_revision: Number(rows[0].connection_revision)
+                        }
                     };
                 }
                 if (!allowUnregistered) {
-                    return { valid: false, tenant_key: tenantKey };
+                    return { kind: 'invalid' };
                 }
 
-                // A first install is allowed to declare an opaque reference
-                // that this transaction will create later.  It is not an
-                // unconditional bypass: an existing reference, including one
-                // owned by another tenant or bound to different connection
-                // metadata, remains a hard mismatch.
+                // A missing PostgreSQL row is not evidence that the opaque
+                // reference exists.  The canonical credential store must
+                // prove that the reference is already registered and bound
+                // to this tenant before the provisioning transaction creates
+                // its broker row.
                 const ownership = await client.query(
                     `SELECT tenant_id, credential_ref
                        FROM credential_broker_refs
@@ -138,14 +173,65 @@ export function createPostgresCredentialResolver({ pool, timeoutMs: configuredTi
                     [credentialRef]
                 );
                 if ((ownership.rows ?? []).length > 0) {
-                    return { valid: false, tenant_key: tenantKey };
+                    return { kind: 'invalid' };
                 }
-                return {
-                    valid: true,
-                    tenant_key: tenantKey,
-                    first_install: true
-                };
+                return { kind: 'first_install' };
             });
+
+            if (databaseResult.kind === 'existing') return databaseResult.result;
+            if (databaseResult.kind !== 'first_install') {
+                return { valid: false, tenant_key: tenantKey };
+            }
+            if (typeof verifyBoundary !== 'function') {
+                throw new TenantProvisioningError(
+                    'CREDENTIAL_BOUNDARY_REQUIRED',
+                    'A canonical credential boundary is required for first-install verification'
+                );
+            }
+
+            let boundaryResult;
+            try {
+                boundaryResult = await withBoundedExternal(timeout, () => verifyBoundary({
+                    tenant_id: tenantId,
+                    tenant_key: tenantKey,
+                    credential_ref: credentialRef,
+                    provider,
+                    workspace_id: workspaceId,
+                    app_id: appId
+                }));
+            } catch (error) {
+                if (error instanceof TenantProvisioningError) throw error;
+                throw new TenantProvisioningError(
+                    'CREDENTIAL_BOUNDARY_UNAVAILABLE',
+                    'The canonical credential boundary could not verify the opaque reference'
+                );
+            }
+
+            if (!boundaryResult || typeof boundaryResult !== 'object' || Array.isArray(boundaryResult)) {
+                throw new TenantProvisioningError(
+                    'CREDENTIAL_BOUNDARY_INVALID',
+                    'The canonical credential boundary returned an invalid verification result'
+                );
+            }
+            if (boundaryResult.valid !== true) {
+                return { valid: false, tenant_key: tenantKey };
+            }
+            const bindingMatches = [
+                ['tenant_id', tenantId],
+                ['tenant_key', tenantKey],
+                ['credential_ref', credentialRef],
+                ['provider', provider],
+                ['workspace_id', workspaceId],
+                ['app_id', appId]
+            ].every(([field, expected]) => boundaryResult[field] === expected);
+            if (!bindingMatches) {
+                return { valid: false, tenant_key: tenantKey };
+            }
+            return {
+                valid: true,
+                tenant_key: tenantKey,
+                first_install: true
+            };
         }
     };
 }

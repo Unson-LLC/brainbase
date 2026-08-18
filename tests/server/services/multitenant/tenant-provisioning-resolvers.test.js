@@ -47,6 +47,7 @@ describe('tenant provisioning production resolvers', () => {
     it('returns a tenant-bound credential match without selecting secret material', async () => {
         const fixture = createPool([{
             tenant_key: 'unson-business',
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
             credential_ref: 'credref://unson-business/slack/primary',
             connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
             connection_revision: 2
@@ -55,6 +56,7 @@ describe('tenant provisioning production resolvers', () => {
 
         await expect(resolver.verifyOpaqueReference({
             tenant_key: 'unson-business',
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
             credential_ref: 'credref://unson-business/slack/primary',
             provider: 'slack',
             workspace_id: 'T0123456789',
@@ -68,11 +70,32 @@ describe('tenant provisioning production resolvers', () => {
         expect(fixture.queries.map(({ text }) => text).join('\n')).not.toMatch(/secret|token|value/iu);
     });
 
+    it('does not accept a credential row whose canonical tenant id differs', async () => {
+        const fixture = createPool([{
+            tenant_key: 'unson-business',
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAY',
+            credential_ref: 'credref://unson-business/slack/primary',
+            connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            connection_revision: 2
+        }]);
+        const resolver = createPostgresCredentialResolver({ pool: fixture.pool });
+
+        await expect(resolver.verifyOpaqueReference({
+            tenant_key: 'unson-business',
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            credential_ref: 'credref://unson-business/slack/primary',
+            provider: 'slack',
+            workspace_id: 'T0123456789',
+            app_id: 'A0123456789'
+        })).resolves.toEqual({ valid: false, tenant_key: 'unson-business' });
+    });
+
     it('fails closed for an absent or ambiguous credential boundary', async () => {
         const absent = createPool([]);
         const resolver = createPostgresCredentialResolver({ pool: absent.pool });
         await expect(resolver.verifyOpaqueReference({
             tenant_key: 'unson-business',
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
             credential_ref: 'credref://unson-business/slack/primary',
             provider: 'slack',
             workspace_id: 'T0123456789',
@@ -83,6 +106,7 @@ describe('tenant provisioning production resolvers', () => {
         const ambiguousResolver = createPostgresCredentialResolver({ pool: ambiguous.pool });
         await expect(ambiguousResolver.verifyOpaqueReference({
             tenant_key: 'unson-business',
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
             credential_ref: 'credref://unson-business/slack/primary',
             provider: 'slack',
             workspace_id: 'T0123456789',
@@ -90,12 +114,35 @@ describe('tenant provisioning production resolvers', () => {
         })).resolves.toEqual({ valid: false, tenant_key: 'unson-business' });
     });
 
-    it('accepts an explicitly planned first-install boundary without treating it as an existing credential', async () => {
+    it('fails closed when first-install credential verification has no canonical boundary', async () => {
         const fixture = createPool([]);
         const resolver = createPostgresCredentialResolver({ pool: fixture.pool });
 
         await expect(resolver.verifyOpaqueReference({
             tenant_key: 'unson-business',
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            credential_ref: 'credref://unson-business/slack/primary',
+            provider: 'slack',
+            workspace_id: 'T0123456789',
+            app_id: 'A0123456789',
+            allow_unregistered: true
+        })).rejects.toMatchObject({ code: 'CREDENTIAL_BOUNDARY_REQUIRED' });
+        expect(fixture.queries.map(({ text }) => text).join('\n')).not.toMatch(/SELECT .*secret|token|value/iu);
+    });
+
+    it('requires the canonical credential boundary to prove first-install existence and tenant binding', async () => {
+        const fixture = createPool([]);
+        const credentialBoundary = {
+            verify: vi.fn(async (input) => ({
+                valid: true,
+                ...input
+            }))
+        };
+        const resolver = createPostgresCredentialResolver({ pool: fixture.pool, credentialBoundary });
+
+        await expect(resolver.verifyOpaqueReference({
+            tenant_key: 'unson-business',
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
             credential_ref: 'credref://unson-business/slack/primary',
             provider: 'slack',
             workspace_id: 'T0123456789',
@@ -106,7 +153,36 @@ describe('tenant provisioning production resolvers', () => {
             tenant_key: 'unson-business',
             first_install: true
         });
-        expect(fixture.queries.map(({ text }) => text).join('\n')).not.toMatch(/SELECT .*secret|token|value/iu);
+        expect(credentialBoundary.verify).toHaveBeenCalledWith({
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            tenant_key: 'unson-business',
+            credential_ref: 'credref://unson-business/slack/primary',
+            provider: 'slack',
+            workspace_id: 'T0123456789',
+            app_id: 'A0123456789'
+        });
+    });
+
+    it('rejects a first-install credential boundary response bound to another tenant', async () => {
+        const fixture = createPool([]);
+        const credentialBoundary = {
+            verify: vi.fn(async (input) => ({
+                valid: true,
+                ...input,
+                tenant_key: 'other-tenant'
+            }))
+        };
+        const resolver = createPostgresCredentialResolver({ pool: fixture.pool, credentialBoundary });
+
+        await expect(resolver.verifyOpaqueReference({
+            tenant_key: 'unson-business',
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            credential_ref: 'credref://unson-business/slack/primary',
+            provider: 'slack',
+            workspace_id: 'T0123456789',
+            app_id: 'A0123456789',
+            allow_unregistered: true
+        })).resolves.toEqual({ valid: false, tenant_key: 'unson-business' });
     });
 
     it('requires a production pool and rejects unbounded timeout configuration', () => {

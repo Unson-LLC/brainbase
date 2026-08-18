@@ -5,14 +5,16 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     parseTenantProvisioningMigrationArgs,
+    REQUIRED_EXISTING_COLUMN_DEFINITIONS,
     REQUIRED_INDEX_DEFINITIONS,
     REQUIRED_VIEW_DEFINITIONS,
-    runTenantProvisioningMigration
+    runTenantProvisioningMigration,
+    schemaContract as migrationSchemaContract
 } from '../../../scripts/migrate-tenant-production-provisioning.js';
 
 const schemaPath = resolve(process.cwd(), 'server/sql/tenant-production-provisioning-schema.sql');
 
-async function schemaContract() {
+async function readSchemaContract() {
     const sql = await readFile(schemaPath, 'utf8');
     const tables = [...sql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-z0-9_]+)/gi)].map((match) => match[1]);
     const indexes = [...sql.matchAll(/CREATE (?:UNIQUE )?INDEX IF NOT EXISTS\s+([a-z0-9_]+)/gi)].map((match) => match[1]);
@@ -32,9 +34,12 @@ async function createPool({
     missingIndex = null,
     missingPrerequisite = null,
     indexOverride = {},
-    viewDefinition = null
+    viewDefinition = null,
+    columnOverride = {},
+    constraintOverride = {}
 } = {}) {
-    const contract = await schemaContract();
+    const contract = await readSchemaContract();
+    const migrationContract = migrationSchemaContract(contract.sql);
     const prerequisiteTables = [
         'brainbase_schema_migrations', 'brainbase_tenants', 'tenant_projects',
         'workspace_connections', 'workspace_connection_revisions',
@@ -50,13 +55,28 @@ async function createPool({
                 .map((table_name) => ({ table_name })) };
         }
         if (sql.includes('FROM information_schema.columns')) {
+            const requiredExistingColumns = Object.entries(REQUIRED_EXISTING_COLUMN_DEFINITIONS).flatMap(([table_name, definitions]) => Object.entries(definitions).map(([column_name, definition]) => ({
+                table_name,
+                column_name,
+                data_type: definition.data_type,
+                udt_name: definition.udt_name,
+                is_nullable: definition.nullable ? 'YES' : 'NO',
+                column_default: definition.default
+            })));
+            const provisioningColumns = [...migrationContract.columnDefinitions.entries()].flatMap(([table_name, definitions]) => [...definitions.entries()].map(([column_name, definition]) => ({
+                table_name,
+                column_name,
+                data_type: definition.data_type,
+                udt_name: definition.udt_name,
+                is_nullable: definition.nullable ? 'YES' : 'NO',
+                column_default: definition.default
+            })));
             return {
-                rows: [
-                    ...contract.columns,
-                    { table_name: 'brainbase_tenants', column_name: 'tenant_key' },
-                    ...['enterprise_id', 'installer_id', 'deployment_id', 'profile', 'contract_revision']
-                        .map((column_name) => ({ table_name: 'workspace_connections', column_name }))
-                ]
+                rows: [...provisioningColumns, ...requiredExistingColumns]
+                    .map((row) => ({
+                        ...row,
+                        ...(columnOverride[`${row.table_name}.${row.column_name}`] ?? {})
+                    }))
             };
         }
         if (sql.includes('FROM pg_indexes')) return {
@@ -162,7 +182,11 @@ async function createPool({
                     contype: 'f',
                     definition: 'FOREIGN KEY (tenant_id, contract_id, contract_revision) REFERENCES tenant_contract_revisions(tenant_id, contract_id, contract_revision)'
                 }
-            ]
+            ].map((row) => ({
+                ...row,
+                ...(row.contype === 'f' ? { on_update: 'a', on_delete: 'a' } : { on_update: null, on_delete: null }),
+                ...(constraintOverride[row.conname] ?? {})
+            }))
         };
         if (sql.includes('FROM pg_views')) return {
             rows: [{
@@ -269,6 +293,43 @@ describe('tenant production provisioning migration runner', () => {
             pool
         })).rejects.toThrow(/index definitions are missing or incorrect/u);
         expect(queries.some(({ text }) => text.includes('INSERT INTO brainbase_schema_migrations'))).toBe(false);
+    });
+
+    it('rejects a same-name column with the wrong type, nullability, or default before ledger write', async () => {
+        const { pool, queries } = await createPool({
+            columnOverride: {
+                'tenant_provisioning_operations.attempt': {
+                    data_type: 'text',
+                    udt_name: 'text',
+                    is_nullable: 'YES',
+                    column_default: '0'
+                }
+            }
+        });
+        await expect(runTenantProvisioningMigration({
+            argv: ['--apply', '--approve-apply'],
+            env: { BRAINBASE_MIGRATION_ACTOR: 'operator@example.test' },
+            pool
+        })).rejects.toThrow(/column definitions are missing or incorrect/u);
+        expect(queries.some(({ text }) => text.includes('INSERT INTO brainbase_schema_migrations'))).toBe(false);
+        expect(queries.map(({ text }) => text)).toContain('ROLLBACK');
+    });
+
+    it('rejects a same-name foreign key with a wrong action or definition before ledger write', async () => {
+        const { pool, queries } = await createPool({
+            constraintOverride: {
+                workspace_connection_revisions_current_identity_fk: {
+                    on_delete: 'c'
+                }
+            }
+        });
+        await expect(runTenantProvisioningMigration({
+            argv: ['--apply', '--approve-apply'],
+            env: { BRAINBASE_MIGRATION_ACTOR: 'operator@example.test' },
+            pool
+        })).rejects.toThrow(/constraints are missing or incorrect/u);
+        expect(queries.some(({ text }) => text.includes('INSERT INTO brainbase_schema_migrations'))).toBe(false);
+        expect(queries.map(({ text }) => text)).toContain('ROLLBACK');
     });
 
     it('rejects a same-name view with a different normalized definition before ledger write', async () => {

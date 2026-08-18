@@ -854,6 +854,7 @@ export async function provisionTenant({
                 normalizedManifest.workspace_connection.workspace_id, normalizedManifest.workspace_connection.app_id]
         );
         assertCredentialResult(await credentialResolver.verifyOpaqueReference({
+            tenant_id: normalizedManifest.tenant_id,
             tenant_key: normalizedManifest.tenant_key,
             credential_ref: normalizedManifest.workspace_connection.credential_ref,
             provider: normalizedManifest.workspace_connection.provider,

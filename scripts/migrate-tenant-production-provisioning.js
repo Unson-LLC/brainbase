@@ -113,6 +113,24 @@ const REQUIRED_EXISTING_COLUMNS = Object.freeze({
         'contract_revision'
     ]
 });
+export const REQUIRED_EXISTING_COLUMN_DEFINITIONS = Object.freeze({
+    brainbase_tenants: Object.freeze({
+        tenant_key: Object.freeze({
+            sql_type: 'text',
+            data_type: 'text',
+            udt_name: 'text',
+            nullable: false,
+            default: null
+        })
+    }),
+    workspace_connections: Object.freeze({
+        enterprise_id: Object.freeze({ sql_type: 'text', data_type: 'text', udt_name: 'text', nullable: true, default: null }),
+        installer_id: Object.freeze({ sql_type: 'text', data_type: 'text', udt_name: 'text', nullable: true, default: null }),
+        deployment_id: Object.freeze({ sql_type: 'text', data_type: 'text', udt_name: 'text', nullable: true, default: null }),
+        profile: Object.freeze({ sql_type: 'text', data_type: 'text', udt_name: 'text', nullable: true, default: null }),
+        contract_revision: Object.freeze({ sql_type: 'text', data_type: 'text', udt_name: 'text', nullable: true, default: null })
+    })
+});
 const REQUIRED_VIEWS = ['brainbase_service_actor_jwks'];
 export const REQUIRED_VIEW_DEFINITIONS = Object.freeze({
     brainbase_service_actor_jwks: `SELECT actor_id,
@@ -123,27 +141,51 @@ export const REQUIRED_VIEW_DEFINITIONS = Object.freeze({
  WHERE status = 'active'
  GROUP BY actor_id`
 });
+const CHECK_STATUS = "check ((status = any (array['pending', 'active', 'revoked', 'reauth_required', 'uninstalled', 'expired'])))";
+const CHECK_PROFILE = "check ((profile is null or profile = any (array['shared_cloud', 'dedicated_cloud', 'customer_managed_oss'])))";
+const CHECK_EXCHANGE_STATUS = "check ((status = any (array['processing', 'completed', 'failed'])))";
+const CHECK_ACTIVE_REVOKED = "check ((status = any (array['active', 'revoked'])))";
+
+function foreignKeyConstraint(table_name, constraint_name, columns, referencedTable, referencedColumns) {
+    return {
+        table_name,
+        constraint_name,
+        contype: 'f',
+        definition: `foreign key (${columns.join(', ')}) references ${referencedTable}(${referencedColumns.join(', ')})`,
+        on_update: 'a',
+        on_delete: 'a'
+    };
+}
+
+function checkConstraint(table_name, constraint_name, definition) {
+    return { table_name, constraint_name, contype: 'c', definition, on_update: null, on_delete: null };
+}
+
 const REQUIRED_CONSTRAINTS = Object.freeze([
-    ['workspace_connections', 'status', /check .*status.*pending.*active.*revoked.*reauth_required.*uninstalled.*expired/iu],
-    ['workspace_connections', 'profile', /check .*profile.*shared_cloud.*dedicated_cloud.*customer_managed_oss/iu],
-    ['workspace_connection_revisions', 'current_identity_fk', /foreign key \(tenant_id, connection_id\) references workspace_connections/iu],
-    ['credential_broker_refs', 'connection_revision_fk', /foreign key \(tenant_id, connection_id, connection_revision\) references workspace_connection_revisions/iu],
-    ['tenant_credential_leases', 'connection_revision_fk', /foreign key \(tenant_id, connection_id, connection_revision\) references workspace_connection_revisions/iu],
-    ['tenant_usage_events', 'connection_revision_fk', /foreign key \(tenant_id, connection_id, connection_revision\) references workspace_connection_revisions/iu],
-    ['tenant_operation_receipts', 'connection_revision_fk', /foreign key \(tenant_id, connection_id, connection_revision\) references workspace_connection_revisions/iu],
-    ['tenant_business_effect_claims', 'connection_revision_fk', /foreign key \(tenant_id, connection_id, connection_revision\) references workspace_connection_revisions/iu],
-    ['tenant_organizations', 'tenant_revision_history_fk', /foreign key \(tenant_id, tenant_revision_at_write\) references brainbase_tenant_revisions/iu],
-    ['tenant_memberships', 'tenant_revision_history_fk', /foreign key \(tenant_id, tenant_revision_at_write\) references brainbase_tenant_revisions/iu],
-    ['tenant_projects', 'tenant_revision_history_fk', /foreign key \(tenant_id, tenant_revision_at_write\) references brainbase_tenant_revisions/iu],
-    ['workspace_connections', 'tenant_revision_history_fk', /foreign key \(tenant_id, tenant_revision_at_write\) references brainbase_tenant_revisions/iu],
-    ['tenant_contract_revisions', 'tenant_revision_history_fk', /foreign key \(tenant_id, tenant_revision_at_write\) references brainbase_tenant_revisions/iu],
-    ['slack_installation_intents', 'tenant_revision_history_fk', /foreign key \(tenant_id, tenant_revision_at_write\) references brainbase_tenant_revisions/iu],
-    ['tenant_provisioning_operations', 'claim_token_hash', /check .*claim_token_hash.*sha256/iu],
-    ['tenant_provisioning_operations', 'attempt', /check .*attempt.*[>] 0/iu],
-    ['slack_installation_exchange_ledger', 'status', /check .*status.*processing.*completed.*failed/iu],
-    ['brainbase_service_actor_capabilities', 'status', /check .*status.*active.*revoked/iu],
-    ['brainbase_service_actor_keys', 'status', /check .*status.*active.*revoked/iu],
-    ['tenant_contract_revision_runtime_bindings', 'contract_fk', /foreign key \(tenant_id, contract_id, contract_revision\) references tenant_contract_revisions/iu]
+    checkConstraint('workspace_connections', 'workspace_connections_status_check', CHECK_STATUS),
+    checkConstraint('workspace_connections', 'workspace_connections_profile_check', CHECK_PROFILE),
+    foreignKeyConstraint('workspace_connection_revisions', 'workspace_connection_revisions_current_identity_fk', ['tenant_id', 'connection_id'], 'workspace_connections', ['tenant_id', 'connection_id']),
+    ...[
+        'credential_broker_refs',
+        'tenant_credential_leases',
+        'tenant_usage_events',
+        'tenant_operation_receipts',
+        'tenant_business_effect_claims'
+    ].map((table_name) => foreignKeyConstraint(table_name, `${table_name}_connection_revision_fk`, ['tenant_id', 'connection_id', 'connection_revision'], 'workspace_connection_revisions', ['tenant_id', 'connection_id', 'connection_revision'])),
+    ...[
+        'tenant_organizations',
+        'tenant_memberships',
+        'tenant_projects',
+        'workspace_connections',
+        'tenant_contract_revisions',
+        'slack_installation_intents'
+    ].map((table_name) => foreignKeyConstraint(table_name, `${table_name}_tenant_revision_history_fk`, ['tenant_id', 'tenant_revision_at_write'], 'brainbase_tenant_revisions', ['tenant_id', 'tenant_revision'])),
+    checkConstraint('tenant_provisioning_operations', 'tenant_provisioning_operations_claim_token_hash_check', "check ((claim_token_hash is null or claim_token_hash ~ '^sha256:[a-f0-9]{64}$'))"),
+    checkConstraint('tenant_provisioning_operations', 'tenant_provisioning_operations_attempt_check', 'check ((attempt > 0))'),
+    checkConstraint('slack_installation_exchange_ledger', 'slack_installation_exchange_ledger_status_check', CHECK_EXCHANGE_STATUS),
+    checkConstraint('brainbase_service_actor_capabilities', 'brainbase_service_actor_capabilities_status_check', CHECK_ACTIVE_REVOKED),
+    checkConstraint('brainbase_service_actor_keys', 'brainbase_service_actor_keys_status_check', CHECK_ACTIVE_REVOKED),
+    foreignKeyConstraint('tenant_contract_revision_runtime_bindings', 'tenant_contract_revision_runtime_bindings_contract_fk', ['tenant_id', 'contract_id', 'contract_revision'], 'tenant_contract_revisions', ['tenant_id', 'contract_id', 'contract_revision'])
 ]);
 
 export class TenantProvisioningMigrationError extends Error {
@@ -154,21 +196,71 @@ export class TenantProvisioningMigrationError extends Error {
     }
 }
 
-function schemaContract(sql) {
+const COLUMN_DIRECTIVE = /\s+(?:(?:NOT\s+)?NULL|DEFAULT|CHECK|PRIMARY\s+KEY|UNIQUE|REFERENCES|COLLATE|GENERATED)\b/iu;
+const TABLE_CONSTRAINT = new Set(['primary', 'unique', 'foreign', 'references', 'check', 'constraint', 'and', 'or']);
+
+function normalizeColumnDefault(value) {
+    if (value === null || value === undefined || String(value).trim() === '') return null;
+    return normalizeSql(value)
+        .replaceAll(/\s*::\s*[a-z_][a-z0-9_\[\].]*/giu, '')
+        .replaceAll(/\s+/gu, ' ')
+        .trim();
+}
+
+function columnTypeShape(sqlType) {
+    const normalized = normalizeSql(sqlType).replaceAll(/\s+/gu, ' ').trim();
+    const shapes = {
+        text: { data_type: 'text', udt_name: 'text' },
+        bigint: { data_type: 'bigint', udt_name: 'int8' },
+        integer: { data_type: 'integer', udt_name: 'int4' },
+        smallint: { data_type: 'smallint', udt_name: 'int2' },
+        boolean: { data_type: 'boolean', udt_name: 'bool' },
+        jsonb: { data_type: 'jsonb', udt_name: 'jsonb' },
+        timestamptz: { data_type: 'timestamp with time zone', udt_name: 'timestamptz' },
+        'text[]': { data_type: 'ARRAY', udt_name: '_text' },
+        'integer[]': { data_type: 'ARRAY', udt_name: '_int4' }
+    };
+    const shape = shapes[normalized];
+    if (!shape) throw new TenantProvisioningMigrationError('SCHEMA_CONTRACT_INVALID', `Unsupported provisioning column type: ${sqlType}`);
+    return shape;
+}
+
+function parseColumnDefinition(line) {
+    const trimmed = line.trim().replace(/,$/u, '').trim();
+    const match = trimmed.match(/^([a-z][a-z0-9_]*)\s+(.+)$/iu);
+    if (!match || TABLE_CONSTRAINT.has(match[1].toLowerCase())) return null;
+    const [, columnName, remainder] = match;
+    const directiveIndex = remainder.search(COLUMN_DIRECTIVE);
+    const sqlType = (directiveIndex < 0 ? remainder : remainder.slice(0, directiveIndex)).trim();
+    if (!sqlType) return null;
+    const shape = columnTypeShape(sqlType);
+    const defaultMatch = remainder.match(/\bDEFAULT\s+(.+?)(?=\s+(?:CHECK|PRIMARY\s+KEY|UNIQUE|REFERENCES|COLLATE|GENERATED)\b|$)/iu);
+    return {
+        column_name: columnName,
+        sql_type: normalizeSql(sqlType),
+        data_type: shape.data_type,
+        udt_name: shape.udt_name,
+        nullable: !/\bNOT\s+NULL\b|\bPRIMARY\s+KEY\b/iu.test(remainder),
+        default: normalizeColumnDefault(defaultMatch?.[1] ?? null)
+    };
+}
+
+export function schemaContract(sql) {
     const tableColumns = new Map();
+    const columnDefinitions = new Map();
     for (const match of sql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-z0-9_]+)\s*\(([^;]+)\);/gis)) {
-        const columns = [];
+        const definitions = [];
         for (const line of match[2].split('\n')) {
-            const column = line.trim().match(/^([a-z][a-z0-9_]*)\s+/i)?.[1];
-            if (column && !['primary', 'unique', 'foreign', 'references', 'check', 'constraint', 'and', 'or'].includes(column.toLowerCase())) {
-                columns.push(column);
-            }
+            const definition = parseColumnDefinition(line);
+            if (definition) definitions.push(definition);
         }
-        tableColumns.set(match[1], columns);
+        tableColumns.set(match[1], definitions.map(({ column_name: column }) => column));
+        columnDefinitions.set(match[1], new Map(definitions.map((definition) => [definition.column_name, definition])));
     }
     return {
         sha256: createHash('sha256').update(sql).digest('hex'),
         tableColumns,
+        columnDefinitions,
         indexes: REQUIRED_INDEXES
     };
 }
@@ -180,6 +272,18 @@ function missing(expected, actual) {
 
 function normalizeSql(value) {
     return String(value ?? '').toLowerCase().replaceAll('"', '').replaceAll(/\s+/gu, ' ').trim();
+}
+
+function normalizeConstraintDefinition(value) {
+    return normalizeSql(value)
+        .replaceAll(/\s*::\s*[a-z_][a-z0-9_]*(?:\[\])?/giu, '')
+        .replaceAll(/\s*;\s*$/gu, '')
+        .replaceAll(/\s*,\s*/gu, ', ')
+        .replaceAll(/\(\s*([a-z_][a-z0-9_]*\s+is\s+null)\s*\)/giu, '$1')
+        .replaceAll(/\(\s*([a-z_][a-z0-9_]*\s*~\s*'[^']*')\s*\)/giu, '$1')
+        .replaceAll(/\(\s*([a-z_][a-z0-9_]*\s*>\s*[0-9]+)\s*\)/giu, '$1')
+        .replaceAll(/\(\s*([a-z_][a-z0-9_]*\s*=\s*any\s*\(array\[[^)]*\]\))\s*\)/giu, '$1')
+        .trim();
 }
 
 function stripOuterParentheses(value) {
@@ -287,6 +391,24 @@ function indexDefinitionMismatch(indexname, row) {
     return null;
 }
 
+function catalogColumnDefinition(row) {
+    return {
+        data_type: normalizeSql(row.data_type),
+        udt_name: normalizeSql(row.udt_name),
+        nullable: String(row.is_nullable).toUpperCase() === 'YES',
+        default: normalizeColumnDefault(row.column_default)
+    };
+}
+
+function columnDefinitionMismatch(expected, row) {
+    const actual = catalogColumnDefinition(row);
+    if (actual.data_type !== normalizeSql(expected.data_type)) return `type=${actual.data_type || 'unknown'}`;
+    if (actual.udt_name !== normalizeSql(expected.udt_name)) return `udt=${actual.udt_name || 'unknown'}`;
+    if (actual.nullable !== expected.nullable) return `nullable=${String(actual.nullable)}`;
+    if (actual.default !== normalizeColumnDefault(expected.default)) return `default=${actual.default ?? 'null'}`;
+    return null;
+}
+
 export function parseTenantProvisioningMigrationArgs(argv = [], env = process.env) {
     const modes = ['dry-run', 'check', 'apply'].filter((mode) => argv.includes(`--${mode}`));
     if (modes.length !== 1) throw new TenantProvisioningMigrationError('ARGUMENT_INVALID', 'Specify exactly one migration mode');
@@ -331,21 +453,43 @@ async function readbackSchema(client, contract, { verifyLedger = true } = {}) {
 
     const columnTables = [...new Set([...tables, ...Object.keys(REQUIRED_EXISTING_COLUMNS)])];
     const columnResult = await client.query(
-        `SELECT table_name, column_name FROM information_schema.columns
+        `SELECT table_name, column_name, data_type, udt_name,
+                is_nullable, column_default
+           FROM information_schema.columns
           WHERE table_schema = current_schema() AND table_name = ANY($1::text[])
           ORDER BY table_name, ordinal_position`,
         [columnTables]
     );
-    const actualColumns = new Map(columnTables.map((table) => [table, []]));
-    for (const row of columnResult.rows) actualColumns.get(row.table_name)?.push(row.column_name);
+    const actualColumns = new Map(columnTables.map((table) => [table, new Map()]));
+    for (const row of columnResult.rows) actualColumns.get(row.table_name)?.set(row.column_name, row);
     const missingColumns = [];
     for (const [table, columns] of contract.tableColumns) {
-        for (const column of missing(columns, actualColumns.get(table) ?? [])) missingColumns.push(`${table}.${column}`);
+        for (const column of missing(columns, [...(actualColumns.get(table)?.keys() ?? [])])) missingColumns.push(`${table}.${column}`);
     }
     for (const [table, columns] of Object.entries(REQUIRED_EXISTING_COLUMNS)) {
-        for (const column of missing(columns, actualColumns.get(table) ?? [])) missingColumns.push(`${table}.${column}`);
+        for (const column of missing(columns, [...(actualColumns.get(table)?.keys() ?? [])])) missingColumns.push(`${table}.${column}`);
     }
     if (missingColumns.length) throw new TenantProvisioningMigrationError('SCHEMA_READBACK_FAILED', `Provisioning schema has missing columns: ${missingColumns.join(', ')}`);
+
+    const incorrectColumns = [];
+    for (const [table, definitions] of contract.columnDefinitions) {
+        for (const [column, expected] of definitions) {
+            const reason = columnDefinitionMismatch(expected, actualColumns.get(table)?.get(column));
+            if (reason) incorrectColumns.push(`${table}.${column} (${reason})`);
+        }
+    }
+    for (const [table, definitions] of Object.entries(REQUIRED_EXISTING_COLUMN_DEFINITIONS)) {
+        for (const [column, expected] of Object.entries(definitions)) {
+            const reason = columnDefinitionMismatch(expected, actualColumns.get(table)?.get(column));
+            if (reason) incorrectColumns.push(`${table}.${column} (${reason})`);
+        }
+    }
+    if (incorrectColumns.length) {
+        throw new TenantProvisioningMigrationError(
+            'SCHEMA_READBACK_FAILED',
+            `Provisioning schema column definitions are missing or incorrect: ${incorrectColumns.join(', ')}`
+        );
+    }
 
     const indexResult = await client.query(
         `SELECT indexes.indexname,
@@ -407,22 +551,53 @@ async function readbackSchema(client, contract, { verifyLedger = true } = {}) {
 
     const constraintResult = await client.query(
         `SELECT conrelid::regclass::text AS table_name, conname, contype,
-                pg_get_constraintdef(oid) AS definition
+                pg_get_constraintdef(oid) AS definition,
+                confupdtype AS on_update,
+                confdeltype AS on_delete
            FROM pg_constraint
           WHERE connamespace = current_schema()::regnamespace
           ORDER BY table_name, conname`
     );
     const normalizedConstraints = constraintResult.rows.map((row) => ({
+        ...row,
         table_name: normalizeSql(row.table_name),
-        definition: normalizeSql(row.definition)
+        conname: normalizeSql(row.conname),
+        contype: normalizeSql(row.contype),
+        definition: normalizeConstraintDefinition(row.definition),
+        on_update: row.on_update ?? null,
+        on_delete: row.on_delete ?? null
     }));
-    const missingConstraints = REQUIRED_CONSTRAINTS.filter(([table, , fragment]) => {
-        return !normalizedConstraints.some(({ table_name: actualTable, definition }) => {
-            if (actualTable !== normalizeSql(table)) return false;
-            return fragment instanceof RegExp ? fragment.test(definition) : definition.includes(normalizeSql(fragment));
-        });
-    }).map(([table, name]) => `${table}.${name}`);
-    if (missingConstraints.length) throw new TenantProvisioningMigrationError('SCHEMA_READBACK_FAILED', `Provisioning schema constraints are missing: ${missingConstraints.join(', ')}`);
+    const incorrectConstraints = [];
+    for (const expected of REQUIRED_CONSTRAINTS) {
+        const actual = normalizedConstraints.find((row) => (
+            row.table_name === normalizeSql(expected.table_name)
+            && row.conname === normalizeSql(expected.constraint_name)
+        ));
+        if (!actual) {
+            incorrectConstraints.push(`${expected.table_name}.${expected.constraint_name} (missing)`);
+            continue;
+        }
+        if (actual.contype !== expected.contype) {
+            incorrectConstraints.push(`${expected.table_name}.${expected.constraint_name} (type=${actual.contype || 'unknown'})`);
+            continue;
+        }
+        if (actual.definition !== normalizeConstraintDefinition(expected.definition)) {
+            incorrectConstraints.push(`${expected.table_name}.${expected.constraint_name} (definition mismatch)`);
+            continue;
+        }
+        if (expected.contype === 'f' && (
+            actual.on_update !== expected.on_update
+            || actual.on_delete !== expected.on_delete
+        )) {
+            incorrectConstraints.push(`${expected.table_name}.${expected.constraint_name} (action=${actual.on_update ?? 'unknown'}/${actual.on_delete ?? 'unknown'})`);
+        }
+    }
+    if (incorrectConstraints.length) {
+        throw new TenantProvisioningMigrationError(
+            'SCHEMA_READBACK_FAILED',
+            `Provisioning schema constraints are missing or incorrect: ${incorrectConstraints.join(', ')}`
+        );
+    }
 
     const viewResult = await client.query(
         `SELECT viewname AS table_name, definition FROM pg_views

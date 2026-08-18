@@ -53,4 +53,20 @@ describe.sequential('tenant production provisioning migration catalog readback',
         );
         expect(ledger.rows).toEqual([]);
     }, 120_000);
+
+    it('accepts the canonical catalog definitions and records the ledger after repair', async () => {
+        await pool.query('DROP INDEX workspace_connections_tenant_provider_workspace_app_uq');
+        const result = await runTenantProvisioningMigration({
+            argv: ['--apply', '--approve-apply'],
+            env: { BRAINBASE_MIGRATION_ACTOR: 'integration-test' },
+            pool
+        });
+        expect(result).toMatchObject({ ok: true, mode: 'apply', persisted: true, readback: { ledger_matches: true } });
+        const ledger = await pool.query(
+            `SELECT schema_sha256 FROM brainbase_schema_migrations
+              WHERE migration_id = 'tenant-production-provisioning.v1'`
+        );
+        expect(ledger.rows).toHaveLength(1);
+        expect(ledger.rows[0].schema_sha256).toBe(result.schema_sha256);
+    }, 120_000);
 });
