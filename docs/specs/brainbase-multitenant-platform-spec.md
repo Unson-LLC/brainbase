@@ -604,7 +604,7 @@ blocking open decisionは0件である。今後D-001〜D-009の意味を変え�
 | canonical conformance kit | mana-runtime PR #237 remote HEAD `38e13adde56dbd398cea914aec69c831194353c9`、fixture SHA-256 `9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833`へ固定 |
 | positive／negative／non-applicable fixture | 共通manifestの23件を直接読むBrainbase adapter testで検証する。本番readbackではない |
 | TDD Red | P0追従で管理／監査が`200`で通過する失敗、production runnerの境界resolver不在、ledgerのbinding未保存、claim／provider実行前authorize不在、境界欠落／cross-tenantが拒否されない失敗を先に固定した。review-pack producer追補では4 tests、既存production E2Eでは1 test、service auth追補ではcanonical claims未発行1 testと不正expiry／audience／deployment／capabilityを受理する4 testsの合5件が意図した理由でRedになったことを確認した |
-| 対象unit／schema／repository／route／contract | 関連unitは31 files、216 tests Green。実PostgreSQL Testcontainersは9 tests Green。共通adapterは25 tests Green（manifest 23件とsource-lock／冪等式2件）。MCP tenant boundaryは2 tests Green。production E2Eは1 test Green |
+| 対象unit／schema／repository／route／contract | 関連unitは31 files、218 tests Green。実PostgreSQL Testcontainersは9 tests Green。共通adapterは25 tests Green（manifest 23件とsource-lock／冪等式2件）。MCP tenant boundaryは2 tests Green。production E2Eは1 test Green |
 | Spec fingerprint | accepted Specの明示code refsを入力したVibePro fingerprint engineで影響code 20 files、test 120 files、Architecture 1 fileを走査。VibePro inputs digestのcode SHA-256 `2c2efc82464fdf436d66f91e445257fd2baf43ae4197d872551994f7b8aa50cc` |
 | repository全体のCI | この時点では未取得。PR push後に別途readbackする |
 | Cloud／OSS deployment readback | `not_collected` |
