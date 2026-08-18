@@ -97,6 +97,7 @@ describe('MCP-only repository hygiene', () => {
 
     expect(packageJson.files).toEqual([
       'dist',
+      'contracts',
       'README.md',
       'LICENSE',
       'SECURITY.md'
@@ -109,6 +110,7 @@ describe('MCP-only repository hygiene', () => {
       || file === 'README.md'
       || file === 'SECURITY.md'
       || file === 'package.json'
+      || file === 'contracts/brainbase-public-contract.v1.json'
       || file.startsWith('dist/')
     ))).toBe(true);
   }, 30_000);
