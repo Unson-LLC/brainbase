@@ -9,12 +9,19 @@ import { describe, expect, it } from 'vitest';
 import {
     assertImportCreatedReviewablePosts,
     parseArgs,
+    resolveSnsTenantBoundary,
     reviewPackToLedgerPayload,
     summarizeImportResult
 } from '../../../scripts/import-sns-review-pack-to-ledger.js';
 
 const root = path.resolve(import.meta.dirname, '../../..');
 const cliPath = path.join(root, 'scripts/import-sns-review-pack-to-ledger.js');
+const tenantEnv = {
+    BRAINBASE_SNS_TENANT_ID: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    BRAINBASE_SNS_TENANT_REVISION: '7',
+    BRAINBASE_SNS_RESOURCE_OBJECT_TYPE: 'project',
+    BRAINBASE_SNS_RESOURCE_ID: 'project_sns'
+};
 
 function writeTempJson(value) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sns-review-pack-'));
@@ -23,11 +30,11 @@ function writeTempJson(value) {
     return file;
 }
 
-function runCli(args) {
+function runCli(args, envOverrides = {}) {
     return new Promise((resolve, reject) => {
         const child = spawn(process.execPath, [cliPath, ...args], {
             cwd: root,
-            env: { ...process.env, FORCE_COLOR: '0' }
+            env: { ...process.env, FORCE_COLOR: '0', ...tenantEnv, ...envOverrides }
         });
         let stdout = '';
         let stderr = '';
@@ -76,7 +83,27 @@ function createLedgerImportServer(responseBody) {
 }
 
 describe('import-sns-review-pack-to-ledger', () => {
+    it('AC-005 requires canonical runtime tenant binding for the production import path', () => {
+        expect(resolveSnsTenantBoundary(tenantEnv)).toEqual({
+            tenant_context: {
+                tenant: {
+                    tenant_id: tenantEnv.BRAINBASE_SNS_TENANT_ID,
+                    tenant_revision: tenantEnv.BRAINBASE_SNS_TENANT_REVISION
+                }
+            },
+            resource_ref: {
+                object_type: tenantEnv.BRAINBASE_SNS_RESOURCE_OBJECT_TYPE,
+                resource_id: tenantEnv.BRAINBASE_SNS_RESOURCE_ID
+            }
+        });
+        expect(() => resolveSnsTenantBoundary({
+            ...tenantEnv,
+            BRAINBASE_SNS_TENANT_ID: ''
+        })).toThrow(/BRAINBASE_SNS_TENANT_ID/u);
+    });
+
     it('maps ohayo reviewPack posts into ledger drafts', () => {
+        const tenantBoundary = resolveSnsTenantBoundary(tenantEnv);
         const payload = reviewPackToLedgerPayload({
             reviewPack: {
                 date: '2026-07-28',
@@ -96,7 +123,7 @@ describe('import-sns-review-pack-to-ledger', () => {
                     }
                 }]
             }
-        });
+        }, { tenantBoundary, requireTenantBoundary: true });
 
         expect(payload.account_handle).toBe('@AIBizNavigator');
         expect(payload.drafts).toHaveLength(1);
@@ -113,6 +140,7 @@ describe('import-sns-review-pack-to-ledger', () => {
         expect(payload.drafts[0].lifelog_check.source_id).toBe('lifelog_work_1');
         expect(payload.drafts[0].derived_from).toEqual(['lifelog_work_1']);
         expect(payload.drafts[0].generation_context_evidence.policy_ref).toBe('generation_policy');
+        expect(payload.drafts[0].tenant_boundary).toEqual(tenantBoundary);
     });
 
     it('parses base-url and dry-run arguments', () => {
@@ -214,6 +242,18 @@ describe('import-sns-review-pack-to-ledger', () => {
                 url: '/api/sns-growth/review-pack'
             });
             expect(server.requests[0].body.drafts).toHaveLength(2);
+            expect(server.requests[0].body.drafts[0].tenant_boundary).toEqual({
+                tenant_context: {
+                    tenant: {
+                        tenant_id: tenantEnv.BRAINBASE_SNS_TENANT_ID,
+                        tenant_revision: tenantEnv.BRAINBASE_SNS_TENANT_REVISION
+                    }
+                },
+                resource_ref: {
+                    object_type: tenantEnv.BRAINBASE_SNS_RESOURCE_OBJECT_TYPE,
+                    resource_id: tenantEnv.BRAINBASE_SNS_RESOURCE_ID
+                }
+            });
             expect(summary).toMatchObject({
                 created: 0,
                 updated: 0,
@@ -227,6 +267,29 @@ describe('import-sns-review-pack-to-ledger', () => {
             });
             expect(result.stderr).toContain('SNS Ledger import created no reviewable posts');
             expect(result.stderr).toContain('duplicate_body:2');
+        } finally {
+            await server.close();
+        }
+    });
+
+    it('fails before HTTP import when the runtime tenant binding is absent', async () => {
+        const file = writeTempJson({
+            reviewPack: {
+                date: '2026-06-04',
+                posts: [{ slot: 'baseline_1', body: '境界なしでは送信しない' }]
+            }
+        });
+        const server = await createLedgerImportServer({ created: [], updated: [], skipped: [] });
+
+        try {
+            const result = await runCli(['--file', file, '--base-url', server.baseUrl], {
+                BRAINBASE_SNS_TENANT_ID: ''
+            });
+
+            expect(result.status).toBe(1);
+            expect(result.stdout).toBe('');
+            expect(result.stderr).toContain('BRAINBASE_SNS_TENANT_ID');
+            expect(server.requests).toEqual([]);
         } finally {
             await server.close();
         }

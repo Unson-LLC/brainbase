@@ -1,6 +1,7 @@
 // @ts-check
 import fs from 'node:fs';
 import path from 'node:path';
+import { OWNED_OBJECT_TYPES } from '../multitenant/tenant-boundary.js';
 /**
  * SNS Posting Ledger repository.
  *
@@ -43,6 +44,8 @@ const BODY_RESERVING_STATUSES = new Set([
     'learning_ready'
 ]);
 const IMPORT_IMMUTABLE_STATUSES = new Set(['posted', 'learning_ready', 'deleted']);
+const TENANT_ID = /^ten_[0-9A-HJKMNP-TV-Z]{26}$/u;
+const REVISION = /^(0|[1-9][0-9]*)$/u;
 
 export class InvalidSnsPostTransitionError extends Error {
     constructor(from, to) {
@@ -128,7 +131,42 @@ function sourceFromDraft(draft) {
     };
 }
 
+export function normalizeSnsTenantBoundary(boundary, { required = false } = {}) {
+    if (boundary === undefined) {
+        if (required) {
+            throw new SnsPostValidationError('tenant_boundary is required for public SNS publishing');
+        }
+        return null;
+    }
+    const tenantContext = boundary?.tenant_context;
+    const tenant = tenantContext?.tenant;
+    const resourceRef = boundary?.resource_ref;
+    const tenantRevision = tenant?.tenant_revision;
+    const valid = boundary && typeof boundary === 'object' && !Array.isArray(boundary)
+        && Object.keys(boundary).length === 2
+        && Object.keys(boundary).every((key) => ['tenant_context', 'resource_ref'].includes(key))
+        && tenantContext && typeof tenantContext === 'object' && !Array.isArray(tenantContext)
+        && Object.keys(tenantContext).length === 1 && Object.keys(tenantContext)[0] === 'tenant'
+        && tenant && typeof tenant === 'object' && !Array.isArray(tenant)
+        && Object.keys(tenant).length === 2
+        && Object.keys(tenant).every((key) => ['tenant_id', 'tenant_revision'].includes(key))
+        && typeof tenant.tenant_id === 'string' && TENANT_ID.test(tenant.tenant_id)
+        && typeof tenantRevision === 'string' && REVISION.test(tenantRevision) && BigInt(tenantRevision) >= 1n
+        && resourceRef && typeof resourceRef === 'object' && !Array.isArray(resourceRef)
+        && Object.keys(resourceRef).length === 2
+        && Object.keys(resourceRef).every((key) => ['object_type', 'resource_id'].includes(key))
+        && OWNED_OBJECT_TYPES.includes(resourceRef.object_type)
+        && typeof resourceRef.resource_id === 'string' && resourceRef.resource_id.length > 0;
+    if (!valid) throw new SnsPostValidationError('tenant_boundary must be a canonical tenant and resource binding');
+    return structuredClone(boundary);
+}
+
+function tenantBoundaryFromDraft(draft) {
+    return normalizeSnsTenantBoundary(draft.tenant_boundary);
+}
+
 function evidenceFromDraft(draft) {
+    const tenantBoundary = tenantBoundaryFromDraft(draft);
     return {
         persona_brain: draft.persona_brain || {},
         algorithm_fit: draft.algorithm_fit || null,
@@ -147,7 +185,8 @@ function evidenceFromDraft(draft) {
             persona_affect: draft.safety?.persona_affect || null,
             requires_human_review: draft.safety?.requires_human_review !== false
         },
-        reader_affect: draft.safety?.persona_affect?.likely_reader_feeling || draft.reader_affect || ''
+        reader_affect: draft.safety?.persona_affect?.likely_reader_feeling || draft.reader_affect || '',
+        ...(tenantBoundary ? { tenant_boundary: tenantBoundary } : {})
     };
 }
 

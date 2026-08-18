@@ -26,7 +26,16 @@ SNS運用上の `date` と `time` はJSTの壁時計時刻として扱う。revi
 
 ## 既存Ledger行の補正
 
-JST変換修正をデプロイした後、修正前に作られた既存の `scheduled_at` は自動では変わらない。公開投稿を有効化する前に、対象日のreview packを再インポートして既存のmutable rowを補正する。
+JST変換修正またはtenant境界導入より前に作られた既存rowは自動では変わらない。公開投稿を有効化する前に、対象日のreview packをcanonical tenant binding付きで再インポートし、既存mutable rowの `scheduled_at` とbindingを補正する。bindingのないrowはpublisherが`TENANT_BOUNDARY_INVALID`で拒否し、別tenantや既定tenantへ補完しない。
+
+取込前に、deployment-local設定へ次の非秘密識別子を明示する。値は対象deploymentのTenant Authority／resource正本と照合し、このrepo、fixture、ログへ実値を固定しない。
+
+- `BRAINBASE_SNS_TENANT_ID`
+- `BRAINBASE_SNS_TENANT_REVISION`
+- `BRAINBASE_SNS_RESOURCE_OBJECT_TYPE`
+- `BRAINBASE_SNS_RESOURCE_ID`
+
+いずれかが欠落またはcanonical形式でなければ、取込CLIはLedger APIへ送信する前に非zeroで停止する。
 
 ```bash
 TODAY=$(date +%F)
@@ -52,11 +61,18 @@ npm run sns:scheduled-publish -- --dry-run --json
 SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
 ```
 
-`SNS_AUTO_PUBLISH_ENABLED=true` がない場合、due postがあっても `auto_publish_disabled` としてskipする。
+公開には`SNS_AUTO_PUBLISH_ENABLED=true`だけでなく、次のdeployment-local bindingが必要である。
+
+- `BRAINBASE_TENANT_RUNTIME_ENABLED=1`
+- `SNS_POSTING_LEDGER_DATABASE_URL`または既存の本番DB URL設定
+- tenant runtimeの署名鍵、service auth、deployment設定
+- 上記4つのSNS tenant／resource設定で再インポート済みのLedger row
+
+`SNS_AUTO_PUBLISH_ENABLED=true`がない場合は`auto_publish_disabled`としてskipする。runtime／PostgreSQL gatewayがなければrunner起動時に停止し、row bindingがない、越境、またはrevision不一致ならclaimとprovider呼出しより前に停止する。
 
 ## launchd運用
 
-1分間隔などで起動する場合は、LaunchAgentからこのコマンドを呼ぶ。plistには公開投稿の副作用があるため、初回は `SNS_AUTO_PUBLISH_ENABLED=false` でdry-runまたはskipログを確認し、運用判断後に `true` へ切り替える。
+1分間隔などで起動する場合は、LaunchAgentからこのコマンドを呼ぶ。repo内plistは安全な初期値として`SNS_AUTO_PUBLISH_ENABLED=false`、`BRAINBASE_TENANT_RUNTIME_ENABLED=0`を持つ。公開時はrepoへ識別子やDB資格情報を書かず、deployment-localのLaunchAgent／環境管理で必要設定を注入する。初回はdry-runまたはskipログを確認し、tenant binding再インポートと正本認可を確認してから有効化する。
 
 ログで確認する値:
 

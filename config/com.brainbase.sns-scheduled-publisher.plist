@@ -19,6 +19,8 @@
     <string>false</string>
     <key>SNS_AUTO_PUBLISH_ENABLED</key>
     <string>false</string>
+    <key>BRAINBASE_TENANT_RUNTIME_ENABLED</key>
+    <string>0</string>
   </dict>
 
   <key>StartInterval</key>

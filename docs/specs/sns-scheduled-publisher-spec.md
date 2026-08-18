@@ -2,7 +2,7 @@
 spec_id: SPEC-sns-scheduled-publisher
 title: SNS予約投稿の実行者 Specification
 status: implemented
-date: 2026-05-14
+date: 2026-08-18
 story_id: str.brainbase.sns-scheduled-publisher
 related_specs:
   - SPEC-sns-posting-engine
@@ -10,11 +10,14 @@ implementation_files:
   - server/services/sns/posting-ledger-repository.js
   - server/services/sns/sns-scheduled-publisher.js
   - scripts/run-sns-scheduled-posts.js
+  - scripts/import-sns-review-pack-to-ledger.js
   - config/com.brainbase.sns-scheduled-publisher.plist
   - docs/runbooks/sns-scheduled-publisher.md
 test_files:
   - tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js
   - tests/sns/ops/run-sns-scheduled-posts.test.js
+  - tests/sns/ops/import-sns-review-pack-to-ledger.test.js
+  - tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts
 ---
 
 # SPEC: SNS予約投稿の実行者
@@ -30,6 +33,8 @@ test_files:
 - **INV-7**: dry-runはdue-post選択だけを検証し、X投稿スクリプトを呼ばない。
 - **INV-8**: review packの `date` と `time` はJSTの壁時計時刻であり、`scheduled_at` が明示されない場合はJSTとしてUTC instantへ変換して保存する。
 - **INV-9**: 修正前に作成済みのmutable Ledger rowは、review pack再インポートで `time` と `scheduled_at` を補正できる。公開済み履歴は上書きしない。
+- **INV-10**: production review-pack取込はdeployment-localの4つの明示設定からcanonical tenant／resource bindingを全draftへ付与し、欠落・不正時はHTTP送信前に停止する。暗黙tenantを補完しない。
+- **INV-11**: 公開runnerはtenant runtimeとPostgreSQL gatewayを必須にし、永続bindingを`entry_point=background_job`としてclaim／provider呼出し前に認可する。
 
 ## Contracts
 
@@ -45,8 +50,9 @@ test_files:
 
 - **input**: CLIまたはlaunchd/cronからの定期実行。
 - **output**: 実行サマリーとログ。
-- **preconditions**: 本番公開投稿には明示設定が必要である。
+- **preconditions**: 本番公開投稿には`SNS_AUTO_PUBLISH_ENABLED=true`、`BRAINBASE_TENANT_RUNTIME_ENABLED=1`、実PostgreSQL接続、tenant runtimeのservice auth／署名設定、binding付きLedger rowが必要である。
 - **postconditions**: due postの結果がLedgerとログに残る。
+- **error cases**: runtime／gateway欠落は`UPSTREAM_UNAVAILABLE`、binding欠落・不正は`TENANT_BOUNDARY_INVALID`、越境は`CROSS_TENANT_CANDIDATE`として副作用前に停止する。
 
 初回実装の実行コマンド:
 
@@ -55,13 +61,13 @@ npm run sns:scheduled-publish -- --dry-run --json
 SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
 ```
 
-### Contract-3: Review Pack Time Import
+### Contract-3: Review Pack Time and Tenant Import
 
-- **input**: review pack draftの `date`, `time`, 任意の `scheduled_at`
-- **output**: SNS Posting Ledger rowの `time`, `scheduled_at`
-- **preconditions**: `date` は `YYYY-MM-DD`、`time` は `HH:mm`。`scheduled_at` がある場合は絶対時刻として有効なISO文字列である。
-- **postconditions**: `scheduled_at` 未指定なら `date + time` をJSTとしてUTC instantへ変換して保存する。`scheduled_at` 指定済みならその絶対時刻を保持する。
-- **error cases**: 不正なdate/time、同一account/date/slotに公開済みimmutable rowがある、重複本文guardに該当する。
+- **input**: review pack draftの `date`, `time`, 任意の `scheduled_at`、4つのSNS tenant／resource env。
+- **output**: SNS Posting Ledger rowの `time`, `scheduled_at`, `evidence.tenant_boundary`。
+- **preconditions**: `date` は `YYYY-MM-DD`、`time` は `HH:mm`。`scheduled_at` がある場合は絶対時刻として有効なISO文字列である。tenant ID、revision、object type、resource IDはcanonical形式である。
+- **postconditions**: `scheduled_at` 未指定なら `date + time` をJSTとしてUTC instantへ変換して保存する。全draftに同じstructured-clone済みcanonical bindingを保存し、mutable既存rowは再インポートで補正する。
+- **error cases**: 不正なdate/time、tenant env欠落／不正、同一account/date/slotに公開済みimmutable rowがある、重複本文guardに該当する。
 
 ### Contract-4: Release Operation Surface
 
@@ -79,6 +85,7 @@ SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
 - Existing data: `posted` / `learning_ready` / `deleted` は再インポートで上書きせず、mutable rowだけ補正する。
 - Runner: `scheduled_at <= now` だけをdue判定に使い、`approved` を自動投稿しない。
 - Publication safety: `SNS_AUTO_PUBLISH_ENABLED=true` がない場合はX投稿を呼ばない。
+- Tenant safety: production importerはbinding欠落時に送信せず、publisherはgateway／binding／認可のいずれかが成立しない場合にclaimとX投稿を呼ばない。
 - Operational surface: runbookに再インポート、dry-run、即時due時の判断が書かれている。
 - UI/API surface: API routeやUIコンポーネントは変更しない。SNS UIが表示するLedger rowの `time` / `scheduled_at` contractだけを変更対象にする。
 
@@ -126,6 +133,18 @@ SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
 - **when**: 修正後のreview pack importを再実行する。
 - **then**: rowは新しいJST変換後の `scheduled_at` に更新される。公開済みrowは更新されずskipされる。
 
+### S-8: review packへcanonical tenant bindingを付ける
+
+- **given**: deployment-local設定にcanonical tenant ID、revision、resource object type、resource IDがある。
+- **when**: production import CLIを実行する。
+- **then**: 全draftの`evidence.tenant_boundary`へbindingが永続化され、設定欠落時はHTTP送信前に停止する。
+
+### S-9: 公開前にbackground job認可する
+
+- **given**: due rowにcanonical bindingがあり、tenant runtimeとPostgreSQL gatewayが到達可能である。
+- **when**: public runnerを実行する。
+- **then**: `entry_point=background_job`認可がclaim／provider呼出しより先に成功した場合だけ投稿する。
+
 ## Anti-patterns
 
 - **AP-1**: runnerが `SnsLedgerPublishService` を迂回してX投稿スクリプトを直接呼ぶ。
@@ -134,6 +153,8 @@ SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
 - **AP-4**: 失敗した投稿をUIから見えない状態にする。
 - **AP-5**: JST/UTCを暗黙に扱い、slot時刻と実行時刻がずれる。
 - **AP-6**: デプロイだけで既存Ledger rowの `scheduled_at` が補正されたとみなす。
+- **AP-7**: tenant env欠落を既定tenant、account ID、workspace ID、project codeから補完する。
+- **AP-8**: tenant bindingの認可より前にrowをclaimする、またはX providerを呼ぶ。
 
 ## Verification
 
@@ -148,3 +169,5 @@ SNS_AUTO_PUBLISH_ENABLED=true npm run sns:scheduled-publish -- --json
 | INV-7, S-4 | tests/sns/ops/run-sns-scheduled-posts.test.js | ✅ |
 | INV-8, S-6 | tests/sns/posting-ledger/posting-ledger-repository.test.js, tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts | ✅ |
 | INV-9, S-7, AP-6 | tests/sns/posting-ledger/posting-ledger-repository.test.js, docs/runbooks/sns-scheduled-publisher.md | ✅ |
+| INV-10, S-8, AP-7 | tests/sns/ops/import-sns-review-pack-to-ledger.test.js, tests/sns/posting-ledger/posting-ledger-repository.test.js | ✅ |
+| INV-11, S-9, AP-8 | tests/sns/ops/run-sns-scheduled-posts.test.js, tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js, tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts | ✅ |

@@ -28,7 +28,10 @@ import { createMiscRouter } from '../routes/misc.js';
 import { createUsageRouter } from '../routes/usage.js';
 import { createSnsGrowthRouter } from '../routes/sns-growth.js';
 import { createTenantRuntimeRouter } from '../routes/tenant-runtime.js';
-import { createTenantEntrypointGuard } from '../middleware/tenant-entrypoint.js';
+import {
+    createTenantEntrypointGuard,
+    createUnavailableTenantEntrypointGuard
+} from '../middleware/tenant-entrypoint.js';
 import {
     createWorkflowHumanStepRouter,
     createWorkflowRouter,
@@ -214,10 +217,10 @@ export function registerApiRoutes(app, {
 }) {
     const adminTenantGuard = tenantRuntimeServices
         ? createTenantEntrypointGuard(tenantRuntimeServices, 'admin_api')
-        : (_req, _res, next) => next();
+        : createUnavailableTenantEntrypointGuard();
     const auditTenantGuard = tenantRuntimeServices
         ? createTenantEntrypointGuard(tenantRuntimeServices, 'audit_log')
-        : (_req, _res, next) => next();
+        : createUnavailableTenantEntrypointGuard();
     app.use('/api/state', createRetiredCapabilityRouter({
         capability: 'brainbase.session-state',
         owner: 'Codex app and CLI',

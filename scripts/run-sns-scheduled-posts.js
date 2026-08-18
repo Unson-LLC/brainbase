@@ -14,6 +14,7 @@ import {
     SnsLedgerPublishService
 } from '../server/services/sns/sns-ledger-publish-service.js';
 import { SnsScheduledPublisher } from '../server/services/sns/sns-scheduled-publisher.js';
+import { createTenantRuntimeServicesFromEnv } from '../server/services/multitenant/tenant-runtime-services.js';
 
 const { Pool } = pg;
 
@@ -57,6 +58,35 @@ export function resolveSnsPostingLedgerFile(env = process.env, cwd = process.cwd
     return env.SNS_POSTING_LEDGER_FILE || path.join(cwd, 'var', 'sns-posting-ledger.json');
 }
 
+export function resolveTenantJobBoundary({
+    env = process.env,
+    pool,
+    requireTenantBoundary = false,
+    createServices = createTenantRuntimeServicesFromEnv
+} = {}) {
+    if (!requireTenantBoundary) {
+        return { tenantIsolationRequired: false, tenantBoundaryAuthorizer: null };
+    }
+    if (env.BRAINBASE_TENANT_RUNTIME_ENABLED !== '1') {
+        throw new Error('Tenant runtime is required for public scheduled publishing');
+    }
+    if (!pool) {
+        throw new Error('Tenant runtime PostgreSQL pool is required for public scheduled publishing');
+    }
+    const services = createServices({ env, pool });
+    if (typeof services?.tenantBoundaryGateway?.authorize !== 'function') {
+        throw new Error('Tenant boundary gateway is required for public scheduled publishing');
+    }
+    return {
+        tenantIsolationRequired: true,
+        tenantBoundaryAuthorizer: ({ tenant_context, resource_ref }) => services.tenantBoundaryGateway.authorize({
+            tenant_context,
+            entry_point: 'background_job',
+            resource_ref
+        })
+    };
+}
+
 function actor() {
     return {
         sub: 'sato_keigo',
@@ -66,7 +96,7 @@ function actor() {
     };
 }
 
-async function main() {
+export async function main() {
     const args = parseArgs(process.argv.slice(2));
     validateArgs(args);
     const databaseUrl = resolveSnsPostingLedgerDatabaseUrl();
@@ -75,6 +105,11 @@ async function main() {
         SNS_POSTING_LEDGER_DATABASE_URL: databaseUrl
     })) : null;
     try {
+        const autoPublishEnabled = resolveAutoPublishEnabled();
+        const tenantJobBoundary = resolveTenantJobBoundary({
+            pool,
+            requireTenantBoundary: autoPublishEnabled && !args.dryRun
+        });
         const ledgerRepository = pool
             ? new PgSnsPostingLedgerRepository({ pool })
             : new JsonFileSnsPostingLedgerRepository({ filePath: resolveSnsPostingLedgerFile() });
@@ -85,12 +120,13 @@ async function main() {
         const publisher = new SnsScheduledPublisher({
             ledgerRepository,
             publishService,
+            tenantBoundaryAuthorizer: tenantJobBoundary.tenantBoundaryAuthorizer,
             now: () => args.now ? new Date(args.now) : new Date()
         });
         const result = await publisher.run({
             actor: actor(),
             dry_run: args.dryRun,
-            auto_publish_enabled: resolveAutoPublishEnabled(),
+            auto_publish_enabled: autoPublishEnabled,
             limit: args.limit
         });
         const output = JSON.stringify(result, null, 2);

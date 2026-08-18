@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { resolveSnsRoot } from './workspace-paths.js';
+import { normalizeSnsTenantBoundary } from '../server/services/sns/posting-ledger-repository.js';
 
 const SNS_ROOT = resolveSnsRoot();
 const DEFAULT_DAILY_BRIEFS_DIR = path.join(SNS_ROOT, 'x/ops/daily-briefs');
@@ -46,7 +47,35 @@ function sourceTypeForPost(post) {
     return 'News';
 }
 
-export function reviewPackToLedgerPayload(input) {
+export function resolveSnsTenantBoundary(env = process.env) {
+    const required = [
+        'BRAINBASE_SNS_TENANT_ID',
+        'BRAINBASE_SNS_TENANT_REVISION',
+        'BRAINBASE_SNS_RESOURCE_OBJECT_TYPE',
+        'BRAINBASE_SNS_RESOURCE_ID'
+    ];
+    const missing = required.filter((name) => typeof env[name] !== 'string' || env[name].length === 0);
+    if (missing.length > 0) {
+        throw new Error(`SNS tenant boundary environment is required: ${missing.join(', ')}`);
+    }
+    return normalizeSnsTenantBoundary({
+        tenant_context: {
+            tenant: {
+                tenant_id: env.BRAINBASE_SNS_TENANT_ID,
+                tenant_revision: env.BRAINBASE_SNS_TENANT_REVISION
+            }
+        },
+        resource_ref: {
+            object_type: env.BRAINBASE_SNS_RESOURCE_OBJECT_TYPE,
+            resource_id: env.BRAINBASE_SNS_RESOURCE_ID
+        }
+    }, { required: true });
+}
+
+export function reviewPackToLedgerPayload(input, {
+    tenantBoundary = input?.tenant_boundary,
+    requireTenantBoundary = false
+} = {}) {
     const reviewPack = input?.reviewPack;
     if (!reviewPack || !Array.isArray(reviewPack.posts)) {
         throw new Error('signals JSON must include reviewPack.posts');
@@ -62,6 +91,9 @@ export function reviewPackToLedgerPayload(input) {
             : '';
         throw new Error(`reviewPack.posts is empty; SNS Ledger import would create no reviewable posts${suffix}`);
     }
+    const canonicalTenantBoundary = normalizeSnsTenantBoundary(tenantBoundary, {
+        required: requireTenantBoundary
+    });
     return {
         account_id: input.account_id || 'acc_x_sato',
         account_handle: input.account_handle || '@AIBizNavigator',
@@ -91,7 +123,8 @@ export function reviewPackToLedgerPayload(input) {
                 persona_affect: post.quality_gate?.persona_affect || null
             },
             evidence_ids: post.lifelog_check?.evidence_ids || [],
-            derived_from: post.lifelog_check?.source_id ? [post.lifelog_check.source_id] : []
+            derived_from: post.lifelog_check?.source_id ? [post.lifelog_check.source_id] : [],
+            ...(canonicalTenantBoundary ? { tenant_boundary: structuredClone(canonicalTenantBoundary) } : {})
         }))
     };
 }
@@ -150,7 +183,11 @@ async function main() {
     const args = parseArgs(process.argv.slice(2));
     const filePath = args.file || defaultFileForDate(args.date);
     const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    const payload = reviewPackToLedgerPayload(parsed);
+    const tenantBoundary = resolveSnsTenantBoundary();
+    const payload = reviewPackToLedgerPayload(parsed, {
+        tenantBoundary,
+        requireTenantBoundary: true
+    });
     if (args.dryRun) {
         console.log(JSON.stringify(payload, null, 2));
         return;

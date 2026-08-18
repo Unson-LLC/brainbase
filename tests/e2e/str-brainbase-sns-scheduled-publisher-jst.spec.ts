@@ -4,7 +4,19 @@ import { reviewPackToLedgerPayload } from '../../scripts/import-sns-review-pack-
 import { InMemorySnsPostingLedgerRepository } from '../../server/services/sns/posting-ledger-repository.js';
 import { SnsScheduledPublisher } from '../../server/services/sns/sns-scheduled-publisher.js';
 
-test('str.brainbase.sns-scheduled-publisher ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 JST review-pack schedule and due runner contract', async () => {
+test('AC-005 str.brainbase.sns-scheduled-publisher ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 JST review-pack schedule and due runner contract', async () => {
+  const tenantBoundary = {
+    tenant_context: {
+      tenant: {
+        tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        tenant_revision: '7'
+      }
+    },
+    resource_ref: {
+      object_type: 'project',
+      resource_id: 'project_sns'
+    }
+  };
   const payload = reviewPackToLedgerPayload({
     reviewPack: {
       date: '2026-05-24',
@@ -15,7 +27,7 @@ test('str.brainbase.sns-scheduled-publisher ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 a
         { slot: 'news_commentary_1', lane: 'trust_balance', topic: 'News', body: '18 JST post', source_url: 'https://x.com/b/status/2' }
       ]
     }
-  });
+  }, { tenantBoundary, requireTenantBoundary: true });
   const repository = new InMemorySnsPostingLedgerRepository();
 
   repository.upsertReviewPack(payload);
@@ -57,6 +69,10 @@ test('str.brainbase.sns-scheduled-publisher ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 a
   const enabledRun = await new SnsScheduledPublisher({
     ledgerRepository: repository,
     publishService,
+    tenantBoundaryAuthorizer: async (boundary) => {
+      expect(boundary).toEqual(tenantBoundary);
+      return { authorized: true, entry_point: 'background_job' };
+    },
     now: () => new Date('2026-05-24T00:01:00.000Z')
   }).run({ auto_publish_enabled: true });
   expect(enabledRun).toMatchObject({ scanned: 1, due: 1, posted: 1, failed: 0 });

@@ -40,3 +40,14 @@ export function createTenantEntrypointGuard(services, entryPoint) {
         }
     };
 }
+
+export function createUnavailableTenantEntrypointGuard() {
+    return (_req, res) => {
+        const problem = toProblem(new ContractError('UPSTREAM_UNAVAILABLE', {
+            status: 503,
+            retryable: true,
+            fault_domain: 'brainbase_cloud'
+        }), null);
+        res.status(problem.status).type('application/problem+json').json(problem);
+    };
+}

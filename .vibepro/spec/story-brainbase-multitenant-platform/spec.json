@@ -1,14 +1,194 @@
 {
   "schema_version": "0.1.0",
   "story_id": "story-brainbase-multitenant-platform",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "hybrid",
+    "tenant_identity": {
+      "canonical_key": "tenant_id",
+      "resolved_from": [
+        "verified TenantContextEnvelope",
+        "authoritative Brainbase tenant repository"
+      ],
+      "resolution_point": "Tenant Authority before the first business operation",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "admin_api",
+        "mcp",
+        "background_job",
+        "migration",
+        "audit_log"
+      ],
+      "verified_surfaces": [
+        "admin_api",
+        "mcp",
+        "background_job",
+        "migration",
+        "audit_log"
+      ]
+    },
+    "resources": [
+      {
+        "name": "Brainbase tenant-owned records and operational ledgers",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "tenant_id",
+        "partition_key": "tenant_id/resource_id",
+        "trust_zone": "Brainbase control plane and tenant-scoped PostgreSQL transaction",
+        "residue_policy": "retention then verified delete under tenant lifecycle policy",
+        "data_owner": "Brainbase Tenant Authority",
+        "credential_scope": "tenant-bound opaque handle and single-use lease"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "tenant_id",
+      "scope": "tenant-bound opaque handle and single-use lease",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase Tenant Authority"
+      ],
+      "residency": "Cloud uses tenant-partitioned PostgreSQL; customer-managed OSS retains data in its declared deployment",
+      "migration": "transactional PostgreSQL adapter applies one tenant plan at a time after migration authorization",
+      "rollback": "rollback the same tenant transaction and verify tenant-isolated readback before retry"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared",
+      "managed_dedicated",
+      "customer_managed",
+      "self_hosted"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "tenant",
+        "organization",
+        "membership",
+        "project",
+        "graph_entity",
+        "graph_relation",
+        "workspace_connection",
+        "contract",
+        "usage_event",
+        "operation_receipt"
+      ],
+      "boundary_edges": [
+        "tenant owns organization/project/Graph/workspace/contract/usage/receipt",
+        "runtime entrypoint authorizes tenant-owned resource before side effect"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "evidence": {
+        "propagation_surfaces": [
+          "admin_api",
+          "mcp",
+          "background_job",
+          "migration",
+          "audit_log"
+        ],
+        "graph": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared",
+            "managed_dedicated",
+            "customer_managed",
+            "self_hosted"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "canonical tenant-owned objects",
+              "tenant_key_source": "verified TenantContextEnvelope tenant_id",
+              "trust_zone": "Brainbase Tenant Authority",
+              "data_owner": "Brainbase Tenant Authority"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "entrypoint to tenant-owned resource",
+              "tenant_key_source": "verified TenantContextEnvelope tenant_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "tenant-bound opaque handle and single-use lease",
+              "connection_mode": "authoritative workspace connection revision",
+              "deployment_mode": "managed and customer-managed protocol v1"
+            }
+          ]
+        },
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "spec": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared",
+            "managed_dedicated",
+            "customer_managed",
+            "self_hosted"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared",
+            "managed_dedicated",
+            "customer_managed",
+            "self_hosted"
+          ]
+        }
+      }
+    }
+  },
   "generated_by": {
-    "caller": "codex",
+    "caller": "unknown",
     "stage": "spec"
   },
   "lifecycle": "final",
   "cross_lane_contract_source": {
     "pull_request": "https://github.com/Unson-LLC/mana-runtime/pull/237",
-    "head": "2bcb70e1b6c7a65c44cc9fa303a3fb64a98b8589",
+    "head": "38e13adde56dbd398cea914aec69c831194353c9",
     "kit_path": "contracts/mana-brainbase-tenant-context/v1",
     "fixture_set_sha256": "9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833",
     "decision_ids": [
@@ -250,7 +430,7 @@
     }
   },
   "fixtures": {
-    "canonical_source": "mana-runtime PR #237 remote HEAD 2bcb70e1b6c7a65c44cc9fa303a3fb64a98b8589 contracts/mana-brainbase-tenant-context/v1/fixtures/manifest.json",
+    "canonical_source": "mana-runtime PR #237 remote HEAD 38e13adde56dbd398cea914aec69c831194353c9 contracts/mana-brainbase-tenant-context/v1/fixtures/manifest.json",
     "fixture_set_sha256": "9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833",
     "adapter_test": "tests/conformance/mana-brainbase-tenant-context.adapter.test.js",
     "positive_count": 1,
@@ -299,7 +479,7 @@
       },
       "confidence": 0.96,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "INV-001",
@@ -351,7 +531,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "INV-002",
@@ -403,7 +583,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "C-002",
@@ -455,12 +635,12 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
-      "id": "INV-003",
+      "id": "INV-008",
       "type": "invariant",
-      "statement": "管理API、MCP、background job、migration、監査ログは同じtenant resolutionとactor-resource-connection-deployment-revision照合guardを必ず通る",
+      "statement": "管理API、MCP、background job、migration、監査ログは同じtenant resolutionとactor-resource-connection-deployment-revision照合guardを必ず通る。runtime無効時の管理・監査は503で拒否する。公開jobのproducerはdeployment-localの明示設定からcanonical tenant／resource bindingを永続化し、jobはclaim/provider呼出し前にbackground_jobとして認可する。gateway、設定、binding欠落時は暗黙補完せず拒否する",
       "origin": {
         "story_refs": [
           {
@@ -483,6 +663,18 @@
           },
           {
             "file": "server/bootstrap/register-api-routes.js"
+          },
+          {
+            "file": "scripts/run-sns-scheduled-posts.js"
+          },
+          {
+            "file": "scripts/import-sns-review-pack-to-ledger.js"
+          },
+          {
+            "file": "server/services/sns/posting-ledger-repository.js"
+          },
+          {
+            "file": "server/services/sns/sns-scheduled-publisher.js"
           }
         ],
         "test_refs": [
@@ -497,6 +689,30 @@
           {
             "file": "tests/server/routes/tenant-runtime-contract.test.js",
             "case": "AC-005/301: production bootstrapへservice-auth付きruntime routeを登録する"
+          },
+          {
+            "file": "tests/server/bootstrap/tenant-entrypoint-fail-closed.test.js",
+            "case": "AC-005 rejects authenticated admin and audit routes when tenant runtime is %s"
+          },
+          {
+            "file": "tests/sns/ops/run-sns-scheduled-posts.test.js",
+            "case": "AC-005 fails closed before public publishing when tenant runtime is %s"
+          },
+          {
+            "file": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js",
+            "case": "AC-005 requires canonical runtime tenant binding for the production import path"
+          },
+          {
+            "file": "tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js",
+            "case": "AC-005 authorizes the persisted background_job binding before claim and provider publish"
+          },
+          {
+            "file": "tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts",
+            "case": "AC-005 str.brainbase.sns-scheduled-publisher ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 JST review-pack schedule and due runner contract"
+          },
+          {
+            "file": "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+            "case": "AC-005: review-packのtenant bindingを実PostgreSQLから認可してclaim後にだけpublishする"
           }
         ]
       },
@@ -513,12 +729,36 @@
           {
             "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
             "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/server/bootstrap/tenant-entrypoint-fail-closed.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/sns/ops/run-sns-scheduled-posts.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/sns/ops/import-sns-review-pack-to-ledger.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts",
+            "must_cover": "AC-005"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+            "must_cover": "AC-005"
           }
         ]
       },
       "confidence": 0.98,
-      "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "first_seen_at": "2026-08-18T02:11:16.349Z",
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "C-003",
@@ -562,7 +802,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "C-004",
@@ -606,7 +846,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "C-005",
@@ -647,7 +887,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "C-006",
@@ -691,7 +931,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "INV-004",
@@ -754,7 +994,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "C-007",
@@ -806,7 +1046,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "C-008",
@@ -850,7 +1090,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "C-009",
@@ -902,7 +1142,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "C-010",
@@ -943,7 +1183,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "INV-005",
@@ -995,7 +1235,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "C-015",
@@ -1064,7 +1304,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-17T03:09:47.275Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "C-012",
@@ -1135,7 +1375,7 @@
       },
       "confidence": 0.98,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "C-013",
@@ -1187,7 +1427,7 @@
       },
       "confidence": 0.92,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "INV-006",
@@ -1236,7 +1476,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "C-014",
@@ -1280,7 +1520,7 @@
       },
       "confidence": 0.9,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     },
     {
       "id": "INV-007",
@@ -1346,7 +1586,7 @@
       },
       "confidence": 0.99,
       "first_seen_at": "2026-08-16T13:34:20.679Z",
-      "last_revised_at": "2026-08-17T03:23:26.931Z"
+      "last_revised_at": "2026-08-18T02:31:17.931Z"
     }
   ],
   "planned_test_suites": [
@@ -1384,6 +1624,6 @@
     }
   ],
   "open_questions": [],
-  "generated_at": "2026-08-17T03:23:26.929Z",
-  "previous_spec_id": "2026-08-17T03:13:17.749Z"
+  "generated_at": "2026-08-18T02:31:17.928Z",
+  "previous_spec_id": "2026-08-18T02:15:20.907Z"
 }

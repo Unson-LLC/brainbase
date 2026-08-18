@@ -9,6 +9,11 @@ related_adrs:
 implementation_files:
   - server/services/multitenant/
   - server/routes/tenant-runtime.js
+  - server/bootstrap/register-api-routes.js
+  - scripts/run-sns-scheduled-posts.js
+  - scripts/import-sns-review-pack-to-ledger.js
+  - server/services/sns/posting-ledger-repository.js
+  - server/services/sns/sns-scheduled-publisher.js
   - migrations/
 test_files:
   - tests/server/services/multitenant/tenant-authority.test.js
@@ -19,6 +24,12 @@ test_files:
   - tests/server/services/multitenant/protocol-contract.test.js
   - tests/server/services/multitenant/migration-planner.test.js
   - tests/server/routes/tenant-runtime-contract.test.js
+  - tests/server/bootstrap/tenant-entrypoint-fail-closed.test.js
+  - tests/sns/ops/run-sns-scheduled-posts.test.js
+  - tests/sns/ops/import-sns-review-pack-to-ledger.test.js
+  - tests/sns/posting-ledger/posting-ledger-repository.test.js
+  - tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js
+  - tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts
   - tests/conformance/mana-brainbase-tenant-context.adapter.test.js
 ---
 
@@ -26,7 +37,7 @@ test_files:
 
 ## 0. 状態と境界
 
-このSpecは実装着手用のfinalである。先行してVibePro draftを生成・検証した後、Storyとaccepted Architectureを具体化し、横断契約の正本入力としてmana-runtime PR #237 remote HEAD `2bcb70e1b6c7a65c44cc9fa303a3fb64a98b8589`のD-001〜D-009と`contracts/mana-brainbase-tenant-context/v1`を採用した。共通fixture setのSHA-256は`9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833`である。実装開始ゲートはSpecのfingerprintとdriftを記録した時点で開くが、adapter fixture、CI、本番readbackの成功を意味しない。
+このSpecは実装着手用のfinalである。先行してVibePro draftを生成・検証した後、Storyとaccepted Architectureを具体化し、横断契約の正本入力としてmana-runtime PR #237 remote HEAD `38e13adde56dbd398cea914aec69c831194353c9`のD-001〜D-009と`contracts/mana-brainbase-tenant-context/v1`を採用した。共通fixture setのSHA-256は`9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833`である。実装開始ゲートはSpecのfingerprintとdriftを記録した時点で開くが、adapter fixture、CI、本番readbackの成功を意味しない。
 
 Brainbaseのconformance testは共通manifestの1 positive、21 negative、1 non-applicableを固定HEADから直接読む。fixtureの複製や期待値の再定義はconformance証拠として扱わない。test keyはテスト実行時だけ読み、repository、ログ、PR本文へ秘密値を記録しない。
 
@@ -46,7 +57,7 @@ Brainbaseのconformance testは共通manifestの1 positive、21 negative、1 non
 - **INV-007 Collection and outcome**: `collection_state=collected|partial|not_collected`と`outcome=succeeded|failed|cancelled|timed_out`を独立に保持し、未計測・取得不能・部分取得を0件、0円、成功へ変換しない。取得済み空結果だけは`collected`、`observed_units=0`、`failure_code=NO_DATA`とする。
 - **INV-008 Immutable accounting**: canonical OperationReceipt wireは共通Schemaのまま確定後immutableとし、Brainbase価格台帳は同じ`receipt_id`へ当時のcontract、rate、FX、sales price revisionを別snapshotとして同一transactionで保持する。
 - **INV-009 Deployment isolation**: tenant、deployment、connection、credentialのいずれかが一致しない場合、別の組み合わせへfallbackしない。
-- **INV-010 Uniform boundary**: 管理API、MCP、background job、migration、監査ログで同じtenant解決・照合規則を使う。
+- **INV-010 Uniform boundary**: 管理API、MCP、background job、migration、監査ログで同じtenant解決・照合規則を使う。tenant runtime無効・未設定時も管理／監査を`next()`で通過させず503で拒否する。公開副作用を行うjobはgatewayと永続tenant bindingを必須とし、claim／provider呼出しより前に`entry_point=background_job`で認可する。
 
 ## 2. 識別子と共通型
 
@@ -515,7 +526,12 @@ tenant context、署名／時刻、revision、認可、credential scope、isolat
 | `tests/server/routes/tenant-runtime-contract.test.js`（Envelope境界） | tenant不一致bodyを`403`で拒否できず`200`になり失敗 | 検証済みEnvelopeへの業務入力束縛 |
 | `tests/server/services/multitenant/canonical-wire-strictness.test.js` | required欠落、unknown property、ID／enum／時刻／hash／revision／数量違反を旧validatorが受理して失敗 | canonical Schema同値のstrict rejection |
 | `tests/server/services/multitenant/tenant-boundary-entrypoints.test.js` | 5 entrypoint共通gatewayがなく永続resource ownerを照合できず失敗 | 管理API、MCP、background job、migration、audit log |
-| `tests/server/services/multitenant/postgres-migration-adapter.integration.test.js` | PostgreSQL adapterが存在せずtransactional apply／rollback／tenant readback不能 | 実PostgreSQL migration境界、rollback、tenant isolation |
+| `tests/server/services/multitenant/postgres-migration-adapter.integration.test.js` | PostgreSQL adapterが存在せずtransactional apply／rollback／tenant readback不能。SNS bindingも実DB経路の認可前readbackが未証明 | 実PostgreSQL migration境界、rollback、tenant isolation、review-pack→Ledger→background_job認可→claim→publish |
+| `tests/server/bootstrap/tenant-entrypoint-fail-closed.test.js` | runtime無効時の認証済みadmin／auditがtenant guardを通過して業務handlerへ到達する | 管理API／監査APIの503 fail-closed |
+| `tests/sns/ops/run-sns-scheduled-posts.test.js` | public publish runnerがruntime無効でもboundaryなしで起動する | production background job起動時のgateway必須化 |
+| `tests/sns/ops/import-sns-review-pack-to-ledger.test.js` | production review-pack producerがtenant bindingを永続化しない | 4つのdeployment-local envをcanonical bindingへ変換し、欠落時はHTTP送信前に拒否 |
+| `tests/sns/scheduled-publisher/sns-scheduled-publisher.test.js` | due postをtenant認可前にclaimしproviderへ送る | 永続bindingの副作用前認可、missing／cross-tenant拒否 |
+| `tests/e2e/str-brainbase-sns-scheduled-publisher-jst.spec.ts` | review-packからpublisherまでtenant binding／authorizerが未配線 | import→Ledger→background_job認可→provider呼出しの既存経路回帰 |
 
 Redの成立条件は「新contractがないため期待した箇所で失敗する」ことであり、環境変数不足、外部サービス停止、秘密値不足による失敗はRed証拠にしない。各Redを確認後、slice単位で最小実装し、Green、既存回帰、Refactorへ進む。
 
@@ -527,7 +543,7 @@ Redの成立条件は「新contractがないため期待した箇所で失敗す
 | `AC-002` | INV-002、Contract-02 | `tenant-authorization-boundary: every owned row has tenant` | organization／project／Graph／Receiptを束ねるtenant列がない |
 | `AC-003` | INV-001、AP-001／002 | `tenant-authority: aliases never resolve tenant` | authがorganizationIdとtenantIdをfallbackする |
 | `AC-004` | INV-003〜005、BBMT-N-001／002／012 | `tenant-authority: rejects unresolved ambiguous invalid before work` | 一意解決・revision検証がない |
-| `AC-005` | INV-010、Contract-02 | `tenant-authorization-boundary: parameterized entry points` | 管理API／MCP／job／migrationの共通guardがない |
+| `AC-005` | INV-010、Contract-02 | `tenant-entrypoint-fail-closed: runtime disabled admin/audit 503`、`import-sns-review-pack: canonical binding or fail before HTTP`、`run-sns-scheduled-posts: public runner requires gateway`、`sns-scheduled-publisher: authorize before claim/provider`、`scheduled-publisher E2E`、`PostgreSQL binding readback→authorize→claim→publish` | runtime無効時の管理／監査fail-open、producer binding欠落、production scheduler未配線をREDで固定 |
 | `AC-006` | MigrationPlan、BBMT-N-010 | `tenant-backfill: dry-run counts quarantine rollback` | tenant migrationがない |
 | `AC-101` | Contract-03 | `workspace-connection-registry: canonical relationship` | connection正本objectがない |
 | `AC-102` | Contract-03、BBMT-P-002／003 | `workspace-connection-registry: multi-workspace reinstall revoke` | revision履歴がない |
@@ -571,10 +587,11 @@ blocking open decisionは0件である。今後D-001〜D-009の意味を変え�
 | Graphify／codebase graph差分調査 | 確認済み。現行のorganization fallback、tenant ledger不在、Receipt境界不足を確認 |
 | VibePro Spec readiness | ready |
 | 21 AC trace | 本SpecとVibePro機械Specで定義 |
-| canonical conformance kit | mana-runtime PR #237 remote HEAD `2bcb70e1b6c7a65c44cc9fa303a3fb64a98b8589`、fixture SHA-256 `9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833`へ固定 |
+| canonical conformance kit | mana-runtime PR #237 remote HEAD `38e13adde56dbd398cea914aec69c831194353c9`、fixture SHA-256 `9f544ab944407db760e4dec79c455bea2fdc9076766ecfd4c7058417cfe7c833`へ固定 |
 | positive／negative／non-applicable fixture | 共通manifestの23件を直接読むBrainbase adapter testで検証する。本番readbackではない |
-| TDD Red | 実行済み。strictnessは19失敗、更新kitはsource lockとOperationReceipt dispatchの2失敗を実装前に固定 |
-| 対象unit／schema／repository／route／contract | 17 test files、98 tests Green（実PostgreSQL Testcontainersを含む）。共通adapterは別途25 tests Green（manifest 23件とsource-lock／冪等式2件） |
+| TDD Red | P0追従で管理／監査が`200`で通過する失敗、production runnerの境界resolver不在、ledgerのbinding未保存、claim／provider実行前authorize不在、境界欠落／cross-tenantが拒否されない失敗を先に固定した。review-pack producer追補では4 tests、既存production E2Eでは1 testが意図した理由でRedになったことを確認した |
+| 対象unit／schema／repository／route／contract | multitenant／route／実PostgreSQL Testcontainersは20 files、129 tests Green。SNS全体は72 files、191 tests Green。共通adapterは別途25 tests Green（manifest 23件とsource-lock／冪等式2件）。production E2Eは1 test Green |
+| Spec fingerprint | accepted Specの明示code refsを入力したVibePro fingerprint engineで影響code 17 files、test 120 files、Architecture 1 fileを走査。VibePro inputs digestのcode SHA-256 `cc180da015d555c17189802d8b81f6647556e074b1284662f257ea17757e5164` |
 | repository全体のCI | この時点では未取得。PR push後に別途readbackする |
 | Cloud／OSS deployment readback | `not_collected` |
 | 実Slackイベント〜Receipt E2E | `not_collected` |

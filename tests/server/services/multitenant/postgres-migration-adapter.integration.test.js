@@ -9,6 +9,8 @@ import { CredentialBroker } from '../../../../server/services/multitenant/creden
 import { PostgresTenantMigrationAdapter } from '../../../../server/services/multitenant/postgres-migration-adapter.js';
 import { MultitenantPostgresRepository } from '../../../../server/services/multitenant/postgres-repository.js';
 import { createTrustedHttpProviderForwarder } from '../../../../server/services/multitenant/trusted-provider-forwarder.js';
+import { PgSnsPostingLedgerRepository } from '../../../../server/services/sns/posting-ledger-repository.js';
+import { SnsScheduledPublisher } from '../../../../server/services/sns/sns-scheduled-publisher.js';
 
 const { Pool } = pg;
 const tenantA = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV';
@@ -308,6 +310,77 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
             rate_card_revision: '8',
             fx_table_revision: '5',
             sales_price_revision: '3'
+        });
+    });
+
+    it('AC-005: review-packのtenant bindingを実PostgreSQLから認可してclaim後にだけpublishする', async () => {
+        const schema = await readFile(resolve(process.cwd(), 'server/sql/sns-posting-ledger-schema.sql'), 'utf8');
+        await pool.query(schema);
+        const repository = new PgSnsPostingLedgerRepository({ pool });
+        const tenantBoundary = {
+            tenant_context: {
+                tenant: {
+                    tenant_id: tenantA,
+                    tenant_revision: '3'
+                }
+            },
+            resource_ref: {
+                object_type: 'project',
+                resource_id: 'project_sns'
+            }
+        };
+        const imported = await repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            account_handle: '@AIBizNavigator',
+            drafts: [{
+                id: 'week_2026-08-18_1_tenant_boundary',
+                date: '2026-08-18',
+                slot_index: 1,
+                time: '09:00',
+                body: 'tenant boundary integration proof',
+                tenant_boundary: tenantBoundary
+            }]
+        });
+        const postId = imported.created[0].id;
+        await repository.updatePost(postId, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+        await repository.updatePost(postId, {
+            status: 'scheduled',
+            scheduled_at: '2026-08-18T00:00:00.000Z'
+        }, { actor_person_id: 'sato_keigo' });
+
+        const authorizationCalls = [];
+        const publishCalls = [];
+        const publisher = new SnsScheduledPublisher({
+            ledgerRepository: repository,
+            tenantBoundaryAuthorizer: async (binding) => {
+                authorizationCalls.push(binding);
+                return { authorized: true, entry_point: 'background_job' };
+            },
+            publishService: {
+                async publishPost(id) {
+                    publishCalls.push(id);
+                    const post = await repository.updatePost(id, {
+                        status: 'posted',
+                        posted_at: '2026-08-18T00:01:00.000Z',
+                        posted_url: `https://x.example.test/status/${id}`
+                    }, { actor_person_id: 'sns_scheduler' });
+                    return { post };
+                }
+            },
+            now: () => new Date('2026-08-18T00:01:00.000Z')
+        });
+
+        await expect(publisher.run({ auto_publish_enabled: true })).resolves.toMatchObject({
+            scanned: 1,
+            due: 1,
+            posted: 1,
+            failed: 0
+        });
+        expect(authorizationCalls).toEqual([tenantBoundary]);
+        expect(publishCalls).toEqual([postId]);
+        await expect(repository.findById(postId)).resolves.toMatchObject({
+            status: 'posted',
+            evidence: { tenant_boundary: tenantBoundary }
         });
     });
 });

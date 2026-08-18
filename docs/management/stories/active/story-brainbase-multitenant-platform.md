@@ -3,7 +3,7 @@ story_id: story-brainbase-multitenant-platform
 title: BrainbaseをCloud／OSS共通のマルチテナント基盤にする
 status: active
 created_at: 2026-08-16
-updated_at: 2026-08-17
+updated_at: 2026-08-18
 horizon: quarter
 view: product
 source:
@@ -16,9 +16,9 @@ architecture_docs:
     status: accepted
 spec_docs:
   - path: docs/specs/story-brainbase-multitenant-platform.vibepro.json
-    status: draft
+    status: final
   - path: docs/specs/brainbase-multitenant-platform-spec.md
-    status: draft
+    status: final
 related:
   - https://github.com/Unson-LLC/vibepro/issues/466
   - Unson-LLC/mana-runtime:story-mana-multitenant-runtime
@@ -64,7 +64,7 @@ Slackイベントの受信、Cloudflare Worker／Queue／Durable Object／Contai
 - [ ] `AC-002`: organization、membership、project、Graph data、connection、contract、usage、Receiptがtenantへ帰属する。
 - [ ] `AC-003`: workspace ID、project code、organization名をtenant IDとして暗黙利用しない。
 - [ ] `AC-004`: tenant未解決、複数解決、payload不一致、無効tenantは認証後かつ業務処理前に拒否する。
-- [ ] `AC-005`: 管理API、MCP、background job、migration、監査ログが同じtenant境界を強制する。
+- [ ] `AC-005`: 管理API、MCP、background job、migration、監査ログが同じtenant境界を強制する。tenant runtimeが無効・未設定・到達不能な場合も管理／監査経路を通過させない。公開副作用を行うjobはproducerが明示したcanonical tenant／resource bindingを永続化し、binding欠落時は暗黙補完せず、claimやprovider呼出しより前に拒否する。
 - [ ] `AC-006`: 既存単一組織データの移行は、dry-run、件数照合、rollback、未帰属隔離を持つ。
 
 **Workspace Connection**

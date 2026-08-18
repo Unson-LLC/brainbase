@@ -61,6 +61,49 @@ const baseDraft = {
 };
 
 describe('InMemorySnsPostingLedgerRepository', () => {
+    it('AC-005 persists only the canonical background job tenant binding with the scheduled row', () => {
+        const repository = new InMemorySnsPostingLedgerRepository();
+        const tenantBoundary = {
+            tenant_context: {
+                tenant: {
+                    tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+                    tenant_revision: '7'
+                }
+            },
+            resource_ref: { object_type: 'project', resource_id: 'project_sns' }
+        };
+
+        repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            drafts: [{ ...baseDraft, tenant_boundary: tenantBoundary }]
+        });
+
+        expect(repository.listPosts({})[0].evidence.tenant_boundary).toEqual(tenantBoundary);
+        expect(JSON.stringify(repository.listPosts({})[0])).not.toMatch(/credential|secret|token/iu);
+    });
+
+    it('AC-005 re-imports a canonical binding onto an existing mutable row', () => {
+        const repository = new InMemorySnsPostingLedgerRepository();
+        const tenantBoundary = {
+            tenant_context: {
+                tenant: {
+                    tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+                    tenant_revision: '7'
+                }
+            },
+            resource_ref: { object_type: 'project', resource_id: 'project_sns' }
+        };
+        repository.upsertReviewPack({ account_id: 'acc_x_sato', drafts: [baseDraft] });
+
+        const result = repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            drafts: [{ ...baseDraft, tenant_boundary: tenantBoundary }]
+        });
+
+        expect(result.updated).toHaveLength(1);
+        expect(repository.listPosts({})[0].evidence.tenant_boundary).toEqual(tenantBoundary);
+    });
+
     it('upserts a weekly review pack idempotently by date and slot', () => {
         const repository = new InMemorySnsPostingLedgerRepository();
 

@@ -1,9 +1,10 @@
 // @ts-check
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
     parseArgs,
     resolveAutoPublishEnabled,
+    resolveTenantJobBoundary,
     resolveSnsPostingLedgerDatabaseUrl,
     resolveSnsPostingLedgerFile,
     validateArgs
@@ -46,5 +47,42 @@ describe('run-sns-scheduled-posts', () => {
             BRAINBASE_TEST_MODE: 'true'
         })).toBe('postgres://sns');
         expect(resolveSnsPostingLedgerFile({}, '/repo')).toBe('/repo/var/sns-posting-ledger.json');
+    });
+
+    it.each([
+        ['unset', {}],
+        ['disabled', { BRAINBASE_TENANT_RUNTIME_ENABLED: '0' }]
+    ])('AC-005 fails closed before public publishing when tenant runtime is %s', (_label, env) => {
+        const createServices = vi.fn();
+
+        expect(() => resolveTenantJobBoundary({
+            env,
+            pool: null,
+            requireTenantBoundary: true,
+            createServices
+        })).toThrow('Tenant runtime is required for public scheduled publishing');
+        expect(createServices).not.toHaveBeenCalled();
+    });
+
+    it('AC-005 injects the production background_job gateway into the scheduler publisher', async () => {
+        const authorize = vi.fn(async () => ({ authorized: true }));
+        const pool = { query: vi.fn() };
+        const boundary = resolveTenantJobBoundary({
+            env: { BRAINBASE_TENANT_RUNTIME_ENABLED: '1' },
+            pool,
+            requireTenantBoundary: true,
+            createServices: vi.fn(() => ({ tenantBoundaryGateway: { authorize } }))
+        });
+        const tenantContext = { tenant: { tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV', tenant_revision: '7' } };
+        const resourceRef = { object_type: 'project', resource_id: 'project_sns' };
+
+        await boundary.tenantBoundaryAuthorizer({ tenant_context: tenantContext, resource_ref: resourceRef });
+
+        expect(authorize).toHaveBeenCalledWith({
+            tenant_context: tenantContext,
+            entry_point: 'background_job',
+            resource_ref: resourceRef
+        });
+        expect(boundary.tenantIsolationRequired).toBe(true);
     });
 });
