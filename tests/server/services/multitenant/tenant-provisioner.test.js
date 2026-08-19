@@ -330,7 +330,14 @@ describe('tenant provisioner', () => {
         const failureUpdate = client.queries.find(({ text }) => text.includes('UPDATE tenant_provisioning_operations') && text.includes("SET status = 'failed'"));
         expect(failureUpdate).toBeDefined();
         const failureReceipt = JSON.parse(failureUpdate.values[3]);
-        expect(failureReceipt).toMatchObject({ outcome: 'failed', failure_code: 'PROJECT_AMBIGUOUS' });
+        expect(failureReceipt).toMatchObject({
+            outcome: 'failed',
+            failure_code: 'PROJECT_AMBIGUOUS',
+            schema_migration: {
+                migration_id: 'tenant-production-provisioning.v1',
+                schema_sha256: TEST_SCHEMA_SHA256
+            }
+        });
         expect(JSON.stringify(failureReceipt)).not.toContain('project_a');
         expect(client.queries.map(({ text }) => text)).toContain('COMMIT');
     });

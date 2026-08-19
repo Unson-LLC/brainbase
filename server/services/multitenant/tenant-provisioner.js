@@ -209,6 +209,7 @@ async function markFailedOperation(client, {
     desiredStateSha256,
     actorId,
     claimTokenHash,
+    schemaMigration,
     error,
     now
 }) {
@@ -224,6 +225,7 @@ async function markFailedOperation(client, {
         actor_id: actorId,
         capabilities: [],
         desired_state_sha256: desiredStateSha256,
+        schema_migration: schemaMigration,
         outcome: 'failed',
         failure_code: error?.code ?? 'PROVISIONING_FAILED',
         readback: {}
@@ -934,6 +936,7 @@ export async function provisionTenant({
                 desiredStateSha256,
                 actorId,
                 claimTokenHash,
+                schemaMigration,
                 error: safeError,
                 now
             });
