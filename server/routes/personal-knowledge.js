@@ -5,7 +5,10 @@ function context(req) {
     return { access, personalAccess: access };
 }
 function sendError(res, error) {
-    return res.status(error.status || 400).json({ error: error.message || 'personal_knowledge_request_failed' });
+    return res.status(error.status || 400).json({
+        error: error.message || 'personal_knowledge_request_failed',
+        ...(error.details ? { details: error.details } : {})
+    });
 }
 
 export function createPersonalKnowledgeRouter({ personalKnowledgeService, promotionService }) {
@@ -40,6 +43,11 @@ export function createPersonalKnowledgeRouter({ personalKnowledgeService, promot
     router.get('/organization-reviews', async (req, res) => {
         try {
             res.json({ reviews: await promotionService.listOrganizationReviews({ limit: req.query.limit }, context(req)) });
+        } catch (error) { sendError(res, error); }
+    });
+    router.put('/promotions/:requestId/normalized-payload', async (req, res) => {
+        try {
+            res.json(await promotionService.saveNormalizedPromotion(req.params.requestId, req.body || {}, context(req)));
         } catch (error) { sendError(res, error); }
     });
     router.post('/promotions/:requestId/organization-decision', async (req, res) => {
