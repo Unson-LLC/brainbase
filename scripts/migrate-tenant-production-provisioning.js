@@ -164,7 +164,7 @@ function checkConstraint(table_name, constraint_name, definition) {
 const REQUIRED_CONSTRAINTS = Object.freeze([
     checkConstraint('workspace_connections', 'workspace_connections_status_check', CHECK_STATUS),
     checkConstraint('workspace_connections', 'workspace_connections_profile_check', CHECK_PROFILE),
-    foreignKeyConstraint('workspace_connection_revisions', 'workspace_connection_revisions_current_identity_fk', ['tenant_id', 'connection_id'], 'workspace_connections', ['tenant_id', 'connection_id']),
+    foreignKeyConstraint('workspace_connections', 'workspace_connections_current_revision_fk', ['tenant_id', 'connection_id', 'connection_revision'], 'workspace_connection_revisions', ['tenant_id', 'connection_id', 'connection_revision']),
     ...[
         'credential_broker_refs',
         'tenant_credential_leases',

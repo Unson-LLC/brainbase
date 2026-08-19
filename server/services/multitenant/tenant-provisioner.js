@@ -5,6 +5,7 @@ import { canonicalProvisioningFingerprint, normalizeProvisioningManifest } from 
 
 const TERMINAL_STATUSES = new Set(['applied', 'conflict']);
 const CLAIM_STALE_MS = 120_000;
+const TENANT_PROVISIONING_SCHEMA_MIGRATION_ID = 'tenant-production-provisioning.v1';
 
 export class TenantProvisioningError extends Error {
     constructor(code, message, details = {}) {
@@ -66,6 +67,7 @@ function redactedReceipt(receipt) {
         capabilities: receipt.capabilities,
         contract_revision: receipt.contract_revision,
         desired_state_sha256: receipt.desired_state_sha256,
+        schema_migration: receipt.schema_migration,
         outcome: receipt.outcome,
         failure_code: receipt.failure_code,
         readback: receipt.readback
@@ -316,14 +318,19 @@ async function assertSchemaLedger(client, schemaSha256) {
         throw new TenantProvisioningError('SCHEMA_VERSION_REQUIRED', 'Provisioning requires an explicit migration schema hash');
     }
     const result = await client.query(
-        `SELECT schema_sha256
+        `SELECT migration_id, schema_sha256
            FROM brainbase_schema_migrations
           WHERE migration_id = $1`,
-        ['tenant-production-provisioning.v1']
+        [TENANT_PROVISIONING_SCHEMA_MIGRATION_ID]
     );
-    if (result.rows[0]?.schema_sha256 !== schemaSha256) {
+    const schemaMigration = result.rows[0] ?? null;
+    if (schemaMigration?.schema_sha256 !== schemaSha256) {
         throw new TenantProvisioningError('SCHEMA_VERSION_MISMATCH', 'Provisioning schema ledger does not match repository schema hash');
     }
+    return {
+        migration_id: safeString(schemaMigration.migration_id ?? TENANT_PROVISIONING_SCHEMA_MIGRATION_ID),
+        schema_sha256: schemaMigration.schema_sha256
+    };
 }
 
 async function ensureTenant(client, manifest, now) {
@@ -467,6 +474,23 @@ async function ensureWorkspaceConnection(client, manifest, tenant, now) {
     const existing = existingResult.rows[0];
     const connectionId = existing?.connection_id ?? input.connection_id;
     const connectionRevision = Number(existing?.connection_revision ?? 0) + 1;
+    const connectionSnapshot = {
+        provider: input.provider,
+        installation_id: input.installation_id,
+        workspace_id: input.workspace_id,
+        app_id: input.app_id,
+        granted_scopes: input.scopes,
+        status: 'active',
+        credential_ref: input.credential_ref,
+        credential_mode: input.credential_mode
+    };
+    await client.query(
+        `INSERT INTO workspace_connection_revisions (
+            tenant_id, connection_id, connection_revision, connection_snapshot, recorded_at
+         ) VALUES ($1, $2, $3, $4::jsonb, $5)
+         RETURNING connection_revision`,
+        [tenant.tenant_id, connectionId, connectionRevision, JSON.stringify(connectionSnapshot), now]
+    );
     if (!existing) {
         await client.query(
             `INSERT INTO workspace_connections (
@@ -478,22 +502,7 @@ async function ensureWorkspaceConnection(client, manifest, tenant, now) {
                 input.provider, input.installation_id, input.workspace_id, input.app_id,
                 input.scopes, input.credential_ref, now]
         );
-    }
-    await client.query(
-        `INSERT INTO workspace_connection_revisions (
-            tenant_id, connection_id, connection_revision, connection_snapshot, recorded_at
-         ) VALUES ($1, $2, $3, $4::jsonb, $5)
-         ON CONFLICT (tenant_id, connection_id, connection_revision) DO NOTHING`,
-        [tenant.tenant_id, connectionId, connectionRevision, JSON.stringify({
-            provider: input.provider,
-            workspace_id: input.workspace_id,
-            app_id: input.app_id,
-            scopes: input.scopes,
-            credential_ref: input.credential_ref,
-            status: 'active'
-        }), now]
-    );
-    if (existing) {
+    } else {
         await client.query(
             `UPDATE workspace_connections
                 SET connection_revision = $2,
@@ -530,7 +539,11 @@ async function ensureWorkspaceConnection(client, manifest, tenant, now) {
     if (credentialResult.rowCount === 0) {
         throw new TenantProvisioningError('CREDENTIAL_TENANT_MISMATCH', 'Credential reference is already owned by another tenant');
     }
-    return { connection_id: connectionId, connection_revision: connectionRevision };
+    return {
+        connection_id: connectionId,
+        connection_revision: connectionRevision,
+        connection_snapshot: connectionSnapshot
+    };
 }
 
 async function ensureServiceRegistry(client, actor, tenantKey, now) {
@@ -636,6 +649,7 @@ async function readback(client, tenant, project, connection, actor, contract, re
         `SELECT t.tenant_id, t.tenant_key, t.tenant_revision,
                 tp.project_id, tp.project_code,
                 wc.connection_id, wc.connection_revision,
+                wcr.connection_snapshot,
                 sa.actor_id,
                 cr.contract_id, cr.contract_revision,
                 cr.status AS contract_status,
@@ -649,6 +663,10 @@ async function readback(client, tenant, project, connection, actor, contract, re
            FROM brainbase_tenants t
            JOIN tenant_projects tp ON tp.tenant_id = t.tenant_id AND tp.project_id = $3
            JOIN workspace_connections wc ON wc.tenant_id = t.tenant_id
+           JOIN workspace_connection_revisions wcr
+             ON wcr.tenant_id = wc.tenant_id
+            AND wcr.connection_id = wc.connection_id
+            AND wcr.connection_revision = wc.connection_revision
            JOIN brainbase_service_actors sa ON sa.tenant_key = t.tenant_key
            JOIN tenant_contract_revisions cr
              ON cr.tenant_id = t.tenant_id
@@ -671,6 +689,7 @@ async function readback(client, tenant, project, connection, actor, contract, re
         || row.project_code !== project.project_code
         || row.connection_id !== connection.connection_id
         || Number(row.connection_revision) !== Number(connection.connection_revision)
+        || canonicalJson(row.connection_snapshot) !== canonicalJson(connection.connection_snapshot)
         || row.actor_id !== actor.actor_id
         || row.contract_id !== contract.contract_id
         || Number(row.contract_revision) !== Number(contract.revision)
@@ -707,6 +726,7 @@ async function readback(client, tenant, project, connection, actor, contract, re
         tenant: true,
         tenant_project: true,
         workspace_connection: true,
+        workspace_connection_revision: true,
         service_actor: true,
         service_actor_capabilities: registry.capabilities,
         service_actor_public_keys: registry.public_keys.map(({ kid }) => kid),
@@ -771,10 +791,11 @@ export async function provisionTenant({
     let claimed = null;
     let claimTokenHash = null;
     let claimPersisted = false;
+    let schemaMigration = null;
     try {
         // The migration ledger is the write gate.  A caller may not apply or
         // simulate a provisioning manifest against an unknown schema version.
-        await assertSchemaLedger(client, schemaSha256);
+        schemaMigration = await assertSchemaLedger(client, schemaSha256);
         await client.query('BEGIN');
         transactionStarted = true;
         await client.query("SET LOCAL lock_timeout = '5s'");
@@ -890,6 +911,7 @@ export async function provisionTenant({
             capabilities: normalizedManifest.service_actor.capabilities,
             contract_revision: contract,
             desired_state_sha256: desiredStateSha256,
+            schema_migration: schemaMigration,
             outcome: 'succeeded',
             readback: readbackResult
         });

@@ -38,15 +38,21 @@ async function readConnectionRevision(client, {
     const result = await client.query(
         `SELECT wc.tenant_id, wc.connection_id, wc.connection_revision, wc.status,
                 wc.provider, wc.installation_id, wc.workspace_id, wc.app_id,
-                wc.granted_scopes, cbr.credential_ref AS credential_ref,
+                wc.granted_scopes, wc.credential_ref AS current_credential_ref,
+                revision.connection_snapshot,
+                cbr.credential_ref AS credential_ref,
                 cbr.credential_mode, cbr.refresh_revision
          FROM workspace_connections wc
+         JOIN workspace_connection_revisions revision
+           ON revision.tenant_id = wc.tenant_id
+          AND revision.connection_id = wc.connection_id
+          AND revision.connection_revision = wc.connection_revision
          JOIN credential_broker_refs cbr
            ON cbr.tenant_id = wc.tenant_id
           AND cbr.connection_id = wc.connection_id
           AND cbr.connection_revision = wc.connection_revision
          WHERE wc.tenant_id = $1 AND wc.connection_id = $2
-         FOR SHARE OF wc, cbr`,
+         FOR SHARE OF wc, revision, cbr`,
         [tenant_id, connection_id]
     );
     const connection = result.rows[0];
@@ -66,6 +72,40 @@ async function readConnectionRevision(client, {
     }
     if (required_scopes.some((scope) => !(connection.granted_scopes ?? []).includes(scope))) {
         throw new ContractError('CAPABILITY_SCOPE_MISMATCH', { status: 403 });
+    }
+    let snapshot = connection.connection_snapshot;
+    if (typeof snapshot === 'string') {
+        try {
+            snapshot = JSON.parse(snapshot);
+        } catch {
+            snapshot = null;
+        }
+    }
+    const sortedScopes = (value) => Array.isArray(value) ? [...value].map(String).sort() : null;
+    const snapshotMatchesCurrent = snapshot
+        && typeof snapshot === 'object'
+        && String(snapshot.provider ?? '') === String(connection.provider)
+        && String(snapshot.installation_id ?? '') === String(connection.installation_id)
+        && String(snapshot.workspace_id ?? '') === String(connection.workspace_id)
+        && String(snapshot.app_id ?? '') === String(connection.app_id)
+        && String(snapshot.status ?? '') === String(connection.status)
+        && String(snapshot.credential_ref ?? '') === String(connection.current_credential_ref)
+        && (snapshot.credential_mode === undefined
+            || String(snapshot.credential_mode) === String(connection.credential_mode))
+        && Array.isArray(snapshot.granted_scopes)
+        && Array.isArray(connection.granted_scopes)
+        && JSON.stringify(sortedScopes(snapshot.granted_scopes)) === JSON.stringify(sortedScopes(connection.granted_scopes))
+        && (snapshot.tenant_id === undefined || String(snapshot.tenant_id) === String(connection.tenant_id))
+        && (snapshot.connection_id === undefined || String(snapshot.connection_id) === String(connection.connection_id))
+        && (snapshot.connection_revision === undefined
+            || String(snapshot.connection_revision) === String(connection.connection_revision));
+    if (!snapshotMatchesCurrent) {
+        throw new ContractError(
+            snapshot ? 'WORKSPACE_CONNECTION_STALE_REVISION' : 'WORKSPACE_CONNECTION_UNAVAILABLE',
+            snapshot
+                ? { status: 409 }
+                : { status: 503, retryable: true, fault_domain: 'brainbase_cloud' }
+        );
     }
     return {
         authoritative: true,
@@ -264,7 +304,7 @@ export class MultitenantPostgresRepository {
             }
 
             const ledgerResult = await client.query(
-                `SELECT status, response_payload, claimed_at, attempt
+                `SELECT status, request_digest, response_payload, claimed_at, attempt
                    FROM slack_installation_exchange_ledger
                   WHERE tenant_id = $1 AND installation_intent_id = $2
                   FOR UPDATE`,
@@ -272,6 +312,9 @@ export class MultitenantPostgresRepository {
             );
             const ledger = ledgerResult.rows[0];
             if (ledger?.status === 'completed' && ledger.response_payload) {
+                if (ledger.request_digest !== request_digest) {
+                    throw new ContractError('INSTALLATION_CLAIM_STALE', { status: 409 });
+                }
                 return { status: 'completed', response_payload: ledger.response_payload };
             }
             if (storedIntent.consumed_at) {
@@ -286,6 +329,9 @@ export class MultitenantPostgresRepository {
                 if (Number.isFinite(claimedMs) && claimedMs > staleMs) {
                     throw new ContractError('INSTALLATION_IN_PROGRESS', { status: 409, retryable: true });
                 }
+            }
+            if (ledger && ledger.request_digest !== request_digest) {
+                throw new ContractError('INSTALLATION_CLAIM_STALE', { status: 409 });
             }
 
             const claimTokenHash = sha256(claim_token);
@@ -620,6 +666,7 @@ export class MultitenantPostgresRepository {
                 connection_id: resolvedConnectionId,
                 connection_revision: resolvedRevision,
                 tenant_id: intent.tenant_id,
+                provider: 'slack',
                 installation_id: exchange.installation_id,
                 workspace_id: exchange.workspace_id,
                 ...(exchange.enterprise_id ? { enterprise_id: exchange.enterprise_id } : {}),
@@ -627,11 +674,20 @@ export class MultitenantPostgresRepository {
                 installer_id: exchange.installer_id,
                 granted_scopes: [...exchange.granted_scopes].sort(),
                 status: 'active',
+                credential_ref: credential.credential_ref,
                 deployment_id: contract.deployment_id,
                 profile: contract.profile,
                 credential_mode: credential.credential_mode,
                 contract_revision: String(contract.contract_revision)
             };
+            const responsePayload = { ...snapshot };
+            delete responsePayload.credential_ref;
+            await client.query(
+                `INSERT INTO workspace_connection_revisions (
+                    tenant_id, connection_id, connection_revision, connection_snapshot, recorded_at
+                 ) VALUES ($1,$2,$3,$4::jsonb,$5)`,
+                [intent.tenant_id, resolvedConnectionId, resolvedRevision, canonicalJson(snapshot), installedAt]
+            );
             if (!current) {
                 await client.query(
                     `INSERT INTO workspace_connections (
@@ -647,12 +703,6 @@ export class MultitenantPostgresRepository {
                         contract.profile, String(contract.contract_revision)]
                 );
             }
-            await client.query(
-                `INSERT INTO workspace_connection_revisions (
-                    tenant_id, connection_id, connection_revision, connection_snapshot, recorded_at
-                 ) VALUES ($1,$2,$3,$4::jsonb,$5)`,
-                [intent.tenant_id, resolvedConnectionId, resolvedRevision, canonicalJson(snapshot), installedAt]
-            );
             if (current) {
                 await client.query(
                     `UPDATE workspace_connections
@@ -699,7 +749,7 @@ export class MultitenantPostgresRepository {
                     AND claim_token_hash = $8
                  RETURNING response_payload`,
                 [intent.tenant_id, intent.installation_intent_id,
-                    resolvedConnectionId, resolvedRevision, canonicalJson(snapshot), installedAt,
+                    resolvedConnectionId, resolvedRevision, canonicalJson(responsePayload), installedAt,
                     request_digest, sha256(claim_token)]
             );
             if (!ledger.rows[0]?.response_payload) {

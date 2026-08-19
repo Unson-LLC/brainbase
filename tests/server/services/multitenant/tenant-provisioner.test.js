@@ -53,7 +53,27 @@ const manifest = {
     }
 };
 
-function createClient({ existingOperation = null, project = { project_id: 'project_mana' }, connection = null, existingProject = null, existingContract = null, existingBinding = null } = {}) {
+const expectedConnectionSnapshot = {
+    provider: manifest.workspace_connection.provider,
+    installation_id: manifest.workspace_connection.installation_id,
+    workspace_id: manifest.workspace_connection.workspace_id,
+    app_id: manifest.workspace_connection.app_id,
+    granted_scopes: manifest.workspace_connection.scopes,
+    status: 'active',
+    credential_ref: manifest.workspace_connection.credential_ref,
+    credential_mode: manifest.workspace_connection.credential_mode
+};
+
+function createClient({
+    existingOperation = null,
+    project = { project_id: 'project_mana' },
+    connection = null,
+    existingProject = null,
+    existingContract = null,
+    existingBinding = null,
+    omitReadback = false,
+    readbackConnectionSnapshot = expectedConnectionSnapshot
+} = {}) {
     const queries = [];
     let operationRow = existingOperation;
     let contractRow = existingContract;
@@ -62,7 +82,7 @@ function createClient({ existingOperation = null, project = { project_id: 'proje
         queries.push({ text: String(text), values });
         const sql = String(text);
         if (String(text).includes('FROM brainbase_schema_migrations')) {
-            return { rows: [{ schema_sha256: TEST_SCHEMA_SHA256 }] };
+            return { rows: [{ migration_id: 'tenant-production-provisioning.v1', schema_sha256: TEST_SCHEMA_SHA256 }] };
         }
         if (String(text).includes('FROM tenant_provisioning_operations')) {
             if (sql.includes('status = \'claimed\'')) return { rows: operationRow?.status === 'claimed' ? [operationRow] : [] };
@@ -142,7 +162,7 @@ function createClient({ existingOperation = null, project = { project_id: 'proje
             return { rows: [{ operation_id: 'op_01', status: 'applied', receipt_payload: { ok: true } }] };
         }
         if (String(text).includes('SELECT project_id')) return { rows: project ? [project] : [] };
-        if (String(text).includes('FROM brainbase_tenants t')) return {
+        if (String(text).includes('FROM brainbase_tenants t')) return omitReadback ? { rows: [] } : {
             rows: [{
                 tenant_id: manifest.tenant_id,
                 tenant_key: manifest.tenant_key,
@@ -151,6 +171,7 @@ function createClient({ existingOperation = null, project = { project_id: 'proje
                 project_code: manifest.project_code,
                 connection_id: manifest.workspace_connection.connection_id,
                 connection_revision: 1,
+                connection_snapshot: readbackConnectionSnapshot,
                 actor_id: manifest.service_actor.actor_id,
                 contract_id: contractRow?.contract_id ?? manifest.contract_revision.contract_id,
                 contract_revision: contractRow?.contract_revision ?? Number(manifest.contract_revision.revision),
@@ -368,12 +389,36 @@ describe('tenant provisioner', () => {
         expect(result.receipt).toMatchObject({
             tenant_key: 'unson-business',
             outcome: 'succeeded',
+            schema_migration: {
+                migration_id: 'tenant-production-provisioning.v1',
+                schema_sha256: TEST_SCHEMA_SHA256
+            },
             contract_revision: { revision: '1', deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV' }
         });
+        expect(result.receipt.readback.workspace_connection_revision).toBe(true);
+        const snapshotInsert = client.queries.findIndex(({ text }) => text.includes('INSERT INTO workspace_connection_revisions'));
+        const currentInsert = client.queries.findIndex(({ text }) => text.includes('INSERT INTO workspace_connections'));
+        expect(snapshotInsert).toBeGreaterThanOrEqual(0);
+        expect(snapshotInsert).toBeLessThan(currentInsert);
         expect(result.receipt).not.toHaveProperty('credential_value');
         expect(client.queries.map(({ text }) => text)).toContain('BEGIN');
         expect(client.queries.map(({ text }) => text)).toContain('COMMIT');
         expect(JSON.stringify(result)).not.toContain('operator@example.test');
+    });
+
+    it('fails closed when the current connection revision has no immutable snapshot readback', async () => {
+        const client = createClient({ omitReadback: true });
+        await expect(provision({
+            client,
+            manifest,
+            idempotencyKey: 'ik_missing_snapshot',
+            actorId: 'operator@example.test',
+            graphResolver,
+            credentialResolver,
+            fingerprint: 'same'
+        })).rejects.toMatchObject({ code: 'READBACK_FAILED' });
+        expect(client.queries.some(({ text }) => text.includes('JOIN workspace_connection_revisions wcr'))).toBe(true);
+        expect(client.queries.map(({ text }) => text)).toContain('ROLLBACK');
     });
 
     it('fails closed when a canonical contract revision already has a different payload', async () => {

@@ -55,7 +55,7 @@ CoordinatorはGraphやSecret Managerの実装詳細を所有せず、検証結�
 5. Graphのcanonical projectとcredential referenceを、claim transactionをcommitしてlockを解放した後に境界越しで検証する。未登録ref、別tenant、別connection metadata、revokedはfail closedにする。初回接続の未登録opaque refも、DB上の既存所有者が0件であることに加え、canonical credential boundaryがrefの存在とtenant／provider／workspace／app bindingをread-onlyで証明できた場合だけ `first_install` として続行する。boundary未設定・unavailable・no data・別tenantを含む検証不能は短い失敗更新でledgerをfailedにし、DB副作用を開始しない。
 6. fresh transactionとtenant advisory lockを取得し、同じclaim token hashとattemptが現在の所有者であることをfencing確認してから、tenant識別子・revision履歴、契約本体payload／runtime binding、接続snapshot／current pointer、service registryを確定する。契約本体は契約ID、revision、status、有効期間、plan、allowances、basis-point閾値、overage policy、hard stop、rate card／FX／sales price revisionを正規化して保存する。runtime bindingはcapabilities、audience、deployment ID、profileを保存する。既存revisionとの完全一致を確認し、推測・部分更新・別payloadによる上書きを行わない。
 7. capability境界を再確認し、manifestから消えたcapability grant／JWKをrevokedへ遷移させてreadbackする。DB副作用失敗時はrollbackし、別の短いtransactionで同じclaimにfencingされたledgerだけをfailedへ遷移させる。
-8. DB、Graph、registry、ledgerをoperation IDでreadbackし、秘密値を含まないreceiptを返す。
+8. DB、Graph、registry、ledgerをoperation IDでreadbackする。receiptには同じ `operation_id` と、write gateで検証した `schema_migration.migration_id`／`schema_migration.schema_sha256`、canonical `project_id`、connection snapshot／contract revisionのreadback結果を格納し、秘密値を含めない。
 
 ## Slack OAuth導入シーケンス
 

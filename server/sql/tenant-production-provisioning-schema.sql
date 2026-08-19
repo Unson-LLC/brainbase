@@ -117,7 +117,18 @@ BEGIN
            AND connection_row.connection_id = revision.connection_id
          WHERE connection_row.connection_id IS NULL
     ) THEN
-        RAISE EXCEPTION 'workspace connection revision contains an orphan row';
+        RAISE EXCEPTION 'workspace connection revision contains an orphan identity';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+          FROM workspace_connections connection_row
+          LEFT JOIN workspace_connection_revisions revision
+            ON revision.tenant_id = connection_row.tenant_id
+           AND revision.connection_id = connection_row.connection_id
+           AND revision.connection_revision = connection_row.connection_revision
+         WHERE revision.connection_id IS NULL
+    ) THEN
+        RAISE EXCEPTION 'workspace connection current pointer references a missing revision snapshot';
     END IF;
 
     FOR fk IN
@@ -129,10 +140,12 @@ BEGIN
     LOOP
         EXECUTE format('ALTER TABLE workspace_connection_revisions DROP CONSTRAINT %I', fk.conname);
     END LOOP;
-    ALTER TABLE workspace_connection_revisions
-        ADD CONSTRAINT workspace_connection_revisions_current_identity_fk
-        FOREIGN KEY (tenant_id, connection_id)
-        REFERENCES workspace_connections(tenant_id, connection_id);
+    ALTER TABLE workspace_connections
+        DROP CONSTRAINT IF EXISTS workspace_connections_current_revision_fk;
+    ALTER TABLE workspace_connections
+        ADD CONSTRAINT workspace_connections_current_revision_fk
+        FOREIGN KEY (tenant_id, connection_id, connection_revision)
+        REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision);
 
     FOREACH child_table IN ARRAY ARRAY[
         'credential_broker_refs', 'tenant_credential_leases',
@@ -203,6 +216,31 @@ BEGIN
     END IF;
 END
 $workspace_connection_revision_fk$;
+
+CREATE OR REPLACE FUNCTION enforce_workspace_connection_revision_current_pointer()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $workspace_connection_revision_current_pointer$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+          FROM workspace_connections connection_row
+         WHERE connection_row.tenant_id = NEW.tenant_id
+           AND connection_row.connection_id = NEW.connection_id
+           AND connection_row.connection_revision = NEW.connection_revision
+    ) THEN
+        RAISE EXCEPTION 'workspace connection revision must be selected by the current pointer before commit';
+    END IF;
+    RETURN NULL;
+END
+$workspace_connection_revision_current_pointer$;
+
+DROP TRIGGER IF EXISTS workspace_connection_revision_requires_current
+    ON workspace_connection_revisions;
+CREATE CONSTRAINT TRIGGER workspace_connection_revision_requires_current
+    AFTER INSERT ON workspace_connection_revisions
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION enforce_workspace_connection_revision_current_pointer();
 
 CREATE OR REPLACE FUNCTION prevent_workspace_connection_revision_mutation()
 RETURNS trigger

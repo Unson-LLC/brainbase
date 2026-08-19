@@ -105,6 +105,8 @@ REFERENCES workspace_connection_revisions (tenant_id, connection_id, connection_
 
 履歴snapshotから可変current rowを親参照する旧方向のFKは持たない。新revisionではsnapshotを先に追加し、同じfresh transactionでcurrent pointerを進める。既存の孤立current pointerまたは孤立snapshotをreadbackし、一件でもあればconstraint適用を中止する。`credential_broker_refs`、usage、receipt等のrevision参照はhistoryを親とする。`credential_broker_refs` にはopaque `credential_ref`、tenant、connection、revision、modeだけを保存し、upsert時に既存tenantが一致しない場合は `CREDENTIAL_TENANT_MISMATCH` とする。
 
+current pointerには `(tenant_id, connection_id, connection_revision)` からrevision snapshotへのFKを持たせる。snapshot側は旧方向FKを持たず、deferred constraint triggerでcommit時に同じrevisionがcurrent pointerとして選択済みであることを検証する。これによりtransaction内のsnapshot-first順序を保ちながら、孤立snapshotのcommitを拒否する。
+
 ### 2.3 provisioning idempotency ledger
 
 tenant作成前にもclaimできるようtenant FKを付けない。

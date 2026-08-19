@@ -23,7 +23,10 @@ describe('tenant production provisioning schema', () => {
         expect(sql).toContain('ON CONFLICT (tenant_id, tenant_revision) DO NOTHING');
         expect(sql).toContain('FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenant_revisions(tenant_id, tenant_revision)');
         expect(sql).toMatch(/FOREIGN KEY \(tenant_id, connection_id, connection_revision\)\s+REFERENCES workspace_connection_revisions\(tenant_id, connection_id, connection_revision\)/u);
-        expect(sql).toContain('FOREIGN KEY (tenant_id, connection_id)');
+        expect(sql).toContain('workspace_connections_current_revision_fk');
+        expect(sql).not.toContain('workspace_connection_revisions_current_identity_fk');
+        expect(sql).toContain('CREATE CONSTRAINT TRIGGER workspace_connection_revision_requires_current');
+        expect(sql).toContain('DEFERRABLE INITIALLY DEFERRED');
         expect(sql).toContain('workspace_connection_revisions_immutable');
     });
 

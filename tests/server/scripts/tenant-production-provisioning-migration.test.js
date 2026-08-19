@@ -270,7 +270,7 @@ describe('tenant production provisioning migration runner', () => {
     it('rejects a same-name foreign key with a wrong action or definition before ledger write', async () => {
         const { pool, queries } = await createPool({
             constraintOverride: {
-                workspace_connection_revisions_current_identity_fk: {
+                workspace_connections_current_revision_fk: {
                     on_delete: 'c'
                 }
             }
