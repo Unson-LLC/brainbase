@@ -1,9 +1,19 @@
 import { createHash } from 'node:crypto';
 
 import {
+    buildNormalizedGraphMutation,
+    buildOrganizationKnowledgeEvent,
+    buildPromotionEvidence,
+    NORMALIZED_PROMOTION_SCHEMA_VERSION,
+    normalizePromotionPayload,
+    ownerConsentReceipt,
+    sha256
+} from './personal-knowledge-normalization.js';
+import {
     decideOwnerPromotionRequest,
     listOrganizationPromotionReviews,
-    reviewOrganizationPromotionRequest
+    reviewOrganizationPromotionRequest,
+    saveNormalizedPromotionPayload
 } from './two-stage-promotion-repository.js';
 
 const SECRET_OR_PRIVATE = /(secret\s*=|password\s*=|api[_-]?key\s*=|\/Users\/|\/home\/|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i;
@@ -40,9 +50,10 @@ function sanitizeSubject(value, fallbackId) {
     return { type, id };
 }
 
-function promotionError(message, status = 400) {
+function promotionError(message, status = 400, details = undefined) {
     const error = new Error(message);
     error.status = status;
+    if (details !== undefined) error.details = details;
     return error;
 }
 
@@ -84,10 +95,35 @@ function requireOrganizationReviewer(request, access) {
     }
 }
 
+async function ingestWithinTransaction(service, event, { client, access }) {
+    if (!service) throw promotionError('personal_knowledge_knowledge_event_service_unavailable', 503);
+    if (typeof service.ingestInTransaction === 'function') {
+        return service.ingestInTransaction(event, { client, access });
+    }
+    // KnowledgeEventService already exposes its repository and transaction-aware _ingest
+    // primitive. Keep the whole promotion in one database transaction until the public
+    // ingestInTransaction API is promoted to the base service.
+    if (client && service.eventRepository && typeof service._ingest === 'function') {
+        await service.eventRepository.ensureSchema?.();
+        return service._ingest(event, {
+            eventRepository: service.eventRepository,
+            client,
+            access
+        });
+    }
+    return service.ingest(event, { access, client });
+}
+
 export class PersonalKnowledgePromotionService {
-    constructor({ repository, knowledgeEventService = null, now = () => new Date() }) {
+    constructor({
+        repository,
+        knowledgeEventService = null,
+        knowledgeGraphRepository = knowledgeEventService?.graphRepository || null,
+        now = () => new Date()
+    }) {
         this.repository = repository;
         this.knowledgeEventService = knowledgeEventService;
+        this.knowledgeGraphRepository = knowledgeGraphRepository;
         this.now = now;
     }
 
@@ -167,6 +203,34 @@ export class PersonalKnowledgePromotionService {
         return this.repository.transaction ? this.repository.transaction(run, { access }) : run();
     }
 
+    async saveNormalizedPromotion(requestId, input, { access } = {}) {
+        requireAccess(access);
+        const run = async ({ client } = {}) => {
+            const options = { access, client };
+            const request = await this.repository.findPromotionRequest(requestId, options);
+            requireOrganizationReviewer(request, access);
+            if (request.status !== 'pending_org_review') {
+                throw promotionError('personal_knowledge_promotion_already_decided', 409);
+            }
+            const normalizedResult = normalizePromotionPayload(input?.normalized_payload || input);
+            const consentReceiptId = request.owner_consent_receipt_id || ownerConsentReceipt(request);
+            if (request.normalized_payload_hash === normalizedResult.normalized_payload_hash
+                && request.owner_consent_receipt_id === consentReceiptId) {
+                return { ...request, idempotent: true };
+            }
+            const updated = await saveNormalizedPromotionPayload(this.repository, requestId, {
+                normalized_payload: normalizedResult.normalized,
+                normalized_payload_hash: normalizedResult.normalized_payload_hash,
+                normalized_at: this.now().toISOString(),
+                owner_consent_receipt_id: consentReceiptId,
+                contract_version: NORMALIZED_PROMOTION_SCHEMA_VERSION
+            }, options);
+            if (!updated) throw promotionError('personal_knowledge_promotion_state_conflict', 409);
+            return updated;
+        };
+        return this.repository.transaction ? this.repository.transaction(run, { access }) : run();
+    }
+
     async reviewOrganizationPromotion(requestId, input, { access } = {}) {
         requireAccess(access);
         if (!ORGANIZATION_DECISIONS.has(input?.decision)) {
@@ -183,19 +247,105 @@ export class PersonalKnowledgePromotionService {
                 throw promotionError('personal_knowledge_promotion_already_decided', 409);
             }
 
-            // M1-B deliberately cannot publish. M1-C adds the normalized Graph payload and
-            // is the only path that may turn an organization approval into org_accepted.
-            if (input.decision === 'approve') {
-                throw promotionError('personal_knowledge_normalized_payload_required', 409);
+            const reviewedAt = this.now().toISOString();
+            if (input.decision === 'reject') {
+                const rejected = await reviewOrganizationPromotionRequest(this.repository, requestId, {
+                    status: 'org_rejected',
+                    reason: sanitizeReason(input.reason),
+                    reviewed_at: reviewedAt
+                }, options);
+                if (!rejected) throw promotionError('personal_knowledge_promotion_state_conflict', 409);
+                return rejected;
             }
 
-            const updated = await reviewOrganizationPromotionRequest(this.repository, requestId, {
-                status: 'org_rejected',
+            if (!request.normalized_payload
+                || !request.normalized_payload_hash
+                || !request.owner_consent_receipt_id) {
+                throw promotionError('personal_knowledge_normalized_payload_required', 409);
+            }
+            if (!this.knowledgeGraphRepository?.commitNormalizedPromotion) {
+                throw promotionError('personal_knowledge_graph_repository_unavailable', 503);
+            }
+
+            const reviewerPersonId = access.actorPersonId || access.personId;
+            const { normalized, summary, evidence } = buildPromotionEvidence(
+                request,
+                reviewerPersonId,
+                reviewedAt
+            );
+            const organizationEvent = buildOrganizationKnowledgeEvent(
+                request,
+                normalized,
+                summary,
+                evidence,
+                access,
+                reviewedAt
+            );
+            const eventResult = await ingestWithinTransaction(
+                this.knowledgeEventService,
+                organizationEvent,
+                { client, access }
+            );
+            if (eventResult?.semantic_state === 'quarantined') {
+                throw promotionError(
+                    'personal_knowledge_graph_promotion_quarantined',
+                    409,
+                    { reason: eventResult.quarantine_reason }
+                );
+            }
+            const mutation = buildNormalizedGraphMutation(
+                normalized,
+                evidence,
+                eventResult,
+                organizationEvent
+            );
+            mutation.project_code = request.project_code;
+            const graphResult = await this.knowledgeGraphRepository.commitNormalizedPromotion(
+                mutation,
+                { client, access }
+            );
+            if (!graphResult?.id) {
+                throw promotionError('personal_knowledge_graph_readback_failed', 409);
+            }
+
+            const accepted = await reviewOrganizationPromotionRequest(this.repository, requestId, {
+                status: 'org_accepted',
                 reason: sanitizeReason(input.reason),
-                reviewed_at: this.now().toISOString()
+                reviewed_at: reviewedAt,
+                organization_event_id: organizationEvent.event_id,
+                graph_entity_id: graphResult.id,
+                organization_review_receipt_id: evidence.organization_review_receipt_id
             }, options);
-            if (!updated) throw promotionError('personal_knowledge_promotion_state_conflict', 409);
-            return updated;
+            if (!accepted) throw promotionError('personal_knowledge_promotion_state_conflict', 409);
+
+            const lineage = {
+                lineage_id: `kpl_${sha256(`${request.request_id}:${organizationEvent.event_id}`).slice(0, 24)}`,
+                personal_event_id: request.personal_event_id,
+                organization_event_id: organizationEvent.event_id,
+                promotion_request_id: request.request_id,
+                owner_person_id: request.owner_person_id,
+                organization_id: request.organization_id,
+                sanitization: {
+                    contract_version: NORMALIZED_PROMOTION_SCHEMA_VERSION,
+                    raw_copied: false,
+                    personal_body_copied: false,
+                    sanitized_preview_copied: false,
+                    source_evidence_hash: request.body_hash,
+                    normalized_payload_hash: request.normalized_payload_hash,
+                    owner_consent_receipt_id: evidence.owner_consent_receipt_id,
+                    organization_review_receipt_id: evidence.organization_review_receipt_id,
+                    graph_entity_id: graphResult.id
+                },
+                created_at: reviewedAt
+            };
+            await this.repository.createLineage(lineage, options);
+            return {
+                ...accepted,
+                graph_entity_id: graphResult.id,
+                organization_event_id: organizationEvent.event_id,
+                owner_consent_receipt_id: evidence.owner_consent_receipt_id,
+                organization_review_receipt_id: evidence.organization_review_receipt_id
+            };
         };
         return this.repository.transaction ? this.repository.transaction(run, { access }) : run();
     }
