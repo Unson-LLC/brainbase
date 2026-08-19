@@ -94,7 +94,9 @@ CREATE TABLE IF NOT EXISTS workspace_connection_revisions (
     connection_revision BIGINT NOT NULL,
     connection_snapshot JSONB NOT NULL,
     recorded_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (tenant_id, connection_id, connection_revision)
+    PRIMARY KEY (tenant_id, connection_id, connection_revision),
+    FOREIGN KEY (tenant_id, connection_id)
+        REFERENCES workspace_connections(tenant_id, connection_id)
 );
 
 CREATE TABLE IF NOT EXISTS credential_broker_refs (
@@ -106,7 +108,7 @@ CREATE TABLE IF NOT EXISTS credential_broker_refs (
     refresh_revision BIGINT NOT NULL CHECK (refresh_revision > 0),
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
-    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision)
+    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision)
 );
 
 CREATE TABLE IF NOT EXISTS tenant_credential_leases (
@@ -126,7 +128,7 @@ CREATE TABLE IF NOT EXISTS tenant_credential_leases (
     max_uses SMALLINT NOT NULL CHECK (max_uses = 1),
     consumed_at TIMESTAMPTZ,
     UNIQUE (tenant_id, lease_id),
-    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision),
+    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision),
     CHECK (expires_at > issued_at),
     CHECK (expires_at <= issued_at + INTERVAL '60 seconds'),
     CHECK (consumed_at IS NULL OR consumed_at >= issued_at)
@@ -197,7 +199,7 @@ CREATE TABLE IF NOT EXISTS tenant_usage_events (
     observed_at TIMESTAMPTZ NOT NULL,
     event_payload JSONB NOT NULL,
     FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision),
-    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision),
+    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision),
     CHECK ((collection_state = 'not_collected' AND quantity IS NULL) OR collection_state <> 'not_collected')
 );
 
@@ -229,7 +231,7 @@ CREATE TABLE IF NOT EXISTS tenant_operation_receipts (
     completed_at TIMESTAMPTZ NOT NULL,
     receipt_payload JSONB NOT NULL,
     FOREIGN KEY (tenant_id, tenant_revision_at_write) REFERENCES brainbase_tenants(tenant_id, tenant_revision),
-    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision),
+    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision),
     UNIQUE (tenant_id, receipt_id)
 );
 
@@ -267,7 +269,7 @@ CREATE TABLE IF NOT EXISTS tenant_business_effect_claims (
     retain_until TIMESTAMPTZ NOT NULL,
     claim_payload JSONB NOT NULL,
     CHECK (retain_until >= claimed_at + INTERVAL '30 days'),
-    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision)
+    FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision)
 );
 
 CREATE TABLE IF NOT EXISTS tenant_migrations (
@@ -278,9 +280,92 @@ CREATE TABLE IF NOT EXISTS tenant_migrations (
     mode TEXT NOT NULL CHECK (mode IN ('dry_run', 'apply', 'rollback')),
     counts JSONB NOT NULL,
     collection_state TEXT NOT NULL CHECK (collection_state IN ('collected', 'partial', 'not_collected')),
+    plan_digest TEXT NOT NULL,
+    plan_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    approved_by TEXT NOT NULL,
+    approval_id TEXT NOT NULL,
+    approval_reason TEXT NOT NULL,
+    approved_at TIMESTAMPTZ NOT NULL,
+    rollback_of_migration_id TEXT,
     created_at TIMESTAMPTZ NOT NULL,
-    UNIQUE (tenant_id, migration_id)
+    UNIQUE (tenant_id, migration_id),
+    CONSTRAINT tenant_migrations_rollback_of_fk
+        FOREIGN KEY (tenant_id, rollback_of_migration_id) REFERENCES tenant_migrations(tenant_id, migration_id),
+    CONSTRAINT tenant_migrations_plan_digest_check
+        CHECK (plan_digest ~ '^sha256:[a-f0-9]{64}$'),
+    CONSTRAINT tenant_migrations_rollback_mode_check
+        CHECK ((mode = 'rollback' AND rollback_of_migration_id IS NOT NULL)
+        OR (mode IN ('apply', 'dry_run') AND rollback_of_migration_id IS NULL))
 );
+
+-- An idempotent create statement does not upgrade a pre-existing ledger.  Add the
+-- attestation/audit columns explicitly, and stop rather than inventing audit
+-- provenance for any legacy rows.  The new endpoint remains unavailable until
+-- an operator has performed that explicit migration.
+ALTER TABLE tenant_migrations ADD COLUMN IF NOT EXISTS plan_digest TEXT;
+ALTER TABLE tenant_migrations ADD COLUMN IF NOT EXISTS plan_payload JSONB;
+ALTER TABLE tenant_migrations ADD COLUMN IF NOT EXISTS approved_by TEXT;
+ALTER TABLE tenant_migrations ADD COLUMN IF NOT EXISTS approval_id TEXT;
+ALTER TABLE tenant_migrations ADD COLUMN IF NOT EXISTS approval_reason TEXT;
+ALTER TABLE tenant_migrations ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE tenant_migrations ADD COLUMN IF NOT EXISTS rollback_of_migration_id TEXT;
+
+DO $brainbase_tenant_migrations_upgrade$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+          FROM tenant_migrations
+         WHERE plan_digest IS NULL
+            OR plan_payload IS NULL
+            OR approved_by IS NULL
+            OR approval_id IS NULL
+            OR approval_reason IS NULL
+            OR approved_at IS NULL
+    ) THEN
+        RAISE EXCEPTION 'tenant_migrations upgrade requires explicit audit backfill';
+    END IF;
+
+    ALTER TABLE tenant_migrations
+        ALTER COLUMN plan_digest SET DEFAULT NULL,
+        ALTER COLUMN plan_payload SET DEFAULT '{}'::jsonb,
+        ALTER COLUMN plan_digest SET NOT NULL,
+        ALTER COLUMN plan_payload SET NOT NULL,
+        ALTER COLUMN approved_by SET NOT NULL,
+        ALTER COLUMN approval_id SET NOT NULL,
+        ALTER COLUMN approval_reason SET NOT NULL,
+        ALTER COLUMN approved_at SET NOT NULL;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'tenant_migrations'::regclass
+           AND conname = 'tenant_migrations_plan_digest_check'
+    ) THEN
+        ALTER TABLE tenant_migrations
+            ADD CONSTRAINT tenant_migrations_plan_digest_check
+            CHECK (plan_digest ~ '^sha256:[a-f0-9]{64}$');
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'tenant_migrations'::regclass
+           AND conname = 'tenant_migrations_rollback_of_fk'
+    ) THEN
+        ALTER TABLE tenant_migrations
+            ADD CONSTRAINT tenant_migrations_rollback_of_fk
+            FOREIGN KEY (tenant_id, rollback_of_migration_id)
+            REFERENCES tenant_migrations(tenant_id, migration_id);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'tenant_migrations'::regclass
+           AND conname = 'tenant_migrations_rollback_mode_check'
+    ) THEN
+        ALTER TABLE tenant_migrations
+            ADD CONSTRAINT tenant_migrations_rollback_mode_check
+            CHECK ((mode = 'rollback' AND rollback_of_migration_id IS NOT NULL)
+                OR (mode IN ('apply', 'dry_run') AND rollback_of_migration_id IS NULL));
+    END IF;
+END
+$brainbase_tenant_migrations_upgrade$;
 
 CREATE TABLE IF NOT EXISTS tenant_migration_quarantine (
     migration_id TEXT NOT NULL,

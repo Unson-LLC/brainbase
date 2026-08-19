@@ -12,16 +12,69 @@ function countsFor(rows) {
     return counts;
 }
 
+function crossTenantCandidate() {
+    throw new ContractError('CROSS_TENANT_CANDIDATE', {
+        status: 403,
+        fault_domain: 'protocol',
+        // Keep the deny evidence useful for audit without echoing either tenant value.
+        details: {
+            required_action: 'none',
+            audit_event: 'cross_tenant_candidate_denied'
+        }
+    });
+}
+
+/**
+ * A migration plan may only contain candidates recommended for the plan target.
+ * Keep this check at the planner/plan boundary so callers cannot bypass the
+ * route validation with a directly constructed plan.
+ */
+export function assertMigrationCandidateTargets(targetTenantId, candidates) {
+    if (typeof targetTenantId !== 'string' || targetTenantId.length === 0
+        || !Array.isArray(candidates)) {
+        throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
+    }
+    if (candidates.some((candidate) => (
+        !candidate || typeof candidate !== 'object'
+        || candidate.recommended_tenant_id !== targetTenantId
+    ))) {
+        crossTenantCandidate();
+    }
+    return candidates;
+}
+
+/**
+ * Validate raw dry-run rows before the planner discards ambiguous candidates.
+ * Checking every recommendation prevents a cross-tenant candidate from hiding
+ * inside a quarantine-only row.
+ */
+export function assertMigrationRowCandidates(targetTenantId, rows) {
+    if (typeof targetTenantId !== 'string' || targetTenantId.length === 0
+        || !Array.isArray(rows)) {
+        throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
+    }
+    for (const row of rows) {
+        if (!row || typeof row !== 'object' || !Array.isArray(row.candidates)) {
+            throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
+        }
+        if (row.candidates.some((candidate) => candidate !== targetTenantId)) {
+            crossTenantCandidate();
+        }
+    }
+    return rows;
+}
+
 export class TenantMigrationPlanner {
     dryRun({ target_tenant_id, source_snapshot, mapping_rule_revision, rows }) {
         if (!source_snapshot || !target_tenant_id || !Number.isInteger(mapping_rule_revision) || !Array.isArray(rows)) {
             throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
         }
+        assertMigrationRowCandidates(target_tenant_id, rows);
         const counts = countsFor(rows);
         if (counts.scanned !== counts.eligible + counts.ambiguous + counts.unowned) {
             throw new ContractError('MIGRATION_COUNT_MISMATCH', { status: 409 });
         }
-        return deepFreeze({
+        const plan = {
             migration_id: generateCanonicalId('mig'),
             source_snapshot,
             target_tenant_id,
@@ -36,11 +89,17 @@ export class TenantMigrationPlanner {
             quarantine: rows.filter((row) => row.candidates.length !== 1).map((row) => ({
                 id: row.id, reason: row.candidates.length === 0 ? 'unowned' : 'ambiguous'
             }))
-        });
+        };
+        assertMigrationCandidateTargets(plan.target_tenant_id, plan.candidates);
+        return deepFreeze(plan);
     }
 
     apply(plan, currentRows) {
         if (plan.mode !== 'dry_run') throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
+        // A caller can construct a plan without going through dryRun.  Re-run
+        // the tenant target guard before deriving any result or quarantine
+        // state so that a cross-tenant candidate cannot reach apply output.
+        assertMigrationCandidateTargets(plan.target_tenant_id, plan.candidates);
         let migrated = 0;
         let unchanged = 0;
         let failed = 0;

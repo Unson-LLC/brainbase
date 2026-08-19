@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { MultitenantPostgresRepository } from '../../../../server/services/multitenant/postgres-repository.js';
 import { expectContractErrorAsync } from './test-helpers.js';
@@ -11,17 +12,140 @@ function poolWithRows(rowsByPattern) {
     return { pool: { connect: vi.fn(async () => client) }, client };
 }
 
+const CLAIM_INTENT = Object.freeze({
+    installation_intent_id: 'insi_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX',
+    app_id: 'A0123456789',
+    expected_workspace_id: 'T0123456789',
+    expected_enterprise_id: null,
+    initiated_by_person_id: 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY',
+    expected_connection_revision: null
+});
+
+function digest(value) {
+    return `sha256:${createHash('sha256').update(value, 'utf8').digest('hex')}`;
+}
+
+function claimPool(ledger) {
+    return poolWithRows({
+        'FROM slack_installation_intents': [{
+            ...CLAIM_INTENT,
+            issued_at: '2026-08-19T00:00:00.000Z',
+            expires_at: '2026-08-19T00:10:00.000Z',
+            consumed_at: null
+        }],
+        'FROM slack_installation_exchange_ledger': [ledger]
+    });
+}
+
 describe('MultitenantPostgresRepository', () => {
+    it('keeps the original request digest across failed retries and rejects a changed OAuth request', async () => {
+        const claimToken = 'claim-token-same-request';
+        const requestDigest = digest('oauth-code-one');
+        const sameRequest = claimPool({
+            status: 'failed', request_digest: requestDigest, response_payload: null,
+            claimed_at: null, attempt: 1
+        });
+        const sameRepository = new MultitenantPostgresRepository({ pool: sameRequest.pool });
+
+        await expect(sameRepository.claimSlackInstallationExchange({
+            intent: CLAIM_INTENT,
+            request_digest: requestDigest,
+            claim_token: claimToken,
+            now: '2026-08-19T00:01:00.000Z'
+        })).resolves.toMatchObject({ status: 'claimed', attempt: 2 });
+
+        const changedRequest = claimPool({
+            status: 'failed', request_digest: requestDigest, response_payload: null,
+            claimed_at: null, attempt: 1
+        });
+        const changedRepository = new MultitenantPostgresRepository({ pool: changedRequest.pool });
+        await expectContractErrorAsync(
+            () => changedRepository.claimSlackInstallationExchange({
+                intent: CLAIM_INTENT,
+                request_digest: digest('oauth-code-two'),
+                claim_token: 'claim-token-changed-request',
+                now: '2026-08-19T00:01:00.000Z'
+            }),
+            { code: 'INSTALLATION_CLAIM_STALE', status: 409 }
+        );
+        expect(changedRequest.client.query.mock.calls.some(([sql]) => sql.includes('UPDATE slack_installation_exchange_ledger')))
+            .toBe(false);
+
+        const completedRequest = claimPool({
+            status: 'completed', request_digest: requestDigest,
+            response_payload: { status: 'completed' }, claimed_at: null, attempt: 1
+        });
+        const completedRepository = new MultitenantPostgresRepository({ pool: completedRequest.pool });
+        await expectContractErrorAsync(
+            () => completedRepository.claimSlackInstallationExchange({
+                intent: CLAIM_INTENT,
+                request_digest: digest('oauth-code-two'),
+                claim_token: 'claim-token-replay',
+                now: '2026-08-19T00:01:00.000Z'
+            }),
+            { code: 'INSTALLATION_CLAIM_STALE', status: 409 }
+        );
+    });
+
+    it('Slack installation replay readback returns the completed ledger payload without exposing credentials', async () => {
+        const snapshot = {
+            connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAZ',
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX',
+            status: 'active'
+        };
+        const { pool, client } = poolWithRows({
+            'FROM slack_installation_intents i': [{ consumed_at: '2026-08-19T00:00:01Z', status: 'completed', response_payload: snapshot }]
+        });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.readSlackInstallationResult({
+            tenant_id: snapshot.tenant_id,
+            installation_intent_id: 'insi_01ARZ3NDEKTSV4RRFFQ69G5FAV'
+        })).resolves.toEqual(snapshot);
+        expect(client.query.mock.calls.some(([sql]) => sql.includes('FOR SHARE OF i'))).toBe(true);
+        expect(client.query.mock.calls.every(([, params = []]) => !params.includes('raw-token'))).toBe(true);
+    });
+
+    it('Slack installation replay without a completed ledger fails closed after the intent is consumed', async () => {
+        const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+        const { pool } = poolWithRows({
+            'FROM slack_installation_intents i': [{ consumed_at: '2026-08-19T00:00:01Z', status: null, response_payload: null }]
+        });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expectContractErrorAsync(
+            () => repository.readSlackInstallationResult({
+                tenant_id: tenantId,
+                installation_intent_id: 'insi_01ARZ3NDEKTSV4RRFFQ69G5FAV'
+            }),
+            { code: 'INSTALLATION_STATE_REPLAYED', status: 409 }
+        );
+    });
+
     it('AC-005/AC-105/D-003: transaction-local tenant RLSを設定しauthoritative revisionをlock付きで読む', async () => {
         const { pool, client } = poolWithRows({
-            'FROM workspace_connections': [{ tenant_id: 'ten_a', connection_id: 'wsc_a', connection_revision: 3, status: 'active', workspace_id: 'w', app_id: 'a', granted_scopes: ['chat:write'] }]
+            'FROM workspace_connections': [{
+                tenant_id: 'ten_a', connection_id: 'wsc_a', connection_revision: 3,
+                status: 'active', provider: 'slack', installation_id: 'slack:app:w',
+                workspace_id: 'w', app_id: 'a', granted_scopes: ['chat:write'],
+                credential_ref: 'credref:a', current_credential_ref: 'credref:a',
+                credential_mode: 'customer_oauth',
+                connection_snapshot: {
+                    provider: 'slack', installation_id: 'slack:app:w', workspace_id: 'w',
+                    app_id: 'a', granted_scopes: ['chat:write'], status: 'active',
+                    credential_ref: 'credref:a'
+                }
+            }]
         });
         const repository = new MultitenantPostgresRepository({ pool });
         await expect(repository.validateConnectionRevision({ tenant_id: 'ten_a', connection_id: 'wsc_a', expected_connection_revision: '3' })).resolves.toMatchObject({ authoritative: true, connection_revision: '3' });
         expect(client.query).toHaveBeenCalledWith("SELECT set_config('brainbase.tenant_id', $1, true)", ['ten_a']);
         expect(client.query.mock.calls.some(([sql]) => sql.includes('FOR SHARE'))).toBe(true);
+        expect(client.query.mock.calls.some(([sql]) => sql.includes('JOIN workspace_connection_revisions revision')
+            && sql.includes('revision.connection_revision = wc.connection_revision'))).toBe(true);
         expect(client.query.mock.calls.some(([sql]) => sql.includes('JOIN credential_broker_refs cbr'))).toBe(true);
-        expect(client.query.mock.calls.some(([sql]) => sql.includes('FOR SHARE OF wc, cbr'))).toBe(true);
+        expect(client.query.mock.calls.some(([sql]) => sql.includes('FOR SHARE OF wc, revision, cbr'))).toBe(true);
         expect(client.query.mock.calls.some(([sql]) => sql.includes('cbr.credential_ref AS credential_ref'))).toBe(true);
         expect(client.query.mock.calls.every(([sql]) => !sql.includes('AND cbr.credential_ref = wc.credential_ref'))).toBe(true);
         expect(client.query).toHaveBeenCalledWith('COMMIT');
@@ -32,8 +156,15 @@ describe('MultitenantPostgresRepository', () => {
         const { pool, client } = poolWithRows({
             'FROM workspace_connections': [{
                 tenant_id: 'ten_a', connection_id: 'wsc_a', connection_revision: 3,
-                status: 'active', workspace_id: 'w', app_id: 'a', granted_scopes: ['chat:write'],
-                credential_ref: 'credref:a', credential_mode: 'customer_oauth'
+                status: 'active', provider: 'slack', installation_id: 'slack:app:w',
+                workspace_id: 'w', app_id: 'a', granted_scopes: ['chat:write'],
+                credential_ref: 'credref:a', current_credential_ref: 'credref:a',
+                credential_mode: 'customer_oauth',
+                connection_snapshot: {
+                    provider: 'slack', installation_id: 'slack:app:w', workspace_id: 'w',
+                    app_id: 'a', granted_scopes: ['chat:write'], status: 'active',
+                    credential_ref: 'credref:a'
+                }
             }],
             'FROM brainbase_tenants': [{ tenant_id: 'ten_a', tenant_revision: 4, status: 'active' }],
             'FROM tenant_contract_revisions': [{ contract_revision: 5 }]
@@ -47,6 +178,106 @@ describe('MultitenantPostgresRepository', () => {
         })).resolves.toMatchObject({ contract_revision: '5' });
         expect(pool.connect).toHaveBeenCalledTimes(1);
         expect(client.query.mock.calls.filter(([sql]) => sql === 'BEGIN')).toHaveLength(1);
+    });
+
+    it('rejects a missing or mismatched immutable connection snapshot during runtime readback', async () => {
+        const missing = poolWithRows({ 'FROM workspace_connections': [] });
+        const missingRepository = new MultitenantPostgresRepository({ pool: missing.pool });
+        await expectContractErrorAsync(
+            () => missingRepository.validateConnectionRevision({
+                tenant_id: 'ten_a', connection_id: 'wsc_a', expected_connection_revision: '3'
+            }),
+            { code: 'WORKSPACE_CONNECTION_UNAVAILABLE', status: 503 }
+        );
+
+        const mismatched = poolWithRows({
+            'FROM workspace_connections': [{
+                tenant_id: 'ten_a', connection_id: 'wsc_a', connection_revision: 3,
+                status: 'active', provider: 'slack', installation_id: 'slack:app:w',
+                workspace_id: 'w', app_id: 'a', granted_scopes: ['chat:write'],
+                current_credential_ref: 'credref:a', credential_ref: 'credref:a',
+                credential_mode: 'customer_oauth',
+                connection_snapshot: {
+                    provider: 'slack', installation_id: 'slack:app:w', workspace_id: 'other',
+                    app_id: 'a', granted_scopes: ['chat:write'], status: 'active',
+                    credential_ref: 'credref:a'
+                }
+            }]
+        });
+        const mismatchedRepository = new MultitenantPostgresRepository({ pool: mismatched.pool });
+        await expectContractErrorAsync(
+            () => mismatchedRepository.validateConnectionRevision({
+                tenant_id: 'ten_a', connection_id: 'wsc_a', expected_connection_revision: '3'
+            }),
+            { code: 'WORKSPACE_CONNECTION_STALE_REVISION', status: 409 }
+        );
+    });
+
+    it('inserts the immutable initial snapshot before creating the current connection pointer', async () => {
+        const claimToken = 'claim-token-register';
+        const requestDigest = digest('register-request');
+        const responsePayload = { status: 'active', connection_revision: '1' };
+        const registerIntent = { ...CLAIM_INTENT };
+        delete registerIntent.expected_connection_revision;
+        const query = vi.fn(async (sql) => {
+            if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK'
+                || sql.startsWith("SELECT set_config('brainbase.tenant_id'")) return { rows: [] };
+            if (sql.includes('FROM slack_installation_intents')) {
+                return {
+                    rows: [{
+                        ...CLAIM_INTENT,
+                        issued_at: '2026-08-19T00:00:00.000Z',
+                        expires_at: '2026-08-19T00:10:00.000Z',
+                        consumed_at: null
+                    }]
+                };
+            }
+            if (sql.includes('FROM slack_installation_exchange_ledger')) {
+                return {
+                    rows: [{
+                        request_digest: requestDigest,
+                        status: 'processing',
+                        connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAZ',
+                        connection_revision: 1,
+                        response_payload: null,
+                        claim_token_hash: digest(claimToken)
+                    }]
+                };
+            }
+            if (sql.includes('FROM brainbase_tenants')) return { rows: [{ tenant_revision: 1, status: 'active' }] };
+            if (sql.includes('FROM tenant_contract_revisions')) {
+                return { rows: [{ contract_revision: 11, deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FB2', profile: 'shared_cloud' }] };
+            }
+            if (sql.includes('FROM workspace_connections')) return { rows: [] };
+            if (sql.includes('UPDATE slack_installation_exchange_ledger')) return { rows: [{ response_payload: responsePayload }] };
+            return { rows: [] };
+        });
+        const client = { query, release: vi.fn() };
+        const repository = new MultitenantPostgresRepository({ pool: { connect: vi.fn(async () => client) } });
+
+        await expect(repository.registerSlackInstallation({
+            intent: registerIntent,
+            exchange: {
+                installation_id: 'slack:A0123456789:T0123456789',
+                workspace_id: 'T0123456789',
+                enterprise_id: null,
+                installer_id: 'U0123456789',
+                granted_scopes: ['commands', 'chat:write']
+            },
+            credential: { credential_ref: 'credref:a', credential_mode: 'customer_oauth', refresh_revision: 1 },
+            connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAZ',
+            connection_revision: '1',
+            claim_token: claimToken,
+            request_digest: requestDigest,
+            now: '2026-08-19T00:01:00.000Z'
+        })).resolves.toEqual(responsePayload);
+
+        const statements = query.mock.calls.map(([sql]) => sql);
+        const snapshotInsert = statements.findIndex((sql) => sql.includes('INSERT INTO workspace_connection_revisions'));
+        const currentInsert = statements.findIndex((sql) => sql.includes('INSERT INTO workspace_connections'));
+        expect(snapshotInsert).toBeGreaterThan(-1);
+        expect(currentInsert).toBeGreaterThan(-1);
+        expect(snapshotInsert).toBeLessThan(currentInsert);
     });
 
     it('D-005: OAuth refresh CASはexpected revision一致時だけ更新する', async () => {
@@ -122,13 +353,21 @@ describe('MultitenantPostgresRepository', () => {
                 tenant_id: 'ten_a', contract_id: 'ctr_a', contract_revision: 11,
                 allowances: { model_tokens: 1000 }, thresholds_basis_points: [8000, 10000],
                 overage_policy: 'deny', hard_stop_basis_points: 10000,
-                rate_card_revision: 8, fx_table_revision: 5, sales_price_revision: 3
+                rate_card_revision: 8, fx_table_revision: 5, sales_price_revision: 3,
+                runtime_capabilities: ['signed_tenant_context', 'tenant_scoped_authorization'],
+                runtime_audience: ['mana-runtime'], runtime_deployment_id: 'dep_a', runtime_profile: 'shared_cloud'
             }]
         });
         const repository = new MultitenantPostgresRepository({ pool });
 
         await expect(repository.loadContractRevision({ tenant_id: 'ten_a', contract_revision: '11' }))
-            .resolves.toMatchObject({ contract_revision: '11', rate_card_revision: 8, fx_table_revision: 5, sales_price_revision: 3 });
+            .resolves.toMatchObject({
+                contract_revision: '11', rate_card_revision: 8, fx_table_revision: 5, sales_price_revision: 3,
+                runtime_binding: {
+                    capabilities: ['signed_tenant_context', 'tenant_scoped_authorization'],
+                    audience: ['mana-runtime'], deployment_id: 'dep_a', profile: 'shared_cloud'
+                }
+            });
         expect(client.query.mock.calls.some(([sql]) => sql.includes('FOR SHARE'))).toBe(true);
     });
 

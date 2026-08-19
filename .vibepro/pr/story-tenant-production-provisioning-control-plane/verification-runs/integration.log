@@ -1,0 +1,47 @@
+
+ RUN  v4.0.16 /Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase
+
+ ✓ tests/server/scripts/tenant-production-provisioning-migration.integration.test.js (10 tests) 2724ms
+ ✓ tests/server/services/multitenant/postgres-migration-adapter.integration.test.js (13 tests) 1726ms
+ ✓ tests/server/services/multitenant/slack-installation-control-plane.integration.test.js (3 tests) 1777ms
+ ✓ tests/server/services/multitenant/schema-migration-runner.integration.test.js (1 test) 1634ms
+ ✓ tests/server/bootstrap/tenant-runtime-internal-server.test.js (9 tests) 246ms
+ ✓ tests/server/routes/tenant-runtime-contract.test.js (15 tests) 148ms
+ ✓ tests/server/routes/tenant-runtime-bootstrap.test.js (4 tests) 157ms
+ ✓ tests/server/scripts/tenant-production-provisioning-migration.test.js (13 tests) 145ms
+ ✓ tests/server/services/multitenant/slack-installation-auth.test.js (8 tests) 71ms
+ ✓ tests/server/routes/slack-installation-control-plane.test.js (3 tests) 47ms
+ ✓ tests/server/cloudflare/slack-installation-control-plane-bridge.test.js (16 tests) 49ms
+ ✓ tests/server/bootstrap/slack-installation-control-plane-auth-order.test.js (3 tests) 47ms
+ ✓ tests/server/cloudflare/tenant-runtime-bridge.test.js (13 tests) 57ms
+ ✓ tests/server/services/multitenant/tenant-provisioner.test.js (11 tests) 42ms
+ ✓ tests/server/scripts/multitenant-platform-schema-migration.test.js (7 tests) 27ms
+ ✓ tests/server/services/multitenant/trusted-provider-forwarder.test.js (19 tests) 28ms
+ ✓ tests/server/services/multitenant/provisioning-manifest.test.js (6 tests) 31ms
+ ✓ tests/server/services/multitenant/slack-installation-control-plane.test.js (9 tests) 25ms
+ ✓ tests/server/services/multitenant/postgres-repository.test.js (13 tests) 23ms
+ ✓ tests/server/services/multitenant/credential-broker.test.js (5 tests) 20ms
+ ✓ tests/server/services/multitenant/protocol-contract.test.js (8 tests) 21ms
+ ✓ tests/server/services/multitenant/postgres-contract-usage-ledger.test.js (4 tests) 15ms
+ ✓ tests/server/services/multitenant/contract-usage-ledger.test.js (6 tests) 20ms
+ ✓ tests/server/services/multitenant/tenant-provisioning-resolvers.test.js (9 tests) 12ms
+ ✓ tests/server/services/multitenant/workspace-connection.test.js (5 tests) 14ms
+ ✓ tests/server/services/multitenant/migration-plan-attestor.test.js (9 tests) 13ms
+ ✓ tests/server/bootstrap/slack-installation-control-plane.test.js (5 tests) 14ms
+ ✓ tests/server/services/multitenant/canonical-wire-strictness.test.js (13 tests) 13ms
+ ✓ tests/server/services/multitenant/contract-fixtures.test.js (8 tests) 11ms
+ ✓ tests/server/services/multitenant/persistence-schema.test.js (3 tests) 10ms
+ ✓ tests/server/services/multitenant/tenant-boundary-entrypoints.test.js (6 tests) 9ms
+ ✓ tests/server/services/multitenant/tenant-provisioning-schema.test.js (3 tests) 11ms
+ ✓ tests/server/services/multitenant/tenant-authority.test.js (4 tests) 7ms
+ ✓ tests/server/services/multitenant/service-auth.test.js (8 tests) 8ms
+ ✓ tests/server/services/multitenant/slack-installation-access.test.js (4 tests) 8ms
+ ✓ tests/server/services/multitenant/tenant-authorization-boundary.test.js (2 tests) 6ms
+ ✓ tests/server/services/multitenant/migration-planner.test.js (4 tests) 6ms
+ ✓ tests/server/scripts/provision-tenant.test.js (2 tests) 4ms
+
+ Test Files  38 passed (38)
+      Tests  284 passed (284)
+   Start at  14:23:11
+   Duration  41.77s (transform 1.15s, setup 484ms, import 4.88s, tests 9.23s, environment 15.43s)
+

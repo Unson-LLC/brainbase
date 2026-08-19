@@ -15,6 +15,7 @@
 - `--apply`は`--approve-apply`と`BRAINBASE_MIGRATION_ACTOR`の両方がなければ開始しない。
 - applyはadvisory lock、DDL、schema hash台帳、readbackを同一transactionで実行する。readback不一致時はcommitしない。
 - SQLは`IF NOT EXISTS`とpolicy再作成で再実行可能にする。既存列の削除や既存データの書換えは行わない。
+- 既存`tenant_migrations`に監査列のない行がある場合、actor、承認、plan digestを推測でbackfillせず、`tenant_migrations upgrade requires explicit audit backfill`で停止する。承認済みのbackfill計画とreadbackを別操作として先に完了する。
 
 ## 本番適用前
 
@@ -22,6 +23,7 @@
 2. secret管理基盤から対象環境へ`INFO_SSOT_DATABASE_URL`を注入する。値をシェル履歴や監査票へ転記しない。
 3. operatorを識別できる非秘密値を`BRAINBASE_MIGRATION_ACTOR`へ設定する。
 4. 同じHEADで対象テストを実行する。
+5. `tenant_migrations`の既存行数と、`plan_digest`、`plan_payload`、`approved_by`、`approval_id`、`approval_reason`、`approved_at`の欠損件数を秘密値なしでreadbackする。欠損が1件でもあれば通常のschema applyへ進まない。
 
 ```bash
 npm run test:run -- tests/server/scripts/multitenant-platform-schema-migration.test.js tests/server/services/multitenant/schema-migration-runner.integration.test.js
@@ -58,6 +60,7 @@ npm run migrate:multitenant-platform-schema -- --check
 
 - `SCHEMA_READBACK_FAILED`: 不足table、column、RLS、policyを修復するまでruntimeを有効化しない。
 - `SCHEMA_VERSION_MISMATCH`: repoのSQLと適用台帳が一致していない。別HEADの結果を流用しない。
+- `tenant_migrations upgrade requires explicit audit backfill`: 旧ledgerに監査値のない行がある。provenanceを新規作成せず、対象migrationごとの承認済みbackfillと件数readbackが完了するまでruntime migration apply／rollbackを有効化しない。
 - `UPSTREAM_UNAVAILABLE`: PostgreSQL側ログを確認する。runnerはdriverエラーや接続秘密値を標準エラーへ展開しない。
 - apply transaction中の失敗: runnerがrollbackする。再度`--dry-run`から行う。
 - commit後の不整合: destructive rollbackを即時実行しない。runtimeを無効化し、修正版の前方移行を別Git SHAで準備する。既存データのrollbackはMigrationPlanのmigration ID単位で行う。

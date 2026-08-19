@@ -6,6 +6,7 @@ import { PostgresContractUsageLedger } from './postgres-contract-usage-ledger.js
 import { TenantContextProducer } from './tenant-context-producer.js';
 import { verifyTenantContext } from './tenant-context.js';
 import { TenantBoundaryGateway } from './tenant-boundary.js';
+import { MigrationPlanAttestor } from './migration-plan-attestor.js';
 import { PostgresTenantMigrationAdapter } from './postgres-migration-adapter.js';
 import {
     createEnvCredentialMaterializer,
@@ -28,7 +29,14 @@ function createServiceAuth(expectedToken) {
         const supplied = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
         const valid = timingSafeEqual(expectedDigest, tokenDigest(supplied));
         if (!valid) return res.status(401).json({ code: 'SERVICE_AUTH_REQUIRED' });
-        req.serviceIdentity = 'mana-runtime';
+        req.serviceIdentity = {
+            subject: 'mana-runtime',
+            capabilities: [
+                'tenant_context:resolve',
+                'tenant_migration:apply',
+                'tenant_migration:rollback'
+            ]
+        };
         return next();
     };
 }
@@ -115,6 +123,14 @@ export function createTenantRuntimeServicesFromEnv({
     if (!pool) throw new Error('Tenant runtime PostgreSQL pool is required');
     const privateJwk = JSON.parse(requiredEnv(env, 'BRAINBASE_TENANT_CONTEXT_SIGNING_KEY_JWK'));
     const privateKey = createPrivateKey({ key: privateJwk, format: 'jwk' });
+    const signingKey = {
+        key_id: requiredEnv(env, 'BRAINBASE_TENANT_CONTEXT_SIGNING_KEY_ID'),
+        private_key: privateKey,
+        public_key: createPublicKey(privateKey),
+        status: 'current',
+        not_before: env.BRAINBASE_TENANT_CONTEXT_KEY_NOT_BEFORE ?? null,
+        expires_at: env.BRAINBASE_TENANT_CONTEXT_KEY_EXPIRES_AT ?? null
+    };
     const repository = new MultitenantPostgresRepository({ pool, now });
     const resolvedCredentialMaterializer = credentialMaterializer
         ?? createEnvCredentialMaterializer({ env });
@@ -144,6 +160,7 @@ export function createTenantRuntimeServicesFromEnv({
     const tenantBoundaryGateway = new TenantBoundaryGateway({
         resolveResource: (input) => repository.resolveOwnedResource(input)
     });
+    const migrationAttestor = new MigrationPlanAttestor(signingKey);
     return createTenantRuntimeServices({
         serviceAuth,
         connectionRegistry: {
@@ -157,16 +174,9 @@ export function createTenantRuntimeServicesFromEnv({
         }),
         usageLedger,
         tenantBoundaryGateway,
-        migrationAdapter: new PostgresTenantMigrationAdapter({ pool, now }),
+        migrationAdapter: new PostgresTenantMigrationAdapter({ pool, now, attestor: migrationAttestor }),
         resolveCanonicalContext: (input) => repository.resolveRuntimeContext(input),
-        signingKey: {
-            key_id: requiredEnv(env, 'BRAINBASE_TENANT_CONTEXT_SIGNING_KEY_ID'),
-            private_key: privateKey,
-            public_key: createPublicKey(privateKey),
-            status: 'current',
-            not_before: env.BRAINBASE_TENANT_CONTEXT_KEY_NOT_BEFORE ?? null,
-            expires_at: env.BRAINBASE_TENANT_CONTEXT_KEY_EXPIRES_AT ?? null
-        },
+        signingKey,
         audience: runtimeAudience,
         deploymentId,
         deploymentProfile: requiredEnv(env, 'BRAINBASE_TENANT_RUNTIME_DEPLOYMENT_PROFILE'),

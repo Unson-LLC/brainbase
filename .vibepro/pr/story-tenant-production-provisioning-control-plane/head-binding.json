@@ -1,0 +1,41 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "verified_implementation_head": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+  "evidence_commit": "8897af7dcde8a917bd843b519bb99d34e9d82ee0",
+  "binding_model": "implementation_head_then_artifact_commit",
+  "claims": {
+    "strict_integration": "pass",
+    "strict_integration_test_files": 38,
+    "strict_integration_tests": 284,
+    "strict_typecheck": "pass",
+    "strict_build": "pass",
+    "github_contract_check": "pass",
+    "doc_trace": "passed",
+    "spec_readiness": "ready",
+    "spec_drift": "clean",
+    "pr_prepare_gate_status": "ready"
+  },
+  "review_boundary": {
+    "planning_spec": "recorded_pass_current",
+    "gate": "in_review",
+    "missing_roles_are_not_pass": true
+  },
+  "deployment_boundary": {
+    "production_deploy": "not_executed",
+    "production_e2e": "not_executed"
+  },
+  "artifact_commit_scope": {
+    "artifact_only": true,
+    "path_prefixes": [
+      ".vibepro/pr/story-tenant-production-provisioning-control-plane/",
+      ".vibepro/reviews/story-tenant-production-provisioning-control-plane/",
+      ".vibepro/spec/story-tenant-production-provisioning-control-plane/"
+    ]
+  },
+  "final_tip_validation": {
+    "authority": "github_status_checks",
+    "status": "external_readback_required_after_push",
+    "note": "This receipt does not claim that its own commit was the strict-head verification target."
+  }
+}

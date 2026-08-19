@@ -24,11 +24,12 @@ export class WorkspaceConnectionRegistry {
     }
 
     #save(connection) {
-        this.#current.set(connection.connection_id, connection);
+        const immutableSnapshot = snapshot(connection);
         const revisions = this.#history.get(connection.connection_id) ?? [];
-        revisions.push(connection);
+        revisions.push(immutableSnapshot);
         this.#history.set(connection.connection_id, revisions);
-        return snapshot(connection);
+        this.#current.set(connection.connection_id, immutableSnapshot);
+        return snapshot(immutableSnapshot);
     }
 
     register(input) {
@@ -98,6 +99,18 @@ export class WorkspaceConnectionRegistry {
         if (!current) throw new ContractError('WORKSPACE_CONNECTION_UNAVAILABLE', { status: 503, retryable: true, fault_domain: 'brainbase_cloud' });
         if (current.tenant_id !== tenant_id) throw new ContractError('CROSS_TENANT_CANDIDATE', { status: 403 });
         if (current.connection_revision !== expected_connection_revision) {
+            throw new ContractError('WORKSPACE_CONNECTION_STALE_REVISION', { status: 409 });
+        }
+        const immutableSnapshot = (this.#history.get(connection_id) ?? [])
+            .find((revision) => revision.connection_revision === expected_connection_revision);
+        if (!immutableSnapshot) {
+            throw new ContractError('WORKSPACE_CONNECTION_UNAVAILABLE', {
+                status: 503,
+                retryable: true,
+                fault_domain: 'brainbase_cloud'
+            });
+        }
+        if (JSON.stringify(immutableSnapshot) !== JSON.stringify(current)) {
             throw new ContractError('WORKSPACE_CONNECTION_STALE_REVISION', { status: 409 });
         }
         if (current.status !== 'active') throw new ContractError('WORKSPACE_CONNECTION_REVOKED', { status: 403 });

@@ -1,0 +1,146 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "stage": "gate",
+  "role": "pr_split_scope",
+  "status": "pass",
+  "summary": "current PR tip ede0、実装HEAD e162、evidence 8897の段階的bindingとlocal/GitHubの90-file surfaceを独立突合。無関係scopeはなく分割不要。本番証跡はnot_collected。",
+  "findings": [],
+  "finding_dispositions": [
+    {
+      "finding_id": "scope-artifact-head-and-file-surface-drift",
+      "disposition": "accepted",
+      "resolved_by": [
+        ".vibepro/pr/story-tenant-production-provisioning-control-plane/pr-prepare.json"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    }
+  ],
+  "artifacts": [
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/reviewer-transcript-pr_split_scope-pass-ede0d54.json"
+  ],
+  "inspection": {
+    "summary": "origin/developからcurrent tipまでの実差分、pr-prepare、head-binding、CI/local test surfaceを独立検査",
+    "evidence": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/reviewer-transcript-pr_split_scope-pass-ede0d54.json",
+    "inputs": [
+      ".vibepro/pr/story-tenant-production-provisioning-control-plane/pr-prepare.json",
+      "docs/specs/story-tenant-production-provisioning-control-plane.md",
+      "package.json",
+      ".github/workflows/graph-writer-contract.yml"
+    ]
+  },
+  "judgment_delta": [
+    "旧scope driftとstale bindingは解消。90 filesは一つのcontrol-plane依存連鎖で分割不要。"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+    "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "expected_root": null,
+    "expected_head_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "current_head_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "expected_root": null,
+      "expected_head_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+      "current_head_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-19T06:03:34.982Z",
+  "git_context": {
+    "head_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "current_branch": "codex/tenant-production-provisioning-control-plane",
+    "dirty": false,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "25ec4898e8e563ff0eb86460841ce166c16ff4c4e37dc176c18a2906c5667410",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-08-19T06:03:34.965Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 3 file(s)",
+    "recorded_head_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "surface_files": [
+      {
+        "path": ".github/workflows/graph-writer-contract.yml",
+        "sha256": "21fb0b7fe5df60f5a7f58a58de3f2fb92ccc03cc9796fc88c70a96a9c597273b",
+        "size": 904
+      },
+      {
+        "path": "docs/specs/story-tenant-production-provisioning-control-plane.md",
+        "sha256": "268e40f38c1963411a30022819e7855b1db990000b09a557d1c745231743bfa4",
+        "size": 16371
+      },
+      {
+        "path": "package.json",
+        "sha256": "81b6f1a01b62ea4e716c801c2cebb3a730a64d0a3dce626b0a6f0af729b6051b",
+        "size": 10690
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "a6042d732febb73633bae55caa8a2dc0747dbbcc42e51c9c88c291dfe0d9716a"
+  },
+  "source_fingerprint": "ccad739d93aa6de25169c2c93b52f5266df2063196f66b268a5eeeeaf8123f1f",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/pr1260_pr_split_scope_b97",
+    "agent_role": null,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "cost_tier": "low",
+    "thread_id": "/root/pr1260_pr_split_scope_b97",
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/reviewer-transcript-pr_split_scope-pass-ede0d54.json",
+    "request_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-request-pr_split_scope.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "subagent:/root/pr1260_pr_split_scope_b97:final",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/pr1260_pr_split_scope_b97",
+      "implementation_session_id": "019ffe25-90ff-76f3-9efc-4b7c401c48a0",
+      "source": "declared_session_ids"
+    }
+  },
+  "agent_usage": null
+}

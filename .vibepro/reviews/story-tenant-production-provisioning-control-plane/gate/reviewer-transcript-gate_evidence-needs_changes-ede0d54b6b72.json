@@ -1,0 +1,295 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "needs_changes",
+  "summary": "PR #1260 のtip ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5、実装検証HEAD e162c3bd26f64a12e84319f4fd9f2bc250fe6886、証跡commit 8897af7dcde8a917bd843b519bb99d34e9d82ee0をread-onlyで照合した。local strict suiteは38 files/284 tests、GitHub contractはtip関連付け済みで38 files/296 tests、typecheck/buildはpass。旧head-mismatch、CI relevance、path-surfaceの3 findingは実証範囲で解消したが、VibePro parserのcomputed_counts=null警告は残る。required checksがPRに強制されておらず、planning_specのpass summary/provenanceも現tipのコミット済み証跡面と不一致のため、Draft解除・mergeに進めるgate_evidenceはneeds_changes。",
+  "inspection_summary": "指定worktreeでHEAD/base、旧finding、current head-binding、pr-prepare、verification evidenceとintegration/typecheck/build artifact/log、review request、planning_specのcurrent worktree summary/provenanceとede0 committed summary、package script、CI workflow、develop...HEAD変更面、GitHub PR/check/run/branch protection readbackを読み取り専用で確認した。source/test/既存review result/record/commit/push/PR操作は変更していない。current worktreeのdirty差分は他reviewerの.vibepro review filesであり、本transcript以外は触れていない。",
+  "inspection_evidence": [
+    "HEAD readback: git rev-parse HEAD = ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5; origin/develop = 65220fd9236012007d22827594bc14a15367b312.",
+    "head-binding.json: verified_implementation_head=e162c3bd26f64a12e84319f4fd9f2bc250fe6886, evidence_commit=8897af7dcde8a917bd843b519bb99d34e9d82ee0, binding_model=implementation_head_then_artifact_commit, gate=in_review, missing_roles_are_not_pass=true.",
+    "pr-prepare.json: committed artifact records head_sha=e162c3bd26f64a12e84319f4fd9f2bc250fe6886, base_ref=origin/develop, commit_count=17, gate_status=ready, verification recorded at 2026-08-19T05:24:28.665Z; its review summary remains needs_review.",
+    "local integration artifact/log: exit_code=0, head before/after=e162c3bd26f64a12e84319f4fd9f2bc250fe6886, log_truncated=false, log lines 43-44 report Test Files 38 passed (38) and Tests 284 passed (284); computed_counts=null and verification_run_counts_not_parsed plus verification_observation_overridden remain explicit.",
+    "CI contract job: https://github.com/Unson-LLC/brainbase-unson/actions/runs/32219778135/job/95967964609; run headSha=ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5, conclusion success, tenant suite step success, log lines 257-260 report 38 files/296 tests. The same log reports tenant-runtime-bridge.test.js 25 tests while local log has 13; this is an environment-dependent count delta, not conflated.",
+    "changed-test surface comparison: package.json script expands to 38 files; origin/develop...e162 changed 23 test files; read-only Node expansion/comparison returned missing=[] for all 23.",
+    "GitHub PR readback: PR #1260 is OPEN, isDraft=true, base develop@65220fd9236012007d22827594bc14a15367b312, head ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5, mergeable MERGEABLE, mergeStateStatus CLEAN; four non-skipped checks are SUCCESS.",
+    "Required-check readback: gh pr checks 1260 --required reports no required checks on the feature branch; GraphQL branchProtectionRules totalCount=0; branch protection and rulesets REST readback return 403 with GitHub Pro/private-repository plan restriction. Ruleset absence cannot be inferred from the 403.",
+    "Planning evidence readback: current ignored/dirty worktree summary is pass with three verified-agent roles at b97; git show ede0:.vibepro/reviews/.../planning_spec/review-summary.json is needs_review with head 9ce and all three roles missing. git ls-tree ede0 contains only the old planning request/summary files, not the current pass result/transcript artifacts.",
+    "e162..ede0 is artifact-only in the inspected surface: 10 .vibepro/pr files changed; no source/test change was introduced by this tip delta.",
+    "No production DB, Cloudflare Tunnel/Access/Worker/Service Binding, mana R1-R5, production Slack/Brainbase E2E, cutover, or Lightsail stop evidence was collected."
+  ],
+  "inspection_inputs": [
+    {
+      "worktree": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "pr": "https://github.com/Unson-LLC/brainbase-unson/pull/1260",
+      "tip_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+      "verified_implementation_head": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+      "evidence_commit": "8897af7dcde8a917bd843b519bb99d34e9d82ee0",
+      "base_ref": "origin/develop",
+      "base_sha": "65220fd9236012007d22827594bc14a15367b312",
+      "raw_worktree_dirty": true,
+      "dirty_scope": ".vibepro review files modified by other reviewers; no source/test or existing result changes made by this reviewer"
+    },
+    "read-only git: git rev-parse HEAD, git rev-parse origin/develop, git status --short --branch, git diff --shortstat origin/develop...HEAD, git diff --name-status e162c3bd26f64a12e84319f4fd9f2bc250fe6886..ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5, git ls-tree -r ede0 .vibepro/reviews",
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-request-gate_evidence.md",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/head-binding.json",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/pr-prepare.json",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-evidence.json",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.log",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.json",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.log",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/pr-body.md",
+    "package.json script test:tenant-production-provisioning and .github/workflows/graph-writer-contract.yml contract job",
+    "read-only Node suite expansion/comparison of package script against git diff origin/develop...e162 test paths",
+    "gh pr view/checks 1260, gh run view 32219778135 and job log 95967964609",
+    "gh pr checks 1260 --required, gh api graphql branchProtectionRules, gh api branches/develop/protection, gh api repos/.../rulesets"
+  ],
+  "reviewed_head": {
+    "pr_tip_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "binding_commit": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "verified_implementation_head": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+    "evidence_commit": "8897af7dcde8a917bd843b519bb99d34e9d82ee0",
+    "base_ref": "origin/develop",
+    "base_sha": "65220fd9236012007d22827594bc14a15367b312",
+    "github_head_association": "PR head and contract check headSha both read ede0; local strict verification remains bound to e162 by design"
+  },
+  "verification_summary": {
+    "local_strict": {
+      "status": "pass",
+      "implementation_head": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+      "command": "npm run test:tenant-production-provisioning",
+      "suite_files": 38,
+      "tests_from_retained_log": 284,
+      "exit_code": 0,
+      "log_truncated": false,
+      "computed_counts": null,
+      "parser_warning": "verification_run_counts_not_parsed and verification_observation_overridden remain visible; retained same-run Vitest log is the source for the 38/284 observation",
+      "changed_test_files": 23,
+      "changed_test_files_missing_from_suite": 0
+    },
+    "github_contract": {
+      "status": "success",
+      "run_id": 32219778135,
+      "job_id": 95967964609,
+      "url": "https://github.com/Unson-LLC/brainbase-unson/actions/runs/32219778135/job/95967964609",
+      "associated_head_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+      "suite_files": 38,
+      "tests_from_ci_log": 296,
+      "cloudflare_tenant_runtime_bridge_tests_ci": 25,
+      "cloudflare_tenant_runtime_bridge_tests_local": 13,
+      "equivalence_claim": "not_claimed; environment-dependent 12-test delta is explicitly retained"
+    },
+    "typecheck": {
+      "status": "pass",
+      "command": "npm run typecheck",
+      "implementation_head": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+      "production_db": "not_collected"
+    },
+    "build": {
+      "status": "pass",
+      "command": "npx tsc --noEmit -p public/jsconfig.json",
+      "implementation_head": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+      "output_bytes": 0,
+      "warning": "verification_run_produced_no_output is retained; a silent build success is not production evidence",
+      "production_db": "not_collected"
+    }
+  },
+  "mandatory_lenses": {
+    "regression_guard": {
+      "status": "pass",
+      "judgment": "Current local and CI contract suites include all 23 changed test paths, including Slack auth/bootstrap/route, Cloudflare bridge, provisioning CLI, migration, runtime and multitenant service surfaces. Both local and CI commands exit successfully. The CI/local count delta is retained and no production behavior is inferred; production evidence is separately missing/not_collected.",
+      "evidence": [
+        "package.json test:tenant-production-provisioning",
+        ".github/workflows/graph-writer-contract.yml",
+        "local integration.log 38/284",
+        "GitHub contract job 38/296",
+        "read-only changed-test comparison missing=[]"
+      ]
+    },
+    "path_surface_coverage": {
+      "status": "needs_changes",
+      "judgment": "Implementation test surface is complete at the changed-test-path level (23/23 included, and CI runs the same package script), resolving the old seven-test omission. However, the committed output surface is contradictory: head-binding claims planning_spec=recorded_pass_current while ede0 committed planning summary is needs_review with three roles missing and the current pass/provenance records exist only in the dirty ignored worktree. Required-check enforcement is also absent/unproven, so the full gate/artifact surface is not ready for pass.",
+      "evidence": [
+        "origin/develop...e162 changed 23 test files; package script expansion missing=[]",
+        "e162..ede0 artifact-only diff",
+        "git show ede0:.vibepro/reviews/.../planning_spec/review-summary.json",
+        "current worktree planning_spec/review-summary.json and three pass transcripts",
+        "gh pr checks 1260 --required and branch protection readback"
+      ]
+    }
+  },
+  "planning_spec_review": {
+    "current_worktree_summary": {
+      "status": "pass",
+      "pass_count": 3,
+      "needs_changes_count": 0,
+      "block_count": 0,
+      "recorded_head": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+      "raw_worktree_dirty": true,
+      "provenance_status": "verified_agent",
+      "roles": [
+        {
+          "role": "product_requirement",
+          "status": "pass",
+          "agent_id": "/root/pr1260_planning_product_b97",
+          "reviewer_identity": "separate_session",
+          "execution_mode": "parallel_subagent",
+          "read_only": true,
+          "transcript": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-product_requirement-pass-b97ab758.json",
+          "transcript_sha256": "d03b102d061cea2de9aff1acf83cc79b0fd97494442e7e81ca4231d5a8e8dd8c"
+        },
+        {
+          "role": "architecture_boundary",
+          "status": "pass",
+          "agent_id": "/root/pr1260_planning_architecture_b97",
+          "reviewer_identity": "separate_session",
+          "execution_mode": "parallel_subagent",
+          "read_only": true,
+          "transcript": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-architecture_boundary-pass-b97ab758.json",
+          "transcript_sha256": "56f2242e3e7b2d3a3b2f76205033c82bf57cd38a7b9d78f72ed62f49690a80ec"
+        },
+        {
+          "role": "spec_consistency",
+          "status": "pass",
+          "agent_id": "/root/pr1260_planning_spec_b97",
+          "reviewer_identity": "separate_session",
+          "execution_mode": "parallel_subagent",
+          "read_only": true,
+          "transcript": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-spec_consistency-pass-b97ab758.json",
+          "transcript_sha256": "5ada6276c8abfbddeab824343fc128f6c8c7cdf76dc4f0c491888688926ac31f"
+        }
+      ]
+    },
+    "committed_tip_summary": {
+      "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-summary.json",
+      "status": "needs_review",
+      "recorded_head": "9cead354c8e6d462f786cacb697c4910feb00182",
+      "role_statuses": {
+        "product_requirement": "missing",
+        "architecture_boundary": "missing",
+        "spec_consistency": "missing"
+      },
+      "included_in_tip": false
+    },
+    "judgment": "The current worktree pass records are useful inspection inputs and have verified-agent provenance, but are raw-dirty/ignored and recorded at b97. The committed ede0 planning summary still says needs_review/missing at 9ce. Because head-binding claims recorded_pass_current without the pass summary/transcripts in the committed tip, planning pass is not accepted as committed current gate evidence. Force-add/commit the current pass summary and provenance artifacts, then regenerate/read back binding and review status."
+  },
+  "findings": [
+    {
+      "severity": "high",
+      "id": "gate-evidence-required-checks-unenforced",
+      "detail": "GitHub PR #1260 tip ede0 has four SUCCESS checks, including the exact tenant contract suite, but gh pr checks 1260 --required reports no required checks. GraphQL reports branchProtectionRules.totalCount=0; branch protection and rulesets REST readback both return 403 due the private-repository plan restriction, so ruleset presence is not fully observable. For this workflow, required-check enforcement is not demonstrated and the passing checks are not an enforceable release gate. This is a release-governance blocker for Draft解除/merge, not a test failure. Configure/read back required checks on develop or an equivalent enforceable policy before release."
+    },
+    {
+      "severity": "high",
+      "id": "gate-evidence-planning-provenance-not-in-tip",
+      "detail": "head-binding.json at ede0 claims planning_spec=recorded_pass_current, but git show ede0:.vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-summary.json is status=needs_review, recorded head=9cead354c8e6d462f786cacb697c4910feb00182, and all three roles are missing. The pass summary and separate-session transcripts are only in the current ignored/dirty worktree at b97. Until those pass/provenance artifacts are committed and the binding/review status is read back at the current evidence tip, planning pass is not a committed gate input."
+    }
+  ],
+  "judgment_delta": [
+    {
+      "finding_id": "gate-evidence-head-mismatch",
+      "previous_status": "needs_changes",
+      "current_status": "resolved",
+      "judgment": "Current head-binding and all current verification/pr-prepare artifacts consistently bind local strict evidence to e162 and the artifact-only update to 8897/ede0; GitHub PR and contract check read the PR tip ede0. The previous stale 9ce/f6 binding is no longer present in the committed head-binding."
+    },
+    {
+      "finding_id": "gate-evidence-ci-relevance-gap",
+      "previous_status": "needs_changes",
+      "current_status": "resolved_at_execution_scope",
+      "judgment": "The committed workflow now invokes package.json test:tenant-production-provisioning, and the current GitHub contract job succeeds at PR tip association. This closes the prior absence of multitenant CI execution. It does not prove production DB/deploy/E2E/cutover and does not make the check required."
+    },
+    {
+      "finding_id": "gate-evidence-path-surface-coverage",
+      "previous_status": "needs_changes",
+      "current_status": "resolved_at_changed_test_scope",
+      "judgment": "The package script expands to 38 files and contains all 23 test files changed from origin/develop...e162; the former seven omitted paths are now present locally and in the CI contract log. Output/artifact-surface readiness remains needs_changes because committed planning review output contradicts head-binding and required enforcement is absent."
+    },
+    {
+      "finding_id": "gate-evidence-counts-unparsed",
+      "previous_status": "needs_changes",
+      "current_status": "resolved_with_explicit_residual_warning",
+      "judgment": "The parser still records computed_counts=null and discards the agent-supplied tests key, but the same retained local log explicitly reports 38/284, and the same CI run log explicitly reports 38/296. The two counts are kept separate; the CI/local Cloudflare bridge difference is 25 versus 13 tests and no equivalence is claimed."
+    },
+    {
+      "finding_id": "gate-evidence-required-checks-unenforced",
+      "previous_status": "not_present_in_prior_transcript",
+      "current_status": "needs_changes",
+      "judgment": "Four current-tip checks are successful, but --required reports none; branch protection rules are not configured/readable under current plan limits. This is a new release-governance finding."
+    },
+    {
+      "finding_id": "gate-evidence-planning-provenance-not-in-tip",
+      "previous_status": "not_present_in_prior_transcript",
+      "current_status": "needs_changes",
+      "judgment": "The worktree pass summary/provenance is real and independently attributed, but the committed ede0 summary remains the old missing state. The evidence cannot be treated as current committed gate input until recorded and read back."
+    }
+  ],
+  "production_evidence": {
+    "status": "missing",
+    "collection_state": "not_collected",
+    "collected": false,
+    "items": [
+      {
+        "surface": "production DB migration, schema/data state and readback",
+        "status": "not_collected"
+      },
+      {
+        "surface": "Cloudflare Tunnel/Access/Worker/Service Binding deployment and readback",
+        "status": "not_collected"
+      },
+      {
+        "surface": "mana R1-R5 runtime migration",
+        "status": "not_collected"
+      },
+      {
+        "surface": "production Slack/Brainbase E2E and cutover",
+        "status": "not_collected"
+      },
+      {
+        "surface": "Lightsail mana-dev-biz stop",
+        "status": "not_collected"
+      }
+    ],
+    "claim_boundary": "This transcript reports source/review/local verification and GitHub CI evidence only. It does not claim complete migration, production deploy, production E2E, cutover, Draft解除, merge, or Lightsail stop."
+  },
+  "sha256": {
+    "review_request_worktree": "d25f885aefd4b7278313935d7394c43efd341d9f4a710da7bb31993086f5759a",
+    "planning_summary_worktree": "ae131e293da4dc7734a3bb38d8df1a98d20bd3cb6faa3ae7622e038a95a06bf3",
+    "planning_product_transcript": "d03b102d061cea2de9aff1acf83cc79b0fd97494442e7e81ca4231d5a8e8dd8c",
+    "planning_architecture_transcript": "56f2242e3e7b2d3a3b2f76205033c82bf57cd38a7b9d78f72ed62f49690a80ec",
+    "planning_spec_consistency_transcript": "5ada6276c8abfbddeab824343fc128f6c8c7cdf76dc4f0c491888688926ac31f",
+    "head_binding": "fd5c00f47416eee17f86b663d1fd300db8c4f5e56935c7ddf5bd3fce58ff3ea8",
+    "pr_prepare": "8c2ca22f588db14a27dbdf0bff21308c6864aa2dca0c139231ab630de4c76b4d",
+    "verification_evidence": "76db5db35fcc826002e6c92d3a6008e511491e4a685918ba0d1fdacdae25d054",
+    "integration_artifact": "3c747be6d0364e1f71bb2c66c76778319349ad6a2283aacc20c5af30a9a52bbf",
+    "integration_log": "4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462",
+    "typecheck_artifact": "e8b7ab9bb28298aa32b635d87f090b0dc87bccf8434f4394822a75aed858b34b",
+    "typecheck_log": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
+    "build_artifact": "4ccab14bfeb9444d67e73c2b1c1bbcf4634a75775f61b962003fe18d00fb9b31",
+    "build_log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pr_body": "c9ac84d6967435c3703a44216873b35081c3d70833146801cf3d7fea5af9dab6",
+    "workflow": "21fb0b7fe5df60f5a7f58a58de3f2fb92ccc03cc9796fc88c70a96a9c597273b",
+    "package_json": "81b6f1a01b62ea4e716c801c2cebb3a730a64d0a3dce626b0a6f0af729b6051b"
+  },
+  "sha256_scope": "SHA256 values are read-back hashes of the inspected artifacts. The transcript self-hash is intentionally not asserted because inserting a self-hash changes the bytes being hashed; final handoff reports the SHA256 of this written transcript file.",
+  "reviewer_provenance": {
+    "agent_id": "/root/pr1260_gate_evidence_b97",
+    "agent_role": "gate_evidence",
+    "implementation_session_id": "019ffe25-90ff-76f3-9efc-4b7c401c48a0",
+    "reviewer_identity": "separate_session",
+    "execution_mode": "parallel_subagent",
+    "read_only": true,
+    "worktree": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "source_changes_made": false,
+    "existing_review_records_modified": false,
+    "commit_created": false,
+    "push_performed": false,
+    "pr_operation_performed": false,
+    "artifact_write_scope": "new gate_evidence transcript only",
+    "agent_closed": true,
+    "close_evidence": "subagent:/root/pr1260_gate_evidence_b97:final"
+  }
+}

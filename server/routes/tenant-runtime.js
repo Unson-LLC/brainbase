@@ -2,6 +2,7 @@ import express from 'express';
 import { negotiateProtocol, toProblem } from '../services/multitenant/protocol-contract.js';
 import { serializeVerificationKeys } from '../services/multitenant/tenant-context.js';
 import { ContractError } from '../services/multitenant/errors.js';
+import { assertMigrationCandidateTargets, assertMigrationRowCandidates } from '../services/multitenant/migration-planner.js';
 import { assertTrustedProviderForwardRequest } from '../services/multitenant/trusted-provider-forwarder.js';
 
 function asyncHandler(handler) {
@@ -204,6 +205,7 @@ function migrationDryRunInput(req) {
         || !Array.isArray(input.rows)) {
         throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
     }
+    assertMigrationRowCandidates(input.target_tenant_id, input.rows);
     return input;
 }
 
@@ -212,8 +214,35 @@ function migrationPlanInput(req, fields = []) {
     if (!input.plan || typeof input.plan !== 'object' || Array.isArray(input.plan)) {
         throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
     }
+    if (Object.hasOwn(input.plan, 'actor')) {
+        throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
+    }
     assertMigrationTarget(req, input.plan.target_tenant_id);
+    assertMigrationCandidateTargets(input.plan.target_tenant_id, input.plan.candidates);
     return input;
+}
+
+function migrationApprovalInput(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)
+        || value.approved !== true
+        || typeof value.reason !== 'string' || value.reason.trim().length === 0
+        || typeof value.approval_id !== 'string' || value.approval_id.trim().length === 0
+        || Object.keys(value).some((field) => !['approved', 'reason', 'approval_id'].includes(field))) {
+        throw new ContractError('MIGRATION_APPROVAL_REQUIRED', { status: 400 });
+    }
+    return {
+        approved: true,
+        reason: value.reason.trim(),
+        approval_id: value.approval_id.trim()
+    };
+}
+
+function migrationRollbackInput(req) {
+    const input = wireInput(req, ['migration_id', 'approval'], {});
+    if (typeof input.migration_id !== 'string' || input.migration_id.length === 0) {
+        throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
+    }
+    return { ...input, approval: migrationApprovalInput(input.approval) };
 }
 
 export function createTenantRuntimeRouter({
@@ -345,12 +374,20 @@ export function createTenantRuntimeRouter({
             connection_revision: req.tenantContext.workspace_connection.connection_revision
         }));
     }));
-    async function authorizeMigration(req) {
+    async function authorizeMigration(req, capability) {
         if (!tenantBoundaryGateway?.authorize || !migrationAdapter) {
             throw new ContractError('UPSTREAM_UNAVAILABLE', {
                 status: 503,
                 retryable: true,
                 fault_domain: 'brainbase_cloud'
+            });
+        }
+        if (capability && (!Array.isArray(req.serviceIdentity?.capabilities)
+            || !req.serviceIdentity.capabilities.includes(capability))) {
+            throw new ContractError('SERVICE_CAPABILITY_REQUIRED', {
+                status: 403,
+                fault_domain: 'protocol',
+                details: { capability }
             });
         }
         await tenantBoundaryGateway.authorize({
@@ -362,21 +399,37 @@ export function createTenantRuntimeRouter({
             }
         });
     }
-    router.post('/migrations:dry-run', asyncHandler(async (req, res) => {
+    router.post(/^\/migrations:dry-run$/, asyncHandler(async (req, res) => {
         await authorizeMigration(req);
         res.json(await migrationAdapter.dryRun(migrationDryRunInput(req)));
     }));
-    router.post('/migrations:apply', asyncHandler(async (req, res) => {
-        await authorizeMigration(req);
-        const input = migrationPlanInput(req, ['fail_on_conflict']);
-        res.json(await migrationAdapter.apply(input.plan, { fail_on_conflict: input.fail_on_conflict === true }));
+    router.post(/^\/migrations:apply$/, asyncHandler(async (req, res) => {
+        await authorizeMigration(req, 'tenant_migration:apply');
+        const input = migrationPlanInput(req, ['fail_on_conflict', 'approval']);
+        if (!req.serviceIdentity?.subject) {
+            throw new ContractError('SERVICE_AUTH_INVALID', { status: 403, fault_domain: 'protocol' });
+        }
+        res.json(await migrationAdapter.apply(input.plan, {
+            fail_on_conflict: input.fail_on_conflict === true,
+            actor: req.serviceIdentity.subject,
+            approval: migrationApprovalInput(input.approval)
+        }));
     }));
-    router.post('/migrations:rollback', asyncHandler(async (req, res) => {
-        await authorizeMigration(req);
-        const input = migrationPlanInput(req);
-        res.json(await migrationAdapter.rollback(input.plan));
+    router.post(/^\/migrations:rollback$/, asyncHandler(async (req, res) => {
+        await authorizeMigration(req, 'tenant_migration:rollback');
+        const input = migrationRollbackInput(req);
+        if (!req.serviceIdentity?.subject) {
+            throw new ContractError('SERVICE_AUTH_INVALID', { status: 403, fault_domain: 'protocol' });
+        }
+        res.json(await migrationAdapter.rollback({
+            migration_id: input.migration_id,
+            target_tenant_id: req.tenantContext.tenant.tenant_id
+        }, {
+            actor: req.serviceIdentity.subject,
+            approval: input.approval
+        }));
     }));
-    router.post('/migrations:readback', asyncHandler(async (req, res) => {
+    router.post(/^\/migrations:readback$/, asyncHandler(async (req, res) => {
         await authorizeMigration(req);
         const input = wireInput(req, ['migration_id'], {});
         if (typeof input.migration_id !== 'string' || !input.migration_id) {

@@ -1,0 +1,185 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "stage": "planning_spec",
+  "role": "spec_consistency",
+  "status": "block",
+  "summary": "current revisionとhistory snapshotの参照整合性、初回順序、runtime readback、legacy fallbackの4境界が仕様と一致していない",
+  "findings": [
+    {
+      "severity": "high|spec-consistency-history-current-fk-direction|schemaはhistory/revisionからcurrent identityへのFKのみで、current revisionからsnapshotへのFKがないため、currentが存在しないsnapshotを指せる",
+      "id": "finding",
+      "detail": "high|spec-consistency-history-current-fk-direction|schemaはhistory/revisionからcurrent identityへのFKのみで、current revisionからsnapshotへのFKがないため、currentが存在しないsnapshotを指せる"
+    },
+    {
+      "severity": "high|spec-consistency-initial-provisioning-order|genericとSlackの初回provisioningがcurrentをsnapshotより先にinsertしており、仕様のsnapshot-first/current-pointer-secondに反する",
+      "id": "finding",
+      "detail": "high|spec-consistency-initial-provisioning-order|genericとSlackの初回provisioningがcurrentをsnapshotより先にinsertしており、仕様のsnapshot-first/current-pointer-secondに反する"
+    },
+    {
+      "severity": "high|spec-consistency-runtime-readback-misses-history|runtimeとreadbackがworkspace_connection_revisionsのsnapshot存在と内容一致を直接検証せず、mockでは欠損していてもpassできる",
+      "id": "finding",
+      "detail": "high|spec-consistency-runtime-readback-misses-history|runtimeとreadbackがworkspace_connection_revisionsのsnapshot存在と内容一致を直接検証せず、mockでは欠損していてもpassできる"
+    },
+    {
+      "severity": "medium|spec-consistency-legacy-fallback-bypasses-history|in-memory registryはhistoryより先にcurrentを更新し、validateRevisionもcurrentだけを検査してhistory不変条件を迂回する",
+      "id": "finding",
+      "detail": "medium|spec-consistency-legacy-fallback-bypasses-history|in-memory registryはhistoryより先にcurrentを更新し、validateRevisionもcurrentだけを検査してhistory不変条件を迂回する"
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": null,
+    "evidence": null,
+    "inputs": [
+      "docs/specs/story-tenant-production-provisioning-control-plane.md",
+      "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+      "server/sql/tenant-production-provisioning-schema.sql",
+      "server/services/multitenant/tenant-provisioner.js",
+      "server/services/multitenant/postgres-repository.js",
+      "server/services/multitenant/workspace-connection-registry.js",
+      "server/services/multitenant/tenant-context-producer.js",
+      "server/tests/multitenant/tenant-provisioner.test.js",
+      "server/tests/multitenant/tenant-context-producer.test.js"
+    ]
+  },
+  "judgment_delta": [
+    "current revisionは対応snapshotの存在をDBまたは同等のfail-closed検査で保証する",
+    "runtime readbackはcurrentだけでなくimmutable history snapshotも照合する",
+    "legacy fallbackもproduction invariantと同じ順序と検査を維持する"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+    "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "expected_root": null,
+    "expected_head_sha": "b67a0e89fcec2100d7fb860b94325729b0f38c8e",
+    "current_head_sha": "b67a0e89fcec2100d7fb860b94325729b0f38c8e",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "expected_root": null,
+      "expected_head_sha": "b67a0e89fcec2100d7fb860b94325729b0f38c8e",
+      "current_head_sha": "b67a0e89fcec2100d7fb860b94325729b0f38c8e",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-19T00:22:31.749Z",
+  "git_context": {
+    "head_sha": "b67a0e89fcec2100d7fb860b94325729b0f38c8e",
+    "current_branch": "codex/tenant-production-provisioning-control-plane",
+    "dirty": false,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "d1423ac4d90ab607af4f005cd1d9481aade819b9f0f302186ba8948c2c5a9889",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-08-19T00:22:31.729Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 7 file(s)",
+    "recorded_head_sha": "b67a0e89fcec2100d7fb860b94325729b0f38c8e",
+    "surface_files": [
+      {
+        "path": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+        "sha256": "827a8795f9d33463125ce17fe6f0d586b8f219ad3b53bded1f1f511bff557378",
+        "size": 10623
+      },
+      {
+        "path": "docs/specs/story-tenant-production-provisioning-control-plane.md",
+        "sha256": "196bbd27de65b442544c9510f911cb15a2f5c9af6471b5ed75640d8a7e0ad051",
+        "size": 15966
+      },
+      {
+        "path": "server/services/multitenant/postgres-repository.js",
+        "sha256": "6c682552aa093f6301ed2259c4764ad6175221c0cc98ef95ac04bb0bfffabd9b",
+        "size": 58344
+      },
+      {
+        "path": "server/services/multitenant/tenant-context-producer.js",
+        "sha256": "4010b3ddf30dc955f938286edd83fbec100d8af95ddc7be6c2da5026e08902e3",
+        "size": 5016
+      },
+      {
+        "path": "server/services/multitenant/tenant-provisioner.js",
+        "sha256": "6de819991f6f26f94198bcaab314dd9f743309aab3a1217dd9e4865f50761c2e",
+        "size": 43756
+      },
+      {
+        "path": "server/services/multitenant/workspace-connection-registry.js",
+        "sha256": "e161316497a431a9882689532f682ada6f57e1f767008e892b9f37ebf42b66f4",
+        "size": 6150
+      },
+      {
+        "path": "server/sql/tenant-production-provisioning-schema.sql",
+        "sha256": "10b7f28b7a0dc9e7bf1f3539ba465df2219c88a7c8d4a8469707475ccd409b4f",
+        "size": 24227
+      }
+    ],
+    "missing_files": [
+      "server/tests/multitenant/tenant-context-producer.test.js",
+      "server/tests/multitenant/tenant-provisioner.test.js"
+    ],
+    "surface_hash": "0a21736abfe03aabd99a5b1c1f19472b57f4f5ec5536cab34673cd8116053cbc"
+  },
+  "source_fingerprint": "ce6fe1f3d4ac3d54682f55268ac13a82b8d2ff64bcd9fbc307c57d10ff7a7039",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/pr1260_spec_consistency_rerun",
+    "agent_role": null,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/pr1260_spec_consistency_rerun",
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-spec_consistency.json",
+    "request_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-request-spec_consistency.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-spec_consistency.json",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/pr1260_spec_consistency_rerun",
+      "implementation_session_id": "019ffe25-90ff-76f3-9efc-4b7c401c48a0",
+      "source": "unverified_session_ids"
+    }
+  },
+  "agent_usage": null
+}

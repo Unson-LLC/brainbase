@@ -1,0 +1,170 @@
+{
+  "schema_version": "0.2.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "stage": "gate",
+  "role": "release_risk",
+  "status": "pass",
+  "summary": "PR tip ede0 の release_risk を独立 read-only review した結果、実装HEAD e162 の移行計画完全性、route-specific capability、明示承認/actor、authoritative rollback ledger、tenant isolation、legacy partial schema fail-closed を確認し、旧3 findingを解消扱いとする。ede0 への追加差分はVibePro証跡だけで、workflow変更はCI契約テストの実行追加に限定されるため、このroleのコードmergeリスク判定は pass とする。本番完全移行の判定ではない。",
+  "inspection_summary": "regression_guard と path_surface_coverage を必須lensとして、現PR tip/実装HEAD/evidence commitのbinding、PR prepare/verification、planning_spec summary/provenance、Story/Spec/Architecture/Runbook、migration route/planner/attestor/PostgreSQL adapter/schema/tests、workflow/package、GitHub PR checksをread-onlyで照合した。現行のHTTP migration入力/出力、CLIのcheck/dry-run/apply、DB ledger/readback/rollback、Cloudflare bridgeの設定境界、legacy upgrade停止は実装と対象テストで確認でき、workflowは本番接続やdeploy権限を追加していない。production_db、Cloudflare/mana本番配備、本番Slack/Brainbase E2E、切替、Lightsail停止は missing/not_collected のまま保持した。",
+  "inspection_evidence": [
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-request-release_risk.md: mandatory lenses と旧 finding の確認項目をread-only確認（request内のCurrent head=b97はlive binding/APIの補助入力として扱い、現tipを上書きさせていない）",
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-summary.json: product_requirement / architecture_boundary / spec_consistency は pass、content surfaceはb97で固定され、b97..e162ではworkflow/package以外のsource変更なし",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/head-binding.json: verified_implementation_head=e162c3bd26f64a12e84319f4fd9f2bc250fe6886、evidence_commit=8897af7dcde8a917bd843b519bb99d34e9d82ee0、binding_model=implementation_head_then_artifact_commit、production deploy/E2E=not_executed",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/pr-prepare.json: gate_status=ready、base_ref=origin/develop、head_sha=e162、build/integration/typecheck status=pass、各production_db=not_collected。pr-prepareのheadは実装検証HEADであり、PR tip ede0との差分は証跡のみであることをgit diffで確認",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-evidence.json と verification-runs/integration.log: 実装HEAD e162 のbuild/typecheck/integration pass、保存済みintegrationは38 files/284 tests",
+    "git diff --name-status e162c3bd26f64a12e84319f4fd9f2bc250fe6886..ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5: .vibepro/pr配下の証跡ファイルだけ（non-artifact差分なし）",
+    ".github/workflows/graph-writer-contract.yml と package.json: tenant-production-provisioning契約テストのCI実行を追加。contents:read、checkout/setup-node/npm ci、テスト実行のみでproduction credential/DB/deploy操作なし",
+    "docs/management/stories/active/story-tenant-production-provisioning-control-plane.md、docs/specs/story-tenant-production-provisioning-control-plane.md、docs/architecture/story-tenant-production-provisioning-control-plane.md、docs/runbooks/multitenant-platform-schema-migration.md: code acceptanceとproduction deployment/E2Eの分離、explicit apply/actor/readback/rollback境界",
+    "server/routes/tenant-runtime.js:190-245,377-441; server/services/multitenant/migration-plan-attestor.js:30-106; server/services/multitenant/migration-planner.js:27-139; server/services/multitenant/postgres-migration-adapter.js:65-170,344-470",
+    "server/sql/multitenant-platform-schema.sql:275-368,370-430: signed plan/audit columns、rollback FK/mode check、legacy NULL audit rowの明示backfill要求、tenant FK/RLS",
+    "tests/server/services/multitenant/migration-plan-attestor.test.js、postgres-migration-adapter.integration.test.js、persistence-schema.test.js、tests/server/routes/tenant-runtime-bootstrap.test.js、tenant-runtime-contract.test.js、tenant-production-provisioning-migration*.test.js、provision-tenant.test.js: tamper/cross-tenant/approval/ledger/rollback/legacy/CLI pathのnegative/positive fixtures",
+    "packages/cloudflare-tenant-runtime-bridge/src/worker.js と wrangler.jsonc: HTTPS origin/hostname、Access headers、bounded body、allowed route、no-store/error boundary。deployは未実行",
+    "GitHub PR #1260 read-only API/checks: head ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5、base develop sha 65220fd9236012007d22827594bc14a15367b312、draft=true、mergeable_state=clean、contract/Graphify/Graph SSOT/VibePro scoreの4 checks success。contract run 32219778135/job 95967964609 は38 files/296 tests pass",
+    "GitHub branch protection read-only API: 403 Upgrade to GitHub Pro/private repository plan limitation。required-check設定の有無は未確認であり、successへ補間していない"
+  ],
+  "inspection_inputs": {
+    "worktree": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "pr": "https://github.com/Unson-LLC/brainbase-unson/pull/1260",
+    "pr_tip_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "verified_implementation_head": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+    "evidence_commit": "8897af7dcde8a917bd843b519bb99d34e9d82ee0",
+    "base_ref": "origin/develop",
+    "base_sha": "65220fd9236012007d22827594bc14a15367b312",
+    "review_request": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-request-release_risk.md",
+    "previous_result": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-result-release_risk.json",
+    "read_only_commands": [
+      "git rev-parse HEAD && git status --short && git branch --show-current",
+      "git diff --name-status e162c3bd26f64a12e84319f4fd9f2bc250fe6886..ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+      "jq read of head-binding.json, pr-prepare.json, verification-evidence.json, planning_spec/review-summary.json",
+      "sed/nl/rg read of route, planner, attestor, adapter, schema, workflow, runbook, Story/Spec/Architecture and tests",
+      "gh api repos/Unson-LLC/brainbase-unson/pulls/1260",
+      "gh pr checks 1260 --repo Unson-LLC/brainbase-unson",
+      "gh api repos/Unson-LLC/brainbase-unson/commits/ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5/check-runs",
+      "gh run view 32219778135 --repo Unson-LLC/brainbase-unson --job 95967964609 --log",
+      "gh api repos/Unson-LLC/brainbase-unson/branches/develop/protection --include (403; required settings unverified)"
+    ],
+    "source_changes_by_reviewer": false,
+    "existing_review_records_modified_by_reviewer": false
+  },
+  "source_integrity": {
+    "pr_tip": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "implementation_head": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+    "evidence_commit": "8897af7dcde8a917bd843b519bb99d34e9d82ee0",
+    "tip_to_implementation_delta": "artifact_only_under_.vibepro_pr",
+    "workflow_change_in_pr": "graph-writer-contract.yml invokes npm run test:tenant-production-provisioning; no deploy, production DB, tunnel, or secret write"
+  },
+  "ci_readback": {
+    "head_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "checks": [
+      {"name": "Require Graphify Impact Review", "conclusion": "success"},
+      {"name": "Verify VibePro Graph SSOT before merge", "conclusion": "success"},
+      {"name": "Verify committed VibePro score evidence", "conclusion": "success"},
+      {"name": "contract", "conclusion": "success", "test_files": 38, "tests": 296, "run_id": 32219778135, "job_id": 95967964609}
+    ],
+    "skipped_checks": [
+      "Verify Ontology after push",
+      "Verify scheduled VibePro Graph SSOT drift"
+    ],
+    "local_observed": {
+      "artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
+      "test_files": 38,
+      "tests": 284,
+      "status": "pass"
+    },
+    "count_difference": "CI tenant-runtime-bridge reports 25 tests while local artifact reports 13; both runs have the same 38 files and pass. The environment-dependent count difference is recorded, not normalized or claimed as production evidence.",
+    "required_checks_policy": "not_collected; branch protection endpoint returned 403 due private-repository plan limitation"
+  },
+  "mandatory_lenses": {
+    "regression_guard": {
+      "status": "pass",
+      "evidence": "Existing tenant runtime authorization, dry-run/apply/rollback/readback, RLS, migration CLI and Cloudflare transport boundaries were traced. Negative coverage rejects missing approval, body actor injection, signature tamper/digest mismatch, cross-tenant candidates, partial legacy ledger, rollback conflicts and invalid constraints. The workflow addition executes the contract suite and adds no production side effects."
+    },
+    "path_surface_coverage": {
+      "status": "pass",
+      "evidence": "HTTP route input/output -> planner -> signed attestor -> adapter transaction -> tenant_migrations authoritative plan_payload -> source row/quarantine -> rollback/readback, schema upgrade/readback, CLI check/dry-run/apply, Cloudflare worker configuration/route/body/error paths, Story/Spec/Architecture/Runbook, verification artifacts and GitHub contract checks were all inspected. Quarantine and collection_state retain partial/unknown outcomes; legacy NULL audit rows fail closed rather than being silently backfilled."
+    }
+  },
+  "judgment_delta": [
+    {
+      "finding_id": "release-migration-plan-integrity-001",
+      "previous_status": "needs_changes",
+      "current_status": "resolved",
+      "judgment": "MigrationPlanAttestor signs canonical dry_run payloads with EdDSA/digest and verify rejects tamper, wrong key, digest, signature, mode or candidate target. Route/planner/adapter revalidate target candidates; rollback reads authoritative applied_rows from the tenant-scoped applied ledger rather than trusting a caller plan. Focused tests cover tamper, cross-tenant and rollback paths."
+    },
+    {
+      "finding_id": "release-migration-approval-capability-002",
+      "previous_status": "needs_changes",
+      "current_status": "resolved",
+      "judgment": "migrations:apply and migrations:rollback require tenant_migration:apply / tenant_migration:rollback, verified service subject actor, approved=true, non-empty approval_id and reason. The ledger persists plan_digest, plan_payload, approved_by, approval_id, approval_reason and approved_at; adapter and schema fail closed on missing columns, constraints or legacy NULL audit rows."
+    },
+    {
+      "finding_id": "release-pr-prepare-head-003",
+      "previous_status": "needs_changes",
+      "current_status": "resolved_with_explicit_binding",
+      "judgment": "The current PR tip ede0 is an artifact-evidence commit whose diff from implementation head e162 contains only .vibepro/pr verification artifacts. head-binding explicitly names e162 as verified implementation head and 8897 as evidence commit; pr-prepare/verification are bound to e162 and GitHub readback confirms ede0 as the PR tip. This split is explicit and not a stale source verification claim."
+    }
+  ],
+  "findings": [],
+  "production_evidence": {
+    "status": "missing",
+    "collection_state": "not_collected",
+    "collected": false,
+    "merge_gate_scope": "pass is limited to code/control-plane release-risk review. It does not assert complete multitenant migration or production readiness.",
+    "items": {
+      "production_db_migration_and_schema_readback": "not_collected",
+      "tunnel_access_worker_service_binding": "not_collected",
+      "mana_r1_to_r5": "not_collected",
+      "cloudflare_deploy_and_readback": "not_collected",
+      "production_slack_and_brainbase_e2e": "not_collected",
+      "cutover": "not_collected",
+      "lightsail_mana_dev_biz_stop": "not_collected"
+    },
+    "constraint": "Production DB, Cloudflare/Tunnel/Access/Worker/Service Binding, mana R1-R5, production Slack/Brainbase E2E, cutover and Lightsail stop were neither executed nor claimed in this review."
+  },
+  "reviewer_provenance": {
+    "agent_id": "/root/pr1260_release_risk_b97",
+    "implementation_session_id": "019ffe25-90ff-76f3-9efc-4b7c401c48a0",
+    "reviewer_identity": "separate_session",
+    "execution_mode": "parallel_subagent",
+    "agent_role": "release_risk",
+    "worktree": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "reviewed_commit": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "verified_implementation_head": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+    "evidence_commit": "8897af7dcde8a917bd843b519bb99d34e9d82ee0",
+    "read_only": true,
+    "source_changes_made": false,
+    "existing_vibepro_results_modified": false,
+    "commit_created": false,
+    "push_performed": false,
+    "artifact_write_scope": "required transcript only; source/test/existing VibePro review records, commit, push and PR operations were not changed",
+    "agent_closed": true,
+    "close_evidence": "subagent:/root/pr1260_release_risk_b97:final"
+  },
+  "head_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+  "reviewed_commit": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+  "closed": true,
+  "tests_run": [
+    {
+      "artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
+      "status": "observed_pass",
+      "result": "保存済み実装HEAD e162の同一run logをread-only readbackし、38 test files / 284 tests passedを確認。reviewerによる再実行ではない。"
+    },
+    {
+      "artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.json",
+      "status": "observed_pass",
+      "result": "実装HEAD e162、exit_code 0のbuild verificationをread-only確認。production_db=not_collected。"
+    },
+    {
+      "artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json",
+      "status": "observed_pass",
+      "result": "実装HEAD e162、exit_code 0のtypecheck verificationをread-only確認。production_db=not_collected。"
+    },
+    {
+      "artifact": "GitHub Actions run 32219778135 / job 95967964609",
+      "status": "observed_pass",
+      "result": "current PR tip ede0のcontract jobをread-only log readbackし、38 test files / 296 tests passedを確認。CI tenant-runtime-bridgeは25 tests、local artifactは13 testsで差分を保持。"
+    }
+  ],
+  "sha256_scope": "sha256 of jq -cS 'del(.sha256)' over this JSON artifact, including jq's trailing newline",
+  "sha256": "844531ec31cf7ac11d31677f41c389331009e6bfa549df82b29e3bb33216874d"
+}

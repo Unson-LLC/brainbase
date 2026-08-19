@@ -14,7 +14,11 @@ import { WorkspaceConnectionRegistry } from '../../../server/services/multitenan
 const now = new Date('2026-08-16T13:00:30Z');
 const serviceToken = 'runtime-test-token-not-a-production-secret';
 
-function createRuntime({ credentialBrokerOptions = {}, migrationAdapter = undefined } = {}) {
+function createRuntime({
+    credentialBrokerOptions = {},
+    migrationAdapter = undefined,
+    serviceAuth = undefined
+} = {}) {
     const tenantAuthority = new TenantAuthority({ now: () => now });
     const created = tenantAuthority.createTenant({ displayName: 'Tenant A' });
     const tenant = tenantAuthority.transitionTenant(created.tenant_id, '1', 'active');
@@ -52,6 +56,7 @@ function createRuntime({ credentialBrokerOptions = {}, migrationAdapter = undefi
     });
     const services = createTenantRuntimeServices({
         serviceToken,
+        serviceAuth,
         tenantAuthority,
         connectionRegistry,
         credentialBroker,
@@ -277,7 +282,11 @@ describe('tenant runtime production wiring', () => {
                 counts: { scanned: 1, eligible: 1, ambiguous: 0, unowned: 0 },
                 collection_state: 'collected',
                 write_count: 0,
-                candidates: input.rows,
+                candidates: input.rows.map((row) => ({
+                    id: row.id,
+                    source_revision: row.revision ?? 1,
+                    recommended_tenant_id: row.candidates[0]
+                })),
                 quarantine: []
             }),
             apply: async (plan) => ({ ...plan, mode: 'apply', write_count: 1, applied_rows: [], quarantine: [] }),
@@ -317,6 +326,72 @@ describe('tenant runtime production wiring', () => {
         expect(dryRun.status).toBe(200);
         expect(dryRun.body).toMatchObject({ target_tenant_id: tenant.tenant_id, write_count: 0 });
 
+        const missingApproval = await request(app).post('/api/v1/runtime/migrations:apply').set(headers).send({
+            tenant_context,
+            plan: dryRun.body
+        });
+        expect(missingApproval.status).toBe(400);
+        expect(missingApproval.body.code).toBe('MIGRATION_APPROVAL_REQUIRED');
+
+        const bodyActor = await request(app).post('/api/v1/runtime/migrations:apply').set(headers).send({
+            tenant_context,
+            plan: dryRun.body,
+            actor: 'caller-controlled-actor',
+            approval: {
+                approved: true,
+                reason: 'route schema test',
+                approval_id: 'approval-route-actor'
+            }
+        });
+        expect(bodyActor.status).toBe(400);
+        expect(bodyActor.body.code).toBe('SCHEMA_INVALID');
+
+        const applied = await request(app).post('/api/v1/runtime/migrations:apply').set(headers).send({
+            tenant_context,
+            plan: dryRun.body,
+            approval: {
+                approved: true,
+                reason: 'route apply approval',
+                approval_id: 'approval-route-apply'
+            }
+        });
+        expect(applied.status).toBe(200);
+        expect(applied.body).toMatchObject({ mode: 'apply', write_count: 1 });
+
+        const restrictedApp = express();
+        restrictedApp.use(express.json());
+        registerTenantRuntimeApiRoute(restrictedApp, {
+            ...services,
+            serviceAuth: (req, _res, next) => {
+                req.serviceIdentity = {
+                    subject: 'restricted-service',
+                    capabilities: ['tenant_context:resolve']
+                };
+                next();
+            }
+        });
+        const missingCapability = await request(restrictedApp)
+            .post('/api/v1/runtime/migrations:apply')
+            .set(headers)
+            .send({
+                tenant_context,
+                plan: dryRun.body,
+                approval: {
+                    approved: true,
+                    reason: 'capability test',
+                    approval_id: 'approval-route-capability'
+                }
+            });
+        expect(missingCapability.status).toBe(403);
+        expect(missingCapability.body.code).toBe('SERVICE_CAPABILITY_REQUIRED');
+
+        const rollbackMissingApproval = await request(app).post('/api/v1/runtime/migrations:rollback').set(headers).send({
+            tenant_context,
+            migration_id: dryRun.body.migration_id
+        });
+        expect(rollbackMissingApproval.status).toBe(400);
+        expect(rollbackMissingApproval.body.code).toBe('MIGRATION_APPROVAL_REQUIRED');
+
         const crossTenant = await request(app).post('/api/v1/runtime/migrations:dry-run').set(headers).send({
             tenant_context,
             target_tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAW',
@@ -326,6 +401,22 @@ describe('tenant runtime production wiring', () => {
         });
         expect(crossTenant.status).toBe(403);
         expect(crossTenant.body.code).toBe('CROSS_TENANT_CANDIDATE');
+
+        const crossTenantCandidate = await request(app).post('/api/v1/runtime/migrations:dry-run').set(headers).send({
+            tenant_context,
+            source_snapshot: 'sha256:snapshot-a',
+            mapping_rule_revision: 1,
+            rows: [{ id: 'source-a', revision: 1, candidates: ['ten_01ARZ3NDEKTSV4RRFFQ69G5FAW'] }]
+        });
+        expect(crossTenantCandidate.status).toBe(403);
+        expect(crossTenantCandidate.body).toMatchObject({
+            code: 'CROSS_TENANT_CANDIDATE',
+            details: {
+                audit_event: 'cross_tenant_candidate_denied'
+            }
+        });
+        expect(JSON.stringify(crossTenantCandidate.body)).not.toContain('ten_01ARZ3NDEKTSV4RRFFQ69G5FAW');
+        expect(JSON.stringify(crossTenantCandidate.body)).not.toContain(tenant.tenant_id);
     });
 
     it('service bootstrapからquota・UsageEvent・OperationReceipt・idempotency claimへ到達する', async () => {

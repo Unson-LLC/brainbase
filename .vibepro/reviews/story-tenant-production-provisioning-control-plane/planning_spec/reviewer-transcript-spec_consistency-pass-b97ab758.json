@@ -1,0 +1,172 @@
+{
+  "schema_version": "0.1.0",
+  "role": "spec_consistency",
+  "stage": "planning_spec",
+  "status": "pass",
+  "closed": true,
+  "reviewed_commit": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+  "head_sha": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+  "summary": "指定HEADのStory、Spec、Architecture、実装、SQL、テスト、運用runbookをread-onlyで突合した。tenant境界、migration planの署名・承認、ledger schema readiness、rollback/readback、legacy/fallback経路は相互に整合し、必須lensのregression_guardとpath_surface_coverageも具体的fixtureで確認できたため、spec_consistencyとしてpass。これは本番DB migration、配備、E2E、切替、完全移行、Draft解除、mergeの証明ではない。",
+  "inspection_summary": "review requestのspec_consistency、regression_guard、path_surface_coverageに従い、Story/Spec/Architectureとprovisioning/migrationの全境界を確認した。raw candidateと直接構築planのcross-tenant拒否、署名・明示承認・service actor、tenant-local ledger/RLS、rollback ledger FOR UPDATEとDB readback、legacy ledgerの列・NOT NULL・型・FK/check readiness、Graph/credentialのread-only/fail-closed、fallback禁止、runbookのcheck/dry-run/apply分離を確認し、focused PostgreSQL integrationを再実行した。本番証跡はmissing/not_collectedのまま扱った。",
+  "inspection_evidence": [
+    {
+      "id": "head_binding_and_scope",
+      "result": "git rev-parse HEADはb97ab758f17f0ff7dec076afc3e870e6bbad09a3と一致した。作業前から存在する.vibeproのdirty stateのみ確認し、実装・テスト・既存VibePro結果は変更していない。",
+      "refs": [
+        "git rev-parse HEAD",
+        "git status --short --untracked-files=all",
+        ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-request-spec_consistency.md:3-27"
+      ]
+    },
+    {
+      "id": "story_spec_architecture_runbook",
+      "result": "Story AC-001..012とdelivery boundaryを、tenant/revision、workspace snapshot/current pointer/history、idempotency、service actor/capability/JWKS、canonical Graph read-only、credential opaque ref、contract/runtime binding、dry-run/apply/rollback/readbackの実装・テストと突合した。spec/architecture/runbookはいずれも本番DB apply、secret issuance、Graph ontology、Cloudflare/mana deploy、production Slack E2Eを別境界または未収集として扱い、CIやdry-runを完全移行に昇格していない。",
+      "refs": [
+        "docs/management/stories/active/story-tenant-production-provisioning-control-plane.md:1-89",
+        "docs/specs/story-tenant-production-provisioning-control-plane.md:1-194",
+        "docs/architecture/story-tenant-production-provisioning-control-plane.md:1-89",
+        "docs/runbooks/multitenant-platform-schema-migration.md:1-68",
+        "docs/specs/brainbase-multitenant-platform-spec.md:450-640"
+      ]
+    },
+    {
+      "id": "planner_and_cross_tenant_contract",
+      "result": "raw row検査とderived plan検査に加え、TenantMigrationPlanner.applyが結果・quarantine生成前にassertMigrationCandidateTargetsを再実行する。直接構築planでrecommended_tenant_idを別tenantへ変更するfixtureはCROSS_TENANT_CANDIDATE/403で拒否され、pre-fixではこのapply境界を通過する具体的回帰を防いでいる。",
+      "refs": [
+        "server/services/multitenant/migration-planner.js:32-123",
+        "tests/server/services/multitenant/migration-planner.test.js:1-68",
+        "git diff b97ab758f17f0ff7dec076afc3e870e6bbad09a3^ b97ab758f17f0ff7dec076afc3e870e6bbad09a3 -- server/services/multitenant/migration-planner.js tests/server/services/multitenant/migration-planner.test.js"
+      ]
+    },
+    {
+      "id": "ledger_schema_invariant_and_legacy_readiness",
+      "result": "adapterはtenant_migrationsの監査列存在・NOT NULL、rollback_of_migration_idのtext型、既存監査NULL行、名前付き複合tenant FKの参照列/action、rollback mode check定義をbusiness write前にcatalogから検査する。apply/rollback双方が欠損時にMIGRATION_LEDGER_NOT_READYで停止し、fixtureはrollback列、FK、checkの欠損ごとにledger/source件数不変を確認する。SQLのupgradeもexplicit audit backfillなしのlegacy NULLをfail closedにする。",
+      "refs": [
+        "server/services/multitenant/postgres-migration-adapter.js:10-170,184-341,344-473",
+        "server/sql/multitenant-platform-schema.sql:275-469",
+        "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js:1-405"
+      ]
+    },
+    {
+      "id": "approval_signature_actor_and_rollback_readback",
+      "result": "migration routeはtenant contextにtargetを束縛し、capabilityを確認してservice token subjectをactorとしてadapterへ渡す。adapterはsigned attestationとexplicit approvalを確認し、rollbackはcaller-controlled applied_rowsを受けず、authoritative apply ledgerをFOR UPDATEで読み、同一tenant・migration・revisionを照合してから更新し、tenant-qualified readbackを返す。",
+      "refs": [
+        "server/routes/tenant-runtime.js:377-441",
+        "server/services/multitenant/migration-plan-attestor.js:1-107",
+        "server/services/multitenant/postgres-migration-adapter.js:184-473",
+        "server/sql/multitenant-platform-schema.sql:381-469"
+      ]
+    },
+    {
+      "id": "legacy_fallback_and_external_boundary",
+      "result": "Graph resolverはcanonical projectのread-only検証に限定されperson writeを行わず、credential resolverはmissing/ambiguous/non-canonicalをfail closedにし、別tenant・別deployment・別project・別credentialへのfallbackを持たない。provisionerのclaim/fencing、fresh transaction、contract exact match、redacted receipt/readbackもspecと一致する。",
+      "refs": [
+        "server/services/multitenant/tenant-provisioning-resolvers.js",
+        "server/services/multitenant/tenant-provisioner.js:851-921",
+        "tests/server/services/multitenant/tenant-provisioning-resolvers.test.js:1-189",
+        "tests/server/services/multitenant/tenant-provisioner.test.js:296-456",
+        "docs/architecture/story-brainbase-multitenant-platform.md"
+      ]
+    },
+    {
+      "id": "current_verification_artifacts",
+      "result": "現HEADの既存integration artifact/logはb97、status pass、31 test files/232 tests passを示し、typecheck artifactもb97/status pass。artifactはlocal/unit/Testcontainersの実行証跡としてのみ扱い、production evidenceへ昇格していない。",
+      "refs": [
+        ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
+        ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
+        ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json"
+      ]
+    }
+  ],
+  "inspection_inputs": [
+    "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-request-spec_consistency.md",
+    "docs/management/stories/active/story-tenant-production-provisioning-control-plane.md",
+    "docs/specs/story-tenant-production-provisioning-control-plane.md",
+    "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+    "docs/architecture/story-brainbase-multitenant-platform.md",
+    "docs/specs/brainbase-multitenant-platform-spec.md",
+    "docs/runbooks/multitenant-platform-schema-migration.md",
+    "server/services/multitenant/migration-planner.js",
+    "server/services/multitenant/migration-plan-attestor.js",
+    "server/services/multitenant/postgres-migration-adapter.js",
+    "server/services/multitenant/tenant-provisioner.js",
+    "server/services/multitenant/tenant-provisioning-resolvers.js",
+    "server/routes/tenant-runtime.js",
+    "server/sql/multitenant-platform-schema.sql",
+    "tests/server/services/multitenant/migration-planner.test.js",
+    "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+    "tests/server/services/multitenant/tenant-provisioning-resolvers.test.js",
+    "tests/server/services/multitenant/tenant-provisioner.test.js",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json",
+    "git rev-parse HEAD",
+    "git status --short --untracked-files=all",
+    "git diff --check develop...HEAD",
+    "git diff b97ab758f17f0ff7dec076afc3e870e6bbad09a3^ b97ab758f17f0ff7dec076afc3e870e6bbad09a3"
+  ],
+  "judgment_delta": [
+    "initial: direct-plan target rebinding、legacy ledgerのrollback列/FK/check欠損、approval/署名とrollback readback、legacy/fallback経路の仕様・実装差分が主要リスクだったため、sourceだけでなくSQL・route・runbook・回帰fixtureを検査する必要があった。",
+    "final: planner applyの再検査、adapterのwrite前ledger readiness、tenant-scoped authoritative rollback、service actor/capability、Graph/credential fail-closed境界とfocused negative fixturesが対応しており、Story/Spec/Architecture/code/SQL/tests/runbookの整合を確認したためpass。",
+    "production delta: production DB migration/readback、Cloudflare Tunnel/Access/Worker/Service Binding、mana R1-R5、production Slack/Brainbase E2E、cutover、Lightsail stopはmissing/not_collectedのままであり、本reviewは完全移行・Draft解除・mergeを主張しない。"
+  ],
+  "findings": [],
+  "production_evidence": {
+    "status": "missing",
+    "collection_state": "not_collected",
+    "collected": false,
+    "items": [
+      {
+        "surface": "production DB migration and schema/data readback",
+        "status": "not_collected"
+      },
+      {
+        "surface": "Cloudflare Tunnel/Access/Worker/Service Binding deploy and readback",
+        "status": "not_collected"
+      },
+      {
+        "surface": "mana R1-R5 and production Slack/Brainbase E2E",
+        "status": "not_collected"
+      },
+      {
+        "surface": "cutover and Lightsail stop",
+        "status": "not_collected"
+      }
+    ],
+    "conclusion": "local code/spec/test evidenceのみのplanning_spec role passであり、CI/unit/dry-run/deploy success/Slack返信1件を完全移行の根拠にはしていない。"
+  },
+  "tests_run": [
+    {
+      "command": "npx vitest run --maxWorkers=1 tests/server/services/multitenant/migration-planner.test.js tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+      "status": "pass",
+      "result": "2 files passed; 17 tests passed; exit 0; PostgreSQL 16 Testcontainers integration included."
+    },
+    {
+      "artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
+      "status": "pass",
+      "result": "exact HEAD b97ab758; 31 test files and 232 tests passed."
+    },
+    {
+      "artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json",
+      "status": "pass",
+      "result": "exact HEAD b97ab758; typecheck artifact status pass."
+    }
+  ],
+  "reviewer_provenance": {
+    "reviewer_identity": "separate_session",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/pr1260_planning_spec_b97",
+    "agent_role": "spec_consistency",
+    "implementation_session_id": "019ffe25-90ff-76f3-9efc-4b7c401c48a0",
+    "worktree": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "reviewed_commit": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+    "read_only": true,
+    "source_changes_made": false,
+    "existing_vibepro_results_modified": false,
+    "commit_created": false,
+    "push_performed": false,
+    "agent_closed": true,
+    "close_evidence": "subagent:/root/pr1260_planning_spec_b97:final"
+  }
+}

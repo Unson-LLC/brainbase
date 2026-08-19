@@ -23,8 +23,17 @@ describe('multitenant persistence schema', () => {
         expect(sql).toContain("current_setting('brainbase.tenant_id', true)");
         expect(sql).toContain('FOREIGN KEY (tenant_id, organization_id) REFERENCES tenant_organizations(tenant_id, organization_id)');
         expect(sql).toContain('FOREIGN KEY (tenant_id, source_entity_id) REFERENCES tenant_graph_entities(tenant_id, entity_id)');
-        expect(sql).toContain('FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connections(tenant_id, connection_id, connection_revision)');
+        expect(sql).toContain('FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision)');
         expect(sql).toContain('FOREIGN KEY (tenant_id, migration_id) REFERENCES tenant_migrations(tenant_id, migration_id)');
+        expect(sql).toContain('plan_digest TEXT NOT NULL');
+        expect(sql).toContain("CHECK (plan_digest ~ '^sha256:[a-f0-9]{64}$')");
+        expect(sql).toContain('plan_payload JSONB NOT NULL');
+        expect(sql).toContain('approved_by TEXT NOT NULL');
+        expect(sql).toContain('approval_id TEXT NOT NULL');
+        expect(sql).toContain('approval_reason TEXT NOT NULL');
+        expect(sql).toContain('approved_at TIMESTAMPTZ NOT NULL');
+        expect(sql).toContain('FOREIGN KEY (tenant_id, rollback_of_migration_id) REFERENCES tenant_migrations(tenant_id, migration_id)');
+        expect(sql).toContain("RAISE EXCEPTION 'tenant_migrations upgrade requires explicit audit backfill'");
     });
 
     it('AC-104/D-005: secret本文用の通常列を持たずopaque refとrefresh revisionだけを永続化する', async () => {

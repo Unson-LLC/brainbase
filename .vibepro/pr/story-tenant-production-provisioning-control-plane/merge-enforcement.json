@@ -1,0 +1,33 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "pull_request": {
+    "repository": "Unson-LLC/brainbase-unson",
+    "number": 1260,
+    "base_branch": "develop"
+  },
+  "policy": {
+    "id": "orchestrator-exact-head-gate-v1",
+    "purpose": "GitHub の必須チェック設定を利用できないリポジトリでも、同一 HEAD のレビューと CI を確認した場合にだけマージする",
+    "status": "blocked_until_all_reviews_pass",
+    "github_repository_limitation": {
+      "required_checks_reported": false,
+      "branch_protection_readback": "not_available_on_current_private_repository_plan",
+      "external_repository_setting_changed": false
+    },
+    "preconditions": [
+      "PR の base が develop である",
+      "product_requirement、architecture_boundary、spec_consistency、gate_evidence、pr_split_scope、release_risk がすべて pass/current/verified_agent である",
+      "contract、Verify VibePro Graph SSOT before merge、Require Graphify Impact Review、Verify committed VibePro score evidence が同一 HEAD で SUCCESS である",
+      "マージ直前の PR headRefOid が expected_head_sha と一致する",
+      "本番 DB、Cloudflare 配備、本番 E2E、Lightsail 停止の未実施状態を、PR マージ完了と混同しない"
+    ],
+    "merge_command_template": "gh pr merge 1260 --repo Unson-LLC/brainbase-unson --merge --match-head-commit <expected_head_sha>",
+    "postcondition": "PR の state、mergedAt、mergeCommit.oid を GitHub から読み戻し、expected_head_sha に対するマージだったことを記録する",
+    "failure_behavior": "条件が1つでも不足・不一致・未確認なら Draft を解除せず、マージしない"
+  },
+  "production_evidence": {
+    "status": "not_collected",
+    "note": "この制御は PR マージの条件だけを定義し、本番移行完了を証明しない"
+  }
+}

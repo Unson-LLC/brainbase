@@ -1,7 +1,52 @@
 import { canonicalJson, deepFreeze } from './canonical-json.js';
 import { ContractError } from './errors.js';
 import { generateCanonicalId } from './ids.js';
-import { TenantMigrationPlanner } from './migration-planner.js';
+import {
+    assertMigrationCandidateTargets,
+    assertMigrationRowCandidates,
+    TenantMigrationPlanner
+} from './migration-planner.js';
+
+const REQUIRED_MIGRATION_LEDGER_COLUMNS = Object.freeze([
+    'plan_digest',
+    'plan_payload',
+    'approved_by',
+    'approval_id',
+    'approval_reason',
+    'approved_at',
+    'rollback_of_migration_id'
+]);
+
+const REQUIRED_MIGRATION_LEDGER_NOT_NULL_COLUMNS = Object.freeze([
+    'plan_digest',
+    'plan_payload',
+    'approved_by',
+    'approval_id',
+    'approval_reason',
+    'approved_at'
+]);
+
+const REQUIRED_MIGRATION_LEDGER_CONSTRAINTS = Object.freeze([
+    'tenant_migrations_rollback_of_fk',
+    'tenant_migrations_rollback_mode_check'
+]);
+
+const REQUIRED_ROLLBACK_MODE_CHECK_DEFINITION = "check ((((mode = 'rollback') AND (rollback_of_migration_id IS NOT NULL)) OR ((mode = ANY (ARRAY['apply', 'dry_run'])) AND (rollback_of_migration_id IS NULL))))";
+
+function normalizeConstraintDefinition(value) {
+    return String(value ?? '')
+        .toLowerCase()
+        .replaceAll('"', '')
+        .replaceAll(/\s*::\s*[a-z_][a-z0-9_]*(?:\[\])?/gu, '')
+        .replaceAll(/\s+/gu, ' ')
+        .trim();
+}
+
+function hasColumns(actual, expected) {
+    return Array.isArray(actual)
+        && actual.length === expected.length
+        && actual.every((column, index) => column === expected[index]);
+}
 
 function asMigrationError(error) {
     if (error instanceof ContractError) return error;
@@ -17,12 +62,123 @@ function collectionStateFor(quarantine) {
     return quarantine.length === 0 ? 'collected' : 'partial';
 }
 
+function assertApproval(actor, approval) {
+    if (typeof actor !== 'string' || actor.trim().length === 0) {
+        throw new ContractError('MIGRATION_ACTOR_REQUIRED', { status: 400 });
+    }
+    if (!approval || typeof approval !== 'object' || Array.isArray(approval)
+        || approval.approved !== true
+        || typeof approval.reason !== 'string' || approval.reason.trim().length === 0
+        || typeof approval.approval_id !== 'string' || approval.approval_id.trim().length === 0) {
+        throw new ContractError('MIGRATION_APPROVAL_REQUIRED', { status: 400 });
+    }
+    if (Object.keys(approval).some((field) => !['approved', 'reason', 'approval_id'].includes(field))) {
+        throw new ContractError('MIGRATION_APPROVAL_INVALID', { status: 400 });
+    }
+    return {
+        actor: actor.trim(),
+        reason: approval.reason.trim(),
+        approval_id: approval.approval_id.trim()
+    };
+}
+
+function assertMigrationId(value) {
+    if (typeof value !== 'string' || value.trim().length === 0) {
+        throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
+    }
+    return value;
+}
+
+function migrationLedgerNotReady() {
+    throw new ContractError('MIGRATION_LEDGER_NOT_READY', {
+        status: 503,
+        fault_domain: 'brainbase_cloud',
+        details: { required_action: 'migrate_tenant_migrations_ledger' }
+    });
+}
+
+async function assertMigrationLedgerReady(client) {
+    const columns = await client.query(
+        `SELECT column_name, is_nullable, data_type, udt_name
+           FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = 'tenant_migrations'
+            AND column_name = ANY($1::text[])`,
+        [REQUIRED_MIGRATION_LEDGER_COLUMNS]
+    );
+    const present = new Map(columns.rows.map((row) => [row.column_name, row]));
+    if (REQUIRED_MIGRATION_LEDGER_COLUMNS.some((column) => !present.has(column))
+        || REQUIRED_MIGRATION_LEDGER_NOT_NULL_COLUMNS.some((column) => present.get(column)?.is_nullable !== 'NO')
+        || present.get('rollback_of_migration_id')?.data_type !== 'text'
+        || present.get('rollback_of_migration_id')?.udt_name !== 'text') {
+        migrationLedgerNotReady();
+    }
+    const constraints = await client.query(
+        `SELECT c.conname,
+                c.contype,
+                c.confrelid = 'tenant_migrations'::regclass AS references_tenant_migrations,
+                c.confupdtype AS on_update,
+                c.confdeltype AS on_delete,
+                pg_get_constraintdef(c.oid) AS definition,
+                COALESCE((
+                    SELECT json_agg(attribute.attname ORDER BY key_position.ordinality)
+                      FROM unnest(c.conkey) WITH ORDINALITY AS key_position(attnum, ordinality)
+                      JOIN pg_catalog.pg_attribute attribute
+                        ON attribute.attrelid = c.conrelid
+                       AND attribute.attnum = key_position.attnum
+                ), '[]'::json) AS source_columns,
+                COALESCE((
+                    SELECT json_agg(attribute.attname ORDER BY key_position.ordinality)
+                      FROM unnest(c.confkey) WITH ORDINALITY AS key_position(attnum, ordinality)
+                      JOIN pg_catalog.pg_attribute attribute
+                        ON attribute.attrelid = c.confrelid
+                       AND attribute.attnum = key_position.attnum
+                ), '[]'::json) AS referenced_columns
+           FROM pg_catalog.pg_constraint c
+          WHERE c.conrelid = 'tenant_migrations'::regclass
+            AND c.conname = ANY($1::text[])`,
+        [REQUIRED_MIGRATION_LEDGER_CONSTRAINTS]
+    );
+    const constraintsByName = new Map(constraints.rows.map((row) => [row.conname, row]));
+    const rollbackForeignKey = constraintsByName.get('tenant_migrations_rollback_of_fk');
+    const rollbackModeCheck = constraintsByName.get('tenant_migrations_rollback_mode_check');
+    if (!rollbackForeignKey
+        || rollbackForeignKey.contype !== 'f'
+        || rollbackForeignKey.references_tenant_migrations !== true
+        || rollbackForeignKey.on_update !== 'a'
+        || rollbackForeignKey.on_delete !== 'a'
+        || !hasColumns(rollbackForeignKey.source_columns, ['tenant_id', 'rollback_of_migration_id'])
+        || !hasColumns(rollbackForeignKey.referenced_columns, ['tenant_id', 'migration_id'])
+        || !rollbackModeCheck
+        || rollbackModeCheck.contype !== 'c'
+        || normalizeConstraintDefinition(rollbackModeCheck.definition)
+            !== normalizeConstraintDefinition(REQUIRED_ROLLBACK_MODE_CHECK_DEFINITION)) {
+        migrationLedgerNotReady();
+    }
+    const legacyRows = await client.query(
+        `SELECT 1
+           FROM tenant_migrations
+          WHERE plan_digest IS NULL
+             OR plan_payload IS NULL
+             OR approved_by IS NULL
+             OR approval_id IS NULL
+             OR approval_reason IS NULL
+             OR approved_at IS NULL
+          LIMIT 1`
+    );
+    if (legacyRows.rowCount > 0) migrationLedgerNotReady();
+}
+
 export class PostgresTenantMigrationAdapter {
-    constructor({ pool, now = () => new Date(), planner = new TenantMigrationPlanner() } = {}) {
+    constructor({ pool, now = () => new Date(), planner = new TenantMigrationPlanner(), attestor } = {}) {
         if (!pool) throw new Error('Multitenant PostgreSQL pool is required');
+        if (!attestor || typeof attestor.attest !== 'function' || typeof attestor.verify !== 'function') {
+            throw new Error('Migration plan attestor is required');
+        }
         this.pool = pool;
         this.now = now;
         this.planner = planner;
+        this.attestor = attestor;
     }
 
     async #transaction(tenantId, operation) {
@@ -47,22 +203,36 @@ export class PostgresTenantMigrationAdapter {
     }
 
     async dryRun(input) {
-        return this.planner.dryRun(input);
+        assertMigrationRowCandidates(input?.target_tenant_id, input?.rows);
+        const plan = this.planner.dryRun(input);
+        assertMigrationCandidateTargets(plan.target_tenant_id, plan.candidates);
+        return this.attestor.attest(plan);
     }
 
-    async apply(plan, { fail_on_conflict: failOnConflict = false } = {}) {
+    async apply(plan, {
+        fail_on_conflict: failOnConflict = false,
+        actor,
+        approval
+    } = {}) {
         if (plan?.mode !== 'dry_run') throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
+        assertMigrationCandidateTargets(plan.target_tenant_id, plan.candidates);
+        this.attestor.verify(plan);
+        const audit = assertApproval(actor, approval);
         return this.#transaction(plan.target_tenant_id, async (client) => {
+            await assertMigrationLedgerReady(client);
             const createdAt = this.now().toISOString();
             await client.query(
                 `INSERT INTO tenant_migrations (
                     migration_id, tenant_id, source_snapshot, mapping_rule_revision,
-                    mode, counts, collection_state, created_at
-                 ) VALUES ($1,$2,$3,$4,'apply',$5::jsonb,$6,$7)`,
+                    mode, counts, collection_state, plan_digest, plan_payload,
+                    approved_by, approval_id, approval_reason, approved_at, created_at
+                 ) VALUES ($1,$2,$3,$4,'apply',$5::jsonb,$6,$7,$8::jsonb,$9,$10,$11,$12,$13)`,
                 [
                     plan.migration_id, plan.target_tenant_id, plan.source_snapshot,
                     plan.mapping_rule_revision, canonicalJson(plan.counts),
-                    collectionStateFor(plan.quarantine), createdAt
+                    collectionStateFor(plan.quarantine), plan.attestation.digest,
+                    canonicalJson({}), audit.actor, audit.approval_id, audit.reason,
+                    createdAt, createdAt
                 ]
             );
 
@@ -152,7 +322,7 @@ export class PostgresTenantMigrationAdapter {
                   WHERE tenant_id = $1 AND migration_id = $2`,
                 [plan.target_tenant_id, plan.migration_id, canonicalJson(counts), collectionState]
             );
-            return deepFreeze({
+            const result = deepFreeze({
                 ...plan,
                 mode: 'apply',
                 counts,
@@ -161,27 +331,65 @@ export class PostgresTenantMigrationAdapter {
                 applied_rows: appliedRows,
                 quarantine
             });
+            await client.query(
+                `UPDATE tenant_migrations
+                    SET plan_payload = $3::jsonb
+                  WHERE tenant_id = $1 AND migration_id = $2`,
+                [plan.target_tenant_id, plan.migration_id, canonicalJson(result)]
+            );
+            return result;
         });
     }
 
-    async rollback(plan) {
-        if (plan?.mode !== 'apply') throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
-        return this.#transaction(plan.target_tenant_id, async (client) => {
+    async rollback(input, { actor, approval } = {}) {
+        if (!input || typeof input !== 'object' || Array.isArray(input)
+            || Object.keys(input).some((field) => !['migration_id', 'target_tenant_id'].includes(field))) {
+            throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
+        }
+        const migrationId = assertMigrationId(input.migration_id);
+        const targetTenantId = assertMigrationId(input.target_tenant_id);
+        const audit = assertApproval(actor, approval);
+        return this.#transaction(targetTenantId, async (client) => {
+            await assertMigrationLedgerReady(client);
+            const appliedResult = await client.query(
+                `SELECT migration_id, tenant_id, source_snapshot, mapping_rule_revision,
+                        counts, plan_digest, plan_payload
+                   FROM tenant_migrations
+                  WHERE tenant_id = $1 AND migration_id = $2 AND mode = 'apply'
+                  FOR UPDATE`,
+                [targetTenantId, migrationId]
+            );
+            const appliedLedger = appliedResult.rows[0];
+            if (!appliedLedger || !appliedLedger.plan_payload
+                || typeof appliedLedger.plan_payload !== 'object'
+                || !Array.isArray(appliedLedger.plan_payload.applied_rows)) {
+                throw new ContractError('MIGRATION_APPLY_NOT_FOUND', { status: 409 });
+            }
+            const authoritativePlan = appliedLedger.plan_payload;
+            if (authoritativePlan.migration_id !== migrationId
+                || authoritativePlan.target_tenant_id !== targetTenantId
+                || authoritativePlan.mode !== 'apply') {
+                throw new ContractError('MIGRATION_PLAN_INVALID', { status: 409 });
+            }
             const rollbackId = generateCanonicalId('mig');
             const createdAt = this.now().toISOString();
             await client.query(
                 `INSERT INTO tenant_migrations (
                     migration_id, tenant_id, source_snapshot, mapping_rule_revision,
-                    mode, counts, collection_state, created_at
-                 ) VALUES ($1,$2,$3,$4,'rollback',$5::jsonb,'collected',$6)`,
+                    mode, counts, collection_state, plan_digest, plan_payload,
+                    approved_by, approval_id, approval_reason, approved_at,
+                    rollback_of_migration_id, created_at
+                 ) VALUES ($1,$2,$3,$4,'rollback',$5::jsonb,'collected',$6,$7::jsonb,$8,$9,$10,$11,$12,$13)`,
                 [
-                    rollbackId, plan.target_tenant_id, plan.source_snapshot,
-                    plan.mapping_rule_revision, canonicalJson(plan.counts), createdAt
+                    rollbackId, targetTenantId, appliedLedger.source_snapshot,
+                    appliedLedger.mapping_rule_revision, canonicalJson(appliedLedger.counts),
+                    appliedLedger.plan_digest, canonicalJson({}), audit.actor,
+                    audit.approval_id, audit.reason, createdAt, migrationId, createdAt
                 ]
             );
             const quarantine = [];
             let writeCount = 0;
-            for (const applied of plan.applied_rows) {
+            for (const applied of authoritativePlan.applied_rows) {
                 const result = await client.query(
                     `UPDATE tenant_migration_source_rows
                         SET tenant_id = NULL,
@@ -195,7 +403,7 @@ export class PostgresTenantMigrationAdapter {
                         AND source_revision = $6
                       RETURNING source_id`,
                     [
-                        applied.id, plan.target_tenant_id, plan.migration_id,
+                        applied.id, targetTenantId, migrationId,
                         applied.source_revision, createdAt, applied.applied_revision
                     ]
                 );
@@ -211,31 +419,38 @@ export class PostgresTenantMigrationAdapter {
                         migration_id, tenant_id, source_id, reason, source_snapshot, quarantined_at
                      ) VALUES ($1,$2,$3,$4,$5::jsonb,$6)`,
                     [
-                        rollbackId, plan.target_tenant_id, item.id, item.reason,
+                        rollbackId, targetTenantId, item.id, item.reason,
                         canonicalJson({ source_id: item.id }), createdAt
                     ]
                 );
             }
             const collectionState = collectionStateFor(quarantine);
-            await client.query(
-                `UPDATE tenant_migrations
-                    SET counts = $3::jsonb, collection_state = $4
-                  WHERE tenant_id = $1 AND migration_id = $2`,
-                [
-                    plan.target_tenant_id, rollbackId,
-                    canonicalJson({ ...plan.counts, rolled_back: writeCount, failed: quarantine.length }),
-                    collectionState
-                ]
-            );
-            return deepFreeze({
-                ...plan,
+            const counts = {
+                ...authoritativePlan.counts,
+                rolled_back: writeCount,
+                failed: quarantine.length
+            };
+            const { attestation: _attestation, ...unsignedPlan } = authoritativePlan;
+            const rollbackResult = deepFreeze({
+                ...unsignedPlan,
                 migration_id: rollbackId,
-                rollback_of_migration_id: plan.migration_id,
+                rollback_of_migration_id: migrationId,
                 mode: 'rollback',
+                counts,
                 collection_state: collectionState,
                 write_count: writeCount,
                 quarantine
             });
+            await client.query(
+                `UPDATE tenant_migrations
+                    SET counts = $3::jsonb, collection_state = $4, plan_payload = $5::jsonb
+                  WHERE tenant_id = $1 AND migration_id = $2`,
+                [
+                    targetTenantId, rollbackId, canonicalJson(counts), collectionState,
+                    canonicalJson(rollbackResult)
+                ]
+            );
+            return rollbackResult;
         });
     }
 

@@ -1,0 +1,176 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "stage": "planning_spec",
+  "role": "spec_consistency",
+  "status": "pass",
+  "summary": "現HEADのStory/Spec/Architecture/code/SQL/tests/runbookを独立突合。tenant境界、署名・承認、ledger readiness、rollback/readback、legacy/fallback禁止が整合し、production evidenceはmissing/not_collected。",
+  "findings": [],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "regression_guardとpath_surface_coverageを含め、direct-plan cross-tenant拒否、service actor/capability、tenant-local ledger/RLS、rollback catalog invariants、Graph/credential fail-closed、runbookのcheck/dry-run/apply分離を確認。focused 2 files/17 tests、現HEAD 31 files/232 tests、typecheck pass。",
+    "evidence": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-spec_consistency-pass-b97ab758.json",
+    "inputs": [
+      "docs/management/stories/active/story-tenant-production-provisioning-control-plane.md",
+      "docs/specs/story-tenant-production-provisioning-control-plane.md",
+      "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+      "docs/runbooks/multitenant-platform-schema-migration.md",
+      "server/services/multitenant/migration-planner.js",
+      "server/services/multitenant/postgres-migration-adapter.js",
+      "server/routes/tenant-runtime.js",
+      "server/sql/multitenant-platform-schema.sql",
+      "tests/server/services/multitenant/migration-planner.test.js",
+      "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js"
+    ]
+  },
+  "judgment_delta": [
+    "direct-plan target rebindingとlegacy ledger部分schemaを主要リスクとして再検査し、planner apply再検査、write前catalog検証、tenant-scoped authoritative rollback、service actor/capability、fail-closed fixtureが対応しているためpass。",
+    "本番DB/Cloudflare/mana R1-R5/Slack・Brainbase E2E/切替/Lightsail停止はmissing/not_collectedで、本reviewは完全移行を主張しない。"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+    "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "expected_root": null,
+    "expected_head_sha": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+    "current_head_sha": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "expected_root": null,
+      "expected_head_sha": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+      "current_head_sha": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-19T04:53:42.930Z",
+  "git_context": {
+    "head_sha": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+    "current_branch": "codex/tenant-production-provisioning-control-plane",
+    "dirty": false,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "4ba3169f2feb21b61bf19b6fc2d07ed064ab64a53c71befe3eb32d8664b40418",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-08-19T04:53:42.910Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 10 file(s)",
+    "recorded_head_sha": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+    "surface_files": [
+      {
+        "path": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+        "sha256": "6aa2dab6f5f41d7038d0a29e14d5d3b41fbc960e1ae86f3d19ef8ed4538e8eb3",
+        "size": 10842
+      },
+      {
+        "path": "docs/management/stories/active/story-tenant-production-provisioning-control-plane.md",
+        "sha256": "2bb143b8cd996cbbe47bab336d5bc8025263dc438871d99e5e74f92095b2f702",
+        "size": 10101
+      },
+      {
+        "path": "docs/runbooks/multitenant-platform-schema-migration.md",
+        "sha256": "64bcbd31089fb297d2701e182caa721cca308457c2f7f5c89b6f36affe318047",
+        "size": 4464
+      },
+      {
+        "path": "docs/specs/story-tenant-production-provisioning-control-plane.md",
+        "sha256": "268e40f38c1963411a30022819e7855b1db990000b09a557d1c745231743bfa4",
+        "size": 16371
+      },
+      {
+        "path": "server/routes/tenant-runtime.js",
+        "sha256": "e134dd8d93f9bac6074437c49b62ab1f1a0ca38542b0bf36d8a9a24acb9ea860",
+        "size": 20257
+      },
+      {
+        "path": "server/services/multitenant/migration-planner.js",
+        "sha256": "e4c7880d82a9854009b213e9fe33c77cb11efb862bcdecc3c96fda5b985de611",
+        "size": 6122
+      },
+      {
+        "path": "server/services/multitenant/postgres-migration-adapter.js",
+        "sha256": "c750b51190a5e0621716016a1b74832b8d34b44cf06db0c9a9c5b59491d96252",
+        "size": 21166
+      },
+      {
+        "path": "server/sql/multitenant-platform-schema.sql",
+        "sha256": "415f323d6cbbd1fc10d6a28cb8c9df4ff3481aa50f38bddea4366a49d7716d07",
+        "size": 23184
+      },
+      {
+        "path": "tests/server/services/multitenant/migration-planner.test.js",
+        "sha256": "6c8323e2af47b3fdb13699dd1c56a928e2075766154d68f2e187951e5a4d9533",
+        "size": 3599
+      },
+      {
+        "path": "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+        "sha256": "09aca87aeefe44ab2573ce56fa3517f6ad4f9046f1db1a03b971c7f0b75ba6e0",
+        "size": 38843
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "b8373b29fe89ba8cdbb3ba5a8aca23468abb3ccc0f29b88495beef85ca52eb6a"
+  },
+  "source_fingerprint": "b2507c631d557742c22ab6380c2f37032e7f498468100a5ea118222be6137321",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/pr1260_planning_spec_b97",
+    "agent_role": null,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/pr1260_planning_spec_b97",
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-spec_consistency-pass-b97ab758.json",
+    "request_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-request-spec_consistency.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "subagent:/root/pr1260_planning_spec_b97:final",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/pr1260_planning_spec_b97",
+      "implementation_session_id": "019ffe25-90ff-76f3-9efc-4b7c401c48a0",
+      "source": "declared_session_ids"
+    }
+  },
+  "agent_usage": null
+}

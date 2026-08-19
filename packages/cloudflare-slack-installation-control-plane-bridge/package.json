@@ -1,0 +1,11 @@
+{
+  "name": "@brainbase/cloudflare-slack-installation-control-plane-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run --root ../.. tests/server/cloudflare/slack-installation-control-plane-bridge.test.js",
+    "build": "wrangler deploy --dry-run --config wrangler.jsonc",
+    "deploy": "wrangler deploy --config wrangler.jsonc"
+  }
+}

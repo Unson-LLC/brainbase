@@ -1,0 +1,230 @@
+{
+  "schema_version": "0.2.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "stage": "gate",
+  "role": "pr_split_scope",
+  "status": "pass",
+  "summary": "PR #1260のscopeはtenant production provisioning control-planeとして一体であり、分割すべき無関係scopeはない。current PR tip ede0d54、verified implementation head e162c3bd、evidence commit 8897af7dcの段階的bindingと、local/GitHubの差分surfaceを再突合した。旧scope-artifact-head-and-file-surface-driftと前回のscope-head-binding-artifact-staleは解消済み。このpassはpr_split_scope roleだけの判定であり、他gate、merge、production DB/配備/E2E/切替の完了を意味しない。",
+  "inspection_summary": "brainbase worktreeのHEAD、origin/develop基準のimplementation/pr tip差分、最新committed pr-prepareとhead-binding、planning_spec 3 roleの最新working-tree summary/provenance、Story/Spec/Architecture/Runbook、multitenant source、Cloudflare bridge、テスト・VibePro verification artifact、GitHub PR #1260とcurrent-tip contract logをread-onlyで突合した。implementation headはorigin/developから17 commits/88 files、current PR tipは19 commits/90 filesで、PRのpath surfaceはGitHub APIとlocal diffで一致する。local strict integrationは38 files/284 tests、GitHub contractは38 files/296 testsで別証拠として保持し、本番DB/配備/E2E/切替はmissing/not_collectedのまま扱った。",
+  "inspection_evidence": [
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-request-pr_split_scope.md: pr_split_scopeのsize/split観点、mandatory regression_guard/path_surface_coverage、evidence/freshness/result shapeを確認。request本文のCurrent head=b97は旧dispatch入力として扱い、今回のdelegationで指定されたcurrent tip ede0d54を再レビュー対象にした。",
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-summary.json (working tree, SHA256 ae131e293da4dc7734a3bb38d8df1a98d20bd3cb6faa3ae7622e038a95a06bf3): status=pass、product_requirement/architecture_boundary/spec_consistency=3 pass、stale=0、missing=0、unverified=0、block=0。各roleはverified_agent/separate_session provenanceで、content-bound headはb97、current content surfaceはunchanged by e162 workflow/package delta。",
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-product_requirement-pass-b97ab758.json、reviewer-transcript-architecture_boundary-pass-b97ab758.json、reviewer-transcript-spec_consistency-pass-b97ab758.json: implementation session 019ffe25-90ff-76f3-9efc-4b7c401c48a0、各agentのseparate_session provenance、production evidence missing/not_collectedを確認。",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/pr-prepare.json (committed HEAD, SHA256 8c2ca22f588db14a27dbdf0bff21308c6864aa2dca0c139231ab630de4c76b4d): base_ref=origin/develop、base_sha=65220fd9236012007d22827594bc14a15367b312、head_sha=e162c3bd26f64a12e84319f4fd9f2bc250fe6886、commit_count=17、changed_files=88、gate_status=ready、blocking_reasons=[]、spec_drift=clean。",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/head-binding.json (committed HEAD, SHA256 fd5c00f47416eee17f86b663d1fd300db8c4f5e56935c7ddf5bd3fce58ff3ea8): verified_implementation_head=e162c3bd、evidence_commit=8897af7dc、binding_model=implementation_head_then_artifact_commit、artifact_only=true。strict integration/typecheck/build、GitHub contract、doc trace、spec readinessをe162 bound claimとして記録し、gate=in_review、production_deploy/production_e2e=not_executed、final tip validationはGitHub status checksの外部readbackと明示している。",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log (committed SHA256 4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462): Test Files 38 passed (38)、Tests 284 passed (284)、exit 0。integration.json (SHA256 3c747be6d0364e1f71bb2c66c76778319349ad6a2283aacc20c5af30a9a52bbf)はhead_sha=e162、head/worktree unchanged、counts=nullとparser warningを記録しており、件数はlogの直接出力から採用した。",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json (SHA256 e8b7ab9bb28298aa32b635d87f090b0dc87bccf8434f4394822a75aed858b34b)とbuild.json (SHA256 4ccab14bfeb9444d67e73c2b1c1bbcf4634a75775f61b962003fe18d00fb9b31): e162 bound、exit 0、worktree unchanged。",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-evidence.json (committed SHA256 76db5db35fcc826002e6c92d3a6008e511491e4a685918ba0d1fdacdae25d054): strict-head records、runtime identity、verification references、production_db=not_collectedを確認。",
+    "git rev-parse HEAD; git rev-parse origin/develop; git rev-list --count origin/develop..HEAD; git diff --name-only origin/develop...HEAD: HEAD=ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5、origin/develop=65220fd9236012007d22827594bc14a15367b312、19 commits、90 files。",
+    "git rev-list --count origin/develop..e162c3bd26f64a12e84319f4fd9f2bc250fe6886; git diff --name-only origin/develop...e162c3bd26f64a12e84319f4fd9f2bc250fe6886: implementation surfaceは17 commits/88 files。e162 commit自身は.github/workflows/graph-writer-contract.ymlとpackage.jsonの契約suite追加だけで、Storyのplanning content surfaceを変更しない。",
+    "git diff --name-only origin/develop...HEAD と git show HEAD:.../pr-prepare.json | jq -r '.git.changed_files[].path' のsorted diff: prepareの88 pathとorigin/develop...e162の88 pathは一致 (exit 0)。",
+    "gh api repos/Unson-LLC/brainbase-unson/pulls/1260/files --paginate --jq '.[].filename' と git diff --name-only origin/develop...HEAD のsorted diff: current PR 90 pathはGitHub PR file APIと一致 (exit 0)。",
+    "git diff --name-only e162c3bd26f64a12e84319f4fd9f2bc250fe6886...HEAD: evidence commitの9 artifact pathとtip head-binding commitの1 artifact pathは全てVibePro artifact。path-setでimplementation surfaceに追加されたtip-only pathは verification-runs/build.json と verification-runs/build.log の2つだけで、同じStoryのverification artifactとしてhead-binding/artifact scopeにaccounted。",
+    "git diff --numstat origin/develop...HEADのdomain集計: .vibepro 29、docs 8、server 21、tests 23、scripts 3、Cloudflare bridge package 3、.github 1、root config 2、合計90。source/test/config/docs/gate artifactが同一Storyの実装・検証・説明面として対応している。",
+    "git log --format='%h %s' --reverse origin/develop..HEAD: 19 commitsはtenant production provisioning control-planeの実装、境界強化、schema/migration/Slack/Cloudflare/runtimeの回帰、docs/runbook、CI契約、VibePro evidence/bindingに限定され、無関係なfeature/domainのcommitはない。",
+    "gh pr view 1260 --repo Unson-LLC/brainbase-unson --json number,state,isDraft,baseRefName,headRefName,headRefOid,mergeStateStatus,changedFiles,url,statusCheckRollup と GitHub API readback: OPEN/Draft/CLEAN、base=develop (SHA 65220fd9)、head=ede0d54、changedFiles=90。current-tipのcontract、Verify VibePro Graph SSOT before merge、Require Graphify Impact Review、Verify committed VibePro score evidenceの4 checksはSUCCESS。",
+    "https://github.com/Unson-LLC/brainbase-unson/pull/1260: PR bodyの実装境界、Draft状態、本番apply/deploy/Slack E2E未実施の明示をread-only確認。",
+    "gh run view 32219778135 --repo Unson-LLC/brainbase-unson --job 95967964609 --log: current-tip GitHub contract suiteはTest Files 38 passed (38)、Tests 296 passed (296)。これはe162 boundのlocal strict integration 38/284とは別のGitHub current-tip evidenceである。",
+    "docs/management/stories/active/story-tenant-production-provisioning-control-plane.md、docs/specs/story-tenant-production-provisioning-control-plane.md、docs/architecture/story-tenant-production-provisioning-control-plane.md、docs/runbooks/multitenant-platform-schema-migration.md: tenant identity/revision、workspace/connection、idempotency ledger、actor/capability、migration/rollback/readback、Slack OAuth、Cloudflare/manaの別配備境界、production apply/deploy/E2E/cutoverのout-of-scope/未収集境界を確認。",
+    "server/services/multitenant/provisioning-manifest.js、server/services/multitenant/tenant-provisioner.js、server/routes/tenant-runtime.js、server/routes/slack-installation-control-plane.js、packages/cloudflare-slack-installation-control-plane-bridge/src/worker.js: manifest tenant_key validation、idempotent provisioning/readback、migration rollback/readback、Slack auth/exchange boundary、Cloudflare header/body/redirect/secret boundaryを確認。",
+    "git diff --check origin/develop...HEAD: VibePro artifactのblank line at EOF 5件のみ (pr-body、integration.log、typecheck.log、gate/planning parallel-dispatch)。source scopeの不一致や実装破壊ではなく、今回のscope判定を変えるfindingとはしない。",
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/history/review-result-pr_split_scope-2026-08-19T02-22-56.903Z.json: 旧scope-artifact-head-and-file-surface-drift findingの履歴を確認。前回 transcript reviewer-transcript-pr_split_scope-needs_changes-b97ab758.json のscope-head-binding-artifact-staleも現行bindingとの比較対象にした。"
+  ],
+  "inspection_inputs": [
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-request-pr_split_scope.md",
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-summary.json and the three b97 planning reviewer transcripts",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/pr-prepare.json",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/head-binding.json",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-evidence.json",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/{integration.json,integration.log,typecheck.json,typecheck.log,build.json,build.log}",
+    "git rev-parse HEAD; git rev-parse origin/develop; git diff --name-status/--stat/--check origin/develop...HEAD; git log --reverse origin/develop..HEAD",
+    "git diff --name-only origin/develop...e162c3bd26f64a12e84319f4fd9f2bc250fe6886; git diff --name-only e162c3bd26f64a12e84319f4fd9f2bc250fe6886...HEAD",
+    "gh pr view 1260 --repo Unson-LLC/brainbase-unson --json ...",
+    "gh api repos/Unson-LLC/brainbase-unson/pulls/1260/files --paginate --jq '.[].filename'",
+    "gh run view 32219778135 --repo Unson-LLC/brainbase-unson --job 95967964609 --log",
+    "https://github.com/Unson-LLC/brainbase-unson/pull/1260",
+    "Story/Spec/Architecture/Runbook and implementation/test/Cloudflare paths listed in inspection_evidence"
+  ],
+  "scope_readback": {
+    "worktree": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "current_branch": "codex/tenant-production-provisioning-control-plane",
+    "base_ref": "origin/develop",
+    "base_sha": "65220fd9236012007d22827594bc14a15367b312",
+    "current_pr_tip": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "verified_implementation_head": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+    "evidence_commit": "8897af7dcde8a917bd843b519bb99d34e9d82ee0",
+    "pr_tip_commits": 19,
+    "pr_tip_changed_files": 90,
+    "implementation_commits": 17,
+    "implementation_changed_files": 88,
+    "pr_prepare_surface_equal_implementation_head": true,
+    "pr_tip_surface_equal_github": true,
+    "pr_tip_surface_equal_local": true,
+    "pr_tip_surface_comparison": "GitHub PR files API == local git diff origin/develop...HEAD (90 paths)",
+    "implementation_surface_comparison": "committed pr-prepare .git.changed_files == local git diff origin/develop...e162 (88 paths)",
+    "path_set_difference_after_implementation_head": [
+      ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.json",
+      ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.log"
+    ],
+    "post_implementation_artifact_delta": {
+      "evidence_commit_paths": 9,
+      "tip_binding_commit_paths": 1,
+      "all_paths_within_story_artifact_scope": true,
+      "binding_commit_path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/head-binding.json"
+    },
+    "surface_by_domain": {
+      "vibepro": 29,
+      "docs": 8,
+      "server": 21,
+      "tests": 23,
+      "scripts": 3,
+      "cloudflare_bridge_package": 3,
+      "github_workflow": 1,
+      "root_config_and_entrypoint": 2,
+      "total": 90
+    },
+    "commit_surface_coherence": "all 19 commits are the dependency chain for one tenant production provisioning control-plane Story: schema/migration, tenant/workspace/connection state, service actor/capability and auth, Slack/Cloudflare/runtime routes, docs/runbook, regression tests, CI contract, and VibePro evidence",
+    "split_judgment": "no_split_same_story_dependency_chain",
+    "merge_boundary_judgment": "coherent full migration boundary; one PR is justified, while production apply/deploy/E2E/cutover remain separately approved operations",
+    "binding_model": "implementation_head_then_artifact_commit",
+    "artifact_scope_accounted": true,
+    "overall_pr_gate_state": "pr_prepare gate_status=ready but review.status=needs_review because other gate/review roles are not all recorded; this role does not override that state",
+    "draft_merge_state": "GitHub PR remains OPEN and Draft; no PR operation performed"
+  },
+  "mandatory_lenses": {
+    "regression_guard": {
+      "status": "pass",
+      "inspection": [
+        "changed server routes/services/SQL/scripts and existing runtime/legacy/negative test surfaces",
+        "Story/Spec/Architecture/Runbook explicitly separate code acceptance from production DB apply, deployment, Slack E2E and cutover",
+        "implementation-head local strict integration log: 38 files/284 tests pass; typecheck and build exit 0",
+        "current-tip GitHub contract: 38 files/296 tests pass; kept separate from local strict-head count",
+        "head-binding records no production deploy/E2E claim"
+      ],
+      "judgment": "No unrelated existing behavior surface was found in the diff or commit chain. The test and artifact evidence covers the changed runtime/API/schema/auth/Cloudflare paths at code-contract level. Production evidence is outside this role and remains not_collected, so no full-migration claim is made.",
+      "boundaries": {
+        "local_strict_integration": "pass, 38 files/284 tests from committed integration.log, bound to e162c3bd",
+        "github_contract_current_tip": "SUCCESS, 38 files/296 tests from run 32219778135/job 95967964609, bound to current PR tip readback",
+        "strict_typecheck": "pass, bound to e162c3bd",
+        "strict_build": "pass, bound to e162c3bd",
+        "production_db_deploy_e2e_cutover": "missing/not_collected"
+      }
+    },
+    "path_surface_coverage": {
+      "status": "pass",
+      "input_and_output_surfaces": [
+        "declarative manifest/tenant identity/revision and idempotency input",
+        "migration planner/attestor/Postgres adapter/SQL schema/check-dry-run-apply-readback path",
+        "CLI and admin/runtime API including rollback/readback and service actor/capability authorization",
+        "Slack OAuth install/callback/exchange and credential/secret redaction boundary",
+        "Cloudflare worker bridge header/body/redirect/secret path",
+        "legacy runtime/registry and cross-tenant negative paths",
+        "Story/Spec/Architecture/Runbook, CI contract, verification logs/JSON, pr-prepare/head-binding/review artifacts",
+        "unit/integration regression tests for the above surfaces"
+      ],
+      "coverage_evidence": "The 88-path implementation surface is exactly represented by committed pr-prepare; the 90-path current PR surface exactly matches local diff and GitHub API. The only path-set additions after e162 are build.json/build.log, both same-Story verification artifacts. The 9-path evidence update and 1-path head-binding update are artifact-only and explicitly bound/accounted.",
+      "suppression_and_warning_behavior": "No silent suppression was found. The run artifacts retain parser-count warnings and the integration.log retains direct counts; git diff --check reports only five blank-line-at-EOF artifact warnings. Missing production surfaces remain explicitly not_collected.",
+      "judgment": "Pass: all changed source, test, documentation, configuration, API, Cloudflare and gate/output surfaces are either inspected as part of this Story or explicitly separated as production evidence not collected. No unrelated path requires a split."
+    }
+  },
+  "judgment_delta": [
+    "初期懸念 (scope-artifact-head-and-file-surface-drift): 旧artifactのbase/head/file surfaceが実差分やGitHub PRとずれていた。現行pr-prepareはorigin/develop (65220fd9) -> e162c3bd、17 commits/88 filesを束縛し、その88 pathがlocal origin/develop...e162と一致するため解消。",
+    "前回懸念 (scope-head-binding-artifact-stale): b97再レビュー時のhead-bindingは9cead354/evidence f6a623caを指していた。現行head-bindingはimplementation e162c3bd/evidence 8897af7dcを指し、current tip ede0d54のartifact-only binding commitからreadbackできるため解消。",
+    "分割判断: 19 commits/90 filesのdomain surfaceはtenant provisioning/migration/auth/Slack/Cloudflare/runtime、対応docs/runbook/tests/CI/VibePro artifactsに閉じた依存連鎖で、独立した無関係featureはない。full migration boundaryとして一体merge可能であり、splitは不要。",
+    "回帰判断: local strict 38/284とGitHub current-tip contract 38/296、typecheck/build、source/spec/test/output surfaceを確認した。ただし両test countは異なる実行境界なので混同せず、本番DB/配備/E2E/切替はnot_collectedのまま残す。",
+    "overall gate judgment: pr_split_scopeだけをpassとする。pr-prepareのreview.status=needs_review、GitHub PR Draft、他gate role未完了をこのtranscriptでは変更しない。"
+  ],
+  "findings": [],
+  "old_finding_resolution": {
+    "id": "scope-artifact-head-and-file-surface-drift",
+    "status": "resolved",
+    "old_record": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/history/review-result-pr_split_scope-2026-08-19T02-22-56.903Z.json",
+    "old_condition": "旧pr-prepareのbase/headとfile surfaceが実際のcurrent diff/GitHub PRと一致せず、scope artifactとsource diffを同一の検査対象として扱えなかった。",
+    "current_evidence": {
+      "pr_prepare_path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/pr-prepare.json",
+      "pr_prepare_base_ref": "origin/develop",
+      "pr_prepare_base_sha": "65220fd9236012007d22827594bc14a15367b312",
+      "pr_prepare_head": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+      "pr_prepare_commit_count": 17,
+      "pr_prepare_changed_files": 88,
+      "pr_prepare_paths_equal_local_implementation_diff": true,
+      "current_pr_tip": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+      "current_pr_commits": 19,
+      "current_pr_files": 90,
+      "github_pr_files": 90,
+      "current_tip_paths_equal_local_and_github": true,
+      "tip_path_set_difference": [
+        ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.json",
+        ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/build.log"
+      ],
+      "tip_path_difference_explanation": "build.json/build.log are same-Story evidence artifacts; post-implementation evidence/binding commits remain within .vibepro artifact scope. No unrelated source path was added."
+    }
+  },
+  "resolved_prior_finding": {
+    "id": "scope-head-binding-artifact-stale",
+    "status": "resolved",
+    "prior_condition": {
+      "verified_implementation_head": "9cead354c8e6d462f786cacb697c4910feb00182",
+      "evidence_commit": "f6a623ca87516fc2643607797d11d457aea258ff",
+      "observed_current_head_at_prior_review": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3"
+    },
+    "current_condition": {
+      "verified_implementation_head": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+      "evidence_commit": "8897af7dcde8a917bd843b519bb99d34e9d82ee0",
+      "current_pr_tip": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+      "head_binding_readback": "current committed head-binding.json",
+      "artifact_only_tip_binding": true
+    },
+    "resolution": "The committed staged binding now distinguishes verified implementation, evidence commit and PR tip, and the current tip commit changes only that binding artifact."
+  },
+  "production_evidence": {
+    "status": "missing",
+    "collection_state": "not_collected",
+    "items": {
+      "production_db_migration_and_schema_readback": "not_collected",
+      "tunnel_access_worker_service_binding": "not_collected",
+      "mana_r1_to_r5": "not_collected",
+      "cloudflare_deploy": "not_collected",
+      "production_slack_brainbase_e2e": "not_collected",
+      "cutover": "not_collected",
+      "lightsail_mana_dev_biz_stop": "not_collected"
+    },
+    "constraint": "This role inspected code/spec/scope and retained verification/GitHub contract evidence only. It does not claim production migration, deploy, E2E, cutover, or Lightsail shutdown."
+  },
+  "inspection_artifact_digests": {
+    "pr_prepare_sha256": "8c2ca22f588db14a27dbdf0bff21308c6864aa2dca0c139231ab630de4c76b4d",
+    "head_binding_sha256": "fd5c00f47416eee17f86b663d1fd300db8c4f5e56935c7ddf5bd3fce58ff3ea8",
+    "verification_evidence_sha256": "76db5db35fcc826002e6c92d3a6008e511491e4a685918ba0d1fdacdae25d054",
+    "integration_json_sha256": "3c747be6d0364e1f71bb2c66c76778319349ad6a2283aacc20c5af30a9a52bbf",
+    "integration_log_sha256": "4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462",
+    "typecheck_json_sha256": "e8b7ab9bb28298aa32b635d87f090b0dc87bccf8434f4394822a75aed858b34b",
+    "build_json_sha256": "4ccab14bfeb9444d67e73c2b1c1bbcf4634a75775f61b962003fe18d00fb9b31",
+    "pr_body_sha256": "021596e8592cb700407129ee0ebbe26ca1412bc1372d56246d9ccebf065f7a49",
+    "planning_summary_worktree_sha256": "ae131e293da4dc7734a3bb38d8df1a98d20bd3cb6faa3ae7622e038a95a06bf3"
+  },
+  "reviewer_provenance": {
+    "agent_id": "/root/pr1260_pr_split_scope_b97",
+    "implementation_session_id": "019ffe25-90ff-76f3-9efc-4b7c401c48a0",
+    "reviewer_identity": "separate_session",
+    "separate_session": true,
+    "agent_system": "codex",
+    "agent_role": "pr_split_scope",
+    "worktree": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "reviewed_pr_tip": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "reviewed_implementation_head": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+    "read_only": true,
+    "source_changes_made": false,
+    "tests_changed": false,
+    "existing_vibepro_results_modified": false,
+    "review_record_written": false,
+    "commit_created": false,
+    "push_performed": false,
+    "pr_operation_performed": false,
+    "artifact_write_scope": "required transcript only",
+    "agent_closed": true,
+    "close_evidence": "subagent:/root/pr1260_pr_split_scope_b97:final"
+  },
+  "sha256": "22775f1ad45cdd6e4afa7e347971712061bdfb256ad5294d2e74da07419fb7f2",
+  "sha256_scope": "canonical JSON digest is computed after deleting the sha256 and sha256_scope_digest fields; sha256 is the final file digest",
+  "sha256_scope_digest": "22775f1ad45cdd6e4afa7e347971712061bdfb256ad5294d2e74da07419fb7f2"
+}

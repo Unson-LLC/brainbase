@@ -1,0 +1,909 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "lifecycle": "final",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "hybrid",
+    "tenant_identity": {
+      "canonical_key": "tenant_key",
+      "resolved_from": [
+        "provisioning manifest",
+        "Brainbase tenant authority"
+      ],
+      "resolution_point": "Provisioning Coordinator before first write",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "migration",
+        "admin_api",
+        "audit_log"
+      ],
+      "verified_surfaces": [
+        "migration",
+        "admin_api",
+        "audit_log"
+      ]
+    },
+    "resources": [
+      {
+        "name": "tenant provisioning control-plane state",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "tenant_key",
+        "partition_key": "tenant_key/resource_id",
+        "trust_zone": "Brainbase control plane PostgreSQL",
+        "residue_policy": "retention then verified delete",
+        "data_owner": "Brainbase Tenant Authority",
+        "credential_scope": "opaque credential reference"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "tenant_key",
+      "scope": "tenant-bound opaque credential reference",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase Tenant Authority"
+      ],
+      "residency": "Brainbase control-plane PostgreSQL",
+      "migration": "transactional migration after explicit approval",
+      "rollback": "rollback same transaction and read back tenant-isolated state"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared",
+      "customer_managed",
+      "self_hosted"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "tenant",
+        "tenant_revision",
+        "workspace_connection",
+        "provisioning_operation",
+        "service_actor",
+        "capability"
+      ],
+      "boundary_edges": [
+        "manifest to tenant control plane",
+        "service actor to capability grant"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "evidence": {
+        "propagation_surfaces": [
+          "migration",
+          "admin_api",
+          "audit_log"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate"
+        ],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "graph": {
+          "tenant_key": "tenant_key",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared",
+            "customer_managed",
+            "self_hosted"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "canonical provisioning state",
+              "tenant_key_source": "tenant_key from manifest",
+              "trust_zone": "Brainbase control plane",
+              "data_owner": "Brainbase Tenant Authority"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "provisioning operation",
+              "tenant_key_source": "tenant_key",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "opaque credential reference",
+              "connection_mode": "authoritative revision",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "tenant_key",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared",
+            "customer_managed",
+            "self_hosted"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "tenant_key",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared",
+            "customer_managed",
+            "self_hosted"
+          ]
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "Provisionerはtenant_keyを一意なcanonical tenant identityとして検証し、tenant revision historyを保持する（BRAINBASE_TENANTS / BRAINBASE_TENANT_REVISIONS）",
+      "rationale": "revision更新で過去のtenant-owned recordを壊さず、同じtenant_keyの重複を拒否するため。Control-plane DBの履歴をappend-onlyで保持する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-002"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "Control-plane Repository"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/sql/tenant-production-provisioning-schema.sql",
+            "anchor": "brainbase_tenant_revisions"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
+            "case": "defines tenant key, append-only revision history, and revision FKs"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
+            "must_cover": "append-only revision history"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:47:48.249Z",
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "同一tenant・provider・workspace・appのpendingまたはactive connectionは一つだけで、再インストールはrevisionとして保存される（WORKSPACE_CONNECTIONS）",
+      "rationale": "provider再インストールの重複接続と別tenant fallbackを防ぐため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "運用上の不変条件"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/sql/tenant-production-provisioning-schema.sql",
+            "anchor": "workspace_connections_tenant_provider_workspace_app_uq"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
+            "case": "enforces workspace logical uniqueness, provisioning idempotency, and service capabilities"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
+            "must_cover": "workspace logical uniqueness"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:47:48.249Z",
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "workspace_connection_revisionsは不変snapshotの正本で、workspace_connectionsのcurrent pointerは適用時に追加済みのsnapshotだけを選ぶ。credential・usage・receipt等のrevision FKはhistoryを参照し、snapshot追加後に同じfresh transactionでcurrent pointerを進める",
+      "rationale": "可変current rowを履歴の親にせず、過去recordの参照整合性と再インストール時のcurrent revisionを同時に守るため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-004"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "Control-plane Repository"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/sql/tenant-production-provisioning-schema.sql",
+            "anchor": "workspace_connection_revisions_current_identity_fk"
+          },
+          {
+            "file": "server/sql/tenant-production-provisioning-schema.sql",
+            "anchor": "workspace_connection_revisions_immutable"
+          },
+          {
+            "file": "server/services/multitenant/tenant-provisioner.js",
+            "anchor": "ensureWorkspaceConnection"
+          },
+          {
+            "file": "server/services/multitenant/postgres-repository.js",
+            "anchor": "registerSlackInstallation"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
+            "case": "defines tenant key, append-only revision history, and revision FKs"
+          },
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "case": "passes the reserved canonical connection identity and next revision to the credential store on reinstall"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
+            "must_cover": "append-only revision history"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:47:48.249Z",
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "同じidempotency keyとdesired-state fingerprintの再実行は保存済み結果を返し、fingerprint不一致は副作用なしでconflictにする（TENANT_PROVISIONING_OPERATIONS）",
+      "rationale": "Queue再試行や運用再実行でtenantやconnectionを重複作成しないため。Provisioning CoordinatorとControl-plane DBのclaimを一つにする。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-005"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "Provisioning Coordinator"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/tenant-provisioner.js",
+            "anchor": "readExistingOperation"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "replays the same operation without duplicate writes"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "must_cover": "replays the same operation"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:47:48.249Z",
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "service actorとcapabilityはBrainbase registryのcanonical IDで管理し、Graphのperson entityを作成しない（BRAINBASE_SERVICE_ACTORS / BRAINBASE_CAPABILITIES / BRAINBASE_SERVICE_ACTOR_CAPABILITIES）",
+      "rationale": "サービス主体を人物正本へ混入させず、actor・capability・tenant・project境界を監査可能にするため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-007"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "Graph Verification Boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/sql/tenant-production-provisioning-schema.sql",
+            "anchor": "brainbase_service_actors"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "fails closed on ambiguous Graph project and never writes a Graph person"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "must_cover": "never writes a Graph person"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:47:48.249Z",
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
+    },
+    {
+      "id": "INV-005",
+      "type": "invariant",
+      "statement": "Provisioningは短いtransactionでoperation claim hashとattemptを永続化してcommit・lock解放した後だけcreatePostgresGraphProjectResolverによるboundedかつread-onlyのcanonical projects lookupとcredential resolverを呼び、fresh transactionで同じclaimをfencing確認してから副作用と完了を行う",
+      "rationale": "外部待機中にDB transactionやadvisory lockを保持せず、失敗再試行後の旧実行が新しい状態を上書きしないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "操作シーケンス"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/tenant-provisioner.js",
+            "anchor": "claimOperation"
+          },
+          {
+            "file": "server/services/multitenant/tenant-provisioner.js",
+            "anchor": "assertClaimedOperation"
+          },
+          {
+            "file": "server/services/multitenant/tenant-provisioning-resolvers.js",
+            "anchor": "withBoundedClient"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "reclaims a failed operation with the same fingerprint and fences the old attempt"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioning-resolvers.test.js",
+            "case": "resolves one canonical project with a bounded, separate read client"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "must_cover": "fences the old attempt"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T21:06:05.928Z",
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "claim永続化後にGraphまたはcredential resolverがtimeout／unavailableになると業務行を保存せず、同じkey・fingerprintだけを新claimで再試行でき、旧実行の遅延完了はfencingで拒否する",
+      "rationale": "失敗時のretry順序を固定し、外部呼出し先行やstale completionを防ぐため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-011"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "失敗と復旧"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/tenant-provisioner.js",
+            "anchor": "markFailedOperation"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "records a redacted failed operation after an apply rollback"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "reclaims a failed operation with the same fingerprint and fences the old attempt"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "must_cover": "reclaims a failed operation"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-19T00:00:00.000Z",
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "manifest、DB、Graph、ログ、receiptは秘密本文を保持せずopaque credential referenceとpublic key metadataだけを扱う",
+      "rationale": "provider tokenや署名秘密鍵が制御面へ漏えいするSecret boundaryを閉じるため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-008"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "Secret Boundary"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/provisioning-manifest.js",
+            "anchor": "scanForSecretMaterial"
+          },
+          {
+            "file": "server/sql/tenant-production-provisioning-schema.sql",
+            "anchor": "credential_ref"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/provisioning-manifest.test.js",
+            "case": "rejects unknown tenant identity and secret material without echoing the value"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioning-schema.test.js",
+            "case": "does not persist secret bodies or model service actors as Graph persons"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/provisioning-manifest.test.js",
+            "must_cover": "secret material"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:47:48.249Z",
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
+    },
+    {
+      "id": "C-007",
+      "type": "contract",
+      "statement": "CLIはcheckとdry-runを既定の安全境界とし、applyには--approve-applyとBRAINBASE_MIGRATION_ACTORを要求する。migration actorはDB ledgerのapplied_byへ記録し、本番適用の承認はrollout receiptへ固定し、失敗時はcommitしない",
+      "rationale": "本番DBへ偶発的に書き込まず、schema・Graph・credential境界を先に確認するため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-009"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "Activation and Readback"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/provision-tenant.js",
+            "anchor": "--approve-apply"
+          },
+          {
+            "file": "scripts/migrate-tenant-production-provisioning.js",
+            "anchor": "--approve-apply"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/provision-tenant.test.js",
+            "case": "keeps check and dry-run safe and requires explicit approval for apply"
+          },
+          {
+            "file": "tests/server/scripts/tenant-production-provisioning-migration.test.js",
+            "case": "requires one mode and explicit approval plus actor for apply"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/scripts/provision-tenant.test.js",
+            "must_cover": "explicit approval"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T21:06:05.928Z",
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
+    },
+    {
+      "id": "S-002",
+      "type": "scenario",
+      "statement": "Graph projectが未登録、複数候補、別projectならfail closedにする。credential refは未登録、別tenant、別connection metadata、revokedならfail closedとし、初回接続もDB上の既存所有者0件に加えてcanonical credential boundaryがrefの存在とtenant／provider／workspace／app bindingをread-onlyで証明した場合だけfirst_installとして許可する。boundary未設定・unavailable・no data・不一致では拒否する",
+      "rationale": "名前推測や別deployment fallbackを防ぎ、未確認を成功にしないため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "失敗と復旧"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/tenant-provisioner.js",
+            "anchor": "normalizeProjectResult"
+          },
+          {
+            "file": "server/services/multitenant/tenant-provisioner.js",
+            "anchor": "assertCredentialResult"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "fails closed on ambiguous Graph project and never writes a Graph person"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "must_cover": "ambiguous Graph project"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T21:39:50.561Z",
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
+    },
+    {
+      "id": "C-006",
+      "type": "contract",
+      "statement": "完了receiptは同一operation IDでschema、tenant、connection、registry、Graph検証、readbackを追跡でき、秘密値を含まない",
+      "rationale": "CLIの終了コードだけで本番移行完了と誤認せず、正本readbackを証跡に残すため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-010"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "Activation and Readback"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/tenant-provisioner.js",
+            "anchor": "readback"
+          },
+          {
+            "file": "server/services/multitenant/tenant-provisioner.js",
+            "anchor": "redactedReceipt"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "returns a redacted readback receipt after an atomic apply"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "must_cover": "redacted readback receipt"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T17:47:48.249Z",
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "provisionerはmanifestのcontract revisionを、契約本体payload（contract ID、revision、status、有効期間、plan、allowances、basis-point閾値、overage policy、hard stop、rate card／FX／sales price revision）とruntime binding（capabilities、audience、deployment ID、profile）へ分離して同じfresh transactionで保存する。既存の同一tenant／revisionは全項目一致の場合だけ再利用し、不一致はCONTRACT_REVISION_CONFLICTで拒否して、両方のreadbackを秘密値を含まないreceiptへ記録する",
+      "rationale": "実行時bindingを契約本体から推測したり部分上書きしたりせず、同じ契約revisionの意味と配備境界を一意に保つため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-006"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-010"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "Control-plane Repository"
+          },
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "操作シーケンス"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/provisioning-manifest.js",
+            "anchor": "normalizeContract"
+          },
+          {
+            "file": "server/services/multitenant/tenant-provisioner.js",
+            "anchor": "ensureContractRevision"
+          },
+          {
+            "file": "server/services/multitenant/tenant-provisioner.js",
+            "anchor": "readback"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/provisioning-manifest.test.js",
+            "case": "requires the canonical runtime contract binding fields"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "returns a redacted readback receipt after an atomic apply"
+          },
+          {
+            "file": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "case": "fails closed when a canonical contract revision already has a different payload"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/provisioning-manifest.test.js",
+            "must_cover": "canonical runtime contract binding fields"
+          },
+          {
+            "file_glob": "tests/server/services/multitenant/tenant-provisioner.test.js",
+            "must_cover": "contract revision"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-18T22:35:38.422Z",
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "Slack OAuth callbackはintentとrequest digestに結びつくexchange claimを短いtransactionで永続化してから外部token exchangeを行い、fresh transactionで同じclaimをfencing確認して不変connection snapshot、current pointer、opaque credential、intent消費、ledger完了を原子的に確定する",
+      "rationale": "OAuth codeの二重交換、workspace／app越境、再インストール競合、旧callbackによる確定を防ぐため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-012"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "Slack OAuth導入シーケンス"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/slack-installation-control-plane.js",
+            "anchor": "exchange_and_register"
+          },
+          {
+            "file": "server/services/multitenant/postgres-repository.js",
+            "anchor": "claimSlackInstallationExchange"
+          },
+          {
+            "file": "server/services/multitenant/postgres-repository.js",
+            "anchor": "registerSlackInstallation"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
+            "case": "claims before OAuth and suppresses a concurrent callback"
+          },
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "case": "writes and reads back the intent, connection revision, opaque credential and exchange ledger atomically"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
+            "must_cover": "claims before OAuth"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-19T00:00:00.000Z",
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
+    },
+    {
+      "id": "S-003",
+      "type": "scenario",
+      "statement": "同じSlack OAuth callbackが同時到着しても外部exchangeは一回だけで、完了replayは保存結果を返す。失敗後は同じbindingとrequest digestだけを新claimで再試行でき、旧claimや別workspace／appによる確定を拒否する",
+      "rationale": "OAuth callbackのat-least-once配送を、外部exchangeと登録の双方でexactly-once相当に収束させるため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-012"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+            "section": "Slack OAuth導入シーケンス"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/multitenant/slack-installation-control-plane.js",
+            "anchor": "exchange_and_register"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
+            "case": "returns the completed ledger result before exchanging a replayed OAuth code"
+          },
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
+            "case": "marks failed claims retryable and fences stale completion"
+          },
+          {
+            "file": "tests/server/services/multitenant/slack-installation-control-plane.integration.test.js",
+            "case": "claims concurrent callbacks before OAuth so only one external exchange and registration occur"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/multitenant/slack-installation-control-plane.test.js",
+            "must_cover": "fences stale completion"
+          }
+        ]
+      },
+      "first_seen_at": "2026-08-19T00:00:00.000Z",
+      "last_revised_at": "2026-08-18T22:38:35.651Z"
+    }
+  ],
+  "diagrams": [
+    {
+      "kind": "sequence",
+      "mermaid": "sequenceDiagram\n    participant CLI\n    participant C as Coordinator\n    participant DB as Control-plane DB\n    participant G as Graph\n    participant K as Secret boundary\n    CLI->>C: manifest + idempotency key\n    C->>DB: short tx: persist claim + attempt\n    DB-->>C: commit + release lock\n    C->>G: bounded canonical project resolve\n    C->>K: bounded opaque credential verify\n    C->>DB: fresh tx: fence claim + apply + readback\n    C-->>CLI: redacted receipt",
+      "entities": [
+        "CLI",
+        "Coordinator",
+        "Control-plane DB",
+        "Graph",
+        "Secret boundary"
+      ],
+      "rationale": "claim永続化、transaction解放、bounded外部検証、fresh transaction fencing、readbackの順序を固定するため。"
+    },
+    {
+      "kind": "er",
+      "mermaid": "erDiagram\n    BRAINBASE_TENANTS ||--o{ BRAINBASE_TENANT_REVISIONS : has\n    WORKSPACE_CONNECTIONS ||--o{ WORKSPACE_CONNECTION_REVISIONS : records\n    TENANT_PROVISIONING_OPERATIONS }o--|| BRAINBASE_SERVICE_ACTORS : executed_by\n    BRAINBASE_SERVICE_ACTORS ||--o{ BRAINBASE_SERVICE_ACTOR_CAPABILITIES : grants\n    BRAINBASE_CAPABILITIES ||--o{ BRAINBASE_SERVICE_ACTOR_CAPABILITIES : contains",
+      "entities": [
+        "BRAINBASE_TENANTS",
+        "BRAINBASE_TENANT_REVISIONS",
+        "WORKSPACE_CONNECTIONS",
+        "workspace_connection_revisions",
+        "TENANT_PROVISIONING_OPERATIONS",
+        "BRAINBASE_SERVICE_ACTORS",
+        "BRAINBASE_CAPABILITIES",
+        "BRAINBASE_SERVICE_ACTOR_CAPABILITIES"
+      ],
+      "rationale": "tenant revision、connection revision、ledger、service registryの所有関係を固定するため。"
+    }
+  ],
+  "open_questions": [],
+  "generated_at": "2026-08-18T17:47:48.248Z",
+  "previous_spec_id": "2026-08-18T17:47:48.248Z"
+}

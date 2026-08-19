@@ -1,0 +1,139 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "needs_changes",
+  "summary": "現HEADの検証は成功したが、HEAD binding、PR prepare、GitHub CIの当該surface証跡が未充足",
+  "findings": [
+    {
+      "severity": "high",
+      "id": "gate-evidence-head-mismatch",
+      "detail": "Committed head-binding and verification artifacts are bound to old HEADs, not 569309be."
+    },
+    {
+      "severity": "high",
+      "id": "gate-evidence-ci-relevance-gap",
+      "detail": "Current GitHub checks do not execute the multitenant unit/integration/typecheck/lint surface."
+    },
+    {
+      "severity": "medium",
+      "id": "gate-evidence-counts-unparsed",
+      "detail": "Existing VibePro verification run counts are null and need explicit observed counts plus retained output."
+    }
+  ],
+  "finding_dispositions": [],
+  "artifacts": [],
+  "inspection": {
+    "summary": "現HEAD、GitHub checks、VibePro head binding、verification evidence、PR prepareを検査し、30 files / 217 tests、typecheck、lintを再実行。本番証跡はmissing/not_collected。",
+    "evidence": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/reviewer-transcript-gate_evidence.json",
+    "inputs": [
+      ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-evidence.json",
+      ".vibepro/pr/story-tenant-production-provisioning-control-plane/pr-prepare.json",
+      "server/routes/tenant-runtime.js"
+    ]
+  },
+  "judgment_delta": [
+    "ローカル検証passだけではcurrent-head監査証跡とCI relevanceを満たさないためneeds_changes。"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+    "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "expected_root": null,
+    "expected_head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+    "current_head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "expected_root": null,
+      "expected_head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+      "current_head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-19T02:22:53.498Z",
+  "git_context": {
+    "head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+    "current_branch": "codex/tenant-production-provisioning-control-plane",
+    "dirty": false,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "c6a1a71dea3cd5c9dfa54fb83e93c6c0ffba74378a9dd6053be3154b0ef1fbe5",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-08-19T02:22:53.490Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 1 file(s)",
+    "recorded_head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+    "surface_files": [
+      {
+        "path": "server/routes/tenant-runtime.js",
+        "sha256": "3ef09a579cf27b62d03f085b8e15f378bd6d0416ba2f70f6d4466cd4b85521a3",
+        "size": 17728
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "db40b5863479a5970862077aa8469a30883a30dd9f694dfb85b87bc7691fad64"
+  },
+  "source_fingerprint": "8565f096f3e991f1874703e2cf561fecfefa204d910e9ace0e994f2302074bcf",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "01a017b9-03a6-7531-a126-27931010a807",
+    "agent_role": null,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "cost_tier": "low",
+    "thread_id": "01a017b9-03a6-7531-a126-27931010a807",
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/reviewer-transcript-gate_evidence.json",
+    "request_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "subagent:/root/pr1260_gate_evidence:final",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "01a017b9-03a6-7531-a126-27931010a807",
+      "implementation_session_id": "019ffe25-90ff-76f3-9efc-4b7c401c48a0",
+      "source": "declared_session_ids"
+    }
+  },
+  "agent_usage": null
+}

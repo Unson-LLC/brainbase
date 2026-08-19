@@ -1,0 +1,160 @@
+{
+  "schema_version": "0.1.0",
+  "status": "pass",
+  "exit_code": 0,
+  "evidence_source": "runner_direct",
+  "producer": "vibepro verify run",
+  "kind": "typecheck",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "runtime_identity": {
+    "schema_version": "0.2.0",
+    "collected_at": "2026-08-19T05:24:21.989Z",
+    "mode": "normal",
+    "source_kind": "npm_package",
+    "test_context": null,
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.10",
+      "exact_version": "0.2.0-beta.10",
+      "root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/bin/vibepro.js",
+      "invoked_as": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/.bin/vibepro",
+      "runtime_module": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/src/runtime-info.js"
+    },
+    "release_manifest": {
+      "status": "valid",
+      "manifest": {
+        "schema_version": "0.1.0",
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.10",
+          "package_json_sha256": "12514f6d7d96aafde4a75c9886cb4f8046762c7d0d2b063c381d887269beab7d",
+          "entrypoint": "bin/vibepro.js"
+        },
+        "source_git": {
+          "commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+          "origin_main_relation": "same",
+          "dirty": false
+        }
+      },
+      "errors": []
+    },
+    "source_git": {
+      "is_git_repo": false,
+      "commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro",
+      "origin_main_commit": "92c1f79df53605eca6f262351c48df3531518b4a",
+      "origin_main_relation": "published",
+      "dirty": false,
+      "dirty_summary": []
+    },
+    "identity_digest": "c785934050bf71cd6644d7c40477854fbab61a75a25fc7e2849fcd52aa1917d9",
+    "integrity": {
+      "status": "trusted",
+      "code": null,
+      "purpose": "evidence_generation",
+      "reasons": [
+        "manifested immutable npm runtime"
+      ]
+    }
+  },
+  "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+  "observed": {
+    "status": "pass",
+    "evidence_source": "runner_direct",
+    "run_artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json",
+    "run_log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.log",
+    "exit_code": "0",
+    "duration_ms": "1087",
+    "started_at": "2026-08-19T05:24:22.213Z",
+    "finished_at": "2026-08-19T05:24:23.300Z",
+    "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+    "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+    "head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+    "worktree_sampled": "true",
+    "worktree_sampling_complete": "true",
+    "worktree_sha256_before": "cdd3bb08dcb17ac25dc7b518f147fd90b3420b3fff2cda7302b9aca3e07dac34",
+    "worktree_sha256_after": "cdd3bb08dcb17ac25dc7b518f147fd90b3420b3fff2cda7302b9aca3e07dac34",
+    "stdout_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
+    "output_sha256": "7f4eecff4c81b5b3615313b85d5321ea0ecba01d794454dd5f676f563a0052e0",
+    "output_bytes": "73",
+    "log_truncated": "false",
+    "output_metrics": "none",
+    "timed_out": "false",
+    "output_limit_exceeded": "false",
+    "external_kill_signal": "none",
+    "timeout_ms": "120000",
+    "max_output_bytes": "67108864",
+    "harness_env_removed": "none",
+    "runner_node_version": "v26.3.1",
+    "tree_mutated_during_run": "false",
+    "head_moved_during_run": "false",
+    "worktree_changed_during_run": "false",
+    "worktree_status_sha256_before": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+    "worktree_status_sha256_after": "f9d73ae1a23e9753a48611ac59c85b946e475f7768ef3cbe648187f8ca40976b",
+    "worktree_diff_sha256_before": "be38bfce17ad94ac811bc892a3d170e0e822218b04976faaaca5918d97496c8f",
+    "worktree_diff_sha256_after": "be38bfce17ad94ac811bc892a3d170e0e822218b04976faaaca5918d97496c8f"
+  },
+  "run": {
+    "argv": [
+      "npm",
+      "run",
+      "typecheck"
+    ],
+    "command": "npm run typecheck",
+    "cwd": ".",
+    "started_at": "2026-08-19T05:24:22.213Z",
+    "finished_at": "2026-08-19T05:24:23.300Z",
+    "duration_ms": 1087,
+    "exit_code": 0,
+    "signal": null,
+    "timed_out": false,
+    "output_limit_exceeded": false,
+    "external_kill_signal": null,
+    "timeout_ms": 120000,
+    "max_output_bytes": 67108864,
+    "head_sha_before": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+    "head_sha_after": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+    "worktree_sha256_before": "cdd3bb08dcb17ac25dc7b518f147fd90b3420b3fff2cda7302b9aca3e07dac34",
+    "worktree_sha256_after": "cdd3bb08dcb17ac25dc7b518f147fd90b3420b3fff2cda7302b9aca3e07dac34",
+    "tree_mutated_during_run": false,
+    "head_moved_during_run": false,
+    "worktree_changed_during_run": false,
+    "worktree_sampled": true,
+    "worktree_sampling_complete": true,
+    "output_metrics": "none",
+    "counts": null,
+    "node_version": "v26.3.1",
+    "harness_env_removed": [],
+    "log": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.log",
+    "log_truncated": false
+  },
+  "discarded_agent_observations": [],
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "verify run",
+      "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "expected_root": null,
+      "expected_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+      "current_head_sha": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+      "managed_worktree": null
+    },
+    {
+      "id": "verification_run_counts_not_parsed",
+      "command_name": "verify run",
+      "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+    }
+  ]
+}

@@ -296,6 +296,10 @@ const {
     canonicalTaskOperationRepository,
     canonicalTaskService,
     authService,
+    slackInstallationControlPlane,
+    slackInstallationControlPlaneAuthMiddleware,
+    slackInstallationControlPlaneAppId,
+    resolvePreProvisionedSlackConnection,
     wikiService,
     learningService,
     learningHealthService,
@@ -450,7 +454,11 @@ registerApiRoutes(app, {
     uploadsDir: UPLOADS_DIR,
     runtimeInfo: RUNTIME_INFO,
     brainbaseRoot: BRAINBASE_ROOT,
-    tenantRuntimeServices
+    tenantRuntimeServices,
+    slackInstallationControlPlane,
+    slackInstallationControlPlaneAuthMiddleware,
+    slackInstallationControlPlaneAppId,
+    resolvePreProvisionedSlackConnection
 });
 
 // ========================================

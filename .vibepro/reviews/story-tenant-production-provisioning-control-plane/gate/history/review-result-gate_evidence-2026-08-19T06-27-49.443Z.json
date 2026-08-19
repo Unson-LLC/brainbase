@@ -1,0 +1,151 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "現HEAD 66fc22a228804139af635fc2fa2966cad021b6ceを独立再レビュー。planning_spec 3 roleのコミット済みprovenanceと、同一HEADの4 SUCCESSおよび文書化したexact-head手動マージ制御により前回2 findingを解消。GitHub platform required checksと本番証跡は未設定・未収集のまま。",
+  "findings": [],
+  "finding_dispositions": [
+    {
+      "finding_id": "gate-evidence-planning-provenance-not-in-tip",
+      "disposition": "accepted",
+      "resolved_by": [
+        "66fc22a228804139af635fc2fa2966cad021b6ce:.vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-summary.json"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    },
+    {
+      "finding_id": "gate-evidence-required-checks-unenforced",
+      "disposition": "accepted",
+      "resolved_by": [
+        "66fc22a228804139af635fc2fa2966cad021b6ce:.vibepro/pr/story-tenant-production-provisioning-control-plane/merge-enforcement.json"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    }
+  ],
+  "artifacts": [
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/reviewer-transcript-gate_evidence-pass-66fc22a228804139.json"
+  ],
+  "inspection": {
+    "summary": "GitHub PR tip、同一HEAD checks、planning_specのresult/history/transcript、merge-enforcement、strict local verificationをread-onlyで直接照合。本番DB・Cloudflare・mana・Slack/Brainbase E2E・切替はnot_collected。",
+    "evidence": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/reviewer-transcript-gate_evidence-pass-66fc22a228804139.json",
+    "inputs": [
+      ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-summary.json",
+      ".vibepro/pr/story-tenant-production-provisioning-control-plane/merge-enforcement.json",
+      ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-evidence.json",
+      "package.json",
+      ".github/workflows/graph-writer-contract.yml"
+    ]
+  },
+  "judgment_delta": [
+    "前回はplanning provenanceがtip外かつrequired checksが未強制だった。現在は計画証跡がtipへコミットされ、GitHub plan制約を明示したmanual exact-head制御と同一HEAD 4 SUCCESSを確認したためpass。platform enforcementとproduction evidenceは未達のまま保持。"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+    "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "expected_root": null,
+    "expected_head_sha": "66fc22a228804139af635fc2fa2966cad021b6ce",
+    "current_head_sha": "66fc22a228804139af635fc2fa2966cad021b6ce",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "expected_root": null,
+      "expected_head_sha": "66fc22a228804139af635fc2fa2966cad021b6ce",
+      "current_head_sha": "66fc22a228804139af635fc2fa2966cad021b6ce",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-19T06:27:49.443Z",
+  "git_context": {
+    "head_sha": "66fc22a228804139af635fc2fa2966cad021b6ce",
+    "current_branch": "codex/tenant-production-provisioning-control-plane",
+    "dirty": false,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "d76c445637f766d2415afbd02063cbbde9a2f6f21bb8094b3f54a9fd83dd03ac",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-08-19T06:27:49.426Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 2 file(s)",
+    "recorded_head_sha": "66fc22a228804139af635fc2fa2966cad021b6ce",
+    "surface_files": [
+      {
+        "path": ".github/workflows/graph-writer-contract.yml",
+        "sha256": "21fb0b7fe5df60f5a7f58a58de3f2fb92ccc03cc9796fc88c70a96a9c597273b",
+        "size": 904
+      },
+      {
+        "path": "package.json",
+        "sha256": "81b6f1a01b62ea4e716c801c2cebb3a730a64d0a3dce626b0a6f0af729b6051b",
+        "size": 10690
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "91568585f8dedf6e9ab23476e5097b00d75d6ccd45b5701da7fcf0520705a06f"
+  },
+  "source_fingerprint": "e41f8a7cc0b44a79ea2f9c4c9c056710ccd44d18c8287118268117027e5f84d2",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/pr1260_gate_evidence_b97",
+    "agent_role": null,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "cost_tier": "low",
+    "thread_id": "/root/pr1260_gate_evidence_b97",
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/reviewer-transcript-gate_evidence-pass-66fc22a228804139.json",
+    "request_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-request-gate_evidence.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "subagent:/root/pr1260_gate_evidence_b97:final",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/pr1260_gate_evidence_b97",
+      "implementation_session_id": "019ffe25-90ff-76f3-9efc-4b7c401c48a0",
+      "source": "declared_session_ids"
+    }
+  },
+  "agent_usage": null
+}
