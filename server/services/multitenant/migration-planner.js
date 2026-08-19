@@ -96,6 +96,10 @@ export class TenantMigrationPlanner {
 
     apply(plan, currentRows) {
         if (plan.mode !== 'dry_run') throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
+        // A caller can construct a plan without going through dryRun.  Re-run
+        // the tenant target guard before deriving any result or quarantine
+        // state so that a cross-tenant candidate cannot reach apply output.
+        assertMigrationCandidateTargets(plan.target_tenant_id, plan.candidates);
         let migrated = 0;
         let unchanged = 0;
         let failed = 0;

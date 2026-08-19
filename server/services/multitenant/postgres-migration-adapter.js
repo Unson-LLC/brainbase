@@ -13,8 +13,40 @@ const REQUIRED_MIGRATION_LEDGER_COLUMNS = Object.freeze([
     'approved_by',
     'approval_id',
     'approval_reason',
+    'approved_at',
+    'rollback_of_migration_id'
+]);
+
+const REQUIRED_MIGRATION_LEDGER_NOT_NULL_COLUMNS = Object.freeze([
+    'plan_digest',
+    'plan_payload',
+    'approved_by',
+    'approval_id',
+    'approval_reason',
     'approved_at'
 ]);
+
+const REQUIRED_MIGRATION_LEDGER_CONSTRAINTS = Object.freeze([
+    'tenant_migrations_rollback_of_fk',
+    'tenant_migrations_rollback_mode_check'
+]);
+
+const REQUIRED_ROLLBACK_MODE_CHECK_DEFINITION = "check ((((mode = 'rollback') AND (rollback_of_migration_id IS NOT NULL)) OR ((mode = ANY (ARRAY['apply', 'dry_run'])) AND (rollback_of_migration_id IS NULL))))";
+
+function normalizeConstraintDefinition(value) {
+    return String(value ?? '')
+        .toLowerCase()
+        .replaceAll('"', '')
+        .replaceAll(/\s*::\s*[a-z_][a-z0-9_]*(?:\[\])?/gu, '')
+        .replaceAll(/\s+/gu, ' ')
+        .trim();
+}
+
+function hasColumns(actual, expected) {
+    return Array.isArray(actual)
+        && actual.length === expected.length
+        && actual.every((column, index) => column === expected[index]);
+}
 
 function asMigrationError(error) {
     if (error instanceof ContractError) return error;
@@ -67,15 +99,60 @@ function migrationLedgerNotReady() {
 
 async function assertMigrationLedgerReady(client) {
     const columns = await client.query(
-        `SELECT column_name, is_nullable
+        `SELECT column_name, is_nullable, data_type, udt_name
            FROM information_schema.columns
           WHERE table_schema = current_schema()
             AND table_name = 'tenant_migrations'
             AND column_name = ANY($1::text[])`,
         [REQUIRED_MIGRATION_LEDGER_COLUMNS]
     );
-    const present = new Map(columns.rows.map((row) => [row.column_name, row.is_nullable]));
-    if (REQUIRED_MIGRATION_LEDGER_COLUMNS.some((column) => present.get(column) !== 'NO')) {
+    const present = new Map(columns.rows.map((row) => [row.column_name, row]));
+    if (REQUIRED_MIGRATION_LEDGER_COLUMNS.some((column) => !present.has(column))
+        || REQUIRED_MIGRATION_LEDGER_NOT_NULL_COLUMNS.some((column) => present.get(column)?.is_nullable !== 'NO')
+        || present.get('rollback_of_migration_id')?.data_type !== 'text'
+        || present.get('rollback_of_migration_id')?.udt_name !== 'text') {
+        migrationLedgerNotReady();
+    }
+    const constraints = await client.query(
+        `SELECT c.conname,
+                c.contype,
+                c.confrelid = 'tenant_migrations'::regclass AS references_tenant_migrations,
+                c.confupdtype AS on_update,
+                c.confdeltype AS on_delete,
+                pg_get_constraintdef(c.oid) AS definition,
+                COALESCE((
+                    SELECT json_agg(attribute.attname ORDER BY key_position.ordinality)
+                      FROM unnest(c.conkey) WITH ORDINALITY AS key_position(attnum, ordinality)
+                      JOIN pg_catalog.pg_attribute attribute
+                        ON attribute.attrelid = c.conrelid
+                       AND attribute.attnum = key_position.attnum
+                ), '[]'::json) AS source_columns,
+                COALESCE((
+                    SELECT json_agg(attribute.attname ORDER BY key_position.ordinality)
+                      FROM unnest(c.confkey) WITH ORDINALITY AS key_position(attnum, ordinality)
+                      JOIN pg_catalog.pg_attribute attribute
+                        ON attribute.attrelid = c.confrelid
+                       AND attribute.attnum = key_position.attnum
+                ), '[]'::json) AS referenced_columns
+           FROM pg_catalog.pg_constraint c
+          WHERE c.conrelid = 'tenant_migrations'::regclass
+            AND c.conname = ANY($1::text[])`,
+        [REQUIRED_MIGRATION_LEDGER_CONSTRAINTS]
+    );
+    const constraintsByName = new Map(constraints.rows.map((row) => [row.conname, row]));
+    const rollbackForeignKey = constraintsByName.get('tenant_migrations_rollback_of_fk');
+    const rollbackModeCheck = constraintsByName.get('tenant_migrations_rollback_mode_check');
+    if (!rollbackForeignKey
+        || rollbackForeignKey.contype !== 'f'
+        || rollbackForeignKey.references_tenant_migrations !== true
+        || rollbackForeignKey.on_update !== 'a'
+        || rollbackForeignKey.on_delete !== 'a'
+        || !hasColumns(rollbackForeignKey.source_columns, ['tenant_id', 'rollback_of_migration_id'])
+        || !hasColumns(rollbackForeignKey.referenced_columns, ['tenant_id', 'migration_id'])
+        || !rollbackModeCheck
+        || rollbackModeCheck.contype !== 'c'
+        || normalizeConstraintDefinition(rollbackModeCheck.definition)
+            !== normalizeConstraintDefinition(REQUIRED_ROLLBACK_MODE_CHECK_DEFINITION)) {
         migrationLedgerNotReady();
     }
     const legacyRows = await client.query(

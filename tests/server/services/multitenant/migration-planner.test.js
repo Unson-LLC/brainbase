@@ -35,6 +35,28 @@ describe('TenantMigrationPlanner', () => {
         }));
     });
 
+    it('直接構築されたcross-tenant planはapply結果・隔離生成前にdeny_and_auditする', () => {
+        const planner = new TenantMigrationPlanner();
+        const plan = planner.dryRun({
+            target_tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            source_snapshot: 'snapshot:immutable',
+            mapping_rule_revision: 1,
+            rows: [{ id: 'direct-plan', revision: 1, candidates: ['ten_01ARZ3NDEKTSV4RRFFQ69G5FAV'] }]
+        });
+        const crossTenantPlan = structuredClone(plan);
+        crossTenantPlan.candidates[0].recommended_tenant_id = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAW';
+
+        expect(() => planner.apply(crossTenantPlan, [{ id: 'direct-plan', revision: 1 }]))
+            .toThrow(expect.objectContaining({
+                code: 'CROSS_TENANT_CANDIDATE',
+                status: 403,
+                details: expect.objectContaining({
+                    required_action: 'none',
+                    audit_event: 'cross_tenant_candidate_denied'
+                })
+            }));
+    });
+
     it('AC-006: applyをmigration ID単位でrollbackし新規更新との競合を隔離する', () => {
         const planner = new TenantMigrationPlanner();
         const plan = planner.dryRun({ target_tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV', source_snapshot: 'snapshot:immutable', mapping_rule_revision: 1, rows: [{ id: '1', revision: 2, candidates: ['ten_01ARZ3NDEKTSV4RRFFQ69G5FAV'] }] });

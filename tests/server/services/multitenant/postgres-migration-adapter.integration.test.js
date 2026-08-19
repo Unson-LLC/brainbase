@@ -163,6 +163,117 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
         }
     });
 
+    it('rollback_of列欠損時はapply・rollback双方をDB write前に停止する', async () => {
+        const plan = await adapter.dryRun({
+            target_tenant_id: tenantA,
+            source_snapshot: 'sha256:snapshot-rollback-column-readiness',
+            mapping_rule_revision: 1,
+            rows: [{ id: 'source-rollback-column-readiness', revision: 1, candidates: [tenantA] }]
+        });
+        const before = await pool.query(
+            'SELECT COUNT(*)::int AS count FROM tenant_migrations WHERE plan_digest = $1',
+            [plan.attestation.digest]
+        );
+        await pool.query('ALTER TABLE tenant_migrations DROP COLUMN rollback_of_migration_id');
+        try {
+            const expectedError = {
+                code: 'MIGRATION_LEDGER_NOT_READY',
+                status: 503,
+                details: { required_action: 'migrate_tenant_migrations_ledger' }
+            };
+            await expect(adapter.apply(plan, {
+                actor: 'svc_mana_runtime',
+                approval: {
+                    approved: true,
+                    reason: 'rollback contract readiness must be verified',
+                    approval_id: 'approval-rollback-column-apply'
+                }
+            })).rejects.toMatchObject(expectedError);
+            await expect(adapter.rollback({
+                migration_id: plan.migration_id,
+                target_tenant_id: tenantA
+            }, {
+                actor: 'svc_mana_runtime',
+                approval: {
+                    approved: true,
+                    reason: 'rollback contract readiness must be verified',
+                    approval_id: 'approval-rollback-column-rollback'
+                }
+            })).rejects.toMatchObject(expectedError);
+            const after = await pool.query(
+                'SELECT COUNT(*)::int AS count FROM tenant_migrations WHERE plan_digest = $1',
+                [plan.attestation.digest]
+            );
+            expect(after.rows[0].count).toBe(before.rows[0].count);
+        } finally {
+            await pool.query('ALTER TABLE tenant_migrations ADD COLUMN rollback_of_migration_id TEXT');
+            await pool.query(`ALTER TABLE tenant_migrations
+                ADD CONSTRAINT tenant_migrations_rollback_of_fk
+                    FOREIGN KEY (tenant_id, rollback_of_migration_id)
+                    REFERENCES tenant_migrations(tenant_id, migration_id),
+                ADD CONSTRAINT tenant_migrations_rollback_mode_check
+                    CHECK ((mode = 'rollback' AND rollback_of_migration_id IS NOT NULL)
+                    OR (mode IN ('apply', 'dry_run') AND rollback_of_migration_id IS NULL))`);
+        }
+    });
+
+    it('rollback FK/check制約欠損時はapply・rollback双方をDB write前に停止する', async () => {
+        const plan = await adapter.dryRun({
+            target_tenant_id: tenantA,
+            source_snapshot: 'sha256:snapshot-rollback-constraint-readiness',
+            mapping_rule_revision: 1,
+            rows: [{ id: 'source-rollback-constraint-readiness', revision: 1, candidates: [tenantA] }]
+        });
+        const expectedError = {
+            code: 'MIGRATION_LEDGER_NOT_READY',
+            status: 503,
+            details: { required_action: 'migrate_tenant_migrations_ledger' }
+        };
+        const migrationCount = async () => (await pool.query(
+            'SELECT COUNT(*)::int AS count FROM tenant_migrations WHERE tenant_id = $1',
+            [tenantA]
+        )).rows[0].count;
+        const before = await migrationCount();
+        await pool.query('ALTER TABLE tenant_migrations DROP CONSTRAINT tenant_migrations_rollback_of_fk');
+        try {
+            await expect(adapter.apply(plan, {
+                actor: 'svc_mana_runtime',
+                approval: {
+                    approved: true,
+                    reason: 'rollback FK readiness must be verified',
+                    approval_id: 'approval-rollback-fk-apply'
+                }
+            })).rejects.toMatchObject(expectedError);
+            expect(await migrationCount()).toBe(before);
+        } finally {
+            await pool.query(`ALTER TABLE tenant_migrations
+                ADD CONSTRAINT tenant_migrations_rollback_of_fk
+                    FOREIGN KEY (tenant_id, rollback_of_migration_id)
+                    REFERENCES tenant_migrations(tenant_id, migration_id)`);
+        }
+
+        await pool.query('ALTER TABLE tenant_migrations DROP CONSTRAINT tenant_migrations_rollback_mode_check');
+        try {
+            await expect(adapter.rollback({
+                migration_id: plan.migration_id,
+                target_tenant_id: tenantA
+            }, {
+                actor: 'svc_mana_runtime',
+                approval: {
+                    approved: true,
+                    reason: 'rollback check readiness must be verified',
+                    approval_id: 'approval-rollback-check-rollback'
+                }
+            })).rejects.toMatchObject(expectedError);
+            expect(await migrationCount()).toBe(before);
+        } finally {
+            await pool.query(`ALTER TABLE tenant_migrations
+                ADD CONSTRAINT tenant_migrations_rollback_mode_check
+                    CHECK ((mode = 'rollback' AND rollback_of_migration_id IS NOT NULL)
+                    OR (mode IN ('apply', 'dry_run') AND rollback_of_migration_id IS NULL))`);
+        }
+    });
+
     it('apply・tenant isolation readback・rollbackを各transactionで完結させる', async () => {
         const dryRun = await adapter.dryRun({
             target_tenant_id: tenantA,
