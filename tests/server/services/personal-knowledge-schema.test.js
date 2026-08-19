@@ -70,6 +70,31 @@ describe('personal and organization knowledge schema', () => {
         expect(sql).toMatch(/status IN \('pending_org_review', 'org_accepted', 'org_rejected'\)/);
     });
 
+    it('requires normalized payload hashes and both receipts for new organization acceptance', () => {
+        const sql = read('server/sql/personal-knowledge-two-stage-promotion.sql');
+
+        expect(sql).toContain('normalization_contract_version TEXT');
+        expect(sql).toContain('normalized_payload JSONB');
+        expect(sql).toContain('normalized_payload_hash TEXT');
+        expect(sql).toContain('normalized_by_person_id TEXT');
+        expect(sql).toContain('owner_consent_receipt_id TEXT');
+        expect(sql).toContain('organization_review_receipt_id TEXT');
+        expect(sql).toContain('graph_entity_id TEXT');
+        expect(sql).toContain("normalized_payload->>'schema_version' = 'personal_knowledge_normalized.v1'");
+        expect(sql).toContain("normalized_payload_hash ~ '^sha256:[a-f0-9]{64}$'");
+        expect(sql).toMatch(/status <> 'org_accepted'[\s\S]*organization_event_id IS NOT NULL[\s\S]*graph_entity_id IS NOT NULL/);
+    });
+
+    it('allows only the accepted organization reviewer to create evidence-only lineage', () => {
+        const sql = read('server/sql/personal-knowledge-two-stage-promotion.sql');
+
+        expect(sql).toMatch(/knowledge_promotion_lineage ENABLE ROW LEVEL SECURITY/);
+        expect(sql).toMatch(/CREATE POLICY personal_lineage_two_stage_scope/);
+        expect(sql).toMatch(/FROM knowledge_promotion_requests request/);
+        expect(sql).toMatch(/request\.status = 'org_accepted'/);
+        expect(sql).toMatch(/request\.owner_person_id <> app_person_id_required\(\)/);
+    });
+
     it('registers both Personal KG migrations under the same deployment unit', () => {
         const source = read('scripts/migrate-m5a-production-schema.js');
         expect(source).toContain("{ id: 'personal-knowledge', path: 'server/sql/personal-knowledge-schema.sql' }");
