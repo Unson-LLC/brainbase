@@ -1,6 +1,8 @@
 import { createHash, createPrivateKey, createPublicKey, timingSafeEqual } from 'node:crypto';
+import { CompanyAuthorityResolver } from './company-authority-resolver.js';
 import { CredentialBroker } from './credential-broker.js';
 import { ContractUsageLedger } from './contract-usage-ledger.js';
+import { PostgresCompanyAuthorityRepository } from './postgres-company-authority-repository.js';
 import { MultitenantPostgresRepository } from './postgres-repository.js';
 import { PostgresContractUsageLedger } from './postgres-contract-usage-ledger.js';
 import { TenantContextProducer } from './tenant-context-producer.js';
@@ -57,6 +59,8 @@ export function createTenantRuntimeServices({
     migrationAdapter,
     resolveContractRevision,
     resolveCanonicalContext,
+    companyAuthorityResolver,
+    allowTestAuthorityFallback = process.env.NODE_ENV === 'test',
     signingKey,
     audience = 'mana-runtime',
     deploymentId,
@@ -81,6 +85,8 @@ export function createTenantRuntimeServices({
         connectionRegistry,
         resolveContractRevision,
         resolveCanonicalContext,
+        companyAuthorityResolver,
+        allowTestAuthorityFallback,
         signingKey,
         audience,
         deploymentId,
@@ -132,6 +138,9 @@ export function createTenantRuntimeServicesFromEnv({
         expires_at: env.BRAINBASE_TENANT_CONTEXT_KEY_EXPIRES_AT ?? null
     };
     const repository = new MultitenantPostgresRepository({ pool, now });
+    const companyAuthorityResolver = new CompanyAuthorityResolver({
+        repository: new PostgresCompanyAuthorityRepository({ pool, now })
+    });
     const resolvedCredentialMaterializer = credentialMaterializer
         ?? createEnvCredentialMaterializer({ env });
     const resolvedProviderForwarders = Object.keys(providerForwarders).length > 0
@@ -176,6 +185,8 @@ export function createTenantRuntimeServicesFromEnv({
         tenantBoundaryGateway,
         migrationAdapter: new PostgresTenantMigrationAdapter({ pool, now, attestor: migrationAttestor }),
         resolveCanonicalContext: (input) => repository.resolveRuntimeContext(input),
+        companyAuthorityResolver,
+        allowTestAuthorityFallback: false,
         signingKey,
         audience: runtimeAudience,
         deploymentId,
