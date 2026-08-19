@@ -70,7 +70,7 @@ describe('personal and organization knowledge schema', () => {
         expect(sql).toMatch(/status IN \('pending_org_review', 'org_accepted', 'org_rejected'\)/);
     });
 
-    it('requires normalized payload hashes and both receipts for new organization acceptance', () => {
+    it('requires normalized hashes, both receipts, Knowledge Event, and Graph readback for new acceptance', () => {
         const sql = read('server/sql/personal-knowledge-two-stage-promotion.sql');
 
         expect(sql).toContain('normalization_contract_version TEXT');
@@ -85,14 +85,29 @@ describe('personal and organization knowledge schema', () => {
         expect(sql).toMatch(/status <> 'org_accepted'[\s\S]*organization_event_id IS NOT NULL[\s\S]*graph_entity_id IS NOT NULL/);
     });
 
-    it('allows only the accepted organization reviewer to create evidence-only lineage', () => {
+    it('grandfathers only pre-M1-C rows and blocks new legacy or mutable evidence', () => {
+        const sql = read('server/sql/personal-knowledge-two-stage-promotion.sql');
+
+        expect(sql).toContain('legacy_without_normalized_evidence BOOLEAN NOT NULL DEFAULT FALSE');
+        expect(sql).toMatch(/UPDATE knowledge_promotion_requests[\s\S]*legacy_without_normalized_evidence = TRUE[\s\S]*status = 'org_accepted'/);
+        expect(sql).toContain('New promotion rows cannot opt into legacy evidence bypass');
+        expect(sql).toContain('Promotion rows cannot opt into legacy evidence bypass');
+        expect(sql).toContain('Normalized promotion evidence is immutable; create a new promotion request');
+        expect(sql).toMatch(/CREATE TRIGGER knowledge_promotion_evidence_guard[\s\S]*BEFORE INSERT OR UPDATE/);
+    });
+
+    it('keeps the private Personal event FK owner-readable and reviewer-insert-only', () => {
         const sql = read('server/sql/personal-knowledge-two-stage-promotion.sql');
 
         expect(sql).toMatch(/knowledge_promotion_lineage ENABLE ROW LEVEL SECURITY/);
-        expect(sql).toMatch(/CREATE POLICY personal_lineage_two_stage_scope/);
-        expect(sql).toMatch(/FROM knowledge_promotion_requests request/);
-        expect(sql).toMatch(/request\.status = 'org_accepted'/);
-        expect(sql).toMatch(/request\.owner_person_id <> app_person_id_required\(\)/);
+        expect(sql).toMatch(/CREATE POLICY personal_lineage_owner_read[\s\S]*FOR SELECT/);
+        expect(sql).toMatch(/CREATE POLICY personal_lineage_reviewer_insert[\s\S]*FOR INSERT/);
+        expect(sql).not.toMatch(/CREATE POLICY personal_lineage_reviewer_read/);
+        expect(sql).toMatch(/request\.personal_event_id = knowledge_promotion_lineage\.personal_event_id/);
+        expect(sql).toMatch(/request\.organization_event_id = knowledge_promotion_lineage\.organization_event_id/);
+        expect(sql).toMatch(/request\.normalized_payload_hash = knowledge_promotion_lineage\.sanitization->>'normalized_payload_hash'/);
+        expect(sql).toMatch(/request\.owner_consent_receipt_id = knowledge_promotion_lineage\.sanitization->>'owner_consent_receipt_id'/);
+        expect(sql).toMatch(/request\.organization_review_receipt_id = knowledge_promotion_lineage\.sanitization->>'organization_review_receipt_id'/);
     });
 
     it('registers both Personal KG migrations under the same deployment unit', () => {
