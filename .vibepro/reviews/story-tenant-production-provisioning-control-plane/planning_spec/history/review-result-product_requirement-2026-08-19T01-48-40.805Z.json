@@ -1,0 +1,145 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "stage": "planning_spec",
+  "role": "product_requirement",
+  "status": "pass",
+  "summary": "成功・失敗receipt双方の同一operation IDにschema migration ID/hashが相関し、product requirement回帰なし。本番証跡はmissing/not_collected。",
+  "findings": [],
+  "finding_dispositions": [
+    {
+      "finding_id": "ac010-failed-operation-correlation-missing",
+      "disposition": "accepted",
+      "resolved_by": [
+        "569309beabe65e13f00bf4a93e5d4da85b777cb6"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    }
+  ],
+  "artifacts": [
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-product_requirement.json"
+  ],
+  "inspection": {
+    "summary": "Story、spec、最終差分、成功/失敗provisioning、legacy registry、runtime、Slack経路をread-only確認。focused 52、regression 193、typecheck pass。本番証跡は未収集。",
+    "evidence": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-product_requirement.json",
+    "inputs": [
+      "server/services/multitenant/tenant-provisioner.js",
+      "tests/server/services/multitenant/tenant-provisioner.test.js",
+      "server/services/multitenant/workspace-connection-registry.js"
+    ]
+  },
+  "judgment_delta": [
+    "failed receiptへのschema migration相関不足が解消し、needs_changesからpassへ変更。"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+    "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "expected_root": null,
+    "expected_head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+    "current_head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "expected_root": null,
+      "expected_head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+      "current_head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-19T01:48:40.805Z",
+  "git_context": {
+    "head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+    "current_branch": "codex/tenant-production-provisioning-control-plane",
+    "dirty": false,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "821b4c96af6dd5be366c7120bea02ded6fa175d3e42c0c77559c368a4746e1d3",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-08-19T01:48:40.782Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 3 file(s)",
+    "recorded_head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+    "surface_files": [
+      {
+        "path": "server/services/multitenant/tenant-provisioner.js",
+        "sha256": "e72e6334a349e3bc563565ed3b0684ed480ece78a948b96ef219f16443ca14d2",
+        "size": 44880
+      },
+      {
+        "path": "server/services/multitenant/workspace-connection-registry.js",
+        "sha256": "016982487f791ff6a587d3d53bcd0bddce57fa2448ce0e7256faf048a884745c",
+        "size": 6822
+      },
+      {
+        "path": "tests/server/services/multitenant/tenant-provisioner.test.js",
+        "sha256": "b615f6ed29e69f49ce3562814c9393476ab886136e44368ad8fba08fc6258175",
+        "size": 21614
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "e6791792b463c8d3b5c043743af917763ce573daa805473bb6a74b136927dc22"
+  },
+  "source_fingerprint": "76ecfc1ac307ae6eec26d6fb89513c8dc2625b763829decc807f2ad86fe509d9",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "01a0174e-8459-7662-b350-ea64c5168dc9",
+    "agent_role": null,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "01a0174e-8459-7662-b350-ea64c5168dc9",
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-product_requirement.json",
+    "request_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-request-product_requirement.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "subagent:/root/pr1260_product_requirement_rerun:final",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "01a0174e-8459-7662-b350-ea64c5168dc9",
+      "implementation_session_id": "019ffe25-90ff-76f3-9efc-4b7c401c48a0",
+      "source": "declared_session_ids"
+    }
+  },
+  "agent_usage": null
+}

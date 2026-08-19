@@ -1,0 +1,166 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "stage": "planning_spec",
+  "role": "architecture_boundary",
+  "status": "pass",
+  "summary": "retry、snapshot順序、失敗receipt、transaction/readback/secret境界が設計を満たす。本番証跡はmissing/not_collected。",
+  "findings": [],
+  "finding_dispositions": [
+    {
+      "finding_id": "architecture-current-pointer-first-install-order",
+      "disposition": "accepted",
+      "resolved_by": [
+        "569309beabe65e13f00bf4a93e5d4da85b777cb6"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    },
+    {
+      "finding_id": "architecture-request-digest-retry-contract",
+      "disposition": "accepted",
+      "resolved_by": [
+        "569309beabe65e13f00bf4a93e5d4da85b777cb6"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    }
+  ],
+  "artifacts": [
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-architecture_boundary.json"
+  ],
+  "inspection": {
+    "summary": "schema ledger、claim、retry、snapshot/current、readback、成功/失敗receipt、秘密境界を確認。focused 16、broad 194、typecheck pass。本番証跡は未収集。",
+    "evidence": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-architecture_boundary.json",
+    "inputs": [
+      "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+      "server/services/multitenant/slack-installation-control-plane.js",
+      "server/services/multitenant/postgres-repository.js",
+      "server/services/multitenant/tenant-provisioner.js",
+      "server/sql/tenant-production-provisioning-schema.sql"
+    ]
+  },
+  "judgment_delta": [
+    "request_digest fail-closedとsnapshot-firstを再確認し、追加receipt項目も秘密境界を維持するためpass。"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+    "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "expected_root": null,
+    "expected_head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+    "current_head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "expected_root": null,
+      "expected_head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+      "current_head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-19T01:49:36.685Z",
+  "git_context": {
+    "head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+    "current_branch": "codex/tenant-production-provisioning-control-plane",
+    "dirty": false,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "b7bdd0ff2f7d1fbef18ff35d0f2970e8b43aa8590822b3f2f07e0d65f927eb1e",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-08-19T01:49:36.667Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 5 file(s)",
+    "recorded_head_sha": "569309beabe65e13f00bf4a93e5d4da85b777cb6",
+    "surface_files": [
+      {
+        "path": "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+        "sha256": "6aa2dab6f5f41d7038d0a29e14d5d3b41fbc960e1ae86f3d19ef8ed4538e8eb3",
+        "size": 10842
+      },
+      {
+        "path": "server/services/multitenant/postgres-repository.js",
+        "sha256": "67bb4974064da344c074cd8c102d5f39ad9633b8cc6eb153cfb95a096c26dd32",
+        "size": 61199
+      },
+      {
+        "path": "server/services/multitenant/slack-installation-control-plane.js",
+        "sha256": "d59b8bca984936e1c0e9d7df7ec749298f0e9a45262b5f867e4fca33966bdf51",
+        "size": 13343
+      },
+      {
+        "path": "server/services/multitenant/tenant-provisioner.js",
+        "sha256": "e72e6334a349e3bc563565ed3b0684ed480ece78a948b96ef219f16443ca14d2",
+        "size": 44880
+      },
+      {
+        "path": "server/sql/tenant-production-provisioning-schema.sql",
+        "sha256": "4b2ac63290ea67c09aa061355e3053cb4b38b375c6c11aafd936b593d03260d8",
+        "size": 25930
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "be0bd9b56781cb11b516e1fc7be4276fee26ebc42d6ee0a6740a0c2b3399892c"
+  },
+  "source_fingerprint": "cebdfb2a57f2b5d7c033ce499c4a446fe7edef2073398febdccc97fa41562d14",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/pr1260_architecture_boundary_rerun",
+    "agent_role": null,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": null,
+    "cost_tier": null,
+    "thread_id": "/root/pr1260_architecture_boundary_rerun",
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-architecture_boundary.json",
+    "request_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-request-architecture_boundary.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "subagent:/root/pr1260_architecture_boundary_rerun:final",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/pr1260_architecture_boundary_rerun",
+      "implementation_session_id": "019ffe25-90ff-76f3-9efc-4b7c401c48a0",
+      "source": "declared_session_ids"
+    }
+  },
+  "agent_usage": null
+}

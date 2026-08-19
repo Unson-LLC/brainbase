@@ -1,0 +1,131 @@
+{
+  "role": "product_requirement",
+  "status": "pass",
+  "reviewed_commit": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+  "head_sha": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+  "summary": "指定HEADのStory、Spec、Architecture、実装差分、SQL、既存導線、回帰テストを独立read-only確認した。tenant identity/revision、workspace snapshot/current pointer、idempotency、service actor/capability、canonical project、credential boundary、redacted receipt、dry-run/apply/rollback/readback、cross-tenant deny、legacy ledger readinessがproduct requirementと受入条件に整合しているため、planning_spec product_requirementとしてpass。これは本番移行・切替・Draft解除・mergeの証明ではない。",
+  "inspection_summary": "必須lensのregression_guardでは既存のprovision/replay/conflict/fencing/readback、migration dry-run/apply/rollback、tenant isolation、approval/capability、redacted failure pathsを確認した。path_surface_coverageではmanifest、Graph canonical read-only、credential resolver、tenant/revision、workspace snapshot/current pointer/history、contract/runtime binding、service actor/JWKS、idempotency、migration raw/derived/signed/apply/rollback/readback、DB ledger、receipt、route、spec/runbook boundaryを確認した。product_requirementではAC-001..012の実装境界と、production apply等をout-of-scopeとして扱う仕様を確認した。",
+  "inspection_evidence": [
+    {
+      "type": "head_binding",
+      "evidence": "git rev-parse HEADはb97ab758f17f0ff7dec076afc3e870e6bbad09a3と一致した。実装・テスト・既存VibePro結果は変更していない。作業前から存在するVibePro dirty stateのみ確認した。"
+    },
+    {
+      "type": "story_spec_architecture_acceptance",
+      "paths": [
+        "docs/management/stories/active/story-tenant-production-provisioning-control-plane.md",
+        "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+        "docs/specs/story-tenant-production-provisioning-control-plane.md"
+      ],
+      "evidence": "StoryのAC-001..012とdelivery boundaryを、tenant/revision、workspace snapshot、idempotency、staged apply、service actor、secret boundary、explicit approval、operation readback、lock/fencing、Slack OAuth claim順序の実装・テストと突合した。production DB apply、secret issuance/storage、Graph ontology、Cloudflare/mana deploy、production Slack E2Eは仕様上のout-of-scopeまたは未実施境界として保持されている。"
+    },
+    {
+      "type": "tenant_provisioning_product_path",
+      "paths": [
+        "server/services/multitenant/provisioning-manifest.js",
+        "server/services/multitenant/tenant-provisioner.js",
+        "server/services/multitenant/tenant-provisioning-resolvers.js"
+      ],
+      "evidence": "manifestのallowlistとsecret-key拒否、短いclaim transaction後の外部read-only検証、fresh fencing、tenant/revision履歴、Graph canonical projectのtenant ownership、snapshot-first workspace connection、contract full payload/runtime binding、Brainbase内service actor/capability/JWKS、credential opaque ref境界、redacted operation receipt/readbackを確認した。Graph person作成やsecret本文取得・保存へのfallbackはない。"
+    },
+    {
+      "type": "migration_and_legacy_regression_boundary",
+      "paths": [
+        "server/services/multitenant/migration-planner.js",
+        "server/services/multitenant/postgres-migration-adapter.js",
+        "tests/server/services/multitenant/migration-planner.test.js",
+        "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js"
+      ],
+      "evidence": "raw candidateをplan/quarantine前に検証し、derived/signed/apply境界でもrecommended tenantを再検証する。cross-tenant candidateはCROSS_TENANT_CANDIDATEで明示denyし、ledger/source writeやquarantineへの隠蔽を行わない。legacy tenant_migrationsのaudit columns、rollback column、同一tenant FK、rollback mode check、既存NULL audit rowsをapply/rollback write前に検証する。"
+    },
+    {
+      "type": "regression_guard",
+      "evidence": "焦点テストで既存のprovision/replay/conflict/fencing/readback、migration count/quarantine/apply/rollback、tenant isolation、approval、contract/runtime routeを実行し、5 files / 47 tests passed、exit 0だった。b97で追加されたdirect cross-tenant plan deny、signed adapter deny、legacy ledger readiness欠損停止も含む。"
+    },
+    {
+      "type": "path_surface_coverage",
+      "evidence": "input manifest、derived candidate、signed plan、runtime apply/rollback/readback、tenant and workspace persistence、Graph/credential external boundary、service actor registry/JWKS、ledger payload/result/receipt、error/quarantine/audit_event、legacy schema checks、spec boundaryを列挙して確認した。foreign tenantはredacted explicit error/audit_eventで可視化され、unknown/partialをsuccess/0へ正規化する実装は確認されなかった。"
+    },
+    {
+      "type": "verification_artifact_freshness",
+      "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/pr-prepare.json",
+      "evidence": "現行artifactは記録HEADが9cead354c8e6d462f786cacb697c4910feb00182で、対象b97とは不一致だったため、current-head verificationの根拠には採用していない。親coordinatorはb97 exact-headでpr-prepare/verificationを更新・再確認する必要がある。"
+    },
+    {
+      "type": "production_boundary",
+      "evidence": "production DB migration/readback、Cloudflare Tunnel/Access/Worker/Service Binding、mana R1-R5、production Slack/Brainbase E2E、cutover、Lightsail停止は本reviewでは収集していない。これらをCI/unit/dry-run/deploy successやSlack返信1件で代替していない。"
+    }
+  ],
+  "inspection_inputs": [
+    "git rev-parse HEAD",
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-request-product_requirement.md",
+    "docs/management/stories/active/story-tenant-production-provisioning-control-plane.md",
+    "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+    "docs/specs/story-tenant-production-provisioning-control-plane.md",
+    "server/services/multitenant/provisioning-manifest.js",
+    "server/services/multitenant/tenant-provisioner.js",
+    "server/services/multitenant/tenant-provisioning-resolvers.js",
+    "server/services/multitenant/migration-planner.js",
+    "server/services/multitenant/postgres-migration-adapter.js",
+    "server/sql/multitenant-platform-schema.sql",
+    "server/sql/tenant-production-provisioning-schema.sql",
+    "tests/server/services/multitenant/tenant-provisioner.test.js",
+    "tests/server/services/multitenant/migration-planner.test.js",
+    "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+    "tests/server/services/multitenant/tenant-provisioning-resolvers.test.js",
+    "tests/server/routes/tenant-runtime-bootstrap.test.js",
+    "tests/server/routes/tenant-runtime-contract.test.js",
+    ".vibepro/pr/story-tenant-production-provisioning-control-plane/pr-prepare.json",
+    "npm run test:run -- tests/server/services/multitenant/tenant-provisioner.test.js tests/server/services/multitenant/migration-planner.test.js tests/server/services/multitenant/postgres-migration-adapter.integration.test.js tests/server/routes/tenant-runtime-bootstrap.test.js tests/server/routes/tenant-runtime-contract.test.js --maxWorkers=1"
+  ],
+  "judgment_delta": [
+    "initial: product requirements were provisionally reviewable, but current-head freshness and the newly hardened cross-tenant/legacy-ledger paths required direct b97 inspection; the existing pr-prepare artifact was stale and production evidence was not collected.",
+    "final: pass for the planning_spec product_requirement role because b97 source, Story/Spec/Architecture boundaries, and focused exact-head tests demonstrate the required tenant isolation, staged provisioning, redacted persistence, explicit apply controls, readback, and regression guards; stale coordinator artifacts and production evidence remain separate follow-up gates.",
+    "production delta: remains missing/not_collected for production DB, Cloudflare, mana, Slack/Brainbase E2E, cutover, and Lightsail stop; no production claim is made."
+  ],
+  "findings": [],
+  "production_evidence": {
+    "status": "missing",
+    "collection_state": "not_collected",
+    "items": [
+      {
+        "surface": "production DB schema/data migration and readback",
+        "status": "not_collected"
+      },
+      {
+        "surface": "Cloudflare Tunnel/Access/Worker/Service Binding deploy and readback",
+        "status": "not_collected"
+      },
+      {
+        "surface": "mana R1-R5 and production Slack/Brainbase E2E",
+        "status": "not_collected"
+      },
+      {
+        "surface": "cutover and Lightsail stop",
+        "status": "not_collected"
+      }
+    ],
+    "conclusion": "この判定はコード・仕様・焦点テストのproduct_requirement passであり、完全移行、本番切替、Draft解除、mergeの証明ではない。"
+  },
+  "tests_run": [
+    {
+      "command": "npm run test:run -- tests/server/services/multitenant/tenant-provisioner.test.js tests/server/services/multitenant/migration-planner.test.js tests/server/services/multitenant/postgres-migration-adapter.integration.test.js tests/server/routes/tenant-runtime-bootstrap.test.js tests/server/routes/tenant-runtime-contract.test.js --maxWorkers=1",
+      "status": "pass",
+      "result": "5 files passed, 47 tests passed, exit 0"
+    }
+  ],
+  "reviewer_provenance": {
+    "reviewer_identity": "independent read-only subagent",
+    "agent_id": "/root/pr1260_planning_product_b97",
+    "agent_role": "product_requirement",
+    "execution_mode": "parallel_subagent",
+    "worktree": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "reviewed_commit": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+    "read_only": true,
+    "source_changes_made": false,
+    "vibepro_record_written": true,
+    "commit_created": false,
+    "push_performed": false,
+    "close_evidence": "このJSONを親エージェントへ返却"
+  }
+}

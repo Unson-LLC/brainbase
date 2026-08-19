@@ -1,0 +1,179 @@
+{
+  "role": "architecture_boundary",
+  "status": "pass",
+  "reviewed_commit": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+  "head_sha": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+  "summary": "指定HEADのarchitecture boundary reviewはpass。前回の architecture-planner-apply-cross-tenant-bypass は、TenantMigrationPlanner.apply が候補検査を結果・隔離生成より前に再実行することで閉じた。architecture-legacy-ledger-rollback-column-readiness-not-enforced は、apply/rollback transaction内のwrite前readinessがrollback_of_migration_idの存在・型、既存監査NULL、名前付きrollback FK/checkのcatalog定義まで検査することで閉じた。route、attestor、adapter、SQL/RLSの経路と回帰fixtureを確認し、現HEADにarchitecture上の未解決findingはない。production evidenceはmissing/not_collectedであり、完全移行の判定には使わない。",
+  "inspection_summary": "git rev-parse HEADが指定SHAと一致することを確認し、Story、Spec、Architecture、review request、前回review transcript、実装差分、route、attestor、planner、PostgreSQL adapter、SQL schema、runbook、関連test、現HEADのVibePro verification artifact/logをread-onlyで検査した。focused migration testは2 files/17 tests pass、現HEADのintegration artifactは31 files/232 tests pass、typecheck artifactもpassだった。artifactにはmanaged-worktree未取得とcounts未parseのwarningがあるため、これをproduction evidenceや完全移行の根拠にはしていない。",
+  "inspection_evidence": [
+    {
+      "id": "head_and_scope",
+      "result": "git rev-parse HEAD = b97ab758f17f0ff7dec076afc3e870e6bbad09a3。b97ab758の差分はplanner apply guard、adapter ledger readiness、planner test、PostgreSQL integration fixtureに限定され、source/testの既存変更は行っていない。",
+      "refs": [
+        "git rev-parse HEAD",
+        "git diff b97ab758f17f0ff7dec076afc3e870e6bbad09a3^ b97ab758f17f0ff7dec076afc3e870e6bbad09a3"
+      ]
+    },
+    {
+      "id": "planner_direct_boundary",
+      "result": "migration-planner.js:97-103でapplyがmode確認直後にassertMigrationCandidateTargetsを呼び、candidate.recommended_tenant_idとtarget_tenant_idが一致しない直接構築planを、migrated/write_count、quarantine、result生成前にCROSS_TENANT_CANDIDATEで拒否する。structuredCloneで候補tenantを別tenantへ変更する追加fixtureがこの境界をpassで実証した。",
+      "refs": [
+        "server/services/multitenant/migration-planner.js:27-44,97-103",
+        "tests/server/services/multitenant/migration-planner.test.js:38-59"
+      ]
+    },
+    {
+      "id": "ledger_readiness_boundary",
+      "result": "postgres-migration-adapter.js:10-18,20-32,100-170で7列の存在、6監査列のNOT NULL、rollback_of_migration_idのtext型、既存監査NULL行、named rollback FKの種別・参照表・action・複合列順、named rollback-mode checkのcatalog定義を検査する。apply/rollbackはいずれもtransaction内の最初のbusiness queryより前にこの検査を行い、MIGRATION_LEDGER_NOT_READYで停止する。",
+      "refs": [
+        "server/services/multitenant/postgres-migration-adapter.js:100-170,212-223,344-354",
+        "server/sql/multitenant-platform-schema.sql:275-368"
+      ]
+    },
+    {
+      "id": "partial_schema_regression",
+      "result": "PostgreSQL testcontainer fixtureがrollback_of_migration_id列欠損、rollback FK欠損、rollback-mode check欠損をそれぞれ作り、apply/rollbackを503 MIGRATION_LEDGER_NOT_READYでwrite前に停止し、tenant_migrations件数不変を確認して制約を復元する。既存監査列欠損fixtureも同じreadiness境界を確認した。",
+      "refs": [
+        "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js:166-282",
+        "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js:284-392"
+      ]
+    },
+    {
+      "id": "path_surface_and_isolation",
+      "result": "tenant-runtime routeはmigration入力のtargetをtenant contextに束縛し、raw rowsとplan candidatesを検査してからadapterへ渡す。adapterはattestation verify、approval/actor、tenant-local transaction、readiness、tenant-scoped SQL/RLS、authoritative rollback ledgerを順に適用する。caller-controlled applied_rowsをrollback入力に受けない。",
+      "refs": [
+        "server/routes/tenant-runtime.js:179-230,376-480",
+        "server/services/multitenant/migration-plan-attestor.js:69-106",
+        "server/services/multitenant/postgres-migration-adapter.js:184-223,245-341,344-454",
+        "server/sql/multitenant-platform-schema.sql:381-465"
+      ]
+    },
+    {
+      "id": "current_verification_artifacts",
+      "result": "現HEADのVibePro integration artifact/logはstatus pass、exit 0、31 test files/232 tests pass。typecheck artifactもstatus pass。両artifactのmanaged-worktree未取得とcounts未parse warningは観測限界として残し、production evidenceには昇格していない。",
+      "refs": [
+        ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
+        ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
+        ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json"
+      ]
+    }
+  ],
+  "inspection_inputs": [
+    "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-request-architecture_boundary.md",
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-architecture_boundary-needs_changes-aba63134b162c1d4a534591bb483af94166fd6e4.json",
+    "docs/management/stories/active/story-tenant-production-provisioning-control-plane.md",
+    "docs/specs/story-tenant-production-provisioning-control-plane.md",
+    "docs/architecture/story-tenant-production-provisioning-control-plane.md",
+    "server/routes/tenant-runtime.js",
+    "server/services/multitenant/migration-planner.js",
+    "server/services/multitenant/migration-plan-attestor.js",
+    "server/services/multitenant/postgres-migration-adapter.js",
+    "server/services/multitenant/tenant-runtime-services.js",
+    "server/sql/multitenant-platform-schema.sql",
+    "tests/server/services/multitenant/migration-planner.test.js",
+    "tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+    "tests/server/services/multitenant/persistence-schema.test.js",
+    "tests/server/scripts/multitenant-platform-schema-migration.test.js",
+    "npm exec vitest run --maxWorkers=1 tests/server/services/multitenant/migration-planner.test.js tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+    "git diff b97ab758f17f0ff7dec076afc3e870e6bbad09a3^ b97ab758f17f0ff7dec076afc3e870e6bbad09a3"
+  ],
+  "judgment_delta": [
+    "前回の architecture-planner-apply-cross-tenant-bypass は、直接構築planをplanner.applyへ投入するfixtureがb97ab758でCROSS_TENANT_CANDIDATEとなり、結果・隔離・write相当の生成前にdenyされるためresolvedと判定した。",
+    "前回の architecture-legacy-ledger-rollback-column-readiness-not-enforced は、rollback列の欠損だけでなくFK/check制約の欠損もcatalog queryで検査し、apply/rollback双方をledger write前にMIGRATION_LEDGER_NOT_READYへ閉じるfixtureがpassしたためresolvedと判定した。",
+    "route raw入力、planner、attestor、adapter、SQL/RLS、authoritative rollbackのpath surfaceを再確認し、mandatory lensのarchitecture boundary、regression_guard、path_surface_coverageはいずれもpassとした。",
+    "local code/test/verification evidenceのみであり、本番DB migration、配備、Tunnel/Access/Worker/Service Binding、Cloudflare、Slack/Brainbase E2E、切替は未収集。production evidenceはmissing/not_collectedのまま。"
+  ],
+  "findings": [],
+  "checks": [
+    {
+      "id": "architecture_boundary",
+      "status": "pass",
+      "evidence": "tenant context、signed plan、service actor/approval、DB tenant setting、RLS、tenant-scoped SQL、Graph/secret boundaryの責務分離をroute/service/SQL/docsで確認。"
+    },
+    {
+      "id": "regression_guard",
+      "status": "pass",
+      "evidence": "直接planner planのcross-tenant mismatch、rollback列欠損、rollback FK欠損、rollback check欠損、legacy audit readinessのpre-fix failing regression fixtureを現HEADで実行しpass。"
+    },
+    {
+      "id": "path_surface_coverage",
+      "status": "pass",
+      "evidence": "raw route、planner dryRun/apply、attestor、PostgreSQL adapter apply/rollback、SQL schema upgrade、RLS/readbackの各境界を確認。"
+    },
+    {
+      "id": "planner_direct_path",
+      "status": "pass",
+      "evidence": "TenantMigrationPlanner.applyがcandidate target guardを結果/quarantine生成前に実行し、direct constructed plan fixtureが403 deny。"
+    },
+    {
+      "id": "legacy_rollback_schema_readiness",
+      "status": "pass",
+      "evidence": "rollback_of_migration_idの列・text型、6 audit columns、existing NULL rows、named FK/check catalogを検査し、schema欠損時にapply/rollback双方をwrite前停止。"
+    },
+    {
+      "id": "transaction_rls_write_order",
+      "status": "pass",
+      "evidence": "BEGIN、tenant/migration settings、ledger readiness、ledger/source/quarantine writes、COMMIT/ROLLBACKの順序とtenant_migrations/source_rows RLSを確認。"
+    },
+    {
+      "id": "production_evidence",
+      "status": "missing",
+      "evidence": "production readback/deploy/E2E/cutover evidence was not collected; no production claim is made."
+    }
+  ],
+  "production_evidence": {
+    "status": "missing",
+    "state": "not_collected",
+    "collected": false,
+    "reason": "このread-only reviewではlocal source、unit、route、PostgreSQL integration、schema artifactのみを確認し、本番DB、配備、Cloudflare、Slack/Brainbase E2E、切替の実証は行っていない。"
+  },
+  "tests_run": [
+    {
+      "command": "npm exec vitest run --maxWorkers=1 tests/server/services/multitenant/migration-planner.test.js tests/server/services/multitenant/postgres-migration-adapter.integration.test.js",
+      "status": "pass",
+      "result": "2 files passed; 17 tests passed; PostgreSQL 16 testcontainer integration completed."
+    },
+    {
+      "artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.json",
+      "status": "pass",
+      "result": "exact HEAD b97ab758; 31 test files and 232 tests passed; artifact warnings for managed-worktree state and count parsing retained as limitations."
+    },
+    {
+      "artifact": ".vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/typecheck.json",
+      "status": "pass",
+      "result": "exact HEAD b97ab758; npm run typecheck exit 0; count parsing warning retained as limitation."
+    }
+  ],
+  "resolved_findings": [
+    {
+      "id": "architecture-planner-apply-cross-tenant-bypass",
+      "status": "resolved",
+      "evidence": "b97ab758 adds assertMigrationCandidateTargets at migration-planner.js:102 before apply result/quarantine derivation and adds direct constructed cross-tenant plan regression test; focused suite passes."
+    },
+    {
+      "id": "architecture-legacy-ledger-rollback-column-readiness-not-enforced",
+      "status": "resolved",
+      "evidence": "b97ab758 extends assertMigrationLedgerReady with rollback column/type, named FK/check catalog validation and adds missing-column/FK/check integration fixtures proving no ledger write; focused suite passes."
+    }
+  ],
+  "reviewer_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/pr1260_planning_architecture_b97",
+    "agent_role": "architecture_boundary",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/pr1260_planning_architecture_b97",
+      "implementation_session_id": "019ffe25-90ff-76f3-9efc-4b7c401c48a0",
+      "source": "delegated task context"
+    },
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "subagent:/root/pr1260_planning_architecture_b97:final"
+    },
+    "evidence_strength": "strong"
+  }
+}

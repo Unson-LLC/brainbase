@@ -1,0 +1,175 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "stage": "gate",
+  "role": "release_risk",
+  "status": "pass",
+  "summary": "実装HEAD e162とPR tip ede0を独立確認し、移行計画署名、対象テナント再検証、route-specific capability、明示承認/actor、authoritative rollback、legacy partial schema fail-closedを確認。旧3 findingは解消。本番証跡はnot_collected。",
+  "findings": [],
+  "finding_dispositions": [
+    {
+      "finding_id": "release-migration-approval-capability-002",
+      "disposition": "accepted",
+      "resolved_by": [
+        "server/routes/tenant-runtime.js"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    },
+    {
+      "finding_id": "release-migration-plan-integrity-001",
+      "disposition": "accepted",
+      "resolved_by": [
+        "server/services/multitenant/migration-plan-attestor.js"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    },
+    {
+      "finding_id": "release-pr-prepare-head-003",
+      "disposition": "accepted",
+      "resolved_by": [
+        ".vibepro/pr/story-tenant-production-provisioning-control-plane/head-binding.json"
+      ],
+      "reason": null,
+      "inferred_from_resolution": true
+    }
+  ],
+  "artifacts": [
+    ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/reviewer-transcript-release_risk-pass-ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5.json"
+  ],
+  "inspection": {
+    "summary": "current PR tip、実装HEAD、migration attestation/approval/ledger、CIと本番未収集境界を独立検査",
+    "evidence": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/reviewer-transcript-release_risk-pass-ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5.json",
+    "inputs": [
+      "server/services/multitenant/migration-plan-attestor.js",
+      "server/routes/tenant-runtime.js",
+      "server/services/multitenant/postgres-migration-adapter.js",
+      "server/services/multitenant/migration-planner.js",
+      "server/sql/multitenant-platform-schema.sql"
+    ]
+  },
+  "judgment_delta": [
+    "旧3 findingの修正を実装・テスト・現在のbindingで確認。本番完全移行は未判定。"
+  ],
+  "managed_worktree_context": {
+    "status": "needs_review",
+    "mode": "preferred",
+    "required": false,
+    "command_name": "review record",
+    "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+    "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+    "expected_root": null,
+    "expected_head_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "current_head_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "managed_worktree": null
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "review record",
+      "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "actual_root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/worktrees/tenant-production-provisioning-control-plane/brainbase",
+      "expected_root": null,
+      "expected_head_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+      "current_head_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+      "managed_worktree": null
+    }
+  ],
+  "recorded_at": "2026-08-19T06:03:31.558Z",
+  "git_context": {
+    "head_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "current_branch": "codex/tenant-production-provisioning-control-plane",
+    "dirty": false,
+    "raw_dirty": true,
+    "status_fingerprint_hash": "fdd47428a038b7b68f5592b20c8c56d1f741c4f3f90dfeb6e957cc0276a1dfa1",
+    "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "fingerprint_scope": {
+      "user_excludes": [
+        ".vibepro/",
+        ".worktrees/vibepro/"
+      ]
+    },
+    "recorded_at": "2026-08-19T06:03:31.540Z"
+  },
+  "freshness_policy": {
+    "schema_version": "0.1.0",
+    "configured_mode": "content_surface",
+    "effective_mode": "content_surface",
+    "source": "content_surface_default",
+    "reason": "review freshness follows the inspected content surface"
+  },
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 5 file(s)",
+    "recorded_head_sha": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "surface_files": [
+      {
+        "path": "server/routes/tenant-runtime.js",
+        "sha256": "e134dd8d93f9bac6074437c49b62ab1f1a0ca38542b0bf36d8a9a24acb9ea860",
+        "size": 20257
+      },
+      {
+        "path": "server/services/multitenant/migration-plan-attestor.js",
+        "sha256": "73e81e0f429317722108eeeedb7c7870cc1b195d6225d7e47a73a664d72e8690",
+        "size": 3812
+      },
+      {
+        "path": "server/services/multitenant/migration-planner.js",
+        "sha256": "e4c7880d82a9854009b213e9fe33c77cb11efb862bcdecc3c96fda5b985de611",
+        "size": 6122
+      },
+      {
+        "path": "server/services/multitenant/postgres-migration-adapter.js",
+        "sha256": "c750b51190a5e0621716016a1b74832b8d34b44cf06db0c9a9c5b59491d96252",
+        "size": 21166
+      },
+      {
+        "path": "server/sql/multitenant-platform-schema.sql",
+        "sha256": "415f323d6cbbd1fc10d6a28cb8c9df4ff3481aa50f38bddea4366a49d7716d07",
+        "size": 23184
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "f48687fa110d4f65dc9c3f71e72d3f68dd923ba69f96fdcddafab3c68ebda321"
+  },
+  "source_fingerprint": "e28b1984aba326991c8f324f998bb28d7c924ec29265a0ea0dfe413ace74ae1d",
+  "agent_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/pr1260_release_risk_b97",
+    "agent_role": null,
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "cost_tier": "low",
+    "thread_id": "/root/pr1260_release_risk_b97",
+    "session_id": null,
+    "tool_call_id": null,
+    "transcript_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/reviewer-transcript-release_risk-pass-ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5.json",
+    "request_artifact": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-request-release_risk.md",
+    "recorded_by": null,
+    "lifecycle": {
+      "agent_closed": true,
+      "close_evidence": "subagent:/root/pr1260_release_risk_b97:final",
+      "close_note": null
+    },
+    "evidence_strength": "strong",
+    "reviewer_identity": {
+      "relation": "separate_session",
+      "reviewer_session_id": "/root/pr1260_release_risk_b97",
+      "implementation_session_id": "019ffe25-90ff-76f3-9efc-4b7c401c48a0",
+      "source": "declared_session_ids"
+    }
+  },
+  "agent_usage": null
+}

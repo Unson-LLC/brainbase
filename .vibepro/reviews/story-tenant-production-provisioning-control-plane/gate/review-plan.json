@@ -7,16 +7,16 @@
     "pr_split_scope",
     "release_risk"
   ],
-  "created_at": "2026-08-18T23:06:23.739Z",
+  "created_at": "2026-08-19T04:55:18.676Z",
   "output": {
     "language": "ja"
   },
   "git_context": {
-    "head_sha": "9cead354c8e6d462f786cacb697c4910feb00182",
+    "head_sha": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
     "current_branch": "codex/tenant-production-provisioning-control-plane",
     "dirty": false,
-    "raw_dirty": false,
-    "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+    "raw_dirty": true,
+    "status_fingerprint_hash": "b52df92941cc903494301cdeb740cae254341c1550bee58c3644da372b9b2b46",
     "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
     "fingerprint_scope": {
       "user_excludes": [
@@ -24,7 +24,7 @@
         ".worktrees/vibepro/"
       ]
     },
-    "recorded_at": "2026-08-18T23:06:23.735Z"
+    "recorded_at": "2026-08-19T04:55:18.672Z"
   },
   "bounded_artifact_handoff": {
     "budget_bytes": null,
@@ -64,7 +64,7 @@
       }
     }
   },
-  "source_fingerprint": "0facde35c3192663fd18f872e4b245ec731221fa5d98cfc7420a17c25efde35c",
+  "source_fingerprint": "2e364e47411205df0673d5468fe0a81563ecc435b4f0a531539a070b70951963",
   "instructions": [
     "coordinator runtimeがsubagent capabilityを提供する場合、listed role reviewを別々のCodex/Claude Code subagentでdispatchする。",
     "VibeProはreview resultを記録するが、subagent自体は実行しない。",

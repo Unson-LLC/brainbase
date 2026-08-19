@@ -4,9 +4,9 @@
 - Stage: planning_spec
 - Mode: policy-aware parallel review dispatch
 - Required subagents: 3
-- Current head: 9cead354c8e6d462f786cacb697c4910feb00182
+- Current head: b97ab758f17f0ff7dec076afc3e870e6bbad09a3
 - User dirty: false
-- Raw dirty: false
+- Raw dirty: true
 - User fingerprint excludes: .vibepro/, .worktrees/vibepro/
 - Parallel scope: このstageのみ。別review stageと同じbatchで混ぜない
 
