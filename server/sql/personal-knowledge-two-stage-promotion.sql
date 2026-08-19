@@ -200,8 +200,8 @@ CREATE POLICY personal_promotion_two_stage_scope ON knowledge_promotion_requests
     )
   );
 
--- The private Personal event foreign key remains owner-visible. A distinct accepted
--- reviewer may INSERT the audit link in the same transaction, but cannot SELECT it.
+-- The private Personal event foreign key remains owner-visible. A distinct GM/CEO
+-- may insert the audit link only when every value matches the accepted request.
 ALTER TABLE knowledge_promotion_lineage ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_promotion_lineage FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS personal_lineage_owner_scope ON knowledge_promotion_lineage;
@@ -212,12 +212,6 @@ DROP POLICY IF EXISTS personal_lineage_reviewer_insert ON knowledge_promotion_li
 CREATE POLICY personal_lineage_owner_read ON knowledge_promotion_lineage
   FOR SELECT
   USING (
-    organization_id = app_organization_id_required()
-    AND owner_person_id = app_person_id_required()
-  );
-CREATE POLICY personal_lineage_owner_insert ON knowledge_promotion_lineage
-  FOR INSERT
-  WITH CHECK (
     organization_id = app_organization_id_required()
     AND owner_person_id = app_person_id_required()
   );
@@ -232,13 +226,14 @@ CREATE POLICY personal_lineage_reviewer_insert ON knowledge_promotion_lineage
       WHERE request.request_id = knowledge_promotion_lineage.promotion_request_id
         AND request.organization_id = knowledge_promotion_lineage.organization_id
         AND request.owner_person_id = knowledge_promotion_lineage.owner_person_id
+        AND request.personal_event_id = knowledge_promotion_lineage.personal_event_id
+        AND request.organization_event_id = knowledge_promotion_lineage.organization_event_id
         AND request.project_code = ANY(string_to_array(current_setting('app.project_codes', true), ','))
         AND app_role_rank(current_setting('app.role', true)) >= app_role_rank('gm')
         AND request.status = 'org_accepted'
-        AND request.organization_reviewed_by = COALESCE(
-          NULLIF(current_setting('app.actor_person_id', true), ''),
-          app_person_id_required()
-        )
+        AND request.normalized_payload_hash = knowledge_promotion_lineage.sanitization->>'normalized_payload_hash'
+        AND request.owner_consent_receipt_id = knowledge_promotion_lineage.sanitization->>'owner_consent_receipt_id'
+        AND request.organization_review_receipt_id = knowledge_promotion_lineage.sanitization->>'organization_review_receipt_id'
     )
   );
 
