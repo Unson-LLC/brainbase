@@ -14,7 +14,11 @@ import { WorkspaceConnectionRegistry } from '../../../server/services/multitenan
 const now = new Date('2026-08-16T13:00:30Z');
 const serviceToken = 'runtime-test-token-not-a-production-secret';
 
-function createRuntime({ credentialBrokerOptions = {}, migrationAdapter = undefined } = {}) {
+function createRuntime({
+    credentialBrokerOptions = {},
+    migrationAdapter = undefined,
+    serviceAuth = undefined
+} = {}) {
     const tenantAuthority = new TenantAuthority({ now: () => now });
     const created = tenantAuthority.createTenant({ displayName: 'Tenant A' });
     const tenant = tenantAuthority.transitionTenant(created.tenant_id, '1', 'active');
@@ -52,6 +56,7 @@ function createRuntime({ credentialBrokerOptions = {}, migrationAdapter = undefi
     });
     const services = createTenantRuntimeServices({
         serviceToken,
+        serviceAuth,
         tenantAuthority,
         connectionRegistry,
         credentialBroker,
@@ -316,6 +321,72 @@ describe('tenant runtime production wiring', () => {
         });
         expect(dryRun.status).toBe(200);
         expect(dryRun.body).toMatchObject({ target_tenant_id: tenant.tenant_id, write_count: 0 });
+
+        const missingApproval = await request(app).post('/api/v1/runtime/migrations:apply').set(headers).send({
+            tenant_context,
+            plan: dryRun.body
+        });
+        expect(missingApproval.status).toBe(400);
+        expect(missingApproval.body.code).toBe('MIGRATION_APPROVAL_REQUIRED');
+
+        const bodyActor = await request(app).post('/api/v1/runtime/migrations:apply').set(headers).send({
+            tenant_context,
+            plan: dryRun.body,
+            actor: 'caller-controlled-actor',
+            approval: {
+                approved: true,
+                reason: 'route schema test',
+                approval_id: 'approval-route-actor'
+            }
+        });
+        expect(bodyActor.status).toBe(400);
+        expect(bodyActor.body.code).toBe('SCHEMA_INVALID');
+
+        const applied = await request(app).post('/api/v1/runtime/migrations:apply').set(headers).send({
+            tenant_context,
+            plan: dryRun.body,
+            approval: {
+                approved: true,
+                reason: 'route apply approval',
+                approval_id: 'approval-route-apply'
+            }
+        });
+        expect(applied.status).toBe(200);
+        expect(applied.body).toMatchObject({ mode: 'apply', write_count: 1 });
+
+        const restrictedApp = express();
+        restrictedApp.use(express.json());
+        registerTenantRuntimeApiRoute(restrictedApp, {
+            ...services,
+            serviceAuth: (req, _res, next) => {
+                req.serviceIdentity = {
+                    subject: 'restricted-service',
+                    capabilities: ['tenant_context:resolve']
+                };
+                next();
+            }
+        });
+        const missingCapability = await request(restrictedApp)
+            .post('/api/v1/runtime/migrations:apply')
+            .set(headers)
+            .send({
+                tenant_context,
+                plan: dryRun.body,
+                approval: {
+                    approved: true,
+                    reason: 'capability test',
+                    approval_id: 'approval-route-capability'
+                }
+            });
+        expect(missingCapability.status).toBe(403);
+        expect(missingCapability.body.code).toBe('SERVICE_CAPABILITY_REQUIRED');
+
+        const rollbackMissingApproval = await request(app).post('/api/v1/runtime/migrations:rollback').set(headers).send({
+            tenant_context,
+            migration_id: dryRun.body.migration_id
+        });
+        expect(rollbackMissingApproval.status).toBe(400);
+        expect(rollbackMissingApproval.body.code).toBe('MIGRATION_APPROVAL_REQUIRED');
 
         const crossTenant = await request(app).post('/api/v1/runtime/migrations:dry-run').set(headers).send({
             tenant_context,

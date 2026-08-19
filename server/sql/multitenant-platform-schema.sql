@@ -280,9 +280,92 @@ CREATE TABLE IF NOT EXISTS tenant_migrations (
     mode TEXT NOT NULL CHECK (mode IN ('dry_run', 'apply', 'rollback')),
     counts JSONB NOT NULL,
     collection_state TEXT NOT NULL CHECK (collection_state IN ('collected', 'partial', 'not_collected')),
+    plan_digest TEXT NOT NULL,
+    plan_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    approved_by TEXT NOT NULL,
+    approval_id TEXT NOT NULL,
+    approval_reason TEXT NOT NULL,
+    approved_at TIMESTAMPTZ NOT NULL,
+    rollback_of_migration_id TEXT,
     created_at TIMESTAMPTZ NOT NULL,
-    UNIQUE (tenant_id, migration_id)
+    UNIQUE (tenant_id, migration_id),
+    CONSTRAINT tenant_migrations_rollback_of_fk
+        FOREIGN KEY (tenant_id, rollback_of_migration_id) REFERENCES tenant_migrations(tenant_id, migration_id),
+    CONSTRAINT tenant_migrations_plan_digest_check
+        CHECK (plan_digest ~ '^sha256:[a-f0-9]{64}$'),
+    CONSTRAINT tenant_migrations_rollback_mode_check
+        CHECK ((mode = 'rollback' AND rollback_of_migration_id IS NOT NULL)
+        OR (mode IN ('apply', 'dry_run') AND rollback_of_migration_id IS NULL))
 );
+
+-- An idempotent create statement does not upgrade a pre-existing ledger.  Add the
+-- attestation/audit columns explicitly, and stop rather than inventing audit
+-- provenance for any legacy rows.  The new endpoint remains unavailable until
+-- an operator has performed that explicit migration.
+ALTER TABLE tenant_migrations ADD COLUMN IF NOT EXISTS plan_digest TEXT;
+ALTER TABLE tenant_migrations ADD COLUMN IF NOT EXISTS plan_payload JSONB;
+ALTER TABLE tenant_migrations ADD COLUMN IF NOT EXISTS approved_by TEXT;
+ALTER TABLE tenant_migrations ADD COLUMN IF NOT EXISTS approval_id TEXT;
+ALTER TABLE tenant_migrations ADD COLUMN IF NOT EXISTS approval_reason TEXT;
+ALTER TABLE tenant_migrations ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE tenant_migrations ADD COLUMN IF NOT EXISTS rollback_of_migration_id TEXT;
+
+DO $brainbase_tenant_migrations_upgrade$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+          FROM tenant_migrations
+         WHERE plan_digest IS NULL
+            OR plan_payload IS NULL
+            OR approved_by IS NULL
+            OR approval_id IS NULL
+            OR approval_reason IS NULL
+            OR approved_at IS NULL
+    ) THEN
+        RAISE EXCEPTION 'tenant_migrations upgrade requires explicit audit backfill';
+    END IF;
+
+    ALTER TABLE tenant_migrations
+        ALTER COLUMN plan_digest SET DEFAULT NULL,
+        ALTER COLUMN plan_payload SET DEFAULT '{}'::jsonb,
+        ALTER COLUMN plan_digest SET NOT NULL,
+        ALTER COLUMN plan_payload SET NOT NULL,
+        ALTER COLUMN approved_by SET NOT NULL,
+        ALTER COLUMN approval_id SET NOT NULL,
+        ALTER COLUMN approval_reason SET NOT NULL,
+        ALTER COLUMN approved_at SET NOT NULL;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'tenant_migrations'::regclass
+           AND conname = 'tenant_migrations_plan_digest_check'
+    ) THEN
+        ALTER TABLE tenant_migrations
+            ADD CONSTRAINT tenant_migrations_plan_digest_check
+            CHECK (plan_digest ~ '^sha256:[a-f0-9]{64}$');
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'tenant_migrations'::regclass
+           AND conname = 'tenant_migrations_rollback_of_fk'
+    ) THEN
+        ALTER TABLE tenant_migrations
+            ADD CONSTRAINT tenant_migrations_rollback_of_fk
+            FOREIGN KEY (tenant_id, rollback_of_migration_id)
+            REFERENCES tenant_migrations(tenant_id, migration_id);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conrelid = 'tenant_migrations'::regclass
+           AND conname = 'tenant_migrations_rollback_mode_check'
+    ) THEN
+        ALTER TABLE tenant_migrations
+            ADD CONSTRAINT tenant_migrations_rollback_mode_check
+            CHECK ((mode = 'rollback' AND rollback_of_migration_id IS NOT NULL)
+                OR (mode IN ('apply', 'dry_run') AND rollback_of_migration_id IS NULL));
+    END IF;
+END
+$brainbase_tenant_migrations_upgrade$;
 
 CREATE TABLE IF NOT EXISTS tenant_migration_quarantine (
     migration_id TEXT NOT NULL,

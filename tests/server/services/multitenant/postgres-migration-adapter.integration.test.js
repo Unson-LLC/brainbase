@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, generateKeyPairSync, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -6,6 +6,7 @@ import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CredentialBroker } from '../../../../server/services/multitenant/credential-broker.js';
+import { MigrationPlanAttestor } from '../../../../server/services/multitenant/migration-plan-attestor.js';
 import { PostgresTenantMigrationAdapter } from '../../../../server/services/multitenant/postgres-migration-adapter.js';
 import { MultitenantPostgresRepository } from '../../../../server/services/multitenant/postgres-repository.js';
 import { createTrustedHttpProviderForwarder } from '../../../../server/services/multitenant/trusted-provider-forwarder.js';
@@ -26,6 +27,7 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
     let container;
     let pool;
     let adapter;
+    let attestor;
 
     beforeAll(async () => {
         container = await new PostgreSqlContainer('postgres:16-alpine').start();
@@ -63,7 +65,17 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
         [credentialRefA, tenantA, connectionA]);
         await pool.query(`INSERT INTO tenant_migration_source_rows (source_id, source_revision, source_payload)
             VALUES ('source-a', 1, '{"name":"A"}'), ('source-b', 1, '{"name":"B"}')`);
-        adapter = new PostgresTenantMigrationAdapter({ pool, now: () => new Date('2026-08-17T00:00:00Z') });
+        const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+        attestor = new MigrationPlanAttestor({
+            key_id: 'migration-test-key',
+            private_key: privateKey,
+            public_key: publicKey
+        });
+        adapter = new PostgresTenantMigrationAdapter({
+            pool,
+            now: () => new Date('2026-08-17T00:00:00Z'),
+            attestor
+        });
     }, 120_000);
 
     afterAll(async () => {
@@ -90,14 +102,78 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
             mapping_rule_revision: 1,
             rows: [{ id: 'source-a', revision: 1, candidates: [tenantA] }]
         });
-        const applied = await adapter.apply(dryRun);
+        const applied = await adapter.apply(dryRun, {
+            actor: 'svc_mana_runtime',
+            approval: {
+                approved: true,
+                reason: 'integration migration approval',
+                approval_id: 'approval-apply-source-a'
+            }
+        });
         expect(applied).toMatchObject({ mode: 'apply', write_count: 1 });
+        const applyLedger = await pool.query(
+            `SELECT plan_digest, plan_payload, approved_by, approval_id,
+                    approval_reason, approved_at, rollback_of_migration_id
+               FROM tenant_migrations
+              WHERE tenant_id = $1 AND migration_id = $2 AND mode = 'apply'`,
+            [tenantA, applied.migration_id]
+        );
+        expect(applyLedger.rows[0]).toMatchObject({
+            plan_digest: applied.attestation.digest,
+            approved_by: 'svc_mana_runtime',
+            approval_id: 'approval-apply-source-a',
+            approval_reason: 'integration migration approval',
+            rollback_of_migration_id: null
+        });
+        expect(applyLedger.rows[0].plan_payload).toMatchObject({
+            migration_id: applied.migration_id,
+            mode: 'apply',
+            applied_rows: [{ id: 'source-a', source_revision: 1, applied_revision: 2 }]
+        });
         expect(await adapter.readback({ tenant_id: tenantA, migration_id: applied.migration_id }))
             .toMatchObject([{ source_id: 'source-a', tenant_id: tenantA }]);
         expect(await adapter.readback({ tenant_id: tenantB, migration_id: applied.migration_id })).toEqual([]);
 
-        const rolledBack = await adapter.rollback(applied);
+        await expect(adapter.rollback({
+            migration_id: applied.migration_id,
+            target_tenant_id: tenantA,
+            applied_rows: [{ id: 'caller-controlled-row', source_revision: 1, applied_revision: 2 }]
+        }, {
+            actor: 'svc_mana_runtime',
+            approval: {
+                approved: true,
+                reason: 'caller rows must be rejected',
+                approval_id: 'approval-rollback-rejected-input'
+            }
+        })).rejects.toMatchObject({ code: 'MIGRATION_PLAN_INVALID' });
+
+        const rolledBack = await adapter.rollback({
+            migration_id: applied.migration_id,
+            target_tenant_id: tenantA
+        }, {
+            actor: 'svc_mana_runtime',
+            approval: {
+                approved: true,
+                reason: 'integration rollback approval',
+                approval_id: 'approval-rollback-source-a'
+            }
+        });
         expect(rolledBack).toMatchObject({ mode: 'rollback', write_count: 1 });
+        expect(rolledBack).not.toHaveProperty('attestation');
+        const rollbackLedger = await pool.query(
+            `SELECT plan_digest, plan_payload, approved_by, approval_id,
+                    approval_reason, approved_at, rollback_of_migration_id
+               FROM tenant_migrations
+              WHERE tenant_id = $1 AND migration_id = $2 AND mode = 'rollback'`,
+            [tenantA, rolledBack.migration_id]
+        );
+        expect(rollbackLedger.rows[0]).toMatchObject({
+            plan_digest: applied.attestation.digest,
+            approved_by: 'svc_mana_runtime',
+            approval_id: 'approval-rollback-source-a',
+            approval_reason: 'integration rollback approval',
+            rollback_of_migration_id: applied.migration_id
+        });
         expect(await adapter.readback({ tenant_id: tenantA, migration_id: applied.migration_id })).toEqual([]);
     });
 
@@ -111,7 +187,15 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
                 { id: 'missing', revision: 1, candidates: [tenantA] }
             ]
         });
-        await expect(adapter.apply(plan, { fail_on_conflict: true })).rejects.toMatchObject({ code: 'MIGRATION_APPLY_CONFLICT' });
+        await expect(adapter.apply(plan, {
+            fail_on_conflict: true,
+            actor: 'svc_mana_runtime',
+            approval: {
+                approved: true,
+                reason: 'integration conflict approval',
+                approval_id: 'approval-apply-conflict'
+            }
+        })).rejects.toMatchObject({ code: 'MIGRATION_APPLY_CONFLICT' });
         const result = await pool.query('SELECT tenant_id FROM tenant_migration_source_rows WHERE source_id = $1', ['source-a']);
         expect(result.rows[0].tenant_id).toBeNull();
     });

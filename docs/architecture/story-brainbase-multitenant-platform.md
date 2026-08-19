@@ -125,7 +125,9 @@ protocol version negotiationで必須機能、任意機能、互換期間を合�
 
 ## 移行
 
-既存データは暗黙の既定tenantへ寄せない。移行前に帰属規則を固定し、dry-run、対象件数、移行件数、未帰属件数、重複件数を照合する。未帰属または曖昧なデータは隔離し、業務経路から参照できなくする。rollbackは元の識別子とrevisionを保ち、越境を起こさず復元できる単位で行う。
+既存データは暗黙の既定tenantへ寄せない。移行前に帰属規則を固定し、dry-run、対象件数、移行件数、未帰属件数、重複件数を照合する。Brainbaseが生成したdry-run planはcanonical digestとEd25519署名でcandidate、source snapshot、mapping rule、対象tenantへ束縛し、apply時に再検証する。apply／rollbackはroute別capability、明示承認、service token由来actorを要求し、actorをcaller bodyから受け取らない。
+
+未帰属または曖昧なデータは隔離し、業務経路から参照できなくする。apply結果と承認情報はPostgreSQL ledgerへ同一transactionで保存する。rollbackはcaller提供の行一覧を使わず、TenantContextのtenantへ束縛したapply migration IDからDB ledgerをロック付きで読み戻す。元の識別子とrevisionが一致する行だけを復元し、越境または新規更新の上書きを起こさない。
 
 ## 障害の意味
 
