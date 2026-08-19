@@ -1,0 +1,274 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-tenant-production-provisioning-control-plane",
+  "stage": "gate",
+  "role": "gate_evidence",
+  "status": "pass",
+  "summary": "独立read-only再レビュー。現HEAD 66fc22a228804139af635fc2fa2966cad021b6ceをGitHub、ローカル、レビュー証跡、同一HEADマージ制御へ直接照合した。前回2 findingは、planning_spec 3 roleのコミット済みprovenanceと、GitHub required checks不能を補うexact-head手動マージ制御および現HEADの4 SUCCESSにより解消済みと判定する。GitHub branch protection自体が有効とは主張せず、手動制御の残余制約を保持する。",
+  "reviewed_head": {
+    "local_head_sha": "66fc22a228804139af635fc2fa2966cad021b6ce",
+    "pr_tip_sha": "66fc22a228804139af635fc2fa2966cad021b6ce",
+    "branch": "codex/tenant-production-provisioning-control-plane",
+    "base_ref": "develop",
+    "base_oid": "65220fd9236012007d22827594bc14a15367b312",
+    "pr_number": 1260,
+    "is_draft": true,
+    "merge_state_status": "CLEAN",
+    "mergeable": "MERGEABLE"
+  },
+  "inspection_summary": {
+    "git_status": "source/test files clean; pre-existing dirty artifacts are pr-body.md, pr-prepare.json, traceability.json",
+    "artifact_commit": "66fc22a228804139af635fc2fa2966cad021b6ce",
+    "implementation_binding": "head-binding.json binds verified implementation head e162c3bd26f64a12e84319f4fd9f2bc250fe6886 and evidence commit 8897af7dcde8a917bd843b519bb99d34e9d82ee0",
+    "post_b97_delta": "b97..66fc contains only the CI/package surface and VibePro/PR artifacts; no server, docs, SQL, or tests implementation paths changed after the planning content surface was reviewed",
+    "diff_check": "git diff --check reports only pre-existing artifact trailing blank-line warnings; no source/test whitespace finding"
+  },
+  "inspection_inputs": [
+    "git rev-parse HEAD",
+    "git status --short --untracked-files=all",
+    "git ls-tree -r --name-only HEAD .vibepro/pr/story-tenant-production-provisioning-control-plane .vibepro/reviews/story-tenant-production-provisioning-control-plane",
+    "git diff --name-status b97ab758f17f0ff7dec076afc3e870e6bbad09a3 HEAD",
+    "git diff --check origin/develop...HEAD",
+    "git show HEAD:.vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-summary.json",
+    "git show HEAD:.vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-result-product_requirement.json",
+    "git show HEAD:.vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-result-architecture_boundary.json",
+    "git show HEAD:.vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-result-spec_consistency.json",
+    "git show HEAD:.vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-{product_requirement,architecture_boundary,spec_consistency}-pass-b97ab758.json",
+    "git ls-tree -r --name-only HEAD .vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/history",
+    "git show HEAD:.vibepro/pr/story-tenant-production-provisioning-control-plane/merge-enforcement.json",
+    "git show HEAD:.vibepro/pr/story-tenant-production-provisioning-control-plane/head-binding.json",
+    "git show HEAD:.vibepro/pr/story-tenant-production-provisioning-control-plane/pr-prepare.json",
+    "jq current worktree pr-prepare.json",
+    "git show HEAD:.vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/{integration,typecheck,build}.json",
+    "git show HEAD:.vibepro/pr/story-tenant-production-provisioning-control-plane/verification-runs/integration.log",
+    "git show HEAD:.vibepro/pr/story-tenant-production-provisioning-control-plane/verification-evidence.json",
+    "git show HEAD:package.json",
+    "git show HEAD:.github/workflows/graph-writer-contract.yml",
+    "gh pr view 1260 --repo Unson-LLC/brainbase-unson --json baseRefOid,headRefOid,isDraft,mergeStateStatus,mergeable,statusCheckRollup",
+    "gh pr checks 1260 --repo Unson-LLC/brainbase-unson",
+    "gh pr checks 1260 --repo Unson-LLC/brainbase-unson --required",
+    "gh api graphql branchProtectionRules",
+    "gh api repos/Unson-LLC/brainbase-unson/branches/develop/protection",
+    "gh run view 32222480840 --repo Unson-LLC/brainbase-unson --job 95975484894 --log"
+  ],
+  "planning_spec_review": {
+    "status": "pass",
+    "current_tip_commit_presence": true,
+    "recorded_review_head": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+    "current_tip": "66fc22a228804139af635fc2fa2966cad021b6ce",
+    "freshness_judgment": "The delta from b97 to current tip has no server/docs/SQL/tests implementation changes; the review content surfaces remain current and the result/transcript/history artifacts are committed at 66fc.",
+    "summary": {
+      "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-summary.json",
+      "status": "pass",
+      "pass_count": 3,
+      "stale_count": 0,
+      "missing_count": 0,
+      "unverified_agent_count": 0,
+      "roles": [
+        {
+          "role": "product_requirement",
+          "status": "pass",
+          "effective_status": "pass",
+          "binding_status": "current",
+          "provenance_status": "verified_agent",
+          "agent_id": "/root/pr1260_planning_product_b97",
+          "reviewed_commit": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+          "transcript": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-product_requirement-pass-b97ab758.json"
+        },
+        {
+          "role": "architecture_boundary",
+          "status": "pass",
+          "effective_status": "pass",
+          "binding_status": "current",
+          "provenance_status": "verified_agent",
+          "agent_id": "/root/pr1260_planning_architecture_b97",
+          "reviewed_commit": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+          "transcript": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-architecture_boundary-pass-b97ab758.json"
+        },
+        {
+          "role": "spec_consistency",
+          "status": "pass",
+          "effective_status": "pass",
+          "binding_status": "current",
+          "provenance_status": "verified_agent",
+          "agent_id": "/root/pr1260_planning_spec_b97",
+          "reviewed_commit": "b97ab758f17f0ff7dec076afc3e870e6bbad09a3",
+          "transcript": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/reviewer-transcript-spec_consistency-pass-b97ab758.json"
+        }
+      ]
+    },
+    "history": {
+      "committed": true,
+      "product_requirement_records": 4,
+      "architecture_boundary_records": 4,
+      "spec_consistency_records": 4,
+      "history_prefix": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/history/"
+    },
+    "finding_resolution_ref": "gate-evidence-planning-provenance-not-in-tip"
+  },
+  "merge_control_review": {
+    "status": "pass_with_manual_exact_head_control",
+    "path": ".vibepro/pr/story-tenant-production-provisioning-control-plane/merge-enforcement.json",
+    "committed_at_head": "66fc22a228804139af635fc2fa2966cad021b6ce",
+    "policy_id": "orchestrator-exact-head-gate-v1",
+    "policy_status": "blocked_until_all_reviews_pass",
+    "required_checks_reported": false,
+    "branch_protection_readback": "not_available_on_current_private_repository_plan",
+    "control": "manual preconditions require all review roles pass/current/verified_agent, current PR headRefOid equality, all four named checks SUCCESS, and gh pr merge --match-head-commit <expected_head_sha>",
+    "limitation": "GitHub branch protection remains absent/unreadable; this artifact is a documented orchestrator control and does not claim platform-enforced required checks.",
+    "github_current_head_readback": {
+      "head_sha": "66fc22a228804139af635fc2fa2966cad021b6ce",
+      "contract": {
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/Unson-LLC/brainbase-unson/actions/runs/32222480840/job/95975484894"
+      },
+      "Verify VibePro Graph SSOT before merge": {
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/Unson-LLC/brainbase-unson/actions/runs/32222480790/job/95975484852"
+      },
+      "Require Graphify Impact Review": {
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/Unson-LLC/brainbase-unson/actions/runs/32222480807/job/95975484671"
+      },
+      "Verify committed VibePro score evidence": {
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/Unson-LLC/brainbase-unson/actions/runs/32222480813/job/95975484530"
+      },
+      "skipped_checks": [
+        "Verify Ontology after push",
+        "Verify scheduled VibePro Graph SSOT drift"
+      ]
+    },
+    "finding_resolution_ref": "gate-evidence-required-checks-unenforced"
+  },
+  "verification_summary": {
+    "strict_local_implementation_head": "e162c3bd26f64a12e84319f4fd9f2bc250fe6886",
+    "evidence_commit": "8897af7dcde8a917bd843b519bb99d34e9d82ee0",
+    "local_integration": {
+      "status": "pass",
+      "test_files": 38,
+      "tests": 284,
+      "computed_counts": null,
+      "observed_log": "Test Files 38 passed (38); Tests 284 passed (284)",
+      "parser_warning": "computed_counts=null and verification_run_counts_not_parsed remain explicit; observed log is retained"
+    },
+    "github_contract": {
+      "status": "SUCCESS",
+      "head_sha": "66fc22a228804139af635fc2fa2966cad021b6ce",
+      "test_files": 38,
+      "tests": 296,
+      "cloudflare_bridge_delta": "CI tenant-runtime-bridge.test.js 25 tests; local same file 13 tests; environment-dependent delta retained, not conflated"
+    },
+    "typecheck": "pass at strict local implementation head; not represented as a current GitHub required check",
+    "build": "pass at strict local implementation head; not represented as a current GitHub required check",
+    "changed_test_surface": {
+      "changed_test_files": 23,
+      "included_by_package_script": 23,
+      "missing": []
+    }
+  },
+  "mandatory_lenses": {
+    "regression_guard": {
+      "status": "pass",
+      "evidence": "current GitHub contract run executes the tenant production provisioning package suite; local strict receipt and explicit logs show 38/284"
+    },
+    "path_surface_coverage": {
+      "status": "pass",
+      "evidence": "all 23 changed test files are included by the current package script; current CI log reports 38 files and 296 tests"
+    }
+  },
+  "prior_finding_resolution": [
+    {
+      "finding_id": "gate-evidence-planning-provenance-not-in-tip",
+      "status": "resolved",
+      "resolution_refs": [
+        "66fc22a228804139af635fc2fa2966cad021b6ce:.vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-summary.json",
+        "66fc22a228804139af635fc2fa2966cad021b6ce:.vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-result-product_requirement.json",
+        "66fc22a228804139af635fc2fa2966cad021b6ce:.vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-result-architecture_boundary.json",
+        "66fc22a228804139af635fc2fa2966cad021b6ce:.vibepro/reviews/story-tenant-production-provisioning-control-plane/planning_spec/review-result-spec_consistency.json",
+        "66fc22a228804139af635fc2fa2966cad021b6ce:planning_spec/history/*",
+        "66fc22a228804139af635fc2fa2966cad021b6ce:planning_spec/reviewer-transcript-{product_requirement,architecture_boundary,spec_consistency}-pass-b97ab758.json"
+      ],
+      "judgment_delta": "Earlier pass records were ignored/dirty and absent from the ede0 tip; all three current pass result files, summary, history, and reviewer transcripts are now in the 66fc commit tree with verified_agent provenance. The reviewed b97 content surfaces are unchanged by the later artifact/control commits."
+    },
+    {
+      "finding_id": "gate-evidence-required-checks-unenforced",
+      "status": "resolved_with_documented_manual_control",
+      "resolution_refs": [
+        "66fc22a228804139af635fc2fa2966cad021b6ce:.vibepro/pr/story-tenant-production-provisioning-control-plane/merge-enforcement.json",
+        "PR #1260 headRefOid 66fc22a228804139af635fc2fa2966cad021b6ce",
+        "workflow run 32222480840 contract job 95975484894",
+        "gh pr checks 1260 --required: no required checks reported (documented plan limitation)"
+      ],
+      "judgment_delta": "GitHub still cannot report required checks, but the committed orchestrator-exact-head-gate-v1 policy explicitly blocks until all review roles pass, requires exact PR head equality and all four named checks SUCCESS, and supplies --match-head-commit merge control. The four named checks are SUCCESS on the exact current tip, so the prior finding is resolved for this documented manual-control boundary; platform enforcement is not claimed."
+    }
+  ],
+  "prior_record_preservation": {
+    "path": ".vibepro/reviews/story-tenant-production-provisioning-control-plane/gate/review-result-gate_evidence.json",
+    "recorded_status": "needs_changes",
+    "recorded_head": "ede0d54b6b72f9f4d9011b5c2ba0b12d09d6dfc5",
+    "interpretation": "The prior result remains unchanged as historical/coordinator evidence; this new transcript is an independent pass judgment for 66fc and does not overwrite it."
+  },
+  "production_evidence": {
+    "status": "missing/not_collected",
+    "production_db_migration": "not_collected",
+    "cloudflare_tunnel_access_worker_service_binding": "not_collected",
+    "mana_r1_to_r5": "not_collected",
+    "production_slack_brainbase_e2e": "not_collected",
+    "cutover": "not_collected",
+    "lightsail_stop": "not_collected",
+    "note": "This gate review does not claim complete production migration, deployment, E2E, cutover, or Lightsail shutdown."
+  },
+  "findings": [],
+  "judgment_delta": [
+    "gate-evidence-planning-provenance-not-in-tip resolved by committed current-tip review results, history, transcripts, and verified_agent provenance.",
+    "gate-evidence-required-checks-unenforced resolved for the documented manual exact-head control; GitHub required-check platform enforcement remains unavailable and is not represented as enabled.",
+    "Existing computed_counts=null, local/CI 284/296 and Cloudflare 13/25 differences remain explicitly bounded observations, not fabricated equivalence."
+  ],
+  "reviewer_provenance": {
+    "schema_version": "0.1.0",
+    "system": "codex",
+    "execution_mode": "parallel_subagent",
+    "agent_id": "/root/pr1260_gate_evidence_b97",
+    "agent_role": "gate_evidence",
+    "thread_id": "/root/pr1260_gate_evidence_b97",
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "high",
+    "implementation_session_id": "019ffe25-90ff-76f3-9efc-4b7c401c48a0",
+    "reviewer_identity": "separate_session",
+    "read_only": true,
+    "source_changes_made": false,
+    "existing_review_records_modified": false,
+    "commit_created": false,
+    "push_performed": false,
+    "pr_operation_performed": false,
+    "artifact_write_scope": "new reviewer transcript only",
+    "agent_closed": true,
+    "close_evidence": "subagent:/root/pr1260_gate_evidence_b97:final"
+  },
+  "close_evidence": "subagent:/root/pr1260_gate_evidence_b97:final",
+  "sha256": {
+    "scope": "SHA256 values below are read-only content hashes of committed HEAD blobs unless explicitly marked worktree.",
+    "transcript_self": null,
+    "artifacts": {
+      "head_binding": "fd5c00f47416eee17f86b663d1fd300db8c4f5e56935c7ddf5bd3fce58ff3ea8",
+      "merge_enforcement": "b9c185405975082060b967bb990d280cc847059fdd0f683671fe1db89e08812e",
+      "committed_pr_prepare": "8c2ca22f588db14a27dbdf0bff21308c6864aa2dca0c139231ab630de4c76b4d",
+      "worktree_pr_prepare": "c078f0f62742b7c82fce9ad1f831bc69e319f5a01240c23e0bb6440e86d7879f",
+      "verification_evidence": "76db5db35fcc826002e6c92d3a6008e511491e4a685918ba0d1fdacdae25d054",
+      "integration_json": "3c747be6d0364e1f71bb2c66c76778319349ad6a2283aacc20c5af30a9a52bbf",
+      "integration_log": "4b2660a869d4a33ffcfa62c487939713b68b5e3bca977f6bb9758dc70e050462",
+      "typecheck_json": "e8b7ab9bb28298aa32b635d87f090b0dc87bccf8434f4394822a75aed858b34b",
+      "build_json": "4ccab14bfeb9444d67e73c2b1c1bbcf4634a75775f61b962003fe18d00fb9b31",
+      "planning_summary": "ae131e293da4dc7734a3bb38d8df1a98d20bd3cb6faa3ae7622e038a95a06bf3",
+      "planning_product_result": "6f53863c0358fbd8f67fa5eae8b9660ff5201102cd71fe5ae292ed94b07f8b12",
+      "planning_architecture_result": "18a114b9fdc7004dd1b579f26fa925b0434b338d37be5344e909b6e1568ccd1f",
+      "planning_spec_result": "ea43b4120d93f268607d7e9f106c73532407e3af59224c10fcbc2feb9f52984f",
+      "planning_product_transcript": "d03b102d061cea2de9aff1acf83cc79b0fd97494442e7e81ca4231d5a8e8dd8c",
+      "planning_architecture_transcript": "56f2242e3e7b2d3a3b2f76205033c82bf57cd38a7b9d78f72ed62f49690a80ec",
+      "planning_spec_transcript": "5ada6276c8abfbddeab824343fc128f6c8c7cdf76dc4f0c491888688926ac31f",
+      "prior_gate_transcript": "637d684cb5c5b9faf061df8d2f7fd6a2fe8c9da962512ac1c381f92dea9f90f5"
+    }
+  },
+  "sha256_scope": "The transcript self hash is intentionally omitted because adding it would change the transcript bytes; compute the file SHA256 after writing for handoff."
+}
