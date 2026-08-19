@@ -91,7 +91,7 @@
     "sns:generation-context": "node scripts/build-sns-generation-context.js",
     "oyasumi:meeting-personal-kg": "node scripts/oyasumi-meeting-personal-kg.js",
     "oyasumi:meeting-personal-kg:all": "node scripts/oyasumi-meeting-personal-kg.js --all-repos",
-    "oyasumi:conversation-personal-kg": "node scripts/oyasumi-conversation-personal-kg.js",
+    "oyasumi:conversation-personal-kg": "node scripts/oyasumi-conversation-personal-kg-v2.js",
     "oyasumi:conversation-personal-kg:backlog": "node scripts/oyasumi-conversation-personal-kg-backlog.js",
     "personal-kg:review-projection": "node scripts/personal-kg-review-projection.js",
     "oyasumi:project-sns-ready": "node scripts/project-oyasumi-sns-ready.js",

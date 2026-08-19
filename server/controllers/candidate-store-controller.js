@@ -44,6 +44,14 @@ export class CandidateStoreController {
             });
         }
 
+        const personalAccess = req.personalKnowledgeAccess;
+        if (!personalAccess?.personId || !personalAccess?.organizationId) {
+            return res.status(403).json({ error: 'personal_knowledge_identity_required' });
+        }
+        if (typeof this.candidateRepository.transaction !== 'function') {
+            return res.status(503).json({ error: 'candidate_access_transaction_required' });
+        }
+
         const scope = req.body.scope || this.defaultScope;
         const { drafts, blocked } = dreamingPass([envelope], {
             scope,
@@ -52,13 +60,11 @@ export class CandidateStoreController {
 
         const candidateIds = [];
         const createErrors = [];
-        const personalAccess = req.personalKnowledgeAccess;
-
         const scopedDrafts = drafts.map((draft) => ({
             ...draft,
             owner_person_id: personalAccess.personId,
             organization_id: personalAccess.organizationId,
-            actor_person_id: personalAccess.actorPersonId,
+            actor_person_id: personalAccess.actorPersonId || personalAccess.personId,
             org_ids: [personalAccess.organizationId]
         }));
 
@@ -85,17 +91,18 @@ export class CandidateStoreController {
             }
         };
 
+        const allowedProjects = new Set(personalAccess.projectCodes || []);
+        const requestedProjects = [...new Set(scopedDrafts
+            .map((draft) => draft.project_code)
+            .filter(Boolean))];
+        if (allowedProjects.size > 0 && requestedProjects.some((project) => !allowedProjects.has(project))) {
+            return res.status(403).json({ error: 'personal_knowledge_project_access_denied' });
+        }
         const transactionAccess = {
             ...personalAccess,
-            projectCodes: [...new Set(scopedDrafts
-                .map((draft) => draft.project_code)
-                .filter(Boolean))]
+            projectCodes: requestedProjects
         };
-        if (typeof this.candidateRepository.transaction === 'function') {
-            await this.candidateRepository.transaction(persistDrafts, { access: transactionAccess });
-        } else {
-            await persistDrafts(this.candidateRepository);
-        }
+        await this.candidateRepository.transaction(persistDrafts, { access: transactionAccess });
 
         if (createErrors.length > 0 && candidateIds.length === 0) {
             return res.status(500).json({

@@ -1,7 +1,6 @@
 import { ReplyDraftServiceError } from './draft-generator.js';
 
 const DEFAULT_PROJECT_CODE = 'brainbase';
-const DEFAULT_OWNER_PERSON_ID = 'sato_keigo';
 const GRAPH_ENTITY_TYPES = 'person,org,project,customer,raci_assignment,decision';
 
 function compactText(value, max = 240) {
@@ -68,16 +67,15 @@ function summarizePersonalKg(records) {
 }
 
 export class ReplyDraftContextResolver {
-    constructor({ infoSSOTService, learningService, projectCode = DEFAULT_PROJECT_CODE, ownerPersonId = DEFAULT_OWNER_PERSON_ID } = {}) {
+    constructor({ infoSSOTService, learningService, projectCode = DEFAULT_PROJECT_CODE } = {}) {
         this.infoSSOTService = infoSSOTService;
         this.learningService = learningService;
         this.projectCode = projectCode;
-        this.ownerPersonId = ownerPersonId;
     }
 
     async resolve(request, access) {
         const graphContext = await this.resolveGraphContext(access);
-        const personalKg = await this.resolvePersonalKg(request);
+        const personalKg = await this.resolvePersonalKg(request, access);
         return {
             graph: graphContext,
             personalKg,
@@ -124,12 +122,19 @@ export class ReplyDraftContextResolver {
         }
     }
 
-    async resolvePersonalKg(request) {
+    async resolvePersonalKg(request, access) {
         if (!this.learningService?.searchPersonalKgCandidates) {
             throw new ReplyDraftServiceError('Personal KG resolver is not configured', {
                 code: 'context_unavailable',
                 status: 503,
                 details: { source: 'personal_kg' }
+            });
+        }
+        if (!access?.personId || !access?.organizationId) {
+            throw new ReplyDraftServiceError('Personal KG identity is required', {
+                code: 'context_unavailable',
+                status: 503,
+                details: { source: 'personal_kg', reason: 'personal_knowledge_identity_required' }
             });
         }
 
@@ -141,10 +146,11 @@ export class ReplyDraftContextResolver {
             for (const query of queries) {
                 results.push(await this.learningService.searchPersonalKgCandidates({
                     query,
-                    ownerPersonId: this.ownerPersonId,
+                    ownerPersonId: access.personId,
+                    organizationId: access.organizationId,
                     cognitiveTypes: ['observation', 'insight', 'claim', 'preference', 'hypothesis', 'result'],
                     limit: 5
-                }));
+                }, { access }));
             }
             const seen = new Set();
             return results.flat().filter((record) => {

@@ -18,6 +18,8 @@ describe('learning routes', () => {
             getPromotion: vi.fn(async () => ({ id: 'prm_1', pillar: 'wiki', status: 'evaluated' })),
             applyPromotion: vi.fn(async () => ({ success: true, candidate: { id: 'prm_1' } })),
             markPromotionRejected: vi.fn(async () => ({ success: true })),
+            createMemoryCandidate: vi.fn(async (payload) => ({ id: 'mem_created', ...payload })),
+            listMemoryCandidates: vi.fn(async () => []),
             searchPersonalKgCandidates: vi.fn(async () => [{
                 id: 'mem_1',
                 cognitive_type: 'claim',
@@ -26,6 +28,10 @@ describe('learning routes', () => {
                 source_system: 'test',
                 created_at: '2026-05-16T00:00:00.000Z'
             }]),
+            classifyMemoryCandidate: vi.fn(async () => ({ success: true, candidate: { id: 'mem_1' } })),
+            approveMemoryCandidate: vi.fn(async () => ({ success: true, candidate: { id: 'mem_1' } })),
+            rejectMemoryCandidate: vi.fn(async () => ({ success: true, candidate: { id: 'mem_1' } })),
+            expireMemoryCandidate: vi.fn(async () => ({ success: true, candidate: { id: 'mem_1' } })),
             promoteMemoryCandidateToGraph: vi.fn(async () => ({ success: true, entity: { id: 'mem_mem_1' } })),
             recordSkillUsage: vi.fn(async (payload) => ({ id: 'sul_1', ...payload })),
             listStaleSkills: vi.fn(async () => [{ skill_name: 'old', last_used_at: new Date(), uses: 1, stale_threshold_days: 90 }])
@@ -39,7 +45,9 @@ describe('learning routes', () => {
         app.use((req, _res, next) => {
             req.access = {
                 personId: 'person_authenticated',
-                organizationId: 'org_unson'
+                organizationId: 'org_unson',
+                actorPersonId: 'person_authenticated',
+                projectCodes: ['brainbase']
             };
             req.personalKnowledgeAccess = req.access;
             next();
@@ -90,6 +98,44 @@ describe('learning routes', () => {
         expect(service.getPromotion).toHaveBeenCalledWith('prm_1');
     });
 
+    it('POST /memory-candidates ignores identity claims and uses authenticated actor, owner, and organization', async () => {
+        const res = await request(app)
+            .post('/api/learning/memory-candidates')
+            .send({
+                cognitive_type: 'insight',
+                body: '再利用可能な判断',
+                source_system: 'test',
+                source_event_ids: ['event-1'],
+                visibility: 'owner',
+                sensitivity: 'internal',
+                owner_person_id: 'spoofed_owner',
+                organization_id: 'spoofed_org',
+                actor_person_id: 'spoofed_actor',
+                recommended_owner_person_id: 'spoofed_recommended_owner',
+                project_code: 'brainbase'
+            });
+
+        expect(res.status).toBe(201);
+        expect(service.createMemoryCandidate).toHaveBeenCalledWith(expect.objectContaining({
+            owner_person_id: 'person_authenticated',
+            organization_id: 'org_unson',
+            actor_person_id: 'person_authenticated',
+            recommended_owner_person_id: 'person_authenticated',
+            org_ids: ['org_unson'],
+            project_code: 'brainbase'
+        }), { access: expect.objectContaining({ personId: 'person_authenticated' }) });
+    });
+
+    it('rejects a Personal KG project outside authenticated scope', async () => {
+        const res = await request(app)
+            .post('/api/learning/memory-candidates')
+            .send({ project_code: 'other-project' });
+
+        expect(res.status).toBe(403);
+        expect(res.body.error).toBe('personal_knowledge_project_access_denied');
+        expect(service.createMemoryCandidate).not.toHaveBeenCalled();
+    });
+
     it('GET /memory-candidates/search forwards compound Personal KG query contract', async () => {
         const res = await request(app)
             .get('/api/learning/memory-candidates/search')
@@ -114,23 +160,26 @@ describe('learning routes', () => {
         }, { access: expect.objectContaining({ personId: 'person_authenticated' }) });
     });
 
-    it('GET /memory-candidates/search canonicalizes a configured owner alias for the query and RLS access', async () => {
+    it('GET /memory-candidates/search canonicalizes the matching person alias for query and RLS access', async () => {
         const aliasApp = express();
         aliasApp.use((req, _res, next) => {
             req.access = {
-                personId: 'per_active_graph_id',
-                organizationId: 'org_unson'
+                personId: 'per_graph_umeda',
+                organizationId: 'org_unson',
+                projectCodes: ['brainbase']
             };
             req.personalKnowledgeAccess = {
                 ...req.access,
-                actorPersonId: 'per_active_graph_id'
+                actorPersonId: 'per_graph_umeda'
             };
             next();
         });
         aliasApp.use('/api/learning', createLearningRouter(service, healthService, {
             env: {
-                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
-                BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS: 'per_active_graph_id'
+                BRAINBASE_PERSONAL_KG_OWNER_ALIASES_JSON: JSON.stringify({
+                    per_graph_sato: 'sato_keigo',
+                    per_graph_umeda: 'umeda_ryo'
+                })
             }
         }));
 
@@ -141,15 +190,15 @@ describe('learning routes', () => {
         expect(res.status).toBe(200);
         expect(service.searchPersonalKgCandidates).toHaveBeenCalledWith({
             query: '判断',
-            ownerPersonId: 'sato_keigo',
+            ownerPersonId: 'umeda_ryo',
             organizationId: 'org_unson',
             cognitiveTypes: null,
             limit: undefined
         }, {
             access: expect.objectContaining({
-                personId: 'sato_keigo',
+                personId: 'umeda_ryo',
                 organizationId: 'org_unson',
-                actorPersonId: 'per_active_graph_id'
+                actorPersonId: 'per_graph_umeda'
             })
         });
     });
@@ -158,9 +207,9 @@ describe('learning routes', () => {
         const repository = {
             transaction: vi.fn(async (work, { access }) => {
                 expect(access).toMatchObject({
-                    personId: 'sato_keigo',
+                    personId: 'umeda_ryo',
                     organizationId: 'org_unson',
-                    actorPersonId: 'per_active_graph_id'
+                    actorPersonId: 'per_graph_umeda'
                 });
                 return work(repository);
             }),
@@ -170,19 +219,19 @@ describe('learning routes', () => {
         const aliasApp = express();
         aliasApp.use((req, _res, next) => {
             req.access = {
-                personId: 'per_active_graph_id',
-                organizationId: 'org_unson'
+                personId: 'per_graph_umeda',
+                organizationId: 'org_unson',
+                projectCodes: ['brainbase']
             };
             req.personalKnowledgeAccess = {
                 ...req.access,
-                actorPersonId: 'per_active_graph_id'
+                actorPersonId: 'per_graph_umeda'
             };
             next();
         });
         aliasApp.use('/api/learning', createLearningRouter(actualService, healthService, {
             env: {
-                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
-                BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS: 'per_active_graph_id'
+                BRAINBASE_PERSONAL_KG_OWNER_ALIASES_JSON: JSON.stringify({ per_graph_umeda: 'umeda_ryo' })
             }
         }));
 
@@ -193,9 +242,27 @@ describe('learning routes', () => {
         expect(res.status).toBe(200);
         expect(repository.transaction).toHaveBeenCalledOnce();
         expect(repository.searchPersonalKg).toHaveBeenCalledWith(expect.objectContaining({
-            owner_person_id: 'sato_keigo',
+            owner_person_id: 'umeda_ryo',
             query: '判断'
         }));
+    });
+
+    it('owner decisions ignore spoofed actor and decision owner claims', async () => {
+        const res = await request(app)
+            .post('/api/learning/memory-candidates/mem_1/approve')
+            .send({
+                actor_person_id: 'spoofed_actor',
+                decision_owner_person_id: 'spoofed_owner',
+                reason: 'owner approved'
+            });
+
+        expect(res.status).toBe(200);
+        expect(service.approveMemoryCandidate).toHaveBeenCalledWith('mem_1', {
+            actor_person_id: 'person_authenticated',
+            decision_owner_person_id: 'person_authenticated',
+            reason: 'owner approved',
+            access: expect.objectContaining({ personId: 'person_authenticated' })
+        });
     });
 
     it('POST /memory-candidates/:id/promote-to-graph is fail-closed without an auth guard', async () => {
@@ -207,31 +274,28 @@ describe('learning routes', () => {
         expect(service.promoteMemoryCandidateToGraph).not.toHaveBeenCalled();
     });
 
-    it('POST /memory-candidates/:id/promote-to-graph uses the authenticated actor', async () => {
+    it('direct memory-candidate Graph promotion remains disabled after authentication', async () => {
         const authenticatedApp = express();
         authenticatedApp.use(express.json());
         authenticatedApp.use('/api/learning', createLearningRouter(service, healthService, {
             promoteToGraphAuthGuard: (req, _res, next) => {
                 req.auth = { sub: 'person_authenticated' };
-                req.access = { personId: 'person_authenticated' };
+                req.access = {
+                    personId: 'person_authenticated',
+                    organizationId: 'org_unson',
+                    projectCodes: ['brainbase']
+                };
                 next();
             }
         }));
 
         const res = await request(authenticatedApp)
             .post('/api/learning/memory-candidates/mem_1/promote-to-graph')
-            .send({
-                actor_person_id: 'spoofed_person',
-                decision_owner_person_id: 'spoofed_owner',
-                reason: 'approved'
-            });
+            .send({ reason: 'approved' });
 
-        expect(res.status).toBe(201);
-        expect(service.promoteMemoryCandidateToGraph).toHaveBeenCalledWith('mem_1', {
-            actor_person_id: 'person_authenticated',
-            access: { personId: 'person_authenticated' },
-            reason: 'approved'
-        });
+        expect(res.status).toBe(409);
+        expect(res.body.error).toBe('personal_knowledge_two_stage_promotion_required');
+        expect(service.promoteMemoryCandidateToGraph).not.toHaveBeenCalled();
     });
 
     it('story-knowledge-formalization-language:AC-001 POST /promotions/:id/apply preserves the existing promotion API path', async () => {
