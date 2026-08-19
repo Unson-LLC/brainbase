@@ -7,6 +7,7 @@ import {
 } from 'node:crypto';
 import { canonicalJson, deepFreeze } from './canonical-json.js';
 import { ContractError } from './errors.js';
+import { assertMigrationCandidateTargets } from './migration-planner.js';
 
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
@@ -66,6 +67,7 @@ export class MigrationPlanAttestor {
     }
 
     attest(plan) {
+        assertMigrationCandidateTargets(plan?.target_tenant_id, plan?.candidates);
         const payload = payloadBytes(plan);
         const digest = digestFor(payload);
         const signature = sign(null, payload, this.privateKey).toString('base64url');
@@ -81,6 +83,7 @@ export class MigrationPlanAttestor {
     }
 
     verify(plan) {
+        assertMigrationCandidateTargets(plan?.target_tenant_id, plan?.candidates);
         const attestation = plan?.attestation;
         if (!attestation || typeof attestation !== 'object' || Array.isArray(attestation)
             || Object.keys(attestation).length !== 4

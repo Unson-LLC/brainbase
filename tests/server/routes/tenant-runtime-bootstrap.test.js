@@ -282,7 +282,11 @@ describe('tenant runtime production wiring', () => {
                 counts: { scanned: 1, eligible: 1, ambiguous: 0, unowned: 0 },
                 collection_state: 'collected',
                 write_count: 0,
-                candidates: input.rows,
+                candidates: input.rows.map((row) => ({
+                    id: row.id,
+                    source_revision: row.revision ?? 1,
+                    recommended_tenant_id: row.candidates[0]
+                })),
                 quarantine: []
             }),
             apply: async (plan) => ({ ...plan, mode: 'apply', write_count: 1, applied_rows: [], quarantine: [] }),
@@ -397,6 +401,22 @@ describe('tenant runtime production wiring', () => {
         });
         expect(crossTenant.status).toBe(403);
         expect(crossTenant.body.code).toBe('CROSS_TENANT_CANDIDATE');
+
+        const crossTenantCandidate = await request(app).post('/api/v1/runtime/migrations:dry-run').set(headers).send({
+            tenant_context,
+            source_snapshot: 'sha256:snapshot-a',
+            mapping_rule_revision: 1,
+            rows: [{ id: 'source-a', revision: 1, candidates: ['ten_01ARZ3NDEKTSV4RRFFQ69G5FAW'] }]
+        });
+        expect(crossTenantCandidate.status).toBe(403);
+        expect(crossTenantCandidate.body).toMatchObject({
+            code: 'CROSS_TENANT_CANDIDATE',
+            details: {
+                audit_event: 'cross_tenant_candidate_denied'
+            }
+        });
+        expect(JSON.stringify(crossTenantCandidate.body)).not.toContain('ten_01ARZ3NDEKTSV4RRFFQ69G5FAW');
+        expect(JSON.stringify(crossTenantCandidate.body)).not.toContain(tenant.tenant_id);
     });
 
     it('service bootstrapからquota・UsageEvent・OperationReceipt・idempotency claimへ到達する', async () => {

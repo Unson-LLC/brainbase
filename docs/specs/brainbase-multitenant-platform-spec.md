@@ -479,7 +479,7 @@ consumerはevent中のtenantを信頼せず、service identity、deployment、re
 }
 ```
 
-dry-runは書込み0件で、対象ID、推奨tenant、根拠、ambiguityを出力する。Brainbaseは`attestation`を除くdry-run plan全体のcanonical JSONをSHA-256し、既存のtenant context用Ed25519鍵で署名する。applyは`mode=dry_run`、4項目だけのattestation schema、key ID、digest、署名を再検証し、candidate、source snapshot、mapping rule、件数、対象tenantのいずれかが変わったplanを403で拒否する。秘密鍵や署名入力はDB、ログ、応答へ保存しない。
+dry-runは書込み0件で、対象ID、推奨tenant、根拠、ambiguityを出力する。Brainbaseは`attestation`を除くdry-run plan全体のcanonical JSONをSHA-256し、既存のtenant context用Ed25519鍵で署名する。applyは`mode=dry_run`、4項目だけのattestation schema、key ID、digest、署名を再検証し、candidate、source snapshot、mapping rule、件数、対象tenantのいずれかが変わったplanを403で拒否する。秘密鍵・秘密鍵素材はDB、ログ、応答へ保存しない。非秘密のcanonical plan/result payloadはdigest検証、監査、rollback正本としてDB・応答に保存でき、ログへ出す場合はsecret-freeかつredactedにする。candidateの推奨tenantと対象tenantが一致しない場合は、plan生成・quarantine・ledger書込みより前に`CROSS_TENANT_CANDIDATE`でdenyし、tenant値を開示しないredactedな`audit_event=cross_tenant_candidate_denied`を拒否証跡として返す。
 
 runtimeのapply／rollbackは通常のservice authに加え、それぞれ`tenant_migration:apply`／`tenant_migration:rollback` capabilityを必須とする。applyは署名済みplanと`{approved:true, reason, approval_id}`だけを受理し、監査actorはrequest bodyから受け取らず、検証済みservice tokenの`subject`から決定する。apply済みplanのdigest、結果payload、actor、approval ID／理由／時刻を`tenant_migrations`へ同一transactionで保存する。
 

@@ -2,6 +2,7 @@ import express from 'express';
 import { negotiateProtocol, toProblem } from '../services/multitenant/protocol-contract.js';
 import { serializeVerificationKeys } from '../services/multitenant/tenant-context.js';
 import { ContractError } from '../services/multitenant/errors.js';
+import { assertMigrationCandidateTargets, assertMigrationRowCandidates } from '../services/multitenant/migration-planner.js';
 import { assertTrustedProviderForwardRequest } from '../services/multitenant/trusted-provider-forwarder.js';
 
 function asyncHandler(handler) {
@@ -204,6 +205,7 @@ function migrationDryRunInput(req) {
         || !Array.isArray(input.rows)) {
         throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
     }
+    assertMigrationRowCandidates(input.target_tenant_id, input.rows);
     return input;
 }
 
@@ -216,6 +218,7 @@ function migrationPlanInput(req, fields = []) {
         throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
     }
     assertMigrationTarget(req, input.plan.target_tenant_id);
+    assertMigrationCandidateTargets(input.plan.target_tenant_id, input.plan.candidates);
     return input;
 }
 

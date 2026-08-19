@@ -95,6 +95,74 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
         expect(result.rows[0].tenant_id).toBeNull();
     });
 
+    it('cross-tenant signed candidateはapply adapter境界でDB変更前にdeny_and_auditする', async () => {
+        const plan = await adapter.dryRun({
+            target_tenant_id: tenantA,
+            source_snapshot: 'sha256:snapshot-cross-tenant',
+            mapping_rule_revision: 1,
+            rows: [{ id: 'source-a', revision: 1, candidates: [tenantA] }]
+        });
+        const mismatched = structuredClone(plan);
+        mismatched.candidates[0].recommended_tenant_id = tenantB;
+
+        await expect(adapter.apply(mismatched, {
+            actor: 'svc_mana_runtime',
+            approval: {
+                approved: true,
+                reason: 'cross-tenant candidate must be denied',
+                approval_id: 'approval-cross-tenant-candidate'
+            }
+        })).rejects.toMatchObject({
+            code: 'CROSS_TENANT_CANDIDATE',
+            status: 403,
+            details: expect.objectContaining({
+                required_action: 'none',
+                audit_event: 'cross_tenant_candidate_denied'
+            })
+        });
+        expect((await pool.query(
+            'SELECT COUNT(*)::int AS count FROM tenant_migrations WHERE plan_digest = $1',
+            [plan.attestation.digest]
+        )).rows[0].count).toBe(0);
+        expect((await pool.query(
+            'SELECT tenant_id FROM tenant_migration_source_rows WHERE source_id = $1',
+            ['source-a']
+        )).rows[0].tenant_id).toBeNull();
+    });
+
+    it('legacy tenant_migrations audit columns欠損時はapplyをroute限定停止する', async () => {
+        const plan = await adapter.dryRun({
+            target_tenant_id: tenantA,
+            source_snapshot: 'sha256:snapshot-ledger-readiness',
+            mapping_rule_revision: 1,
+            rows: [{ id: 'source-a', revision: 1, candidates: [tenantA] }]
+        });
+        await pool.query('ALTER TABLE tenant_migrations DROP COLUMN plan_digest');
+        try {
+            await expect(adapter.apply(plan, {
+                actor: 'svc_mana_runtime',
+                approval: {
+                    approved: true,
+                    reason: 'ledger readiness must be verified',
+                    approval_id: 'approval-ledger-readiness'
+                }
+            })).rejects.toMatchObject({
+                code: 'MIGRATION_LEDGER_NOT_READY',
+                status: 503,
+                details: { required_action: 'migrate_tenant_migrations_ledger' }
+            });
+            expect((await pool.query(
+                'SELECT tenant_id FROM tenant_migration_source_rows WHERE source_id = $1',
+                ['source-a']
+            )).rows[0].tenant_id).toBeNull();
+        } finally {
+            await pool.query(`ALTER TABLE tenant_migrations
+                ADD COLUMN plan_digest TEXT NOT NULL,
+                ADD CONSTRAINT tenant_migrations_plan_digest_check
+                    CHECK (plan_digest ~ '^sha256:[a-f0-9]{64}$')`);
+        }
+    });
+
     it('apply・tenant isolation readback・rollbackを各transactionで完結させる', async () => {
         const dryRun = await adapter.dryRun({
             target_tenant_id: tenantA,
@@ -146,6 +214,31 @@ describe.sequential('AC-006 PostgreSQL migration adapter', () => {
                 approval_id: 'approval-rollback-rejected-input'
             }
         })).rejects.toMatchObject({ code: 'MIGRATION_PLAN_INVALID' });
+
+        await pool.query('ALTER TABLE tenant_migrations DROP COLUMN approved_at');
+        try {
+            await expect(adapter.rollback({
+                migration_id: applied.migration_id,
+                target_tenant_id: tenantA
+            }, {
+                actor: 'svc_mana_runtime',
+                approval: {
+                    approved: true,
+                    reason: 'rollback readiness must be verified',
+                    approval_id: 'approval-rollback-readiness'
+                }
+            })).rejects.toMatchObject({
+                code: 'MIGRATION_LEDGER_NOT_READY',
+                status: 503,
+                details: { required_action: 'migrate_tenant_migrations_ledger' }
+            });
+            expect(await adapter.readback({ tenant_id: tenantA, migration_id: applied.migration_id }))
+                .toMatchObject([{ source_id: 'source-a', tenant_id: tenantA }]);
+        } finally {
+            await pool.query('ALTER TABLE tenant_migrations ADD COLUMN approved_at TIMESTAMPTZ');
+            await pool.query('UPDATE tenant_migrations SET approved_at = created_at WHERE approved_at IS NULL');
+            await pool.query('ALTER TABLE tenant_migrations ALTER COLUMN approved_at SET NOT NULL');
+        }
 
         const rolledBack = await adapter.rollback({
             migration_id: applied.migration_id,

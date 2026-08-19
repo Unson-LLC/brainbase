@@ -58,4 +58,31 @@ describe('MigrationPlanAttestor', () => {
             status: 403
         }));
     });
+
+    it('signed planのcandidate target不一致を署名前後の両境界で拒否する', () => {
+        const { attestor, plan } = signedPlan();
+        const mismatched = structuredClone(plan);
+        mismatched.candidates[0].recommended_tenant_id = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAW';
+
+        expect(() => attestor.attest(mismatched)).toThrow(expect.objectContaining({
+            code: 'CROSS_TENANT_CANDIDATE',
+            status: 403,
+            details: expect.objectContaining({
+                required_action: 'none',
+                audit_event: 'cross_tenant_candidate_denied'
+            })
+        }));
+
+        const signed = attestor.attest(plan);
+        const tampered = structuredClone(signed);
+        tampered.candidates[0].recommended_tenant_id = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAW';
+        expect(() => attestor.verify(tampered)).toThrow(expect.objectContaining({
+            code: 'CROSS_TENANT_CANDIDATE',
+            status: 403,
+            details: expect.objectContaining({
+                required_action: 'none',
+                audit_event: 'cross_tenant_candidate_denied'
+            })
+        }));
+    });
 });

@@ -1,7 +1,20 @@
 import { canonicalJson, deepFreeze } from './canonical-json.js';
 import { ContractError } from './errors.js';
 import { generateCanonicalId } from './ids.js';
-import { TenantMigrationPlanner } from './migration-planner.js';
+import {
+    assertMigrationCandidateTargets,
+    assertMigrationRowCandidates,
+    TenantMigrationPlanner
+} from './migration-planner.js';
+
+const REQUIRED_MIGRATION_LEDGER_COLUMNS = Object.freeze([
+    'plan_digest',
+    'plan_payload',
+    'approved_by',
+    'approval_id',
+    'approval_reason',
+    'approved_at'
+]);
 
 function asMigrationError(error) {
     if (error instanceof ContractError) return error;
@@ -44,6 +57,41 @@ function assertMigrationId(value) {
     return value;
 }
 
+function migrationLedgerNotReady() {
+    throw new ContractError('MIGRATION_LEDGER_NOT_READY', {
+        status: 503,
+        fault_domain: 'brainbase_cloud',
+        details: { required_action: 'migrate_tenant_migrations_ledger' }
+    });
+}
+
+async function assertMigrationLedgerReady(client) {
+    const columns = await client.query(
+        `SELECT column_name, is_nullable
+           FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = 'tenant_migrations'
+            AND column_name = ANY($1::text[])`,
+        [REQUIRED_MIGRATION_LEDGER_COLUMNS]
+    );
+    const present = new Map(columns.rows.map((row) => [row.column_name, row.is_nullable]));
+    if (REQUIRED_MIGRATION_LEDGER_COLUMNS.some((column) => present.get(column) !== 'NO')) {
+        migrationLedgerNotReady();
+    }
+    const legacyRows = await client.query(
+        `SELECT 1
+           FROM tenant_migrations
+          WHERE plan_digest IS NULL
+             OR plan_payload IS NULL
+             OR approved_by IS NULL
+             OR approval_id IS NULL
+             OR approval_reason IS NULL
+             OR approved_at IS NULL
+          LIMIT 1`
+    );
+    if (legacyRows.rowCount > 0) migrationLedgerNotReady();
+}
+
 export class PostgresTenantMigrationAdapter {
     constructor({ pool, now = () => new Date(), planner = new TenantMigrationPlanner(), attestor } = {}) {
         if (!pool) throw new Error('Multitenant PostgreSQL pool is required');
@@ -78,7 +126,10 @@ export class PostgresTenantMigrationAdapter {
     }
 
     async dryRun(input) {
-        return this.attestor.attest(this.planner.dryRun(input));
+        assertMigrationRowCandidates(input?.target_tenant_id, input?.rows);
+        const plan = this.planner.dryRun(input);
+        assertMigrationCandidateTargets(plan.target_tenant_id, plan.candidates);
+        return this.attestor.attest(plan);
     }
 
     async apply(plan, {
@@ -87,9 +138,11 @@ export class PostgresTenantMigrationAdapter {
         approval
     } = {}) {
         if (plan?.mode !== 'dry_run') throw new ContractError('MIGRATION_PLAN_INVALID', { status: 400 });
+        assertMigrationCandidateTargets(plan.target_tenant_id, plan.candidates);
         this.attestor.verify(plan);
         const audit = assertApproval(actor, approval);
         return this.#transaction(plan.target_tenant_id, async (client) => {
+            await assertMigrationLedgerReady(client);
             const createdAt = this.now().toISOString();
             await client.query(
                 `INSERT INTO tenant_migrations (
@@ -220,6 +273,7 @@ export class PostgresTenantMigrationAdapter {
         const targetTenantId = assertMigrationId(input.target_tenant_id);
         const audit = assertApproval(actor, approval);
         return this.#transaction(targetTenantId, async (client) => {
+            await assertMigrationLedgerReady(client);
             const appliedResult = await client.query(
                 `SELECT migration_id, tenant_id, source_snapshot, mapping_rule_revision,
                         counts, plan_digest, plan_payload
