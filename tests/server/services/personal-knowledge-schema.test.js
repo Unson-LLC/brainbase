@@ -53,9 +53,27 @@ describe('personal and organization knowledge schema', () => {
         expect(sql).toMatch(/candidate_scan_blocks[\s\S]*organization_id TEXT NOT NULL/);
     });
 
-    it('registers the formal migration', () => {
+    it('separates owner consent from organization review and requires a distinct GM reviewer', () => {
+        const sql = read('server/sql/personal-knowledge-two-stage-promotion.sql');
+
+        expect(sql).toContain('owner_decided_by TEXT');
+        expect(sql).toContain('organization_reviewed_by TEXT');
+        expect(sql).toContain("'pending_owner_approval'");
+        expect(sql).toContain("'owner_rejected'");
+        expect(sql).toContain("'pending_org_review'");
+        expect(sql).toContain("'org_accepted'");
+        expect(sql).toContain("'org_rejected'");
+        expect(sql).toMatch(/pending_owner_approval'[\s\S]*pending_org_review/);
+        expect(sql).toMatch(/pending_org_review'[\s\S]*org_accepted[\s\S]*org_rejected/);
+        expect(sql).toMatch(/owner_person_id <> app_person_id_required\(\)/);
+        expect(sql).toMatch(/app_role_rank\(current_setting\('app.role', true\)\) >= app_role_rank\('gm'\)/);
+        expect(sql).toMatch(/status IN \('pending_org_review', 'org_accepted', 'org_rejected'\)/);
+    });
+
+    it('registers both Personal KG migrations under the same deployment unit', () => {
         const source = read('scripts/migrate-m5a-production-schema.js');
         expect(source).toContain("{ id: 'personal-knowledge', path: 'server/sql/personal-knowledge-schema.sql' }");
+        expect(source).toContain("{ id: 'personal-knowledge', path: 'server/sql/personal-knowledge-two-stage-promotion.sql' }");
     });
 
     it('does not rewrite immutable organization events when the migration is replayed', () => {

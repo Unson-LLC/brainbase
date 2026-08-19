@@ -1,6 +1,14 @@
 import { createHash } from 'node:crypto';
 
+import {
+    decideOwnerPromotionRequest,
+    listOrganizationPromotionReviews,
+    reviewOrganizationPromotionRequest
+} from './two-stage-promotion-repository.js';
+
 const SECRET_OR_PRIVATE = /(secret\s*=|password\s*=|api[_-]?key\s*=|\/Users\/|\/home\/|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i;
+const OWNER_DECISIONS = new Set(['approve', 'reject']);
+const ORGANIZATION_DECISIONS = new Set(['approve', 'reject']);
 
 function hash(value) {
     return createHash('sha256').update(String(value)).digest('hex');
@@ -8,7 +16,14 @@ function hash(value) {
 
 function sanitize(value) {
     const text = String(value || '').trim().slice(0, 2000);
-    if (!text || SECRET_OR_PRIVATE.test(text)) throw new Error('personal_knowledge_promotion_requires_safe_preview');
+    if (!text || SECRET_OR_PRIVATE.test(text)) throw promotionError('personal_knowledge_promotion_requires_safe_preview');
+    return text;
+}
+
+function sanitizeReason(value) {
+    if (value === undefined || value === null || value === '') return null;
+    const text = String(value).trim().slice(0, 500);
+    if (!text || SECRET_OR_PRIVATE.test(text)) throw promotionError('personal_knowledge_promotion_requires_safe_reason');
     return text;
 }
 
@@ -20,26 +35,71 @@ function sanitizeSubject(value, fallbackId) {
         || !id
         || id.length > 200
         || SECRET_OR_PRIVATE.test(id)) {
-        throw new Error('personal_knowledge_promotion_requires_safe_subject');
+        throw promotionError('personal_knowledge_promotion_requires_safe_subject');
     }
     return { type, id };
 }
 
+function promotionError(message, status = 400) {
+    const error = new Error(message);
+    error.status = status;
+    return error;
+}
+
+function requireAccess(access) {
+    if (!access?.personId || !access?.organizationId) {
+        throw promotionError('personal_knowledge_identity_required', 403);
+    }
+}
+
+function roleRank(role) {
+    return { member: 1, gm: 2, ceo: 3 }[String(role || '').toLowerCase()] || 0;
+}
+
+function requireProject(access, projectCode) {
+    const projectCodes = Array.isArray(access?.projectCodes) ? access.projectCodes : [];
+    if (!projectCode || !projectCodes.includes(projectCode)) {
+        throw promotionError('personal_knowledge_project_access_denied', 403);
+    }
+}
+
+function requireOwner(request, access) {
+    if (!request
+        || request.owner_person_id !== access?.personId
+        || request.organization_id !== access?.organizationId) {
+        throw promotionError('personal_knowledge_promotion_not_found', 404);
+    }
+}
+
+function requireOrganizationReviewer(request, access) {
+    if (!request || request.organization_id !== access?.organizationId) {
+        throw promotionError('personal_knowledge_promotion_not_found', 404);
+    }
+    requireProject(access, request.project_code);
+    if (roleRank(access.role) < roleRank('gm')) {
+        throw promotionError('personal_knowledge_organization_reviewer_required', 403);
+    }
+    if (request.owner_person_id === access.personId) {
+        throw promotionError('personal_knowledge_distinct_organization_reviewer_required', 403);
+    }
+}
+
 export class PersonalKnowledgePromotionService {
-    constructor({ repository, knowledgeEventService, now = () => new Date() }) {
+    constructor({ repository, knowledgeEventService = null, now = () => new Date() }) {
         this.repository = repository;
         this.knowledgeEventService = knowledgeEventService;
         this.now = now;
     }
 
     async requestPromotion(personalEventId, input, { access } = {}) {
+        requireAccess(access);
         const run = async ({ client } = {}) => {
             const options = { access, client };
             const event = await this.repository.findById(personalEventId, options);
-            if (!event || event.owner_person_id !== access?.personId || event.organization_id !== access?.organizationId) {
-                throw new Error('personal_knowledge_event_not_found');
+            if (!event || event.owner_person_id !== access.personId || event.organization_id !== access.organizationId) {
+                throw promotionError('personal_knowledge_event_not_found', 404);
             }
-            if (!access.projectCodes?.includes(input.project_code)) throw new Error('personal_knowledge_project_access_denied');
+            requireProject(access, input.project_code);
             const preview = sanitize(input.summary);
             const request = {
                 request_id: `kpr_${hash(`${personalEventId}:${input.project_code}:${preview}`).slice(0, 24)}`,
@@ -58,77 +118,84 @@ export class PersonalKnowledgePromotionService {
         return this.repository.transaction ? this.repository.transaction(run, { access }) : run();
     }
 
-    async decidePromotion(requestId, input, { access } = {}) {
+    async decideOwnerPromotion(requestId, input, { access } = {}) {
+        requireAccess(access);
+        if (!OWNER_DECISIONS.has(input?.decision)) {
+            throw promotionError('personal_knowledge_promotion_decision_invalid');
+        }
         const run = async ({ client } = {}) => {
             const options = { access, client };
             const request = await this.repository.findPromotionRequest(requestId, options);
-            if (!request || request.owner_person_id !== access?.personId || request.organization_id !== access?.organizationId) {
-                throw new Error('personal_knowledge_promotion_not_found');
+            requireOwner(request, access);
+
+            if (request.status === 'pending_org_review' && input.decision === 'approve') return request;
+            if (request.status === 'owner_rejected' && input.decision === 'reject') return request;
+            if (request.status !== 'pending_owner_approval') {
+                throw promotionError('personal_knowledge_promotion_already_decided', 409);
             }
-            if (!['approve', 'reject'].includes(input.decision)) throw new Error('personal_knowledge_promotion_decision_invalid');
-            const organizationEventId = `kev_prom_${hash(request.request_id).slice(0, 24)}`;
-            if (request.status === 'approved') {
-                if (input.decision !== 'approve') throw new Error('personal_knowledge_promotion_already_decided');
-                return request;
-            }
-            if (request.status === 'rejected') {
-                if (input.decision !== 'reject') throw new Error('personal_knowledge_promotion_already_decided');
-                return request;
-            }
-            if (input.decision === 'reject') {
-                return this.repository.decidePromotionRequest(requestId, { status: 'rejected', decided_at: this.now().toISOString() }, options);
-            }
-            const personalEvent = await this.repository.findById(request.personal_event_id, options);
-            if (!personalEvent) throw new Error('personal_knowledge_event_not_found');
-            const parentEpisodeId = personalEvent.parent_episode_id
-                || `episode_personal_promotion_${hash(request.personal_event_id).slice(0, 24)}`;
-            const requestedAuthority = input.decision_authority || {};
-            const decisionAuthority = request.subject.type === 'decision'
-                ? {
-                    ...requestedAuthority,
-                    authorized: requestedAuthority.authorized === true,
-                    decider_id: requestedAuthority.decider_id
-                        || requestedAuthority.actor_person_id
-                        || access.actorPersonId
-                        || access.personId,
-                    domain: requestedAuthority.domain || 'general'
-                }
-                : requestedAuthority;
-            const event = {
-                schema_version: 'knowledge_event.v1',
-                event_id: organizationEventId,
-                occurred_at: this.now().toISOString(), captured_at: this.now().toISOString(),
-                source: { type: 'personal_knowledge_promotion', request_id: requestId },
-                subject: request.subject,
-                decision: request.subject.type === 'decision'
-                    ? { statement: request.sanitized_preview }
-                    : undefined,
-                decision_authority: decisionAuthority,
-                applicability_scope: { scope: 'organization', organization_id: access.organizationId, project_code: request.project_code },
-                permission_snapshot: { owner_approved: true, approved_by: access.personId },
-                source_pointer: { uri: `brainbase://personal-knowledge/promotions/${requestId}` },
-                body_hash: request.body_hash,
-                body: request.sanitized_preview,
-                parent_episode_id: parentEpisodeId,
-                organization_id: access.organizationId,
-                project_code: request.project_code,
-                sensitivity: 'internal', role_min: 'member', venue: 'personal_promotion'
-            };
-            await this.knowledgeEventService.ingest(event, options);
-            await this.repository.decidePromotionRequest(requestId, {
-                status: 'approved', organization_event_id: organizationEventId, decided_at: this.now().toISOString()
+
+            const decidedAt = this.now().toISOString();
+            const status = input.decision === 'approve' ? 'pending_org_review' : 'owner_rejected';
+            const updated = await decideOwnerPromotionRequest(this.repository, requestId, {
+                status,
+                decided_at: decidedAt
             }, options);
-            await this.repository.createLineage({
-                lineage_id: `kpl_${hash(`${request.personal_event_id}:${organizationEventId}`).slice(0, 24)}`,
-                personal_event_id: request.personal_event_id,
-                organization_event_id: organizationEventId,
-                promotion_request_id: requestId,
-                owner_person_id: access.personId,
-                organization_id: access.organizationId,
-                sanitization: { raw_copied: false, body_hash: request.body_hash },
-                created_at: this.now().toISOString()
+            if (!updated) throw promotionError('personal_knowledge_promotion_state_conflict', 409);
+            return updated;
+        };
+        return this.repository.transaction ? this.repository.transaction(run, { access }) : run();
+    }
+
+    // Backward-compatible route name. Semantics are now owner consent only.
+    async decidePromotion(requestId, input, context = {}) {
+        return this.decideOwnerPromotion(requestId, input, context);
+    }
+
+    async listOrganizationReviews(input = {}, { access } = {}) {
+        requireAccess(access);
+        if (roleRank(access.role) < roleRank('gm')) {
+            throw promotionError('personal_knowledge_organization_reviewer_required', 403);
+        }
+        if (!Array.isArray(access.projectCodes) || access.projectCodes.length === 0) {
+            throw promotionError('personal_knowledge_project_access_denied', 403);
+        }
+        const run = async ({ client } = {}) => listOrganizationPromotionReviews(
+            this.repository,
+            { limit: input.limit },
+            { access, client }
+        );
+        return this.repository.transaction ? this.repository.transaction(run, { access }) : run();
+    }
+
+    async reviewOrganizationPromotion(requestId, input, { access } = {}) {
+        requireAccess(access);
+        if (!ORGANIZATION_DECISIONS.has(input?.decision)) {
+            throw promotionError('personal_knowledge_organization_decision_invalid');
+        }
+        const run = async ({ client } = {}) => {
+            const options = { access, client };
+            const request = await this.repository.findPromotionRequest(requestId, options);
+            requireOrganizationReviewer(request, access);
+
+            if (request.status === 'org_rejected' && input.decision === 'reject') return request;
+            if (request.status === 'org_accepted' && input.decision === 'approve') return request;
+            if (request.status !== 'pending_org_review') {
+                throw promotionError('personal_knowledge_promotion_already_decided', 409);
+            }
+
+            // M1-B deliberately cannot publish. M1-C adds the normalized Graph payload and
+            // is the only path that may turn an organization approval into org_accepted.
+            if (input.decision === 'approve') {
+                throw promotionError('personal_knowledge_normalized_payload_required', 409);
+            }
+
+            const updated = await reviewOrganizationPromotionRequest(this.repository, requestId, {
+                status: 'org_rejected',
+                reason: sanitizeReason(input.reason),
+                reviewed_at: this.now().toISOString()
             }, options);
-            return { ...request, status: 'approved', organization_event_id: organizationEventId };
+            if (!updated) throw promotionError('personal_knowledge_promotion_state_conflict', 409);
+            return updated;
         };
         return this.repository.transaction ? this.repository.transaction(run, { access }) : run();
     }
